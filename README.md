@@ -14,6 +14,9 @@ brew install elixir
 mix escript.install github sysread/fnord
 ```
 
+Use the same command to reinstall. It will offer to overwrite the existing
+installation.
+
 ## Usage
 
 ### Indexing
