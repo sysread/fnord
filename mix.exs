@@ -10,7 +10,15 @@ defmodule Fnord.MixProject do
       description: "Index and search your code base with OpenAI's embeddings API",
       package: package(),
       deps: deps(),
-      escript: escript()
+      escript: escript(),
+      docs: docs()
+    ]
+  end
+
+  defp docs do
+    [
+      main: "readme",
+      extras: ["README.md"]
     ]
   end
 
