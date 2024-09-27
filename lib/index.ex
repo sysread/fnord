@@ -1,8 +1,15 @@
 defmodule Index do
-  def run(app, root) do
+  defstruct [:store, :ai]
+
+  def run(root, project) do
+    idx = %Index{
+      store: Store.new(project),
+      ai: AI.new()
+    }
+
     Queue.start_link(4, fn file ->
       IO.write(".")
-      process_file(app, file)
+      process_file(idx, file)
       IO.write(".")
     end)
 
@@ -18,14 +25,14 @@ defmodule Index do
     IO.puts("done!")
   end
 
-  defp process_file(app, file) do
-    existing_hash = Store.get_hash(app.store, file)
+  defp process_file(idx, file) do
+    existing_hash = Store.get_hash(idx.store, file)
     file_hash = sha256(file)
 
     if is_nil(existing_hash) or existing_hash != file_hash do
       file_contents = File.read!(file)
 
-      {:ok, summary} = AI.get_summary(app.ai, file, file_contents)
+      {:ok, summary} = AI.get_summary(idx.ai, file, file_contents)
 
       to_embed = """
         # File
@@ -40,9 +47,9 @@ defmodule Index do
         ```
       """
 
-      {:ok, embeddings} = AI.get_embeddings(app.ai, to_embed)
+      {:ok, embeddings} = AI.get_embeddings(idx.ai, to_embed)
 
-      Store.put(app.store, file, file_hash, summary, embeddings)
+      Store.put(idx.store, file, file_hash, summary, embeddings)
     end
   end
 

@@ -1,19 +1,18 @@
 defmodule Store do
-  defstruct [:home, :project, :path]
+  defstruct [:project, :path]
 
-  def new(home, project) do
-    if not File.exists?(home) do
-      {:error, "directory '#{home}' does not exist"}
-    else
-      path = Path.join(home, project)
-      File.mkdir_p!(path)
+  @home "#{System.get_env("HOME")}/.fnord"
 
-      %Store{
-        home: home,
-        project: project,
-        path: path
-      }
-    end
+  def new(project) do
+    File.mkdir_p!(@home)
+
+    path = Path.join(@home, project)
+    File.mkdir_p!(path)
+
+    %Store{
+      project: project,
+      path: path
+    }
   end
 
   # Generates a unique key using the file's full file path.
@@ -27,11 +26,11 @@ defmodule Store do
   end
 
   def get_hash(store, file) do
-    path = get_entry_path(store, file)
-    hash_path = Path.join(path, "hash")
-
-    case File.read(hash_path) do
-      {:ok, hash} -> hash
+    get_entry_path(store, file)
+    |> Path.join("metadata.json")
+    |> File.read()
+    |> case do
+      {:ok, data} -> data |> Jason.decode!() |> Map.get("hash")
       _ -> nil
     end
   end
@@ -69,30 +68,42 @@ defmodule Store do
     # Recreate the subject file dir under the project dir
     File.mkdir_p!(path)
 
-    # Write the hash to a separate file
-    hash_path = Path.join(path, "hash")
-    File.write!(hash_path, hash)
+    # Write the metadata to a separate file
+    metadata =
+      Jason.encode!(%{
+        file: Path.expand(file),
+        hash: hash,
+        timestamp: DateTime.utc_now()
+      })
+
+    Path.join(path, "metadata.json") |> File.write!(metadata)
 
     # Write the summary to a separate file
-    summary_path = Path.join(path, "summary")
-    File.write!(summary_path, summary)
+    Path.join(path, "summary") |> File.write!(summary)
 
     # Write each chunk of embeddings to separate files
     embeddings
     |> Enum.with_index()
     |> Enum.each(fn {embedding, chunk_no} ->
-      entry =
-        Jason.encode!(%{
-          file: file,
-          hash: hash,
-          embedding: embedding,
-          timestamp: DateTime.utc_now()
-        })
-
-      entry_path = Path.join(path, "embedding_#{chunk_no}.json")
-
-      File.write!(entry_path, entry)
+      entry = Jason.encode!(embedding)
+      Path.join(path, "embedding_#{chunk_no}.json") |> File.write!(entry)
     end)
+  end
+
+  def list_files(store) do
+    Path.wildcard(Path.join(store.path, "*"))
+    |> Enum.map(fn path ->
+      path
+      |> Path.join("metadata.json")
+      |> File.read!()
+      |> Jason.decode!()
+      |> Map.get("file")
+    end)
+  end
+
+  def list_projects() do
+    Path.wildcard(Path.join(@home, "*"))
+    |> Enum.map(fn path -> Path.basename(path) end)
   end
 
   # Computes the cosine similarity between two vectors

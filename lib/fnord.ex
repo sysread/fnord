@@ -1,29 +1,12 @@
 defmodule Fnord do
-  defstruct [:project, :store, :scanner, :ai]
-
-  @fnord_home "#{System.get_env("HOME")}/.fnord"
-  @storage_dir "#{@fnord_home}/storage"
-
   def main(args) do
-    with {:ok, subcommand, opts} <- parse_options(args),
-         :ok <- init_env() do
-      app = %Fnord{
-        project: opts.project,
-        store: Store.new(@storage_dir, opts.project),
-        ai: AI.new()
-      }
-
+    with {:ok, subcommand, opts} <- parse_options(args) do
       case subcommand do
-        :index -> Index.run(app, opts.directory)
-        :search -> Search.run(app, opts.query)
+        :index -> Index.run(opts.directory, opts.project)
+        :search -> Search.run(opts.project, opts.query)
+        :files -> Store.new(opts.project) |> Store.list_files() |> Enum.each(&IO.puts(&1))
+        :projects -> Store.list_projects() |> Enum.each(&IO.puts(&1))
       end
-    end
-  end
-
-  def init_env() do
-    with :ok <- File.mkdir_p!(@fnord_home),
-         :ok <- File.mkdir_p!(@storage_dir) do
-      :ok
     end
   end
 
@@ -38,7 +21,7 @@ defmodule Fnord do
 
     directory = [
       value_name: "DIR",
-      long: "--directory",
+      long: "--dir",
       short: "-d",
       help: "Directory to index",
       required: true
@@ -69,15 +52,13 @@ defmodule Fnord do
               project: project
             ]
           ],
-          list_projects: [
-            name: "list-projects",
+          projects: [
+            name: "projects",
             about: "List all projects",
-            options: [
-              project: project
-            ]
+            options: []
           ],
-          list_files: [
-            name: "list-files",
+          files: [
+            name: "files",
             about: "List files in a project",
             options: [
               project: project
