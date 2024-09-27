@@ -66,7 +66,7 @@ defmodule Fnord do
     parser =
       Optimus.new!(
         name: "fnord",
-        description: "intelligent code search",
+        description: "fnord - intelligent code index and search",
         version: "0.1.0",
         author: "Jeff Ober",
         about: "Index and search code files",
