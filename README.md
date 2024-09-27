@@ -14,7 +14,14 @@ brew install elixir
 # Debian-based
 sudo apt-get install elixir
 ```
-2. Install the script:
+
+2. Add the mix escript path to your shell's PATH:
+```bash
+echo 'export PATH="$HOME/.mix/escripts:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+3. Install the script:
 ```bash
 mix escript.install github sysread/fnord
 ```
