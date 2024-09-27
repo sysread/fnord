@@ -12,6 +12,8 @@ defmodule Fnord do
         :projects -> Store.list_projects() |> Enum.each(&IO.puts(&1))
         :torch -> Index.delete_project(opts.project)
       end
+    else
+      {:error, reason} -> IO.puts("Error: #{reason}")
     end
   end
 
@@ -67,8 +69,6 @@ defmodule Fnord do
       Optimus.new!(
         name: "fnord",
         description: "fnord - intelligent code index and search",
-        version: "0.1.0",
-        author: "Jeff Ober",
         about: "Index and search code files",
         allow_unknown_args: false,
         subcommands: [
@@ -117,13 +117,15 @@ defmodule Fnord do
         ]
       )
 
-    {[subcommand], result} = Optimus.parse!(parser, args)
+    with {[subcommand], result} <- Optimus.parse!(parser, args) do
+      options =
+        result.args
+        |> Map.merge(result.options)
+        |> Map.merge(result.flags)
 
-    options =
-      result.args
-      |> Map.merge(result.options)
-      |> Map.merge(result.flags)
-
-    {:ok, subcommand, options}
+      {:ok, subcommand, options}
+    else
+      _ -> {:error, "missing or unknown subcommand"}
+    end
   end
 end
