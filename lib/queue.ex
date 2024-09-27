@@ -1,128 +1,164 @@
 defmodule Queue do
   use GenServer
 
-  defstruct [:size, :supervisor, :callback, :current_tasks, :queue, :closed, :awaiting_completion]
+  @moduledoc """
+  A module that implements a process pool using a GenServer.
+  """
 
   # -----------------------------------------------------------------------------
   # Client API
   # -----------------------------------------------------------------------------
-  def new(size, callback) do
-    {:ok, supervisor} = Task.Supervisor.start_link(max_children: size)
+  @doc """
+  Starts the Queue with the given callback function and maximum number of workers.
+  """
+  def start_link(max_workers, callback) do
+    GenServer.start_link(__MODULE__, {callback, max_workers}, name: __MODULE__)
+  end
 
-    initial_state = %Queue{
-      size: size,
-      supervisor: supervisor,
+  @doc """
+  Adds a job to the queue and returns a Task.
+  """
+  def queue(args) do
+    task =
+      Task.async(fn ->
+        receive do
+          {:result, result} -> result
+        end
+      end)
+
+    GenServer.cast(__MODULE__, {:queue_job, args, task.pid})
+    task
+  end
+
+  @doc """
+  Shuts down the queue, preventing new jobs from being added.
+  """
+  def shutdown do
+    GenServer.cast(__MODULE__, :shutdown)
+  end
+
+  @doc """
+  Waits until the queue is empty and all workers have exited.
+  """
+  def join do
+    GenServer.call(__MODULE__, :join, :infinity)
+  end
+
+  @doc """
+  Queues an Enum of jobs, executes them, and returns the results in order.
+  """
+  def map(enum) do
+    tasks = Enum.map(enum, fn args -> queue(args) end)
+    Enum.map(tasks, fn task -> Task.await(task) end)
+  end
+
+  # -----------------------------------------------------------------------------
+  # Server Callbacks
+  # -----------------------------------------------------------------------------
+  def init({callback, max_workers}) do
+    state = %{
+      jobs: :queue.new(),
+      max_workers: max_workers,
       callback: callback,
-      current_tasks: 0,
-      queue: :queue.new(),
-      closed: false,
-      awaiting_completion: nil
+      workers: [],
+      shutdown: false,
+      waiting: []
     }
 
-    GenServer.start_link(__MODULE__, initial_state)
-  end
-
-  # Queue a task
-  def queue_task(pid, task) do
-    GenServer.cast(pid, {:queue_task, task})
-  end
-
-  # Close the queue and wait for it to drain
-  def close_and_wait(pid, timeout \\ :infinity) do
-    GenServer.call(pid, :close_and_wait, timeout)
-  end
-
-  # -----------------------------------------------------------------------------
-  # Server API (GenServer)
-  # -----------------------------------------------------------------------------
-  @impl true
-  def init(state) do
+    state = start_workers(state)
     {:ok, state}
   end
 
-  @impl true
-  def handle_cast({:queue_task, _task}, %{closed: true} = state) do
-    # If the queue is closed, we reject any new tasks
-    {:noreply, state}
+  def handle_cast({:queue_job, args, task_pid}, state) do
+    if state.shutdown do
+      send(task_pid, {:result, {:error, :queue_shutdown}})
+      {:noreply, state}
+    else
+      jobs = :queue.in({args, task_pid}, state.jobs)
+      {:noreply, %{state | jobs: jobs}}
+    end
   end
 
-  @impl true
-  def handle_cast({:queue_task, task}, state) do
-    # Add the task to the queue if the queue is not closed
-    new_queue = :queue.in(task, state.queue)
-    new_state = %{state | queue: new_queue}
-
-    # Try to dispatch tasks if workers are available
-    new_state = dispatch_tasks(new_state)
-
-    # Return the correct tuple for GenServer
-    {:noreply, new_state}
+  def handle_cast(:shutdown, state) do
+    {:noreply, %{state | shutdown: true}}
   end
 
-  @impl true
-  def handle_cast(:task_finished, state) do
-    # Decrement the count of running tasks
-    new_state = %{state | current_tasks: state.current_tasks - 1}
-
-    # Dispatch more tasks if available
-    {:noreply, dispatch_tasks(new_state)}
+  def handle_cast({:worker_exited, pid}, state) do
+    workers = List.delete(state.workers, pid)
+    state = %{state | workers: workers}
+    check_if_done(state)
   end
 
-  @impl true
-  def handle_info({:DOWN, _ref, :process, _pid, _reason}, state) do
-    # Decrement the count of running tasks
-    new_state = %{state | current_tasks: state.current_tasks - 1}
-
-    # Check if we need to notify someone awaiting task completion
-    if state.closed and new_state.current_tasks == 0 and :queue.is_empty(new_state.queue) do
-      if state.awaiting_completion do
-        GenServer.reply(state.awaiting_completion, :done)
+  def handle_call({:request_job, _worker_pid}, _from, state) do
+    if :queue.is_empty(state.jobs) do
+      if state.shutdown do
+        {:reply, :shutdown, state}
+      else
+        {:reply, :no_job, state}
       end
+    else
+      {{:value, {args, task_pid}}, jobs} = :queue.out(state.jobs)
+      state = %{state | jobs: jobs}
+      {:reply, {:job, {args, task_pid}}, state}
     end
-
-    {:noreply, dispatch_tasks(new_state)}
   end
 
-  # Handle closing the queue and waiting for it to drain
-  @impl true
-  def handle_call(:close_and_wait, from, state) do
-    if :queue.is_empty(state.queue) and state.current_tasks == 0 do
-      {:reply, :done, %{state | closed: true}}
+  def handle_call(:join, from, state) do
+    if :queue.is_empty(state.jobs) and state.shutdown and length(state.workers) == 0 do
+      {:reply, :ok, state}
     else
-      # Mark the queue as closed and remember who's waiting
-      new_state = %{state | closed: true, awaiting_completion: from}
-
-      # Dispatch remaining tasks and return the updated state
-      new_state = dispatch_tasks(new_state)
-
-      # Correct return value for GenServer
-      {:noreply, new_state}
+      waiting = [from | state.waiting]
+      {:noreply, %{state | waiting: waiting}}
     end
   end
 
   # -----------------------------------------------------------------------------
-  # Private functions
+  # Helper Functions
   # -----------------------------------------------------------------------------
-  defp dispatch_tasks(state) do
-    if state.current_tasks < state.size and not :queue.is_empty(state.queue) do
-      {{:value, task}, new_queue} = :queue.out(state.queue)
+  defp start_workers(state) do
+    workers =
+      Enum.map(1..state.max_workers, fn _ ->
+        {:ok, pid} = Queue.Worker.start_link(self(), state.callback)
+        pid
+      end)
 
-      # Increment the count of running tasks and update the queue
-      new_state = %{state | current_tasks: state.current_tasks + 1, queue: new_queue}
+    %{state | workers: workers}
+  end
 
-      # Start the task asynchronously and monitor it
-      {:ok, pid} =
-        Task.Supervisor.start_child(state.supervisor, fn ->
-          state.callback.(task)
-        end)
-
-      # Monitor the task to receive :DOWN messages
-      Process.monitor(pid)
-
-      # Recursively try to dispatch more tasks and return the updated state
-      dispatch_tasks(new_state)
+  defp check_if_done(state) do
+    if state.shutdown and :queue.is_empty(state.jobs) and length(state.workers) == 0 do
+      Enum.each(state.waiting, fn from -> GenServer.reply(from, :ok) end)
+      {:noreply, %{state | waiting: []}}
     else
-      state
+      {:noreply, state}
+    end
+  end
+end
+
+defmodule Queue.Worker do
+  @moduledoc false
+
+  def start_link(queue_pid, callback) do
+    pid = spawn_link(__MODULE__, :loop, [queue_pid, callback])
+    {:ok, pid}
+  end
+
+  def loop(queue_pid, callback) do
+    job = GenServer.call(queue_pid, {:request_job, self()})
+
+    case job do
+      {:job, {args, task_pid}} ->
+        result = callback.(args)
+        send(task_pid, {:result, result})
+        loop(queue_pid, callback)
+
+      :no_job ->
+        :timer.sleep(100)
+        loop(queue_pid, callback)
+
+      :shutdown ->
+        GenServer.cast(queue_pid, {:worker_exited, self()})
+        :ok
     end
   end
 end

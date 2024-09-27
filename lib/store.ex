@@ -96,7 +96,7 @@ defmodule Store do
   end
 
   # Computes the cosine similarity between two vectors
-  defp cosine_similarity(vec1, vec2) do
+  def cosine_similarity(vec1, vec2) do
     dot_product = Enum.zip(vec1, vec2) |> Enum.reduce(0.0, fn {a, b}, acc -> acc + a * b end)
     magnitude1 = :math.sqrt(Enum.reduce(vec1, 0.0, fn x, acc -> acc + x * x end))
     magnitude2 = :math.sqrt(Enum.reduce(vec2, 0.0, fn x, acc -> acc + x * x end))

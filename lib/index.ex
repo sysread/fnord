@@ -1,19 +1,19 @@
 defmodule Index do
   def run(app, root) do
-    {:ok, pool} =
-      Queue.new(4, fn file ->
-        IO.write(".")
-        process_file(app, file)
-        IO.write(".")
-      end)
+    Queue.start_link(4, fn file ->
+      IO.write(".")
+      process_file(app, file)
+      IO.write(".")
+    end)
 
-    Scanner.scan(root, fn file -> Queue.queue_task(pool, file) end)
+    Scanner.scan(root, fn file -> Queue.queue(file) end)
     |> case do
       {:error, reason} -> IO.puts("Error: #{reason}")
       _ -> :ok
     end
 
-    Queue.close_and_wait(pool)
+    Queue.shutdown()
+    Queue.join()
 
     IO.puts("done!")
   end
