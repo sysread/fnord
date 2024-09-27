@@ -1,5 +1,5 @@
 defmodule Index do
-  def run(app) do
+  def run(app, root) do
     {:ok, pool} =
       Queue.new(4, fn file ->
         IO.write(".")
@@ -7,7 +7,7 @@ defmodule Index do
         IO.write(".")
       end)
 
-    Scanner.scan(app.root, fn file -> Queue.queue_task(pool, file) end)
+    Scanner.scan(root, fn file -> Queue.queue_task(pool, file) end)
     |> case do
       {:error, reason} -> IO.puts("Error: #{reason}")
       _ -> :ok
