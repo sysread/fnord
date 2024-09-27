@@ -40,7 +40,7 @@ jobs:
       - name: Check version in mix.exs
         id: version_check
         run: |
-          CURRENT_VERSION=$(mix run -e "IO.puts(Mix.Project.config()[:version])")
+          CURRENT_VERSION=$(mix app.version)
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_ENV
 
           # Fetch latest tag
