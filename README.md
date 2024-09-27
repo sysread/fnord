@@ -66,3 +66,10 @@ fnord search --project foo --query "some search query" --detail
 - **Delete a project:** `fnord delete --project foo`
 
 Note that deleting a project only deletes from the index, not the actual files.
+
+## TODO
+
+- Better error handling when generating an embedding or summary fails
+- Unit tests (*don't judge me*)
+- Optimize for use as a library
+    - Document APIs
