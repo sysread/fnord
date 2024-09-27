@@ -67,11 +67,14 @@ jobs:
           # Compile escript
           mix escript.build
 
-          # Create GitHub release
-          gh auth login --with-token <<< "$GITHUB_TOKEN"
+          # Log into GitHub CLI using GITHUB_TOKEN
+          echo "${GITHUB_TOKEN}" | gh auth login --with-token
+
+          # Create GitHub release using GITHUB_TOKEN directly
           gh release create "v$CURRENT_VERSION" \
             --title "Fnord v$CURRENT_VERSION" \
             --notes "Release notes here" \
+            --token "${GITHUB_TOKEN}" \
             "fnord"
 
   update_latest:
