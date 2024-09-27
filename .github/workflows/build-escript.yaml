@@ -1,0 +1,126 @@
+name: Fnord Escript Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  check_version_and_release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Elixir
+        uses: erlef/setup-elixir@v1
+        with:
+          elixir-version: '1.17'
+          otp-version: '27'
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Install GitHub CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git
+          type -p curl >/dev/null || sudo apt install curl -y
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | \
+            sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) \
+            signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] \
+            https://cli.github.com/packages stable main" | \
+            sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+          sudo apt update
+          sudo apt install gh -y
+
+      - name: Check version in mix.exs
+        id: version_check
+        run: |
+          CURRENT_VERSION=$(mix run -e "IO.puts(Mix.Project.config()[:version])")
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_ENV
+
+          # Fetch latest tag
+          LATEST_TAG=$(git tag --sort=-v:refname | head -n 1 | sed 's/^v//')
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_ENV
+
+          # Check if this is a version bump
+          if [ "$CURRENT_VERSION" != "$LATEST_TAG" ]; then
+            echo "version_bump=true" >> $GITHUB_ENV
+          else
+            echo "version_bump=false" >> $GITHUB_ENV
+          fi
+
+      - name: Tag and Release if Version Bumped
+        if: ${{ env.version_bump == 'true' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git tag -a "v$CURRENT_VERSION" -m "Release version $CURRENT_VERSION"
+          git push origin "v$CURRENT_VERSION"
+
+          # Compile escript
+          mix escript.build
+
+          # Create GitHub release
+          gh auth login --with-token <<< "$GITHUB_TOKEN"
+          gh release create "v$CURRENT_VERSION" \
+            --title "Fnord v$CURRENT_VERSION" \
+            --notes "Release notes here" \
+            "fnord"
+
+  update_latest:
+    runs-on: ubuntu-latest
+    needs: check_version_and_release
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Elixir
+        uses: erlef/setup-elixir@v1
+        with:
+          elixir-version: '1.14'
+          otp-version: '25'
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Install GitHub CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git
+          type -p curl >/dev/null || sudo apt install curl -y
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | \
+            sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) \
+            signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] \
+            https://cli.github.com/packages stable main" | \
+            sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+          sudo apt update
+          sudo apt install gh -y
+
+      - name: Compile escript
+        run: mix escript.build
+
+      - name: Upload to "latest" release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Check if "latest" release exists
+          set -e
+          gh auth login --with-token <<< "$GITHUB_TOKEN"
+          if gh release view "latest" > /dev/null 2>&1; then
+            echo "Updating existing 'latest' release."
+          else
+            echo "Creating new 'latest' release."
+            gh release create "latest" --title "Latest Fnord Release" --notes "Auto-updated latest release"
+          fi
+          # Upload the escript to the "latest" release
+          gh release upload "latest" "fnord" --clobber
+
