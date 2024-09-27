@@ -1,4 +1,8 @@
 defmodule Fnord do
+  @moduledoc """
+  Fnord is a code search tool that uses OpenAI's embeddings API to index and search code files.
+  """
+
   def main(args) do
     with {:ok, subcommand, opts} <- parse_options(args) do
       case subcommand do
@@ -11,8 +15,6 @@ defmodule Fnord do
   end
 
   def parse_options(args) do
-    version = Mix.Project.config()[:version]
-
     project = [
       value_name: "PROJECT",
       long: "--project",
@@ -65,7 +67,7 @@ defmodule Fnord do
       Optimus.new!(
         name: "fnord",
         description: "intelligent code search",
-        version: version,
+        version: "0.1.0",
         author: "Jeff Ober",
         about: "Index and search code files",
         allow_unknown_args: false,

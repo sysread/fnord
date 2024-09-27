@@ -23,9 +23,7 @@ defmodule Fnord.MixProject do
   end
 
   defp escript do
-    [
-      main_module: Fnord
-    ]
+    [main_module: Fnord]
   end
 
   # Run "mix help compile.app" to learn about applications.
