@@ -2,8 +2,8 @@ defmodule Fnord do
   def main(args) do
     with {:ok, subcommand, opts} <- parse_options(args) do
       case subcommand do
-        :index -> Index.run(opts.directory, opts.project)
-        :search -> Search.run(opts.project, opts.query)
+        :index -> Index.run(opts.directory, opts.project, opts.reindex)
+        :search -> Search.run(opts)
         :files -> Store.new(opts.project) |> Store.list_files() |> Enum.each(&IO.puts(&1))
         :projects -> Store.list_projects() |> Enum.each(&IO.puts(&1))
       end
@@ -27,12 +27,36 @@ defmodule Fnord do
       required: true
     ]
 
+    reindex = [
+      long: "--reindex",
+      short: "-r",
+      help: "Reindex the project",
+      default: false,
+      multiple: false
+    ]
+
     query = [
       value_name: "QUERY",
       long: "--query",
       short: "-q",
       help: "Search query",
       required: true
+    ]
+
+    limit = [
+      value_name: "LIMIT",
+      long: "--limit",
+      short: "-l",
+      help: "Limit the number of results",
+      default: 10
+    ]
+
+    with_summaries = [
+      long: "--with-summaries",
+      short: "-s",
+      help: "Include summaries",
+      default: false,
+      multiple: false
     ]
 
     parser =
@@ -44,14 +68,6 @@ defmodule Fnord do
         about: "Index and search code files",
         allow_unknown_args: false,
         subcommands: [
-          index: [
-            name: "index",
-            about: "Index the directory",
-            options: [
-              directory: directory,
-              project: project
-            ]
-          ],
           projects: [
             name: "projects",
             about: "List all projects",
@@ -64,19 +80,39 @@ defmodule Fnord do
               project: project
             ]
           ],
+          index: [
+            name: "index",
+            about: "Index the directory",
+            options: [
+              directory: directory,
+              project: project
+            ],
+            flags: [
+              reindex: reindex
+            ]
+          ],
           search: [
             name: "search",
             about: "Search in the project",
             options: [
               project: project,
-              query: query
+              query: query,
+              limit: limit
+            ],
+            flags: [
+              with_summaries: with_summaries
             ]
           ]
         ]
       )
 
-    {[subcommand], %{options: opts}} = Optimus.parse!(parser, args)
+    {[subcommand], result} = Optimus.parse!(parser, args)
 
-    {:ok, subcommand, opts}
+    options =
+      result.args
+      |> Map.merge(result.options)
+      |> Map.merge(result.flags)
+
+    {:ok, subcommand, options}
   end
 end

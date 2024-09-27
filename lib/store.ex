@@ -15,7 +15,10 @@ defmodule Store do
     }
   end
 
-  # Generates a unique key using the file's full file path.
+  def delete_project(store) do
+    File.rm_rf!(store.path)
+  end
+
   defp get_key(file_path) do
     full_path = Path.expand(file_path)
     :crypto.hash(:sha256, full_path) |> Base.encode16(case: :lower)
@@ -25,37 +28,60 @@ defmodule Store do
     Path.join(store.path, get_key(file_path))
   end
 
+  def info(store, file) do
+    with path = get_entry_path(store, file),
+         file = Path.join(path, "metadata.json"),
+         {:ok, data} <- File.read(file),
+         {:ok, meta} <- Jason.decode(data) do
+      {:ok, Map.put(meta, "fnord_path", path)}
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
   def get_hash(store, file) do
-    get_entry_path(store, file)
-    |> Path.join("metadata.json")
-    |> File.read()
+    Store.info(store, file)
     |> case do
-      {:ok, data} -> data |> Jason.decode!() |> Map.get("hash")
-      _ -> nil
+      {:ok, data} -> Map.get(data, "hash")
+      {:error, :not_found} -> {:error, :not_found}
+    end
+  end
+
+  def get_embeddings(store, file) do
+    with {:ok, meta} <- Store.info(store, file) do
+      path = Map.get(meta, "fnord_path")
+
+      embeddings =
+        Path.join(path, "embedding_*.json")
+        |> Path.wildcard()
+        |> Enum.map(&File.read!(&1))
+        |> Enum.map(&Jason.decode!(&1))
+
+      {:ok, embeddings}
+    else
+      {:error, :not_found} -> {:error, :not_found}
     end
   end
 
   def get(store, file) do
-    path = get_entry_path(store, file)
-
-    if File.exists?(path) do
+    with {:ok, meta} <- Store.info(store, file) do
+      path = Map.get(meta, "fnord_path")
       summary = Path.join(path, "summary") |> File.read!()
 
       embeddings =
         Path.join(path, "embedding_*.json")
         |> Path.wildcard()
         |> Enum.map(&File.read!(&1))
+        |> Enum.map(&Jason.decode!(&1))
 
-      {:ok,
-       %{
-         summary: summary,
-         embeddings: embeddings
-       }}
-    end
+      info =
+        meta
+        |> Map.put("summary", summary)
+        |> Map.put("embeddings", embeddings)
 
-    case File.read(path) do
-      {:ok, data} -> {:ok, Jason.decode!(data)}
-      error -> {:error, error}
+      {:ok, info}
+    else
+      {:error, :not_found} -> {:error, :not_found}
     end
   end
 

@@ -7,8 +7,21 @@ defmodule AI do
   @embedding_model "text-embedding-3-large"
   @summary_model "gpt-4o-mini"
   @summary_prompt """
-  You are a command line program that summarizes the content of a code file.
-  Respond ONLY with a markdown-formatted summary of the content.
+  You are a command line program that summarizes the content of a code file,
+  like an intelligent `ctags`.
+
+  Produce the following data from the input file:
+    - Synopsis
+    - Languages present in the file
+    - Business logic and behaviors
+    - List of symbols
+    - Map of calls to other modules
+
+  Restrict your analysis to only that which appears in this file. This is used
+  to generate a search index, and we want to avoid false positives from things
+  like imports.
+
+  Respond ONLY with your markdown-formatted summary.
   """
 
   def new() do
@@ -38,12 +51,7 @@ defmodule AI do
   end
 
   def get_summary(ai, file, text) do
-    input = """
-      # File name: #{file}
-      ```
-      #{text}
-      ```
-    """
+    input = "# File name: #{file}\n```\n#{text}\n```"
 
     # The model is limited to 128k tokens input, so, for now, we'll just
     # truncate the input if it's too long.

@@ -1,11 +1,15 @@
 defmodule Index do
   defstruct [:store, :ai]
 
-  def run(root, project) do
+  def run(root, project, force_reindex) do
     idx = %Index{
       store: Store.new(project),
       ai: AI.new()
     }
+
+    if force_reindex do
+      Store.delete_project(idx.store)
+    end
 
     Queue.start_link(4, fn file ->
       IO.write(".")
