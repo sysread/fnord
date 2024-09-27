@@ -40,7 +40,7 @@ jobs:
       - name: Check version in mix.exs
         id: version_check
         run: |
-          CURRENT_VERSION=$(mix app.version)
+          CURRENT_VERSION=$(grep -Eo 'version: "[^"]+"' mix.exs | sed 's/version: "\(.*\)"/\1/')
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_ENV
 
           # Fetch latest tag
