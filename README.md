@@ -6,13 +6,15 @@ other (non-binary) files.
 
 ## Installation
 
+1. Install `elixir` if necessary:
 ```bash
-# Elixir is required (obviously)
+# MacOS
 brew install elixir
 
-# Install the script
-mix escript.install github sysread/fnord
+# Debian-based
+sudo apt-get install elixir
 ```
+2. Install the script: `mix escript.install github sysread/fnord`
 
 Use the same command to reinstall. It will offer to overwrite the existing
 installation.
