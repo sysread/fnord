@@ -49,8 +49,8 @@ fnord search --project foo --query "some search query" --detail
 
 ### Miscellaneous
 
-- List projects: `fnord projects`
-- List files in a project: `fnord files --project foo`
-- Delete a project: `fnord delete --project foo`
+- **List projects:** `fnord projects`
+- **List files in a project:** `fnord files --project foo`
+- **Delete a project:** `fnord delete --project foo`
 
 Note that deleting a project only deletes from the index, not the actual files.
