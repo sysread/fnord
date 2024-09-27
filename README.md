@@ -73,3 +73,4 @@ Note that deleting a project only deletes from the index, not the actual files.
 - Unit tests (*don't judge me*)
 - Optimize for use as a library
     - Document APIs
+- Configurable concurrency limits (currently hard-coded at 4)
