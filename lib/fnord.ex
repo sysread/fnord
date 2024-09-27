@@ -11,6 +11,8 @@ defmodule Fnord do
   end
 
   def parse_options(args) do
+    version = Mix.Project.config()[:version]
+
     project = [
       value_name: "PROJECT",
       long: "--project",
@@ -63,7 +65,7 @@ defmodule Fnord do
       Optimus.new!(
         name: "fnord",
         description: "intelligent code search",
-        version: "1.0.0",
+        version: version,
         author: "Jeff Ober",
         about: "Index and search code files",
         allow_unknown_args: false,
