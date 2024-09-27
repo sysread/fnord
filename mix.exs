@@ -7,8 +7,24 @@ defmodule Fnord.MixProject do
       version: "0.1.0",
       elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
+      description: "Index and search your code base with OpenAI's embeddings API",
+      package: package(),
       deps: deps(),
-      escript: [main_module: Fnord]
+      escript: escript()
+    ]
+  end
+
+  defp package do
+    [
+      maintainers: ["Jeff Ober"],
+      licenses: ["MIT"],
+      links: %{"GitHub" => "https://github.com/sysread/fnord"}
+    ]
+  end
+
+  defp escript do
+    [
+      main_module: Fnord
     ]
   end
 
