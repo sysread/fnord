@@ -38,6 +38,7 @@ defmodule Fnord.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
       {:gpt3_tokenizer, "~> 0.1.0"},
       {:jason, "~> 1.4"},
       {:openai_ex, "~> 0.8.3"},
