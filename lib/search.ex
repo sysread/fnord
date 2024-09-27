@@ -3,7 +3,7 @@ defmodule Search do
     :project,
     :query,
     :limit,
-    :with_summaries,
+    :detail,
     :store
   ]
 
@@ -12,14 +12,14 @@ defmodule Search do
       project: project,
       query: query,
       limit: limit,
-      with_summaries: with_summaries
+      detail: detail
     } = opts
 
     search = %Search{
       project: project,
       query: query,
       limit: limit,
-      with_summaries: with_summaries,
+      detail: detail,
       store: Store.new(project)
     }
 
@@ -42,7 +42,7 @@ defmodule Search do
   end
 
   defp output_file(search, file, score, data) do
-    if search.with_summaries do
+    if search.detail do
       summary = Map.get(data, "summary")
 
       IO.puts("""
@@ -72,7 +72,7 @@ defmodule Search do
   end
 
   defp get_file_data(search, file) do
-    if search.with_summaries do
+    if search.detail do
       Store.get(search.store, file)
     else
       with {:ok, embeddings} <- Store.get_embeddings(search.store, file) do

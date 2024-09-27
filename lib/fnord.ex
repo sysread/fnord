@@ -55,10 +55,9 @@ defmodule Fnord do
       default: 10
     ]
 
-    with_summaries = [
-      long: "--with-summaries",
-      short: "-s",
-      help: "Include summaries",
+    detail = [
+      long: "--detail",
+      help: "Include AI-generated file summary",
       default: false,
       multiple: false
     ]
@@ -104,7 +103,7 @@ defmodule Fnord do
               limit: limit
             ],
             flags: [
-              with_summaries: with_summaries
+              detail: detail
             ]
           ]
         ]
