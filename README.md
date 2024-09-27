@@ -7,7 +7,7 @@ other (non-binary) files.
 ## Installation
 
 ```bash
-# Elixir is required
+# Elixir is required (obviously)
 brew install elixir
 
 # Install the script
@@ -46,3 +46,11 @@ If you want more detail about each file matched:
 ```bash
 fnord search --project foo --query "some search query" --detail
 ```
+
+### Miscellaneous
+
+- List projects: `fnord projects`
+- List files in a project: `fnord files --project foo`
+- Delete a project: `fnord delete --project foo`
+
+Note that deleting a project only deletes from the index, not the actual files.

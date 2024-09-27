@@ -10,6 +10,7 @@ defmodule Fnord do
         :search -> Search.run(opts)
         :files -> Store.new(opts.project) |> Store.list_files() |> Enum.each(&IO.puts(&1))
         :projects -> Store.list_projects() |> Enum.each(&IO.puts(&1))
+        :torch -> Index.delete_project(opts.project)
       end
     end
   end
@@ -79,6 +80,13 @@ defmodule Fnord do
           files: [
             name: "files",
             about: "List files in a project",
+            options: [
+              project: project
+            ]
+          ],
+          torch: [
+            name: "torch",
+            about: "Delete a previously indexed project from the database",
             options: [
               project: project
             ]

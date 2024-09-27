@@ -29,6 +29,11 @@ defmodule Index do
     IO.puts("done!")
   end
 
+  def delete_project(project) do
+    store = Store.new(project)
+    Store.delete_project(store)
+  end
+
   defp process_file(idx, file) do
     existing_hash = Store.get_hash(idx.store, file)
     file_hash = sha256(file)
