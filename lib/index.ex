@@ -41,24 +41,63 @@ defmodule Index do
     if is_nil(existing_hash) or existing_hash != file_hash do
       file_contents = File.read!(file)
 
-      {:ok, summary} = AI.get_summary(idx.ai, file, file_contents)
+      with {:ok, summary} <- get_summary(idx, file, file_contents),
+           {:ok, embeddings} <- get_embeddings(idx, file, summary, file_contents) do
+        Store.put(idx.store, file, file_hash, summary, embeddings)
+      else
+        {:error, reason} -> IO.puts("Error processing file: #{file} - #{reason}")
+      end
+    end
+  end
 
-      to_embed = """
-        # File
-        `#{file}`
+  defp get_summary(idx, file, file_contents, attempt \\ 0) do
+    AI.get_summary(idx.ai, file, file_contents)
+    |> case do
+      {:ok, summary} ->
+        {:ok, summary}
 
-        ## Summary
-        #{summary}
+      {:error, %OpenaiEx.Error{message: "Request timed out."}} ->
+        if attempt < 3 do
+          IO.puts("request to summarize file timed out, retrying (attempt #{attempt + 1}/3)")
+          get_summary(idx, file, file_contents, attempt + 1)
+        else
+          {:error, "request to summarize file timed out after 3 attempts"}
+        end
 
-        ## Contents
-        ```
-        #{file_contents}
-        ```
-      """
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
 
-      {:ok, embeddings} = AI.get_embeddings(idx.ai, to_embed)
+  defp get_embeddings(idx, file, summary, file_contents, attempt \\ 0) do
+    to_embed = """
+      # File
+      `#{file}`
 
-      Store.put(idx.store, file, file_hash, summary, embeddings)
+      ## Summary
+      #{summary}
+
+      ## Contents
+      ```
+      #{file_contents}
+      ```
+    """
+
+    AI.get_embeddings(idx.ai, to_embed)
+    |> case do
+      {:ok, embeddings} ->
+        {:ok, embeddings}
+
+      {:error, %OpenaiEx.Error{message: "Request timed out."}} ->
+        if attempt < 3 do
+          IO.puts("request to index file timed out, retrying (attempt #{attempt + 1}/3)")
+          get_embeddings(idx, file, summary, file_contents, attempt + 1)
+        else
+          {:error, "request to index file timed out after 3 attempts"}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 

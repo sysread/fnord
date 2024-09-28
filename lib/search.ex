@@ -29,8 +29,11 @@ defmodule Search do
     |> list_files()
     |> Enum.map(fn file ->
       with {:ok, data} <- get_file_data(search, file) do
-        score = get_score(needle, data)
-        {file, score, data}
+        get_score(needle, data)
+        |> case do
+          {:ok, score} -> {file, score, data}
+          {:error, :no_embeddings} -> nil
+        end
       else
         _ -> nil
       end
@@ -59,7 +62,10 @@ defmodule Search do
     data
     |> Map.get("embeddings", [])
     |> Enum.map(fn emb -> Store.cosine_similarity(needle, emb) end)
-    |> Enum.max()
+    |> case do
+      [] -> {:error, :no_embeddings}
+      scores -> {:ok, Enum.max(scores)}
+    end
   end
 
   defp get_query_embeddings(query) do
