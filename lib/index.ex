@@ -17,7 +17,9 @@ defmodule Index do
       IO.write(".")
     end)
 
-    Scanner.scan(root, fn file -> Queue.queue(file) end)
+    scanner = Scanner.new(root, fn file -> Queue.queue(file) end)
+
+    Scanner.scan(scanner)
     |> case do
       {:error, reason} -> IO.puts("Error: #{reason}")
       _ -> :ok

@@ -7,6 +7,9 @@ defmodule Scanner do
   defstruct [:root, :callback]
 
   def new(root, callback) do
+    # Ensure root is full, absolute path
+    root = Path.expand(root)
+
     %Scanner{
       root: root,
       callback: callback
@@ -14,7 +17,14 @@ defmodule Scanner do
   end
 
   # Recursive function to traverse directories
-  def scan(dir, callback) do
+  def scan(scanner, dir \\ nil) do
+    dir =
+      if is_nil(dir) do
+        scanner.root
+      else
+        dir
+      end
+
     if not File.exists?(dir) do
       {:error, "directory '#{dir}' does not exist"}
     else
@@ -26,14 +36,14 @@ defmodule Scanner do
           Enum.each(files, fn file ->
             full_path = Path.join(dir, file)
 
-            unless is_hidden_file?(full_path) or Git.is_ignored?(full_path) do
+            unless is_hidden_file?(full_path) or Git.is_ignored?(full_path, scanner.root) do
               case File.stat(full_path) do
                 {:ok, %File.Stat{type: :directory}} ->
-                  scan(full_path, callback)
+                  scan(scanner, full_path)
 
                 {:ok, %File.Stat{type: :regular, size: size}} when size > 0 ->
                   unless is_binary_file?(full_path) do
-                    callback.(full_path)
+                    scanner.callback.(full_path)
                   end
 
                 {:ok, _} ->

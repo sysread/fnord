@@ -69,10 +69,11 @@ Note that deleting a project only deletes from the index, not the actual files.
 
 ## TODO
 
-- Concurrent search
+- Queue.map uses configured callback; should accept callback instead
 - Unit tests (*don't judge me*)
 - Optimize for use as a library
     - Document APIs
 - Configurable concurrency limits (currently hard-coded at 4)
 - Daemon mode that watches for file changes and updates the index
 - Progress bar
+- When indexing a previously indexed project. delete files that no longer exist
