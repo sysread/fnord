@@ -1,12 +1,14 @@
 defmodule Store do
   defstruct [:project, :path]
 
-  @home "#{System.get_env("HOME")}/.fnord"
+  def home() do
+    "#{System.get_env("HOME")}/.fnord"
+  end
 
   def new(project) do
-    File.mkdir_p!(@home)
+    File.mkdir_p!(home())
 
-    path = Path.join(@home, project)
+    path = Path.join(home(), project)
     File.mkdir_p!(path)
 
     %Store{
@@ -146,7 +148,7 @@ defmodule Store do
   end
 
   def list_projects() do
-    Path.wildcard(Path.join(@home, "*"))
+    Path.wildcard(Path.join(home(), "*"))
     |> Enum.map(fn path -> Path.basename(path) end)
   end
 
