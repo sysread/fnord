@@ -1,5 +1,8 @@
 defmodule Index do
-  defstruct [:store, :ai]
+  defstruct [
+    :store,
+    :ai
+  ]
 
   def run(root, project, force_reindex) do
     idx = %Index{
@@ -8,7 +11,14 @@ defmodule Index do
     }
 
     if force_reindex do
+      # When --force-reindex is passed, delete the project completely and start
+      # from scratch.
+      IO.puts("Deleting all embeddings to force full reindexing of #{project}")
       Store.delete_project(idx.store)
+    else
+      # Otherwise, just delete any files that no longer exist.
+      IO.puts("Deleting missing files from #{project}")
+      Store.delete_missing_files(idx.store, root)
     end
 
     Queue.start_link(4, fn file ->
@@ -18,6 +28,8 @@ defmodule Index do
     end)
 
     scanner = Scanner.new(root, fn file -> Queue.queue(file) end)
+
+    IO.puts("Indexing files in #{root}")
 
     Scanner.scan(scanner)
     |> case do

@@ -19,6 +19,24 @@ defmodule Store do
     File.rm_rf!(store.path)
   end
 
+  def delete_file(store, file) do
+    path = get_entry_path(store, file)
+    File.rm_rf!(path)
+  end
+
+  def delete_missing_files(store, root) do
+    store
+    |> list_files()
+    |> Enum.each(fn file ->
+      cond do
+        !File.exists?(file) -> delete_file(store, file)
+        # There was a bug allowing git-ignored files to be indexed
+        Git.is_ignored?(file, root) -> delete_file(store, file)
+        true -> :ok
+      end
+    end)
+  end
+
   defp get_key(file_path) do
     full_path = Path.expand(file_path)
     :crypto.hash(:sha256, full_path) |> Base.encode16(case: :lower)
