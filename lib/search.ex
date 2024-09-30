@@ -25,25 +25,29 @@ defmodule Search do
 
     needle = get_query_embeddings(query)
 
-    Queue.start_link(8, fn file ->
-      with {:ok, data} <- get_file_data(search, file) do
-        get_score(needle, data)
-        |> case do
-          {:ok, score} -> {file, score, data}
-          {:error, :no_embeddings} -> nil
+    {:ok, queue} =
+      Queue.start_link(8, fn file ->
+        with {:ok, data} <- get_file_data(search, file) do
+          get_score(needle, data)
+          |> case do
+            {:ok, score} -> {file, score, data}
+            {:error, :no_embeddings} -> nil
+          end
+        else
+          _ -> nil
         end
-      else
-        _ -> nil
-      end
-    end)
+      end)
 
     search
     |> list_files()
-    |> Queue.map()
+    |> Queue.map(queue)
     |> Enum.reject(&is_nil/1)
     |> Enum.sort(fn {_, score1, _}, {_, score2, _} -> score1 >= score2 end)
     |> Enum.take(limit)
     |> Enum.each(fn {file, score, data} -> output_file(search, file, score, data) end)
+
+    Queue.shutdown(queue)
+    Queue.join(queue)
   end
 
   defp output_file(search, file, score, data) do

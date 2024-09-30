@@ -21,13 +21,14 @@ defmodule Index do
       Store.delete_missing_files(idx.store, root)
     end
 
-    Queue.start_link(4, fn file ->
-      IO.write(".")
-      process_file(idx, file)
-      IO.write(".")
-    end)
+    {:ok, queue} =
+      Queue.start_link(4, fn file ->
+        IO.write(".")
+        process_file(idx, file)
+        IO.write(".")
+      end)
 
-    scanner = Scanner.new(root, fn file -> Queue.queue(file) end)
+    scanner = Scanner.new(root, fn file -> Queue.queue(queue, file) end)
 
     IO.puts("Indexing files in #{root}")
 
@@ -37,8 +38,8 @@ defmodule Index do
       _ -> :ok
     end
 
-    Queue.shutdown()
-    Queue.join()
+    Queue.shutdown(queue)
+    Queue.join(queue)
 
     IO.puts("done!")
   end

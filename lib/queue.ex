@@ -10,15 +10,16 @@ defmodule Queue do
   # -----------------------------------------------------------------------------
   @doc """
   Starts the Queue with the given callback function and maximum number of workers.
+  Returns {:ok, pid}
   """
   def start_link(max_workers, callback) do
-    GenServer.start_link(__MODULE__, {callback, max_workers}, name: __MODULE__)
+    GenServer.start_link(__MODULE__, {callback, max_workers})
   end
 
   @doc """
   Adds a job to the queue and returns a Task.
   """
-  def queue(args) do
+  def queue(pid, args) do
     task =
       Task.async(fn ->
         receive do
@@ -26,29 +27,29 @@ defmodule Queue do
         end
       end)
 
-    GenServer.cast(__MODULE__, {:queue_job, args, task.pid})
+    GenServer.cast(pid, {:queue_job, args, task.pid})
     task
   end
 
   @doc """
   Shuts down the queue, preventing new jobs from being added.
   """
-  def shutdown do
-    GenServer.cast(__MODULE__, :shutdown)
+  def shutdown(pid) do
+    GenServer.cast(pid, :shutdown)
   end
 
   @doc """
   Waits until the queue is empty and all workers have exited.
   """
-  def join do
-    GenServer.call(__MODULE__, :join, :infinity)
+  def join(pid) do
+    GenServer.call(pid, :join, :infinity)
   end
 
   @doc """
   Queues an Enum of jobs, executes them, and returns the results in order.
   """
-  def map(enum) do
-    tasks = Enum.map(enum, fn args -> queue(args) end)
+  def map(enum, pid) do
+    tasks = Enum.map(enum, fn args -> queue(pid, args) end)
     Enum.map(tasks, fn task -> Task.await(task) end)
   end
 
@@ -161,4 +162,6 @@ defmodule Queue.Worker do
         :ok
     end
   end
+
+  164
 end
