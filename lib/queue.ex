@@ -49,8 +49,9 @@ defmodule Queue do
   Queues an Enum of jobs, executes them, and returns the results in order.
   """
   def map(enum, pid) do
-    tasks = Enum.map(enum, fn args -> queue(pid, args) end)
-    Enum.map(tasks, fn task -> Task.await(task) end)
+    enum
+    |> Enum.map(&queue(pid, &1))
+    |> Enum.map(&Task.await(&1))
   end
 
   # -----------------------------------------------------------------------------
