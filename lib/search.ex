@@ -25,9 +25,7 @@ defmodule Search do
 
     needle = get_query_embeddings(query)
 
-    search
-    |> list_files()
-    |> Enum.map(fn file ->
+    Queue.start_link(8, fn file ->
       with {:ok, data} <- get_file_data(search, file) do
         get_score(needle, data)
         |> case do
@@ -38,6 +36,10 @@ defmodule Search do
         _ -> nil
       end
     end)
+
+    search
+    |> list_files()
+    |> Queue.map()
     |> Enum.reject(&is_nil/1)
     |> Enum.sort(fn {_, score1, _}, {_, score2, _} -> score1 >= score2 end)
     |> Enum.take(limit)
@@ -82,7 +84,7 @@ defmodule Search do
       Store.get(search.store, file)
     else
       with {:ok, embeddings} <- Store.get_embeddings(search.store, file) do
-        {:ok, %{embeddings: embeddings}}
+        {:ok, %{"embeddings" => embeddings}}
       else
         {:error, _} -> {:error, :file}
       end
