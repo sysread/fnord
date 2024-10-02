@@ -6,7 +6,7 @@ defmodule Fnord do
   def main(args) do
     with {:ok, subcommand, opts} <- parse_options(args) do
       case subcommand do
-        :index -> Index.run(opts.directory, opts.project, opts.reindex)
+        :index -> Index.new(opts.project, opts.directory) |> Index.run(opts.reindex)
         :search -> Search.run(opts)
         :files -> Store.new(opts.project) |> Store.list_files() |> Enum.each(&IO.puts(&1))
         :projects -> Store.list_projects() |> Enum.each(&IO.puts(&1))

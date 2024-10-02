@@ -1,24 +1,34 @@
 defmodule Index do
   defstruct [
-    :store,
-    :ai
+    :project,
+    :root,
+    :ai_module,
+    :ai,
+    :store
   ]
 
-  def run(root, project, force_reindex) do
+  def new(project, root, ai_module \\ AI) do
     idx = %Index{
-      store: Store.new(project),
-      ai: AI.new()
+      project: project,
+      root: root,
+      ai_module: ai_module,
+      ai: ai_module.new(),
+      store: Store.new(project)
     }
 
+    idx
+  end
+
+  def run(idx, force_reindex \\ false) do
     if force_reindex do
       # When --force-reindex is passed, delete the project completely and start
       # from scratch.
-      IO.puts("Deleting all embeddings to force full reindexing of #{project}")
+      IO.puts("Deleting all embeddings to force full reindexing of #{idx.project}")
       Store.delete_project(idx.store)
     else
       # Otherwise, just delete any files that no longer exist.
-      IO.puts("Deleting missing files from #{project}")
-      Store.delete_missing_files(idx.store, root)
+      IO.puts("Deleting missing files from #{idx.project}")
+      Store.delete_missing_files(idx.store, idx.root)
     end
 
     {:ok, queue} =
@@ -28,15 +38,11 @@ defmodule Index do
         IO.write(".")
       end)
 
-    scanner = Scanner.new(root, fn file -> Queue.queue(queue, file) end)
+    scanner = Scanner.new(idx.root, fn file -> Queue.queue(queue, file) end)
 
-    IO.puts("Indexing files in #{root}")
+    IO.puts("Indexing files in #{idx.root}")
 
     Scanner.scan(scanner)
-    |> case do
-      {:error, reason} -> IO.puts("Error: #{reason}")
-      _ -> :ok
-    end
 
     Queue.shutdown(queue)
     Queue.join(queue)
@@ -66,7 +72,7 @@ defmodule Index do
   end
 
   defp get_summary(idx, file, file_contents, attempt \\ 0) do
-    AI.get_summary(idx.ai, file, file_contents)
+    idx.ai_module.get_summary(idx.ai, file, file_contents)
     |> case do
       {:ok, summary} ->
         {:ok, summary}
@@ -98,7 +104,7 @@ defmodule Index do
       ```
     """
 
-    AI.get_embeddings(idx.ai, to_embed)
+    idx.ai_module.get_embeddings(idx.ai, to_embed)
     |> case do
       {:ok, embeddings} ->
         {:ok, embeddings}

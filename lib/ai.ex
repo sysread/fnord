@@ -24,11 +24,19 @@ defmodule AI do
   Respond ONLY with your markdown-formatted summary.
   """
 
+  @callback new() :: struct()
+  @callback get_embeddings(struct(), String.t()) :: {:ok, [String.t()]} | {:error, term()}
+  @callback get_summary(struct(), String.t(), String.t()) :: {:ok, String.t()} | {:error, term()}
+
+  @behaviour AI
+
+  @impl AI
   def new() do
     openai = OpenaiEx.new(@api_key) |> OpenaiEx.with_receive_timeout(@api_timeout)
     %AI{client: openai}
   end
 
+  @impl AI
   def get_embeddings(ai, text) do
     embeddings =
       split_text(text, 8192)
@@ -50,6 +58,7 @@ defmodule AI do
     {:ok, embeddings}
   end
 
+  @impl AI
   def get_summary(ai, file, text) do
     input = "# File name: #{file}\n```\n#{text}\n```"
 
