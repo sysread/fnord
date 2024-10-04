@@ -67,6 +67,16 @@ defmodule Store do
     end
   end
 
+  def get_summary(store, file) do
+    with path = get_entry_path(store, file),
+         file = Path.join(path, "summary"),
+         {:ok, summary} <- File.read(file) do
+      {:ok, summary}
+    else
+      {:error, :not_found} -> {:error, :not_found}
+    end
+  end
+
   def get_embeddings(store, file) do
     with {:ok, meta} <- Store.info(store, file) do
       path = Map.get(meta, "fnord_path")
@@ -84,16 +94,9 @@ defmodule Store do
   end
 
   def get(store, file) do
-    with {:ok, meta} <- Store.info(store, file) do
-      path = Map.get(meta, "fnord_path")
-      summary = Path.join(path, "summary") |> File.read!()
-
-      embeddings =
-        Path.join(path, "embedding_*.json")
-        |> Path.wildcard()
-        |> Enum.map(&File.read!(&1))
-        |> Enum.map(&Jason.decode!(&1))
-
+    with {:ok, meta} <- Store.info(store, file),
+         {:ok, summary} <- get_summary(store, file),
+         {:ok, embeddings} <- get_embeddings(store, file) do
       info =
         meta
         |> Map.put("summary", summary)

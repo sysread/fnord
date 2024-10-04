@@ -10,6 +10,7 @@ defmodule Fnord do
         :search -> Search.run(opts)
         :files -> Store.new(opts.project) |> Store.list_files() |> Enum.each(&IO.puts(&1))
         :projects -> Store.list_projects() |> Enum.each(&IO.puts(&1))
+        :summary -> Summary.run(opts.project, opts.file)
         :torch -> Index.delete_project(opts.project)
       end
     else
@@ -65,6 +66,14 @@ defmodule Fnord do
       multiple: false
     ]
 
+    file = [
+      value_name: "FILE",
+      long: "--file",
+      short: "-f",
+      help: "File to summarize",
+      required: true
+    ]
+
     parser =
       Optimus.new!(
         name: "fnord",
@@ -112,6 +121,14 @@ defmodule Fnord do
             ],
             flags: [
               detail: detail
+            ]
+          ],
+          summary: [
+            name: "summary",
+            about: "Get a summary of a file from the project index",
+            options: [
+              project: project,
+              file: file
             ]
           ]
         ]
