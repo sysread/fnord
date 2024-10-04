@@ -7,19 +7,28 @@ defmodule AI do
   @embedding_model "text-embedding-3-large"
   @summary_model "gpt-4o-mini"
   @summary_prompt """
-  You are a command line program that summarizes the content of a code file,
-  like an intelligent `ctags`.
+  You are a command line program that summarizes the content of a file, whether
+  it is code or documentation, like an intelligent `ctags`.
 
-  Produce the following data from the input file:
-    - Synopsis
-    - Languages present in the file
-    - Business logic and behaviors
-    - List of symbols
-    - Map of calls to other modules
+  Based on the type of file you receive, produce the following data:
 
-  Restrict your analysis to only that which appears in this file. This is used
-  to generate a search index, and we want to avoid false positives from things
-  like imports.
+  ### For Code Files:
+    - **Synopsis**
+    - **Languages present in the file**
+    - **Business logic and behaviors**
+    - **List of symbols**
+    - **Map of calls to other modules**
+
+  ### For Documentation Files (e.g., README, Wiki Pages, General Documentation):
+    - **Synopsis**: A brief overview of what the document covers.
+    - **Topics and Sections**: A list of main topics or sections in the document.
+    - **Definitions and Key Terms**: Any specialized terms or jargon defined in the document.
+    - **Links and References**: Important links or references included in the document.
+    - **Key Points and Highlights**: Main points or takeaways from the document.
+
+  Restrict your analysis to only what appears in the file. This is used to
+  generate a search index, so we want to avoid false positives from external
+  sources.
 
   Respond ONLY with your markdown-formatted summary.
   """

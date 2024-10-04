@@ -69,6 +69,7 @@ Note that deleting a project only deletes from the index, not the actual files.
 
 ## TODO
 
+- `summary` command to retrieve ai-generated summary
 - Unit tests (*don't judge me*)
 - GHA to run unit tests
 - Optimize for use as a library
