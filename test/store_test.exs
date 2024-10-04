@@ -315,4 +315,21 @@ defmodule StoreTest do
     result = Store.info(store, file_path)
     assert result == {:error, :not_found}
   end
+
+  test "get_summary/2 retrieves summary for stored file", %{tmp_dir: tmp_dir} do
+    store = Store.new("test_project")
+
+    # Create a sample file
+    file_path = Path.join(tmp_dir, "file.txt")
+    File.write!(file_path, "Sample content")
+
+    hash = "somehash"
+    summary = "This is a summary."
+    embeddings = []
+
+    Store.put(store, file_path, hash, summary, embeddings)
+
+    {:ok, retrieved_summary} = Store.get_summary(store, file_path)
+    assert retrieved_summary == summary
+  end
 end
