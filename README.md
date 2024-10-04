@@ -63,6 +63,7 @@ fnord search --project foo --query "some search query" --detail
 
 - **List projects:** `fnord projects`
 - **List files in a project:** `fnord files --project foo`
+- **Show the AI-generated summary of a file:** `fnord summary --project foo --file bar`
 - **Delete a project:** `fnord delete --project foo`
 
 Note that deleting a project only deletes from the index, not the actual files.
