@@ -1,5 +1,7 @@
 # Fnord
 
+[![Run tests](https://github.com/sysread/fnord/actions/workflows/run-tests.yml/badge.svg)](https://github.com/sysread/fnord/actions/workflows/run-tests.yml)
+
 Fnord is a command line tool the builds a searchable database of your files,
 using AI-generated embeddings to index and search your code base, notes, and
 other (non-binary) files.
