@@ -1,4 +1,4 @@
-defmodule Index do
+defmodule Indexing do
   defstruct [
     :project,
     :root,
@@ -8,7 +8,7 @@ defmodule Index do
   ]
 
   def new(project, root, ai_module \\ AI) do
-    idx = %Index{
+    idx = %Indexing{
       project: project,
       root: root,
       ai_module: ai_module,

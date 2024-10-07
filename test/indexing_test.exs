@@ -1,4 +1,4 @@
-defmodule IndexTest do
+defmodule IndexingTest do
   use ExUnit.Case
 
   setup do
@@ -36,10 +36,10 @@ defmodule IndexTest do
     File.write!(Path.join(project_dir, ".gitignore"), "file2.txt")
 
     # Create an indexer for the project.
-    idx = Index.new("test_project", project_dir, MockAI)
+    idx = Indexing.new("test_project", project_dir, MockAI)
 
     # Run the indexing process.
-    Index.run(idx)
+    Indexing.run(idx)
 
     # Check that the files were indexed.
     assert File.dir?(Path.join(store_dir, "test_project"))

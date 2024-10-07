@@ -6,12 +6,12 @@ defmodule Fnord do
   def main(args) do
     with {:ok, subcommand, opts} <- parse_options(args) do
       case subcommand do
-        :index -> Index.new(opts.project, opts.directory) |> Index.run(opts.reindex)
+        :index -> Indexing.new(opts.project, opts.directory) |> Indexing.run(opts.reindex)
         :search -> Search.run(opts)
         :files -> Store.new(opts.project) |> Store.list_files() |> Enum.each(&IO.puts(&1))
         :projects -> Store.list_projects() |> Enum.each(&IO.puts(&1))
         :summary -> Summary.run(opts.project, opts.file)
-        :torch -> Index.delete_project(opts.project)
+        :torch -> Indexing.delete_project(opts.project)
       end
     else
       {:error, reason} -> IO.puts("Error: #{reason}")
