@@ -17,7 +17,7 @@ defmodule Fnord.MixProject do
 
   defp docs do
     [
-      main: "Fnord",
+      main: "readme",
       extras: ["README.md"],
       source_url: "https://github.com/sysread/fnord",
       homepage_url: "https://hex.pm/packages/fnord",
