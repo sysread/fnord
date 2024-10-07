@@ -1,24 +1,29 @@
 defmodule Fnord do
   @moduledoc """
-  Fnord is a code search tool that uses OpenAI's embeddings API to index and search code files.
+  Fnord is a code search tool that uses OpenAI's embeddings API to index and
+  search code files.
   """
 
+  @doc """
+  Main entry point for the application. Parses command line arguments and
+  dispatches to the appropriate subcommand.
+  """
   def main(args) do
     with {:ok, subcommand, opts} <- parse_options(args) do
       case subcommand do
-        :index -> Indexing.new(opts.project, opts.directory) |> Indexing.run(opts.reindex)
+        :index -> Indexer.new(opts.project, opts.directory) |> Indexer.run(opts.reindex)
         :search -> Search.run(opts)
         :files -> Store.new(opts.project) |> Store.list_files() |> Enum.each(&IO.puts(&1))
         :projects -> Store.list_projects() |> Enum.each(&IO.puts(&1))
         :summary -> Summary.run(opts.project, opts.file)
-        :torch -> Indexing.delete_project(opts.project)
+        :torch -> Indexer.delete_project(opts.project)
       end
     else
       {:error, reason} -> IO.puts("Error: #{reason}")
     end
   end
 
-  def parse_options(args) do
+  defp parse_options(args) do
     project = [
       value_name: "PROJECT",
       long: "--project",

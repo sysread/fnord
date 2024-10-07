@@ -1,4 +1,10 @@
 defmodule AI do
+  @moduledoc """
+  AI is a behavior module that defines the interface for interacting with
+  OpenAI's API. It provides a common interface for the various OpenAI-powered
+  operations used by the application.
+  """
+
   defstruct [:client]
 
   @api_key System.get_env("OPENAI_API_KEY")
@@ -40,12 +46,20 @@ defmodule AI do
   @behaviour AI
 
   @impl AI
+  @doc """
+  Create a new AI instance. Instances share the same client connection.
+  """
   def new() do
     openai = OpenaiEx.new(@api_key) |> OpenaiEx.with_receive_timeout(@api_timeout)
     %AI{client: openai}
   end
 
   @impl AI
+  @doc """
+  Get embeddings for the given text. The text is split into chunks of 8192
+  tokens to avoid exceeding the model's input limit. Returns a list of
+  embeddings for each chunk.
+  """
   def get_embeddings(ai, text) do
     embeddings =
       split_text(text, 8192)
@@ -68,6 +82,10 @@ defmodule AI do
   end
 
   @impl AI
+  @doc """
+  Get a summary of the given text. The text is truncated to 128k tokens to
+  avoid exceeding the model's input limit. Returns a summary of the text.
+  """
   def get_summary(ai, file, text) do
     input = "# File name: #{file}\n```\n#{text}\n```"
 

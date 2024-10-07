@@ -1,4 +1,9 @@
-defmodule Indexing do
+defmodule Indexer do
+  @moduledoc """
+  This module provides the functionality for the `index` and `delete`
+  sub-commands.
+  """
+
   defstruct [
     :project,
     :root,
@@ -7,8 +12,11 @@ defmodule Indexing do
     :store
   ]
 
+  @doc """
+  Create a new `Indexer` struct.
+  """
   def new(project, root, ai_module \\ AI) do
-    idx = %Indexing{
+    idx = %Indexer{
       project: project,
       root: root,
       ai_module: ai_module,
@@ -19,6 +27,10 @@ defmodule Indexing do
     idx
   end
 
+  @doc """
+  Run the indexing process using the given `Indexer` struct. If `force_reindex`
+  is `true`, the project will be deleted and reindexed from scratch.
+  """
   def run(idx, force_reindex \\ false) do
     if force_reindex do
       # When --force-reindex is passed, delete the project completely and start
@@ -50,6 +62,9 @@ defmodule Indexing do
     IO.puts("done!")
   end
 
+  @doc """
+  Permanently deletes the project from the store.
+  """
   def delete_project(project) do
     store = Store.new(project)
     Store.delete_project(store)

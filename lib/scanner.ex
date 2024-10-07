@@ -6,6 +6,9 @@ defmodule Scanner do
   """
   defstruct [:root, :callback]
 
+  @doc """
+  Create a new `Scanner` struct.
+  """
   def new(root, callback) do
     # Ensure root is full, absolute path
     root = Path.expand(root)
@@ -16,7 +19,9 @@ defmodule Scanner do
     }
   end
 
-  # Recursive function to traverse directories
+  @doc """
+  Recursively scan the directory and call the callback function for each file.
+  """
   def scan(scanner, dir \\ nil) do
     dir =
       if is_nil(dir) do

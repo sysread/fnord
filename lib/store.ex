@@ -1,10 +1,21 @@
 defmodule Store do
+  @moduledoc """
+  This module provides the functionality for storing and retrieving embeddings
+  and metadata for files.
+  """
+
   defstruct [:project, :path]
 
+  @doc """
+  Get the path to the store root directory.
+  """
   def home() do
     "#{System.get_env("HOME")}/.fnord"
   end
 
+  @doc """
+  Create a new `Store` struct.
+  """
   def new(project) do
     File.mkdir_p!(home())
 
@@ -17,15 +28,26 @@ defmodule Store do
     }
   end
 
+  @doc """
+  Permanently deletes the specified project's index directory and all its
+  contents.
+  """
   def delete_project(store) do
     File.rm_rf!(store.path)
   end
 
+  @doc """
+  Permanently deletes the specified file from the store. Note that this is
+  _only_ exposed for the sake of testing.
+  """
   def delete_file(store, file) do
     path = get_entry_path(store, file)
     File.rm_rf!(path)
   end
 
+  @doc """
+  Permanently delete any files that are indexed but no longer exist on disk.
+  """
   def delete_missing_files(store, root) do
     store
     |> list_files()
@@ -48,6 +70,20 @@ defmodule Store do
     Path.join(store.path, get_key(file_path))
   end
 
+  @doc """
+  Get the metadata for the specified file. Returns `{:ok, data}` if the file
+  exists, or `{:error, :not_found}` if it does not. The structure of the
+  metadata is as follows:
+
+  ```
+  %{
+    file: "path/to/file.ext",
+    hash: "DEADBEEF",
+    timestamp: "2021-01-01T00:00:00Z",
+    fnord_path: "path/to/store/FEEBDAED"
+  }
+  ```
+  """
   def info(store, file) do
     with path = get_entry_path(store, file),
          file = Path.join(path, "metadata.json"),
@@ -59,6 +95,10 @@ defmodule Store do
     end
   end
 
+  @doc """
+  Get the hash for the specified file. Returns `{:ok, hash}` if the file
+  exists, or `{:error, :not_found}` if it does not.
+  """
   def get_hash(store, file) do
     Store.info(store, file)
     |> case do
@@ -67,6 +107,10 @@ defmodule Store do
     end
   end
 
+  @doc """
+  Get the summary for the specified file. Returns `{:ok, summary}` if the file
+  exists, or `{:error, :not_found}` if it does not.
+  """
   def get_summary(store, file) do
     with path = get_entry_path(store, file),
          file = Path.join(path, "summary"),
@@ -77,6 +121,12 @@ defmodule Store do
     end
   end
 
+  @doc """
+  Get the embeddings for the specified file. Returns `{:ok, embeddings}` if the
+  file exists, or `{:error, :not_found}` if it does not. Note that if the input
+  file was greater than 8192 tokens, the embeddings will be split into multiple
+  chunks.
+  """
   def get_embeddings(store, file) do
     with {:ok, meta} <- Store.info(store, file) do
       path = Map.get(meta, "fnord_path")
@@ -93,6 +143,26 @@ defmodule Store do
     end
   end
 
+  @doc """
+  Get the metadata, summary, and embeddings for the specified file. Returns
+  `{:ok, info}` if the file exists, or `{:error, :not_found}` if it does not.
+
+  The structure of the returned `info` is as follows:
+
+  ```
+  %{
+    file: "path/to/file.ext",
+    hash: "DEADBEEF",
+    timestamp: "2021-01-01T00:00:00Z",
+    summary: "AI-generated summary of the file",
+    embeddings: [
+      [0.1, 0.2, 0.3, ...],
+      [0.4, 0.5, 0.6, ...],
+      ...
+    ]
+  }
+  ```
+  """
   def get(store, file) do
     with {:ok, meta} <- Store.info(store, file),
          {:ok, summary} <- get_summary(store, file),
@@ -108,6 +178,10 @@ defmodule Store do
     end
   end
 
+  @doc """
+  Store the metadata, summary, and embeddings for the specified file. If the
+  file already exists in the store, it will be overwritten.
+  """
   def put(store, file, hash, summary, embeddings) do
     path = get_entry_path(store, file)
 
@@ -139,6 +213,18 @@ defmodule Store do
     end)
   end
 
+  @doc """
+  List all projects in the store. Returns a list of project names.
+  """
+  def list_projects() do
+    Path.wildcard(Path.join(home(), "*"))
+    |> Enum.map(fn path -> Path.basename(path) end)
+  end
+
+  @doc """
+  List all indexed files in the project. Returns a list of absolute, expanded,
+  file paths.
+  """
   def list_files(store) do
     Path.wildcard(Path.join(store.path, "*"))
     |> Enum.map(fn path ->
@@ -148,11 +234,6 @@ defmodule Store do
       |> Jason.decode!()
       |> Map.get("file")
     end)
-  end
-
-  def list_projects() do
-    Path.wildcard(Path.join(home(), "*"))
-    |> Enum.map(fn path -> Path.basename(path) end)
   end
 
   # Computes the cosine similarity between two vectors
