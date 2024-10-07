@@ -72,11 +72,10 @@ Note that deleting a project only deletes from the index, not the actual files.
 
 ## TODO
 
-- ~Unit tests (*don't judge me*)~ Better test coverage (_still_ don't judge me)
+- Better test coverage (don't judge me)
 - Optimize for use as a library
     - Document APIs
 - Configurable concurrency limits (currently hard-coded at 4)
 - Daemon mode that watches for file changes and updates the index
     - Handle deleted files
 - Progress bar
-- Docs are not auto-publishing
