@@ -9,7 +9,8 @@ defmodule Search do
     :limit,
     :detail,
     :store,
-    :concurrency
+    :concurrency,
+    :ai_module
   ]
 
   @doc """
@@ -19,12 +20,13 @@ defmodule Search do
   Note that the query input is first sent to OpenAI's API to generate an
   embedding to match against the vector store.
   """
-  def run(opts) do
+  def run(opts, ai_module \\ AI) do
     %{
       project: project,
       query: query,
       limit: limit,
-      detail: detail
+      detail: detail,
+      concurrency: concurrency
     } = opts
 
     search = %Search{
@@ -32,13 +34,15 @@ defmodule Search do
       query: query,
       limit: limit,
       detail: detail,
-      store: Store.new(project)
+      store: Store.new(project),
+      concurrency: concurrency,
+      ai_module: ai_module
     }
 
-    needle = get_query_embeddings(query)
+    needle = get_query_embeddings(query, ai_module)
 
     {:ok, queue} =
-      Queue.start_link(opts.concurrency, fn file ->
+      Queue.start_link(concurrency, fn file ->
         with {:ok, data} <- get_file_data(search, file) do
           get_score(needle, data)
           |> case do
@@ -86,8 +90,8 @@ defmodule Search do
     end
   end
 
-  defp get_query_embeddings(query) do
-    {:ok, [needle]} = AI.get_embeddings(AI.new(), query)
+  defp get_query_embeddings(query, ai_module) do
+    {:ok, [needle]} = ai_module.get_embeddings(ai_module.new(), query)
     needle
   end
 
