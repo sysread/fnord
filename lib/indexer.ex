@@ -7,21 +7,28 @@ defmodule Indexer do
   defstruct [
     :project,
     :root,
+    :store,
+    :concurrency,
+    :reindex,
     :ai_module,
-    :ai,
-    :store
+    :ai
   ]
 
   @doc """
   Create a new `Indexer` struct.
   """
-  def new(project, root, ai_module \\ AI) do
+  def new(opts, ai_module \\ AI) do
+    concurrency = Map.get(opts, :concurrency, 1)
+    reindex = Map.get(opts, :reindex, false)
+
     idx = %Indexer{
-      project: project,
-      root: root,
+      project: opts.project,
+      root: opts.directory,
+      store: Store.new(opts.project),
+      concurrency: concurrency,
+      reindex: reindex,
       ai_module: ai_module,
-      ai: ai_module.new(),
-      store: Store.new(project)
+      ai: ai_module.new()
     }
 
     idx
@@ -31,12 +38,12 @@ defmodule Indexer do
   Run the indexing process using the given `Indexer` struct. If `force_reindex`
   is `true`, the project will be deleted and reindexed from scratch.
   """
-  def run(idx, force_reindex \\ false) do
-    if force_reindex do
+  def run(idx) do
+    if idx.reindex do
       # When --force-reindex is passed, delete the project completely and start
       # from scratch.
       IO.puts("Deleting all embeddings to force full reindexing of #{idx.project}")
-      Store.delete_project(idx.store)
+      Store.delete_project(idx)
     else
       # Otherwise, just delete any files that no longer exist.
       IO.puts("Deleting missing files from #{idx.project}")
@@ -44,7 +51,7 @@ defmodule Indexer do
     end
 
     {:ok, queue} =
-      Queue.start_link(4, fn file ->
+      Queue.start_link(idx.concurrency, fn file ->
         IO.write(".")
         process_file(idx, file)
         IO.write(".")
@@ -65,9 +72,8 @@ defmodule Indexer do
   @doc """
   Permanently deletes the project from the store.
   """
-  def delete_project(project) do
-    store = Store.new(project)
-    Store.delete_project(store)
+  def delete_project(idx) do
+    Store.delete_project(idx.store)
   end
 
   defp process_file(idx, file) do

@@ -6,10 +6,10 @@ defmodule Summary do
   @doc """
   Run the summary process using the given `project` and `file_path`.
   """
-  def run(project, file_path) do
+  def run(opts) do
     # Make sure that the file path is an absolute path
-    file_path = Path.absname(file_path)
-    store = Store.new(project)
+    file_path = Path.absname(opts.file)
+    store = Store.new(opts.project)
 
     with {:ok, summary} <- Store.get_summary(store, file_path) do
       IO.puts("# File: #{file_path}")

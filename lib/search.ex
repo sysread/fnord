@@ -8,7 +8,8 @@ defmodule Search do
     :query,
     :limit,
     :detail,
-    :store
+    :store,
+    :concurrency
   ]
 
   @doc """
@@ -37,7 +38,7 @@ defmodule Search do
     needle = get_query_embeddings(query)
 
     {:ok, queue} =
-      Queue.start_link(8, fn file ->
+      Queue.start_link(opts.concurrency, fn file ->
         with {:ok, data} <- get_file_data(search, file) do
           get_score(needle, data)
           |> case do

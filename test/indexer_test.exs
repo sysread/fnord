@@ -36,7 +36,14 @@ defmodule IndexerTest do
     File.write!(Path.join(project_dir, ".gitignore"), "file2.txt")
 
     # Create an indexer for the project.
-    idx = Indexer.new("test_project", project_dir, MockAI)
+    idx =
+      Indexer.new(
+        %{
+          project: "test_project",
+          directory: project_dir
+        },
+        MockAI
+      )
 
     # Run the indexing process.
     Indexer.run(idx)

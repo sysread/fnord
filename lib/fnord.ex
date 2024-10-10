@@ -11,12 +11,12 @@ defmodule Fnord do
   def main(args) do
     with {:ok, subcommand, opts} <- parse_options(args) do
       case subcommand do
-        :index -> Indexer.new(opts.project, opts.directory) |> Indexer.run(opts.reindex)
+        :index -> Indexer.new(opts) |> Indexer.run()
         :search -> Search.run(opts)
         :files -> Store.new(opts.project) |> Store.list_files() |> Enum.each(&IO.puts(&1))
         :projects -> Store.list_projects() |> Enum.each(&IO.puts(&1))
-        :summary -> Summary.run(opts.project, opts.file)
-        :torch -> Indexer.delete_project(opts.project)
+        :summary -> Summary.run(opts)
+        :torch -> Indexer.new(opts) |> Indexer.delete_project()
       end
     else
       {:error, reason} -> IO.puts("Error: #{reason}")
@@ -79,6 +79,14 @@ defmodule Fnord do
       required: true
     ]
 
+    concurrency = [
+      value_name: "CONCURRENCY",
+      long: "--concurrency",
+      short: "-c",
+      help: "Number of concurrent threads to use",
+      default: 4
+    ]
+
     parser =
       Optimus.new!(
         name: "fnord",
@@ -110,7 +118,8 @@ defmodule Fnord do
             about: "Index the directory",
             options: [
               directory: directory,
-              project: project
+              project: project,
+              concurrency: concurrency
             ],
             flags: [
               reindex: reindex
@@ -122,7 +131,8 @@ defmodule Fnord do
             options: [
               project: project,
               query: query,
-              limit: limit
+              limit: limit,
+              concurrency: concurrency
             ],
             flags: [
               detail: detail
