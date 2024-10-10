@@ -13,10 +13,10 @@ defmodule Fnord do
       case subcommand do
         :index -> Indexer.new(opts) |> Indexer.run()
         :search -> Search.run(opts)
-        :files -> Store.new(opts.project) |> Store.list_files() |> Enum.each(&IO.puts(&1))
-        :projects -> Store.list_projects() |> Enum.each(&IO.puts(&1))
         :summary -> Summary.run(opts)
         :torch -> Indexer.new(opts) |> Indexer.delete_project()
+        :projects -> Store.list_projects() |> Enum.each(&IO.puts(&1))
+        :files -> Store.new(opts.project) |> Store.list_files() |> Enum.each(&IO.puts(&1))
       end
     else
       {:error, reason} -> IO.puts("Error: #{reason}")
