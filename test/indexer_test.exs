@@ -42,7 +42,7 @@ defmodule IndexerTest do
           project: "test_project",
           directory: project_dir
         },
-        MockAI
+        MockAIForIndexer
       )
 
     # Run the indexing process.
@@ -63,14 +63,14 @@ defmodule IndexerTest do
   end
 end
 
-defmodule MockAI do
+defmodule MockAIForIndexer do
   defstruct []
 
   @behaviour AI
 
   @impl AI
   def new() do
-    %MockAI{}
+    %MockAIForIndexer{}
   end
 
   @impl AI

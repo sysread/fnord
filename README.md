@@ -72,8 +72,6 @@ Note that deleting a project only deletes from the index, not the actual files.
 
 ## TODO
 
-- Better test coverage (don't judge me)
-- Configurable concurrency limits (currently hard-coded at 4)
 - Daemon mode that watches for file changes and updates the index
     - Handle deleted files
 - Progress bar
