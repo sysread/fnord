@@ -227,9 +227,10 @@ defmodule Store do
   """
   def list_files(store) do
     Path.wildcard(Path.join(store.path, "*"))
+    |> Enum.map(fn path -> Path.join(path, "metadata.json") end)
+    |> Enum.filter(&File.exists?/1)
     |> Enum.map(fn path ->
       path
-      |> Path.join("metadata.json")
       |> File.read!()
       |> Jason.decode!()
       |> Map.get("file")
