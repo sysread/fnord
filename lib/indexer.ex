@@ -34,6 +34,19 @@ defmodule Indexer do
     idx
   end
 
+  defp spin(processing, ok, func) do
+    if System.get_env("FNORD_DISABLE_ANIMATION") == "true" do
+      Owl.Spinner.run(
+        fn -> func.() end,
+        labels: [processing: processing, ok: ok]
+      )
+    else
+      IO.puts(processing)
+      func.()
+      IO.puts(ok)
+    end
+  end
+
   @doc """
   Run the indexing process using the given `Indexer` struct. If `force_reindex`
   is `true`, the project will be deleted and reindexed from scratch.
@@ -42,29 +55,23 @@ defmodule Indexer do
     if idx.reindex do
       # When --force-reindex is passed, delete the project completely and start
       # from scratch.
-      Owl.Spinner.run(
-        fn ->
-          Store.delete_project(idx.store)
-        end,
-        labels: [
-          processing: "Deleting all embeddings to force full reindexing of #{idx.project}",
-          ok: "Deleted all embeddings to force full reindexing of #{idx.project}"
-        ]
+      spin(
+        "Deleting all embeddings to force full reindexing of #{idx.project}",
+        "Deleted all embeddings to force full reindexing of #{idx.project}",
+        fn -> Store.delete_project(idx.store) end
       )
     else
       # Otherwise, just delete any files that no longer exist.
-      Owl.Spinner.run(
-        fn ->
-          Store.delete_missing_files(idx.store, idx.root)
-        end,
-        labels: [
-          processing: "Deleting missing files from #{idx.project}",
-          ok: "Deleted missing files from #{idx.project}"
-        ]
+      spin(
+        "Deleting missing files from #{idx.project}",
+        "Deleted missing files from #{idx.project}",
+        fn -> Store.delete_missing_files(idx.store, idx.root) end
       )
     end
 
-    Owl.Spinner.run(
+    spin(
+      "Indexing files in #{idx.root}",
+      "Indexed files in #{idx.root}",
       fn ->
         {:ok, queue} =
           Queue.start_link(idx.concurrency, fn file ->
@@ -85,11 +92,7 @@ defmodule Indexer do
         Owl.LiveScreen.await_render()
 
         IO.puts("All tasks complete")
-      end,
-      labels: [
-        processing: "Indexing files in #{idx.root}",
-        ok: "Indexed files in #{idx.root}"
-      ]
+      end
     )
   end
 
