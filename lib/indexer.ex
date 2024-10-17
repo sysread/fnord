@@ -42,31 +42,55 @@ defmodule Indexer do
     if idx.reindex do
       # When --force-reindex is passed, delete the project completely and start
       # from scratch.
-      IO.puts("Deleting all embeddings to force full reindexing of #{idx.project}")
-      Store.delete_project(idx)
+      Owl.Spinner.run(
+        fn ->
+          Store.delete_project(idx.store)
+        end,
+        labels: [
+          processing: "Deleting all embeddings to force full reindexing of #{idx.project}",
+          ok: "Deleted all embeddings to force full reindexing of #{idx.project}"
+        ]
+      )
     else
       # Otherwise, just delete any files that no longer exist.
-      IO.puts("Deleting missing files from #{idx.project}")
-      Store.delete_missing_files(idx.store, idx.root)
+      Owl.Spinner.run(
+        fn ->
+          Store.delete_missing_files(idx.store, idx.root)
+        end,
+        labels: [
+          processing: "Deleting missing files from #{idx.project}",
+          ok: "Deleted missing files from #{idx.project}"
+        ]
+      )
     end
 
-    {:ok, queue} =
-      Queue.start_link(idx.concurrency, fn file ->
-        IO.write(".")
-        process_file(idx, file)
-        IO.write(".")
-      end)
+    Owl.Spinner.run(
+      fn ->
+        {:ok, queue} =
+          Queue.start_link(idx.concurrency, fn file ->
+            process_file(idx, file)
+            Owl.ProgressBar.inc(id: :indexing)
+          end)
 
-    scanner = Scanner.new(idx.root, fn file -> Queue.queue(queue, file) end)
+        scanner = Scanner.new(idx.root, fn file -> Queue.queue(queue, file) end)
+        num_files = Scanner.count_files(scanner)
 
-    IO.puts("Indexing files in #{idx.root}")
+        Owl.ProgressBar.start(id: :indexing, label: "Indexing", total: num_files + 1)
 
-    Scanner.scan(scanner)
+        Scanner.scan(scanner)
 
-    Queue.shutdown(queue)
-    Queue.join(queue)
+        Queue.shutdown(queue)
+        Queue.join(queue)
 
-    IO.puts("done!")
+        Owl.LiveScreen.await_render()
+
+        IO.puts("All tasks complete")
+      end,
+      labels: [
+        processing: "Indexing files in #{idx.root}",
+        ok: "Indexed files in #{idx.root}"
+      ]
+    )
   end
 
   @doc """

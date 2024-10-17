@@ -48,15 +48,22 @@ defmodule Store do
   @doc """
   Permanently delete any files that are indexed but no longer exist on disk.
   """
-  def delete_missing_files(store, root) do
+  def delete_missing_files(store, root, callback \\ fn -> nil end) do
     store
     |> list_files()
     |> Enum.each(fn file ->
       cond do
-        !File.exists?(file) -> delete_file(store, file)
+        !File.exists?(file) ->
+          delete_file(store, file)
+          callback.()
+
         # There was a bug allowing git-ignored files to be indexed
-        Git.is_ignored?(file, root) -> delete_file(store, file)
-        true -> :ok
+        Git.is_ignored?(file, root) ->
+          delete_file(store, file)
+          callback.()
+
+        true ->
+          :ok
       end
     end)
   end

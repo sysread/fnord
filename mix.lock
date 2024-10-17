@@ -17,5 +17,6 @@
   "nimble_pool": {:hex, :nimble_pool, "1.1.0", "bf9c29fbdcba3564a8b800d1eeb5a3c58f36e1e11d7b7fb2e084a643f645f06b", [:mix], [], "hexpm", "af2e4e6b34197db81f7aad230c1118eac993acc0dae6bc83bac0126d4ae0813a"},
   "openai_ex": {:hex, :openai_ex, "0.8.3", "082ca5270b5833714ef9c8095030fb8008636dff87517d952f9daf8b60351208", [:mix], [{:finch, "~> 0.18", [hex: :finch, repo: "hexpm", optional: false]}, {:jason, "~> 1.4", [hex: :jason, repo: "hexpm", optional: false]}, {:multipart, "~> 0.4", [hex: :multipart, repo: "hexpm", optional: false]}], "hexpm", "7048eb7565f7f25b35055c7bdceeeb11d5a97d05c76d80e2e6062f063a0541f9"},
   "optimus": {:hex, :optimus, "0.5.0", "7050c0ea7fc448605d77c30bcf34c582919ae2ac1a92116d6c2d404bec822931", [:mix], [], "hexpm", "acfc75b341952d5d1dde8e0550425ecd3b656dfefa1bb4f14aea10005936378a"},
+  "owl": {:hex, :owl, "0.12.0", "0c4b48f90797a7f5f09ebd67ba7ebdc20761c3ec9c7928dfcafcb6d3c2d25c99", [:mix], [{:ucwidth, "~> 0.2", [hex: :ucwidth, repo: "hexpm", optional: true]}], "hexpm", "241d85ae62824dd72f9b2e4a5ba4e69ebb9960089a3c68ce6c1ddf2073db3c15"},
   "telemetry": {:hex, :telemetry, "1.3.0", "fedebbae410d715cf8e7062c96a1ef32ec22e764197f70cda73d82778d61e7a2", [:rebar3], [], "hexpm", "7015fc8919dbe63764f4b4b87a95b7c0996bd539e0d499be6ec9d7f3875b79e6"},
 }

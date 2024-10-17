@@ -21,6 +21,20 @@ defmodule ScannerTest do
     {:ok, test_dir: test_dir}
   end
 
+  test "Scanner.count_files/1 counts only valid files", %{test_dir: test_dir} do
+    # Initialize the scanner
+    scanner = Scanner.new(test_dir, fn _ -> :ok end)
+
+    # Count the files
+    count = Scanner.count_files(scanner)
+
+    # Expected count of valid files
+    expected_count = 2
+
+    # Assert that the count matches the expected count
+    assert count == expected_count
+  end
+
   test "Scanner.scan/1 processes only valid files", %{test_dir: test_dir} do
     # Use a process dictionary to collect processed files
     Process.put(:processed_files, [])

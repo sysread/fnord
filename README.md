@@ -75,7 +75,3 @@ fnord search --project foo --query "some search query" --detail
 - **Delete a project:** `fnord delete --project foo`
 
 Note that deleting a project only deletes from the index, not the actual files.
-
-## TODO
-
-- Progress bar
