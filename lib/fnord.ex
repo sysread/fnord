@@ -17,6 +17,7 @@ defmodule Fnord do
         :torch -> Indexer.new(opts) |> Indexer.delete_project()
         :projects -> Store.list_projects() |> Enum.each(&IO.puts(&1))
         :files -> Store.new(opts.project) |> Store.list_files() |> Enum.each(&IO.puts(&1))
+        :watch -> Watch.run(opts)
       end
     else
       {:error, reason} -> IO.puts("Error: #{reason}")
@@ -93,6 +94,7 @@ defmodule Fnord do
         description: "fnord - intelligent code index and search",
         about: "Index and search code files",
         allow_unknown_args: false,
+        version: get_version(),
         subcommands: [
           projects: [
             name: "projects",
@@ -145,6 +147,14 @@ defmodule Fnord do
               project: project,
               file: file
             ]
+          ],
+          watch: [
+            name: "watch",
+            about: "Watch for changes in the project directory using Watchman",
+            options: [
+              directory: directory,
+              project: project
+            ]
           ]
         ]
       )
@@ -159,5 +169,10 @@ defmodule Fnord do
     else
       _ -> {:error, "missing or unknown subcommand"}
     end
+  end
+
+  defp get_version do
+    {:ok, vsn} = :application.get_key(:fnord, :vsn)
+    to_string(vsn)
   end
 end

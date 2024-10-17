@@ -49,6 +49,12 @@ You can **reindex** the project, forcing it to reindex all files:
 fnord index --project foo --dir /path/to/foo --reindex
 ```
 
+You can also watch the project for changes and reindex them as they happen:
+
+```bash
+fnord watch --project foo --dir /path/to/foo
+```
+
 ### Searching
 
 ```bash
@@ -72,6 +78,4 @@ Note that deleting a project only deletes from the index, not the actual files.
 
 ## TODO
 
-- Daemon mode that watches for file changes and updates the index
-    - Handle deleted files
 - Progress bar
