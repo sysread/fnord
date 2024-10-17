@@ -47,6 +47,24 @@ defmodule Indexer do
     end
   end
 
+  defp progress_bar_start(name, label, total) do
+    if System.get_env("FNORD_DISABLE_ANIMATION") != "true" do
+      Owl.ProgressBar.start(id: name, label: label, total: total)
+    end
+  end
+
+  defp progress_bar_end() do
+    if System.get_env("FNORD_DISABLE_ANIMATION") != "true" do
+      Owl.LiveScreen.await_render()
+    end
+  end
+
+  defp progress_bar_update(name) do
+    if System.get_env("FNORD_DISABLE_ANIMATION") != "true" do
+      Owl.ProgressBar.inc(id: name)
+    end
+  end
+
   @doc """
   Run the indexing process using the given `Indexer` struct. If `force_reindex`
   is `true`, the project will be deleted and reindexed from scratch.
@@ -76,20 +94,20 @@ defmodule Indexer do
         {:ok, queue} =
           Queue.start_link(idx.concurrency, fn file ->
             process_file(idx, file)
-            Owl.ProgressBar.inc(id: :indexing)
+            progress_bar_update(:indexing)
           end)
 
         scanner = Scanner.new(idx.root, fn file -> Queue.queue(queue, file) end)
         num_files = Scanner.count_files(scanner)
 
-        Owl.ProgressBar.start(id: :indexing, label: "Indexing", total: num_files + 1)
+        progress_bar_start(:indexing, "Indexing", num_files + 1)
 
         Scanner.scan(scanner)
 
         Queue.shutdown(queue)
         Queue.join(queue)
 
-        Owl.LiveScreen.await_render()
+        progress_bar_end()
 
         IO.puts("All tasks complete")
       end
