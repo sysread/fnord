@@ -36,14 +36,14 @@ defmodule Indexer do
 
   defp spin(processing, ok, func) do
     if System.get_env("FNORD_DISABLE_ANIMATION") == "true" do
+      IO.puts(processing)
+      func.()
+      IO.puts(ok)
+    else
       Owl.Spinner.run(
         fn -> func.() end,
         labels: [processing: processing, ok: ok]
       )
-    else
-      IO.puts(processing)
-      func.()
-      IO.puts(ok)
     end
   end
 

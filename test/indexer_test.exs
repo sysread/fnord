@@ -2,10 +2,6 @@ defmodule IndexerTest do
   use ExUnit.Case
 
   setup do
-    orig_value = System.get_env("FNORD_DISABLE_ANIMATION", "")
-    System.put_env("FNORD_DISABLE_ANIMATION", "true")
-    on_exit(fn -> System.put_env("FNORD_DISABLE_ANIMATION", orig_value) end)
-
     # Create a temp dir for our app to store data. 
     home_dir = mktempdir()
 
