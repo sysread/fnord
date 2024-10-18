@@ -38,7 +38,16 @@ defmodule SearchTest do
     File.write!(file3, "other content")
 
     # Index the files using the Indexer with MockAIForSearch
-    idx = Indexer.new(%{project: "test_project", directory: project_dir}, MockAIForSearch)
+    idx =
+      Indexer.new(
+        %{
+          project: "test_project",
+          directory: project_dir,
+          quiet: true
+        },
+        MockAIForSearch
+      )
+
     Indexer.run(idx)
 
     # Define search options

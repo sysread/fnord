@@ -49,6 +49,14 @@ defmodule Fnord do
       multiple: false
     ]
 
+    quiet = [
+      long: "--quiet",
+      short: "-q",
+      help: "Suppress informational output",
+      default: false,
+      multiple: false
+    ]
+
     query = [
       value_name: "QUERY",
       long: "--query",
@@ -121,7 +129,8 @@ defmodule Fnord do
             options: [
               directory: directory,
               project: project,
-              concurrency: concurrency
+              concurrency: concurrency,
+              quiet: quiet
             ],
             flags: [
               reindex: reindex

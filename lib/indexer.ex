@@ -11,7 +11,8 @@ defmodule Indexer do
     :concurrency,
     :reindex,
     :ai_module,
-    :ai
+    :ai,
+    :quiet
   ]
 
   @doc """
@@ -20,6 +21,7 @@ defmodule Indexer do
   def new(opts, ai_module \\ AI) do
     concurrency = Map.get(opts, :concurrency, 1)
     reindex = Map.get(opts, :reindex, false)
+    quiet = Map.get(opts, :quiet, false)
 
     idx = %Indexer{
       project: opts.project,
@@ -28,40 +30,42 @@ defmodule Indexer do
       concurrency: concurrency,
       reindex: reindex,
       ai_module: ai_module,
-      ai: ai_module.new()
+      ai: ai_module.new(),
+      quiet: quiet
     }
 
     idx
   end
 
-  defp spin(processing, ok, func) do
-    if System.get_env("FNORD_DISABLE_ANIMATION") == "true" do
-      IO.puts(processing)
+  defp spin(idx, processing, ok, func) do
+    if idx.quiet do
       func.()
-      IO.puts(ok)
     else
-      Owl.Spinner.run(
-        fn -> func.() end,
-        labels: [processing: processing, ok: ok]
-      )
+      Owl.Spinner.run(func, labels: [processing: processing, ok: ok])
     end
   end
 
-  defp progress_bar_start(name, label, total) do
-    if System.get_env("FNORD_DISABLE_ANIMATION") != "true" do
+  defp progress_bar_start(idx, name, label, total) do
+    if !idx.quiet do
       Owl.ProgressBar.start(id: name, label: label, total: total)
     end
   end
 
-  defp progress_bar_end() do
-    if System.get_env("FNORD_DISABLE_ANIMATION") != "true" do
+  defp progress_bar_end(idx) do
+    if !idx.quiet do
       Owl.LiveScreen.await_render()
     end
   end
 
-  defp progress_bar_update(name) do
-    if System.get_env("FNORD_DISABLE_ANIMATION") != "true" do
+  defp progress_bar_update(idx, name) do
+    if !idx.quiet do
       Owl.ProgressBar.inc(id: name)
+    end
+  end
+
+  defp info(idx, msg) do
+    if !idx.quiet do
+      IO.puts(msg)
     end
   end
 
@@ -74,6 +78,7 @@ defmodule Indexer do
       # When --force-reindex is passed, delete the project completely and start
       # from scratch.
       spin(
+        idx,
         "Deleting all embeddings to force full reindexing of #{idx.project}",
         "Deleted all embeddings to force full reindexing of #{idx.project}",
         fn -> Store.delete_project(idx.store) end
@@ -81,6 +86,7 @@ defmodule Indexer do
     else
       # Otherwise, just delete any files that no longer exist.
       spin(
+        idx,
         "Deleting missing files from #{idx.project}",
         "Deleted missing files from #{idx.project}",
         fn -> Store.delete_missing_files(idx.store, idx.root) end
@@ -88,28 +94,29 @@ defmodule Indexer do
     end
 
     spin(
+      idx,
       "Indexing files in #{idx.root}",
       "Indexed files in #{idx.root}",
       fn ->
         {:ok, queue} =
           Queue.start_link(idx.concurrency, fn file ->
             process_file(idx, file)
-            progress_bar_update(:indexing)
+            progress_bar_update(idx, :indexing)
           end)
 
         scanner = Scanner.new(idx.root, fn file -> Queue.queue(queue, file) end)
         num_files = Scanner.count_files(scanner)
 
-        progress_bar_start(:indexing, "Indexing", num_files + 1)
+        progress_bar_start(idx, :indexing, "Indexing", num_files + 1)
 
         Scanner.scan(scanner)
 
         Queue.shutdown(queue)
         Queue.join(queue)
 
-        progress_bar_end()
+        progress_bar_end(idx)
 
-        IO.puts("All tasks complete")
+        info(idx, "All tasks complete")
       end
     )
   end

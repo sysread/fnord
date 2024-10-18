@@ -40,7 +40,8 @@ defmodule IndexerTest do
       Indexer.new(
         %{
           project: "test_project",
-          directory: project_dir
+          directory: project_dir,
+          quiet: true
         },
         MockAIForIndexer
       )
