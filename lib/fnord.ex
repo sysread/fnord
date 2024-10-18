@@ -133,7 +133,8 @@ defmodule Fnord do
               quiet: quiet
             ],
             flags: [
-              reindex: reindex
+              reindex: reindex,
+              quiet: quiet
             ]
           ],
           search: [
