@@ -14,6 +14,21 @@ defmodule Search do
   ]
 
   @doc """
+  Creates a new `Search` struct with the given options.
+  """
+  def new(opts, ai_module \\ AI) do
+    %Search{
+      project: opts[:project],
+      query: opts[:query],
+      limit: opts[:limit],
+      detail: opts[:detail],
+      store: Store.new(opts[:project]),
+      concurrency: opts[:concurrency],
+      ai_module: ai_module
+    }
+  end
+
+  @doc """
   Searches the given project for previously indexed files (see `Indexing`) that
   match the given query. The search results are printed to the console.
 
@@ -21,28 +36,20 @@ defmodule Search do
   embedding to match against the vector store.
   """
   def run(opts, ai_module \\ AI) do
-    %{
-      project: project,
-      query: query,
-      limit: limit,
-      detail: detail,
-      concurrency: concurrency
-    } = opts
+    search = new(opts, ai_module)
 
-    search = %Search{
-      project: project,
-      query: query,
-      limit: limit,
-      detail: detail,
-      store: Store.new(project),
-      concurrency: concurrency,
-      ai_module: ai_module
-    }
+    search
+    |> get_results()
+    |> Enum.each(fn {file, score, data} ->
+      output_file(search, file, score, data)
+    end)
+  end
 
-    needle = get_query_embeddings(query, ai_module)
+  def get_results(search) do
+    needle = get_query_embeddings(search.query, search.ai_module)
 
     {:ok, queue} =
-      Queue.start_link(concurrency, fn file ->
+      Queue.start_link(search.concurrency, fn file ->
         with {:ok, data} <- get_file_data(search, file) do
           get_score(needle, data)
           |> case do
@@ -54,16 +61,18 @@ defmodule Search do
         end
       end)
 
-    search
-    |> list_files()
-    |> Queue.map(queue)
-    |> Enum.reject(&is_nil/1)
-    |> Enum.sort(fn {_, score1, _}, {_, score2, _} -> score1 >= score2 end)
-    |> Enum.take(limit)
-    |> Enum.each(fn {file, score, data} -> output_file(search, file, score, data) end)
+    results =
+      search
+      |> list_files()
+      |> Queue.map(queue)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.sort(fn {_, score1, _}, {_, score2, _} -> score1 >= score2 end)
+      |> Enum.take(search.limit)
 
     Queue.shutdown(queue)
     Queue.join(queue)
+
+    results
   end
 
   defp output_file(search, file, score, data) do
@@ -83,7 +92,7 @@ defmodule Search do
   defp get_score(needle, data) do
     data
     |> Map.get("embeddings", [])
-    |> Enum.map(fn emb -> Store.cosine_similarity(needle, emb) end)
+    |> Enum.map(fn emb -> cosine_similarity(needle, emb) end)
     |> case do
       [] -> {:error, :no_embeddings}
       scores -> {:ok, Enum.max(scores)}
@@ -108,6 +117,19 @@ defmodule Search do
       else
         {:error, _} -> {:error, :file}
       end
+    end
+  end
+
+  # Computes the cosine similarity between two vectors
+  def cosine_similarity(vec1, vec2) do
+    dot_product = Enum.zip(vec1, vec2) |> Enum.reduce(0.0, fn {a, b}, acc -> acc + a * b end)
+    magnitude1 = :math.sqrt(Enum.reduce(vec1, 0.0, fn x, acc -> acc + x * x end))
+    magnitude2 = :math.sqrt(Enum.reduce(vec2, 0.0, fn x, acc -> acc + x * x end))
+
+    if magnitude1 == 0.0 or magnitude2 == 0.0 do
+      0.0
+    else
+      dot_product / (magnitude1 * magnitude2)
     end
   end
 end

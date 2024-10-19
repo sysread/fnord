@@ -67,6 +67,15 @@ If you want more detail about each file matched:
 fnord search --project foo --query "some search query" --detail
 ```
 
+### Chat
+
+You can use `fnord`'s basic chat interface to assimilate information from the
+project using AI to perform the search and summarize the results.
+
+```bash
+fnord chat --project foo
+```
+
 ### Miscellaneous
 
 - **List projects:** `fnord projects`
@@ -75,3 +84,8 @@ fnord search --project foo --query "some search query" --detail
 - **Delete a project:** `fnord delete --project foo`
 
 Note that deleting a project only deletes from the index, not the actual files.
+
+## TODO
+- index multiple directories per project
+- chat input is single line; should be multi-line
+- render assistant markdown response

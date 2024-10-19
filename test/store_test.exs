@@ -29,10 +29,6 @@ defmodule StoreTest do
     {:ok, tmp_dir: tmp_dir}
   end
 
-  test "home/0 returns the correct home directory", %{tmp_dir: tmp_dir} do
-    assert Store.home() == Path.join(tmp_dir, ".fnord")
-  end
-
   test "new/1 creates a new store for the project", %{tmp_dir: tmp_dir} do
     store = Store.new("test_project")
     expected_path = Path.join([tmp_dir, ".fnord", "test_project"])
@@ -238,33 +234,6 @@ defmodule StoreTest do
     # After deletion, only file2 should remain
     files = Store.list_files(store)
     assert files == [Path.expand(file_path2)]
-  end
-
-  test "cosine_similarity/2 computes correct similarity", _context do
-    vec1 = [1.0, 0.0, 0.0]
-    vec2 = [0.0, 1.0, 0.0]
-    vec3 = [1.0, 0.0, 0.0]
-
-    # Cosine similarity between orthogonal vectors should be 0
-    assert Store.cosine_similarity(vec1, vec2) == 0.0
-
-    # Cosine similarity between identical vectors should be 1
-    assert Store.cosine_similarity(vec1, vec3) == 1.0
-
-    # Cosine similarity between vector and itself
-    similarity = Store.cosine_similarity(vec1, vec1)
-    assert similarity == 1.0
-
-    # Cosine similarity between arbitrary vectors
-    vec4 = [1.0, 2.0, 3.0]
-    vec5 = [4.0, 5.0, 6.0]
-    similarity = Store.cosine_similarity(vec4, vec5)
-    # Compute expected value
-    dot_product = Enum.zip(vec4, vec5) |> Enum.reduce(0.0, fn {a, b}, acc -> acc + a * b end)
-    magnitude1 = :math.sqrt(Enum.reduce(vec4, 0.0, fn x, acc -> acc + x * x end))
-    magnitude2 = :math.sqrt(Enum.reduce(vec5, 0.0, fn x, acc -> acc + x * x end))
-    expected_similarity = dot_product / (magnitude1 * magnitude2)
-    assert_in_delta similarity, expected_similarity, 1.0e-5
   end
 
   test "get_hash/2 retrieves hash from stored metadata", %{tmp_dir: tmp_dir} do

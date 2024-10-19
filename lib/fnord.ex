@@ -18,6 +18,7 @@ defmodule Fnord do
         :projects -> Store.list_projects() |> Enum.each(&IO.puts(&1))
         :files -> Store.new(opts.project) |> Store.list_files() |> Enum.each(&IO.puts(&1))
         :watch -> Watch.run(opts)
+        :chat -> Chat.new(opts) |> Chat.run()
       end
     else
       {:error, reason} -> IO.puts("Error: #{reason}")
@@ -129,8 +130,7 @@ defmodule Fnord do
             options: [
               directory: directory,
               project: project,
-              concurrency: concurrency,
-              quiet: quiet
+              concurrency: concurrency
             ],
             flags: [
               reindex: reindex,
@@ -164,6 +164,14 @@ defmodule Fnord do
             options: [
               directory: directory,
               project: project
+            ]
+          ],
+          chat: [
+            name: "chat",
+            about: "Conversational interface to the project database",
+            options: [
+              project: project,
+              concurrency: concurrency
             ]
           ]
         ]

@@ -54,6 +54,10 @@ defmodule AI do
     %AI{client: openai}
   end
 
+  # -----------------------------------------------------------------------------
+  # Embeddings
+  # -----------------------------------------------------------------------------
+
   @impl AI
   @doc """
   Get embeddings for the given text. The text is split into chunks of 8192
@@ -80,6 +84,10 @@ defmodule AI do
 
     {:ok, embeddings}
   end
+
+  # -----------------------------------------------------------------------------
+  # Summaries
+  # -----------------------------------------------------------------------------
 
   @impl AI
   @doc """
@@ -110,6 +118,22 @@ defmodule AI do
     end
   end
 
+  # -----------------------------------------------------------------------------
+  # Assistants
+  # -----------------------------------------------------------------------------
+
+  def create_assistant(ai, request) do
+    OpenaiEx.Beta.Assistants.create(ai.client, request)
+  end
+
+  def get_assistant(ai, assistant_id) do
+    OpenaiEx.Beta.Assistants.retrieve(ai.client, assistant_id)
+  end
+
+  def update_assistant(ai, assistant_id, request) do
+    OpenaiEx.Beta.Assistants.update(ai.client, assistant_id, request)
+  end
+
   defp truncate_text(text, max_tokens) do
     if String.length(text) > max_tokens do
       String.slice(text, 0, max_tokens)
@@ -118,7 +142,60 @@ defmodule AI do
     end
   end
 
-  defp split_text(input, max_tokens) do
+  # -----------------------------------------------------------------------------
+  # Threads
+  # -----------------------------------------------------------------------------
+  def start_thread(ai) do
+    OpenaiEx.Beta.Threads.create(ai.client)
+  end
+
+  def add_user_message(ai, thread_id, message) do
+    request =
+      OpenaiEx.Beta.Threads.Messages.new(%{
+        role: "user",
+        content: message
+      })
+
+    OpenaiEx.Beta.Threads.Messages.create(ai.client, thread_id, request)
+  end
+
+  def get_messages(ai, thread_id) do
+    OpenaiEx.Beta.Threads.Messages.list(ai.client, thread_id)
+  end
+
+  # TODO streaming
+  def run_thread(ai, assistant_id, thread_id) do
+    request =
+      OpenaiEx.Beta.Threads.Runs.new(%{
+        thread_id: thread_id,
+        assistant_id: assistant_id
+      })
+
+    OpenaiEx.Beta.Threads.Runs.create(ai.client, request)
+  end
+
+  def get_run_status(ai, thread_id, run_id) do
+    OpenaiEx.Beta.Threads.Runs.retrieve(ai.client, %{
+      thread_id: thread_id,
+      run_id: run_id
+    })
+  end
+
+  def submit_tool_outputs(ai, thread_id, run_id, outputs) do
+    request = %{
+      thread_id: thread_id,
+      run_id: run_id,
+      tool_outputs: outputs
+    }
+
+    OpenaiEx.Beta.Threads.Runs.submit_tool_outputs(ai.client, request)
+  end
+
+  # -----------------------------------------------------------------------------
+  # Utilities
+  # -----------------------------------------------------------------------------
+
+  def split_text(input, max_tokens) do
     Gpt3Tokenizer.encode(input)
     |> Enum.chunk_every(max_tokens)
     |> Enum.map(&Gpt3Tokenizer.decode(&1))

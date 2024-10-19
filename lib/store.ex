@@ -7,19 +7,14 @@ defmodule Store do
   defstruct [:project, :path]
 
   @doc """
-  Get the path to the store root directory.
-  """
-  def home() do
-    "#{System.get_env("HOME")}/.fnord"
-  end
-
-  @doc """
   Create a new `Store` struct.
   """
   def new(project) do
-    File.mkdir_p!(home())
+    home = Settings.home()
 
-    path = Path.join(home(), project)
+    File.mkdir_p!(home)
+
+    path = Path.join(home, project)
     File.mkdir_p!(path)
 
     %Store{
@@ -224,7 +219,7 @@ defmodule Store do
   List all projects in the store. Returns a list of project names.
   """
   def list_projects() do
-    Path.wildcard(Path.join(home(), "*"))
+    Path.wildcard(Path.join(Settings.home(), "*"))
     |> Enum.map(fn path -> Path.basename(path) end)
   end
 
@@ -242,18 +237,5 @@ defmodule Store do
       |> Jason.decode!()
       |> Map.get("file")
     end)
-  end
-
-  # Computes the cosine similarity between two vectors
-  def cosine_similarity(vec1, vec2) do
-    dot_product = Enum.zip(vec1, vec2) |> Enum.reduce(0.0, fn {a, b}, acc -> acc + a * b end)
-    magnitude1 = :math.sqrt(Enum.reduce(vec1, 0.0, fn x, acc -> acc + x * x end))
-    magnitude2 = :math.sqrt(Enum.reduce(vec2, 0.0, fn x, acc -> acc + x * x end))
-
-    if magnitude1 == 0.0 or magnitude2 == 0.0 do
-      0.0
-    else
-      dot_product / (magnitude1 * magnitude2)
-    end
   end
 end
