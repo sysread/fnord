@@ -107,8 +107,8 @@ defmodule Chat do
       # Add the user's message to the tui message list.
       add_user_message(chat, message)
 
-      next_asst_msg_box_id = add_assistant_message(chat, "Sending your message...")
-      chat = %Chat{chat | next_asst_msg_box_id: next_asst_msg_box_id}
+      # Update chat with the id of the current assistant message box.
+      chat = add_assistant_message(chat, "Sending your message...")
 
       # Attach the user's message and run the thread
       with {:ok, _} <- AI.add_user_message(chat.ai, thread_id, message),
@@ -267,7 +267,7 @@ defmodule Chat do
     )
   end
 
-  defp add_assistant_message(_chat, message) do
+  defp add_assistant_message(chat, message) do
     id = Base.encode16(:crypto.strong_rand_bytes(8))
 
     Owl.LiveScreen.add_block(id,
@@ -286,7 +286,7 @@ defmodule Chat do
         )
     )
 
-    id
+    %Chat{chat | next_asst_msg_box_id: id}
   end
 
   defp update_assistant_message(chat, message) do
