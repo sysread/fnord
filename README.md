@@ -67,7 +67,11 @@ If you want more detail about each file matched:
 fnord search --project foo --query "some search query" --detail
 ```
 
-### Chat
+### Chat (BETA)
+
+**Warning:** this is a brand new feature and likely has quite a few UI bugs.
+Use with ~caution~ ~a grain of salt~ ~a sense of adventure~ a large helping of
+grace for my mediocre UI/UX skills.
 
 You can use `fnord`'s basic chat interface to assimilate information from the
 project using AI to perform the search and summarize the results.

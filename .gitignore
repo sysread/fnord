@@ -27,3 +27,6 @@ fnord-*.tar
 
 # escript
 fnord
+
+# Temporary prototype files
+scratch*
