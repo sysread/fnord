@@ -2,93 +2,23 @@ defmodule Chat do
   defstruct [
     :opts,
     :ai,
-    :settings,
     :assistant_id,
     :next_asst_msg_box_id
   ]
-
-  @assistant_version "v1.0.0"
-  @assistant_name "Fnord Prefect"
-  @assistant_model "gpt-4o"
-  @assistant_prompt """
-  You are a conversational interface to a database of information about the
-  user's project. The database may contain:
-
-  ### Code files:
-    - **Synopsis**
-    - **Languages present in the file**
-    - **Business logic and behaviors**
-    - **List of symbols**
-    - **Map of calls to other modules**
-
-  ### Documentation files (e.g., README, wiki pages, general documentation):
-    - **Synopsis**: A brief overview of what the document covers.
-    - **Topics and Sections**: A list of main topics or sections in the document.
-    - **Definitions and Key Terms**: Any specialized terms or jargon defined in the document.
-    - **Links and References**: Important links or references included in the document.
-    - **Key Points and Highlights**: Main points or takeaways from the document.
-
-  The user will prompt you with a question. You will use your `search_tool` to
-  search the database in order to gain enough knowledge to answer the question
-  as completely as possible. It may require multiple searches before you have
-  all of the information you need.
-
-  Once you have all of the information you need, provide the user with a
-  complete yet concise answer, including generating any requested code or
-  producing on-demand documentation by assimilating the information you have
-  gathered.
-  """
-
-  @search_tool %{
-    type: "function",
-    function: %{
-      name: "search_tool",
-      description: "searches for matching files and their contents",
-      parameters: %{
-        type: "object",
-        properties: %{
-          query: %{
-            type: "string",
-            description: "The search query string."
-          }
-        },
-        required: ["query"]
-      }
-    }
-  }
-
-  @assistant_request OpenaiEx.Beta.Assistants.new(%{
-                       name: @assistant_name,
-                       instructions: @assistant_prompt,
-                       model: @assistant_model,
-                       tools: [@search_tool],
-                       metadata: %{version: @assistant_version}
-                     })
 
   @doc """
   Create a new chat instance.
   """
   def new(opts) do
     ai = AI.new()
-    settings = Settings.new()
 
-    # Retrieve assistant id from settings
-    saved_assistant_id = Settings.get(settings, "assistant_id")
-
-    # Create or update the assistant
-    %{"id" => assistant_id} = get_assistant(saved_assistant_id, ai)
-
-    # Store the assistant id if it has changed
-    if saved_assistant_id != assistant_id do
-      Settings.set(settings, "assistant_id", assistant_id)
+    with {:ok, %{"id" => assistant_id}} <- Assistant.get(ai) do
+      %Chat{
+        opts: opts,
+        ai: ai,
+        assistant_id: assistant_id
+      }
     end
-
-    %Chat{
-      opts: opts,
-      ai: ai,
-      settings: settings,
-      assistant_id: assistant_id
-    }
   end
 
   # -----------------------------------------------------------------------------
@@ -220,29 +150,6 @@ defmodule Chat do
   end
 
   defp get_tool_call_output(_chat, _status), do: nil
-
-  # -----------------------------------------------------------------------------
-  # Creating and maintaining the assistant
-  # -----------------------------------------------------------------------------
-  defp get_assistant(nil, ai) do
-    AI.create_assistant(ai, @assistant_request)
-  end
-
-  defp get_assistant(assistant_id, ai) do
-    AI.get_assistant(ai, assistant_id)
-    |> case do
-      {:ok, assistant} -> update_assistant(assistant, ai)
-      _ -> get_assistant(nil, ai)
-    end
-  end
-
-  defp update_assistant(assistant, ai) do
-    if assistant["metadata"]["version"] != @assistant_version do
-      AI.update_assistant(ai, assistant["id"], @assistant_request)
-    else
-      assistant
-    end
-  end
 
   # -----------------------------------------------------------------------------
   # UI

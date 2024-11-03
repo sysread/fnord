@@ -43,7 +43,6 @@ defmodule Settings do
     key = make_key(key)
 
     %Settings{settings | data: Map.put(settings.data, key, value)}
-    |> IO.inspect(label: "SETTINGS")
     |> spew()
   end
 

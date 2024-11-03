@@ -133,14 +133,6 @@ defmodule AI do
     OpenaiEx.Beta.Assistants.update(ai.client, assistant_id, request)
   end
 
-  defp truncate_text(text, max_tokens) do
-    if String.length(text) > max_tokens do
-      String.slice(text, 0, max_tokens)
-    else
-      text
-    end
-  end
-
   # -----------------------------------------------------------------------------
   # Threads
   # -----------------------------------------------------------------------------
@@ -193,6 +185,13 @@ defmodule AI do
   # -----------------------------------------------------------------------------
   # Utilities
   # -----------------------------------------------------------------------------
+  defp truncate_text(text, max_tokens) do
+    if String.length(text) > max_tokens do
+      String.slice(text, 0, max_tokens)
+    else
+      text
+    end
+  end
 
   def split_text(input, max_tokens) do
     Gpt3Tokenizer.encode(input)
