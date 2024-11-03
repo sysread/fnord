@@ -67,23 +67,19 @@ defmodule Assistant do
         ai
       end
 
-    get_assistant(ai, settings)
-  end
-
-  defp get_assistant(ai, settings) do
     with {:ok, assistant_id} <- get_saved_assistant_id(settings),
          {:ok, %{"id" => assistant_id} = assistant} <- retrieve_assistant(ai, assistant_id) do
       Settings.set(settings, "assistant_id", assistant_id)
       {:ok, assistant}
     else
       {:error, :not_found} -> create_assistant(ai)
+      {:error, :no_assistant_configured} -> create_assistant(ai)
     end
   end
 
   defp get_saved_assistant_id(settings) do
-    Settings.get(settings, "assistant_id")
-    |> case do
-      nil -> {:error, "assistant_id not found in settings"}
+    case Settings.get(settings, "assistant_id", nil) do
+      nil -> {:error, :no_assistant_configured}
       assistant_id -> {:ok, assistant_id}
     end
   end
