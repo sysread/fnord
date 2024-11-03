@@ -104,9 +104,6 @@ defmodule Chat do
       # Get the user's message and add it to the thread.
       message = user_message_prompt(chat)
 
-      # Add the user's message to the tui message list.
-      add_user_message(chat, message)
-
       # Update chat with the id of the current assistant message box.
       chat = add_assistant_message(chat, "Sending your message...")
 
@@ -246,25 +243,6 @@ defmodule Chat do
   # -----------------------------------------------------------------------------
   defp user_message_prompt(_chat) do
     Owl.IO.input(label: "Enter your message:")
-  end
-
-  defp add_user_message(_chat, message) do
-    Owl.LiveScreen.add_block(
-      Base.encode16(:crypto.strong_rand_bytes(8)),
-      state:
-        Owl.Box.new(message,
-          title: " You ",
-          border_style: :solid_rounded,
-          border_tag: :green,
-          padding: 1,
-          min_height: 1,
-          min_width: 140,
-          max_width: 140,
-          horizontal_align: :left,
-          vertical_align: :top,
-          word_wrap: :normal
-        )
-    )
   end
 
   defp add_assistant_message(chat, message) do
