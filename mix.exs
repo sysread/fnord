@@ -52,7 +52,8 @@ defmodule Fnord.MixProject do
       {:jason, "~> 1.4"},
       {:openai_ex, "~> 0.8.3"},
       {:optimus, "~> 0.2"},
-      {:owl, "~> 0.12"}
+      {:owl, "~> 0.12"},
+      {:dialyxir, "~> 1.4.4", only: [:dev], runtime: false}
     ]
   end
 end
