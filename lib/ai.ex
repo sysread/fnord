@@ -121,7 +121,6 @@ defmodule AI do
   # -----------------------------------------------------------------------------
   # Assistants
   # -----------------------------------------------------------------------------
-
   def create_assistant(ai, request) do
     OpenaiEx.Beta.Assistants.create(ai.client, request)
   end

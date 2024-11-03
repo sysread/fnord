@@ -32,6 +32,7 @@ defmodule Settings do
   Get a value from the settings store.
   """
   def get(settings, key, default \\ nil) do
+    key = make_key(key)
     Map.get(settings.data, key, default)
   end
 
@@ -39,7 +40,10 @@ defmodule Settings do
   Set a value in the settings store.
   """
   def set(settings, key, value) do
+    key = make_key(key)
+
     %Settings{settings | data: Map.put(settings.data, key, value)}
+    |> IO.inspect(label: "SETTINGS")
     |> spew()
   end
 
@@ -51,4 +55,7 @@ defmodule Settings do
     File.write!(settings.path, Jason.encode!(settings.data))
     settings
   end
+
+  defp make_key(key) when is_atom(key), do: Atom.to_string(key)
+  defp make_key(key), do: key
 end

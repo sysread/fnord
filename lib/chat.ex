@@ -71,11 +71,17 @@ defmodule Chat do
   def new(opts) do
     ai = AI.new()
     settings = Settings.new()
-    assistant_id = Settings.get(settings, "assistant_id")
 
-    %{"id" => assistant_id} = get_assistant(assistant_id, ai)
+    # Retrieve assistant id from settings
+    saved_assistant_id = Settings.get(settings, "assistant_id")
 
-    Settings.set(settings, :assistant_id, assistant_id)
+    # Create or update the assistant
+    %{"id" => assistant_id} = get_assistant(saved_assistant_id, ai)
+
+    # Store the assistant id if it has changed
+    if saved_assistant_id != assistant_id do
+      Settings.set(settings, "assistant_id", assistant_id)
+    end
 
     %Chat{
       opts: opts,
