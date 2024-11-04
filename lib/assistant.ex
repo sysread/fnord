@@ -1,4 +1,5 @@
 defmodule Assistant do
+  @assistant_id_setting "assistant_id"
   @assistant_version "v1.0.0"
   @assistant_name "Fnord Prefect"
   @assistant_model "gpt-4o"
@@ -57,8 +58,13 @@ defmodule Assistant do
                        metadata: %{version: @assistant_version}
                      })
 
-  def get(ai \\ nil) do
-    settings = Settings.new()
+  def get(ai \\ nil, settings \\ nil) do
+    settings =
+      if is_nil(settings) do
+        Settings.new()
+      else
+        settings
+      end
 
     ai =
       if is_nil(ai) do
@@ -69,7 +75,7 @@ defmodule Assistant do
 
     with {:ok, assistant_id} <- get_saved_assistant_id(settings),
          {:ok, %{"id" => assistant_id} = assistant} <- retrieve_assistant(ai, assistant_id) do
-      Settings.set(settings, "assistant_id", assistant_id)
+      Settings.set(settings, @assistant_id_setting, assistant_id)
       {:ok, assistant}
     else
       {:error, :not_found} -> create_assistant(ai)
@@ -78,7 +84,7 @@ defmodule Assistant do
   end
 
   defp get_saved_assistant_id(settings) do
-    case Settings.get(settings, "assistant_id", nil) do
+    case Settings.get(settings, @assistant_id_setting, nil) do
       nil -> {:error, :no_assistant_configured}
       assistant_id -> {:ok, assistant_id}
     end

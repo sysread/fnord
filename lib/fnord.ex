@@ -18,7 +18,7 @@ defmodule Fnord do
         :projects -> Store.list_projects() |> Enum.each(&IO.puts(&1))
         :files -> Store.new(opts.project) |> Store.list_files() |> Enum.each(&IO.puts(&1))
         :watch -> Watch.run(opts)
-        :chat -> Chat.new(opts) |> Chat.run()
+        :ask -> Ask.run(opts)
       end
     else
       {:error, reason} -> IO.puts("Error: #{reason}")
@@ -97,6 +97,30 @@ defmodule Fnord do
       default: 4
     ]
 
+    continue = [
+      long: "--continue",
+      short: "-C",
+      help: "Continue the last thread",
+      default: false,
+      multiple: false
+    ]
+
+    question = [
+      value_name: "QUESTION",
+      long: "--question",
+      short: "-q",
+      help: "The prompt to ask the AI",
+      required: true
+    ]
+
+    verbose = [
+      long: "--verbose",
+      short: "-v",
+      help: "Print verbose output to stderr",
+      default: false,
+      multiple: false
+    ]
+
     parser =
       Optimus.new!(
         name: "fnord",
@@ -166,12 +190,17 @@ defmodule Fnord do
               project: project
             ]
           ],
-          chat: [
-            name: "chat",
+          ask: [
+            name: "ask",
             about: "Conversational interface to the project database",
             options: [
               project: project,
+              question: question,
               concurrency: concurrency
+            ],
+            flags: [
+              continue: continue,
+              verbose: verbose
             ]
           ]
         ]
