@@ -79,6 +79,9 @@ fnord ask --project foo --query "how does the test coverage look to you?" -C
 
 # With status messages emitted to stderr
 fnord ask --project foo --query "if the test coverage is so amazing then how come my change didn't break any tests?!" -C -v
+
+# Pipe output to `glow` to render markdown
+fnord ask -p foo -q "summarize the dependencies of this project" -v | glow
 ```
 
 ### Miscellaneous
@@ -91,5 +94,4 @@ fnord ask --project foo --query "if the test coverage is so amazing then how com
 Note that deleting a project only deletes from the index, not the actual files.
 
 ## TODO
-- index multiple directories per project
-- render assistant markdown response
+- `ask`: read questions from stdin
