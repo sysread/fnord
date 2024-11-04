@@ -150,8 +150,8 @@ defmodule AI do
     OpenaiEx.Beta.Threads.Messages.create(ai.client, thread_id, request)
   end
 
-  def get_messages(ai, thread_id) do
-    OpenaiEx.Beta.Threads.Messages.list(ai.client, thread_id)
+  def get_messages(ai, thread_id, params \\ %{}) do
+    OpenaiEx.Beta.Threads.Messages.list(ai.client, thread_id, params)
   end
 
   # TODO streaming

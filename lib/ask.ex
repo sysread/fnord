@@ -88,14 +88,21 @@ defmodule Ask do
 
   defp get_response(ask) do
     with {ask, {:ok, :done}} <- run_thread(ask),
-         {:ok, msgs} <- AI.get_messages(ask.ai, ask.thread_id) do
-      msgs
+         {:ok, msg} <- get_last_message(ask) do
+      msg
       |> Map.get("data", [])
       |> Enum.filter(fn %{"role" => role} -> role == "assistant" end)
       |> Enum.map(fn %{"content" => [%{"text" => %{"value" => msg}}]} -> msg end)
       |> Enum.join("\n\n")
       |> then(fn msg -> {:ok, %Ask{ask | response: msg}} end)
     end
+  end
+
+  defp get_last_message(ask) do
+    AI.get_messages(ask.ai, ask.thread_id, %{
+      limit: 1,
+      order: "desc"
+    })
   end
 
   defp get_prompt(%Ask{opts: %{question: question}}), do: {:ok, question}
@@ -223,9 +230,13 @@ defmodule Ask do
   defp with_thread_id(ask) do
     with true <- continue_last_thread?(ask),
          {:ok, ask} <- with_last_thread_id(ask) do
+      ask = info(ask, "Continuing last thread: #{ask.thread_id}")
       {:ok, ask}
     else
-      _ -> with_new_thread_id(ask)
+      _ ->
+        {:ok, ask} = with_new_thread_id(ask)
+        ask = info(ask, "Starting new thread: #{ask.thread_id}")
+        {:ok, ask}
     end
   end
 
