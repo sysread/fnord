@@ -1,0 +1,34 @@
+name: Run Dialyzer
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  dialyzer:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Setup Elixir
+      uses: erlef/setup-beam@v1
+      with:
+        elixir-version: '1.14' # Specify the Elixir version
+        otp-version: '25.0'    # Specify the OTP version
+
+    - name: Install dependencies
+      run: |
+        mix local.hex --force
+        mix local.rebar --force
+        mix deps.get
+        mix dialyzer --plt # Build the PLT (Persistent Lookup Table) if needed
+
+    - name: Run Dialyzer
+      run: |
+        mix dialyzer --halt-exit-status
