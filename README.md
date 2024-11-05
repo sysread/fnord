@@ -33,7 +33,7 @@ installation.
 
 ## Usage
 
-### Indexing
+### Index
 
 The first time you run this, especially on a large codebase, it will take a
 while to index everything. Subsequent runs will be faster, re-indexing only
@@ -57,7 +57,13 @@ using [watchman](https://github.com/facebook/watchman). Just be sure to use
 watchman-make -p '**/*' --settle 5 --run "fnord index --project $project --dir $project_root --quiet"
 ```
 
-### Searching
+...or use the `fnord-watch` script in the [tools directory](tools/fnord-watch).
+
+```bash
+fnord-watch -p foo -d /path/to/foo
+```
+
+### Search
 
 ```bash
 fnord search --project foo --query "some search query"
