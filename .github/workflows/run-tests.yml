@@ -13,14 +13,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Cache Build Artifacts
-      uses: actions/cache@v4
-      with:
-        path: _build
-        key: ${{ runner.os }}-elixir-${{ hashFiles('mix.lock') }}-build
-        restore-keys: |
-          ${{ runner.os }}-elixir-build
-
     - name: Checkout repository
       uses: actions/checkout@v3
 
@@ -29,6 +21,14 @@ jobs:
       with:
         elixir-version: 'latest'
         otp-version: 'latest'
+
+    - name: Cache Build Artifacts
+      uses: actions/cache@v4
+      with:
+        path: _build
+        key: ${{ runner.os }}-elixir-${{ hashFiles('mix.lock') }}-build
+        restore-keys: |
+          ${{ runner.os }}-elixir-build
 
     - name: Install dependencies
       run: |
