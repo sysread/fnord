@@ -57,7 +57,8 @@ using [watchman](https://github.com/facebook/watchman). Just be sure to use
 watchman-make -p '**/*' --settle 5 --run "fnord index --project $project --dir $project_root --quiet"
 ```
 
-...or use the `fnord-watch` script in the [tools directory](tools/fnord-watch).
+...or use the `fnord-watch` script in the [tools directory on
+GitHub](https://github.com/sysread/fnord/blob/main/tools/fnord-watch).
 
 ```bash
 fnord-watch -p foo -d /path/to/foo
