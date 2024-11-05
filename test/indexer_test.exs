@@ -7,7 +7,15 @@ defmodule IndexerTest do
 
     # Create a temp dir for testing, then initialize as a git repo.
     project_dir = mktempdir()
-    System.cmd("git", ["init"], cd: project_dir)
+
+    System.cmd("git", ["init"],
+      cd: project_dir,
+      env: [
+        {"GIT_TRACE", "0"},
+        {"GIT_CURL_VERBOSE", "0"},
+        {"GIT_DEBUG", "0"}
+      ]
+    )
 
     # Temporarily override the HOME env var to point to our store dir.
     original_home = System.get_env("HOME")

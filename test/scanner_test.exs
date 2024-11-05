@@ -10,7 +10,14 @@ defmodule ScannerTest do
     File.mkdir_p!(test_dir)
 
     # Initialize a git repository in the test directory
-    System.cmd("git", ["init"], cd: test_dir)
+    System.cmd("git", ["init"],
+      cd: test_dir,
+      env: [
+        {"GIT_TRACE", "0"},
+        {"GIT_CURL_VERBOSE", "0"},
+        {"GIT_DEBUG", "0"}
+      ]
+    )
 
     # Create files and directories for testing
     create_test_files(test_dir)

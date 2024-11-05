@@ -7,7 +7,15 @@ defmodule SearchTest do
     home_dir = mktempdir()
     # Create a temporary project directory and initialize it as a git repo
     project_dir = mktempdir()
-    System.cmd("git", ["init"], cd: project_dir)
+
+    System.cmd("git", ["init"],
+      cd: project_dir,
+      env: [
+        {"GIT_TRACE", "0"},
+        {"GIT_CURL_VERBOSE", "0"},
+        {"GIT_DEBUG", "0"}
+      ]
+    )
 
     # Temporarily override the HOME environment variable
     original_home = System.get_env("HOME")
