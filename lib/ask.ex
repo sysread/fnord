@@ -26,8 +26,17 @@ defmodule Ask do
   end
 
   def run(opts) do
-    with ask <- new(opts),
-         {:ok, ask} <- with_assistant_id(ask),
+    ask = new(opts)
+
+    if opts[:quiet] do
+      do_run(ask)
+    else
+      Spinner.run(fn -> do_run(ask) end, "Assistant is responding")
+    end
+  end
+
+  defp do_run(ask) do
+    with {:ok, ask} <- with_assistant_id(ask),
          {:ok, ask} <- with_thread_id(ask),
          {:ok, ask} <- send_prompt(ask),
          {:ok, ask} <- with_run_id(ask),
@@ -43,7 +52,7 @@ defmodule Ask do
           ask.status_msgs
 
         _ ->
-          if ask.opts[:verbose] do
+          if ask.opts[:debug] do
             IO.puts(:stderr, "[fnord] " <> msg)
           end
 

@@ -37,11 +37,11 @@ defmodule Indexer do
     idx
   end
 
-  defp spin(idx, processing, ok, func) do
+  defp spin(idx, processing, func) do
     if idx.quiet do
       func.()
     else
-      Owl.Spinner.run(func, labels: [processing: processing, ok: ok])
+      Spinner.run(func, processing)
     end
   end
 
@@ -80,7 +80,6 @@ defmodule Indexer do
       spin(
         idx,
         "Deleting all embeddings to force full reindexing of #{idx.project}",
-        "Deleted all embeddings to force full reindexing of #{idx.project}",
         fn -> Store.delete_project(idx.store) end
       )
     else
@@ -88,7 +87,6 @@ defmodule Indexer do
       spin(
         idx,
         "Deleting missing files from #{idx.project}",
-        "Deleted missing files from #{idx.project}",
         fn -> Store.delete_missing_files(idx.store, idx.root) end
       )
     end
@@ -96,7 +94,6 @@ defmodule Indexer do
     spin(
       idx,
       "Indexing files in #{idx.root}",
-      "Indexed files in #{idx.root}",
       fn ->
         {:ok, queue} =
           Queue.start_link(idx.concurrency, fn file ->

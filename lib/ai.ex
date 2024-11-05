@@ -154,7 +154,6 @@ defmodule AI do
     OpenaiEx.Beta.Threads.Messages.list(ai.client, thread_id, params)
   end
 
-  # TODO streaming
   def run_thread(ai, assistant_id, thread_id) do
     request =
       OpenaiEx.Beta.Threads.Runs.new(%{

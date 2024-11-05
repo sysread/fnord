@@ -45,16 +45,14 @@ defmodule Fnord do
       long: "--reindex",
       short: "-r",
       help: "Reindex the project",
-      default: false,
-      multiple: false
+      default: false
     ]
 
     quiet = [
       long: "--quiet",
       short: "-q",
-      help: "Suppress informational output",
-      default: false,
-      multiple: false
+      help: "Suppress interactive output",
+      required: false
     ]
 
     query = [
@@ -76,8 +74,7 @@ defmodule Fnord do
     detail = [
       long: "--detail",
       help: "Include AI-generated file summary",
-      default: false,
-      multiple: false
+      default: false
     ]
 
     file = [
@@ -100,8 +97,7 @@ defmodule Fnord do
       long: "--continue",
       short: "-C",
       help: "Continue the last thread",
-      default: false,
-      multiple: false
+      default: false
     ]
 
     question = [
@@ -112,12 +108,10 @@ defmodule Fnord do
       required: true
     ]
 
-    verbose = [
-      long: "--verbose",
-      short: "-v",
-      help: "Print verbose output to stderr",
-      default: false,
-      multiple: false
+    debug = [
+      long: "--debug",
+      help: "Print debug output to stderr",
+      default: false
     ]
 
     parser =
@@ -189,7 +183,7 @@ defmodule Fnord do
             ],
             flags: [
               continue: continue,
-              verbose: verbose,
+              debug: debug,
               quiet: quiet
             ],
             args: [
@@ -205,6 +199,7 @@ defmodule Fnord do
         result.args
         |> Map.merge(result.options)
         |> Map.merge(result.flags)
+        |> maybe_override_quiet()
 
       {:ok, subcommand, options}
     else
@@ -215,5 +210,15 @@ defmodule Fnord do
   defp get_version do
     {:ok, vsn} = :application.get_key(:fnord, :vsn)
     to_string(vsn)
+  end
+
+  # Overrides the --quiet flag if it was not already specified by the user and
+  # the escript is not connected to a tty.
+  defp maybe_override_quiet(opts) do
+    cond do
+      opts[:quiet] -> opts
+      IO.ANSI.enabled?() -> opts
+      true -> Map.put(opts, :quiet, true)
+    end
   end
 end
