@@ -139,7 +139,7 @@ defmodule Indexer do
            {:ok, embeddings} <- get_embeddings(idx, file, summary, file_contents) do
         Store.put(idx.store, file, file_hash, summary, embeddings)
       else
-        {:error, reason} -> IO.puts("Error processing file: #{file} - #{reason}")
+        {:error, reason} -> IO.puts("Error processing file: #{file} - #{inspect(reason)}")
       end
     end
   end

@@ -42,7 +42,7 @@ defmodule Watch do
         %{
           "name" => "fnord-trigger",
           "expression" => ["true"],
-          "command" => ["fnord", "index", "-p", project, "-d", directory],
+          "command" => ["fnord", "index", "-q", "-p", project, "-d", directory],
           "settle" => 5_000
         }
       ])
