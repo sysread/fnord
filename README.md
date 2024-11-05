@@ -49,10 +49,12 @@ You can **reindex** the project, forcing it to reindex all files:
 fnord index --project foo --dir /path/to/foo --reindex
 ```
 
-You can also watch the project for changes and reindex them as they happen:
+You can also watch the project for changes and reindex them as they happen
+using [watchman](https://github.com/facebook/watchman). Just be sure to use
+`--quiet` to suppress interactive output:
 
 ```bash
-fnord watch --project foo --dir /path/to/foo
+watchman-make -p '**/*' --settle 5 --run "fnord index --project $project --dir $project_root --quiet"
 ```
 
 ### Searching

@@ -17,7 +17,6 @@ defmodule Fnord do
         :torch -> Indexer.new(opts) |> Indexer.delete_project()
         :projects -> Store.list_projects() |> Enum.each(&IO.puts(&1))
         :files -> Store.new(opts.project) |> Store.list_files() |> Enum.each(&IO.puts(&1))
-        :watch -> Watch.run(opts)
         :ask -> Ask.run(opts)
       end
     else
@@ -180,14 +179,6 @@ defmodule Fnord do
             options: [
               project: project,
               file: file
-            ]
-          ],
-          watch: [
-            name: "watch",
-            about: "Watch for changes in the project directory using Watchman",
-            options: [
-              directory: directory,
-              project: project
             ]
           ],
           ask: [
