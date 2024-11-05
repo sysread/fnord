@@ -185,13 +185,16 @@ defmodule Fnord do
             name: "ask",
             about: "Conversational interface to the project database",
             options: [
-              project: project,
-              question: question,
               concurrency: concurrency
             ],
             flags: [
               continue: continue,
-              verbose: verbose
+              verbose: verbose,
+              quiet: quiet
+            ],
+            args: [
+              project: project,
+              question: question
             ]
           ]
         ]

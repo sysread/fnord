@@ -80,16 +80,16 @@ fnord search --project foo --query "some search query" --detail
 You can ask the AI assistant to answer questions about your project:
 
 ```bash
-fnord ask --project foo --query "how do you run the tests for this project?"
+fnord ask foo "how do you run the tests for this project?"
 
 # Continue the conversation
-fnord ask --project foo --query "how does the test coverage look to you?" -C
+fnord ask -C foo "how does the test coverage look to you?"
 
 # With status messages emitted to stderr
-fnord ask --project foo --query "if the test coverage is so amazing then how come my change didn't break any tests?!" -C -v
+fnord ask -C -v foo "if the test coverage is so amazing then how come my change didn't break any tests?!"
 
 # Pipe output to `glow` to render markdown
-fnord ask -p foo -q "summarize the dependencies of this project" -v | glow
+fnord ask foo "summarize the dependencies of this project" -v | glow
 ```
 
 ### Miscellaneous
@@ -103,3 +103,4 @@ Note that deleting a project only deletes from the index, not the actual files.
 
 ## TODO
 - `ask`: read questions from stdin
+- `ask`: use streaming api

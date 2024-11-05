@@ -67,16 +67,23 @@ defmodule Ask do
       |> Enum.map(fn file -> "- `#{file}`" end)
       |> Enum.join("\n")
 
-    IO.puts("""
-    # Searched
-    #{searches}
+    if searches != "" do
+      IO.puts("# Searched")
+      IO.puts(searches)
+      IO.puts("")
+    end
 
-    # Matches
-    #{files}
+    if files != "" do
+      IO.puts("# Matches")
+      IO.puts(files)
+      IO.puts("")
+    end
 
-    # Response
-    #{ask.response}
-    """)
+    if searches != "" and files != "" do
+      IO.puts("# Response")
+    end
+
+    IO.puts(ask.response)
   end
 
   defp send_prompt(ask) do
