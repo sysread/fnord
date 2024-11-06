@@ -22,28 +22,11 @@ jobs:
         elixir-version: 'latest'
         otp-version: 'latest'
 
-    - name: Cache Elixir deps
-      id: elixir-deps-cache
+    - name: Restore Cache
       uses: actions/cache@v4
       with:
-        path: |
-          **/deps
-        key: |
-          ${{ runner.os }}-elixir-deps-${{ hashFiles('**/mix.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-elixir-deps-
-
-    - name: Cache Elixir build
-      id: elixir-build-cache
-      uses: actions/cache@v4
-      with:
-        path: |
-          **/_build
-        key: |
-          ${{ runner.os }}-elixir-build-${{ hashFiles('**/mix.lock') }}-${{ hashFiles( '**/lib/**/*.{ex,eex}', '**/config/*.exs', '**/mix.exs' ) }}
-        restore-keys: |
-          ${{ runner.os }}-elixir-build-${{ hashFiles('**/mix.lock') }}-
-          ${{ runner.os }}-elixir-build-
+        path: _build
+        key: build-cache-${{ runner.os }}
 
     - name: Install dependencies and compile
       run: |
@@ -53,9 +36,13 @@ jobs:
         mix compile
 
     - name: Run Tests
+      env:
+        MIX_ENV: test
       run: |
         mix test
 
     - name: Run Dialyzer
+      env:
+        MIX_ENV: dev
       run: |
-        mix dialyzer --halt-exit-status
+        mix dialyzer
