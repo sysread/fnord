@@ -30,6 +30,7 @@ defmodule Indexer do
       concurrency: concurrency,
       reindex: reindex,
       ai_module: ai_module,
+      ai: ai_module.new(),
       quiet: quiet
     }
 
@@ -140,15 +141,26 @@ defmodule Indexer do
     end
   end
 
-  defp get_summary(idx, file, file_contents) do
-    idx.ai_module.get_summary(file, file_contents)
+  defp get_summary(idx, file, file_contents, attempt \\ 0) do
+    idx.ai_module.get_summary(idx.ai, file, file_contents)
     |> case do
-      {:ok, summary} -> {:ok, summary}
-      {:error, reason} -> {:error, reason}
+      {:ok, summary} ->
+        {:ok, summary}
+
+      {:error, %OpenaiEx.Error{message: "Request timed out."}} ->
+        if attempt < 3 do
+          IO.puts("request to summarize file timed out, retrying (attempt #{attempt + 1}/3)")
+          get_summary(idx, file, file_contents, attempt + 1)
+        else
+          {:error, "request to summarize file timed out after 3 attempts"}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
-  defp get_embeddings(idx, file, summary, file_contents) do
+  defp get_embeddings(idx, file, summary, file_contents, attempt \\ 0) do
     to_embed = """
       # File
       `#{file}`
@@ -162,10 +174,21 @@ defmodule Indexer do
       ```
     """
 
-    idx.ai_module.get_embeddings(to_embed)
+    idx.ai_module.get_embeddings(idx.ai, to_embed)
     |> case do
-      {:ok, embeddings} -> {:ok, embeddings}
-      {:error, reason} -> {:error, reason}
+      {:ok, embeddings} ->
+        {:ok, embeddings}
+
+      {:error, %OpenaiEx.Error{message: "Request timed out."}} ->
+        if attempt < 3 do
+          IO.puts("request to index file timed out, retrying (attempt #{attempt + 1}/3)")
+          get_embeddings(idx, file, summary, file_contents, attempt + 1)
+        else
+          {:error, "request to index file timed out after 3 attempts"}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 

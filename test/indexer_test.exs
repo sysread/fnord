@@ -78,12 +78,17 @@ defmodule MockAIForIndexer do
   @behaviour AI
 
   @impl AI
-  def get_embeddings(_text) do
+  def new() do
+    %MockAIForIndexer{}
+  end
+
+  @impl AI
+  def get_embeddings(_ai, _text) do
     {:ok, ["embedding1", "embedding2"]}
   end
 
   @impl AI
-  def get_summary(_file, _text) do
+  def get_summary(_ai, _file, _text) do
     {:ok, "summary"}
   end
 end

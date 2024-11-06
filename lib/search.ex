@@ -100,7 +100,7 @@ defmodule Search do
   end
 
   defp get_query_embeddings(query, ai_module) do
-    {:ok, [needle]} = ai_module.get_embeddings(query)
+    {:ok, [needle]} = ai_module.get_embeddings(ai_module.new(), query)
     needle
   end
 
