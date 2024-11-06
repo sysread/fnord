@@ -16,40 +16,64 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v3
 
-    - name: Setup Elixir
+    - name: Setup elixir
       uses: erlef/setup-beam@v1
       with:
         elixir-version: 'latest'
         otp-version: 'latest'
 
-    - name: Restore Cache
+    - name: Restore cache
       id: build-cache-restore
       uses: actions/cache/restore@v4
       with:
         path: _build
         key: build-cache-${{ runner.os }}
 
-    - name: Install dependencies and compile
+    - name: Install dependencies
+      env:
+        MIX_ENV: test
       run: |
         mix local.hex --force
         mix local.rebar --force
         mix deps.get
+
+    - name: Cache dependencies
+      uses: actions/cache/save@v4
+      with:
+        path: _build
+        key: ${{ steps.build-cache-restore.outputs.cache-primary-key }}
+
+    - name: Compile
+      run: |
         mix compile
 
-    - name: Run Tests
+    - name: Cache compiled artifacts
+      uses: actions/cache/save@v4
+      with:
+        path: _build
+        key: ${{ steps.build-cache-restore.outputs.cache-primary-key }}
+
+    - name: Test
       env:
         MIX_ENV: test
       run: |
         mix test
 
-    - name: Run Dialyzer
+    - name: Cache test artifacts
+      uses: actions/cache/save@v4
+      with:
+        path: _build
+        key: ${{ steps.build-cache-restore.outputs.cache-primary-key }}
+
+    - name: Dialyzer
       env:
         MIX_ENV: dev
       run: |
+        mix deps.get
+        mix compile
         mix dialyzer
 
-    - name: Save Cache
-      id: build-cache-save
+    - name: Cache dialyzer plts and artifacts
       uses: actions/cache/save@v4
       with:
         path: _build
