@@ -23,7 +23,8 @@ jobs:
         otp-version: 'latest'
 
     - name: Restore Cache
-      uses: actions/cache@v4
+      id: build-cache-restore
+      uses: actions/cache/restore@v4
       with:
         path: _build
         key: build-cache-${{ runner.os }}
@@ -46,3 +47,10 @@ jobs:
         MIX_ENV: dev
       run: |
         mix dialyzer
+
+    - name: Save Cache
+      id: build-cache-save
+      uses: actions/cache/save@v4
+      with:
+        path: _build
+        key: ${{ steps.build-cache-restore.outputs.cache-primary-key }}
