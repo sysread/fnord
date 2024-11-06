@@ -104,3 +104,4 @@ Note that deleting a project only deletes from the index, not the actual files.
 
 ## TODO
 - `ask`: read questions from stdin
+- `ask`: streaming output

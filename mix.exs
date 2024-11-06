@@ -4,7 +4,7 @@ defmodule Fnord.MixProject do
   def project do
     [
       app: :fnord,
-      version: "0.4.11",
+      version: "0.4.12",
       elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
       description: "Index and search your code base with OpenAI's embeddings API",
