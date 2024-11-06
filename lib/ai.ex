@@ -8,7 +8,11 @@ defmodule AI do
   defstruct [:client]
 
   @api_key System.get_env("OPENAI_API_KEY")
-  @api_timeout 45_000
+
+  @openai_config %OpenAI.Config{
+    api_key: @api_key,
+    beta: "assistants=v2"
+  }
 
   @embedding_model "text-embedding-3-large"
   @summary_model "gpt-4o-mini"
@@ -39,20 +43,10 @@ defmodule AI do
   Respond ONLY with your markdown-formatted summary.
   """
 
-  @callback new() :: struct()
-  @callback get_embeddings(struct(), String.t()) :: {:ok, [String.t()]} | {:error, term()}
-  @callback get_summary(struct(), String.t(), String.t()) :: {:ok, String.t()} | {:error, term()}
+  @callback get_embeddings(String.t()) :: {:ok, [String.t()]} | {:error, term()}
+  @callback get_summary(String.t(), String.t()) :: {:ok, String.t()} | {:error, term()}
 
   @behaviour AI
-
-  @impl AI
-  @doc """
-  Create a new AI instance. Instances share the same client connection.
-  """
-  def new() do
-    openai = OpenaiEx.new(@api_key) |> OpenaiEx.with_receive_timeout(@api_timeout)
-    %AI{client: openai}
-  end
 
   # -----------------------------------------------------------------------------
   # Embeddings
@@ -64,19 +58,19 @@ defmodule AI do
   tokens to avoid exceeding the model's input limit. Returns a list of
   embeddings for each chunk.
   """
-  def get_embeddings(ai, text) do
+  def get_embeddings(text) do
     embeddings =
       split_text(text, 8192)
       |> Enum.map(fn chunk ->
-        OpenaiEx.Embeddings.create(
-          ai.client,
-          OpenaiEx.Embeddings.new(
+        OpenAI.embeddings(
+          [
             model: @embedding_model,
             input: chunk
-          )
+          ],
+          @openai_config
         )
         |> case do
-          {:ok, %{"data" => [%{"embedding" => embedding}]}} -> embedding
+          {:ok, %{data: [%{"embedding" => embedding}]}} -> embedding
           _ -> nil
         end
       end)
@@ -94,25 +88,25 @@ defmodule AI do
   Get a summary of the given text. The text is truncated to 128k tokens to
   avoid exceeding the model's input limit. Returns a summary of the text.
   """
-  def get_summary(ai, file, text) do
+  def get_summary(file, text) do
     input = "# File name: #{file}\n```\n#{text}\n```"
 
     # The model is limited to 128k tokens input, so, for now, we'll just
     # truncate the input if it's too long.
     input = truncate_text(input, 128_000)
 
-    OpenaiEx.Chat.Completions.create(
-      ai.client,
-      OpenaiEx.Chat.Completions.new(
+    OpenAI.chat_completion(
+      [
         model: @summary_model,
         messages: [
-          OpenaiEx.ChatMessage.system(@summary_prompt),
-          OpenaiEx.ChatMessage.user(input)
+          %{role: "system", content: @summary_prompt},
+          %{role: "user", content: input}
         ]
-      )
+      ],
+      @openai_config
     )
     |> case do
-      {:ok, %{"choices" => [%{"message" => %{"content" => summary}}]}} -> {:ok, summary}
+      {:ok, %{choices: [%{"message" => %{"content" => summary}}]}} -> {:ok, summary}
       {:error, reason} -> {:error, reason}
       response -> {:error, "unexpected response: #{inspect(response)}"}
     end
@@ -121,64 +115,68 @@ defmodule AI do
   # -----------------------------------------------------------------------------
   # Assistants
   # -----------------------------------------------------------------------------
-  def create_assistant(ai, request) do
-    OpenaiEx.Beta.Assistants.create(ai.client, request)
+  def create_assistant(params) do
+    OpenAI.assistants_create(params, @openai_config)
   end
 
-  def get_assistant(ai, assistant_id) do
-    OpenaiEx.Beta.Assistants.retrieve(ai.client, assistant_id)
+  def get_assistant(assistant_id) do
+    OpenAI.assistants(assistant_id, @openai_config)
   end
 
-  def update_assistant(ai, assistant_id, request) do
-    OpenaiEx.Beta.Assistants.update(ai.client, assistant_id, request)
+  def update_assistant(assistant_id, params) do
+    OpenAI.assistants_modify(assistant_id, params, @openai_config)
   end
 
   # -----------------------------------------------------------------------------
   # Threads
   # -----------------------------------------------------------------------------
-  def start_thread(ai) do
-    OpenaiEx.Beta.Threads.create(ai.client)
+  def start_thread() do
+    OpenAI.threads_create([], @openai_config)
+    |> case do
+      {:ok, %{id: thread_id}} -> {:ok, thread_id}
+      {:error, reason} -> {:error, reason}
+    end
   end
 
-  def add_user_message(ai, thread_id, message) do
-    request =
-      OpenaiEx.Beta.Threads.Messages.new(%{
-        role: "user",
-        content: message
-      })
-
-    OpenaiEx.Beta.Threads.Messages.create(ai.client, thread_id, request)
+  def add_user_message(thread_id, message) do
+    OpenAI.thread_message_create(
+      thread_id,
+      [role: "user", content: message],
+      @openai_config
+    )
+    |> case do
+      {:ok, %{id: message_id}} -> {:ok, message_id}
+      {:error, reason} -> {:error, reason}
+    end
   end
 
-  def get_messages(ai, thread_id, params \\ %{}) do
-    OpenaiEx.Beta.Threads.Messages.list(ai.client, thread_id, params)
+  def get_messages(thread_id, params \\ []) do
+    OpenAI.thread_messages(thread_id, params, @openai_config)
   end
 
-  def run_thread(ai, assistant_id, thread_id) do
-    request =
-      OpenaiEx.Beta.Threads.Runs.new(%{
-        thread_id: thread_id,
-        assistant_id: assistant_id
-      })
-
-    OpenaiEx.Beta.Threads.Runs.create(ai.client, request)
+  def run_thread(assistant_id, thread_id) do
+    OpenAI.thread_run_create(thread_id, [assistant_id: assistant_id], @openai_config)
+    |> case do
+      {:ok, %{id: run_id}} -> {:ok, run_id}
+      {:error, reason} -> {:error, reason}
+    end
   end
 
-  def get_run_status(ai, thread_id, run_id) do
-    OpenaiEx.Beta.Threads.Runs.retrieve(ai.client, %{
-      thread_id: thread_id,
-      run_id: run_id
-    })
+  def get_thread_run(thread_id, run_id) do
+    OpenAI.thread_run(thread_id, run_id, @openai_config)
+    |> case do
+      {:ok, thread_run} -> {:ok, thread_run}
+      {:error, reason} -> {:error, reason}
+    end
   end
 
-  def submit_tool_outputs(ai, thread_id, run_id, outputs) do
-    request = %{
-      thread_id: thread_id,
-      run_id: run_id,
-      tool_outputs: outputs
-    }
-
-    OpenaiEx.Beta.Threads.Runs.submit_tool_outputs(ai.client, request)
+  def submit_tool_outputs(thread_id, run_id, outputs) do
+    OpenAI.thread_run_submit_tool_outputs(
+      thread_id,
+      run_id,
+      [tool_outputs: outputs],
+      @openai_config
+    )
   end
 
   # -----------------------------------------------------------------------------

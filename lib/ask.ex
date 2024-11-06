@@ -1,7 +1,6 @@
 defmodule Ask do
   defstruct [
     :opts,
-    :ai,
     :settings,
     :assistant_id,
     :thread_id,
@@ -17,7 +16,6 @@ defmodule Ask do
   def new(opts) do
     %Ask{
       opts: opts,
-      ai: AI.new(),
       settings: Settings.new(),
       status_msgs: [],
       assistant_searches: [],
@@ -42,6 +40,9 @@ defmodule Ask do
          {:ok, ask} <- with_run_id(ask),
          {:ok, ask} <- get_response(ask) do
       render(ask)
+    else
+      {:error, reason} ->
+        IO.puts(:stderr, "[fnord] #{inspect(reason)}")
     end
   end
 
@@ -97,7 +98,7 @@ defmodule Ask do
 
   defp send_prompt(ask) do
     with {:ok, prompt} <- get_prompt(ask),
-         {:ok, _} <- AI.add_user_message(ask.ai, ask.thread_id, prompt) do
+         {:ok, _} <- AI.add_user_message(ask.thread_id, prompt) do
       {:ok, ask}
     end
   end
@@ -106,7 +107,7 @@ defmodule Ask do
     with {ask, {:ok, :done}} <- run_thread(ask),
          {:ok, msg} <- get_last_message(ask) do
       msg
-      |> Map.get("data", [])
+      |> Map.get(:data, [])
       |> Enum.filter(fn %{"role" => role} -> role == "assistant" end)
       |> Enum.map(fn %{"content" => [%{"text" => %{"value" => msg}}]} -> msg end)
       |> Enum.join("\n\n")
@@ -115,39 +116,36 @@ defmodule Ask do
   end
 
   defp get_last_message(ask) do
-    AI.get_messages(ask.ai, ask.thread_id, %{
-      limit: 1,
-      order: "desc"
-    })
+    AI.get_messages(ask.thread_id, limit: 1, order: "desc")
   end
 
   defp get_prompt(%Ask{opts: %{question: question}}), do: {:ok, question}
 
   defp run_thread(ask) do
-    case AI.get_run_status(ask.ai, ask.thread_id, ask.run_id) do
-      {:ok, %{"status" => "queued"}} ->
+    case AI.get_thread_run(ask.thread_id, ask.run_id) do
+      {:ok, %{status: "queued"}} ->
         ask
         |> info("Assistant is working")
         |> run_thread()
 
-      {:ok, %{"status" => "in_progress"}} ->
+      {:ok, %{status: "in_progress"}} ->
         ask
         |> info("Assistant is working")
         |> run_thread()
 
       # Requires action; most likely a tool call request
-      {:ok, %{"status" => "requires_action"} = status} ->
+      {:ok, %{status: "requires_action"} = status} ->
         {ask, outputs} =
           ask
           |> info("Searching project")
           |> get_tool_outputs(status)
 
-        case AI.submit_tool_outputs(ask.ai, ask.thread_id, ask.run_id, outputs) do
+        case AI.submit_tool_outputs(ask.thread_id, ask.run_id, outputs) do
           {:ok, _} -> run_thread(ask)
           {:error, reason} -> {ask, {:error, reason}}
         end
 
-      {:ok, %{"status" => "completed"}} ->
+      {:ok, %{status: "completed"}} ->
         {ask, {:ok, :done}}
 
       {:ok, status} ->
@@ -164,7 +162,7 @@ defmodule Ask do
 
   defp get_tool_outputs(ask, run_status) do
     run_status
-    |> Map.get("required_action", %{})
+    |> Map.get(:required_action, %{})
     |> Map.get("submit_tool_outputs", %{})
     |> Map.get("tool_calls", [])
     |> Enum.reduce({ask, []}, fn tool_call, {ask, acc} ->
@@ -208,7 +206,9 @@ defmodule Ask do
       |> Search.new()
       |> Search.get_results()
       |> Enum.reduce({ask, []}, fn {file, score, data}, {ask, acc} ->
-        ask = info(ask, "    - <#{Float.round(score, 5)}> #{file}")
+        rounded = Float.round(score, 5)
+        formatted = :io_lib.format("~7.5f", [rounded]) |> List.to_string()
+        ask = info(ask, "    - <#{formatted}> #{file}")
         ask = %Ask{ask | files_found: [file | ask.files_found]}
         {ask, [{file, score, data} | acc]}
       end)
@@ -231,15 +231,15 @@ defmodule Ask do
   defp get_tool_call_output(_ask, _status), do: nil
 
   defp with_run_id(ask) do
-    case AI.run_thread(ask.ai, ask.assistant_id, ask.thread_id) do
-      {:ok, %{"id" => run_id}} -> {:ok, %Ask{ask | run_id: run_id}}
-      _ -> {:error, :run_thread_failed}
+    case AI.run_thread(ask.assistant_id, ask.thread_id) do
+      {:ok, run_id} -> {:ok, %Ask{ask | run_id: run_id}}
+      {:error, reason} -> {:error, reason}
     end
   end
 
   defp with_assistant_id(ask) do
-    with {:ok, assistant} <- Assistant.get(ask.ai, ask.settings) do
-      {:ok, %Ask{ask | assistant_id: assistant["id"]}}
+    with {:ok, assistant} <- Assistant.get(ask.settings) do
+      {:ok, %Ask{ask | assistant_id: assistant.id}}
     end
   end
 
@@ -247,12 +247,11 @@ defmodule Ask do
     with true <- continue_last_thread?(ask),
          {:ok, ask} <- with_last_thread_id(ask) do
       ask = info(ask, "Continuing last thread: #{ask.thread_id}")
-      {:ok, ask}
+      {:ok, ask |> info("Continuing last thread: #{ask.thread_id}")}
     else
       _ ->
         {:ok, ask} = with_new_thread_id(ask)
-        ask = info(ask, "Starting new thread: #{ask.thread_id}")
-        {:ok, ask}
+        {:ok, ask |> info("Starting new thread: #{ask.thread_id}")}
     end
   end
 
@@ -267,7 +266,7 @@ defmodule Ask do
   end
 
   defp with_new_thread_id(ask) do
-    with {:ok, %{"id" => thread_id}} <- AI.start_thread(ask.ai) do
+    with {:ok, thread_id} <- AI.start_thread() do
       Settings.set(ask.settings, @last_thread_id_setting, thread_id)
       {:ok, %Ask{ask | thread_id: thread_id}}
     end

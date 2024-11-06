@@ -37,20 +37,13 @@ defmodule Fnord.MixProject do
     [main_module: Fnord]
   end
 
-  # Run "mix help compile.app" to learn about applications.
-  def application do
-    [
-      extra_applications: [:logger]
-    ]
-  end
-
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
       {:gpt3_tokenizer, "~> 0.1.0"},
       {:jason, "~> 1.4"},
-      {:openai_ex, "~> 0.8.3"},
+      {:openai, "~> 0.6.2"},
       {:optimus, "~> 0.2"},
       {:owl, "~> 0.12"},
       {:dialyxir, "~> 1.4.4", only: [:dev], runtime: false}

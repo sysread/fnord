@@ -50,15 +50,15 @@ defmodule Assistant do
     }
   }
 
-  @assistant_request OpenaiEx.Beta.Assistants.new(%{
-                       name: @assistant_name,
-                       instructions: @assistant_prompt,
-                       model: @assistant_model,
-                       tools: [@search_tool],
-                       metadata: %{version: @assistant_version}
-                     })
+  @assistant_params [
+    name: @assistant_name,
+    instructions: @assistant_prompt,
+    model: @assistant_model,
+    tools: [@search_tool],
+    metadata: %{version: @assistant_version}
+  ]
 
-  def get(ai \\ nil, settings \\ nil) do
+  def get(settings \\ nil) do
     settings =
       if is_nil(settings) do
         Settings.new()
@@ -66,20 +66,13 @@ defmodule Assistant do
         settings
       end
 
-    ai =
-      if is_nil(ai) do
-        AI.new()
-      else
-        ai
-      end
-
     with {:ok, assistant_id} <- get_saved_assistant_id(settings),
-         {:ok, %{"id" => assistant_id} = assistant} <- retrieve_assistant(ai, assistant_id) do
+         {:ok, %{id: assistant_id} = assistant} <- retrieve_assistant(assistant_id) do
       Settings.set(settings, @assistant_id_setting, assistant_id)
       {:ok, assistant}
     else
-      {:error, :not_found} -> create_assistant(ai)
-      {:error, :no_assistant_configured} -> create_assistant(ai)
+      {:error, :not_found} -> create_assistant()
+      {:error, :no_assistant_configured} -> create_assistant()
     end
   end
 
@@ -90,27 +83,27 @@ defmodule Assistant do
     end
   end
 
-  defp create_assistant(ai) do
-    AI.create_assistant(ai, @assistant_request)
-  end
-
-  defp retrieve_assistant(ai, assistant_id) do
-    AI.get_assistant(ai, assistant_id)
+  defp retrieve_assistant(assistant_id) do
+    AI.get_assistant(assistant_id)
     |> case do
-      {:ok, assistant} -> update_assistant(ai, assistant)
+      {:ok, assistant} -> update_assistant(assistant)
       {:error, _} -> {:error, :not_found}
     end
   end
 
-  defp update_assistant(ai, assistant) do
+  defp create_assistant() do
+    AI.create_assistant(@assistant_params)
+  end
+
+  defp update_assistant(assistant) do
     if assistant_is_stale?(assistant) do
-      AI.update_assistant(ai, assistant["id"], @assistant_request)
+      AI.update_assistant(assistant.id, @assistant_params)
     else
       {:ok, assistant}
     end
   end
 
   defp assistant_is_stale?(assistant) do
-    assistant["metadata"]["version"] != @assistant_version
+    assistant.metadata["version"] != @assistant_version
   end
 end

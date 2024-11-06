@@ -126,12 +126,7 @@ defmodule MockAIForSearch do
   @behaviour AI
 
   @impl AI
-  def new() do
-    %MockAIForSearch{}
-  end
-
-  @impl AI
-  def get_embeddings(_ai, text) do
+  def get_embeddings(text) do
     embedding =
       cond do
         String.contains?(text, "file1") ->
@@ -151,7 +146,7 @@ defmodule MockAIForSearch do
   end
 
   @impl AI
-  def get_summary(_ai, _file, _text) do
+  def get_summary(_file, _text) do
     {:ok, "summary"}
   end
 end
