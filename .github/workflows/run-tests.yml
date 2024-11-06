@@ -30,8 +30,6 @@ jobs:
         key: build-cache-${{ runner.os }}
 
     - name: Install dependencies
-      env:
-        MIX_ENV: test
       run: |
         mix local.hex --force
         mix local.rebar --force
@@ -45,7 +43,8 @@ jobs:
 
     - name: Compile
       run: |
-        mix compile
+        MIX_ENV=test mix compile
+        MIX_ENV=dev mix compile
 
     - name: Cache compiled artifacts
       uses: actions/cache/save@v4
@@ -53,27 +52,13 @@ jobs:
         path: _build
         key: ${{ steps.build-cache-restore.outputs.cache-primary-key }}
 
-    - name: Test
-      env:
-        MIX_ENV: test
-      run: |
-        mix test
+    - name: Run tests
+      run: MIX_ENV=test mix test
 
-    - name: Cache test artifacts
-      uses: actions/cache/save@v4
-      with:
-        path: _build
-        key: ${{ steps.build-cache-restore.outputs.cache-primary-key }}
+    - name: Run dialyzer
+      run: MIX_ENV=dev mix dialyzer
 
-    - name: Dialyzer
-      env:
-        MIX_ENV: dev
-      run: |
-        mix deps.get
-        mix compile
-        mix dialyzer
-
-    - name: Cache dialyzer plts and artifacts
+    - name: Cache PLTs
       uses: actions/cache/save@v4
       with:
         path: _build
