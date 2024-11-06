@@ -22,19 +22,35 @@ jobs:
         elixir-version: 'latest'
         otp-version: 'latest'
 
-    - name: Cache Build Artifacts
+    - name: Cache Elixir deps
+      id: elixir-deps-cache
       uses: actions/cache@v4
       with:
-        path: _build
-        key: ${{ runner.os }}-elixir-${{ hashFiles('mix.lock') }}-build
+        path: |
+          **/deps
+        key: |
+          ${{ runner.os }}-elixir-deps-${{ hashFiles('**/mix.lock') }}
         restore-keys: |
-          ${{ runner.os }}-elixir-build
+          ${{ runner.os }}-elixir-deps-
 
-    - name: Install dependencies
+    - name: Cache Elixir build
+      id: elixir-build-cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          **/_build
+        key: |
+          ${{ runner.os }}-elixir-build-${{ hashFiles('**/mix.lock') }}-${{ hashFiles( '**/lib/**/*.{ex,eex}', '**/config/*.exs', '**/mix.exs' ) }}
+        restore-keys: |
+          ${{ runner.os }}-elixir-build-${{ hashFiles('**/mix.lock') }}-
+          ${{ runner.os }}-elixir-build-
+
+    - name: Install dependencies and compile
       run: |
         mix local.hex --force
         mix local.rebar --force
         mix deps.get
+        mix compile
 
     - name: Run Tests
       run: |
