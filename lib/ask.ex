@@ -212,6 +212,7 @@ defmodule Ask do
       |> then(&{:ok, &1})
     else
       {:error, reason} -> {:error, reason}
+      :error -> {:error, :query_not_found}
     end
   end
 
