@@ -168,11 +168,13 @@ defmodule Store do
   def get(store, file) do
     with {:ok, meta} <- Store.info(store, file),
          {:ok, summary} <- get_summary(store, file),
-         {:ok, embeddings} <- get_embeddings(store, file) do
+         {:ok, embeddings} <- get_embeddings(store, file),
+         {:ok, contents} <- File.read(file) do
       info =
         meta
         |> Map.put("summary", summary)
         |> Map.put("embeddings", embeddings)
+        |> Map.put("contents", contents)
 
       {:ok, info}
     else

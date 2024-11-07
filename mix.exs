@@ -47,13 +47,13 @@ defmodule Fnord.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:dialyxir, "~> 1.4.4", only: [:dev], runtime: false},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
       {:gpt3_tokenizer, "~> 0.1.0"},
       {:jason, "~> 1.4"},
       {:openai_ex, "~> 0.8.3"},
       {:optimus, "~> 0.2"},
-      {:owl, "~> 0.12"},
-      {:dialyxir, "~> 1.4.4", only: [:dev], runtime: false}
+      {:owl, "~> 0.12"}
     ]
   end
 end

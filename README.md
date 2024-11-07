@@ -102,6 +102,51 @@ fnord ask foo "summarize the dependencies of this project" | glow
 
 Note that deleting a project only deletes from the index, not the actual files.
 
+## Tool usage
+
+Internally, the `ask` command uses the OpenAI chat completions API to generate
+a response, implementing a function tool to allow the assistant to query the
+database for information.
+
+`fnord` can be used to implement a similar tool for your own projects. While
+the `ask` command severely limits the parameters that the assistant may utilize
+(`query` only, with `project` being provided by the user's invocation of the
+command), the following syntax includes the full set of parameters available
+for the `search` command.
+
+```json
+{
+  "name": "search_tool",
+  "description": "Searches for matching files and their contents in a project.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "project": {
+        "type": "string",
+        "description": "Project name for the search."
+      },
+      "query": {
+        "type": "string",
+        "description": "The search query string."
+      },
+      "detail": {
+        "type": "boolean",
+        "description": "Include AI-generated file summary if set to true."
+      },
+      "limit": {
+        "type": "integer",
+        "description": "Limit the number of results (default: 10)."
+      },
+      "concurrency": {
+        "type": "integer",
+        "description": "Number of concurrent threads to use for the search (default: 4)."
+      }
+    },
+    "required": ["project", "query"]
+  }
+}
+```
+
 ## TODO
 - `ask`: read questions from stdin
 - `ask`: streaming output

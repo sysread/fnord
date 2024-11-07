@@ -17,7 +17,7 @@ defmodule Fnord do
         :torch -> Indexer.new(opts) |> Indexer.delete_project()
         :projects -> Store.list_projects() |> Enum.each(&IO.puts(&1))
         :files -> Store.new(opts.project) |> Store.list_files() |> Enum.each(&IO.puts(&1))
-        :ask -> Ask.run(opts)
+        :ask -> Ask.new(opts) |> Ask.run()
       end
     else
       {:error, reason} -> IO.puts("Error: #{reason}")
@@ -91,13 +91,6 @@ defmodule Fnord do
       short: "-c",
       help: "Number of concurrent threads to use",
       default: 4
-    ]
-
-    continue = [
-      long: "--continue",
-      short: "-C",
-      help: "Continue the last thread",
-      default: false
     ]
 
     question = [
@@ -182,7 +175,6 @@ defmodule Fnord do
               concurrency: concurrency
             ],
             flags: [
-              continue: continue,
               debug: debug,
               quiet: quiet
             ],
