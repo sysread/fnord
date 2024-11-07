@@ -1,5 +1,9 @@
 defmodule AI.Answers do
   @moduledoc """
+  This module provides an agent that answers questions by searching a database
+  of information about the user's project. It uses a search tool to find
+  matching files and their contents in order to generate a complete and concise
+  answer for the user.
   """
 
   @model "gpt-4o"
