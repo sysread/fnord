@@ -149,4 +149,4 @@ for the `search` command.
 
 ## TODO
 - `ask`: read questions from stdin
-- `ask`: streaming output
+- `ask`: add agent to summarize file in relation to user prompt in lieu of injecting entire files into the conversation
