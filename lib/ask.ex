@@ -201,10 +201,6 @@ defmodule Ask do
 
         ## Summary
         #{data["summary"]}
-
-        ## Contents
-        ```
-        #{data["contents"]}
         ```
         """
       end)
