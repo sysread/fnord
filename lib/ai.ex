@@ -223,69 +223,6 @@ defmodule AI do
   end
 
   # -----------------------------------------------------------------------------
-  # Assistants
-  # -----------------------------------------------------------------------------
-  def create_assistant(ai, request) do
-    OpenaiEx.Beta.Assistants.create(ai.client, request)
-  end
-
-  def get_assistant(ai, assistant_id) do
-    OpenaiEx.Beta.Assistants.retrieve(ai.client, assistant_id)
-  end
-
-  def update_assistant(ai, assistant_id, request) do
-    OpenaiEx.Beta.Assistants.update(ai.client, assistant_id, request)
-  end
-
-  # -----------------------------------------------------------------------------
-  # Threads
-  # -----------------------------------------------------------------------------
-  def start_thread(ai) do
-    OpenaiEx.Beta.Threads.create(ai.client)
-  end
-
-  def add_user_message(ai, thread_id, message) do
-    request =
-      OpenaiEx.Beta.Threads.Messages.new(%{
-        role: "user",
-        content: message
-      })
-
-    OpenaiEx.Beta.Threads.Messages.create(ai.client, thread_id, request)
-  end
-
-  def get_messages(ai, thread_id, params \\ %{}) do
-    OpenaiEx.Beta.Threads.Messages.list(ai.client, thread_id, params)
-  end
-
-  def run_thread(ai, assistant_id, thread_id) do
-    request =
-      OpenaiEx.Beta.Threads.Runs.new(%{
-        thread_id: thread_id,
-        assistant_id: assistant_id
-      })
-
-    OpenaiEx.Beta.Threads.Runs.create(ai.client, request)
-  end
-
-  def get_run_status(ai, thread_id, run_id) do
-    OpenaiEx.Beta.Threads.Runs.retrieve(ai.client, %{
-      thread_id: thread_id,
-      run_id: run_id
-    })
-  end
-
-  def submit_tool_outputs(ai, thread_id, run_id, outputs) do
-    request = %{
-      thread_id: thread_id,
-      run_id: run_id,
-      tool_outputs: outputs
-    }
-
-    OpenaiEx.Beta.Threads.Runs.submit_tool_outputs(ai.client, request)
-  end
-
-  # -----------------------------------------------------------------------------
   # Utilities
   # -----------------------------------------------------------------------------
   defp truncate_text(text, max_tokens) do
