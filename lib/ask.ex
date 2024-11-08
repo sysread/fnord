@@ -6,43 +6,22 @@ defmodule Ask do
   ]
 
   def new(opts) do
-    on_msg_chunk =
-      if interactive?() do
-        fn _chunk, buffer ->
-          Owl.LiveScreen.update(:answer, buffer)
-          Owl.LiveScreen.await_render()
-        end
-      else
-        fn chunk, _buffer ->
-          IO.write(chunk)
-        end
-      end
-
     ai = AI.new()
-    agent = AI.AnswersAgent.new(ai, opts, on_msg_chunk)
-
-    %Ask{
-      ai: ai,
-      opts: opts,
-      agent: agent
-    }
+    agent = AI.Agent.Answers.new(ai, opts, &update_answer/2)
+    %Ask{ai: ai, opts: opts, agent: agent}
   end
 
   def run(ask) do
     start_output()
-    get_answer(ask)
+    AI.Agent.Answers.perform(ask.agent)
     end_output()
   end
 
   # -----------------------------------------------------------------------------
   # IO
   # -----------------------------------------------------------------------------
-  defp interactive?() do
+  def interactive?() do
     IO.ANSI.enabled?()
-  end
-
-  defp get_answer(ask) do
-    AI.AnswersAgent.perform(ask.agent)
   end
 
   defp start_output() do
@@ -65,6 +44,15 @@ defmodule Ask do
     if interactive?() do
       Owl.Spinner.update_label(id: :status, label: msg)
       Owl.LiveScreen.await_render()
+    end
+  end
+
+  def update_answer(chunk, buffer) do
+    if interactive?() do
+      Owl.LiveScreen.update(:answer, buffer)
+      Owl.LiveScreen.await_render()
+    else
+      IO.write(chunk)
     end
   end
 end

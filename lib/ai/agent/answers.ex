@@ -1,4 +1,4 @@
-defmodule AI.AnswersAgent do
+defmodule AI.Agent.Answers do
   @moduledoc """
   This module provides an agent that answers questions by searching a database
   of information about the user's project. It uses a search tool to find
@@ -8,15 +8,15 @@ defmodule AI.AnswersAgent do
   defstruct([
     :ai,
     :opts,
-    :on_msg_chunk,
+    :callback,
     :last_msg_chunk,
     :msg_buffer,
-    :tool_call_buffer,
-    :matched_files,
+    :tool_call,
     :messages
   ])
 
   @model "gpt-4o"
+
   @prompt """
   You are a conversational interface to a database of information about the
   user's project. The database may contain:
@@ -73,22 +73,21 @@ defmodule AI.AnswersAgent do
     }
   }
 
-  @tool_call_buffer %{
+  @tool_call %{
     id: nil,
     func: "",
     args: "",
     output: ""
   }
 
-  def new(ai, opts, on_msg_complete) do
-    %AI.AnswersAgent{
+  def new(ai, opts, callback) do
+    %AI.Agent.Answers{
       ai: ai,
       opts: opts,
-      on_msg_chunk: on_msg_complete,
+      callback: callback,
       last_msg_chunk: "",
       msg_buffer: "",
-      tool_call_buffer: @tool_call_buffer,
-      matched_files: [],
+      tool_call: @tool_call,
       messages: [
         system_message(),
         user_message(opts.question)
@@ -101,70 +100,77 @@ defmodule AI.AnswersAgent do
   end
 
   defp reset_buffers(agent) do
-    %AI.AnswersAgent{
+    %AI.Agent.Answers{
       agent
       | msg_buffer: "",
         last_msg_chunk: "",
-        tool_call_buffer: @tool_call_buffer
+        tool_call: @tool_call
     }
   end
 
   # -----------------------------------------------------------------------------
   # Stream processing
   # -----------------------------------------------------------------------------
-  defp send_request(%{msg_buffer: "", tool_call_buffer: @tool_call_buffer} = agent) do
+  defp send_request(%{msg_buffer: "", tool_call: @tool_call} = agent) do
     Ask.update_status("Talking to the assistant")
 
     agent.ai
-    |> stream(agent.messages)
+    |> get_response_stream(agent.messages)
     |> process_stream(agent)
   end
 
   defp send_request(agent) do
     agent.ai
-    |> stream(agent.messages)
+    |> get_response_stream(agent.messages)
     |> process_stream(agent |> reset_buffers())
+  end
+
+  defp get_response_stream(ai, messages) do
+    chat_req =
+      OpenaiEx.Chat.Completions.new(
+        model: @model,
+        tools: [@search_tool],
+        tool_choice: "auto",
+        messages: messages
+      )
+
+    {:ok, chat_stream} = OpenaiEx.Chat.Completions.create(ai.client, chat_req, stream: true)
+
+    chat_stream.body_stream
   end
 
   defp process_stream(stream, agent) do
     stream
     |> Stream.flat_map(& &1)
+    |> Stream.map(fn %{data: %{"choices" => [event]}} -> event end)
     |> Enum.reduce(agent, fn event, agent ->
       handle_response(agent, event)
     end)
   end
 
   # -----------------------------------------------------------------------------
-  # General event handling
-  # -----------------------------------------------------------------------------
-  # Strip out the :data and "choices" wrappers
-  defp handle_response(agent, %{data: %{"choices" => event}}) do
-    handle_response(agent, event)
-  end
-
-  # -----------------------------------------------------------------------------
   # Message events
   # -----------------------------------------------------------------------------
   # The message is complete
-  defp handle_response(agent, [%{"finish_reason" => "stop"}]) do
+  defp handle_response(agent, %{"finish_reason" => "stop"}) do
     Ask.update_status("Answer received")
 
-    %AI.AnswersAgent{agent | messages: agent.messages ++ [assistant_message(agent.msg_buffer)]}
+    %AI.Agent.Answers{agent | messages: agent.messages ++ [assistant_message(agent.msg_buffer)]}
     |> reset_buffers()
   end
 
   # Extract the message content
-  defp handle_response(agent, [%{"delta" => %{"content" => content}}])
-       when not is_nil(content) do
+  defp handle_response(agent, %{"delta" => %{"content" => content}})
+       when is_binary(content) do
     Ask.update_status("Assistant is typing...")
 
-    agent = %AI.AnswersAgent{
+    agent = %AI.Agent.Answers{
       agent
       | last_msg_chunk: content,
         msg_buffer: agent.msg_buffer <> content
     }
 
-    agent.on_msg_chunk.(content, agent.msg_buffer)
+    agent.callback.(content, agent.msg_buffer)
     agent
   end
 
@@ -172,27 +178,25 @@ defmodule AI.AnswersAgent do
   # Tool call events
   # -----------------------------------------------------------------------------
   # THe initial response contains the function and tool call ID
-  defp handle_response(agent, [
-         %{
-           "delta" => %{
-             "tool_calls" => [
-               %{"id" => id, "function" => %{"name" => name}}
-             ]
-           }
+  defp handle_response(agent, %{
+         "delta" => %{
+           "tool_calls" => [
+             %{"id" => id, "function" => %{"name" => name}}
+           ]
          }
-       ]) do
+       }) do
     Ask.update_status("Assistant is preparing a search...")
 
-    tool_call_buffer =
-      agent.tool_call_buffer
+    tool_call =
+      agent.tool_call
       |> Map.put(:id, id)
       |> Map.put(:func, name)
 
-    %AI.AnswersAgent{agent | tool_call_buffer: tool_call_buffer}
+    %AI.Agent.Answers{agent | tool_call: tool_call}
   end
 
   # Collect tool call fragments (both "name" and "arguments")
-  defp handle_response(agent, [%{"delta" => %{"tool_calls" => [%{"function" => frag}]}}]) do
+  defp handle_response(agent, %{"delta" => %{"tool_calls" => [%{"function" => frag}]}}) do
     Ask.update_status("Assistant is preparing a search...")
 
     # Extract fragments of "id", "name", and "arguments" if they exist
@@ -200,39 +204,39 @@ defmodule AI.AnswersAgent do
     args_frag = Map.get(frag, "arguments", "")
 
     # Accumulate the fragments into the tool call
-    tool_call_buffer =
-      agent.tool_call_buffer
+    tool_call =
+      agent.tool_call
       |> Map.update!(:func, &(&1 <> name_frag))
       |> Map.update!(:args, &(&1 <> args_frag))
 
-    %AI.AnswersAgent{agent | tool_call_buffer: tool_call_buffer}
+    %AI.Agent.Answers{agent | tool_call: tool_call}
   end
 
   # Handle the completion of tool calls
-  defp handle_response(agent, [%{"finish_reason" => "tool_calls"}]) do
+  defp handle_response(agent, %{"finish_reason" => "tool_calls"}) do
     Ask.update_status("Assistant requested search results")
 
     with {:ok, output} <- handle_tool_call(agent) do
       tool_request =
         assistant_tool_message(
-          agent.tool_call_buffer.id,
-          agent.tool_call_buffer.func,
-          agent.tool_call_buffer.args
+          agent.tool_call.id,
+          agent.tool_call.func,
+          agent.tool_call.args
         )
 
       tool_response =
         tool_message(
-          agent.tool_call_buffer.id,
-          agent.tool_call_buffer.func,
+          agent.tool_call.id,
+          agent.tool_call.func,
           output
         )
 
       messages = agent.messages ++ [tool_request, tool_response]
 
-      %AI.AnswersAgent{
+      %AI.Agent.Answers{
         agent
         | messages: messages,
-          tool_call_buffer: %{agent.tool_call_buffer | output: output}
+          tool_call: %{agent.tool_call | output: output}
       }
       |> send_request()
     end
@@ -248,7 +252,7 @@ defmodule AI.AnswersAgent do
   # Tool call outputs
   # -----------------------------------------------------------------------------
   # Function to execute the tool call
-  defp handle_tool_call(%{tool_call_buffer: %{func: "search_tool", args: args_json}} = agent) do
+  defp handle_tool_call(%{tool_call: %{func: "search_tool", args: args_json}} = agent) do
     with {:ok, args} <- Jason.decode(args_json),
          {:ok, query} <- Map.fetch(args, "query"),
          {:ok, results} <- search_tool(agent, query) do
@@ -263,25 +267,22 @@ defmodule AI.AnswersAgent do
   end
 
   defp search_tool(agent, search_query) do
-    AI.SearchAgent.new(
+    AI.Agent.Search.new(
       agent.ai,
       agent.opts.question,
       search_query,
       agent.opts
     )
-    |> AI.SearchAgent.search()
+    |> AI.Agent.Search.search()
   end
 
   # -----------------------------------------------------------------------------
   # Message construction
   # -----------------------------------------------------------------------------
-  defp system_message() do
-    OpenaiEx.ChatMessage.system(@prompt)
-  end
-
-  defp assistant_message(msg) do
-    OpenaiEx.ChatMessage.assistant(msg)
-  end
+  defp system_message(), do: OpenaiEx.ChatMessage.system(@prompt)
+  defp assistant_message(msg), do: OpenaiEx.ChatMessage.assistant(msg)
+  defp user_message(msg), do: OpenaiEx.ChatMessage.user(msg)
+  defp tool_message(id, func, output), do: OpenaiEx.ChatMessage.tool(id, func, output)
 
   defp assistant_tool_message(id, func, args) do
     %{
@@ -298,27 +299,5 @@ defmodule AI.AnswersAgent do
         }
       ]
     }
-  end
-
-  defp user_message(msg) do
-    OpenaiEx.ChatMessage.user(msg)
-  end
-
-  defp tool_message(id, func, output) do
-    OpenaiEx.ChatMessage.tool(id, func, output)
-  end
-
-  defp stream(ai, messages) do
-    chat_req =
-      OpenaiEx.Chat.Completions.new(
-        model: @model,
-        tools: [@search_tool],
-        tool_choice: "auto",
-        messages: messages
-      )
-
-    {:ok, chat_stream} = OpenaiEx.Chat.Completions.create(ai.client, chat_req, stream: true)
-
-    chat_stream.body_stream
   end
 end

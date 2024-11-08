@@ -5,7 +5,9 @@ defmodule AI do
   operations used by the application.
   """
 
-  defstruct [:client]
+  defstruct [
+    :client
+  ]
 
   @api_key System.get_env("OPENAI_API_KEY")
   @api_timeout 45_000
@@ -36,7 +38,7 @@ defmodule AI do
   @doc """
   See `AI.EmbeddingsAgent.get_embeddings/2`.
   """
-  defdelegate get_embeddings(ai, text), to: AI.EmbeddingsAgent
+  defdelegate get_embeddings(ai, text), to: AI.Agent.Embeddings
 
   # -----------------------------------------------------------------------------
   # Summaries
@@ -45,5 +47,5 @@ defmodule AI do
   @doc """
   See `AI.FileSummaryAgent.get_summary/3`.
   """
-  defdelegate get_summary(ai, file, text), to: AI.FileSummaryAgent
+  defdelegate get_summary(ai, file, text), to: AI.Agent.FileSummary
 end

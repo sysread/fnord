@@ -1,4 +1,4 @@
-defmodule AI.EmbeddingsAgent do
+defmodule AI.Agent.Embeddings do
   @moduledoc """
   This module provides an agent that generates embeddings for text data.
   """

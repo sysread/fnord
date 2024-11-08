@@ -51,7 +51,7 @@ defmodule Queue do
   def map(enum, pid) do
     enum
     |> Enum.map(&queue(pid, &1))
-    |> Enum.map(&Task.await(&1))
+    |> Enum.map(&Task.await(&1, :infinity))
   end
 
   # -----------------------------------------------------------------------------

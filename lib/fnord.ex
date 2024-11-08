@@ -90,6 +90,7 @@ defmodule Fnord do
       long: "--concurrency",
       short: "-c",
       help: "Number of concurrent threads to use",
+      parser: :integer,
       default: 4
     ]
 

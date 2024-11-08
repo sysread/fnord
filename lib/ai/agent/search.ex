@@ -1,10 +1,10 @@
-defmodule AI.SearchAgent do
+defmodule AI.Agent.Search do
   @moduledoc """
-  When `AI.AnswersAgent` receives a tool call request from the assistant, it
+  When `AI.Agent.Answers` receives a tool call request from the assistant, it
   will use this module to perform the search using `Search`. The contents of
-  the files matched are then sent to the `AI.RelevantFileSections` module,
-  which will identify the aspects of the file that are relevant to the user's
-  query as well as the `AI.AnswersAgent`' search criteria.
+  the files matched are then sent to the `AI.Agent.RelevantFileSections`
+  module, which will identify the aspects of the file that are relevant to the
+  user's query as well as the `AI.Agent.Answers`' search criteria.
   """
 
   defstruct [
@@ -14,8 +14,11 @@ defmodule AI.SearchAgent do
     :search_query
   ]
 
+  @max_search_results 5
+  @max_retries 3
+
   def new(ai, user_query, search_query, opts) do
-    %AI.SearchAgent{
+    %AI.Agent.Search{
       ai: ai,
       opts: opts,
       user_query: user_query,
@@ -24,11 +27,11 @@ defmodule AI.SearchAgent do
   end
 
   @doc """
-  Performs a concurrent search on behalf of the `AI.AnswersAgent` agent. It
+  Performs a concurrent search on behalf of the `AI.Agent.Answers` agent. It
   uses the `Search` module to search the database for matches to the search
   query. Then, it concurrently feeds the contents of each matched file to the
-  `AI.RelevantFileSections` agent, which will identify the relevant sections of
-  the file.
+  `AI.Agent.RelevantFileSections` agent, which will identify the relevant
+  sections of the file.
   """
   def search(agent) do
     Ask.update_status("Searching: #{agent.search_query}")
@@ -45,8 +48,8 @@ defmodule AI.SearchAgent do
   # -----------------------------------------------------------------------------
   # Starts and returns a process pool using the `Queue` module. It is
   # configured to retrieve the relevant sections of the file using the
-  # `AI.RelevantFileSections` agent which match the user's query and the
-  # `AI.AnswersAgent` agent's search criteria.
+  # `AI.Agent.RelevantFileSections` agent which match the user's query and the
+  # `AI.Agent.Answers` agent's search criteria.
   # -----------------------------------------------------------------------------
   defp get_queue(agent) do
     Queue.start_link(agent.opts.concurrency, fn {file, score, data} ->
@@ -56,14 +59,15 @@ defmodule AI.SearchAgent do
 
   # -----------------------------------------------------------------------------
   # Processes the matches returned by the `Search` module. It then uses the
-  # `Queue` module to concurrently request that the `AI.RelevantFileSections`
-  # agent identify the relevant sections of the file that match the user's
-  # query and the `AI.AnswersAgent` agent's search criteria.
+  # `Queue` module to concurrently request that the
+  # `AI.Agent.RelevantFileSections` agent identify the relevant sections of the
+  # file that match the user's query and the `AI.Agent.Answers` agent's search
+  # criteria.
   # -----------------------------------------------------------------------------
   defp process_matches(agent, queue, matches) do
     Ask.update_status("Searching: #{agent.search_query} -> evaluating matches")
 
-    with_retries(3, fn ->
+    with_retries(@max_retries, fn ->
       matches
       |> Queue.map(queue)
       |> Enum.reduce([], fn
@@ -102,11 +106,11 @@ defmodule AI.SearchAgent do
 
   # -----------------------------------------------------------------------------
   # Reads the file contents, get the relevant sections using the
-  # `AI.RelevantFileSections` agent, and returns a formatted string response
-  # that includes the file and match information, the summary of the file (that
-  # was generated when the file was indexed by the `AI.Summarizer` agent), and
-  # the relevant sections of the file that were identified by the
-  # `AI.RelevantFileSections` agent.
+  # `AI.Agent.RelevantFileSections` agent, and returns a formatted string
+  # response that includes the file and match information, the summary of the
+  # file (that was generated when the file was indexed by the `AI.Summarizer`
+  # agent), and the relevant sections of the file that were identified by the
+  # `AI.Agent.RelevantFileSections` agent.
   # -----------------------------------------------------------------------------
   defp get_entry_agent_response(agent, {file, score, data}) do
     with {:ok, file_content} <- File.read(file),
@@ -128,16 +132,16 @@ defmodule AI.SearchAgent do
 
   # -----------------------------------------------------------------------------
   # Uses the `AI.RelevantFileSections` agent to identify the sections of the
-  # file that are relevant to the user's and `AI.AnswersAgent` agent's queries.
+  # file that are relevant to the user's and `AI.Agent.Answers` agent's queries.
   # -----------------------------------------------------------------------------
   defp get_relevant_sections(agent, file_content) do
-    AI.RelevantFileSections.new(
+    AI.Agent.RelevantFileSections.new(
       agent.ai,
       agent.user_query,
       agent.search_query,
       file_content
     )
-    |> AI.RelevantFileSections.get_summary()
+    |> AI.Agent.RelevantFileSections.get_summary()
   end
 
   # -----------------------------------------------------------------------------
@@ -148,7 +152,7 @@ defmodule AI.SearchAgent do
     agent.opts
     |> Map.put(:concurrency, agent.opts.concurrency)
     |> Map.put(:detail, true)
-    |> Map.put(:limit, 10)
+    |> Map.put(:limit, @max_search_results)
     |> Map.put(:query, agent.search_query)
     |> Search.new()
     |> Search.get_results()

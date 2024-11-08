@@ -1,4 +1,4 @@
-defmodule AI.RelevantFileSections do
+defmodule AI.Agent.RelevantFileSections do
   defstruct [
     :ai,
     :splitter,
@@ -72,7 +72,7 @@ defmodule AI.RelevantFileSections do
   """
 
   def new(ai, user_query, search_query, file_content) do
-    %AI.RelevantFileSections{
+    %AI.Agent.RelevantFileSections{
       ai: ai,
       splitter: AI.TokenSplitter.new(file_content, @max_tokens),
       summary: "",
@@ -135,7 +135,7 @@ defmodule AI.RelevantFileSections do
     )
     |> case do
       {:ok, %{"choices" => [%{"message" => %{"content" => summary}}]}} ->
-        {:ok, %AI.RelevantFileSections{agent | splitter: splitter, summary: summary}}
+        {:ok, %AI.Agent.RelevantFileSections{agent | splitter: splitter, summary: summary}}
 
       {:error, reason} ->
         {:error, reason}

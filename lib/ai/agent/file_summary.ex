@@ -1,4 +1,4 @@
-defmodule AI.FileSummaryAgent do
+defmodule AI.Agent.FileSummary do
   @moduledoc """
   This module provides an agent that summarizes files' contents in order to
   generate embeddings for the database and summaries for the user.
