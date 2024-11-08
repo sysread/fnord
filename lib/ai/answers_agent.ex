@@ -267,11 +267,6 @@ defmodule AI.AnswersAgent do
          {:ok, results} <- search_tool(agent, query) do
       results
       |> Enum.join("\n\n")
-      |> then(fn results ->
-        IO.puts(results)
-
-        results
-      end)
       |> then(&{:ok, &1})
     end
   end
