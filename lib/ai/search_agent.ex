@@ -63,20 +63,19 @@ defmodule AI.SearchAgent do
   defp process_matches(agent, queue, matches) do
     Ask.update_status("Searching: #{agent.search_query} -> evaluating matches")
 
-    result =
-      with_retries(3, fn ->
-        matches
-        |> Queue.map(queue)
-        |> Enum.reduce([], fn
-          {:ok, result}, acc ->
-            [result | acc]
+    with_retries(3, fn ->
+      matches
+      |> Queue.map(queue)
+      |> Enum.reduce([], fn
+        {:ok, result}, acc ->
+          [result | acc]
 
-          {:error, reason}, acc ->
-            IO.inspect(:stderr, reason, label: "search agent warning")
-            acc
-        end)
-        |> then(&{:ok, &1})
+        {:error, reason}, acc ->
+          IO.inspect(:stderr, reason, label: "search agent warning")
+          acc
       end)
+      |> then(&{:ok, &1})
+    end)
   end
 
   defp with_retries(max_attempts, fun) do
