@@ -235,32 +235,6 @@ defmodule AI.AnswersAgent do
   # Tool call outputs
   # -----------------------------------------------------------------------------
   # Function to execute the tool call
-  # defp handle_tool_call(%{tool_call_buffer: %{func: "search_tool", args: args_json}} = agent) do
-  #   with {:ok, args} <- Jason.decode(args_json),
-  #        {:ok, query} <- Map.fetch(args, "query") do
-  #     agent.opts
-  #     |> Map.put(:detail, true)
-  #     |> Map.put(:limit, 10)
-  #     |> Map.put(:query, query)
-  #     |> Search.new()
-  #     |> Search.get_results()
-  #     |> Enum.map(fn {file, score, data} ->
-  #       """
-  #       -----
-  #       # File: #{file} | Score: #{score}
-  #
-  #       ## Summary
-  #       #{data["summary"]}
-  #       """
-  #     end)
-  #     |> Enum.join("\n")
-  #     |> then(&{:ok, &1})
-  #   else
-  #     {:error, reason} -> {:error, reason}
-  #     :error -> {:error, :query_not_found}
-  #   end
-  # end
-
   defp handle_tool_call(%{tool_call_buffer: %{func: "search_tool", args: args_json}} = agent) do
     with {:ok, args} <- Jason.decode(args_json),
          {:ok, query} <- Map.fetch(args, "query"),
