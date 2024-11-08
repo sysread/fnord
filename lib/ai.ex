@@ -34,26 +34,16 @@ defmodule AI do
   # -----------------------------------------------------------------------------
   @impl AI
   @doc """
-  See `AI.Embeddings.get_embeddings/2`.
+  See `AI.EmbeddingsAgent.get_embeddings/2`.
   """
-  defdelegate get_embeddings(ai, text), to: AI.Embeddings
+  defdelegate get_embeddings(ai, text), to: AI.EmbeddingsAgent
 
   # -----------------------------------------------------------------------------
   # Summaries
   # -----------------------------------------------------------------------------
   @impl AI
   @doc """
-  See `AI.Summarizer.get_summary/3`.
+  See `AI.FileSummaryAgent.get_summary/3`.
   """
-  defdelegate get_summary(ai, file, text), to: AI.Summarizer
-
-  # -----------------------------------------------------------------------------
-  # Answers
-  # -----------------------------------------------------------------------------
-  defdelegate system_message(), to: AI.Answers
-  defdelegate assistant_message(msg), to: AI.Answers
-  defdelegate assistant_tool_message(id, func, args), to: AI.Answers
-  defdelegate user_message(msg), to: AI.Answers
-  defdelegate tool_message(id, func, output), to: AI.Answers
-  defdelegate stream(ai, messages), to: AI.Answers
+  defdelegate get_summary(ai, file, text), to: AI.FileSummaryAgent
 end

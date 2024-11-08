@@ -163,6 +163,4 @@ defmodule Queue.Worker do
         :ok
     end
   end
-
-  164
 end

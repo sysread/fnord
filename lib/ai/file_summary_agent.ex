@@ -1,10 +1,11 @@
-defmodule AI.Summarizer do
+defmodule AI.FileSummaryAgent do
   @moduledoc """
   This module provides an agent that summarizes files' contents in order to
   generate embeddings for the database and summaries for the user.
   """
 
   @model "gpt-4o-mini"
+  @max_tokens 128_000
 
   @prompt """
   You are a command line program that summarizes the content of a file, whether
@@ -42,7 +43,7 @@ defmodule AI.Summarizer do
 
     # The model is limited to 128k tokens input, so, for now, we'll just
     # truncate the input if it's too long.
-    input = AI.Util.truncate_text(input, 128_000)
+    input = AI.Util.truncate_text(input, @max_tokens)
 
     OpenaiEx.Chat.Completions.create(
       ai.client,
