@@ -113,6 +113,8 @@ defmodule AI.AnswersAgent do
   # Stream processing
   # -----------------------------------------------------------------------------
   defp send_request(%{msg_buffer: "", tool_call_buffer: @tool_call_buffer} = agent) do
+    Ask.update_status("Talking to the assistant")
+
     agent.ai
     |> stream(agent.messages)
     |> process_stream(agent)
@@ -145,6 +147,8 @@ defmodule AI.AnswersAgent do
   # -----------------------------------------------------------------------------
   # The message is complete
   defp handle_response(agent, [%{"finish_reason" => "stop"}]) do
+    Ask.update_status("Answer received")
+
     %AI.AnswersAgent{agent | messages: agent.messages ++ [assistant_message(agent.msg_buffer)]}
     |> reset_buffers()
   end
@@ -152,6 +156,8 @@ defmodule AI.AnswersAgent do
   # Extract the message content
   defp handle_response(agent, [%{"delta" => %{"content" => content}}])
        when not is_nil(content) do
+    Ask.update_status("Assistant is typing...")
+
     agent = %AI.AnswersAgent{
       agent
       | last_msg_chunk: content,
@@ -165,6 +171,7 @@ defmodule AI.AnswersAgent do
   # -----------------------------------------------------------------------------
   # Tool call events
   # -----------------------------------------------------------------------------
+  # THe initial response contains the function and tool call ID
   defp handle_response(agent, [
          %{
            "delta" => %{
@@ -174,6 +181,8 @@ defmodule AI.AnswersAgent do
            }
          }
        ]) do
+    Ask.update_status("Assistant is preparing a search...")
+
     tool_call_buffer =
       agent.tool_call_buffer
       |> Map.put(:id, id)
@@ -184,6 +193,8 @@ defmodule AI.AnswersAgent do
 
   # Collect tool call fragments (both "name" and "arguments")
   defp handle_response(agent, [%{"delta" => %{"tool_calls" => [%{"function" => frag}]}}]) do
+    Ask.update_status("Assistant is preparing a search...")
+
     # Extract fragments of "id", "name", and "arguments" if they exist
     name_frag = Map.get(frag, "name", "")
     args_frag = Map.get(frag, "arguments", "")
@@ -199,6 +210,8 @@ defmodule AI.AnswersAgent do
 
   # Handle the completion of tool calls
   defp handle_response(agent, [%{"finish_reason" => "tool_calls"}]) do
+    Ask.update_status("Assistant requested search results")
+
     with {:ok, output} <- handle_tool_call(agent) do
       tool_request =
         assistant_tool_message(

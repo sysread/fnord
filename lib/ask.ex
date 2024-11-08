@@ -7,14 +7,14 @@ defmodule Ask do
 
   def new(opts) do
     on_msg_chunk =
-      if opts.quiet do
-        fn chunk, _buffer ->
-          IO.write(chunk)
-        end
-      else
+      if interactive?() do
         fn _chunk, buffer ->
           Owl.LiveScreen.update(:answer, buffer)
           Owl.LiveScreen.await_render()
+        end
+      else
+        fn chunk, _buffer ->
+          IO.write(chunk)
         end
       end
 
@@ -29,32 +29,42 @@ defmodule Ask do
   end
 
   def run(ask) do
-    ask
-    |> start_output()
-    |> get_answer()
-    |> end_output()
+    start_output()
+    get_answer(ask)
+    end_output()
+  end
+
+  # -----------------------------------------------------------------------------
+  # IO
+  # -----------------------------------------------------------------------------
+  defp interactive?() do
+    IO.ANSI.enabled?()
   end
 
   defp get_answer(ask) do
     AI.AnswersAgent.perform(ask.agent)
   end
 
-  defp start_output(%Ask{opts: %{quiet: true}} = ask) do
-    ask
+  defp start_output() do
+    if interactive?() do
+      Owl.Spinner.start(id: :status)
+      Owl.LiveScreen.add_block(:answer, state: "")
+    end
   end
 
-  defp start_output(ask) do
-    Owl.LiveScreen.add_block(:answer, state: "Assistant is thinking...")
-    ask
+  defp end_output() do
+    if interactive?() do
+      Owl.Spinner.stop(id: :status, resolution: :ok, label: "Answer received")
+      Owl.IO.puts("")
+    else
+      IO.puts("")
+    end
   end
 
-  defp end_output(%Ask{opts: %{quiet: true}} = ask) do
-    IO.puts("")
-    ask
-  end
-
-  defp end_output(ask) do
-    Owl.IO.puts("")
-    ask
+  def update_status(msg) do
+    if interactive?() do
+      Owl.Spinner.update_label(id: :status, label: msg)
+      Owl.LiveScreen.await_render()
+    end
   end
 end

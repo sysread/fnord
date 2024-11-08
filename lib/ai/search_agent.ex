@@ -31,9 +31,13 @@ defmodule AI.SearchAgent do
   the file.
   """
   def search(agent) do
-    with {:ok, queue} <- get_queue(agent),
-         {:ok, matches} <- get_matches(agent),
-         {:ok, results} <- process_matches(queue, matches) do
+    Ask.update_status("Searching: #{agent.search_query}")
+
+    with {:ok, matches} <- get_matches(agent),
+         {:ok, queue} <- get_queue(agent),
+         {:ok, results} <- process_matches(agent, queue, matches) do
+      Queue.shutdown(queue)
+      Queue.join(queue)
       {:ok, results}
     end
   end
@@ -50,18 +54,51 @@ defmodule AI.SearchAgent do
     end)
   end
 
-  defp process_matches(queue, matches) do
-    matches
-    |> Queue.map(queue)
-    |> Enum.reduce([], fn
-      {:ok, result}, acc ->
-        [result | acc]
+  # -----------------------------------------------------------------------------
+  # Processes the matches returned by the `Search` module. It then uses the
+  # `Queue` module to concurrently request that the `AI.RelevantFileSections`
+  # agent identify the relevant sections of the file that match the user's
+  # query and the `AI.AnswersAgent` agent's search criteria.
+  # -----------------------------------------------------------------------------
+  defp process_matches(agent, queue, matches) do
+    Ask.update_status("Searching: #{agent.search_query} -> evaluating matches")
 
-      {:error, reason}, acc ->
-        IO.inspect(reason, label: "search agent error")
-        acc
-    end)
-    |> then(&{:ok, &1})
+    result =
+      with_retries(3, fn ->
+        matches
+        |> Queue.map(queue)
+        |> Enum.reduce([], fn
+          {:ok, result}, acc ->
+            [result | acc]
+
+          {:error, reason}, acc ->
+            IO.inspect(:stderr, reason, label: "search agent warning")
+            acc
+        end)
+        |> then(&{:ok, &1})
+      end)
+  end
+
+  defp with_retries(max_attempts, fun) do
+    with_retries(max_attempts, 1, fun)
+  end
+
+  defp with_retries(max_attempts, current_attempt, fun) do
+    if current_attempt > max_attempts do
+      {:error, :max_attempts_reached}
+    else
+      try do
+        fun.()
+      rescue
+        error ->
+          IO.inspect(:stderr, error,
+            label: "search agent error (attempt #{current_attempt}/#{max_attempts})"
+          )
+
+          Process.sleep(200)
+          with_retries(max_attempts, current_attempt + 1, fun)
+      end
+    end
   end
 
   # -----------------------------------------------------------------------------
