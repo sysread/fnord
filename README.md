@@ -66,6 +66,8 @@ fnord-watch -p foo -d /path/to/foo
 
 ### Search
 
+You can search for files in the project that match a query:
+
 ```bash
 fnord search --project foo --query "some search query"
 ```
@@ -82,12 +84,6 @@ You can ask the AI assistant to answer questions about your project:
 
 ```bash
 fnord ask foo "how do you run the tests for this project?"
-
-# Continue the conversation
-fnord ask -C foo "how does the test coverage look to you?"
-
-# With status messages emitted to stderr
-fnord ask -C --debug foo "if the test coverage is so amazing then how come my change didn't break any tests?!"
 
 # Pipe output to `glow` to render markdown
 fnord ask foo "summarize the dependencies of this project" | glow
@@ -149,4 +145,5 @@ for the `search` command.
 
 ## TODO
 - `ask`: read questions from stdin
-- `ask`: add agent to summarize file in relation to user prompt in lieu of injecting entire files into the conversation
+- `ask`: add tool call to get individual file contents
+- `ask`: add tool call to get file tree
