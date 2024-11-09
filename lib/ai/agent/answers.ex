@@ -100,12 +100,7 @@ defmodule AI.Agent.Answers do
   end
 
   defp reset_buffers(agent) do
-    %AI.Agent.Answers{
-      agent
-      | msg_buffer: "",
-        last_msg_chunk: "",
-        tool_call: @tool_call
-    }
+    %AI.Agent.Answers{agent | msg_buffer: "", last_msg_chunk: "", tool_call: @tool_call}
   end
 
   # -----------------------------------------------------------------------------
@@ -134,7 +129,12 @@ defmodule AI.Agent.Answers do
         messages: messages
       )
 
-    {:ok, chat_stream} = OpenaiEx.Chat.Completions.create(ai.client, chat_req, stream: true)
+    {:ok, chat_stream} =
+      OpenaiEx.Chat.Completions.create(
+        ai.client,
+        chat_req,
+        stream: true
+      )
 
     chat_stream.body_stream
   end
@@ -249,9 +249,8 @@ defmodule AI.Agent.Answers do
   end
 
   # -----------------------------------------------------------------------------
-  # Tool call outputs
+  # Search tool
   # -----------------------------------------------------------------------------
-  # Function to execute the tool call
   defp handle_tool_call(%{tool_call: %{func: "search_tool", args: args_json}} = agent) do
     with {:ok, args} <- Jason.decode(args_json),
          {:ok, query} <- Map.fetch(args, "query"),
