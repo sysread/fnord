@@ -9,6 +9,10 @@ defmodule AI do
     :client
   ]
 
+  @type t :: %__MODULE__{
+          client: %OpenaiEx{}
+        }
+
   @api_key System.get_env("OPENAI_API_KEY")
   @api_timeout 45_000
 

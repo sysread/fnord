@@ -11,7 +11,7 @@ defmodule AI.Agent.Answers do
     :callback,
     :last_msg_chunk,
     :msg_buffer,
-    :tool_call,
+    :tool_calls,
     :messages
   ])
 
@@ -19,26 +19,17 @@ defmodule AI.Agent.Answers do
 
   @prompt """
   You are a conversational interface to a database of information about the
-  user's project. The database may contain:
+  user's project.
 
-  ### Code files:
-    - **Synopsis**
-    - **Languages present in the file**
-    - **Business logic and behaviors**
-    - **List of symbols**
-    - **Map of calls to other modules**
+  Your database may contain:
+  - Code: synopsis, languages, business logic, symbols, and external calls
+  - Docs: synopsis, topics, definitions, links, references, key points, and highlights
 
-  ### Documentation files (e.g., README, wiki pages, general documentation):
-    - **Synopsis**: A brief overview of what the document covers.
-    - **Topics and Sections**: A list of main topics or sections in the document.
-    - **Definitions and Key Terms**: Any specialized terms or jargon defined in the document.
-    - **Links and References**: Important links or references included in the document.
-    - **Key Points and Highlights**: Main points or takeaways from the document.
-
-  The user will prompt you with a question. You will use your `search_tool` to
-  search the database in order to gain enough knowledge to answer the question
-  as completely as possible. It may require multiple searches before you have
-  all of the information you need.
+  Tools available to you:
+  - list_files_tool: List all files in the project database
+  - search_tool: Search for phrases in the project embeddings database as many
+  times as you need to ensure you have all of the context required to answer
+  the user's question fully
 
   Once you have all of the information you need, provide the user with a
   complete yet concise answer, including generating any requested code or
@@ -55,29 +46,10 @@ defmodule AI.Agent.Answers do
   unsure.
   """
 
-  @search_tool %{
-    type: "function",
-    function: %{
-      name: "search_tool",
-      description: "searches for matching files and their contents",
-      parameters: %{
-        type: "object",
-        properties: %{
-          query: %{
-            type: "string",
-            description: "The search query string."
-          }
-        },
-        required: ["query"]
-      }
-    }
-  }
-
   @tool_call %{
     id: nil,
     func: "",
-    args: "",
-    output: ""
+    args: ""
   }
 
   def new(ai, opts, callback) do
@@ -87,7 +59,7 @@ defmodule AI.Agent.Answers do
       callback: callback,
       last_msg_chunk: "",
       msg_buffer: "",
-      tool_call: @tool_call,
+      tool_calls: [],
       messages: [
         system_message(),
         user_message(opts.question)
@@ -100,21 +72,15 @@ defmodule AI.Agent.Answers do
   end
 
   defp reset_buffers(agent) do
-    %AI.Agent.Answers{agent | msg_buffer: "", last_msg_chunk: "", tool_call: @tool_call}
+    %AI.Agent.Answers{agent | msg_buffer: "", last_msg_chunk: "", tool_calls: []}
   end
 
   # -----------------------------------------------------------------------------
   # Stream processing
   # -----------------------------------------------------------------------------
-  defp send_request(%{msg_buffer: "", tool_call: @tool_call} = agent) do
+  defp send_request(agent) do
     Ask.update_status("Talking to the assistant")
 
-    agent.ai
-    |> get_response_stream(agent.messages)
-    |> process_stream(agent)
-  end
-
-  defp send_request(agent) do
     agent.ai
     |> get_response_stream(agent.messages)
     |> process_stream(agent |> reset_buffers())
@@ -124,9 +90,12 @@ defmodule AI.Agent.Answers do
     chat_req =
       OpenaiEx.Chat.Completions.new(
         model: @model,
-        tools: [@search_tool],
         tool_choice: "auto",
-        messages: messages
+        messages: messages,
+        tools: [
+          AI.Tools.Search.spec(),
+          AI.Tools.ListFiles.spec()
+        ]
       )
 
     {:ok, chat_stream} =
@@ -188,11 +157,13 @@ defmodule AI.Agent.Answers do
     Ask.update_status("Assistant is preparing a search...")
 
     tool_call =
-      agent.tool_call
+      @tool_call
       |> Map.put(:id, id)
       |> Map.put(:func, name)
 
-    %AI.Agent.Answers{agent | tool_call: tool_call}
+    tool_calls = [tool_call | agent.tool_calls]
+
+    %AI.Agent.Answers{agent | tool_calls: tool_calls}
   end
 
   # Collect tool call fragments (both "name" and "arguments")
@@ -203,76 +174,72 @@ defmodule AI.Agent.Answers do
     name_frag = Map.get(frag, "name", "")
     args_frag = Map.get(frag, "arguments", "")
 
+    {[tool_call], tool_calls} = Enum.split(agent.tool_calls, 1)
+
     # Accumulate the fragments into the tool call
     tool_call =
-      agent.tool_call
+      tool_call
       |> Map.update!(:func, &(&1 <> name_frag))
       |> Map.update!(:args, &(&1 <> args_frag))
 
-    %AI.Agent.Answers{agent | tool_call: tool_call}
+    %AI.Agent.Answers{agent | tool_calls: [tool_call | tool_calls]}
   end
 
   # Handle the completion of tool calls
   defp handle_response(agent, %{"finish_reason" => "tool_calls"}) do
     Ask.update_status("Assistant requested search results")
 
-    with {:ok, output} <- handle_tool_call(agent) do
-      tool_request =
-        assistant_tool_message(
-          agent.tool_call.id,
-          agent.tool_call.func,
-          agent.tool_call.args
-        )
-
-      tool_response =
-        tool_message(
-          agent.tool_call.id,
-          agent.tool_call.func,
-          output
-        )
-
-      messages = agent.messages ++ [tool_request, tool_response]
-
-      %AI.Agent.Answers{
-        agent
-        | messages: messages,
-          tool_call: %{agent.tool_call | output: output}
-      }
-      |> send_request()
-    end
+    agent
+    |> handle_tool_calls()
+    |> send_request()
   end
 
+  # -----------------------------------------------------------------------------
   # Catch-all for unhandled events
-  defp handle_response(agent, event) do
-    IO.inspect(event, label: "UNHANDLED")
+  # -----------------------------------------------------------------------------
+  defp handle_response(agent, _event) do
     agent
   end
 
   # -----------------------------------------------------------------------------
-  # Search tool
+  # Tool calls
   # -----------------------------------------------------------------------------
-  defp handle_tool_call(%{tool_call: %{func: "search_tool", args: args_json}} = agent) do
-    with {:ok, args} <- Jason.decode(args_json),
-         {:ok, query} <- Map.fetch(args, "query"),
-         {:ok, results} <- search_tool(agent, query) do
-      results
-      |> Enum.join("\n\n")
-      |> then(&{:ok, &1})
+  defp handle_tool_calls(%{tool_calls: []} = agent) do
+    agent
+  end
+
+  defp handle_tool_calls(%{tool_calls: [tool_call | remaining]} = agent) do
+    with {:ok, agent} <- handle_tool_call(agent, tool_call) do
+      %AI.Agent.Answers{agent | tool_calls: remaining}
+      |> handle_tool_calls()
     end
   end
 
-  defp handle_tool_call(_agent) do
-    {:error, :unhandled_tool_call}
+  defp handle_tool_call(agent, %{id: id, func: func, args: args_json}) do
+    with {:ok, args} <- Jason.decode(args_json),
+         {:ok, output} <- perform_tool_call(agent, func, args) do
+      request = assistant_tool_message(id, func, args_json)
+      response = tool_message(id, func, output)
+      {:ok, %AI.Agent.Answers{agent | messages: agent.messages ++ [request, response]}}
+    end
   end
 
-  defp search_tool(agent, search_query) do
-    AI.Agent.Search.new(
-      agent.ai,
-      agent.opts.question,
-      search_query,
-      agent.opts
-    )
-    |> AI.Agent.Search.search()
+  defp perform_tool_call(agent, func, args_json) when is_binary(args_json) do
+    with {:ok, args} <- Jason.decode(args_json) do
+      perform_tool_call(agent, func, args)
+    end
+  end
+
+  defp perform_tool_call(agent, "search_tool", args) do
+    AI.Tools.Search.call(agent, args)
+  end
+
+  defp perform_tool_call(agent, "list_files_tool", args) do
+    AI.Tools.ListFiles.call(agent, args)
+  end
+
+  defp perform_tool_call(_agent, func, _args) do
+    {:error, :unhandled_tool_call, func}
   end
 
   # -----------------------------------------------------------------------------
