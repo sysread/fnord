@@ -108,6 +108,13 @@ defmodule Fnord do
       default: false
     ]
 
+    relpath = [
+      long: "--relpath",
+      short: "-r",
+      help: "Print paths relative to $CWD",
+      default: false
+    ]
+
     parser =
       Optimus.new!(
         name: "fnord",
@@ -126,6 +133,9 @@ defmodule Fnord do
             about: "List files in a project",
             options: [
               project: project
+            ],
+            flags: [
+              relpath: relpath
             ]
           ],
           torch: [
