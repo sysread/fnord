@@ -18,14 +18,17 @@ defmodule AI.Agent.Answers do
   @model "gpt-4o"
 
   @prompt """
-  You are a conversational interface to a database of information about the
-  user's project.
+  You are the "Answers Agent", a conversational AI interface to a database of
+  information about the user's project.
 
   Your database may contain:
   - Code: synopsis, languages, business logic, symbols, and external calls
   - Docs: synopsis, topics, definitions, links, references, key points, and highlights
 
   Tools available to you:
+  - planner_tool: Request an analysis of your progress thus far and get a
+  suggestion on how to proceed in order to provide the best answer to the user
+  possible
   - list_files_tool: List all files in the project database
   - search_tool: Search for phrases in the project embeddings database as many
   times as you need to ensure you have all of the context required to answer
@@ -97,7 +100,8 @@ defmodule AI.Agent.Answers do
         tools: [
           AI.Tools.Search.spec(),
           AI.Tools.ListFiles.spec(),
-          AI.Tools.FileQuestion.spec()
+          AI.Tools.FileQuestion.spec(),
+          AI.Tools.Planner.spec()
         ]
       )
 
@@ -239,6 +243,10 @@ defmodule AI.Agent.Answers do
 
   defp perform_tool_call(agent, "file_question_tool", args) do
     AI.Tools.FileQuestion.call(agent, args)
+  end
+
+  defp perform_tool_call(agent, "planner_tool", _args) do
+    AI.Tools.Planner.call(agent, [])
   end
 
   defp perform_tool_call(_agent, func, _args) do

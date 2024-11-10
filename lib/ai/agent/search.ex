@@ -5,6 +5,10 @@ defmodule AI.Agent.Search do
   the files matched are then sent to the `AI.Agent.RelevantFileSections`
   module, which will identify the aspects of the file that are relevant to the
   user's query as well as the `AI.Agent.Answers`' search criteria.
+
+  This is not a true AI agent, but rather a module that performs the search and
+  coordinates the use of the `AI.Agent.RelevantFileSections` agent to identify
+  the relevant sections of each of the file results.
   """
 
   defstruct [

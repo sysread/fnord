@@ -145,6 +145,4 @@ for the `search` command.
 
 ## TODO
 - `ask`: read questions from stdin
-- `ask`: add tool call to get individual file contents
-- `ask`: add tool call to get file tree
 - `ask`: replace Owl; it's incredibly slow for streaming output
