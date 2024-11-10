@@ -19,8 +19,10 @@ defmodule AI.Tools.ListFiles do
 
   @impl AI.Tools
   def call(agent, _args) do
+    Ask.update_status("Listing files in project: #{agent.opts.project}")
+
     Store.new(agent.opts.project)
-    |> Store.list_files(true)
+    |> Store.list_files()
     |> Enum.join("\n")
     |> then(fn res -> {:ok, res} end)
   end

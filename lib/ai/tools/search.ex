@@ -25,6 +25,8 @@ defmodule AI.Tools.Search do
   @impl AI.Tools
   def call(agent, args) do
     with {:ok, query} <- Map.fetch(args, "query") do
+      Ask.update_status("Searching: #{query}")
+
       AI.Agent.Search.new(agent.ai, agent.opts.question, query, agent.opts)
       |> AI.Agent.Search.search()
       |> case do

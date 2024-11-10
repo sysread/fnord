@@ -30,6 +30,8 @@ defmodule AI.Agent.Answers do
   - search_tool: Search for phrases in the project embeddings database as many
   times as you need to ensure you have all of the context required to answer
   the user's question fully
+  - file_question_tool: Ask an AI agent to answer a specific question about a
+  file in the project
 
   Once you have all of the information you need, provide the user with a
   complete yet concise answer, including generating any requested code or
@@ -94,7 +96,8 @@ defmodule AI.Agent.Answers do
         messages: messages,
         tools: [
           AI.Tools.Search.spec(),
-          AI.Tools.ListFiles.spec()
+          AI.Tools.ListFiles.spec(),
+          AI.Tools.FileQuestion.spec()
         ]
       )
 
@@ -154,7 +157,7 @@ defmodule AI.Agent.Answers do
            ]
          }
        }) do
-    Ask.update_status("Assistant is preparing a search...")
+    Ask.update_status("Assistant is preparing a tool call: #{name}")
 
     tool_call =
       @tool_call
@@ -168,8 +171,6 @@ defmodule AI.Agent.Answers do
 
   # Collect tool call fragments (both "name" and "arguments")
   defp handle_response(agent, %{"delta" => %{"tool_calls" => [%{"function" => frag}]}}) do
-    Ask.update_status("Assistant is preparing a search...")
-
     # Extract fragments of "id", "name", and "arguments" if they exist
     name_frag = Map.get(frag, "name", "")
     args_frag = Map.get(frag, "arguments", "")
@@ -187,8 +188,6 @@ defmodule AI.Agent.Answers do
 
   # Handle the completion of tool calls
   defp handle_response(agent, %{"finish_reason" => "tool_calls"}) do
-    Ask.update_status("Assistant requested search results")
-
     agent
     |> handle_tool_calls()
     |> send_request()
@@ -236,6 +235,10 @@ defmodule AI.Agent.Answers do
 
   defp perform_tool_call(agent, "list_files_tool", args) do
     AI.Tools.ListFiles.call(agent, args)
+  end
+
+  defp perform_tool_call(agent, "file_question_tool", args) do
+    AI.Tools.FileQuestion.call(agent, args)
   end
 
   defp perform_tool_call(_agent, func, _args) do

@@ -1,26 +1,26 @@
-defmodule AI.Agent.RelevantFileSections do
+defmodule AI.Agent.FileQuestion do
   defstruct [
     :ai,
+    :question,
     :splitter,
-    :summary,
-    :user_query,
-    :search_query
+    :summary
   ]
 
   @model "gpt-4o-mini"
-
   @max_tokens 128_000
 
   @chunk_prompt """
+  You are an AI agent who is responsible for answering questions about a file's contents.
+  The AI search agent will request specific details about a file. You will read through
+  the file, one chunk at a time (when the file is larger than your context window), and
+  collect notes about the file's contents that are relevant to the user's query.
+
   You are processing file chunks in sequence, each paired with an "accumulator"
-  string to update, with each input in the following format:
+  string to update, each input in the following format:
 
   ```
-  # User Query
-  $user_query
-
-  # Search Query
-  $search_query
+  # Question
+  $question
 
   # Accumulated Notes
   $your_accumulated_notes
@@ -31,14 +31,14 @@ defmodule AI.Agent.RelevantFileSections do
 
   Guidelines for updating the accumulator:
 
-  1. Add Relevant Content: Append relevant info from the current chunk, without overwriting existing content
+  1. Add Relevant Content: Add notes about the current chunk that might be relevant to the user's question
   2. Continuity: Build on the existing summary, preserving its structure
   3. Handle Incompletes: If a chunk is incomplete, mark it (e.g., `<partial>`) to complete later
   4. Consistent Format: Append new content in list format under "Accumulated Summary.
   5. Avoid Redundancy: Do not duplicate existing content unless it adds clarity
   6. For Code: Quote relevant sections briefly, including function context
   7. For Docs/Notes: Cite key facts concisely
-  7. Assist Search Agent: Optimize the accumulator to provide the most relevant, complete notes to help the search agent answer the user's question
+  7. Assist Search Agent: Optimize the accumulator to provide the most relevant, complete notes to help the search agent's question
 
   Respond ONLY with the `Accumulated Notes` section, formatted as a list,
   including your updates from the current chunk.
@@ -46,19 +46,15 @@ defmodule AI.Agent.RelevantFileSections do
 
   @final_prompt """
   You have processed a file in chunks and have collected a list of notes about
-  the file's contents and their relevance to the user's query and the search
-  query used by the Search Agent that found the file. Please review the notes
-  and reorganize them as needed to provide a coherent and concise summary of
-  the relevant sections of the file.
+  the file's contents and their relevance to the search agent's question.
+  Please review the notes and reorganize them as needed to provide a coherent
+  and concise answer to the search agent's question.
 
   Your input will be in the format:
 
   ```
-  # User Query
-  $user_query
-
-  # Search Query
-  $search_query
+  # Question
+  $question
 
   # Accumulated Notes
   $your_accumulated_notes
@@ -70,13 +66,12 @@ defmodule AI.Agent.RelevantFileSections do
   formatted as a list.
   """
 
-  def new(ai, user_query, search_query, file_content) do
-    %AI.Agent.RelevantFileSections{
+  def new(ai, question, file_content) do
+    %__MODULE__{
       ai: ai,
+      question: question,
       splitter: AI.TokenSplitter.new(file_content, @max_tokens),
-      summary: "",
-      user_query: user_query,
-      search_query: search_query
+      summary: ""
     }
   end
 
@@ -134,7 +129,7 @@ defmodule AI.Agent.RelevantFileSections do
     )
     |> case do
       {:ok, %{"choices" => [%{"message" => %{"content" => summary}}]}} ->
-        {:ok, %AI.Agent.RelevantFileSections{agent | splitter: splitter, summary: summary}}
+        {:ok, %__MODULE__{agent | splitter: splitter, summary: summary}}
 
       {:error, reason} ->
         {:error, reason}
@@ -146,11 +141,8 @@ defmodule AI.Agent.RelevantFileSections do
 
   defp get_prompt(agent) do
     """
-    # User Query
-    #{agent.user_query}
-
-    # Search Query
-    #{agent.search_query}
+    # Question
+    #{agent.question}
 
     # Accumulated Notes
     #{agent.summary}

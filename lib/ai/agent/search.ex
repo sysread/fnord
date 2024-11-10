@@ -34,11 +34,9 @@ defmodule AI.Agent.Search do
   sections of the file.
   """
   def search(agent) do
-    Ask.update_status("Searching: #{agent.search_query}")
-
     with {:ok, matches} <- get_matches(agent),
          {:ok, queue} <- get_queue(agent),
-         {:ok, results} <- process_matches(agent, queue, matches) do
+         {:ok, results} <- process_matches(queue, matches) do
       Queue.shutdown(queue)
       Queue.join(queue)
       {:ok, results}
@@ -64,9 +62,7 @@ defmodule AI.Agent.Search do
   # file that match the user's query and the `AI.Agent.Answers` agent's search
   # criteria.
   # -----------------------------------------------------------------------------
-  defp process_matches(agent, queue, matches) do
-    Ask.update_status("Searching: #{agent.search_query} -> evaluating matches")
-
+  defp process_matches(queue, matches) do
     with_retries(@max_retries, fn ->
       matches
       |> Queue.map(queue)

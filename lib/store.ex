@@ -229,7 +229,7 @@ defmodule Store do
   List all indexed files in the project. Returns a list of absolute, expanded,
   file paths.
   """
-  def list_files(store, rel_path? \\ false) do
+  def list_files(store) do
     Path.wildcard(Path.join(store.path, "*"))
     |> Enum.map(fn path -> Path.join(path, "metadata.json") end)
     |> Enum.filter(&File.exists?/1)
@@ -238,13 +238,6 @@ defmodule Store do
       |> File.read!()
       |> Jason.decode!()
       |> Map.get("file")
-    end)
-    |> Enum.map(fn path ->
-      if rel_path? do
-        Path.relative_to_cwd(path)
-      else
-        path
-      end
     end)
   end
 end
