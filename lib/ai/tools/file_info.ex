@@ -1,4 +1,4 @@
-defmodule AI.Tools.FileQuestion do
+defmodule AI.Tools.FileInfo do
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -6,7 +6,7 @@ defmodule AI.Tools.FileQuestion do
     %{
       type: "function",
       function: %{
-        name: "file_question_tool",
+        name: "file_info_tool",
         description: "ask an AI agent a question about an individual file's contents",
         parameters: %{
           type: "object",
@@ -34,10 +34,19 @@ defmodule AI.Tools.FileQuestion do
     with {:ok, question} <- Map.fetch(args, "question"),
          {:ok, file} <- Map.fetch(args, "file"),
          {:ok, contents} <- File.read(file) do
-      Ask.update_status("Assistant asking \"#{question}\" about file #{file}")
+      status_id = UI.add_status("Considering #{file}", question)
 
-      AI.Agent.FileQuestion.new(agent.ai, question, contents)
-      |> AI.Agent.FileQuestion.get_summary()
+      AI.Agent.FileInfo.new(agent.ai, question, contents)
+      |> AI.Agent.FileInfo.get_summary()
+      |> case do
+        {:ok, info} ->
+          UI.complete_status(status_id, :ok)
+          {:ok, info}
+
+        {:error, reason} ->
+          UI.complete_status(status_id, :error, reason)
+          {:error, reason}
+      end
     end
   end
 end

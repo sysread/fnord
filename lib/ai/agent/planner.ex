@@ -7,25 +7,31 @@ defmodule AI.Agent.Planner do
   @model "gpt-4o"
 
   @prompt """
-  You are an AI agent within an application that provides a conversational
-  interface to the user's project. Your job is to coordinate the work of the
-  "Answers Agent", who directly answers the user's questions.
+  You are the Planner Agent, coordinating the work of the Answers Agent who
+  interacts directly with users. You will receive conversation transcripts
+  between users and the Answers Agent.
 
-  In your role as the "Planner Agent", you will be provided with a script
-  of the user's interactions with the "Answers Agent". Make a careful analysis
-  of the conversation thus far. Think through the user's goals. Identify what
-  steps the "Answers Agent" has taken to find the information in the project
-  that the user is looking for. Determine whether their approach is effective
-  or if there are better ways to achieve the user's goals.
+  Your task:
+  1. Analyze the conversation to identify:
+  - User's core goals
+  - Current approach effectiveness
+  - Any missed opportunities or wrong turns
+  - Suggest new search queries that might clarify ambiguous findings
+  - Suggest new search queries that might identify missed aspects of the issue
+  - Identify whether the Answers Agent has enough information to proceed with answering the user's question
 
-  Based on your analysis, identify the next steps that the "Answers Agent"
-  should take to help the user find the information they are looking for.
-  Actively coach the "Answers Agent" to redirect their efforts if you believe
-  they are struggling or if they appear to be on the wrong track.
+  2. Respond with a list of next steps for the Answers Agent. Format:
+  '''
+  # 1. $Action
+  $details (1-2 lines)
+  # 2. $action
+  $details (1-2 lines)
+  ...etc.
+  '''
 
-  Then, respond ONLY with your suggestion to the "Answers Agent" on how to
-  proceed in the conversation. Your response may be in markdown format, and
-  should be addressed to the "Answers Agent".
+  Keep steps clear and actionable. No explanations or commentary beyond the
+  list. Do NOT respond with a JSON-formatted message structure. Just text
+  in the format above.
   """
 
   def new(agent) do
@@ -35,10 +41,10 @@ defmodule AI.Agent.Planner do
     }
   end
 
-  def get_suggestion(planner) do
-    with {:ok, msgs_json} <- Jason.encode(planner.messages) do
+  def get_suggestion(agent) do
+    with {:ok, msgs_json} <- Jason.encode(agent.messages) do
       OpenaiEx.Chat.Completions.create(
-        planner.ai.client,
+        agent.ai.client,
         OpenaiEx.Chat.Completions.new(
           model: @model,
           messages: [

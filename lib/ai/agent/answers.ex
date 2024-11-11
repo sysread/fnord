@@ -8,200 +8,167 @@ defmodule AI.Agent.Answers do
   defstruct([
     :ai,
     :opts,
-    :callback,
-    :last_msg_chunk,
-    :msg_buffer,
     :tool_calls,
-    :messages
+    :messages,
+    :response
   ])
 
   @model "gpt-4o"
 
   @prompt """
-  You are the "Answers Agent", a conversational AI interface to a database of
+  You are the Answers Agent, a conversational AI interface to a database of
   information about the user's project.
 
-  Your database may contain:
-  - Code: synopsis, languages, business logic, symbols, and external calls
-  - Docs: synopsis, topics, definitions, links, references, key points, and highlights
+  You have several tools at your disposal.
 
-  Tools available to you:
-  - planner_tool: Request an analysis of your progress thus far and get a
-  suggestion on how to proceed in order to provide the best answer to the user
-  possible
-  - list_files_tool: List all files in the project database
-  - search_tool: Search for phrases in the project embeddings database as many
-  times as you need to ensure you have all of the context required to answer
-  the user's question fully
-  - file_question_tool: Ask an AI agent to answer a specific question about a
-  file in the project
+  ## Planner Tool
+  Use this tool extensively to analyze your progress and determine what the
+  next steps should be in order to provide the most complete answer to the
+  user.
 
-  Once you have all of the information you need, provide the user with a
-  complete yet concise answer, including generating any requested code or
-  producing on-demand documentation by assimilating the information you have
-  gathered.
+  ## List Files Tool
+  List all files in the project database. You can determine a lot about the
+  project just by inspecting its layout.
 
+  ## Search Tool
+  The project database contains summaries of each file within the project.
+  Use this tool with a query optimized for a vector database of file embeddings
+  based on summaries of each file's contents.
+
+  ## File Info Tool
+  Because code and documentation may be too large for your context window, you
+  will use this tool to ask an AI agent to answer specific questions about
+  promising files in the project that may contain information you need to
+  answer the user's question. Craft your question in such a way that the AI
+  agent will return the specifics you need. For example, you might ask it to
+  cite code fragments and functions that relate to your specific question about
+  the file. Cram as many file info tool questions into a single response as
+  possible to save tokens.
+
+  # Process
+  1. Get an initial plan from the planner.
+  2. Use List Files to inspect project structure if relevant.
+  3. Use Search Tool to identify relevant files, adjusting search queries to refine results.
+  4. Use File Info to obtain specific details in promising files, clarifying focus with each question.
+  5. Repeat steps as needed; consult Planner for adjustments if results are unclear.
+
+  To be clear, you are expected to use the planner_tool MULTIPLE TIMES per user
+  request to ensure that your investigation remains on track. Always check your
+  assumptions with the planner.
+
+  Narrow your search criteria as needed to delve into different aspects of the
+  user's question, requesting information about individual functions, module
+  names, phrases, etc.
+
+  Use this process as many times as you like in order to ensure that you do not
+  omit important details that you might not have found on earlier passes.
+
+  ALWAYS consult the planner as a last step before providing your final answer.
+
+  # Response
   By default, answer as tersely as possible. Increase your verbosity in
-  proportion to the specificity of the question.
+  proportion to the specificity of the question, but your highest priority is
+  accuracy and completeness. Include code citations or examples as appropriate.
 
-  ALWAYS finish your response with a list of the relevant files that you found.
-  Exclude files that are not relevant to the user's question. Format them as a
-  list, where each file name is bolded and is followed by a colon and an
-  explanation of how it is relevant. Err on the side of inclusion if you are
-  unsure.
+  NEVER include details that cannot be confirmed by example or citation within
+  the research you performed. ALL informatin must be clearly tied to information
+  you gathered in your research.
+
+  When asked how to perform a task, ensure that your response includes concrete
+  steps, including example code to illustrate the process.
+
+  Once you have all of the context required to answer the user's question fully
+  and completely, provide a concise yet complete answer. Finish your reply with
+  a list of relevant files, each with 1-2 sentences explaining how they relate
+  to the user's question.
+
+  Just a reminder... did you remember to consult the planner before finalizing
+  your answer?
+
+  Format:
+
+  # SYNOPSIS
+
+  <restate the user's question briefly, then provide a tl;dr of your findings as a list>
+
+  # ANSWER
+
+  <provide the best answer here with any key details, plus relevant code snippets if required>
+
+  # STEPS
+
+  <summarize key steps in the investigation, focusing on major discoveries and any key choices made; also note anything unexpected that you discovered>
+
+  # FILES
+
+  <summarize each file's relevance in a few words (e.g., "file1.py - Main logic for X"); omit unrelated files >
   """
 
-  @tool_call %{
-    id: nil,
-    func: "",
-    args: ""
-  }
-
-  def new(ai, opts, callback) do
+  def new(ai, opts) do
     %AI.Agent.Answers{
       ai: ai,
       opts: opts,
-      callback: callback,
-      last_msg_chunk: "",
-      msg_buffer: "",
       tool_calls: [],
       messages: [
-        system_message(),
-        user_message(opts.question)
+        AI.Util.system_msg(@prompt),
+        AI.Util.user_msg(opts.question)
       ]
     }
   end
 
   def perform(agent) do
-    send_request(agent)
+    UI.start_link()
+
+    status_id = UI.add_status("Researching", agent.opts.question)
+
+    agent = send_request(agent)
+
+    UI.complete_status(status_id, :ok)
+
+    {:ok, agent.response}
   end
 
-  defp reset_buffers(agent) do
-    %AI.Agent.Answers{agent | msg_buffer: "", last_msg_chunk: "", tool_calls: []}
-  end
-
-  # -----------------------------------------------------------------------------
-  # Stream processing
-  # -----------------------------------------------------------------------------
   defp send_request(agent) do
-    Ask.update_status("Talking to the assistant")
-
-    agent.ai
-    |> get_response_stream(agent.messages)
-    |> process_stream(agent |> reset_buffers())
-  end
-
-  defp get_response_stream(ai, messages) do
-    chat_req =
-      OpenaiEx.Chat.Completions.new(
-        model: @model,
-        tool_choice: "auto",
-        messages: messages,
-        tools: [
-          AI.Tools.Search.spec(),
-          AI.Tools.ListFiles.spec(),
-          AI.Tools.FileQuestion.spec(),
-          AI.Tools.Planner.spec()
-        ]
-      )
-
-    {:ok, chat_stream} =
-      OpenaiEx.Chat.Completions.create(
-        ai.client,
-        chat_req,
-        stream: true
-      )
-
-    chat_stream.body_stream
-  end
-
-  defp process_stream(stream, agent) do
-    stream
-    |> Stream.flat_map(& &1)
-    |> Stream.map(fn %{data: %{"choices" => [event]}} -> event end)
-    |> Enum.reduce(agent, fn event, agent ->
-      handle_response(agent, event)
-    end)
-  end
-
-  # -----------------------------------------------------------------------------
-  # Message events
-  # -----------------------------------------------------------------------------
-  # The message is complete
-  defp handle_response(agent, %{"finish_reason" => "stop"}) do
-    Ask.update_status("Answer received")
-
-    %AI.Agent.Answers{agent | messages: agent.messages ++ [assistant_message(agent.msg_buffer)]}
-    |> reset_buffers()
-  end
-
-  # Extract the message content
-  defp handle_response(agent, %{"delta" => %{"content" => content}})
-       when is_binary(content) do
-    Ask.update_status("Assistant is typing...")
-
-    agent = %AI.Agent.Answers{
-      agent
-      | last_msg_chunk: content,
-        msg_buffer: agent.msg_buffer <> content
-    }
-
-    agent.callback.(content, agent.msg_buffer)
     agent
+    |> build_request()
+    |> get_response(agent)
+    |> handle_response(agent)
   end
 
-  # -----------------------------------------------------------------------------
-  # Tool call events
-  # -----------------------------------------------------------------------------
-  # THe initial response contains the function and tool call ID
-  defp handle_response(agent, %{
-         "delta" => %{
-           "tool_calls" => [
-             %{"id" => id, "function" => %{"name" => name}}
-           ]
-         }
-       }) do
-    Ask.update_status("Assistant is preparing a tool call: #{name}")
-
-    tool_call =
-      @tool_call
-      |> Map.put(:id, id)
-      |> Map.put(:func, name)
-
-    tool_calls = [tool_call | agent.tool_calls]
-
-    %AI.Agent.Answers{agent | tool_calls: tool_calls}
+  defp build_request(agent) do
+    OpenaiEx.Chat.Completions.new(
+      model: @model,
+      tool_choice: "auto",
+      messages: agent.messages,
+      tools: [
+        AI.Tools.Search.spec(),
+        AI.Tools.ListFiles.spec(),
+        AI.Tools.FileInfo.spec(),
+        AI.Tools.Planner.spec()
+      ]
+    )
   end
 
-  # Collect tool call fragments (both "name" and "arguments")
-  defp handle_response(agent, %{"delta" => %{"tool_calls" => [%{"function" => frag}]}}) do
-    # Extract fragments of "id", "name", and "arguments" if they exist
-    name_frag = Map.get(frag, "name", "")
-    args_frag = Map.get(frag, "arguments", "")
+  defp get_response(request, agent) do
+    completion = OpenaiEx.Chat.Completions.create(agent.ai.client, request)
 
-    {[tool_call], tool_calls} = Enum.split(agent.tool_calls, 1)
-
-    # Accumulate the fragments into the tool call
-    tool_call =
-      tool_call
-      |> Map.update!(:func, &(&1 <> name_frag))
-      |> Map.update!(:args, &(&1 <> args_frag))
-
-    %AI.Agent.Answers{agent | tool_calls: [tool_call | tool_calls]}
+    with {:ok, %{"choices" => [event]}} <- completion do
+      event
+    end
   end
 
-  # Handle the completion of tool calls
-  defp handle_response(agent, %{"finish_reason" => "tool_calls"}) do
-    agent
-    |> handle_tool_calls()
-    |> send_request()
+  defp handle_response(%{"finish_reason" => "stop"} = response, agent) do
+    with %{"message" => %{"content" => content}} <- response do
+      %__MODULE__{agent | response: content}
+    end
   end
 
-  # -----------------------------------------------------------------------------
-  # Catch-all for unhandled events
-  # -----------------------------------------------------------------------------
-  defp handle_response(agent, _event) do
-    agent
+  defp handle_response(%{"finish_reason" => "tool_calls"} = response, agent) do
+    with %{"message" => %{"tool_calls" => tool_calls}} <- response do
+      %__MODULE__{agent | tool_calls: tool_calls}
+      |> handle_tool_calls()
+      |> send_request()
+    end
   end
 
   # -----------------------------------------------------------------------------
@@ -213,68 +180,38 @@ defmodule AI.Agent.Answers do
 
   defp handle_tool_calls(%{tool_calls: [tool_call | remaining]} = agent) do
     with {:ok, agent} <- handle_tool_call(agent, tool_call) do
-      %AI.Agent.Answers{agent | tool_calls: remaining}
+      %__MODULE__{agent | tool_calls: remaining}
       |> handle_tool_calls()
     end
   end
 
-  defp handle_tool_call(agent, %{id: id, func: func, args: args_json}) do
+  defp handle_tool_call(agent, %{
+         "id" => id,
+         "function" => %{
+           "name" => func,
+           "arguments" => args_json
+         }
+       }) do
     with {:ok, args} <- Jason.decode(args_json),
          {:ok, output} <- perform_tool_call(agent, func, args) do
-      request = assistant_tool_message(id, func, args_json)
-      response = tool_message(id, func, output)
-      {:ok, %AI.Agent.Answers{agent | messages: agent.messages ++ [request, response]}}
+      request = AI.Util.assistant_tool_msg(id, func, args_json)
+      response = AI.Util.tool_msg(id, func, output)
+      {:ok, %__MODULE__{agent | messages: agent.messages ++ [request, response]}}
     end
   end
 
+  # -----------------------------------------------------------------------------
+  # Tool call outputs
+  # -----------------------------------------------------------------------------
   defp perform_tool_call(agent, func, args_json) when is_binary(args_json) do
     with {:ok, args} <- Jason.decode(args_json) do
       perform_tool_call(agent, func, args)
     end
   end
 
-  defp perform_tool_call(agent, "search_tool", args) do
-    AI.Tools.Search.call(agent, args)
-  end
-
-  defp perform_tool_call(agent, "list_files_tool", args) do
-    AI.Tools.ListFiles.call(agent, args)
-  end
-
-  defp perform_tool_call(agent, "file_question_tool", args) do
-    AI.Tools.FileQuestion.call(agent, args)
-  end
-
-  defp perform_tool_call(agent, "planner_tool", _args) do
-    AI.Tools.Planner.call(agent, [])
-  end
-
-  defp perform_tool_call(_agent, func, _args) do
-    {:error, :unhandled_tool_call, func}
-  end
-
-  # -----------------------------------------------------------------------------
-  # Message construction
-  # -----------------------------------------------------------------------------
-  defp system_message(), do: OpenaiEx.ChatMessage.system(@prompt)
-  defp assistant_message(msg), do: OpenaiEx.ChatMessage.assistant(msg)
-  defp user_message(msg), do: OpenaiEx.ChatMessage.user(msg)
-  defp tool_message(id, func, output), do: OpenaiEx.ChatMessage.tool(id, func, output)
-
-  defp assistant_tool_message(id, func, args) do
-    %{
-      role: "assistant",
-      content: nil,
-      tool_calls: [
-        %{
-          id: id,
-          type: "function",
-          function: %{
-            name: func,
-            arguments: args
-          }
-        }
-      ]
-    }
-  end
+  defp perform_tool_call(agent, "search_tool", args), do: AI.Tools.Search.call(agent, args)
+  defp perform_tool_call(agent, "list_files_tool", args), do: AI.Tools.ListFiles.call(agent, args)
+  defp perform_tool_call(agent, "file_info_tool", args), do: AI.Tools.FileInfo.call(agent, args)
+  defp perform_tool_call(agent, "planner_tool", _args), do: AI.Tools.Planner.call(agent, [])
+  defp perform_tool_call(_agent, func, _args), do: {:error, :unhandled_tool_call, func}
 end

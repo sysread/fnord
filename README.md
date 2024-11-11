@@ -4,7 +4,8 @@
 
 Fnord is a command line tool the builds a searchable database of your files,
 using AI-generated embeddings to index and search your code base, notes, and
-other (non-binary) files.
+other (non-binary) files. Notably, it provides a conversational interface to
+research within your project, answering complex questions about your code base.
 
 ## Installation
 
@@ -43,7 +44,7 @@ those files which have changed since they were last indexed.
 fnord index --project foo --dir /path/to/foo
 ```
 
-You can **reindex** the project, forcing it to reindex all files:
+You can **reindex** the project, forcing it to reindex all files.
 
 ```bash
 fnord index --project foo --dir /path/to/foo --reindex
@@ -51,7 +52,7 @@ fnord index --project foo --dir /path/to/foo --reindex
 
 You can also watch the project for changes and reindex them as they happen
 using [watchman](https://github.com/facebook/watchman). Just be sure to use
-`--quiet` to suppress interactive output:
+`--quiet` to suppress interactive output.
 
 ```bash
 watchman-make -p '**/*' --settle 5 --run "fnord index --project $project --dir $project_root --quiet"
@@ -66,7 +67,7 @@ fnord-watch -p foo -d /path/to/foo
 
 ### Search
 
-You can search for files in the project that match a query:
+Search for files in the project that match a query.
 
 ```bash
 fnord search --project foo --query "some search query"
@@ -80,7 +81,7 @@ fnord search --project foo --query "some search query" --detail
 
 ### Ask
 
-You can ask the AI assistant to answer questions about your project:
+Ask the AI assistant to answer questions about your project.
 
 ```bash
 fnord ask foo "how do you run the tests for this project?"
@@ -142,7 +143,3 @@ for the `search` command.
   }
 }
 ```
-
-## TODO
-- `ask`: read questions from stdin
-- `ask`: replace Owl; it's incredibly slow for streaming output

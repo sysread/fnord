@@ -19,11 +19,14 @@ defmodule AI.Tools.ListFiles do
 
   @impl AI.Tools
   def call(agent, _args) do
-    Ask.update_status("Listing files in project: #{agent.opts.project}")
+    status_id = UI.add_status("Listing files in project", agent.opts.project)
 
     Store.new(agent.opts.project)
     |> Store.list_files()
     |> Enum.join("\n")
-    |> then(fn res -> {:ok, res} end)
+    |> then(fn res ->
+      UI.complete_status(status_id, :ok)
+      {:ok, res}
+    end)
   end
 end

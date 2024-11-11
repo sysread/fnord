@@ -1,4 +1,4 @@
-defmodule AI.Agent.FileQuestion do
+defmodule AI.Agent.FileInfo do
   defstruct [
     :ai,
     :question,

@@ -1,4 +1,6 @@
 defmodule AI.Tools.Search do
+  @max_search_results 5
+
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -25,14 +27,37 @@ defmodule AI.Tools.Search do
   @impl AI.Tools
   def call(agent, args) do
     with {:ok, query} <- Map.fetch(args, "query") do
-      Ask.update_status("Searching: #{query}")
+      status_id = UI.add_status("Searching", query)
 
-      AI.Agent.Search.new(agent.ai, agent.opts.question, query, agent.opts)
-      |> AI.Agent.Search.search()
-      |> case do
-        {:ok, results} -> results |> Enum.join("\n\n") |> then(fn res -> {:ok, res} end)
-        error -> error
+      with {:ok, matches} <- search(query, agent.opts) do
+        matches
+        |> Enum.map(fn {file, score, data} ->
+          """
+          # `#{file}` (cosine similarity: #{score})
+          #{data["summary"]}
+          """
+        end)
+        |> Enum.join("\n-----\n")
+        |> then(fn res ->
+          UI.complete_status(status_id, :ok)
+          {:ok, res}
+        end)
       end
     end
+  end
+
+  # -----------------------------------------------------------------------------
+  # Searches the database for matches to the search query. Returns a list of
+  # `{file, score, data}` tuples.
+  # -----------------------------------------------------------------------------
+  defp search(query, opts) do
+    opts
+    |> Map.put(:concurrency, opts.concurrency)
+    |> Map.put(:detail, true)
+    |> Map.put(:limit, @max_search_results)
+    |> Map.put(:query, query)
+    |> Search.new()
+    |> Search.get_results()
+    |> then(&{:ok, &1})
   end
 end
