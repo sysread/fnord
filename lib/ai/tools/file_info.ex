@@ -34,7 +34,16 @@ defmodule AI.Tools.FileInfo do
     with {:ok, question} <- Map.fetch(args, "question"),
          {:ok, file} <- Map.fetch(args, "file"),
          {:ok, contents} <- File.read(file) do
-      status_id = UI.add_status("Considering #{file}", question)
+      status_msg =
+        Owl.Data.tag(
+          [
+            "Considering ",
+            Owl.Data.tag(file, :yellow)
+          ],
+          :default_color
+        )
+
+      status_id = UI.add_status(status_msg, question)
 
       AI.Agent.FileInfo.new(agent.ai, question, contents)
       |> AI.Agent.FileInfo.get_summary()

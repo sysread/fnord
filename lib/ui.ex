@@ -70,7 +70,7 @@ defmodule UI do
         msg
       else
         Owl.Data.tag(
-          ["#{msg}: ", Owl.Data.tag(detail, :green)],
+          [msg, ": ", Owl.Data.tag(detail, :green)],
           :default_color
         )
         |> Owl.Data.to_chardata()
