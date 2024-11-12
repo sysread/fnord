@@ -3,7 +3,9 @@ defmodule UI do
 
   defstruct [
     :id_counter,
-    :statuses
+    :statuses,
+    :max_tokens,
+    :tokens
   ]
 
   # -----------------------------------------------------------------------------
@@ -23,6 +25,14 @@ defmodule UI do
 
   def complete_status(status_id, resolution, append) do
     GenServer.cast(__MODULE__, {:complete_status, status_id, resolution, append})
+  end
+
+  def add_token_usage(max_tokens) do
+    GenServer.cast(__MODULE__, {:add_token_status, max_tokens})
+  end
+
+  def update_token_usage(tokens) do
+    GenServer.cast(__MODULE__, {:update_token_status, tokens})
   end
 
   def puts(msg) do
@@ -57,6 +67,16 @@ defmodule UI do
   @impl true
   def handle_cast({:complete_status, status_id, resolution, msg}, state) do
     {:noreply, do_complete_status(state, status_id, resolution, msg)}
+  end
+
+  @impl true
+  def handle_cast({:add_token_status, max_tokens}, state) do
+    {:noreply, do_add_token_status(state, max_tokens)}
+  end
+
+  @impl true
+  def handle_cast({:update_token_status, tokens}, state) do
+    {:noreply, do_update_token_status(state, tokens)}
   end
 
   # -----------------------------------------------------------------------------
@@ -109,5 +129,51 @@ defmodule UI do
     end
 
     state
+  end
+
+  defp do_add_token_status(state, max_tokens) do
+    if interactive?() do
+      box = token_usage_box(max_tokens, 0)
+      Owl.LiveScreen.add_block(:tokens, state: box)
+    end
+
+    %__MODULE__{state | max_tokens: max_tokens, tokens: 0}
+  end
+
+  defp do_update_token_status(%{max_tokens: max_tokens} = state, tokens) do
+    if interactive?() do
+      box = token_usage_box(max_tokens, tokens)
+      Owl.LiveScreen.update(:tokens, box)
+    end
+
+    %__MODULE__{state | tokens: tokens}
+  end
+
+  defp token_usage_box(max_tokens, tokens) do
+    pct = tokens / max_tokens * 100.0
+    pct_str = Number.Percentage.number_to_percentage(pct, precision: 2)
+
+    pct_tag =
+      cond do
+        pct > 75.0 -> Owl.Data.tag(pct_str, :red)
+        pct > 50.0 -> Owl.Data.tag(pct_str, :orange)
+        pct > 25.0 -> Owl.Data.tag(pct_str, :yellow)
+        true -> Owl.Data.tag(pct_str, :green)
+      end
+
+    tokens_str = Number.Delimit.number_to_delimited(tokens, precision: 0)
+    max_tokens_str = Number.Delimit.number_to_delimited(max_tokens, precision: 0)
+
+    content = Owl.Data.tag([pct_tag, " | #{tokens_str} / #{max_tokens_str}"], :default_color)
+
+    Owl.Box.new(content,
+      title: "Token usage",
+      padding: 1,
+      border_style: :solid_rounded,
+      vertical_align: :middle,
+      horizontal_align: :center,
+      border_tag: :blue,
+      min_width: 25
+    )
   end
 end

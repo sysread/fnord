@@ -15,6 +15,8 @@ defmodule AI.Agent.Answers do
 
   @model "gpt-4o"
 
+  @max_tokens 128_000
+
   @prompt """
   You are the Answers Agent, a conversational AI interface to a database of
   information about the user's project.
@@ -22,73 +24,55 @@ defmodule AI.Agent.Answers do
   You have several tools at your disposal.
 
   ## Planner Tool
-  Use this tool extensively to analyze your progress and determine what the
-  next steps should be in order to provide the most complete answer to the
-  user.
+  Use this tool extensively to analyze your progress and determine the next
+  steps to provide the most complete answer to the user. **Ensure you use the
+  `solution` parameter to confirm that the final solution is complete before
+  proceeding to the response phase.**
+
+  **IMPORTANT**: Use the planner tool with the `solution` parameter
+  **immediately before providing any answer to the user**. This final check
+  confirms the solution is complete, accurate, and sufficient.
 
   ## List Files Tool
   List all files in the project database. You can determine a lot about the
   project just by inspecting its layout.
 
   ## Search Tool
-  The project database contains summaries of each file within the project.
-  Use this tool with a query optimized for a vector database of file embeddings
+  The project database contains summaries of each file within the project. Use
+  this tool with a query optimized for a vector database of file embeddings
   based on summaries of each file's contents.
 
   ## File Info Tool
-  Because code and documentation may be too large for your context window, you
-  will use this tool to ask an AI agent to answer specific questions about
-  promising files in the project that may contain information you need to
-  answer the user's question. Craft your question in such a way that the AI
-  agent will return the specifics you need. For example, you might ask it to
-  cite code fragments and functions that relate to your specific question about
-  the file.
+  Code and documentation may be too large for your context window. Use this
+  tool to ask an AI agent specific questions about promising files in the
+  project that may contain information you need. Craft questions so that the AI
+  agent returns the specifics you need. For example, ask it to cite code
+  fragments and functions relevant to your question about the file.
 
   # Process
-  1. Get an initial plan from the planner.
-  2. Use List Files to inspect project structure if relevant.
-  3. Use the Search Tool to identify relevant files, adjusting search queries to refine results. **Aim to batch requests for related files wherever possible, so that you can process multiple files concurrently.**
-  4. Use the File Info tool to obtain specific details from each file. **When you identify multiple relevant files, make simultaneous requests for their details to maximize efficiency.**
-  4. Use File Info to obtain specific details in promising files, clarifying focus with each question.
-  5. Repeat steps as needed; consult Planner for adjustments if results are unclear.
-
-  To be clear, you are expected to use the planner_tool MULTIPLE TIMES per user
-  request to ensure that your investigation remains on track. Always check your
-  assumptions with the planner.
-
-  **Plan to request details from multiple files at once whenever feasible,
-  reducing round trips and expediting your answer.**
-
-  Narrow your search criteria as needed to delve into different aspects of the
-  user's question, requesting information about individual functions, module
-  names, phrases, etc.
-
-  Use this process as many times as you like in order to ensure that you do not
-  omit important details that you might not have found on earlier passes.
-
-  ALWAYS consult the planner as a last step before providing your final answer.
+  1. **Get an initial plan** from the planner.
+  2. **List Files** to inspect project structure, if relevant.
+  3. **Search** to identify relevant files, adjusting search queries to refine results. **Batch requests for related files wherever possible** to process multiple files concurrently.
+  4. **File Info**: Obtain specific details from each relevant file by asking focused questions.
+  5. **Repeat as needed**; consult the Planner tool if results are unclear, adjusting questions as necessary.
+  6. **Confirm your solution using `solution` with the Planner tool as the final step** to validate that your answer is complete and ready to be provided to the user.
 
   # Response
-  By default, answer as tersely as possible. Increase your verbosity in
-  proportion to the specificity of the question, but your highest priority is
-  accuracy and completeness. Include code citations or examples as appropriate.
+  **Before responding, verify the solution using the planner tool and the
+  `solution` parameter. If not confirmed, you are not authorized to proceed.**
 
-  NEVER include details that cannot be confirmed by example or citation within
-  the research you performed. ALL informatin must be clearly tied to information
-  you gathered in your research.
+  By default, answer as tersely as possible. Increase verbosity in proportion
+  to the question's specificity, but prioritize accuracy and completeness.
+  Include code citations or examples as appropriate.
 
-  When asked how to perform a task, ensure that your response includes concrete
-  steps, including example code to illustrate the process.
+  NEVER include unconfirmed details. Tie all information clearly to research
+  you performed.
 
-  Once you have all of the context required to answer the user's question fully
-  and completely, provide a concise yet complete answer. Finish your reply with
-  a list of relevant files, each with 1-2 sentences explaining how they relate
-  to the user's question.
+  Once you have confirmed the solution is complete with the Planner, provide a
+  concise yet thorough answer. Conclude with a list of relevant files, each
+  with 1-2 sentences on how they relate to the user's question.
 
-  Just a reminder... did you remember to consult the planner before finalizing
-  your answer?
-
-  Format:
+  **Format:**
 
   # SYNOPSIS
 
@@ -98,13 +82,9 @@ defmodule AI.Agent.Answers do
 
   <provide the best answer here with any key details, plus relevant code snippets if required>
 
-  # STEPS
-
-  <summarize key steps in the investigation, focusing on major discoveries and any key choices made; also note anything unexpected that you discovered>
-
   # FILES
 
-  <summarize each file's relevance in a few words (e.g., "file1.py - Main logic for X"); omit unrelated files >
+  <summarize files' relevance (e.g., "file1.py - Main logic for X"); omit unrelated files>
   """
 
   def new(ai, opts) do
@@ -121,8 +101,8 @@ defmodule AI.Agent.Answers do
 
   def perform(agent) do
     UI.start_link()
-
-    status_id = UI.add_status("Researching", agent.opts.question)
+    UI.add_token_usage(@max_tokens)
+    status_id = UI.add_status("Researching", Owl.Data.tag(agent.opts.question, :bright))
 
     agent = send_request(agent)
 
@@ -139,10 +119,18 @@ defmodule AI.Agent.Answers do
   end
 
   defp build_request(agent) do
+    log_context_window_usage(agent)
+
+    reminder =
+      AI.Util.system_msg("""
+      Remember to get *approval* your final solution from the planner_tool
+      using the `solution` argument before responding!!!
+      """)
+
     OpenaiEx.Chat.Completions.new(
       model: @model,
       tool_choice: "auto",
-      messages: agent.messages,
+      messages: agent.messages ++ [reminder],
       tools: [
         AI.Tools.Search.spec(),
         AI.Tools.ListFiles.spec(),
@@ -150,6 +138,13 @@ defmodule AI.Agent.Answers do
         AI.Tools.Planner.spec()
       ]
     )
+  end
+
+  defp log_context_window_usage(agent) do
+    with {:ok, json} <- Jason.encode(agent.messages) do
+      tokens = json |> Gpt3Tokenizer.encode() |> length()
+      UI.update_token_usage(tokens)
+    end
   end
 
   defp get_response(request, agent) do
@@ -201,13 +196,16 @@ defmodule AI.Agent.Answers do
     }
   end
 
-  def handle_tool_call(agent, %{
-        "id" => id,
-        "function" => %{
-          "name" => func,
-          "arguments" => args_json
+  def handle_tool_call(
+        agent,
+        %{
+          "id" => id,
+          "function" => %{
+            "name" => func,
+            "arguments" => args_json
+          }
         }
-      }) do
+      ) do
     with {:ok, args} <- Jason.decode(args_json),
          {:ok, output} <- perform_tool_call(agent, func, args) do
       request = AI.Util.assistant_tool_msg(id, func, args_json)
@@ -236,6 +234,6 @@ defmodule AI.Agent.Answers do
   defp perform_tool_call(agent, "search_tool", args), do: AI.Tools.Search.call(agent, args)
   defp perform_tool_call(agent, "list_files_tool", args), do: AI.Tools.ListFiles.call(agent, args)
   defp perform_tool_call(agent, "file_info_tool", args), do: AI.Tools.FileInfo.call(agent, args)
-  defp perform_tool_call(agent, "planner_tool", _args), do: AI.Tools.Planner.call(agent, [])
+  defp perform_tool_call(agent, "planner_tool", args), do: AI.Tools.Planner.call(agent, args)
   defp perform_tool_call(_agent, func, _args), do: {:error, :unhandled_tool_call, func}
 end
