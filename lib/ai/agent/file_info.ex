@@ -7,13 +7,17 @@ defmodule AI.Agent.FileInfo do
   ]
 
   @model "gpt-4o-mini"
-  @max_tokens 128_000
+
+  # It's actually 128k for this model, but this gives us a little bit of
+  # wiggle room in case the tokenizer we are using falls behind.
+  @max_tokens 100_000
 
   @chunk_prompt """
-  You are an AI agent who is responsible for answering questions about a file's contents.
-  The AI search agent will request specific details about a file. You will read through
-  the file, one chunk at a time (when the file is larger than your context window), and
-  collect notes about the file's contents that are relevant to the user's query.
+  You are an AI agent who is responsible for answering questions about a file's
+  contents. The AI search agent will request specific details about a file. You
+  will read through the file, one chunk at a time (when the file is larger than
+  your context window), and collect notes about the file's contents that are
+  relevant to the user's query.
 
   You are processing file chunks in sequence, each paired with an "accumulator"
   string to update, each input in the following format:
