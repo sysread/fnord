@@ -42,19 +42,22 @@ defmodule AI.Agent.Answers do
   answer the user's question. Craft your question in such a way that the AI
   agent will return the specifics you need. For example, you might ask it to
   cite code fragments and functions that relate to your specific question about
-  the file. Cram as many file info tool questions into a single response as
-  possible to save tokens.
+  the file.
 
   # Process
   1. Get an initial plan from the planner.
   2. Use List Files to inspect project structure if relevant.
-  3. Use Search Tool to identify relevant files, adjusting search queries to refine results.
+  3. Use the Search Tool to identify relevant files, adjusting search queries to refine results. **Aim to batch requests for related files wherever possible, so that you can process multiple files concurrently.**
+  4. Use the File Info tool to obtain specific details from each file. **When you identify multiple relevant files, make simultaneous requests for their details to maximize efficiency.**
   4. Use File Info to obtain specific details in promising files, clarifying focus with each question.
   5. Repeat steps as needed; consult Planner for adjustments if results are unclear.
 
   To be clear, you are expected to use the planner_tool MULTIPLE TIMES per user
   request to ensure that your investigation remains on track. Always check your
   assumptions with the planner.
+
+  **Plan to request details from multiple files at once whenever feasible,
+  reducing round trips and expediting your answer.**
 
   Narrow your search criteria as needed to delve into different aspects of the
   user's question, requesting information about individual functions, module
@@ -174,29 +177,50 @@ defmodule AI.Agent.Answers do
   # -----------------------------------------------------------------------------
   # Tool calls
   # -----------------------------------------------------------------------------
-  defp handle_tool_calls(%{tool_calls: []} = agent) do
-    agent
+  defp handle_tool_calls(%{tool_calls: tool_calls} = agent) do
+    {:ok, queue} =
+      Queue.start_link(agent.opts.concurrency, fn tool_call ->
+        handle_tool_call(agent, tool_call)
+      end)
+
+    outputs =
+      tool_calls
+      |> Queue.map(queue)
+      |> Enum.reduce([], fn
+        {:ok, msgs}, acc -> acc ++ msgs
+        _, acc -> acc
+      end)
+
+    Queue.shutdown(queue)
+    Queue.join(queue)
+
+    %__MODULE__{
+      agent
+      | tool_calls: [],
+        messages: agent.messages ++ outputs
+    }
   end
 
-  defp handle_tool_calls(%{tool_calls: [tool_call | remaining]} = agent) do
-    with {:ok, agent} <- handle_tool_call(agent, tool_call) do
-      %__MODULE__{agent | tool_calls: remaining}
-      |> handle_tool_calls()
-    end
-  end
-
-  defp handle_tool_call(agent, %{
-         "id" => id,
-         "function" => %{
-           "name" => func,
-           "arguments" => args_json
-         }
-       }) do
+  def handle_tool_call(agent, %{
+        "id" => id,
+        "function" => %{
+          "name" => func,
+          "arguments" => args_json
+        }
+      }) do
     with {:ok, args} <- Jason.decode(args_json),
          {:ok, output} <- perform_tool_call(agent, func, args) do
       request = AI.Util.assistant_tool_msg(id, func, args_json)
       response = AI.Util.tool_msg(id, func, output)
-      {:ok, %__MODULE__{agent | messages: agent.messages ++ [request, response]}}
+      {:ok, [request, response]}
+    else
+      {:error, reason} ->
+        IO.puts(
+          :stderr,
+          "Error handling tool call | #{func} -> #{args_json} | #{inspect(reason)}"
+        )
+
+        {:error, reason}
     end
   end
 
