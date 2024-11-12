@@ -10,7 +10,8 @@ defmodule AI.Agent.Answers do
     :opts,
     :tool_calls,
     :messages,
-    :response
+    :response,
+    :token_status_id
   ])
 
   @model "gpt-4o"
@@ -24,14 +25,9 @@ defmodule AI.Agent.Answers do
   You have several tools at your disposal.
 
   ## Planner Tool
-  Use this tool extensively to analyze your progress and determine the next
-  steps to provide the most complete answer to the user. **Ensure you use the
-  `solution` parameter to confirm that the final solution is complete before
-  proceeding to the response phase.**
-
-  **IMPORTANT**: Use the planner tool with the `solution` parameter
-  **immediately before providing any answer to the user**. This final check
-  confirms the solution is complete, accurate, and sufficient.
+  Use this tool extensively to analyze your progress and determine what the
+  next steps should be in order to provide the most complete answer to the
+  user.
 
   ## List Files Tool
   List all files in the project database. You can determine a lot about the
@@ -49,30 +45,30 @@ defmodule AI.Agent.Answers do
   agent returns the specifics you need. For example, ask it to cite code
   fragments and functions relevant to your question about the file.
 
+  This tool provides better information when you ask it narrower, more specific
+  questions.
+
   # Process
-  1. **Get an initial plan** from the planner.
-  2. **List Files** to inspect project structure, if relevant.
-  3. **Search** to identify relevant files, adjusting search queries to refine results. **Batch requests for related files wherever possible** to process multiple files concurrently.
-  4. **File Info**: Obtain specific details from each relevant file by asking focused questions.
-  5. **Repeat as needed**; consult the Planner tool if results are unclear, adjusting questions as necessary.
-  6. **Confirm your solution using `solution` with the Planner tool as the final step** to validate that your answer is complete and ready to be provided to the user.
+  Batch tool call requests wherever possible to process multiple files concurrently.
+
+  1. Use List Files to inspect project structure if relevant.
+  2. Get an initial plan from the Planner.
+  3. Use Search Tool to identify relevant files, adjusting search queries to refine results.
+  4. Use File Info to obtain specific details in promising files, clarifying focus with each question.
+
+  Repeat steps as needed; consult Planner for adjustments if your research is
+  unclear.
 
   # Response
-  **Before responding, verify the solution using the planner tool and the
-  `solution` parameter. If not confirmed, you are not authorized to proceed.**
-
   By default, answer as tersely as possible. Increase verbosity in proportion
   to the question's specificity, but prioritize accuracy and completeness.
   Include code citations or examples as appropriate.
 
   NEVER include unconfirmed details. Tie all information clearly to research
-  you performed.
+  you performed. Conclude with a list of relevant files, each with 1-2
+  sentences on how they relate to the user's question.
 
-  Once you have confirmed the solution is complete with the Planner, provide a
-  concise yet thorough answer. Conclude with a list of relevant files, each
-  with 1-2 sentences on how they relate to the user's question.
-
-  **Format:**
+  Format:
 
   # SYNOPSIS
 
@@ -119,30 +115,52 @@ defmodule AI.Agent.Answers do
   end
 
   defp build_request(agent) do
+    agent = defrag_conversation(agent)
     log_context_window_usage(agent)
 
-    reminder =
-      AI.Util.system_msg("""
-      Remember to get *approval* your final solution from the planner_tool
-      using the `solution` argument before responding!!!
-      """)
+    request =
+      OpenaiEx.Chat.Completions.new(
+        model: @model,
+        tool_choice: "auto",
+        messages: agent.messages,
+        tools: [
+          AI.Tools.Search.spec(),
+          AI.Tools.ListFiles.spec(),
+          AI.Tools.FileInfo.spec(),
+          AI.Tools.Planner.spec()
+        ]
+      )
 
-    OpenaiEx.Chat.Completions.new(
-      model: @model,
-      tool_choice: "auto",
-      messages: agent.messages ++ [reminder],
-      tools: [
-        AI.Tools.Search.spec(),
-        AI.Tools.ListFiles.spec(),
-        AI.Tools.FileInfo.spec(),
-        AI.Tools.Planner.spec()
-      ]
-    )
+    request
+  end
+
+  defp defrag_conversation(agent) do
+    if AI.Agent.Defrag.msgs_to_defrag(agent) > 4 do
+      status_id = UI.add_status("Defragmenting conversation (#{length(agent.messages)} messages)")
+      {:ok, pre_tokens} = get_context_window_usage(agent)
+
+      with {:ok, msgs} <- AI.Agent.Defrag.summarize_findings(agent) do
+        {:ok, post_tokens} = get_context_window_usage(agent)
+        dropped = pre_tokens - post_tokens
+
+        status = "#{length(msgs)} messages; reduced by #{dropped} tokens"
+        UI.complete_status(status_id, :ok, status)
+
+        %__MODULE__{agent | messages: msgs}
+      end
+    else
+      agent
+    end
+  end
+
+  defp get_context_window_usage(agent) do
+    with {:ok, json} <- Jason.encode(agent.messages) do
+      {:ok, json |> Gpt3Tokenizer.encode() |> length()}
+    end
   end
 
   defp log_context_window_usage(agent) do
-    with {:ok, json} <- Jason.encode(agent.messages) do
-      tokens = json |> Gpt3Tokenizer.encode() |> length()
+    with {:ok, tokens} <- get_context_window_usage(agent) do
       UI.update_token_usage(tokens)
     end
   end
@@ -167,6 +185,24 @@ defmodule AI.Agent.Answers do
       |> handle_tool_calls()
       |> send_request()
     end
+  end
+
+  defp handle_response({:error, %OpenaiEx.Error{message: "Request timed out."}}, agent) do
+    IO.puts(:stderr, "Request timed out. Retrying in 500 ms.")
+    Process.sleep(500)
+    send_request(agent)
+  end
+
+  defp handle_response({:error, %OpenaiEx.Error{message: msg}}, agent) do
+    %__MODULE__{
+      agent
+      | response: """
+        I encountered an error while processing your request. Please try again.
+        The error message was:
+
+        #{msg}
+        """
+    }
   end
 
   # -----------------------------------------------------------------------------
@@ -212,13 +248,9 @@ defmodule AI.Agent.Answers do
       response = AI.Util.tool_msg(id, func, output)
       {:ok, [request, response]}
     else
-      {:error, reason} ->
-        IO.puts(
-          :stderr,
-          "Error handling tool call | #{func} -> #{args_json} | #{inspect(reason)}"
-        )
-
-        {:error, reason}
+      error ->
+        IO.puts(:stderr, "Error handling tool call | #{func} -> #{args_json} | #{inspect(error)}")
+        error
     end
   end
 

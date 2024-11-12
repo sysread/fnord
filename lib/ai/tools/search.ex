@@ -1,5 +1,5 @@
 defmodule AI.Tools.Search do
-  @max_search_results 10
+  @max_search_results 5
 
   @behaviour AI.Tools
 

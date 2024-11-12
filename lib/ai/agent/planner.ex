@@ -1,8 +1,7 @@
 defmodule AI.Agent.Planner do
   defstruct [
     :ai,
-    :messages,
-    :solution
+    :messages
   ]
 
   @model "gpt-4o"
@@ -19,25 +18,26 @@ defmodule AI.Agent.Planner do
   - User's core goals
   - Current approach effectiveness
   - Any missed opportunities or wrong turns
-  - Suggest new search queries that might clarify ambiguous findings
-  - Suggest new search queries that might identify missed aspects of the issue
+  - Suggest new search queries that might clarify ambiguous findings or identify missed aspects of the issue
   - Identify whether the Answers Agent has enough information to proceed with answering the user's question
+
+  For example, if the user is asking HOW to do something that already exists in
+  the code base, guide the Answers Agent toward finding examples of it. If the
+  user wants to change the behavior of something, ensure the Answers Agent is
+  considering upstream and downstream changes that might be required as a
+  consequence.
 
   2. Evaluate your own suggestions
   Your own suggestions are identified by the `PLAN:` heading in the message.
   Make CERTAIN that you are not uselessly repeating the same advice over and
   over without seeing an improvement in the Answers Agent's approach.
 
-  3. The Answers Agent MUST confirm its proposed solution with you
-  - NEVER reject more than 3 proposed solutions in a row.
-  - If you reject the Answers agent, either correct its proposed solution or
-    provide a new plan to guide the Answers Agent to a better solution.
-
-  4. Respond with a list of next steps for the Answers Agent. Format:
+  3. Respond with a list of next steps for the Answers Agent. Format:
   '''
   # PLAN:
   1. $Action - $details (1-2 lines)
-  ...
+  2. $Action - $details (1-2 lines)
+  ...etc.
   '''
 
   Keep steps clear, concrete, and actionable. No explanations or commentary
@@ -47,47 +47,30 @@ defmodule AI.Agent.Planner do
   format above.
   """
 
-  def new(agent, solution) do
+  def new(agent) do
     %__MODULE__{
       ai: agent.ai,
-      messages: agent.messages,
-      solution: solution
+      messages: agent.messages
     }
   end
 
   def get_suggestion(planner) do
-    with {:ok, args} <- get_args(planner) do
+    with {:ok, msg_json} <- Jason.encode(planner.messages) do
       OpenaiEx.Chat.Completions.create(
         planner.ai.client,
         OpenaiEx.Chat.Completions.new(
           model: @model,
           messages: [
             OpenaiEx.ChatMessage.system(@prompt),
-            OpenaiEx.ChatMessage.user(args)
+            OpenaiEx.ChatMessage.user(msg_json)
           ]
         )
       )
       |> case do
-        {:ok, %{"choices" => [%{"message" => %{"content" => suggestion}}]}} ->
-          {:ok, suggestion}
-
-        {:error, reason} ->
-          {:error, reason}
-
-        response ->
-          {:error, "unexpected response: #{inspect(response)}"}
+        {:ok, %{"choices" => [%{"message" => %{"content" => suggestion}}]}} -> {:ok, suggestion}
+        {:error, reason} -> {:error, reason}
+        response -> {:error, "unexpected response: #{inspect(response)}"}
       end
-    end
-  end
-
-  defp get_args(planner) do
-    args = %{
-      messages: planner.messages,
-      solution: planner.solution
-    }
-
-    with {:ok, args} <- Jason.encode(args) do
-      {:ok, args}
     end
   end
 end

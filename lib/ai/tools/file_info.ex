@@ -32,29 +32,34 @@ defmodule AI.Tools.FileInfo do
   @impl AI.Tools
   def call(agent, args) do
     with {:ok, question} <- Map.fetch(args, "question"),
-         {:ok, file} <- Map.fetch(args, "file"),
-         {:ok, contents} <- File.read(file) do
-      status_msg =
-        Owl.Data.tag(
-          [
-            "Considering ",
-            Owl.Data.tag(file, :yellow)
-          ],
-          :default_color
-        )
+         {:ok, file} <- Map.fetch(args, "file") do
+      with {:ok, contents} <- File.read(file) do
+        status_msg =
+          Owl.Data.tag(
+            [
+              "Considering ",
+              Owl.Data.tag(file, :yellow)
+            ],
+            :default_color
+          )
 
-      status_id = UI.add_status(status_msg, question)
+        status_id = UI.add_status(status_msg, question)
 
-      AI.Agent.FileInfo.new(agent.ai, question, contents)
-      |> AI.Agent.FileInfo.get_summary()
-      |> case do
-        {:ok, info} ->
-          UI.complete_status(status_id, :ok)
-          {:ok, info}
+        AI.Agent.FileInfo.new(agent.ai, question, contents)
+        |> AI.Agent.FileInfo.get_summary()
+        |> case do
+          {:ok, info} ->
+            UI.complete_status(status_id, :ok)
+            {:ok, info}
 
-        {:error, reason} ->
-          UI.complete_status(status_id, :error, reason)
-          {:error, reason}
+          {:error, reason} ->
+            UI.complete_status(status_id, :error, reason)
+            {:error, reason}
+        end
+      else
+        # File read errors are not fatal, and should be communicated to the
+        # Answers Agent.
+        {:error, reason} -> {:ok, reason |> :file.format_error() |> to_string()}
       end
     end
   end

@@ -1,6 +1,8 @@
 defmodule UI do
   use GenServer
 
+  require Logger
+
   defstruct [
     :id_counter,
     :statuses,
@@ -104,6 +106,8 @@ defmodule UI do
       Owl.Spinner.start(id: status_id)
       Owl.Spinner.update_label(id: status_id, label: msg)
       Owl.LiveScreen.await_render()
+    else
+      info(msg)
     end
 
     {
@@ -113,67 +117,92 @@ defmodule UI do
   end
 
   defp do_complete_status(state, status_id, resolution, msg \\ nil) do
-    status = Map.get(state.statuses, status_id)
-    state = %{state | statuses: Map.delete(state.statuses, status_id)}
+    cond do
+      interactive?() ->
+        status = Map.get(state.statuses, status_id)
 
-    msg =
-      if is_nil(msg) do
-        status
-      else
-        status <> ": " <> msg
-      end
+        output =
+          case msg do
+            nil -> status
+            %Owl.Tag{} -> Owl.Data.tag([status, ": ", msg], :default_color)
+            _ -> status <> ": " <> msg
+          end
 
-    if interactive?() do
-      Owl.Spinner.stop(id: status_id, resolution: resolution, label: msg)
-      Owl.LiveScreen.await_render()
+        Owl.Spinner.stop(id: status_id, resolution: resolution, label: output)
+        Owl.LiveScreen.await_render()
+
+      !is_nil(msg) ->
+        info(msg)
+
+      true ->
+        :ok
     end
 
-    state
+    %{state | statuses: Map.delete(state.statuses, status_id)}
   end
 
   defp do_add_token_status(state, max_tokens) do
+    usage = token_usage(max_tokens, 0)
+
     if interactive?() do
-      box = token_usage_box(max_tokens, 0)
-      Owl.LiveScreen.add_block(:tokens, state: box)
+      Owl.LiveScreen.add_block(:tokens, state: usage)
+      Owl.LiveScreen.await_render()
+    else
+      info(usage)
     end
 
     %__MODULE__{state | max_tokens: max_tokens, tokens: 0}
   end
 
   defp do_update_token_status(%{max_tokens: max_tokens} = state, tokens) do
+    usage = token_usage(max_tokens, tokens)
+
     if interactive?() do
-      box = token_usage_box(max_tokens, tokens)
-      Owl.LiveScreen.update(:tokens, box)
+      Owl.LiveScreen.update(:tokens, usage)
+      Owl.LiveScreen.await_render()
+    else
+      info(usage)
     end
 
     %__MODULE__{state | tokens: tokens}
   end
 
-  defp token_usage_box(max_tokens, tokens) do
+  defp token_usage(max_tokens, tokens) do
     pct = tokens / max_tokens * 100.0
     pct_str = Number.Percentage.number_to_percentage(pct, precision: 2)
-
-    pct_tag =
-      cond do
-        pct > 75.0 -> Owl.Data.tag(pct_str, :red)
-        pct > 50.0 -> Owl.Data.tag(pct_str, :orange)
-        pct > 25.0 -> Owl.Data.tag(pct_str, :yellow)
-        true -> Owl.Data.tag(pct_str, :green)
-      end
 
     tokens_str = Number.Delimit.number_to_delimited(tokens, precision: 0)
     max_tokens_str = Number.Delimit.number_to_delimited(max_tokens, precision: 0)
 
-    content = Owl.Data.tag([pct_tag, " | #{tokens_str} / #{max_tokens_str}"], :default_color)
+    if interactive?() do
+      pct_tag =
+        cond do
+          pct > 66.0 -> Owl.Data.tag(pct_str, :red)
+          pct > 33.0 -> Owl.Data.tag(pct_str, :yellow)
+          true -> Owl.Data.tag(pct_str, :green)
+        end
 
-    Owl.Box.new(content,
-      title: "Token usage",
-      padding: 1,
-      border_style: :solid_rounded,
-      vertical_align: :middle,
-      horizontal_align: :center,
-      border_tag: :blue,
-      min_width: 25
-    )
+      content = Owl.Data.tag([pct_tag, " | #{tokens_str} / #{max_tokens_str}"], :default_color)
+
+      Owl.Box.new(content,
+        title: "Token usage",
+        padding_x: 1,
+        border_style: :solid_rounded,
+        vertical_align: :middle,
+        horizontal_align: :center,
+        border_tag: :blue,
+        min_width: 30
+      )
+    else
+      "Token usage: #{pct_str} | #{tokens_str} / #{max_tokens_str}"
+    end
+  end
+
+  defp info(msg) when is_binary(msg) do
+    msg |> String.trim() |> Logger.info()
+  end
+
+  defp info(msg) do
+    msg |> to_string() |> info()
   end
 end
