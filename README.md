@@ -146,3 +146,4 @@ for the `search` command.
 
 # TODO
 - output formatted markdown results from `ask`
+- replace owl, this thing is chincy af
