@@ -46,8 +46,9 @@ defmodule AI.Agent.FileSummary do
   - Synopsis: Briefly summarize the purpose of the code file.
   - Languages Present: List programming languages used.
   - Business Logic and Behaviors: Summarize main functions, classes, and business logic. Highlight any patterns or distinctive behaviors.
+  - Routes: if this is the routes file for a web application, include a list of routes and their associated controllers and actions.
   - List of Symbols: List important classes, functions, variables, and constants, with brief descriptions.
-  - Map of Calls to Other Modules: Track calls to other modules or dependencies. Include a *map format* such as `FunctionA -> ModuleX:MethodY`, focusing on interactions relevant to functionality and semantics.
+  - Call Graph: for each namespace, function, etc., identify all calls it performs to internal and external locations. This call map will be used to trace logical paths through the code in the file. **ENSURE THIS IS COMPLETE AND ACCURATE.**
 
   ### For Documentation Files (e.g., README, Wiki Pages, General Documentation):
   - Synopsis: Summarize the document's primary purpose.
@@ -70,7 +71,6 @@ defmodule AI.Agent.FileSummary do
 
   Your input will contain:
   ```
-  # Accumulated Summary
   $accumulated_summary
   ```
 
@@ -89,8 +89,9 @@ defmodule AI.Agent.FileSummary do
   - Synopsis: Briefly summarize the overall purpose of the code file.
   - Languages Present: List any programming languages used.
   - Business Logic and Behaviors: Summarize main functions, classes, business logic, and any distinctive patterns or behaviors.
-  - List of Symbols: Provide a concise list of important classes, functions, variables, and constants, with brief descriptions if available.
-  - Map of Calls to Other Modules: Use the format `FunctionA -> ModuleX:MethodY` to document inter-module calls, highlighting links relevant for understanding dependencies and functionality.
+  - Routes: if this is the routes file for a web application, include a list of routes and their associated controllers and actions.
+  - List of Symbols: List important classes, functions, variables, and constants, with brief descriptions.
+  - Call Graph: for each namespace, function, etc., identify all calls it performs to internal and external locations. This call map will be used to trace logical paths through the code in the file. **ENSURE THIS IS COMPLETE AND ACCURATE.**
 
   #### For Documentation Files (e.g., README, Wiki Pages, General Documentation):
   - Synopsis: Briefly describe the main purpose or scope of the document.
