@@ -1,4 +1,6 @@
 defmodule AI.Tools.FileInfo do
+  require Logger
+
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -34,26 +36,18 @@ defmodule AI.Tools.FileInfo do
     with {:ok, question} <- Map.fetch(args, "question"),
          {:ok, file} <- Map.fetch(args, "file") do
       with {:ok, contents} <- File.read(file) do
-        status_msg =
-          Owl.Data.tag(
-            [
-              "Considering ",
-              Owl.Data.tag(file, :yellow)
-            ],
-            :default_color
-          )
+        Logger.info("[file info] considering #{file}: #{question}")
 
-        status_id = UI.add_status(status_msg, question)
-
-        AI.Agent.FileInfo.new(agent.ai, question, contents)
+        agent.ai
+        |> AI.Agent.FileInfo.new(question, contents)
         |> AI.Agent.FileInfo.get_summary()
         |> case do
           {:ok, info} ->
-            UI.complete_status(status_id, :ok)
+            Logger.debug("[file info]: #{file} - #{question}\n#{info}")
             {:ok, info}
 
           {:error, reason} ->
-            UI.complete_status(status_id, :error, reason)
+            Logger.error("[file info] error getting file info on #{file}: #{reason}")
             {:error, reason}
         end
       else

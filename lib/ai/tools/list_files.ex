@@ -1,4 +1,6 @@
 defmodule AI.Tools.ListFiles do
+  require Logger
+
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -19,14 +21,11 @@ defmodule AI.Tools.ListFiles do
 
   @impl AI.Tools
   def call(agent, _args) do
-    status_id = UI.add_status("Listing files in project", agent.opts.project)
+    Logger.info("[list files] listing files in project: #{agent.opts.project}")
 
     Store.new(agent.opts.project)
     |> Store.list_files()
     |> Enum.join("\n")
-    |> then(fn res ->
-      UI.complete_status(status_id, :ok)
-      {:ok, res}
-    end)
+    |> then(fn res -> {:ok, res} end)
   end
 end

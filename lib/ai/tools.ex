@@ -1,10 +1,5 @@
 defmodule AI.Tools do
-  @type agent :: %{
-          required(:ai) => AI.t(),
-          required(:opts) => [
-            question: String.t()
-          ]
-        }
+  @type agent :: AI.Agent.Answers.t()
 
   @callback spec() :: map()
   @callback call(agent(), map()) :: {:ok, String.t()}

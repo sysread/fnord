@@ -21,6 +21,10 @@ defmodule UI do
     GenServer.call(__MODULE__, {:add_status, msg, detail})
   end
 
+  def update_status(status_id, msg, detail \\ nil) do
+    GenServer.cast(__MODULE__, {:update_status, status_id, msg, detail})
+  end
+
   def complete_status(status_id, resolution) do
     GenServer.cast(__MODULE__, {:complete_status, status_id, resolution})
   end
@@ -62,6 +66,11 @@ defmodule UI do
   end
 
   @impl true
+  def handle_cast({:update_status, status_id, msg, detail}, state) do
+    {:noreply, do_update_status(state, status_id, msg, detail)}
+  end
+
+  @impl true
   def handle_cast({:complete_status, status_id, resolution}, state) do
     {:noreply, do_complete_status(state, status_id, resolution)}
   end
@@ -86,18 +95,20 @@ defmodule UI do
   # -----------------------------------------------------------------------------
   defp interactive?(), do: IO.ANSI.enabled?()
 
-  defp do_add_status(state, msg, detail) do
-    msg =
-      if is_nil(detail) do
-        msg
-      else
-        Owl.Data.tag(
-          [msg, ": ", Owl.Data.tag(detail, :green)],
-          :default_color
-        )
-        |> Owl.Data.to_chardata()
-      end
+  defp get_msg(msg, detail) do
+    if is_nil(detail) do
+      msg
+    else
+      Owl.Data.tag(
+        [msg, ": ", Owl.Data.tag(detail, :green)],
+        :default_color
+      )
+      |> Owl.Data.to_chardata()
+    end
+  end
 
+  defp do_add_status(state, msg, detail) do
+    msg = get_msg(msg, detail)
     counter = state.id_counter + 1
     status_id = String.to_atom("status_#{counter}")
     statuses = Map.put(state.statuses, status_id, msg)
@@ -114,6 +125,19 @@ defmodule UI do
       %__MODULE__{state | id_counter: counter, statuses: statuses},
       status_id
     }
+  end
+
+  defp do_update_status(state, status_id, msg, detail) do
+    msg = get_msg(msg, detail)
+
+    if interactive?() do
+      Owl.Spinner.update_label(id: status_id, label: msg)
+      Owl.LiveScreen.await_render()
+    else
+      info(msg)
+    end
+
+    %{state | statuses: Map.put(state.statuses, status_id, msg)}
   end
 
   defp do_complete_status(state, status_id, resolution, msg \\ nil) do

@@ -5,68 +5,142 @@ defmodule AI.Agent.Answers do
   matching files and their contents in order to generate a complete and concise
   answer for the user.
   """
+
+  require Logger
+
   defstruct([
     :ai,
     :opts,
     :tool_calls,
     :messages,
-    :response,
-    :token_status_id
+    :response
   ])
+
+  @type t :: %__MODULE__{
+          ai: AI.t(),
+          opts: [
+            question: String.t()
+          ],
+          tool_calls: [map()],
+          messages: [String.t()],
+          response: String.t()
+        }
 
   @model "gpt-4o"
 
-  @max_tokens 128_000
-
   @prompt """
   You are the Answers Agent, a conversational AI interface to a database of
-  information about the user's project.
+  information about the user's project. You function in multiple capacities:
 
+  1. Intelligent search: the user enters a question and you perform and
+     assimilate multiple searches to find the information they are looking for.
+  2. On demand playbook: you create on-demand playbooks based on the
+     documentation and code available to you to create step-by-step
+     instructions to perform tasks described by the user.
+  3. On demand documentation: you create on-demand documentation at the user's
+     request, using your tools to extract relevant information from the project
+     and present it in an easy to understand and organized format.
+  4. Investigation: the user may bring you bugs, stack traces, test failures,
+     or feature requests. You will perform an investigation to identify
+     potentional causes and solutions.
+
+  # Tools
   You have several tools at your disposal.
 
   ## Planner Tool
   Use this tool extensively to analyze your progress and determine what the
   next steps should be in order to provide the most complete answer to the
-  user.
+  user. It is generally a good idea to use it one last time before providing
+  your final response to ensure that you have covered all avenues of inquiry.
+  You MUST use it at least once before providing your final response.
 
   ## List Files Tool
   List all files in the project database. You can determine a lot about the
-  project just by inspecting its layout.
+  project just by inspecting its layout. This is a great initial step when
+  asked ambiguous questions or when you are unsure where to start.
 
   ## Search Tool
-  The project database contains summaries of each file within the project. Use
-  this tool with a query optimized for a vector database of file embeddings
-  based on summaries of each file's contents.
+  The search tool is your general interface with the code base and
+  documentation, when available. Use this tool to identify relevant files
+  using semantic queries. Each file in the database has been indexed against
+  an AI-geneerated summary of the file's contents, behaviors, and symbols.
+
+  **After retrieving search results, use the Planner Tool to evaluate the
+  relevance of the files and determine the next steps.**
 
   ## File Info Tool
-  Code and documentation may be too large for your context window. Use this
-  tool to ask an AI agent specific questions about promising files in the
-  project that may contain information you need. Craft questions so that the AI
-  agent returns the specifics you need. For example, ask it to cite code
-  fragments and functions relevant to your question about the file.
-
-  This tool provides better information when you ask it narrower, more specific
-  questions.
+  The file info tool is your specific interface with the code base and
+  documentation. It allows you to ask a specialized AI agent highly specific
+  questions about the contents of a specific file. Note that the AI agent does
+  NOT have any context about the project or the user's question, so craft your
+  questions with that in mind to get the most relevant information. This tool
+  provides better information when you ask it narrower, more specific
+  questions. You can also instruct it in how best to format its response (e.g.,
+  asking it to cite code or provide examples).
 
   # Process
-  Batch tool call requests wherever possible to process multiple files concurrently.
+  Batch tool call requests when possible to process multiple tasks
+  concurrently, especially with the File Info and Search tools.
 
   1. Use List Files to inspect project structure if relevant.
   2. Get an initial plan from the Planner.
   3. Use Search Tool to identify relevant files, adjusting search queries to refine results.
   4. Use File Info to obtain specific details in promising files, clarifying focus with each question.
+  5. **Ask the Planner to evaluate progress and determine next steps.**
+  6. Implement the Planner's suggestions
 
-  Repeat steps as needed; consult Planner for adjustments if your research is
-  unclear.
+  Repeat steps as needed; consult the Planner for adjustments if your research
+  yields ambiguous results and to ensure that you have covered all avenues of
+  inquiry.
 
-  # Response
-  By default, answer as tersely as possible. Increase verbosity in proportion
-  to the question's specificity, but prioritize accuracy and completeness.
-  Include code citations or examples as appropriate.
+  # Accuracy
+  Ensure that your response cites examples in the code.
+  Ensure that any functions or modules you refer to ACTUALLY EXIST
+  Use the Planner Tool EXTENSIVELY to ensure that you have covered all avenues of inquiry.
+
+  # Response: ambiguous results
+  If your research yields ambiguous results, even after consulting the Planner,
+  do NOT answer the user's question. Instead, respond with a summary of your
+  findings, providing an outline of the relevant facts you collected, the
+  avenues of inquiry and likely looking files that did NOT turn out to hold
+  relevant information (and why), and a list of the files and phrases that you
+  believe are most likely to contain the information the user is looking for.
+
+  Format:
+
+  # SYNOPSIS
+
+  <restate the user's question briefly, then explain that the results are ambiguous>
+
+  # FINDINGS
+
+  <provide a markdown outline of your findings, including the relevant facts, avenues of inquiry, and likely looking files>
+
+  # RED HERRINGS
+
+  <provide a markdown list of files and phrases that did NOT turn out to hold relevant information, and why you disqualified them>
+
+  # Response: clear results
+  Prioritize completeness and accuracy in your response. Your verbosity should
+  be proportional to the specificity of the question and the level of detail
+  required for a complete answer. Include code citations or examples as
+  appropriate, especially when asked how to implement specific interfaces in
+  the code base.
+
+  **Be sure to clearly note if the user is asking to create something that
+  already appears to exist!** The SYNOPSIS is a great place for that. If the
+  user is asking to code something that already exists, provide a guide on how
+  to use the *existing* feature instead of how to implement a new one.
 
   NEVER include unconfirmed details. Tie all information clearly to research
-  you performed. Conclude with a list of relevant files, each with 1-2
-  sentences on how they relate to the user's question.
+  you performed. Ensure that any facts about the code base or documentation
+  include inline citations to the files or searches you performed, (e.g.,
+  "After adding a new `SomeImplementationModule`, you must register it in the
+  `SomeRegistryModule` file, per module documentation in
+  `path/to/some_registry_module`").
+
+  Conclude with a list of relevant files, each with 1-2 sentences on how they
+  relate to the user's question.
 
   Format:
 
@@ -76,9 +150,13 @@ defmodule AI.Agent.Answers do
 
   # ANSWER
 
-  <provide the best answer here with any key details, plus relevant code snippets if required>
+  <provide the best answer here with any key details, plus relevant code snippets if required; ALWAYS cite files paths, module and function names, etc., related to each step>
 
-  # FILES
+  # RESEARCH SUMMARY
+
+  <provide a step-by-step playback of how you arrived at your answer, including any tools used>
+
+  # RELEVANT FILES
 
   <summarize files' relevance (e.g., "file1.py - Main logic for X"); omit unrelated files>
   """
@@ -96,15 +174,11 @@ defmodule AI.Agent.Answers do
   end
 
   def perform(agent) do
-    UI.start_link()
-    UI.add_token_usage(@max_tokens)
-    status_id = UI.add_status("Researching", Owl.Data.tag(agent.opts.question, :bright))
+    Logger.info("[answers] researching: #{agent.opts.question}")
 
-    agent = send_request(agent)
-
-    UI.complete_status(status_id, :ok)
-
-    {:ok, agent.response}
+    agent
+    |> send_request()
+    |> then(&{:ok, &1.response})
   end
 
   defp send_request(agent) do
@@ -136,16 +210,15 @@ defmodule AI.Agent.Answers do
 
   defp defrag_conversation(agent) do
     if AI.Agent.Defrag.msgs_to_defrag(agent) > 4 do
-      status_id = UI.add_status("Defragmenting conversation (#{length(agent.messages)} messages)")
       {:ok, pre_tokens} = get_context_window_usage(agent)
+
+      Logger.info("[answers] defragmenting conversation: #{pre_tokens} tokens")
 
       with {:ok, msgs} <- AI.Agent.Defrag.summarize_findings(agent) do
         {:ok, post_tokens} = get_context_window_usage(agent)
         dropped = pre_tokens - post_tokens
 
-        status = "#{length(msgs)} messages; reduced by #{dropped} tokens"
-        UI.complete_status(status_id, :ok, status)
-
+        Logger.info("[answers] defragmented conversation: reduced by #{dropped} tokens")
         %__MODULE__{agent | messages: msgs}
       end
     else

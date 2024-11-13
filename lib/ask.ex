@@ -7,8 +7,11 @@ defmodule Ask do
   ]
 
   def new(opts) do
+    set_log_level(opts)
+
     ai = AI.new()
     agent = AI.Agent.Answers.new(ai, opts)
+
     %Ask{ai: ai, opts: opts, agent: agent, buffer: ""}
   end
 
@@ -17,5 +20,31 @@ defmodule Ask do
       UI.puts("----------------------------------------")
       UI.puts(output)
     end
+  end
+
+  defp set_log_level(opts) do
+    log_level =
+      case opts.log_level do
+        "debug" ->
+          :debug
+
+        "info" ->
+          :info
+
+        "warn" ->
+          :warn
+
+        "error" ->
+          :error
+
+        _ ->
+          IO.puts(:stderr, "Invalid log level: #{opts.log_level}")
+          System.halt(1)
+      end
+
+    Logger.configure(
+      level: log_level,
+      format: "$time $metadata[$level] $message\n"
+    )
   end
 end

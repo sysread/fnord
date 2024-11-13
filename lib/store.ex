@@ -4,6 +4,8 @@ defmodule Store do
   and metadata for files.
   """
 
+  require Logger
+
   defstruct [:project, :path]
 
   @doc """
@@ -119,7 +121,9 @@ defmodule Store do
          {:ok, summary} <- File.read(file) do
       {:ok, summary}
     else
-      {:error, :not_found} -> {:error, :not_found}
+      {:error, reason} ->
+        Logger.error("Error reading summary: <#{file}> #{reason}")
+        {:error, reason}
     end
   end
 
@@ -130,18 +134,22 @@ defmodule Store do
   chunks.
   """
   def get_embeddings(store, file) do
-    with {:ok, meta} <- Store.info(store, file) do
-      path = Map.get(meta, "fnord_path")
-
-      embeddings =
-        Path.join(path, "embedding_*.json")
-        |> Path.wildcard()
-        |> Enum.map(&File.read!(&1))
-        |> Enum.map(&Jason.decode!(&1))
-
-      {:ok, embeddings}
-    else
-      {:error, :not_found} -> {:error, :not_found}
+    with {:ok, meta} <- Store.info(store, file),
+         path = Map.get(meta, "fnord_path"),
+         files = Path.join(path, "embedding_*.json") |> Path.wildcard() do
+      files
+      |> Enum.map(fn file ->
+        with {:ok, data} <- File.read(file),
+             {:ok, embedding} <- Jason.decode(data) do
+          embedding
+        else
+          {:error, reason} ->
+            Logger.error("Error reading embedding: <#{file}> #{reason}")
+            nil
+        end
+      end)
+      |> Enum.reject(&is_nil/1)
+      |> then(&{:ok, &1})
     end
   end
 
