@@ -6,14 +6,14 @@ defmodule AI do
   """
 
   defstruct [
-    :client
+    :client,
+    :api_key
   ]
 
   @type t :: %__MODULE__{
           client: %OpenaiEx{}
         }
 
-  @api_key System.get_env("OPENAI_API_KEY")
   @api_timeout 45_000
 
   @callback new() :: struct()
@@ -27,8 +27,14 @@ defmodule AI do
   Create a new AI instance. Instances share the same client connection.
   """
   def new() do
+    api_key = System.get_env("OPENAI_API_KEY")
+
+    if is_nil(api_key) do
+      raise "Missing OpenAI API key. Please set the OPENAI_API_KEY environment variable."
+    end
+
     openai =
-      @api_key
+      api_key
       |> OpenaiEx.new()
       |> OpenaiEx.with_receive_timeout(@api_timeout)
 
