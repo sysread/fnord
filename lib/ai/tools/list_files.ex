@@ -26,6 +26,6 @@ defmodule AI.Tools.ListFiles do
     Store.new(agent.opts.project)
     |> Store.list_files()
     |> Enum.join("\n")
-    |> then(fn res -> {:ok, res} end)
+    |> then(fn res -> {:ok, "[list_files_tool]\n#{res}"} end)
   end
 end

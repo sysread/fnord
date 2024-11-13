@@ -47,7 +47,7 @@ defmodule AI.Tools.Search do
           """
         end)
         |> Enum.join("\n-----\n")
-        |> then(fn res -> {:ok, res} end)
+        |> then(fn res -> {:ok, "[search_tool]\n#{res}"} end)
       end
     end
   end

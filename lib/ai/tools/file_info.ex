@@ -44,7 +44,7 @@ defmodule AI.Tools.FileInfo do
         |> case do
           {:ok, info} ->
             Logger.debug("[file info]: #{file} - #{question}\n#{info}")
-            {:ok, info}
+            {:ok, "[file_info_tool]\n#{info}"}
 
           {:error, reason} ->
             Logger.error("[file info] error getting file info on #{file}: #{reason}")

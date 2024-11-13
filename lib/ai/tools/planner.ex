@@ -29,7 +29,7 @@ defmodule AI.Tools.Planner do
     |> then(fn
       {:ok, suggestion} ->
         Logger.debug("[planner]: #{suggestion}")
-        {:ok, suggestion}
+        {:ok, "[planner_tool]\n#{suggestion}"}
 
       {:error, reason} ->
         Logger.error("[planner] error getting suggestion: #{reason}")

@@ -47,13 +47,13 @@ defmodule AI.Agent.Planner do
     - When the Answers Agent has the required information to respond, instruct them to build a step-by-step guide or playbook for the user, taking into consideration the logical order of operations and dependencies
 
   3. Evaluate your own suggestions
-  Your own suggestions are identified by the `PLAN:` heading in the message.
-  Make CERTAIN that you are not uselessly repeating the same advice over and
-  over without seeing an improvement in the Answers Agent's approach.
+  Your own suggestions are identified by the prefix `[planner_tool]` (this is
+  done automatically by the application; you don't need to add it). Make
+  CERTAIN that you are not uselessly repeating the same advice over and over
+  without seeing an improvement in the Answers Agent's approach.
 
   4. Respond with a list of next steps for the Answers Agent. Format:
   '''
-  # PLAN:
   1. search_tool: search for existing code that has already implemented the requested feature
   2. search_tool: search for documentation about interfaces that might be required to implement the requested feature
   ...etc.
