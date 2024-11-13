@@ -27,6 +27,7 @@ defmodule AI.Agent.Answers do
         }
 
   @model "gpt-4o"
+  @max_tokens 128_000
 
   @prompt """
   You are the Answers Agent, a conversational AI interface to a database of
@@ -234,7 +235,12 @@ defmodule AI.Agent.Answers do
 
   defp log_context_window_usage(agent) do
     with {:ok, tokens} <- get_context_window_usage(agent) do
-      UI.update_token_usage(tokens)
+      pct = tokens / @max_tokens * 100.0
+      pct_str = Number.Percentage.number_to_percentage(pct, precision: 2)
+      tokens_str = Number.Delimit.number_to_delimited(tokens, precision: 0)
+      max_tokens_str = Number.Delimit.number_to_delimited(@max_tokens, precision: 0)
+      msg = "token usage: #{pct_str} | #{tokens_str} / #{max_tokens_str}"
+      Logger.debug("[answers] #{msg}")
     end
   end
 

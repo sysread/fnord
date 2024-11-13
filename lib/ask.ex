@@ -17,8 +17,7 @@ defmodule Ask do
 
   def run(ask) do
     with {:ok, output} <- AI.Agent.Answers.perform(ask.agent) do
-      UI.puts("----------------------------------------")
-      UI.puts(output)
+      IO.puts(output)
     end
   end
 
