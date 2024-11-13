@@ -35,7 +35,8 @@ installation.
 4. Set `OPENAI_API_KEY`
 
 Set this in your shell environment to the OpenAI project key you wish to use
-for this tool.
+for this tool. You can create a new project and get a key
+[here](https://platform.openai.com/api-keys).
 
 ## Usage
 
