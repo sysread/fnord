@@ -154,3 +154,5 @@ for the `search` command.
 - output formatted markdown results from `ask`
 - replace owl, this thing is chincy af
   - **partially done** - no longer used for `ask` subcommand; still used by indexer
+- continue improving call graph in summarizer, add "tracer" agent to use call graph
+  - maybe add ctags support to implement this more robustly
