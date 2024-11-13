@@ -153,3 +153,4 @@ for the `search` command.
 # TODO
 - output formatted markdown results from `ask`
 - replace owl, this thing is chincy af
+- fail early on missing OPENAI_API_KEY
