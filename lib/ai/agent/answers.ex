@@ -239,7 +239,7 @@ defmodule AI.Agent.Answers do
       pct_str = Number.Percentage.number_to_percentage(pct, precision: 2)
       tokens_str = Number.Delimit.number_to_delimited(tokens, precision: 0)
       max_tokens_str = Number.Delimit.number_to_delimited(@max_tokens, precision: 0)
-      msg = "token usage: #{pct_str} | #{tokens_str} / #{max_tokens_str}"
+      msg = "context window: #{pct_str} | #{tokens_str} / #{max_tokens_str}"
       Logger.debug("[answers] #{msg}")
     end
   end
