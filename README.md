@@ -156,3 +156,5 @@ for the `search` command.
   - **partially done** - no longer used for `ask` subcommand; still used by indexer
 - continue improving call graph in summarizer, add "tracer" agent to use call graph
   - maybe add ctags support to implement this more robustly
+- ensure Logger output is to stderr so it can be properly redirected
+- censure Logger output when `--quiet` is set, or maybe add `--log=none`
