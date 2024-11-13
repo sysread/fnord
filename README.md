@@ -32,6 +32,11 @@ mix escript.install github sysread/fnord
 Use the same command to reinstall. It will offer to overwrite the existing
 installation.
 
+4. Set `OPENAI_API_KEY`
+
+Set this in your shell environment to the OpenAI project key you wish to use
+for this tool.
+
 ## Usage
 
 ### Index
