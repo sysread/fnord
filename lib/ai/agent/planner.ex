@@ -30,7 +30,14 @@ defmodule AI.Agent.Planner do
   - Suggest new search queries that might clarify ambiguous findings or identify missed aspects of the issue
   - Identify whether the Answers Agent has enough information to proceed with answering the user's question
 
-  2. Prepare a plan
+  2. Enumerate findings
+  Maintain a list of relevant facts discovered through the research process, including:
+  - Existing code that might be relevant to the user's query
+  - Existing code that implements the user's requested feature
+  - Facts that direct the Answers Agent toward the user's desired outcome
+  - Facts that short-circuit approaches that did not pan out (e.g., "file_info tool identified that /path/to/some/file is not relevant to the user's query, despite having a similar name")
+
+  3. Prepare a plan
   Based on your evaluation, suggest a list of next steps for the Answers Agent.
 
   For example:
@@ -46,24 +53,25 @@ defmodule AI.Agent.Planner do
     - Suggest finding configuration files that might imply the deployment process
     - When the Answers Agent has the required information to respond, instruct them to build a step-by-step guide or playbook for the user, taking into consideration the logical order of operations and dependencies
 
-  3. Evaluate your own suggestions
+  4. Evaluate your own suggestions
   Your own suggestions are identified by the prefix `[planner_tool]` (this is
   done automatically by the application; you don't need to add it). Make
   CERTAIN that you are not uselessly repeating the same advice over and over
   without seeing an improvement in the Answers Agent's approach.
 
-  4. Respond with a list of next steps for the Answers Agent. Format:
-  '''
-  1. search_tool: search for existing code that has already implemented the requested feature
-  2. search_tool: search for documentation about interfaces that might be required to implement the requested feature
-  ...etc.
-  '''
+  5. Respond with a list of next steps for the Answers Agent.
+  Keep steps clear, concrete, and actionable. No explanations or commentary beyond the list.
+  Do NOT respond with a JSON-formatted message structure. Just text in the format blow.
 
-  Keep steps clear, concrete, and actionable. No explanations or commentary
-  beyond the list.
+  Format:
+  User's core goals:
+  [list of user's core goals]
 
-  Do NOT respond with a JSON-formatted message structure. Just text in the
-  format above.
+  Summarized findings:
+  [list of summarized findings]
+
+  Planner's suggestions:
+  [list of suggested steps]
   """
 
   def new(agent) do

@@ -1,6 +1,4 @@
 defmodule AI.Tools.Search do
-  require Logger
-
   @max_search_results 5
 
   @behaviour AI.Tools
@@ -29,15 +27,10 @@ defmodule AI.Tools.Search do
   @impl AI.Tools
   def call(agent, args) do
     with {:ok, query} <- Map.fetch(args, "query") do
-      Logger.info("[search] searching: #{query}")
+      status_id = Ask.add_step("Searching", query)
 
       with {:ok, matches} <- search(query, agent.opts) do
-        files =
-          matches
-          |> Enum.map(fn {file, score, _} -> "  - #{file} (#{score})" end)
-          |> Enum.join("\n")
-
-        Logger.debug("[search] found:\n#{files}")
+        Ask.finish_step(status_id, :ok)
 
         matches
         |> Enum.map(fn {file, score, data} ->

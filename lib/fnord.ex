@@ -17,7 +17,7 @@ defmodule Fnord do
         :torch -> Indexer.new(opts) |> Indexer.delete_project()
         :projects -> Store.list_projects() |> Enum.each(&IO.puts(&1))
         :files -> Store.new(opts.project) |> Store.list_files() |> Enum.each(&IO.puts(&1))
-        :ask -> Ask.new(opts) |> Ask.run()
+        :ask -> Ask.run(opts)
       end
     else
       {:error, reason} -> IO.puts("Error: #{reason}")
@@ -109,16 +109,6 @@ defmodule Fnord do
       default: false
     ]
 
-    log_level = [
-      value_name: "LEVEL",
-      short: "-l",
-      long: "--log",
-      help: "Set the logging level (none, debug, info, warn, error)",
-      parser: :string,
-      required: false,
-      default: "info"
-    ]
-
     parser =
       Optimus.new!(
         name: "fnord",
@@ -187,8 +177,7 @@ defmodule Fnord do
             name: "ask",
             about: "Conversational interface to the project database",
             options: [
-              concurrency: concurrency,
-              log_level: log_level
+              concurrency: concurrency
             ],
             args: [
               project: project,

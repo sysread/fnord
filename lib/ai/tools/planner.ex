@@ -1,6 +1,4 @@
 defmodule AI.Tools.Planner do
-  require Logger
-
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -21,18 +19,19 @@ defmodule AI.Tools.Planner do
 
   @impl AI.Tools
   def call(agent, _args) do
-    Logger.info("[planner] examining findings and planning the next steps")
+    label = "Examining findings and planning the next steps"
+    status_id = Ask.add_step(label)
 
     agent
     |> AI.Agent.Planner.new()
     |> AI.Agent.Planner.get_suggestion()
     |> then(fn
       {:ok, suggestion} ->
-        Logger.debug("[planner]: #{suggestion}")
+        Ask.finish_step(status_id, :ok)
         {:ok, "[planner_tool]\n#{suggestion}"}
 
       {:error, reason} ->
-        Logger.error("[planner] error getting suggestion: #{reason}")
+        Ask.finish_step(status_id, :error, label, reason)
         {:error, reason}
     end)
   end

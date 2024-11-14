@@ -1,6 +1,4 @@
 defmodule AI.Tools.FileInfo do
-  require Logger
-
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -23,7 +21,13 @@ defmodule AI.Tools.FileInfo do
             },
             question: %{
               type: "string",
-              description: "The question to ask."
+              description: """
+              The question to ask. For example:
+              - How is X initialized in the constructor?
+              - Respond with the complete code block for the function Y.
+              - Trace the flow of data when function Y is called with the argument Z.
+              - Does this module implement $the_interface_the_user_is_looking_for?
+              """
             }
           }
         }
@@ -36,18 +40,18 @@ defmodule AI.Tools.FileInfo do
     with {:ok, question} <- Map.fetch(args, "question"),
          {:ok, file} <- Map.fetch(args, "file") do
       with {:ok, contents} <- File.read(file) do
-        Logger.info("[file info] considering #{file}: #{question}")
+        status_id = Ask.add_step("Considering #{file}", question)
 
         agent.ai
         |> AI.Agent.FileInfo.new(question, contents)
         |> AI.Agent.FileInfo.get_summary()
         |> case do
           {:ok, info} ->
-            Logger.debug("[file info]: #{file} - #{question}\n#{info}")
+            Ask.finish_step(status_id, :ok)
             {:ok, "[file_info_tool]\n#{info}"}
 
           {:error, reason} ->
-            Logger.error("[file info] error getting file info on #{file}: #{reason}")
+            Ask.finish_step(status_id, :error, reason)
             {:error, reason}
         end
       else
