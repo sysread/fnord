@@ -24,6 +24,9 @@ defmodule Ask do
   defp set_log_level(opts) do
     log_level =
       case opts.log_level do
+        "none" ->
+          :none
+
         "debug" ->
           :debug
 

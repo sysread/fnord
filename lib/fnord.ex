@@ -102,12 +102,6 @@ defmodule Fnord do
       required: true
     ]
 
-    debug = [
-      long: "--debug",
-      help: "Print debug output to stderr",
-      default: false
-    ]
-
     relpath = [
       long: "--relpath",
       short: "-r",
@@ -119,7 +113,7 @@ defmodule Fnord do
       value_name: "LEVEL",
       short: "-l",
       long: "--log",
-      help: "Set the logging level (debug, info, warn, error)",
+      help: "Set the logging level (none, debug, info, warn, error)",
       parser: :string,
       required: false,
       default: "info"
@@ -195,10 +189,6 @@ defmodule Fnord do
             options: [
               concurrency: concurrency,
               log_level: log_level
-            ],
-            flags: [
-              debug: debug,
-              quiet: quiet
             ],
             args: [
               project: project,
