@@ -27,10 +27,10 @@ defmodule AI.Tools.Search do
   @impl AI.Tools
   def call(agent, args) do
     with {:ok, query} <- Map.fetch(args, "query") do
-      status_id = Ask.add_step("Searching", query)
+      status_id = Tui.add_step("Searching", query)
 
       with {:ok, matches} <- search(query, agent.opts) do
-        Ask.finish_step(status_id, :ok)
+        Tui.finish_step(status_id, :ok)
 
         matches
         |> Enum.map(fn {file, score, data} ->

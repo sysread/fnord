@@ -47,7 +47,7 @@ defmodule AI.Agent.Answers do
   2. Get an initial plan from the Planner.
   3. Use Search Tool to identify relevant files, adjusting search queries to refine results.
   4. Use File Info to obtain specific details in promising files, clarifying focus with each question.
-  5. **Ask the Planner to evaluate progress and determine next steps.**
+  5. **Tui the Planner to evaluate progress and determine next steps.**
   6. Implement the Planner's suggestions
 
   **YOU ARE EXPECTED TO REPEAT THIS PROCESS AT LEAST 2 TIMES**.
@@ -100,27 +100,27 @@ defmodule AI.Agent.Answers do
   end
 
   def perform(agent) do
-    token_status_id = Ask.add_step("Context window usage", "n/a")
-    main_status_id = Ask.add_step("Researching", agent.opts.question)
+    token_status_id = Tui.add_step("Context window usage", "n/a")
+    main_status_id = Tui.add_step("Researching", agent.opts.question)
 
     %__MODULE__{agent | token_status_id: token_status_id}
     |> clarify_question()
     |> send_request()
     |> then(fn agent ->
-      Ask.finish_step(token_status_id, :ok)
-      Ask.finish_step(main_status_id, :ok)
+      Tui.finish_step(token_status_id, :ok)
+      Tui.finish_step(main_status_id, :ok)
       {:ok, agent.response}
     end)
   end
 
   defp clarify_question(agent) do
-    status_id = Ask.add_step("Clarifying user question", agent.opts.question)
+    status_id = Tui.add_step("Clarifying user question", agent.opts.question)
 
     {:ok, response} =
       AI.Agent.Clarify.new(agent.ai, agent.opts)
       |> AI.Agent.Clarify.perform()
 
-    Ask.finish_step(status_id, :ok)
+    Tui.finish_step(status_id, :ok)
 
     message =
       AI.Util.user_msg("""
@@ -163,13 +163,13 @@ defmodule AI.Agent.Answers do
     if AI.Agent.Defrag.msgs_to_defrag(agent) > 4 do
       {:ok, pre_tokens, _, _, _} = get_context_window_usage(agent)
 
-      status_id = Ask.add_step("Defragmenting conversation", "#{pre_tokens} tokens")
+      status_id = Tui.add_step("Defragmenting conversation", "#{pre_tokens} tokens")
 
       with {:ok, msgs} <- AI.Agent.Defrag.summarize_findings(agent) do
         {:ok, post_tokens, _, _, _} = get_context_window_usage(agent)
         dropped = pre_tokens - post_tokens
 
-        Ask.finish_step(
+        Tui.finish_step(
           status_id,
           :ok,
           "Defragmenting conversation",
@@ -196,7 +196,7 @@ defmodule AI.Agent.Answers do
 
   defp log_context_window_usage(agent) do
     with {:ok, _, pct_str, tokens_str, max_tokens_str} <- get_context_window_usage(agent) do
-      Ask.update_step(
+      Tui.update_step(
         agent.token_status_id,
         "Context window",
         "#{pct_str} | #{tokens_str} / #{max_tokens_str}"

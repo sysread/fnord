@@ -40,18 +40,18 @@ defmodule AI.Tools.FileInfo do
     with {:ok, question} <- Map.fetch(args, "question"),
          {:ok, file} <- Map.fetch(args, "file") do
       with {:ok, contents} <- File.read(file) do
-        status_id = Ask.add_step("Considering #{file}", question)
+        status_id = Tui.add_step("Considering #{file}", question)
 
         agent.ai
         |> AI.Agent.FileInfo.new(question, contents)
         |> AI.Agent.FileInfo.get_summary()
         |> case do
           {:ok, info} ->
-            Ask.finish_step(status_id, :ok)
+            Tui.finish_step(status_id, :ok)
             {:ok, "[file_info_tool]\n#{info}"}
 
           {:error, reason} ->
-            Ask.finish_step(status_id, :error, reason)
+            Tui.finish_step(status_id, :error, reason)
             {:error, reason}
         end
       else
