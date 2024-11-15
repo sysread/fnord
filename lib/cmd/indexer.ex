@@ -57,7 +57,7 @@ defmodule Cmd.Indexer do
       Tui.finish_step(status_id, :ok)
     else
       # Otherwise, just delete any files that no longer exist.
-      status_id = Tui.add_step("Deleting missing files from #{idx.project}")
+      status_id = Tui.add_step("Deleting missing files", idx.project)
       Store.delete_missing_files(idx.store, idx.root)
       Tui.finish_step(status_id, :ok)
     end

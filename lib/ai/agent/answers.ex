@@ -84,7 +84,7 @@ defmodule AI.Agent.Answers do
     - After adding a new `SomeImplementationModule`, you must register it in the `SomeRegistryModule` file, (see `path/to/some_registry_module`)
     - After adding a new view, be sure to add it to to the router in `path/to/router.ex`
 
-  End your response with an extensive list of references to the files you consulted and a list of all of the facts you discovered in your research.
+  End your response with an exhaustive list of references to the files you consulted and an organized list of facts discovered in your research.
   """
 
   def new(ai, opts) do
@@ -103,7 +103,11 @@ defmodule AI.Agent.Answers do
     token_status_id = Tui.add_step("Context window usage", "n/a")
     main_status_id = Tui.add_step("Researching", agent.opts.question)
 
-    %__MODULE__{agent | token_status_id: token_status_id}
+    agent = %__MODULE__{agent | token_status_id: token_status_id}
+
+    log_context_window_usage(agent)
+
+    agent
     |> clarify_question()
     |> send_request()
     |> then(fn agent ->
@@ -198,7 +202,7 @@ defmodule AI.Agent.Answers do
     with {:ok, _, pct_str, tokens_str, max_tokens_str} <- get_context_window_usage(agent) do
       Tui.update_step(
         agent.token_status_id,
-        "Context window",
+        "Context window usage",
         "#{pct_str} | #{tokens_str} / #{max_tokens_str}"
       )
     end
