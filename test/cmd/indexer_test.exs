@@ -1,8 +1,8 @@
-defmodule IndexerTest do
+defmodule Cmd.IndexerTest do
   use ExUnit.Case
 
   setup do
-    # Create a temp dir for our app to store data. 
+    # Create a temp dir for our app to store data.
     home_dir = mktempdir()
 
     # Create a temp dir for testing, then initialize as a git repo.
@@ -45,17 +45,17 @@ defmodule IndexerTest do
 
     # Create an indexer for the project.
     idx =
-      Indexer.new(
+      Cmd.Indexer.new(
         %{
           project: "test_project",
           directory: project_dir,
           quiet: true
         },
-        MockAIForIndexer
+        MockAIForCmd.Indexer
       )
 
     # Run the indexing process.
-    Indexer.run(idx)
+    Cmd.Indexer.run(idx)
 
     # Check that the files were indexed.
     assert File.dir?(Path.join(store_dir, "test_project"))
@@ -72,14 +72,14 @@ defmodule IndexerTest do
   end
 end
 
-defmodule MockAIForIndexer do
+defmodule MockAIForCmd.Indexer do
   defstruct []
 
   @behaviour AI
 
   @impl AI
   def new() do
-    %MockAIForIndexer{}
+    %MockAIForCmd.Indexer{}
   end
 
   @impl AI

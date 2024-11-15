@@ -11,13 +11,13 @@ defmodule Fnord do
   def main(args) do
     with {:ok, subcommand, opts} <- parse_options(args) do
       case subcommand do
-        :index -> Indexer.new(opts) |> Indexer.run()
-        :search -> Search.run(opts)
-        :summary -> Summary.run(opts)
-        :torch -> Indexer.new(opts) |> Indexer.delete_project()
-        :projects -> Store.list_projects() |> Enum.each(&IO.puts(&1))
-        :files -> Store.new(opts.project) |> Store.list_files() |> Enum.each(&IO.puts(&1))
-        :ask -> Ask.run(opts)
+        :index -> Cmd.Indexer.new(opts) |> Cmd.Indexer.run()
+        :search -> Cmd.Search.run(opts)
+        :summary -> Cmd.Summary.run(opts)
+        :torch -> Cmd.Torch.run(opts)
+        :projects -> Cmd.Projects.run(opts)
+        :files -> Cmd.Files.run(opts)
+        :ask -> Cmd.Ask.run(opts)
       end
     else
       {:error, reason} -> IO.puts("Error: #{reason}")

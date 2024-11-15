@@ -230,6 +230,7 @@ defmodule Store do
   """
   def list_projects() do
     Path.wildcard(Path.join(Settings.home(), "*"))
+    |> Enum.filter(&File.dir?/1)
     |> Enum.map(fn path -> Path.basename(path) end)
   end
 

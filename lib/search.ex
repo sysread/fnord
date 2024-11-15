@@ -1,8 +1,4 @@
 defmodule Search do
-  @moduledoc """
-  This module provides the functionality for the `search` sub-command.
-  """
-
   defstruct [
     :project,
     :query,
@@ -17,7 +13,7 @@ defmodule Search do
   Creates a new `Search` struct with the given options.
   """
   def new(opts, ai_module \\ AI) do
-    %Search{
+    %__MODULE__{
       project: opts[:project],
       query: opts[:query],
       limit: opts[:limit],
@@ -26,23 +22,6 @@ defmodule Search do
       concurrency: opts[:concurrency],
       ai_module: ai_module
     }
-  end
-
-  @doc """
-  Searches the given project for previously indexed files (see `Indexing`) that
-  match the given query. The search results are printed to the console.
-
-  Note that the query input is first sent to OpenAI's API to generate an
-  embedding to match against the vector store.
-  """
-  def run(opts, ai_module \\ AI) do
-    search = new(opts, ai_module)
-
-    search
-    |> get_results()
-    |> Enum.each(fn {file, score, data} ->
-      output_file(search, file, score, data)
-    end)
   end
 
   def get_results(search) do
@@ -73,20 +52,6 @@ defmodule Search do
     Queue.join(queue)
 
     results
-  end
-
-  defp output_file(search, file, score, data) do
-    if search.detail do
-      summary = Map.get(data, "summary")
-
-      IO.puts("""
-      -----
-      # File: #{file} | Score: #{score}
-      #{summary}
-      """)
-    else
-      IO.puts(file)
-    end
   end
 
   defp get_score(needle, data) do

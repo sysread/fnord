@@ -1,4 +1,4 @@
-defmodule Indexer do
+defmodule Cmd.Indexer do
   @moduledoc """
   This module provides the functionality for the `index` and `delete`
   sub-commands.
@@ -23,7 +23,7 @@ defmodule Indexer do
     reindex = Map.get(opts, :reindex, false)
     quiet = Map.get(opts, :quiet, false)
 
-    idx = %Indexer{
+    idx = %__MODULE__{
       project: opts.project,
       root: opts.directory,
       store: Store.new(opts.project),
@@ -116,13 +116,6 @@ defmodule Indexer do
         info(idx, "All tasks complete")
       end
     )
-  end
-
-  @doc """
-  Permanently deletes the project from the store.
-  """
-  def delete_project(idx) do
-    Store.delete_project(idx.store)
   end
 
   defp process_file(idx, file) do

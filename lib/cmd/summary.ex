@@ -1,4 +1,4 @@
-defmodule Summary do
+defmodule Cmd.Summary do
   @moduledoc """
   This module provides the functionality for the `summary` sub-command.
   """

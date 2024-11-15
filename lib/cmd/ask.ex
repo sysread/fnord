@@ -1,4 +1,4 @@
-defmodule Ask do
+defmodule Cmd.Ask do
   def run(opts) do
     {:ok, tui} = Tui.start_link(opts)
 
