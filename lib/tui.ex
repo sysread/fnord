@@ -2,7 +2,6 @@ defmodule Tui do
   use GenServer
 
   @render_intvl 100
-
   @bullshit_rotation_interval 2500
 
   @bullshit_sf_phrases [
@@ -196,7 +195,7 @@ defmodule Tui do
       max_width: cols,
       horizontal_align: :left,
       vertical_align: :top,
-      word_wrap: :normal,
+      truncate_lines: true,
       border_style: :none
     )
   end
@@ -218,6 +217,13 @@ defmodule Tui do
     if is_nil(detail) do
       [glyph, " ", Owl.Data.tag(msg, :cyan)]
     else
+      detail =
+        if String.contains?(detail, "\n") do
+          detail |> String.split("\n") |> hd()
+        else
+          detail
+        end
+
       [glyph, " ", Owl.Data.tag([msg, ":"], :cyan), " ", Owl.Data.tag(detail, :yellow)]
     end
     |> Owl.Data.to_chardata()
