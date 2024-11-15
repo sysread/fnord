@@ -186,7 +186,7 @@ defmodule Store do
 
       {:ok, info}
     else
-      {:error, :not_found} -> {:error, :not_found}
+      {:error, _} -> {:error, :not_found}
     end
   end
 

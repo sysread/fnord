@@ -156,3 +156,5 @@ for the `search` command.
 - continue improving call graph in summarizer, add "tracer" agent to use call graph
   - maybe add ctags support to implement this more robustly
   - maybe just adding ctags output to the store would be enough
+- restore progress display in indexer subcommand
+- nested tasks in tui

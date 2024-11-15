@@ -12,7 +12,8 @@ defmodule Cmd.Indexer do
     :reindex,
     :ai_module,
     :ai,
-    :quiet
+    :quiet,
+    :tui
   ]
 
   @doc """
@@ -22,51 +23,23 @@ defmodule Cmd.Indexer do
     concurrency = Map.get(opts, :concurrency, 1)
     reindex = Map.get(opts, :reindex, false)
     quiet = Map.get(opts, :quiet, false)
+    root = Path.absname(opts.directory)
+
+    {:ok, tui} = Tui.start_link(opts)
 
     idx = %__MODULE__{
       project: opts.project,
-      root: opts.directory,
+      root: root,
       store: Store.new(opts.project),
       concurrency: concurrency,
       reindex: reindex,
       ai_module: ai_module,
       ai: ai_module.new(),
-      quiet: quiet
+      quiet: quiet,
+      tui: tui
     }
 
     idx
-  end
-
-  defp spin(idx, processing, func) do
-    if idx.quiet do
-      func.()
-    else
-      Spinner.run(func, processing)
-    end
-  end
-
-  defp progress_bar_start(idx, name, label, total) do
-    if !idx.quiet do
-      Owl.ProgressBar.start(id: name, label: label, total: total)
-    end
-  end
-
-  defp progress_bar_end(idx) do
-    if !idx.quiet do
-      Owl.LiveScreen.await_render()
-    end
-  end
-
-  defp progress_bar_update(idx, name) do
-    if !idx.quiet do
-      Owl.ProgressBar.inc(id: name)
-    end
-  end
-
-  defp info(idx, msg) do
-    if !idx.quiet do
-      IO.puts(msg)
-    end
   end
 
   @doc """
@@ -77,45 +50,45 @@ defmodule Cmd.Indexer do
     if idx.reindex do
       # When --force-reindex is passed, delete the project completely and start
       # from scratch.
-      spin(
-        idx,
-        "Deleting all embeddings to force full reindexing of #{idx.project}",
-        fn -> Store.delete_project(idx.store) end
-      )
+      status_id =
+        Tui.add_step("Deleting all embeddings to force full reindexing of #{idx.project}")
+
+      Store.delete_project(idx.store)
+      Tui.finish_step(status_id, :ok)
     else
       # Otherwise, just delete any files that no longer exist.
-      spin(
-        idx,
-        "Deleting missing files from #{idx.project}",
-        fn -> Store.delete_missing_files(idx.store, idx.root) end
-      )
+      status_id = Tui.add_step("Deleting missing files from #{idx.project}")
+      Store.delete_missing_files(idx.store, idx.root)
+      Tui.finish_step(status_id, :ok)
     end
 
-    spin(
-      idx,
-      "Indexing files in #{idx.root}",
-      fn ->
-        {:ok, queue} =
-          Queue.start_link(idx.concurrency, fn file ->
-            process_file(idx, file)
-            progress_bar_update(idx, :indexing)
-          end)
+    scan_status_id = Tui.add_step("Scanning files", idx.root)
 
-        scanner = Scanner.new(idx.root, fn file -> Queue.queue(queue, file) end)
-        num_files = Scanner.count_files(scanner)
+    {:ok, queue} =
+      Queue.start_link(idx.concurrency, fn file ->
+        process_file(idx, file)
+      end)
 
-        progress_bar_start(idx, :indexing, "Indexing", num_files + 1)
+    scanner =
+      Scanner.new(idx.root, fn file ->
+        Queue.queue(queue, file)
+      end)
 
-        Scanner.scan(scanner)
+    num_files = Scanner.count_files(scanner)
 
-        Queue.shutdown(queue)
-        Queue.join(queue)
+    Tui.finish_step(scan_status_id, :ok)
 
-        progress_bar_end(idx)
+    index_status_id = Tui.add_step("Indexing", "#{num_files} files in #{idx.root}")
+    bs_status_id = Tui.add_step()
 
-        info(idx, "All tasks complete")
-      end
-    )
+    Scanner.scan(scanner)
+
+    Queue.shutdown(queue)
+    Queue.join(queue)
+
+    Tui.finish_step(index_status_id, :ok)
+    Tui.finish_step(bs_status_id, :ok)
+    Tui.stop(idx.tui)
   end
 
   defp process_file(idx, file) do
