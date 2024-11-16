@@ -20,14 +20,16 @@ defmodule Scanner do
   end
 
   @doc """
-  Count the number of files in the directory, excluding hidden, ignored, binary, and empty files.
+  Count the number of files in the directory, excluding hidden, ignored,
+  binary, and empty files.
   """
   def count_files(scanner) do
     reduce(scanner, 0, nil, fn _file, acc -> acc + 1 end)
   end
 
   @doc """
-  Recursively scan the directory and accumulate a result using the provided accumulator and function.
+  Recursively scan the directory and accumulate a result using the provided
+  accumulator and function.
   """
   def reduce(scanner, acc, dir \\ nil, fun) do
     dir =

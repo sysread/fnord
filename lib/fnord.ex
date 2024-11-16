@@ -9,6 +9,8 @@ defmodule Fnord do
   dispatches to the appropriate subcommand.
   """
   def main(args) do
+    {:ok, _} = Application.ensure_all_started(:briefly)
+
     with {:ok, subcommand, opts} <- parse_options(args) do
       case subcommand do
         :index -> Cmd.Indexer.new(opts) |> Cmd.Indexer.run()

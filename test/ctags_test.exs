@@ -138,13 +138,31 @@ defmodule CtagsTest do
     end
   end
 
-  describe "generate_tags/2" do
+  describe "generate_tags/1" do
     setup do
-      # Create a temporary directory
-      {:ok, tmp_dir} = Briefly.create(directory: true)
+      # Create a unique temporary directory for the project
+      {:ok, project_dir} = Briefly.create(directory: true)
+
+      # Save the original HOME environment variable
+      original_home = System.get_env("HOME")
+
+      # Override the HOME environment variable with the temporary directory
+      System.put_env("HOME", project_dir)
+
+      # Ensure the original HOME is restored after tests
+      on_exit(fn ->
+        if original_home do
+          System.put_env("HOME", original_home)
+        else
+          System.delete_env("HOME")
+        end
+      end)
+
+      # Create a temporary directory for code
+      {:ok, code_dir} = Briefly.create(directory: true)
 
       # Create a sample Elixir file in the temporary directory
-      tmp_dir
+      code_dir
       |> Path.join("sample.ex")
       |> File.write!("""
       defmodule Sample do
@@ -155,17 +173,18 @@ defmodule CtagsTest do
       """)
 
       # Index the project
-      %{project: "test", directory: tmp_dir, quiet: true}
+      %{project: "test", directory: code_dir, quiet: true}
       |> Cmd.Indexer.new(MockAI)
       |> Cmd.Indexer.run()
 
-      {:ok, %{project: "test", tmp_dir: tmp_dir}}
+      {:ok, %{project: "test"}}
     end
 
-    test "generates tags file successfully", %{project: project, tmp_dir: tmp_dir} do
-      tags_file_path = Path.join(tmp_dir, "tags")
+    test "generates tags file successfully", %{project: project} do
+      store = Store.new(project)
+      tags_file_path = store.path |> Path.join("tags")
 
-      assert :ok = Ctags.generate_tags(project, tags_file_path)
+      assert {:ok, ^tags_file_path} = Ctags.generate_tags(project)
       assert File.exists?(tags_file_path)
 
       tags_content = File.read!(tags_file_path)
@@ -173,7 +192,7 @@ defmodule CtagsTest do
       assert String.contains?(tags_content, "hello")
     end
 
-    test "returns an error when ctags executable is not found" do
+    test "returns an error when ctags executable is not found", %{project: project} do
       # Backup the original PATH
       original_path = System.get_env("PATH")
 
@@ -181,7 +200,7 @@ defmodule CtagsTest do
       System.put_env("PATH", "")
 
       # Expect the function to return an error tuple
-      {:error, reason} = Ctags.generate_tags("test", "tags")
+      {:error, reason} = Ctags.generate_tags(project)
 
       # Check that the error message contains the expected text
       assert String.contains?(reason, "ctags executable not found in PATH")

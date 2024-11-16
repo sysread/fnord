@@ -24,27 +24,30 @@ defmodule Ctags do
         }
 
   @doc """
-  Generates a new ctags file for all indexed files in the project.
+  Generates a new ctags file for all indexed files in the project. The file is
+  located at the root of the project store directory.
 
   ## Parameters
     - `project`: The project name.
-    - `output_file`: The path to the output file.
 
   ## Returns
-    - `:ok` on success.
+    - `{:ok, path_to_tag_file}` on success.
     - `{:error, reason}` on failure.
 
   ## Example
-      iex> Ctags.generate_tags("myproject", "tags")
+      iex> Ctags.generate_tags("myproject")
       :ok
   """
-  def generate_tags(project, output_file) do
+  def generate_tags(project) do
     ctags_path = find_ctags_binary()
-    files = project |> Store.new() |> Store.list_files()
-    args = ["--sort=yes", "--fields=+lK", "-f", output_file] ++ files
+    store = Store.new(project)
+    files = Store.list_files(store)
+    tagfile = Path.join(store.path, "tags")
+
+    args = ["--sort=yes", "--fields=+lK", "-f", tagfile] ++ files
 
     case System.cmd(ctags_path, args, stderr_to_stdout: true) do
-      {_, 0} -> :ok
+      {_, 0} -> {:ok, tagfile}
       {error, code} -> {:error, "ctags failed with exit code #{code}: #{error}"}
     end
   rescue

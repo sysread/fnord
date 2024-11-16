@@ -48,11 +48,8 @@ defmodule Cmd.Indexer do
   """
   def run(idx) do
     if idx.reindex do
-      # When --force-reindex is passed, delete the project completely and start
-      # from scratch.
-      status_id =
-        Tui.add_step("Deleting all embeddings to force full reindexing of #{idx.project}")
-
+      # Delete entire project directory when --force-reindex is passed
+      status_id = Tui.add_step("Deleting all data to force full reindexing", idx.project)
       Store.delete_project(idx.store)
       Tui.finish_step(status_id, :ok)
     else
@@ -74,11 +71,14 @@ defmodule Cmd.Indexer do
         Queue.queue(queue, file)
       end)
 
-    num_files = Scanner.count_files(scanner)
+    total_files = Scanner.count_files(scanner)
+    num_files = count_files_to_index(idx)
 
     Tui.finish_step(scan_status_id, :ok)
 
-    index_status_id = Tui.add_step("Indexing", "#{num_files} files in #{idx.root}")
+    index_status_id =
+      Tui.add_step("Indexing", "#{num_files} / #{total_files} files in #{idx.root}")
+
     bs_status_id = Tui.add_step()
 
     Scanner.scan(scanner)
@@ -92,10 +92,7 @@ defmodule Cmd.Indexer do
   end
 
   defp process_file(idx, file) do
-    existing_hash = Store.get_hash(idx.store, file)
-    file_hash = sha256(file)
-
-    if is_nil(existing_hash) or existing_hash != file_hash do
+    with {:ok, file_hash} <- get_file_hash(idx, file) do
       file_contents = File.read!(file)
 
       with {:ok, summary} <- get_summary(idx, file, file_contents),
@@ -104,6 +101,28 @@ defmodule Cmd.Indexer do
       else
         {:error, reason} -> IO.puts("Error processing file: #{file} - #{inspect(reason)}")
       end
+    end
+  end
+
+  defp count_files_to_index(idx) do
+    idx.root
+    |> Scanner.new(fn _ -> nil end)
+    |> Scanner.reduce(0, nil, fn file, acc ->
+      case get_file_hash(idx, file) do
+        {:ok, _} -> acc + 1
+        {:error, :unchanged} -> acc
+      end
+    end)
+  end
+
+  defp get_file_hash(idx, file) do
+    existing_hash = Store.get_hash(idx.store, file)
+    file_hash = sha256(file)
+
+    if is_nil(existing_hash) or existing_hash != file_hash do
+      {:ok, file_hash}
+    else
+      {:error, :unchanged}
     end
   end
 
