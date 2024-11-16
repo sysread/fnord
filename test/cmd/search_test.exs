@@ -3,11 +3,11 @@ defmodule Cmd.SearchTest do
   import ExUnit.CaptureIO
 
   setup do
-    # Create a temporary home directory for the application's store
-    home_dir = mktempdir()
-    # Create a temporary project directory and initialize it as a git repo
-    project_dir = mktempdir()
+    # Create temporary directories for the home and project
+    {:ok, home_dir} = Briefly.create(directory: true)
+    {:ok, project_dir} = Briefly.create(directory: true)
 
+    # Initialize the project directory as a git repository
     System.cmd("git", ["init"],
       cd: project_dir,
       env: [
@@ -80,16 +80,8 @@ defmodule Cmd.SearchTest do
     assert List.first(results) == file1
 
     # Assert that file2.txt and file3.txt are not in the results (since they have lower similarity)
-    assert Enum.member?(results, file2) == false
-    assert Enum.member?(results, file3) == false
-  end
-
-  defp mktempdir() do
-    tmp = Path.join(System.tmp_dir!(), "fnord_test_#{:erlang.unique_integer([:positive])}")
-    File.rm_rf!(tmp)
-    File.mkdir_p!(tmp)
-    on_exit(fn -> File.rm_rf!(tmp) end)
-    tmp
+    refute Enum.member?(results, file2)
+    refute Enum.member?(results, file3)
   end
 end
 

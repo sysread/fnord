@@ -5,9 +5,7 @@ defmodule ScannerTest do
 
   setup do
     # Create a temporary directory for testing
-    test_dir = Path.join(System.tmp_dir!(), "scanner_test_#{:erlang.unique_integer([:positive])}")
-    File.rm_rf!(test_dir)
-    File.mkdir_p!(test_dir)
+    {:ok, test_dir} = Briefly.create(directory: true)
 
     # Initialize a git repository in the test directory
     System.cmd("git", ["init"],
@@ -21,9 +19,6 @@ defmodule ScannerTest do
 
     # Create files and directories for testing
     create_test_files(test_dir)
-
-    # Ensure the test directory is cleaned up after tests
-    on_exit(fn -> File.rm_rf!(test_dir) end)
 
     {:ok, test_dir: test_dir}
   end

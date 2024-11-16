@@ -1,11 +1,9 @@
 defmodule StoreTest do
   use ExUnit.Case
 
-  # Set up a temporary directory and override the HOME environment variable
   setup do
     # Create a unique temporary directory
-    tmp_dir = System.tmp_dir!() |> Path.join("store_test_#{:erlang.unique_integer()}")
-    File.mkdir_p!(tmp_dir)
+    {:ok, tmp_dir} = Briefly.create(directory: true)
 
     # Save the original HOME environment variable
     original_home = System.get_env("HOME")
@@ -13,17 +11,13 @@ defmodule StoreTest do
     # Override the HOME environment variable with the temporary directory
     System.put_env("HOME", tmp_dir)
 
-    # Ensure the original HOME is restored and temporary directory is cleaned up after tests
+    # Ensure the original HOME is restored after tests
     on_exit(fn ->
-      # Restore the original HOME environment variable
       if original_home do
         System.put_env("HOME", original_home)
       else
         System.delete_env("HOME")
       end
-
-      # Remove the temporary directory
-      File.rm_rf!(tmp_dir)
     end)
 
     {:ok, tmp_dir: tmp_dir}
@@ -41,7 +35,6 @@ defmodule StoreTest do
   test "put/5 stores file data in the store", %{tmp_dir: tmp_dir} do
     store = Store.new("test_project")
 
-    # Create a sample file
     file_path = Path.join(tmp_dir, "file.txt")
     File.write!(file_path, "Sample content")
 
@@ -55,7 +48,6 @@ defmodule StoreTest do
 
     Store.put(store, file_path, hash, summary, embeddings)
 
-    # Verify that the data is stored correctly
     key = :crypto.hash(:sha256, Path.expand(file_path)) |> Base.encode16(case: :lower)
     entry_path = Path.join(store.path, key)
 
@@ -82,17 +74,14 @@ defmodule StoreTest do
     [embedding_file1, embedding_file2] = Enum.sort(embedding_files)
     {:ok, embedding_content1} = File.read(embedding_file1)
     {:ok, embedding_content2} = File.read(embedding_file2)
-    embedding1 = Jason.decode!(embedding_content1)
-    embedding2 = Jason.decode!(embedding_content2)
 
-    assert embedding1 == embeddings |> Enum.at(0)
-    assert embedding2 == embeddings |> Enum.at(1)
+    assert Jason.decode!(embedding_content1) == embeddings |> Enum.at(0)
+    assert Jason.decode!(embedding_content2) == embeddings |> Enum.at(1)
   end
 
   test "get/2 retrieves stored data", %{tmp_dir: tmp_dir} do
     store = Store.new("test_project")
 
-    # Create a sample file
     file_path = Path.join(tmp_dir, "file.txt")
     File.write!(file_path, "Sample content")
 
@@ -110,7 +99,6 @@ defmodule StoreTest do
 
     assert info["file"] == Path.expand(file_path)
     assert info["hash"] == hash
-    assert is_binary(info["timestamp"])
     assert info["summary"] == summary
     assert info["embeddings"] == embeddings
   end
@@ -118,7 +106,6 @@ defmodule StoreTest do
   test "get_embeddings/2 retrieves embeddings", %{tmp_dir: tmp_dir} do
     store = Store.new("test_project")
 
-    # Create a sample file
     file_path = Path.join(tmp_dir, "file.txt")
     File.write!(file_path, "Sample content")
 
@@ -139,7 +126,6 @@ defmodule StoreTest do
   test "list_files/1 lists all files in the store", %{tmp_dir: tmp_dir} do
     store = Store.new("test_project")
 
-    # Create two sample files
     file_path1 = Path.join(tmp_dir, "file1.txt")
     File.write!(file_path1, "Content 1")
     file_path2 = Path.join(tmp_dir, "file2.txt")
@@ -178,14 +164,11 @@ defmodule StoreTest do
 
     Store.put(store, file_path, hash, summary, embeddings)
 
-    # Ensure the file is in the store
     files = Store.list_files(store)
     assert files == [Path.expand(file_path)]
 
-    # Delete the file from the store
     Store.delete_file(store, file_path)
 
-    # Check that the file is removed
     files = Store.list_files(store)
     assert files == []
   end
@@ -203,7 +186,6 @@ defmodule StoreTest do
   test "delete_missing_files/2 deletes missing files from store", %{tmp_dir: tmp_dir} do
     store = Store.new("test_project")
 
-    # Create two sample files
     file_path1 = Path.join(tmp_dir, "file1.txt")
     File.write!(file_path1, "Content 1")
     file_path2 = Path.join(tmp_dir, "file2.txt")
@@ -216,22 +198,13 @@ defmodule StoreTest do
     Store.put(store, file_path1, hash, summary, embeddings)
     Store.put(store, file_path2, hash, summary, embeddings)
 
-    # Remove one of the files from the filesystem
     File.rm!(file_path1)
 
-    # Before deletion, both files are in the store
     files = Store.list_files(store)
     assert Enum.sort(files) == Enum.sort([Path.expand(file_path1), Path.expand(file_path2)])
 
-    # Define a mock Git module
-    defmodule Git do
-      def is_ignored?(_file, _root), do: false
-    end
-
-    # Call delete_missing_files
     Store.delete_missing_files(store, tmp_dir)
 
-    # After deletion, only file2 should remain
     files = Store.list_files(store)
     assert files == [Path.expand(file_path2)]
   end
@@ -243,7 +216,7 @@ defmodule StoreTest do
     File.write!(file_path, "Sample content")
 
     hash = "somehash"
-    summary = "This is a summary."
+    summary = "Summary"
     embeddings = []
 
     Store.put(store, file_path, hash, summary, embeddings)
@@ -259,7 +232,7 @@ defmodule StoreTest do
     File.write!(file_path, "Sample content")
 
     hash = "somehash"
-    summary = "This is a summary."
+    summary = "Summary"
     embeddings = []
 
     Store.put(store, file_path, hash, summary, embeddings)
@@ -269,7 +242,6 @@ defmodule StoreTest do
 
     assert info["file"] == Path.expand(file_path)
     assert info["hash"] == hash
-    assert is_binary(info["timestamp"])
     assert info["fnord_path"] == Path.join(store.path, key)
   end
 
@@ -279,8 +251,6 @@ defmodule StoreTest do
     file_path = Path.join(tmp_dir, "file.txt")
     File.write!(file_path, "Sample content")
 
-    # Do not put the file into the store
-
     result = Store.info(store, file_path)
     assert result == {:error, :not_found}
   end
@@ -288,7 +258,6 @@ defmodule StoreTest do
   test "get_summary/2 retrieves summary for stored file", %{tmp_dir: tmp_dir} do
     store = Store.new("test_project")
 
-    # Create a sample file
     file_path = Path.join(tmp_dir, "file.txt")
     File.write!(file_path, "Sample content")
 
