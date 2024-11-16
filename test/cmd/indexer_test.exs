@@ -51,7 +51,7 @@ defmodule Cmd.IndexerTest do
           directory: project_dir,
           quiet: true
         },
-        MockAIForCmd.Indexer
+        MockAI
       )
 
     # Run the indexing process
@@ -64,14 +64,14 @@ defmodule Cmd.IndexerTest do
   end
 end
 
-defmodule MockAIForCmd.Indexer do
+defmodule MockAI do
   defstruct []
 
   @behaviour AI
 
   @impl AI
   def new() do
-    %MockAIForCmd.Indexer{}
+    %MockAI{}
   end
 
   @impl AI

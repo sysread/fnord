@@ -24,36 +24,54 @@ defmodule Ctags do
         }
 
   @doc """
-  Generates a new ctags file.
-
-  This function operates independently of the GenServer.
+  Generates a new ctags file for all indexed files in the project.
 
   ## Parameters
-    - `directory`: The directory to scan for tags.
-    - `output_file`: The path to the output tags file.
+    - `project`: The project name.
+    - `output_file`: The path to the output file.
 
   ## Returns
     - `:ok` on success.
     - `{:error, reason}` on failure.
 
   ## Example
-      iex> Ctags.generate_tags("lib/", "tags")
+      iex> Ctags.generate_tags("myproject", "tags")
       :ok
   """
-  def generate_tags(directory, output_file) do
+  def generate_tags(project, output_file) do
     ctags_path = find_ctags_binary()
-
-    args = ["--sort=yes", "--fields=+lK", "-R", "-f", output_file, directory]
+    files = project |> Store.new() |> Store.list_files()
+    args = ["--sort=yes", "--fields=+lK", "-f", output_file] ++ files
 
     case System.cmd(ctags_path, args, stderr_to_stdout: true) do
-      {_, 0} ->
-        :ok
-
-      {error_output, exit_code} ->
-        {:error, "ctags failed with exit code #{exit_code}: #{error_output}"}
+      {_, 0} -> :ok
+      {error, code} -> {:error, "ctags failed with exit code #{code}: #{error}"}
     end
   rescue
     e in RuntimeError -> {:error, e.message}
+  end
+
+  defp find_ctags_binary do
+    case System.find_executable("ctags") do
+      nil ->
+        raise """
+        ctags executable not found in PATH.
+
+        Please install Universal Ctags.
+
+        On macOS:
+
+            brew install --HEAD universal-ctags/universal-ctags/universal-ctags
+
+        On Ubuntu/Debian:
+
+            sudo apt-get install universal-ctags
+
+        """
+
+      ctags_path ->
+        ctags_path
+    end
   end
 
   @doc """
@@ -170,28 +188,5 @@ defmodule Ctags do
           acc
       end
     end)
-  end
-
-  defp find_ctags_binary do
-    case System.find_executable("ctags") do
-      nil ->
-        raise """
-        ctags executable not found in PATH.
-
-        Please install Universal Ctags.
-
-        On macOS:
-
-            brew install --HEAD universal-ctags/universal-ctags/universal-ctags
-
-        On Ubuntu/Debian:
-
-            sudo apt-get install universal-ctags
-
-        """
-
-      ctags_path ->
-        ctags_path
-    end
   end
 end

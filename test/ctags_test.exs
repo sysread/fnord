@@ -139,14 +139,14 @@ defmodule CtagsTest do
   end
 
   describe "generate_tags/2" do
-    test "generates tags file successfully" do
+    setup do
       # Create a temporary directory
       {:ok, tmp_dir} = Briefly.create(directory: true)
 
       # Create a sample Elixir file in the temporary directory
-      sample_file_path = Path.join(tmp_dir, "sample.ex")
-
-      File.write!(sample_file_path, """
+      tmp_dir
+      |> Path.join("sample.ex")
+      |> File.write!("""
       defmodule Sample do
         def hello do
           IO.puts("Hello, world!")
@@ -154,20 +154,23 @@ defmodule CtagsTest do
       end
       """)
 
-      # Path for the tags file
+      # Index the project
+      %{project: "test", directory: tmp_dir, quiet: true}
+      |> Cmd.Indexer.new(MockAI)
+      |> Cmd.Indexer.run()
+
+      {:ok, %{project: "test", tmp_dir: tmp_dir}}
+    end
+
+    test "generates tags file successfully", %{project: project, tmp_dir: tmp_dir} do
       tags_file_path = Path.join(tmp_dir, "tags")
 
-      # Call generate_tags/2 with explicit sorting
-      result = Ctags.generate_tags(tmp_dir, tags_file_path)
-
-      # Assertions
-      assert result == :ok
+      assert :ok = Ctags.generate_tags(project, tags_file_path)
       assert File.exists?(tags_file_path)
 
-      # Read the tags file and check for expected content
       tags_content = File.read!(tags_file_path)
-      assert tags_content =~ "Sample"
-      assert tags_content =~ "hello"
+      assert String.contains?(tags_content, "Sample")
+      assert String.contains?(tags_content, "hello")
     end
 
     test "returns an error when ctags executable is not found" do
@@ -178,13 +181,34 @@ defmodule CtagsTest do
       System.put_env("PATH", "")
 
       # Expect the function to return an error tuple
-      {:error, message} = Ctags.generate_tags(".", "tags")
+      {:error, reason} = Ctags.generate_tags("test", "tags")
 
       # Check that the error message contains the expected text
-      assert message =~ "ctags executable not found in PATH"
+      assert String.contains?(reason, "ctags executable not found in PATH")
 
       # Restore the original PATH
       System.put_env("PATH", original_path)
+    end
+  end
+
+  defmodule MockAI do
+    defstruct []
+
+    @behaviour AI
+
+    @impl AI
+    def new() do
+      %MockAI{}
+    end
+
+    @impl AI
+    def get_embeddings(_ai, _text) do
+      {:ok, ["embedding1", "embedding2"]}
+    end
+
+    @impl AI
+    def get_summary(_ai, _file, _text) do
+      {:ok, "summary"}
     end
   end
 end
