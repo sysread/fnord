@@ -117,13 +117,26 @@ defmodule Cmd.Indexer do
   end
 
   defp get_file_hash(idx, file) do
-    existing_hash = Store.get_hash(idx.store, file)
-    file_hash = sha256(file)
+    # Files that are missing or have missing indexes must be reindexed.
+    cond do
+      !Store.has_summary?(idx.store, file) ->
+        {:ok, nil}
 
-    if is_nil(existing_hash) or existing_hash != file_hash do
-      {:ok, file_hash}
-    else
-      {:error, :unchanged}
+      !Store.has_outline?(idx.store, file) ->
+        {:ok, nil}
+
+      !Store.has_embeddings?(idx.store, file) ->
+        {:ok, nil}
+
+      true ->
+        existing_hash = Store.get_hash(idx.store, file)
+        file_hash = sha256(file)
+
+        if is_nil(existing_hash) or existing_hash != file_hash do
+          {:ok, file_hash}
+        else
+          {:error, :unchanged}
+        end
     end
   end
 
