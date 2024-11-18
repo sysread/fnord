@@ -96,8 +96,9 @@ defmodule Cmd.Indexer do
       file_contents = File.read!(file)
 
       with {:ok, summary} <- get_summary(idx, file, file_contents),
-           {:ok, embeddings} <- get_embeddings(idx, file, summary, file_contents) do
-        Store.put(idx.store, file, file_hash, summary, embeddings)
+           {:ok, outline} <- get_outline(idx, file, file_contents),
+           {:ok, embeddings} <- get_embeddings(idx, file, summary, outline, file_contents) do
+        Store.put(idx.store, file, file_hash, summary, outline, embeddings)
       else
         {:error, reason} -> IO.puts("Error processing file: #{file} - #{inspect(reason)}")
       end
@@ -126,6 +127,10 @@ defmodule Cmd.Indexer do
     end
   end
 
+  defp get_outline(idx, file, file_contents) do
+    idx.ai_module.get_outline(idx.ai, file, file_contents)
+  end
+
   defp get_summary(idx, file, file_contents, attempt \\ 0) do
     idx.ai_module.get_summary(idx.ai, file, file_contents)
     |> case do
@@ -145,13 +150,16 @@ defmodule Cmd.Indexer do
     end
   end
 
-  defp get_embeddings(idx, file, summary, file_contents, attempt \\ 0) do
+  defp get_embeddings(idx, file, summary, outline, file_contents, attempt \\ 0) do
     to_embed = """
       # File
       `#{file}`
 
       ## Summary
       #{summary}
+
+      ## Outline
+      #{outline}
 
       ## Contents
       ```
@@ -167,7 +175,7 @@ defmodule Cmd.Indexer do
       {:error, %OpenaiEx.Error{message: "Request timed out."}} ->
         if attempt < 3 do
           IO.puts("request to index file timed out, retrying (attempt #{attempt + 1}/3)")
-          get_embeddings(idx, file, summary, file_contents, attempt + 1)
+          get_embeddings(idx, file, summary, outline, file_contents, attempt + 1)
         else
           {:error, "request to index file timed out after 3 attempts"}
         end

@@ -158,3 +158,4 @@ for the `search` command.
   - maybe just adding ctags output to the store would be enough
 - restore progress display in indexer subcommand
 - nested tasks in tui
+- we have GOT to come up with something bettern than `Owl`; it has SO many visual glitches, especially when there are many steps

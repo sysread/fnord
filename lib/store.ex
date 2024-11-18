@@ -116,15 +116,21 @@ defmodule Store do
   exists, or `{:error, :not_found}` if it does not.
   """
   def get_summary(store, file) do
-    with path = get_entry_path(store, file),
-         file = Path.join(path, "summary"),
-         {:ok, summary} <- File.read(file) do
-      {:ok, summary}
-    else
-      {:error, reason} ->
-        Logger.error("Error reading summary: <#{file}> #{reason}")
-        {:error, reason}
-    end
+    store
+    |> get_entry_path(file)
+    |> Path.join("summary")
+    |> File.read()
+  end
+
+  @doc """
+  Get the symbol/ctags style outline for the specified file. Returns `{:ok,
+  outline}` if the file exists, or `{:error, :not_found}` if it does not.
+  """
+  def get_outline(store, file) do
+    store
+    |> get_entry_path(file)
+    |> Path.join("outline")
+    |> File.read()
   end
 
   @doc """
@@ -177,11 +183,13 @@ defmodule Store do
     with {:ok, meta} <- Store.info(store, file),
          {:ok, summary} <- get_summary(store, file),
          {:ok, embeddings} <- get_embeddings(store, file),
+         {:ok, outline} <- get_outline(store, file),
          {:ok, contents} <- File.read(file) do
       info =
         meta
         |> Map.put("summary", summary)
         |> Map.put("embeddings", embeddings)
+        |> Map.put("outline", outline)
         |> Map.put("contents", contents)
 
       {:ok, info}
@@ -194,7 +202,7 @@ defmodule Store do
   Store the metadata, summary, and embeddings for the specified file. If the
   file already exists in the store, it will be overwritten.
   """
-  def put(store, file, hash, summary, embeddings) do
+  def put(store, file, hash, summary, outline, embeddings) do
     path = get_entry_path(store, file)
 
     # Delete the existing directory if it exists
@@ -215,6 +223,9 @@ defmodule Store do
 
     # Write the summary to a separate file
     Path.join(path, "summary") |> File.write!(summary)
+
+    # Write the outline to a separate file
+    Path.join(path, "outline") |> File.write!(outline)
 
     # Write each chunk of embeddings to separate files
     embeddings

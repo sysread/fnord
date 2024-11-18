@@ -19,6 +19,7 @@ defmodule AI do
   @callback new() :: struct()
   @callback get_embeddings(struct(), String.t()) :: {:ok, [String.t()]} | {:error, term()}
   @callback get_summary(struct(), String.t(), String.t()) :: {:ok, String.t()} | {:error, term()}
+  @callback get_outline(struct(), String.t(), String.t()) :: {:ok, String.t()} | {:error, term()}
 
   @behaviour AI
 
@@ -58,4 +59,14 @@ defmodule AI do
   See `AI.FileSummaryAgent.get_summary/3`.
   """
   defdelegate get_summary(ai, file, text), to: AI.Agent.FileSummary
+
+  @impl AI
+  @doc """
+  See `AI.Agent.CodeMapperAgent`.
+  """
+  def get_outline(ai, file_path, file_content) do
+    ai
+    |> AI.Agent.CodeMapper.new(file_path, file_content)
+    |> AI.Agent.CodeMapper.get_outline()
+  end
 end

@@ -39,18 +39,12 @@ defmodule AI.Agent.Answers do
   2. List Files Tool: Use this tool to list all files in the project database.
   3. Search Tool: Use this tool to identify relevant files using semantic queries.
   4. File Info Tool: Use this tool to ask specialized questions about the contents of a specific file.
+  5. Tag Runner Tool: Use this tool to trace a path through the code base, beginning with symbol in a specific file.
 
-  # Process
+  # Procedure
   Batch tool call requests when possible to process multiple tasks concurrently, especially with the File Info and Search tools.
-
-  1. Use List Files to inspect project structure if relevant.
-  2. Get an initial plan from the Planner.
-  3. Use Search Tool to identify relevant files, adjusting search queries to refine results.
-  4. Use File Info to obtain specific details in promising files, clarifying focus with each question.
-  5. **Tui the Planner to evaluate progress and determine next steps.**
-  6. Implement the Planner's suggestions
-
-  **YOU ARE EXPECTED TO REPEAT THIS PROCESS AT LEAST 2 TIMES**.
+  **Get an initial plan from the Planner Tool and follow its instructions.**
+  **Use your tools as appropriate to answer the user's question.**
   Be sure to consult the Planner for adjustments if your research yields ambiguous results.
   It is better to err in favor of too much context than too little!
 
@@ -156,7 +150,8 @@ defmodule AI.Agent.Answers do
           AI.Tools.Search.spec(),
           AI.Tools.ListFiles.spec(),
           AI.Tools.FileInfo.spec(),
-          AI.Tools.Planner.spec()
+          AI.Tools.Planner.spec(),
+          AI.Tools.TagRunner.spec()
         ]
       )
 
@@ -310,5 +305,6 @@ defmodule AI.Agent.Answers do
   defp perform_tool_call(agent, "list_files_tool", args), do: AI.Tools.ListFiles.call(agent, args)
   defp perform_tool_call(agent, "file_info_tool", args), do: AI.Tools.FileInfo.call(agent, args)
   defp perform_tool_call(agent, "planner_tool", args), do: AI.Tools.Planner.call(agent, args)
+  defp perform_tool_call(agent, "tag_runner_tool", args), do: AI.Tools.TagRunner.call(agent, args)
   defp perform_tool_call(_agent, func, _args), do: {:error, :unhandled_tool_call, func}
 end

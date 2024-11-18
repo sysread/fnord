@@ -40,13 +40,14 @@ defmodule StoreTest do
 
     hash = "somehash"
     summary = "This is a summary."
+    outline = "This is an outline."
 
     embeddings = [
       %{"embedding" => [0.1, 0.2, 0.3]},
       %{"embedding" => [0.4, 0.5, 0.6]}
     ]
 
-    Store.put(store, file_path, hash, summary, embeddings)
+    Store.put(store, file_path, hash, summary, outline, embeddings)
 
     key = :crypto.hash(:sha256, Path.expand(file_path)) |> Base.encode16(case: :lower)
     entry_path = Path.join(store.path, key)
@@ -87,13 +88,14 @@ defmodule StoreTest do
 
     hash = "somehash"
     summary = "This is a summary."
+    outline = "This is an outline."
 
     embeddings = [
       %{"embedding" => [0.1, 0.2, 0.3]},
       %{"embedding" => [0.4, 0.5, 0.6]}
     ]
 
-    Store.put(store, file_path, hash, summary, embeddings)
+    Store.put(store, file_path, hash, summary, outline, embeddings)
 
     {:ok, info} = Store.get(store, file_path)
 
@@ -111,13 +113,14 @@ defmodule StoreTest do
 
     hash = "somehash"
     summary = "This is a summary."
+    outline = "This is an outline."
 
     embeddings = [
       %{"embedding" => [0.1, 0.2, 0.3]},
       %{"embedding" => [0.4, 0.5, 0.6]}
     ]
 
-    Store.put(store, file_path, hash, summary, embeddings)
+    Store.put(store, file_path, hash, summary, outline, embeddings)
 
     {:ok, retrieved_embeddings} = Store.get_embeddings(store, file_path)
     assert retrieved_embeddings == embeddings
@@ -133,10 +136,11 @@ defmodule StoreTest do
 
     hash = "hash"
     summary = "Summary"
+    outline = "Outline"
     embeddings = []
 
-    Store.put(store, file_path1, hash, summary, embeddings)
-    Store.put(store, file_path2, hash, summary, embeddings)
+    Store.put(store, file_path1, hash, summary, outline, embeddings)
+    Store.put(store, file_path2, hash, summary, outline, embeddings)
 
     files = Store.list_files(store)
 
@@ -160,9 +164,10 @@ defmodule StoreTest do
 
     hash = "hash"
     summary = "Summary"
+    outline = "Outline"
     embeddings = []
 
-    Store.put(store, file_path, hash, summary, embeddings)
+    Store.put(store, file_path, hash, summary, outline, embeddings)
 
     files = Store.list_files(store)
     assert files == [Path.expand(file_path)]
@@ -193,10 +198,11 @@ defmodule StoreTest do
 
     hash = "hash"
     summary = "Summary"
+    outline = "Outline"
     embeddings = []
 
-    Store.put(store, file_path1, hash, summary, embeddings)
-    Store.put(store, file_path2, hash, summary, embeddings)
+    Store.put(store, file_path1, hash, summary, outline, embeddings)
+    Store.put(store, file_path2, hash, summary, outline, embeddings)
 
     File.rm!(file_path1)
 
@@ -217,9 +223,10 @@ defmodule StoreTest do
 
     hash = "somehash"
     summary = "Summary"
+    outline = "Outline"
     embeddings = []
 
-    Store.put(store, file_path, hash, summary, embeddings)
+    Store.put(store, file_path, hash, summary, outline, embeddings)
 
     result = Store.get_hash(store, file_path)
     assert result == hash
@@ -233,9 +240,10 @@ defmodule StoreTest do
 
     hash = "somehash"
     summary = "Summary"
+    outline = "Outline"
     embeddings = []
 
-    Store.put(store, file_path, hash, summary, embeddings)
+    Store.put(store, file_path, hash, summary, outline, embeddings)
 
     {:ok, info} = Store.info(store, file_path)
     key = :crypto.hash(:sha256, Path.expand(file_path)) |> Base.encode16(case: :lower)
@@ -263,9 +271,10 @@ defmodule StoreTest do
 
     hash = "somehash"
     summary = "This is a summary."
+    outline = "This is an outline."
     embeddings = []
 
-    Store.put(store, file_path, hash, summary, embeddings)
+    Store.put(store, file_path, hash, summary, outline, embeddings)
 
     {:ok, retrieved_summary} = Store.get_summary(store, file_path)
     assert retrieved_summary == summary

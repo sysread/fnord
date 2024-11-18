@@ -30,28 +30,46 @@ defmodule Tui do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
-  def stop(pid, status \\ :normal) do
-    GenServer.stop(pid, status)
+  def stop(_pid, status \\ :normal) do
+    case GenServer.whereis(__MODULE__) do
+      nil -> :ok
+      pid when is_pid(pid) -> GenServer.stop(pid, status)
+    end
   end
 
   def add_step() do
-    GenServer.call(__MODULE__, {:add_step})
+    case GenServer.whereis(__MODULE__) do
+      nil -> {:ok, nil}
+      pid when is_pid(pid) -> GenServer.call(__MODULE__, {:add_step})
+    end
   end
 
   def add_step(msg, detail \\ nil) do
-    GenServer.call(__MODULE__, {:add_step, msg, detail})
+    case GenServer.whereis(__MODULE__) do
+      nil -> {:ok, nil}
+      pid when is_pid(pid) -> GenServer.call(__MODULE__, {:add_step, msg, detail})
+    end
   end
 
   def update_step(id, msg, detail \\ nil) do
-    GenServer.cast(__MODULE__, {:update_step, id, msg, detail})
+    case GenServer.whereis(__MODULE__) do
+      nil -> :ok
+      pid when is_pid(pid) -> GenServer.cast(__MODULE__, {:update_step, id, msg, detail})
+    end
   end
 
   def finish_step(id, outcome) do
-    GenServer.cast(__MODULE__, {:finish_step, id, outcome})
+    case GenServer.whereis(__MODULE__) do
+      nil -> :ok
+      pid when is_pid(pid) -> GenServer.cast(__MODULE__, {:finish_step, id, outcome})
+    end
   end
 
   def finish_step(id, outcome, msg, detail \\ nil) do
-    GenServer.cast(__MODULE__, {:finish_step, id, outcome, msg, detail})
+    case GenServer.whereis(__MODULE__) do
+      nil -> :ok
+      pid when is_pid(pid) -> GenServer.cast(__MODULE__, {:finish_step, id, outcome, msg, detail})
+    end
   end
 
   # -----------------------------------------------------------------------------
