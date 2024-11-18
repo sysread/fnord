@@ -159,3 +159,4 @@ for the `search` command.
 - restore progress display in indexer subcommand
 - nested tasks in tui
 - we have GOT to come up with something bettern than `Owl`; it has SO many visual glitches, especially when there are many steps
+- abstract agents out into a behaviour, with code to support single-message agents as well as multi-message agents

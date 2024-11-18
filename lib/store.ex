@@ -65,12 +65,19 @@ defmodule Store do
     end)
   end
 
-  defp get_key(file_path) do
+  @doc """
+  Get the key for the specified file, which is based on the file's full path
+  and is used as the directory name for the file's metadata.
+  """
+  def get_key(file_path) do
     full_path = Path.expand(file_path)
     :crypto.hash(:sha256, full_path) |> Base.encode16(case: :lower)
   end
 
-  defp get_entry_path(store, file_path) do
+  @doc """
+  Get the path to the directory containing the metadata for the specified file.
+  """
+  def get_entry_path(store, file_path) do
     Path.join(store.path, get_key(file_path))
   end
 
@@ -108,6 +115,40 @@ defmodule Store do
     |> case do
       {:ok, data} -> Map.get(data, "hash")
       {:error, :not_found} -> {:error, :not_found}
+    end
+  end
+
+  @doc """
+  Check if the specified file has a summary file. Returns `true` if the file exists,
+  or `false` if it does not.
+  """
+  def has_summary?(store, file) do
+    store
+    |> get_entry_path(file)
+    |> Path.join("summary")
+    |> File.exists?()
+  end
+
+  @doc """
+  Check if the specified file has an outline outline. Returns `true` if the file
+  exists, or `false` if it does not.
+  """
+  def has_outline?(store, file) do
+    store
+    |> get_entry_path(file)
+    |> Path.join("outline")
+    |> File.exists?()
+  end
+
+  @doc """
+  Check if the specified file has embeddings. Returns `true` if any exist,
+  `false` otherwise.
+  """
+  def has_embeddings?(store, file) do
+    with {:ok, meta} <- Store.info(store, file),
+         path = Map.get(meta, "fnord_path"),
+         files = Path.join(path, "embedding_*.json") |> Path.wildcard() do
+      Enum.any?(files, &File.exists?/1)
     end
   end
 

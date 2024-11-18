@@ -69,6 +69,11 @@ defmodule StoreTest do
     {:ok, summary_content} = File.read(summary_file)
     assert summary_content == summary
 
+    outline_file = Path.join(entry_path, "outline")
+    assert File.exists?(outline_file)
+    {:ok, outline_content} = File.read(outline_file)
+    assert outline_content == outline
+
     embedding_files = Path.wildcard(Path.join(entry_path, "embedding_*.json"))
     assert length(embedding_files) == 2
 
@@ -102,6 +107,7 @@ defmodule StoreTest do
     assert info["file"] == Path.expand(file_path)
     assert info["hash"] == hash
     assert info["summary"] == summary
+    assert info["outline"] == outline
     assert info["embeddings"] == embeddings
   end
 
@@ -278,5 +284,196 @@ defmodule StoreTest do
 
     {:ok, retrieved_summary} = Store.get_summary(store, file_path)
     assert retrieved_summary == summary
+  end
+
+  test "has_summary?/2 returns true when summary exists", %{tmp_dir: tmp_dir} do
+    store = Store.new("test_project")
+
+    file_path = Path.join(tmp_dir, "file.txt")
+    File.write!(file_path, "Sample content")
+
+    hash = "somehash"
+    summary = "This is a summary."
+    outline = "This is an outline."
+    embeddings = []
+
+    Store.put(store, file_path, hash, summary, outline, embeddings)
+
+    assert Store.has_summary?(store, file_path) == true
+  end
+
+  test "has_summary?/2 returns false when summary does not exist", %{tmp_dir: tmp_dir} do
+    store = Store.new("test_project")
+
+    file_path = Path.join(tmp_dir, "file.txt")
+    File.write!(file_path, "Sample content")
+
+    # Write without summary
+    hash = "somehash"
+    summary = ""
+    outline = "This is an outline."
+    embeddings = []
+
+    Store.put(store, file_path, hash, summary, outline, embeddings)
+
+    # Remove the summary file
+    store
+    |> Store.get_entry_path(file_path)
+    |> Path.join("summary")
+    |> File.rm()
+
+    assert Store.has_summary?(store, file_path) == false
+  end
+
+  test "has_outline?/2 returns true when outline exists", %{tmp_dir: tmp_dir} do
+    store = Store.new("test_project")
+
+    file_path = Path.join(tmp_dir, "file.txt")
+    File.write!(file_path, "Sample content")
+
+    hash = "somehash"
+    summary = "This is a summary."
+    outline = "This is an outline."
+    embeddings = []
+
+    Store.put(store, file_path, hash, summary, outline, embeddings)
+
+    assert Store.has_outline?(store, file_path) == true
+  end
+
+  test "has_outline?/2 returns false when outline does not exist", %{tmp_dir: tmp_dir} do
+    store = Store.new("test_project")
+
+    file_path = Path.join(tmp_dir, "file.txt")
+    File.write!(file_path, "Sample content")
+
+    # Write without outline
+    hash = "somehash"
+    summary = "This is a summary."
+    outline = ""
+    embeddings = []
+
+    Store.put(store, file_path, hash, summary, outline, embeddings)
+
+    # Remove the outline file
+    store
+    |> Store.get_entry_path(file_path)
+    |> Path.join("outline")
+    |> File.rm()
+
+    assert Store.has_outline?(store, file_path) == false
+  end
+
+  test "has_embeddings?/2 returns true when embeddings exist", %{tmp_dir: tmp_dir} do
+    store = Store.new("test_project")
+
+    file_path = Path.join(tmp_dir, "file.txt")
+    File.write!(file_path, "Sample content")
+
+    hash = "somehash"
+    summary = "This is a summary."
+    outline = "This is an outline."
+
+    embeddings = [
+      %{"embedding" => [0.1, 0.2, 0.3]},
+      %{"embedding" => [0.4, 0.5, 0.6]}
+    ]
+
+    Store.put(store, file_path, hash, summary, outline, embeddings)
+
+    assert Store.has_embeddings?(store, file_path) == true
+  end
+
+  test "has_embeddings?/2 returns false when embeddings do not exist", %{tmp_dir: tmp_dir} do
+    store = Store.new("test_project")
+
+    file_path = Path.join(tmp_dir, "file.txt")
+    File.write!(file_path, "Sample content")
+
+    # Write without embeddings
+    hash = "somehash"
+    summary = "This is a summary."
+    outline = "This is an outline."
+    embeddings = []
+
+    Store.put(store, file_path, hash, summary, outline, embeddings)
+
+    assert Store.has_embeddings?(store, file_path) == false
+  end
+
+  test "get_outline/2 retrieves outline for stored file", %{tmp_dir: tmp_dir} do
+    store = Store.new("test_project")
+
+    file_path = Path.join(tmp_dir, "file.txt")
+    File.write!(file_path, "Sample content")
+
+    hash = "somehash"
+    summary = "This is a summary."
+    outline = "This is an outline."
+    embeddings = []
+
+    Store.put(store, file_path, hash, summary, outline, embeddings)
+
+    {:ok, retrieved_outline} = Store.get_outline(store, file_path)
+    assert retrieved_outline == outline
+  end
+
+  test "get_outline/2 returns error when outline does not exist", %{tmp_dir: tmp_dir} do
+    store = Store.new("test_project")
+
+    file_path = Path.join(tmp_dir, "file.txt")
+    File.write!(file_path, "Sample content")
+
+    # Write with outline
+    hash = "somehash"
+    summary = "This is a summary."
+    outline = "This is an outline."
+    embeddings = []
+
+    Store.put(store, file_path, hash, summary, outline, embeddings)
+
+    # Remove the outline file
+    store
+    |> Store.get_entry_path(file_path)
+    |> Path.join("outline")
+    |> File.rm()
+
+    result = Store.get_outline(store, file_path)
+    assert result == {:error, :enoent}
+  end
+
+  test "delete_missing_files/3 calls the callback for each deleted file", %{tmp_dir: tmp_dir} do
+    store = Store.new("test_project")
+
+    file_path1 = Path.join(tmp_dir, "file1.txt")
+    File.write!(file_path1, "Content 1")
+    file_path2 = Path.join(tmp_dir, "file2.txt")
+    File.write!(file_path2, "Content 2")
+
+    hash = "hash"
+    summary = "Summary"
+    outline = "Outline"
+    embeddings = []
+
+    Store.put(store, file_path1, hash, summary, outline, embeddings)
+    Store.put(store, file_path2, hash, summary, outline, embeddings)
+
+    # Delete both files from disk
+    File.rm!(file_path1)
+    File.rm!(file_path2)
+
+    # Set up a counter to count how many times the callback is called
+    {:ok, count} = Agent.start_link(fn -> 0 end)
+
+    callback = fn ->
+      Agent.update(count, &(&1 + 1))
+    end
+
+    Store.delete_missing_files(store, tmp_dir, callback)
+
+    files = Store.list_files(store)
+    assert files == []
+
+    assert Agent.get(count, & &1) == 2
   end
 end
