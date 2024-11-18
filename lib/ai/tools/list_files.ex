@@ -7,7 +7,10 @@ defmodule AI.Tools.ListFiles do
       type: "function",
       function: %{
         name: "list_files_tool",
-        description: "list all files in the project database",
+        description: """
+        Lists all files in the project database. You can discover quite a bit
+        about a project by examining the layout of the repository.
+        """,
         parameters: %{
           type: "object",
           required: [],

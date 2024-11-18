@@ -25,16 +25,9 @@ defmodule AI.Tools.GetOutline do
   @impl AI.Tools
   def call(agent, args) do
     with {:ok, file} <- Map.fetch(args, "file") do
-      status_id = Tui.add_step("Retrieving symbolic map of", file)
-
-      result =
-        agent.opts.project
-        |> Store.new()
-        |> Store.get_outline(file)
-
-      Tui.finish_step(status_id, :ok)
-
-      result
+      agent.opts.project
+      |> Store.new()
+      |> Store.get_outline(file)
     end
   end
 end

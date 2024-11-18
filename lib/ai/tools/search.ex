@@ -9,7 +9,14 @@ defmodule AI.Tools.Search do
       type: "function",
       function: %{
         name: "search_tool",
-        description: "searches for matching files and their contents",
+        description: """
+        The search tool uses a semantic search to find files that match your
+        query input. The entire project has been indexed using a deep vector
+        space, with each file being pre-processed by an AI to summarize its
+        contents and behaviors, and to generate a list of symbols in the file.
+        This allows you to craft your query using phrases likely to match the
+        description of the code's behavior, rather than just the code itself.
+        """,
         parameters: %{
           type: "object",
           required: ["query"],

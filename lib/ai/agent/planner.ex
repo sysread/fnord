@@ -83,20 +83,14 @@ defmodule AI.Agent.Planner do
 
   def get_suggestion(planner) do
     with {:ok, msg_json} <- Jason.encode(planner.messages) do
-      OpenaiEx.Chat.Completions.create(
-        planner.ai.client,
-        OpenaiEx.Chat.Completions.new(
-          model: @model,
-          messages: [
-            OpenaiEx.ChatMessage.system(@prompt),
-            OpenaiEx.ChatMessage.user(msg_json)
-          ]
-        )
+      AI.get_completion(planner.ai,
+        model: @model,
+        system_prompt: @prompt,
+        user_prompt: msg_json
       )
       |> case do
-        {:ok, %{"choices" => [%{"message" => %{"content" => suggestion}}]}} -> {:ok, suggestion}
+        {:ok, %{"message" => %{"content" => suggestion}}} -> {:ok, suggestion}
         {:error, reason} -> {:error, reason}
-        response -> {:error, "unexpected response: #{inspect(response)}"}
       end
     end
   end

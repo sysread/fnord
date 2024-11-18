@@ -7,7 +7,13 @@ defmodule AI.Tools.FileInfo do
       type: "function",
       function: %{
         name: "file_info_tool",
-        description: "ask an AI agent a question about an individual file's contents",
+        description: """
+        Requests specialized information about a specific file. The AI agent
+        will analyze the file and answer your question as specifically as
+        possible. Ensure that you craft your question to explicitly identify
+        how you want the information presented. Highly specific questions
+        typically yield the best results.
+        """,
         parameters: %{
           type: "object",
           required: ["file", "question"],
@@ -27,6 +33,8 @@ defmodule AI.Tools.FileInfo do
               - Respond with the complete code block for the function Y.
               - Trace the flow of data when function Y is called with the argument Z.
               - Does this module implement $the_interface_the_user_is_looking_for?
+              - List all user-facing commands exposed by this module.
+              - How can this module's public interface be used to implement X?
               """
             }
           }

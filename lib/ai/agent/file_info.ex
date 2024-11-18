@@ -94,22 +94,14 @@ defmodule AI.Agent.FileInfo do
   end
 
   defp finish(agent) do
-    prompt = get_prompt(agent)
-
-    OpenaiEx.Chat.Completions.create(
-      agent.ai.client,
-      OpenaiEx.Chat.Completions.new(
-        model: @model,
-        messages: [
-          OpenaiEx.ChatMessage.system(@final_prompt),
-          OpenaiEx.ChatMessage.user(prompt)
-        ]
-      )
+    AI.get_completion(agent.ai,
+      model: @model,
+      system_prompt: @final_prompt,
+      user_prompt: get_prompt(agent)
     )
     |> case do
-      {:ok, %{"choices" => [%{"message" => %{"content" => summary}}]}} -> {:ok, summary}
+      {:ok, %{"message" => %{"content" => summary}}} -> {:ok, summary}
       {:error, reason} -> {:error, reason}
-      response -> {:error, "unexpected response: #{inspect(response)}"}
     end
   end
 
@@ -121,25 +113,17 @@ defmodule AI.Agent.FileInfo do
     agent = %{agent | splitter: splitter}
     message = prompt <> chunk
 
-    OpenaiEx.Chat.Completions.create(
-      agent.ai.client,
-      OpenaiEx.Chat.Completions.new(
-        model: @model,
-        messages: [
-          OpenaiEx.ChatMessage.system(@chunk_prompt),
-          OpenaiEx.ChatMessage.user(message)
-        ]
-      )
+    AI.get_completion(agent.ai,
+      model: @model,
+      system_prompt: @chunk_prompt,
+      user_prompt: message
     )
     |> case do
-      {:ok, %{"choices" => [%{"message" => %{"content" => summary}}]}} ->
+      {:ok, %{"message" => %{"content" => summary}}} ->
         {:ok, %__MODULE__{agent | splitter: splitter, summary: summary}}
 
       {:error, reason} ->
         {:error, reason}
-
-      response ->
-        {:error, "unexpected response: #{inspect(response)}"}
     end
   end
 

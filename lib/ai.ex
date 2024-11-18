@@ -15,6 +15,8 @@ defmodule AI do
         }
 
   @api_timeout 45_000
+  @default_max_attempts 3
+  @retry_interval 250
 
   @callback new() :: struct()
   @callback get_embeddings(struct(), String.t()) :: {:ok, [String.t()]} | {:error, term()}
@@ -40,6 +42,64 @@ defmodule AI do
       |> OpenaiEx.with_receive_timeout(@api_timeout)
 
     %AI{client: openai}
+  end
+
+  def get_completion(ai, options \\ []) do
+    with {:ok, model} <- Keyword.fetch(options, :model),
+         {:ok, messages} <- get_messages(options),
+         {:ok, tools} <- get_tools(options) do
+      max_attempts = Keyword.get(options, :attempts, @default_max_attempts)
+      args = [model: model, messages: messages] ++ tools
+      request = OpenaiEx.Chat.Completions.new(args)
+      get_completion(ai, request, max_attempts, 1)
+    end
+  end
+
+  defp get_tools(options) do
+    case Keyword.get(options, :tools) do
+      nil -> []
+      tools -> [tools: tools]
+    end
+    |> then(&{:ok, &1})
+  end
+
+  defp get_messages(options) do
+    if Keyword.has_key?(options, :messages) do
+      Keyword.get(options, :messages)
+    else
+      with {:ok, system_prompt} <- Keyword.fetch(options, :system_prompt),
+           {:ok, user_prompt} <- Keyword.fetch(options, :user_prompt) do
+        [
+          OpenaiEx.ChatMessage.system(system_prompt),
+          OpenaiEx.ChatMessage.user(user_prompt)
+        ]
+      end
+    end
+    |> case do
+      {:error, reason} -> {:error, reason}
+      messages -> {:ok, messages}
+    end
+  end
+
+  defp get_completion(_ai, _request, max_attempts, current_attempt)
+       when current_attempt > max_attempts do
+    {:error, "Request timed out after #{current_attempt} attempts."}
+  end
+
+  defp get_completion(ai, request, max_attempts, current_attempt) do
+    completion = OpenaiEx.Chat.Completions.create(ai.client, request)
+
+    case completion do
+      {:ok, %{"choices" => [event]}} ->
+        {:ok, event}
+
+      {:error, %OpenaiEx.Error{message: "Request timed out."}} ->
+        Process.sleep(@retry_interval)
+        get_completion(ai, request, max_attempts, current_attempt + 1)
+
+      {:error, %OpenaiEx.Error{message: msg}} ->
+        {:error, msg}
+    end
   end
 
   # -----------------------------------------------------------------------------

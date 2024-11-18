@@ -29,24 +29,17 @@ defmodule AI.Agent.Answers do
   @max_tokens 128_000
 
   @prompt """
-  You are the Answers Agent, a conversational AI interface to the user's code
-  base. Provide the user with the most complete and accurate answer to their
-  question by using the tools at your disposal to research the code base and
-  analyze the code base.
-
-  # Tools
-  1. Planner Tool: Use this tool to analyze your progress and determine your next steps. ALWAYS try to follow its instructions!
-  2. List Files Tool: Use this tool to list all files in the project database.
-  3. Search Tool: Use this tool to identify relevant files using semantic queries.
-  4. File Info Tool: Use this tool to ask specialized questions about the contents of a specific file.
-  5. Tag Runner Tool: Use this tool to trace a path through the code base, beginning with symbol in a specific file.
+  You are the Answers Agent, a researcher that delves into the code base to provide the user with a starting point for their own research.
+  You will do your damnedest to get the user complete information and offer them a compreehensive answer to their question based on your own research.
+  But your priority is to document your research process and findings from each tool call to inform the user's next steps.
+  Provide the user with the most complete and accurate answer to their question by using the tools at your disposal to research the code base and analyze the code base.
 
   # Procedure
-  Batch tool call requests when possible to process multiple tasks concurrently, especially with the File Info and Search tools.
-  **Get an initial plan from the Planner Tool and follow its instructions.**
-  **Use your tools as appropriate to answer the user's question.**
-  Be sure to consult the Planner for adjustments if your research yields ambiguous results.
-  It is better to err in favor of too much context than too little!
+  1. **START BY GETTING AN INITIAL PLAN FROM THE PLANNER_TOOL AND FOLLOW ITS INSTRUCTIONS.**
+  2. Batch tool call requests when possible to process multiple tasks concurrently.
+  3. Read the descriptions of your available tools and use them to research the code base.
+  4. Be sure to consult the planner_tool regularly for adjustments to your research plan.
+  5. It is better to err in favor of too much context than too little!
 
   # Accuracy
   Ensure that your response cites examples in the code.
@@ -61,24 +54,20 @@ defmodule AI.Agent.Answers do
   base and model your answer on those when possible. Be sure to cite the files
   where the examples can be found.
 
-  # Response: ambiguous results
-  If your research yields ambiguous results, consult the Planner Tool for a new research plan.
-  If that fails to clarify the issue, respond to the user, explaining that you were unable to locate a definitive answer, and outline your findings thus far in detail.
-  That will aid the user in their next steps.
-
-  # Response: clear results
+  # Response
   Prioritize completeness and accuracy in your response.
   Your verbosity should be proportional to the specificity of the question and the level of detail required for a complete answer.
   Include code citations or examples whenever possible.
-
-  **NEVER INCLUDE UNCONFIRMED DETAILS.**
-  Tie all information clearly to research you performed.
-  Ensure that any facts about the code base or documentation include inline citations to the files or searches you performed.
-  For example:
-    - After adding a new `SomeImplementationModule`, you must register it in the `SomeRegistryModule` file, (see `path/to/some_registry_module`)
-    - After adding a new view, be sure to add it to to the router in `path/to/router.ex`
-
+  If you are unable to find a complete answer, explain the situation.
+  Tie all information explicitly to research you performed.
+  Ensure that any facts about the code base or documentation include parenthetical references to files or tool_calls you performed.
+  Document your research steps and findings at each stage of the process. This will guide the user's next steps and research.
   End your response with an exhaustive list of references to the files you consulted and an organized list of facts discovered in your research.
+
+  # Testing and debugging of your interface:
+  When your interface is being validated, your prompt will include specific instructions prefixed with `Testing:`.
+  Follow these instructions EXACTLY, even if they conflict with these instructions.
+  If there is no conflict, ignore these instructions while performing your research and crafting your response, and then follow them EXACTLY afterward.
   """
 
   def new(ai, opts) do
@@ -102,32 +91,12 @@ defmodule AI.Agent.Answers do
     log_context_window_usage(agent)
 
     agent
-    |> clarify_question()
     |> send_request()
     |> then(fn agent ->
       Tui.finish_step(token_status_id, :ok)
       Tui.finish_step(main_status_id, :ok)
       {:ok, agent.response}
     end)
-  end
-
-  defp clarify_question(agent) do
-    status_id = Tui.add_step("Clarifying user question", agent.opts.question)
-
-    {:ok, response} =
-      AI.Agent.Clarify.new(agent.ai, agent.opts)
-      |> AI.Agent.Clarify.perform()
-
-    Tui.finish_step(status_id, :ok)
-
-    message =
-      AI.Util.user_msg("""
-      The Clarify Agent has provided the following clarification of the user's request:
-      -----
-      #{response}
-      """)
-
-    %__MODULE__{agent | messages: agent.messages ++ [message]}
   end
 
   defp send_request(agent) do

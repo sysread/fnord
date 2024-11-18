@@ -7,7 +7,12 @@ defmodule AI.Tools.TagRunner do
       type: "function",
       function: %{
         name: "tag_runner_tool",
-        description: "",
+        description: """
+        The tag_runner_tool is an AI-powered graph search tool that allows you
+        to trace execution paths through the code base. It can identify
+        callees, callers, and paths from one symbol to another. It excels at
+        answering questions about the structure of the code.
+        """,
         parameters: %{
           type: "object",
           required: ["symbol", "start_file", "question"],
@@ -30,7 +35,10 @@ defmodule AI.Tools.TagRunner do
               type: "string",
               description: """
               Instructs the Tag Runner agent what to trace. For example:
+              - Identify all functions called by <symbol>.
+              - Identify all functions that call <symbol>.
               - Starting from <start file>, trace the path from <symbol> to <symbol in another file>.
+              - Attempt to find all entry points that result in a call to <symbol>.
               """
             }
           }
@@ -44,11 +52,7 @@ defmodule AI.Tools.TagRunner do
     with {:ok, symbol} <- Map.fetch(args, "symbol"),
          {:ok, start_file} <- Map.fetch(args, "start_file"),
          {:ok, question} <- Map.fetch(args, "question") do
-      status_id =
-        Tui.add_step(
-          "Navigating the code base",
-          "[#{start_file}:#{symbol}] #{question}"
-        )
+      status_id = Tui.add_step("Spelunking", "[#{start_file}:#{symbol}] #{question}")
 
       result =
         agent.ai

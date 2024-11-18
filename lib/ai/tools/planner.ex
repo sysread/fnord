@@ -7,7 +7,11 @@ defmodule AI.Tools.Planner do
       type: "function",
       function: %{
         name: "planner_tool",
-        description: "analyze the conversation and suggest the next steps",
+        description: """
+        The planner tool analyzes your progress thus far and makes
+        recommendations on the next steps. Make heavy use of this tool to avoid
+        rabbit holes and keep your research on track.
+        """,
         parameters: %{
           type: "object",
           required: [],

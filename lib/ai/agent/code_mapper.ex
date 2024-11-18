@@ -96,22 +96,14 @@ defmodule AI.Agent.CodeMapper do
   end
 
   defp finish(agent) do
-    prompt = get_prompt(agent)
-
-    OpenaiEx.Chat.Completions.create(
-      agent.ai.client,
-      OpenaiEx.Chat.Completions.new(
-        model: @model,
-        messages: [
-          OpenaiEx.ChatMessage.system(@final_prompt),
-          OpenaiEx.ChatMessage.user(prompt)
-        ]
-      )
+    AI.get_completion(agent.ai,
+      model: @model,
+      system_prompt: @final_prompt,
+      user_prompt: get_prompt(agent)
     )
     |> case do
-      {:ok, %{"choices" => [%{"message" => %{"content" => outline}}]}} -> {:ok, outline}
+      {:ok, %{"message" => %{"content" => outline}}} -> {:ok, outline}
       {:error, reason} -> {:error, reason}
-      response -> {:error, "unexpected response: #{inspect(response)}"}
     end
   end
 
@@ -123,25 +115,17 @@ defmodule AI.Agent.CodeMapper do
     agent = %{agent | splitter: splitter}
     message = prompt <> chunk
 
-    OpenaiEx.Chat.Completions.create(
-      agent.ai.client,
-      OpenaiEx.Chat.Completions.new(
-        model: @model,
-        messages: [
-          OpenaiEx.ChatMessage.system(@chunk_prompt),
-          OpenaiEx.ChatMessage.user(message)
-        ]
-      )
+    AI.get_completion(agent.ai,
+      model: @model,
+      system_prompt: @chunk_prompt,
+      user_prompt: message
     )
     |> case do
-      {:ok, %{"choices" => [%{"message" => %{"content" => outline}}]}} ->
+      {:ok, %{"message" => %{"content" => outline}}} ->
         {:ok, %__MODULE__{agent | splitter: splitter, outline: outline}}
 
       {:error, reason} ->
-        {:error, reason}
-
-      response ->
-        {:error, "unexpected response: #{inspect(response)}"}
+        {:error, inspect(reason)}
     end
   end
 
