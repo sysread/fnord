@@ -93,7 +93,7 @@ defmodule AI.Agent.Spelunker do
   end
 
   defp handle_response({:error, %OpenaiEx.Error{message: "Request timed out."}}, agent) do
-    IO.puts(:stderr, "Request timed out. Retrying in 500 ms.")
+    Tui.warn("Request timed out. Retrying in 500 ms.")
     Process.sleep(500)
     send_request(agent)
   end
@@ -154,7 +154,8 @@ defmodule AI.Agent.Spelunker do
       {:ok, [request, response]}
     else
       error ->
-        IO.puts(:stderr, "Error handling tool call | #{func} -> #{args_json} | #{inspect(error)}")
+        Tui.warn("Error handling tool call | tool=#{func} args=#{args_json}", inspect(error))
+        {:error, []}
         error
     end
   end

@@ -11,8 +11,11 @@ defmodule AI.Tools.FileInfo do
         Requests specialized information about a specific file. The AI agent
         will analyze the file and answer your question as specifically as
         possible. Ensure that you craft your question to explicitly identify
-        how you want the information presented. Highly specific questions
-        typically yield the best results.
+        how you want the information presented. Specific questions with
+        explicit output instructions typically yield the best results. It is
+        recommended that you ask only a *single* question per tool call to
+        ensure the most complete answer, and make multiple calls concurrently
+        if you have multiple questions about a given file.
         """,
         parameters: %{
           type: "object",

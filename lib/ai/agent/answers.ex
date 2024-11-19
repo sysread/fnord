@@ -80,8 +80,7 @@ defmodule AI.Agent.Answers do
   end
 
   def perform(agent) do
-    token_status_id = Tui.add_step("Context window usage", "n/a")
-    main_status_id = Tui.add_step("Researching", agent.opts.question)
+    token_status_id = Tui.add_status("Context window usage", "n/a")
 
     agent = %__MODULE__{agent | token_status_id: token_status_id}
 
@@ -89,11 +88,7 @@ defmodule AI.Agent.Answers do
 
     agent
     |> send_request()
-    |> then(fn agent ->
-      Tui.finish_step(token_status_id, :ok)
-      Tui.finish_step(main_status_id, :ok)
-      {:ok, agent.response}
-    end)
+    |> then(&{:ok, &1.response})
   end
 
   defp send_request(agent) do
@@ -160,7 +155,7 @@ defmodule AI.Agent.Answers do
 
   defp log_context_window_usage(agent) do
     with {:ok, _, pct_str, tokens_str, max_tokens_str} <- get_context_window_usage(agent) do
-      Tui.update_step(
+      Tui.update_status(
         agent.token_status_id,
         "Context window usage",
         "#{pct_str} | #{tokens_str} / #{max_tokens_str}"
@@ -191,7 +186,7 @@ defmodule AI.Agent.Answers do
   end
 
   defp handle_response({:error, %OpenaiEx.Error{message: "Request timed out."}}, agent) do
-    IO.puts(:stderr, "Request timed out. Retrying in 500 ms.")
+    Tui.warn("Request timed out. Retrying in 500 ms.")
     Process.sleep(500)
     send_request(agent)
   end
@@ -252,7 +247,7 @@ defmodule AI.Agent.Answers do
       {:ok, [request, response]}
     else
       error ->
-        IO.puts(:stderr, "Error handling tool call | #{func} -> #{args_json} | #{inspect(error)}")
+        Tui.warn("Error handling tool call | tool=#{func} args=#{args_json}", inspect(error))
         error
     end
   end

@@ -1,5 +1,33 @@
 defmodule Tui do
+  @moduledoc """
+  Please don't judge me on how convoluted this is. Owl is so mediocre and
+  elixir's logger is so complicated to configure dynamically in newer versions
+  that I had to bolt together this monstrosity and now I'm watching helplessly
+  as it lurches down to the village to wreak havoc on the townsfolk.
+
+  I'm sorry, townsfolk. I'm so sorry.
+
+  Anyway, this module is responsible for rendering the TUI. For interactive
+  invocations, it uses Owl to render dynamic blocks with spinners and colorful
+  status indicators.
+
+  For non-interactive invocations, it uses the logger to output status messages
+  and warnings to STDERR. You can prevent that by invoking `fnord` with:
+
+  ```sh
+  $ fnord ... 2>/dev/null
+  ```
+
+  You can force non-interactive output by piping to `tee`:
+
+  ```sh
+  $ fnord ... | tee
+  ```
+  """
+
   use GenServer
+
+  require Logger
 
   @render_intvl 100
   @bullshit_rotation_interval 2500
@@ -30,79 +58,81 @@ defmodule Tui do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
-  def stop(_pid, status \\ :normal) do
-    case GenServer.whereis(__MODULE__) do
-      nil -> :ok
-      pid when is_pid(pid) -> GenServer.stop(pid, status)
-    end
+  def stop(pid, status \\ :normal) do
+    GenServer.stop(pid, status)
   end
 
-  def add_step() do
-    case GenServer.whereis(__MODULE__) do
-      nil -> {:ok, nil}
-      pid when is_pid(pid) -> GenServer.call(__MODULE__, {:add_step})
-    end
+  def warn(msg, detail \\ nil) do
+    GenServer.call(__MODULE__, {:warn, msg, detail})
+  end
+
+  def add_status(msg, detail \\ nil) do
+    GenServer.call(__MODULE__, {:add_status, msg, detail})
+  end
+
+  def update_status(id, msg, detail \\ nil) do
+    GenServer.cast(__MODULE__, {:update_status, id, msg, detail})
   end
 
   def add_step(msg, detail \\ nil) do
-    case GenServer.whereis(__MODULE__) do
-      nil -> {:ok, nil}
-      pid when is_pid(pid) -> GenServer.call(__MODULE__, {:add_step, msg, detail})
-    end
+    GenServer.call(__MODULE__, {:add_step, msg, detail})
   end
 
   def update_step(id, msg, detail \\ nil) do
-    case GenServer.whereis(__MODULE__) do
-      nil -> :ok
-      pid when is_pid(pid) -> GenServer.cast(__MODULE__, {:update_step, id, msg, detail})
-    end
+    GenServer.cast(__MODULE__, {:update_step, id, msg, detail})
   end
 
   def finish_step(id, outcome) do
-    case GenServer.whereis(__MODULE__) do
-      nil -> :ok
-      pid when is_pid(pid) -> GenServer.cast(__MODULE__, {:finish_step, id, outcome})
-    end
+    GenServer.cast(__MODULE__, {:finish_step, id, outcome})
   end
 
   def finish_step(id, outcome, msg, detail \\ nil) do
-    case GenServer.whereis(__MODULE__) do
-      nil -> :ok
-      pid when is_pid(pid) -> GenServer.cast(__MODULE__, {:finish_step, id, outcome, msg, detail})
-    end
+    GenServer.cast(__MODULE__, {:finish_step, id, outcome, msg, detail})
   end
 
   # -----------------------------------------------------------------------------
   # Server callbacks
   # -----------------------------------------------------------------------------
   def init(opts) do
+    state = %{
+      opts: opts,
+      id_counter: 0,
+      statuses: %{},
+      progress_char: "⠋",
+      progress_color: :magenta,
+      tty?: true,
+      render_proc: nil
+    }
+
     if opts[:quiet] do
-      {:ok, nil}
+      configure_logger()
+      state = %{state | tty?: false}
+      {:ok, state}
     else
       {:ok, render_proc} = Task.start_link(&render_interval/0)
-
-      state = %{
-        opts: opts,
-        id_counter: 0,
-        statuses: %{},
-        progress_char: "⠋",
-        progress_color: :magenta,
-        render_proc: render_proc
-      }
-
+      state = %{state | render_proc: render_proc}
       Owl.LiveScreen.add_block(:ask, state: status_box(state))
-
       {:ok, state}
     end
   end
 
-  def terminate(_reason, nil), do: :ok
+  def terminate(_reason, %{tty?: false} = state) do
+    state.statuses
+    |> Enum.each(fn
+      {id, {_msg, _detail, :processing}} -> log_msg(state, id)
+      {id, {_msg, _detail, :status}} -> log_msg(state, id)
+      _ -> nil
+    end)
 
-  def terminate(_reason, state) do
+    :ok
+  end
+
+  def terminate(_reason, %{tty?: true} = state) do
     completed =
       state.statuses
       |> Enum.map(fn
         {id, {msg, detail, :processing}} -> {id, {msg, detail, :ok}}
+        {id, {msg, detail, :status}} -> {id, {msg, detail, :status}}
         {id, {msg, detail, outcome}} -> {id, {msg, detail, outcome}}
       end)
 
@@ -115,69 +145,157 @@ defmodule Tui do
     :ok
   end
 
-  def handle_call({:add_step, _msg, _detail}, _from, nil) do
-    {:reply, nil, nil}
-  end
-
-  def handle_call({:add_step, msg, detail}, _from, state) do
+  # -----------------------------------------------------------------------------
+  # Warnings
+  #   - tty?: true  -> owl
+  #   - tty?: false -> logger
+  # -----------------------------------------------------------------------------
+  def handle_call({:warn, msg, detail}, _from, state) do
     {id, state} = next_id(state)
-    state = %{state | statuses: Map.put(state.statuses, id, {msg, detail, :processing})}
+    state = %{state | statuses: Map.put(state.statuses, id, {msg, detail, :warn})}
+    log_msg(state, id)
     {:reply, id, state}
   end
 
-  def handle_call({:add_step}, _from, nil) do
-    {:reply, nil, nil}
+  # -----------------------------------------------------------------------------
+  # Add status
+  #  - tty?: true  -> owl
+  #  - tty?: false -> logger, but only when the tui is shut down; just update
+  #                   the record
+  # -----------------------------------------------------------------------------
+  def handle_call({:add_status, msg, detail}, _from, %{tty?: true} = state) do
+    {id, state} = next_id(state)
+    state = %{state | statuses: Map.put(state.statuses, id, {msg, detail, :status})}
+    log_msg(state, id)
+    {:reply, id, state}
+  end
+
+  def handle_call({:add_status, msg, detail}, _from, state) do
+    {id, state} = next_id(state)
+    state = %{state | statuses: Map.put(state.statuses, id, {msg, detail, :status})}
+    {:reply, id, state}
+  end
+
+  # -----------------------------------------------------------------------------
+  # Add step
+  # - tty?: true  -> owl
+  # - tty?: false -> logger (if complete)
+  # -----------------------------------------------------------------------------
+  def handle_call({:add_step, msg, detail}, _from, state) do
+    {id, state} = next_id(state)
+    state = %{state | statuses: Map.put(state.statuses, id, {msg, detail, :processing})}
+    log_msg(state, id)
+    {:reply, id, state}
   end
 
   def handle_call({:add_step}, _from, state) do
     {id, state} = next_id(state)
     state = %{state | statuses: Map.put(state.statuses, id, {nil, nil, :processing})}
     start_bs_label_changer(id)
+    log_msg(state, id)
     {:reply, id, state}
   end
 
-  def handle_cast({:update_step, _id, _msg, _detail}, nil) do
-    {:noreply, nil}
-  end
-
-  def handle_cast({:update_step, id, msg, detail}, state) do
-    state = %{state | statuses: Map.put(state.statuses, id, {msg, detail, :processing})}
+  # -----------------------------------------------------------------------------
+  # Update status
+  # - tty?: true  -> owl
+  # - tty?: false -> logger, but only when the tui is shut down; just update
+  #                  the record
+  # -----------------------------------------------------------------------------
+  def handle_cast({:update_status, id, msg, detail}, %{tty?: true} = state) do
+    state = %{state | statuses: Map.put(state.statuses, id, {msg, detail, :status})}
+    log_msg(state, id)
     {:noreply, state}
   end
 
-  def handle_cast({:finish_step, _id, _outcome}, nil) do
-    {:noreply, nil}
+  def handle_cast({:update_status, id, msg, detail}, state) do
+    state = %{state | statuses: Map.put(state.statuses, id, {msg, detail, :status})}
+    {:noreply, state}
   end
 
+  # -----------------------------------------------------------------------------
+  # Update step
+  # - tty?: true  -> owl
+  # - tty?: false -> logger (if complete)
+  # -----------------------------------------------------------------------------
+  def handle_cast({:update_step, id, msg, detail}, state) do
+    state = %{state | statuses: Map.put(state.statuses, id, {msg, detail, :processing})}
+    log_msg(state, id)
+    {:noreply, state}
+  end
+
+  # -----------------------------------------------------------------------------
+  # Finish step
+  # - tty?: true  -> owl
+  # - tty?: false -> logger
+  # -----------------------------------------------------------------------------
   def handle_cast({:finish_step, id, outcome}, state) do
     {msg, detail, _old_outcome} = Map.get(state.statuses, id)
     state = %{state | statuses: Map.put(state.statuses, id, {msg, detail, outcome})}
+    log_msg(state, id)
     {:noreply, state}
-  end
-
-  def handle_cast({:finish_step, _id, _outcome, _msg, _detail}, nil) do
-    {:noreply, nil}
   end
 
   def handle_cast({:finish_step, id, outcome, msg, detail}, state) do
     state = %{state | statuses: Map.put(state.statuses, id, {msg, detail, outcome})}
+    log_msg(state, id)
     {:noreply, state}
   end
 
-  def handle_cast(:render, nil) do
-    {:noreply, nil}
-  end
-
-  def handle_cast(:render, state) do
-    {:noreply, render(state)}
-  end
+  # -----------------------------------------------------------------------------
+  # Render
+  # -----------------------------------------------------------------------------
+  def handle_cast(:render, nil), do: {:noreply, nil}
+  def handle_cast(:render, state), do: {:noreply, render(state)}
 
   # -----------------------------------------------------------------------------
   # Internal functions
   # -----------------------------------------------------------------------------
+  def configure_logger do
+    {:ok, handler_config} = :logger.get_handler_config(:default)
+    updated_config = Map.update!(handler_config, :config, &Map.put(&1, :type, :standard_error))
+
+    :ok = :logger.remove_handler(:default)
+    :ok = :logger.add_handler(:default, :logger_std_h, updated_config)
+
+    :ok =
+      :logger.update_formatter_config(
+        :default,
+        :template,
+        ["[", :level, "] ", :message, "\n"]
+      )
+  end
+
   defp next_id(state) do
     id = state.id_counter
     {id, %{state | id_counter: state.id_counter + 1}}
+  end
+
+  defp log_msg(%{tty?: true}, _id) do
+    :ok
+  end
+
+  defp log_msg(%{tty?: false} = state, id) do
+    {msg, detail, outcome} = Map.get(state.statuses, id)
+
+    if outcome != :processing do
+      line =
+        if is_nil(detail) do
+          "#{msg}"
+        else
+          "#{msg}: #{detail}"
+        end
+
+      glyph = outcome_glyph(state, outcome)
+      line = "#{glyph} #{line}"
+
+      case outcome do
+        :ok -> Logger.info(line)
+        :warn -> Logger.warning(line)
+        :error -> Logger.error(line)
+        :status -> Logger.info(line)
+      end
+    end
   end
 
   defp render_interval() do
@@ -233,7 +351,7 @@ defmodule Tui do
     glyph = outcome_glyph(state, outcome)
 
     if is_nil(detail) do
-      [glyph, " ", Owl.Data.tag(msg, :cyan)]
+      [glyph, "  ", Owl.Data.tag(msg, :cyan)]
     else
       detail =
         if String.contains?(detail, "\n") do
@@ -242,16 +360,36 @@ defmodule Tui do
           detail
         end
 
-      [glyph, " ", Owl.Data.tag([msg, ":"], :cyan), " ", Owl.Data.tag(detail, :yellow)]
+      [
+        glyph,
+        " ",
+        Owl.Data.tag(msg, :cyan),
+        Owl.Data.tag(":", :cyan),
+        " ",
+        Owl.Data.tag(detail, :yellow)
+      ]
     end
     |> Owl.Data.to_chardata()
   end
 
-  defp outcome_glyph(state, outcome) do
+  defp outcome_glyph(%{tty?: true} = state, outcome) do
     case outcome do
       :processing -> Owl.Data.tag(state.progress_char, state.progress_color)
       :ok -> Owl.Data.tag("✔", :green)
       :error -> Owl.Data.tag("✖", :red)
+      :warn -> Owl.Data.tag("︕", :yellow)
+      :status -> Owl.Data.tag("ⓘ", :cyan)
+      _ -> ""
+    end
+  end
+
+  defp outcome_glyph(%{tty?: false}, outcome) do
+    case outcome do
+      :processing -> "*"
+      :ok -> "✔"
+      :warn -> "︕"
+      :error -> "✖"
+      :status -> "ⓘ"
     end
   end
 

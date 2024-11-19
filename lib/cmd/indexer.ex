@@ -78,7 +78,7 @@ defmodule Cmd.Indexer do
     index_status_id =
       Tui.add_step("Indexing", "#{num_files} / #{total_files} files in #{idx.root}")
 
-    bs_status_id = Tui.add_step()
+    bs_status_id = Tui.add_step("Doing AI stuff", "...")
 
     Scanner.scan(scanner)
 
@@ -99,7 +99,7 @@ defmodule Cmd.Indexer do
            {:ok, embeddings} <- get_embeddings(idx, file, summary, outline, file_contents) do
         Store.put(idx.store, file, file_hash, summary, outline, embeddings)
       else
-        {:error, reason} -> IO.puts("Error processing file: #{file} - #{inspect(reason)}")
+        {:error, reason} -> Tui.warn("Error processing file #{file}", reason)
       end
     end
   end
@@ -171,7 +171,7 @@ defmodule Cmd.Indexer do
 
       {:error, %OpenaiEx.Error{message: "Request timed out."}} ->
         if attempt < 3 do
-          IO.puts("request to index file timed out, retrying (attempt #{attempt + 1}/3)")
+          Tui.warn("request to index file timed out, retrying", "attempt #{attempt + 1}/3")
           get_embeddings(idx, file, summary, outline, file_contents, attempt + 1)
         else
           {:error, "request to index file timed out after 3 attempts"}
