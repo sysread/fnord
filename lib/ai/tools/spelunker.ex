@@ -52,7 +52,7 @@ defmodule AI.Tools.Spelunker do
     with {:ok, symbol} <- Map.fetch(args, "symbol"),
          {:ok, start_file} <- Map.fetch(args, "start_file"),
          {:ok, question} <- Map.fetch(args, "question") do
-      status_id = Tui.add_step("Spelunking", "[#{start_file}:#{symbol}] #{question}")
+      status_id = Tui.add_step("Spelunking #{start_file}: #{symbol}", question)
 
       result =
         agent.ai
