@@ -1,4 +1,4 @@
-defmodule AI.Tools.SpelunkerTool do
+defmodule AI.Tools.Spelunker do
   @behaviour AI.Tools
 
   @impl AI.Tools

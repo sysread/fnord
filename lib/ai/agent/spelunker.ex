@@ -65,7 +65,7 @@ defmodule AI.Agent.Spelunker do
         AI.Tools.Search.spec(),
         AI.Tools.ListFiles.spec(),
         AI.Tools.FileInfo.spec(),
-        AI.Tools.GetOutline.spec()
+        AI.Tools.Outline.spec()
       ]
     )
   end
@@ -172,6 +172,6 @@ defmodule AI.Agent.Spelunker do
   defp perform_tool_call(agent, "search_tool", args), do: AI.Tools.Search.call(agent, args)
   defp perform_tool_call(agent, "list_files_tool", args), do: AI.Tools.ListFiles.call(agent, args)
   defp perform_tool_call(agent, "file_info_tool", args), do: AI.Tools.FileInfo.call(agent, args)
-  defp perform_tool_call(agent, "outline_tool", args), do: AI.Tools.GetOutline.call(agent, args)
+  defp perform_tool_call(agent, "outline_tool", args), do: AI.Tools.Outline.call(agent, args)
   defp perform_tool_call(_agent, func, _args), do: {:error, :unhandled_tool_call, func}
 end

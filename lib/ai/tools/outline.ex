@@ -1,4 +1,4 @@
-defmodule AI.Tools.GetOutline do
+defmodule AI.Tools.Outline do
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -24,10 +24,11 @@ defmodule AI.Tools.GetOutline do
 
   @impl AI.Tools
   def call(agent, args) do
-    with {:ok, file} <- Map.fetch(args, "file") do
-      agent.opts.project
-      |> Store.new()
-      |> Store.get_outline(file)
+    store = Store.new(agent.opts.project)
+
+    with {:ok, file} <- Map.fetch(args, "file"),
+         {:ok, data} <- Store.get_outline(store, file) do
+      {:ok, data}
     end
   end
 end

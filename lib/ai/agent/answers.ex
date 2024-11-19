@@ -111,7 +111,7 @@ defmodule AI.Agent.Answers do
           AI.Tools.Search.spec(),
           AI.Tools.ListFiles.spec(),
           AI.Tools.FileInfo.spec(),
-          AI.Tools.SpelunkerTool.spec()
+          AI.Tools.Spelunker.spec()
         ]
       )
 
@@ -274,7 +274,7 @@ defmodule AI.Agent.Answers do
   end
 
   defp perform_tool_call(agent, "spelunker_tool", args) do
-    AI.Tools.SpelunkerTool.call(agent, args)
+    AI.Tools.Spelunker.call(agent, args)
   end
 
   defp perform_tool_call(_agent, func, _args) do

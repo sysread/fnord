@@ -438,8 +438,9 @@ defmodule StoreTest do
     |> Path.join("outline")
     |> File.rm()
 
-    result = Store.get_outline(store, file_path)
-    assert result == {:error, :enoent}
+    assert {:error, msg} = Store.get_outline(store, file_path)
+    assert String.contains?(msg, file_path)
+    assert String.contains?(msg, "you may need to reindex test_project")
   end
 
   test "delete_missing_files/3 calls the callback for each deleted file", %{tmp_dir: tmp_dir} do

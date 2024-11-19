@@ -157,10 +157,7 @@ defmodule Store do
   exists, or `{:error, :not_found}` if it does not.
   """
   def get_summary(store, file) do
-    store
-    |> get_entry_path(file)
-    |> Path.join("summary")
-    |> File.read()
+    read_file(store, file, :summary)
   end
 
   @doc """
@@ -168,10 +165,7 @@ defmodule Store do
   outline}` if the file exists, or `{:error, :not_found}` if it does not.
   """
   def get_outline(store, file) do
-    store
-    |> get_entry_path(file)
-    |> Path.join("outline")
-    |> File.read()
+    read_file(store, file, :outline)
   end
 
   @doc """
@@ -300,5 +294,21 @@ defmodule Store do
       |> Jason.decode!()
       |> Map.get("file")
     end)
+  end
+
+  defp read_file(store, file, kind) do
+    case kind do
+      :outline -> get_entry_path(store, file) |> Path.join("outline")
+      :summary -> get_entry_path(store, file) |> Path.join("summary")
+    end
+    |> File.read()
+    |> case do
+      {:ok, content} ->
+        {:ok, content}
+
+      {:error, reason} ->
+        {:error,
+         "unable to read #{kind} for #{file} (you may need to reindex #{store.project}): #{inspect(reason)}"}
+    end
   end
 end
