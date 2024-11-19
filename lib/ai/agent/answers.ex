@@ -45,13 +45,11 @@ defmodule AI.Agent.Answers do
   Ensure that your response cites examples in the code.
   Ensure that any functions or modules you refer to ACTUALLY EXIST.
 
-  ALWAYS attempt to determine if something is already implemented in the code
-  base; that is the ABSOLUTE BEST answer when the user wants to know how to
-  build something.
+  ALWAYS attempt to determine if something is already implemented in the code base.
+  That is the ABSOLUTE BEST answer when the user wants to know how to build something.
 
-  Look for examples of what the user wants to do already present in the code
-  base and model your answer on those when possible. Be sure to cite the files
-  where the examples can be found.
+  Look for examples of what the user wants to do already present in the code base and model your answer on those when possible.
+  Be sure to cite the files where the examples can be found.
 
   # Response
   Prioritize completeness and accuracy in your response.
