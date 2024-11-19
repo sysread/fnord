@@ -153,12 +153,9 @@ for the `search` command.
 # TODO
 - output formatted markdown results from `ask`
 - mitigate owl's bs; this thing is chincy af
-- continue improving call graph in summarizer, add "tracer" agent to use call graph
-  - maybe add ctags support to implement this more robustly
-  - maybe just adding ctags output to the store would be enough
+- we have GOT to come up with something bettern than `Owl`; it has SO many visual glitches, especially when there are many steps
 - restore progress display in indexer subcommand
 - nested tasks in tui
-- we have GOT to come up with something bettern than `Owl`; it has SO many visual glitches, especially when there are many steps
 - abstract agents out into a behaviour
   - support for tool calls
   - support for "accumulator" agents
