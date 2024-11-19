@@ -1,4 +1,4 @@
-defmodule AI.Tools.TagRunner do
+defmodule AI.Tools.SpelunkerTool do
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -6,9 +6,9 @@ defmodule AI.Tools.TagRunner do
     %{
       type: "function",
       function: %{
-        name: "tag_runner_tool",
+        name: "spelunker_tool",
         description: """
-        The tag_runner_tool is an AI-powered graph search tool that allows you
+        The spelunker_tool is an AI-powered graph search tool that allows you
         to trace execution paths through the code base. It can identify
         callees, callers, and paths from one symbol to another. It excels at
         answering questions about the structure of the code.
@@ -34,7 +34,7 @@ defmodule AI.Tools.TagRunner do
             question: %{
               type: "string",
               description: """
-              Instructs the Tag Runner agent what to trace. For example:
+              Instructs the Spelunker agent what to trace. For example:
               - Identify all functions called by <symbol>.
               - Identify all functions that call <symbol>.
               - Starting from <start file>, trace the path from <symbol> to <symbol in another file>.
@@ -56,9 +56,8 @@ defmodule AI.Tools.TagRunner do
 
       result =
         agent.ai
-        |> AI.Agent.TagRunner.new(agent.opts, symbol, start_file, question)
-        |> AI.Agent.TagRunner.trace()
-        |> IO.inspect()
+        |> AI.Agent.Spelunker.new(agent.opts, symbol, start_file, question)
+        |> AI.Agent.Spelunker.trace()
 
       Tui.finish_step(status_id, :ok)
 

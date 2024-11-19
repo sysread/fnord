@@ -29,22 +29,21 @@ defmodule AI.Agent.Answers do
   @max_tokens 128_000
 
   @prompt """
-  You are the Answers Agent, a researcher that delves into the code base to provide the user with a starting point for their own research.
+  You are the Answers Agent, a researcher savant that delves into the code base to provide the user with a starting point for their own research.
+  You are extremely thorough! You cannot stand ambiguity and like to ensure you have covered all of your bases before responding.
   You will do your damnedest to get the user complete information and offer them a compreehensive answer to their question based on your own research.
   But your priority is to document your research process and findings from each tool call to inform the user's next steps.
   Provide the user with the most complete and accurate answer to their question by using the tools at your disposal to research the code base and analyze the code base.
 
-  # Procedure
-  1. **START BY GETTING AN INITIAL PLAN FROM THE PLANNER_TOOL AND FOLLOW ITS INSTRUCTIONS.**
-  2. Batch tool call requests when possible to process multiple tasks concurrently.
-  3. Read the descriptions of your available tools and use them to research the code base.
-  4. Be sure to consult the planner_tool regularly for adjustments to your research plan.
-  5. It is better to err in favor of too much context than too little!
+  # Guidelines
+  1. Batch tool call requests when possible to process multiple tasks concurrently.
+  2. Read the descriptions of your available tools and use them to research the code base.
+  3. Use tools multiple times to ensure you have enough context to holistically answer the user's question.
+  4. It is better to err in favor of too much context than too little!
 
   # Accuracy
   Ensure that your response cites examples in the code.
   Ensure that any functions or modules you refer to ACTUALLY EXIST.
-  Use the Planner Tool EXTENSIVELY to ensure that you have covered all avenues of inquiry.
 
   ALWAYS attempt to determine if something is already implemented in the code
   base; that is the ABSOLUTE BEST answer when the user wants to know how to
@@ -119,8 +118,7 @@ defmodule AI.Agent.Answers do
           AI.Tools.Search.spec(),
           AI.Tools.ListFiles.spec(),
           AI.Tools.FileInfo.spec(),
-          AI.Tools.Planner.spec(),
-          AI.Tools.TagRunner.spec()
+          AI.Tools.SpelunkerTool.spec()
         ]
       )
 
@@ -270,10 +268,23 @@ defmodule AI.Agent.Answers do
     end
   end
 
-  defp perform_tool_call(agent, "search_tool", args), do: AI.Tools.Search.call(agent, args)
-  defp perform_tool_call(agent, "list_files_tool", args), do: AI.Tools.ListFiles.call(agent, args)
-  defp perform_tool_call(agent, "file_info_tool", args), do: AI.Tools.FileInfo.call(agent, args)
-  defp perform_tool_call(agent, "planner_tool", args), do: AI.Tools.Planner.call(agent, args)
-  defp perform_tool_call(agent, "tag_runner_tool", args), do: AI.Tools.TagRunner.call(agent, args)
-  defp perform_tool_call(_agent, func, _args), do: {:error, :unhandled_tool_call, func}
+  defp perform_tool_call(agent, "search_tool", args) do
+    AI.Tools.Search.call(agent, args)
+  end
+
+  defp perform_tool_call(agent, "list_files_tool", args) do
+    AI.Tools.ListFiles.call(agent, args)
+  end
+
+  defp perform_tool_call(agent, "file_info_tool", args) do
+    AI.Tools.FileInfo.call(agent, args)
+  end
+
+  defp perform_tool_call(agent, "spelunker_tool", args) do
+    AI.Tools.SpelunkerTool.call(agent, args)
+  end
+
+  defp perform_tool_call(_agent, func, _args) do
+    {:error, :unhandled_tool_call, func}
+  end
 end

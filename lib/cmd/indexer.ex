@@ -1,7 +1,6 @@
 defmodule Cmd.Indexer do
   @moduledoc """
-  This module provides the functionality for the `index` and `delete`
-  sub-commands.
+  This module provides the functionality for the `index` sub-command.
   """
 
   defstruct [
