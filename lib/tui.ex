@@ -74,6 +74,10 @@ defmodule Tui do
     GenServer.cast(__MODULE__, {:update_status, id, msg, detail})
   end
 
+  def add_step() do
+    GenServer.call(__MODULE__, {:add_step})
+  end
+
   def add_step(msg, detail \\ nil) do
     GenServer.call(__MODULE__, {:add_step, msg, detail})
   end
@@ -251,6 +255,11 @@ defmodule Tui do
   # -----------------------------------------------------------------------------
   # Internal functions
   # -----------------------------------------------------------------------------
+  defp next_id(state) do
+    id = state.id_counter
+    {id, %{state | id_counter: state.id_counter + 1}}
+  end
+
   def configure_logger do
     {:ok, handler_config} = :logger.get_handler_config(:default)
     updated_config = Map.update!(handler_config, :config, &Map.put(&1, :type, :standard_error))
@@ -264,11 +273,6 @@ defmodule Tui do
         :template,
         ["[", :level, "] ", :message, "\n"]
       )
-  end
-
-  defp next_id(state) do
-    id = state.id_counter
-    {id, %{state | id_counter: state.id_counter + 1}}
   end
 
   defp log_msg(%{tty?: true}, _id) do
@@ -362,7 +366,7 @@ defmodule Tui do
 
       [
         glyph,
-        " ",
+        "  ",
         Owl.Data.tag(msg, :cyan),
         Owl.Data.tag(":", :cyan),
         " ",

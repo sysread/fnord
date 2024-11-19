@@ -159,3 +159,4 @@ for the `search` command.
 - abstract agents out into a behaviour
   - support for tool calls
   - support for "accumulator" agents
+- add useful errors suggesting reindex when files are missing from the index

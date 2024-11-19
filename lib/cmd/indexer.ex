@@ -78,7 +78,7 @@ defmodule Cmd.Indexer do
     index_status_id =
       Tui.add_step("Indexing", "#{num_files} / #{total_files} files in #{idx.root}")
 
-    bs_status_id = Tui.add_step("Doing AI stuff", "...")
+    bs_status_id = Tui.add_step()
 
     Scanner.scan(scanner)
 
