@@ -1,6 +1,20 @@
 defmodule Cmd.SearchTest do
   use ExUnit.Case
-  import ExUnit.CaptureIO
+
+  setup do
+    # Save the current log level
+    current_level = Logger.level()
+
+    # Disable logging
+    Logger.configure(level: :none)
+
+    # Return the current log level to restore later
+    on_exit(fn ->
+      Logger.configure(level: current_level)
+    end)
+
+    :ok
+  end
 
   setup do
     # Create temporary directories for the home and project
@@ -69,7 +83,7 @@ defmodule Cmd.SearchTest do
 
     # Capture the output of the Search.run/2 function
     output =
-      capture_io(fn ->
+      ExUnit.CaptureIO.capture_io(fn ->
         Cmd.Search.run(search_opts, MockAIForSearch)
       end)
 

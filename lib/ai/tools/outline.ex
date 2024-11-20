@@ -7,14 +7,18 @@ defmodule AI.Tools.Outline do
       type: "function",
       function: %{
         name: "outline_tool",
-        description: "Retrieves an outline of symbols and calls in a code file.",
+        description: "Retrieves an outline of symbols and calls in an indexed code file.",
         parameters: %{
           type: "object",
           required: ["file"],
           properties: %{
             file: %{
               type: "string",
-              description: "absolute file path to the code file in the project."
+              description: """
+              The absolute file path to the code file in the project. This
+              parameter MUST be a **confirmed file** in the repository, as
+              returned by the list_files_tool or the search_tool.
+              """
             }
           }
         }

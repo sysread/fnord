@@ -19,7 +19,8 @@ defmodule AI.Agent.Spelunker do
   Use the tool calls at your disposal to dig through the code base; combine multiple tool calls into a single request to perform them concurrently.
   Use your tools as many times as necessary to ensure that you have the COMPLETE picture. Do NOT respond ambiguously unless you have made multiple attempts to find the answer.
   You will use these outlines to navigate code files, tracing paths through the code in order to assist the Answers Agent in correctly answering the user's questions about the code base.
-  To trace calls between two points, start with the target symbol and work your backwards to the starting symbol, or use a binary search strategy, retrieving outlines from both ends and working your way toward one another.
+  To find callers, start with the target symbol and work backwards through the code base, alternating between the search_tool and outline_tool, until you reach a dead end or entry point. Report the paths you discovered.
+  To find callees, search for the target symbol and filter based on language-specific semantics (e.g. imports, aliases, etc.) to find all references to the symbol. Report the paths you discovered.
   Your highest priority is to provide COMPLETE and ACCURATE information to the Answers Agent; ensure you have a complete code path before sending your response.
   """
 
@@ -152,11 +153,6 @@ defmodule AI.Agent.Spelunker do
       request = AI.Util.assistant_tool_msg(id, func, args_json)
       response = AI.Util.tool_msg(id, func, output)
       {:ok, [request, response]}
-    else
-      error ->
-        Tui.warn("Error handling tool call | tool=#{func} args=#{args_json}", inspect(error))
-        {:error, []}
-        error
     end
   end
 
@@ -164,8 +160,13 @@ defmodule AI.Agent.Spelunker do
   # Tool call outputs
   # -----------------------------------------------------------------------------
   defp perform_tool_call(agent, func, args_json) when is_binary(args_json) do
-    with {:ok, args} <- Jason.decode(args_json) do
-      perform_tool_call(agent, func, args)
+    with {:ok, args} <- Jason.decode(args_json),
+         {:ok, output} <- perform_tool_call(agent, func, args) do
+      {:ok, output}
+    else
+      error ->
+        Tui.warn("Error handling tool call #{func}", inspect(error))
+        {:ok, inspect(error)}
     end
   end
 

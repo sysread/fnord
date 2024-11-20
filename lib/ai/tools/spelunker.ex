@@ -11,7 +11,8 @@ defmodule AI.Tools.Spelunker do
         The spelunker_tool is an AI-powered graph search tool that allows you
         to trace execution paths through the code base. It can identify
         callees, callers, and paths from one symbol to another. It excels at
-        answering questions about the structure of the code.
+        answering questions about the structure of the code and is able to
+        traverse multiple modules to provide you with a call tree.
         """,
         parameters: %{
           type: "object",

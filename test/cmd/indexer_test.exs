@@ -2,6 +2,21 @@ defmodule Cmd.IndexerTest do
   use ExUnit.Case
 
   setup do
+    # Save the current log level
+    current_level = Logger.level()
+
+    # Disable logging
+    Logger.configure(level: :none)
+
+    # Return the current log level to restore later
+    on_exit(fn ->
+      Logger.configure(level: current_level)
+    end)
+
+    :ok
+  end
+
+  setup do
     # Create a temporary home directory for our app to store data
     {:ok, home_dir} = Briefly.create(directory: true)
 

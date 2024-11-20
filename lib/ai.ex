@@ -14,7 +14,7 @@ defmodule AI do
           client: %OpenaiEx{}
         }
 
-  @api_timeout 45_000
+  @api_timeout 5 * 60 * 1000
   @default_max_attempts 3
   @retry_interval 250
 

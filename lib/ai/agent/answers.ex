@@ -59,6 +59,7 @@ defmodule AI.Agent.Answers do
   Tie all information explicitly to research you performed.
   Ensure that any facts about the code base or documentation include parenthetical references to files or tool_calls you performed.
   Document your research steps and findings at each stage of the process. This will guide the user's next steps and research.
+  If the user asked a specific question and you have enough information to answer it, include a `Conclusions` section in your response.
   End your response with an exhaustive list of references to the files you consulted and an organized list of facts discovered in your research.
 
   # Testing and debugging of your interface:
@@ -245,10 +246,6 @@ defmodule AI.Agent.Answers do
       request = AI.Util.assistant_tool_msg(id, func, args_json)
       response = AI.Util.tool_msg(id, func, output)
       {:ok, [request, response]}
-    else
-      error ->
-        Tui.warn("Error handling tool call | tool=#{func} args=#{args_json}", inspect(error))
-        error
     end
   end
 
@@ -256,8 +253,13 @@ defmodule AI.Agent.Answers do
   # Tool call outputs
   # -----------------------------------------------------------------------------
   defp perform_tool_call(agent, func, args_json) when is_binary(args_json) do
-    with {:ok, args} <- Jason.decode(args_json) do
-      perform_tool_call(agent, func, args)
+    with {:ok, args} <- Jason.decode(args_json),
+         {:ok, output} <- perform_tool_call(agent, func, args) do
+      {:ok, output}
+    else
+      error ->
+        Tui.warn("Error handling tool call #{func}", inspect(error))
+        {:ok, inspect(error)}
     end
   end
 
