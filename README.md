@@ -159,3 +159,6 @@ for the `search` command.
 - abstract agents out into a behaviour
   - support for tool calls
   - support for "accumulator" agents
+- only require --directory when indexing a brand new project or changing the project's base directory
+  - store project details in Settings
+  - check them on init for commands requiring --project and --directory (indexer)
