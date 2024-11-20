@@ -11,7 +11,8 @@ defmodule AI.Tools.GitPickaxeTerm do
         Searches git history for commits that include the supplied term. This
         is useful to identify when an entity was added or removed from the code
         base, determine when a bug might have been introduced, or to confirm
-        that seemingly orphaned code is no longer in use.
+        that seemingly orphaned code is no longer in use (when combined with
+        the search_tool).
         """,
         parameters: %{
           type: "object",
