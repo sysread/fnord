@@ -2,10 +2,16 @@
 
 [![Tests | Dialyzer](https://github.com/sysread/fnord/actions/workflows/run-tests.yml/badge.svg)](https://github.com/sysread/fnord/actions/workflows/run-tests.yml)
 
-Fnord is a command line tool the builds a searchable database of your files,
-using AI-generated embeddings to index and search your code base, notes, and
-other (non-binary) files. Notably, it provides a conversational interface to
-research within your project, answering complex questions about your code base.
+Fnord is a command line tool that uses multiple AI-powered agents and tools to
+provide a conversational interface to your codebase, notes, and other
+(non-binary) files.
+
+## Features
+- Code base search
+- Graph search and pathfinding
+- On-demand playbooks assembled from documentation and code
+- Troubleshooting and debugging
+- Git archaeology
 
 ## Installation
 
@@ -42,9 +48,15 @@ for this tool. You can create a new project and get a key
 
 ### Index
 
-The first time you run this, especially on a large codebase, it will take a
-while to index everything. Subsequent runs will be faster, re-indexing only
-those files which have changed since they were last indexed.
+The first step is to index your project. This will scan all files in the
+project directory and create a searchable database.
+
+The initial index, especially on a large codebase, can will take a while.
+Subsequent runs will be faster, re-indexing only those files which have changed
+since they were last indexed.
+
+The `--dir` option is required only for the initial indexing. Subsequent
+indexing will use the directory specified in the initial index.
 
 ```bash
 fnord index --project foo --dir /path/to/foo
@@ -159,6 +171,4 @@ for the `search` command.
 - abstract agents out into a behaviour
   - support for tool calls
   - support for "accumulator" agents
-- only require --directory when indexing a brand new project or changing the project's base directory
-  - store project details in Settings
-  - check them on init for commands requiring --project and --directory (indexer)
+- git archaeology agent and tool

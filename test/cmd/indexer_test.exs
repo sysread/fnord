@@ -75,9 +75,7 @@ defmodule Cmd.IndexerTest do
         Cmd.Indexer.new(%{project: "test_project"}, MockAI)
         false
       rescue
-        e ->
-          IO.inspect(e)
-          true
+        _ -> true
       end
 
     refute raises_error

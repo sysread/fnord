@@ -18,6 +18,7 @@ defmodule AI.Agent.Answers do
   @type t :: %__MODULE__{
           ai: AI.t(),
           opts: [
+            project: String.t(),
             question: String.t()
           ],
           requested_tool_calls: [map()],
@@ -40,6 +41,8 @@ defmodule AI.Agent.Answers do
   2. Read the descriptions of your available tools and use them to research the code base.
   3. Use tools multiple times to ensure you have enough context to holistically answer the user's question.
   4. It is better to err in favor of too much context than too little!
+  5. Avoid making assumptions about the code base. Always verify your findings with the tools.
+  6. Avoid ambiguous or generalized answers. Ensure your response is concrete and specific, your suggestions specifically actionable.
 
   # Accuracy
   Ensure that your response cites examples in the code.
@@ -112,7 +115,10 @@ defmodule AI.Agent.Answers do
           AI.Tools.Search.spec(),
           AI.Tools.ListFiles.spec(),
           AI.Tools.FileInfo.spec(),
-          AI.Tools.Spelunker.spec()
+          AI.Tools.Spelunker.spec(),
+          AI.Tools.GitPickaxeTerm.spec(),
+          AI.Tools.GitPickaxeRegex.spec(),
+          AI.Tools.GitShow.spec()
         ]
       )
 
@@ -258,7 +264,7 @@ defmodule AI.Agent.Answers do
       {:ok, output}
     else
       error ->
-        Tui.warn("Error handling tool call #{func}", inspect(error))
+        Tui.warn("#{func} error", inspect(error))
         {:ok, inspect(error)}
     end
   end
@@ -277,6 +283,18 @@ defmodule AI.Agent.Answers do
 
   defp perform_tool_call(agent, "spelunker_tool", args) do
     AI.Tools.Spelunker.call(agent, args)
+  end
+
+  defp perform_tool_call(agent, "git_pickaxe_term_tool", args) do
+    AI.Tools.GitPickaxeTerm.call(agent, args)
+  end
+
+  defp perform_tool_call(agent, "git_pickaxe_regex_tool", args) do
+    AI.Tools.GitPickaxeRegex.call(agent, args)
+  end
+
+  defp perform_tool_call(agent, "git_show_tool", args) do
+    AI.Tools.GitShow.call(agent, args)
   end
 
   defp perform_tool_call(_agent, func, _args) do

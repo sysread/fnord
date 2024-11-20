@@ -165,7 +165,7 @@ defmodule AI.Agent.Spelunker do
       {:ok, output}
     else
       error ->
-        Tui.warn("Error handling tool call #{func}", inspect(error))
+        Tui.warn("#{func} error", inspect(error))
         {:ok, inspect(error)}
     end
   end

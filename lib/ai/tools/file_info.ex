@@ -16,6 +16,11 @@ defmodule AI.Tools.FileInfo do
         recommended that you ask only a *single* question per tool call to
         ensure the most complete answer, and make multiple calls concurrently
         if you have multiple questions about a given file.
+
+        Note that this tool only has access to the current version of the file.
+        It cannot read historical versions of the file or access the file's
+        version control history. Provide any context related to that in your
+        question as appropriate.
         """,
         parameters: %{
           type: "object",

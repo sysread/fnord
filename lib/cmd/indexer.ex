@@ -26,6 +26,9 @@ defmodule Cmd.Indexer do
 
     root =
       case Map.get(opts, :directory, nil) do
+        root when is_binary(root) ->
+          Path.absname(root)
+
         nil ->
           settings = Settings.new()
 
@@ -34,29 +37,21 @@ defmodule Cmd.Indexer do
               root
 
             {:error, :not_found} ->
-              case Map.fetch(opts, :directory) do
-                {:ok, nil} ->
-                  raise """
-                  Error: the project root was not found in the settings file.
+              raise """
+              Error: the project root was not found in the settings file.
 
-                  This can happen when:
-                    - the first index of a project
-                    - the first index reindexing after moving the project directory
-                    - the first index after the upgrade that made --dir optional
+              This can happen under the following circumstances:
+                - the first index of a project
+                - the first index reindexing after moving the project directory
+                - the first index after the upgrade that made --dir optional
 
-                  Re-run with --dir to specify the project root directory and update the settings file.
-                  """
-
-                {:ok, directory} ->
-                  root = Path.absname(directory)
-                  Settings.set_project(settings, project, %{"root" => root})
-                  root
-              end
+              Re-run with --dir to specify the project root directory and update the settings file.
+              """
           end
-
-        root ->
-          root
       end
+
+    Settings.new()
+    |> Settings.set_project(project, %{"root" => root})
 
     idx =
       %__MODULE__{
