@@ -24,32 +24,38 @@ defmodule Cmd.Indexer do
     quiet = Map.get(opts, :quiet, false)
     project = opts.project
 
-    settings = Settings.new()
-
     root =
-      case get_root(settings, project) do
-        {:ok, root} ->
-          root
+      case Map.get(opts, :directory, nil) do
+        nil ->
+          settings = Settings.new()
 
-        {:error, :not_found} ->
-          case Map.fetch(opts, :directory) do
-            {:ok, nil} ->
-              raise """
-              Error: the project root was not found in the settings file.
-
-              This can happen when:
-                - the first index of a project
-                - the first index reindexing after moving the project directory
-                - the first index after the upgrade that made --dir optional
-
-              Re-run with --dir to specify the project root directory and update the settings file.
-              """
-
-            {:ok, directory} ->
-              root = Path.absname(directory)
-              Settings.set_project(settings, project, %{"root" => root})
+          case get_root(settings, project) do
+            {:ok, root} ->
               root
+
+            {:error, :not_found} ->
+              case Map.fetch(opts, :directory) do
+                {:ok, nil} ->
+                  raise """
+                  Error: the project root was not found in the settings file.
+
+                  This can happen when:
+                    - the first index of a project
+                    - the first index reindexing after moving the project directory
+                    - the first index after the upgrade that made --dir optional
+
+                  Re-run with --dir to specify the project root directory and update the settings file.
+                  """
+
+                {:ok, directory} ->
+                  root = Path.absname(directory)
+                  Settings.set_project(settings, project, %{"root" => root})
+                  root
+              end
           end
+
+        root ->
+          root
       end
 
     idx =
