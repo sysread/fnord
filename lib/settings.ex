@@ -46,8 +46,22 @@ defmodule Settings do
     |> spew()
   end
 
+  def get_project(settings, project) do
+    case get(settings, project, nil) do
+      nil -> {:error, :not_found}
+      data -> {:ok, data}
+    end
+  end
+
+  def set_project(settings, project, data) do
+    set(settings, project, data)
+  end
+
   defp slurp(settings) do
-    %Settings{settings | data: File.read!(settings.path) |> Jason.decode!()}
+    %Settings{
+      settings
+      | data: File.read!(settings.path) |> Jason.decode!()
+    }
   end
 
   defp spew(settings) do

@@ -4,6 +4,7 @@ defmodule Cmd.Indexer do
   """
 
   defstruct [
+    :opts,
     :project,
     :root,
     :store,
@@ -11,8 +12,7 @@ defmodule Cmd.Indexer do
     :reindex,
     :ai_module,
     :ai,
-    :quiet,
-    :tui
+    :quiet
   ]
 
   @doc """
@@ -22,23 +22,63 @@ defmodule Cmd.Indexer do
     concurrency = Map.get(opts, :concurrency, 1)
     reindex = Map.get(opts, :reindex, false)
     quiet = Map.get(opts, :quiet, false)
-    root = Path.absname(opts.directory)
+    project = opts.project
 
-    {:ok, tui} = Tui.start_link(opts)
+    settings = Settings.new()
 
-    idx = %__MODULE__{
-      project: opts.project,
-      root: root,
-      store: Store.new(opts.project),
-      concurrency: concurrency,
-      reindex: reindex,
-      ai_module: ai_module,
-      ai: ai_module.new(),
-      quiet: quiet,
-      tui: tui
-    }
+    root =
+      case get_root(settings, project) do
+        {:ok, root} ->
+          root
+
+        {:error, :not_found} ->
+          case Map.fetch(opts, :directory) do
+            {:ok, nil} ->
+              raise """
+              Error: the project root was not found in the settings file.
+
+              This can happen when:
+                - the first index of a project
+                - the first index reindexing after moving the project directory
+                - the first index after the upgrade that made --dir optional
+
+              Re-run with --dir to specify the project root directory and update the settings file.
+              """
+
+            {:ok, directory} ->
+              root = Path.absname(directory)
+              Settings.set_project(settings, project, %{"root" => root})
+              root
+          end
+      end
+
+    idx =
+      %__MODULE__{
+        opts: opts,
+        project: opts.project,
+        root: root,
+        store: Store.new(project),
+        concurrency: concurrency,
+        reindex: reindex,
+        ai_module: ai_module,
+        ai: ai_module.new(),
+        quiet: quiet
+      }
 
     idx
+  end
+
+  # Retrieves the project root from settings. If the project is not yet found
+  # in settings or it _is_ but the value of `"root"` is `nil`, it will return
+  # an error.
+  defp get_root(settings, project) do
+    with {:ok, info} <- Settings.get_project(settings, project),
+         {:ok, root} <- Map.fetch(info, "root") do
+      case root do
+        nil -> {:error, :not_found}
+        _ -> {:ok, Path.absname(root)}
+      end
+    end
   end
 
   @doc """
@@ -46,6 +86,8 @@ defmodule Cmd.Indexer do
   is `true`, the project will be deleted and reindexed from scratch.
   """
   def run(idx) do
+    {:ok, tui} = Tui.start_link(idx.opts)
+
     if idx.reindex do
       # Delete entire project directory when --force-reindex is passed
       status_id = Tui.add_step("Deleting all data to force full reindexing", idx.project)
@@ -87,7 +129,7 @@ defmodule Cmd.Indexer do
 
     Tui.finish_step(index_status_id, :ok)
     Tui.finish_step(bs_status_id, :ok)
-    Tui.stop(idx.tui)
+    Tui.stop(tui)
   end
 
   defp process_file(idx, file) do

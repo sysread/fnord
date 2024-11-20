@@ -39,8 +39,9 @@ defmodule Fnord do
       value_name: "DIR",
       long: "--dir",
       short: "-d",
-      help: "Directory to index",
-      required: true
+      help:
+        "Directory to index (required only for first index or reindex after moving the project directory)",
+      required: false
     ]
 
     reindex = [

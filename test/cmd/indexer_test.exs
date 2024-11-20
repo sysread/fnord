@@ -47,6 +47,42 @@ defmodule Cmd.IndexerTest do
     {:ok, home_dir: home_dir, store_dir: Path.join(home_dir, ".fnord"), project_dir: project_dir}
   end
 
+  test "--directory", %{project_dir: project_dir} do
+    # Ensure an error is raised an error if directory is not provided when the
+    # project root is not in settings.
+    raises_error =
+      try do
+        Cmd.Indexer.new(%{project: "test_project"}, MockAI)
+        false
+      rescue
+        _ -> true
+      end
+
+    assert raises_error
+
+    # This should create the settings entry
+    Cmd.Indexer.new(
+      %{
+        project: "test_project",
+        directory: project_dir
+      },
+      MockAI
+    )
+
+    # Now this should *not* raise an error
+    raises_error =
+      try do
+        Cmd.Indexer.new(%{project: "test_project"}, MockAI)
+        false
+      rescue
+        e ->
+          IO.inspect(e)
+          true
+      end
+
+    refute raises_error
+  end
+
   test "run/4", %{store_dir: store_dir, project_dir: project_dir} do
     file_1 = Path.join(project_dir, "file1.txt")
     file_2 = Path.join(project_dir, "file2.txt")
