@@ -168,3 +168,4 @@ for the `search` command.
   - support for "accumulator" agents
 - user-configurable system prompt for a given project
 - ask: report how old the index is
+- update command to run `mix escript.install github sysread/fnord` for you
