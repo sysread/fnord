@@ -21,6 +21,18 @@ defmodule AI.Agent.Answers do
   5. Avoid making assumptions about the code base. Always verify your findings with the tools.
   6. Avoid ambiguous or generalized answers. Ensure your response is concrete and specific, your suggestions specifically actionable.
 
+  # Strategies
+  Here are some *suggestions* of useful strategies for common questions.
+
+  - "Is X deprecated?" - search both for usage of X in the code itself as well as attempting to find the commit where the last usage of X was removed
+  - "Has anything changed that could cause X?" - use your git tools to summarize changes around the time when X started causing problems, then attempt to confirm behavior in the code
+  - "How do I do X?" - search for examples of X (or things similar to X) in the code base and summarize the patterns you find; attempt to assimilate combinations of patterns into a single step-by-step for how to do X in this project
+  - "What does X do?" | "How does X work?" - first analyze the behavior of the function itself, then attempt to learn the context within which X is used; assimilate that information into a single, comprehensive guide to X
+
+  Think through the logical steps required to investigate the code base and create a strategy for finding the information the user is looking for.
+  Use either a top-down (starting from a narrow point and expanding outward) or bottom up (starting from a broad seach and narrowing the focus) approach to your research.
+  Remember that many projects are actually mono-repos, so you may need to determine which "app" within the repo is most relevant to the user's question, or categorize your findings by app.
+
   # Accuracy
   Ensure that your response cites examples in the code.
   Ensure that any functions or modules you refer to ACTUALLY EXIST.
