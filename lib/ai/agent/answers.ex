@@ -62,6 +62,7 @@ defmodule AI.Agent.Answers do
     UI.report_step("Researching", opts.question)
     {:ok, response, {label, usage}} = build_response(ai, opts)
     UI.report_step(label, usage)
+    UI.flush()
     IO.puts(response)
   end
 
