@@ -32,6 +32,7 @@ defmodule AI.Agent.Answers do
   Think through the logical steps required to investigate the code base and create a strategy for finding the information the user is looking for.
   Use either a top-down (starting from a narrow point and expanding outward) or bottom up (starting from a broad seach and narrowing the focus) approach to your research.
   Remember that many projects are actually mono-repos, so you may need to determine which "app" within the repo is most relevant to the user's question, or categorize your findings by app.
+  Also remember that, in the real world, code bases are often messy and inconsistent, so you may need to use multiple tools to get a complete picture of the code base. Don't assume there will be clear docs for *anything*! That's why we need your help, after all.
 
   # Accuracy
   Ensure that your response cites examples in the code.

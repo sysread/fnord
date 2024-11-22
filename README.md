@@ -163,12 +163,8 @@ for the `search` command.
 ```
 
 # TODO
-- output formatted markdown results from `ask`
-- mitigate owl's bs; this thing is chincy af
-- I have GOT to come up with something bettern than Owl; it has SO many visual glitches, especially when there are many steps
-- restore progress display in indexer subcommand
-- nested tasks in tui
 - abstract agents out into a behaviour
-  - support for tool calls
+  ✓ support for tool calls
   - support for "accumulator" agents
 - user-configurable system prompt for a given project
+- ask: report how old the index is
