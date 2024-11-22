@@ -18,7 +18,7 @@ defmodule AI.Agent.FileSummary do
   @max_tokens 100_000
 
   @chunk_prompt """
-  You are an AI agent that summarizes the content of a file, whether it is code or documentation, like an intelligent `ctags`.
+  You are an AI agent that summarizes the content of a file, whether it is code or documentation, thoroughly documenting its internal implementation and public interface.
 
   You will process the file in chunks, each paired with an "accumulator" string to update. Each input will contain:
 
@@ -42,10 +42,13 @@ defmodule AI.Agent.FileSummary do
   ## For Code Files:
   - Synopsis: Briefly summarize the purpose of the code file.
   - Languages Present: List programming languages used.
-  - Business Logic and Behaviors: Summarize main functions, classes, and business logic. Highlight any patterns or distinctive behaviors.
+  - Public Interface: List main classes, functions, and variables that are part of the public interface. For languages that do not distinguish public and private:
+    - assume entities prefixed with an underscore are private
+    - assume entities that are not used within the file are public
+    - beyond those, use your best judgment based on the language's conventions
+  - Implementation Details: THOROUGHLY document the internal implementation, highlighting connections between components within the file
+  - Business Logic and Behaviors: Summarize the the behavior of the code from a product/feature perspective
   - Note any oddball configuration or unexpected aspects of the code or how it is organized.
-  - List of Symbols: List important classes, functions, variables, and constants, with brief descriptions.
-  - Call Graph: Use the format `FunctionA -> ModuleX:MethodY` to document inter-module calls, highlighting links relevant for understanding dependencies and functionality. Note that there should be an entry for every call a function makes to another function.
 
   ## For Documentation Files (e.g., README, Wiki Pages, General Documentation):
   - Synopsis: Summarize the document's primary purpose.
@@ -83,10 +86,13 @@ defmodule AI.Agent.FileSummary do
   ## For Code Files:
   - Synopsis: Briefly summarize the purpose of the code file.
   - Languages Present: List programming languages used.
-  - Business Logic and Behaviors: Summarize main functions, classes, and business logic. Highlight any patterns or distinctive behaviors.
+  - Public Interface: List main classes, functions, and variables that are part of the public interface. For languages that do not distinguish public and private:
+    - assume entities prefixed with an underscore are private
+    - assume entities that are not used within the file are public
+    - beyond those, use your best judgment based on the language's conventions
+  - Implementation Details: THOROUGHLY document the internal implementation, highlighting connections between components within the file
+  - Business Logic and Behaviors: Summarize the the behavior of the code from a product/feature perspective
   - Note any oddball configuration or unexpected aspects of the code or how it is organized.
-  - List of Symbols: List important classes, functions, variables, and constants, with brief descriptions.
-  - Call Graph: Use the format `FunctionA -> ModuleX:MethodY` to document inter-module calls, highlighting links relevant for understanding dependencies and functionality. Note that there should be an entry for every call a function makes to another function.
 
   Do your best to adjust each section to avoid redundancy in case the accumulated summary contains duplicate information.
 
