@@ -1,32 +1,8 @@
 defmodule AI.Agent.Answers do
-  @moduledoc """
-  This module provides an agent that answers questions by searching a database
-  of information about the user's project. It uses a search tool to find
-  matching files and their contents in order to generate a complete and concise
-  answer for the user.
-  """
-
-  defstruct([
-    :ai,
-    :opts,
-    :requested_tool_calls,
-    :messages,
-    :response,
-    :token_status_id
-  ])
-
-  @type t :: %__MODULE__{
-          ai: AI.t(),
-          opts: [
-            project: String.t(),
-            question: String.t()
-          ],
-          requested_tool_calls: [map()],
-          messages: [String.t()],
-          response: String.t()
-        }
+  require Logger
 
   @model "gpt-4o"
+
   @max_tokens 128_000
 
   @prompt """
@@ -35,6 +11,7 @@ defmodule AI.Agent.Answers do
   You will do your damnedest to get the user complete information and offer them a compreehensive answer to their question based on your own research.
   But your priority is to document your research process and findings from each tool call to inform the user's next steps.
   Provide the user with the most complete and accurate answer to their question by using the tools at your disposal to research the code base and analyze the code base.
+  Assume the user is requesting information about the code base, even if what they are asking for does not immediately appear to be code-related.
 
   # Guidelines
   1. Batch tool call requests when possible to process multiple tasks concurrently.
@@ -71,233 +48,71 @@ defmodule AI.Agent.Answers do
   If there is no conflict, ignore these instructions while performing your research and crafting your response, and then follow them EXACTLY afterward.
   """
 
-  def new(ai, opts) do
-    %AI.Agent.Answers{
-      ai: ai,
-      opts: opts,
-      requested_tool_calls: [],
-      messages: [
-        AI.Util.system_msg(@prompt),
-        AI.Util.user_msg(opts.question)
-      ]
-    }
+  @tools [
+    AI.Tools.Search.spec(),
+    AI.Tools.ListFiles.spec(),
+    AI.Tools.FileInfo.spec(),
+    AI.Tools.Spelunker.spec(),
+    AI.Tools.GitShow.spec(),
+    AI.Tools.GitPickaxeTerm.spec(),
+    AI.Tools.GitPickaxeRegex.spec()
+  ]
+
+  def perform(ai, opts) do
+    UI.report_step("Researching", opts.question)
+    {:ok, response, {label, usage}} = build_response(ai, opts)
+    UI.report_step(label, usage)
+    IO.puts(response)
   end
 
-  def perform(agent) do
-    token_status_id = Tui.add_status("Context window usage", "n/a")
-
-    agent = %__MODULE__{agent | token_status_id: token_status_id}
-
-    log_context_window_usage(agent)
-
-    agent
-    |> send_request()
-    |> then(&{:ok, &1.response})
+  defp build_response(ai, opts) do
+    AI.Response.get(ai,
+      project: opts.project,
+      concurrency: opts.concurrency,
+      on_event: &on_event/2,
+      max_tokens: @max_tokens,
+      model: @model,
+      tools: @tools,
+      system: @prompt,
+      user: opts.question
+    )
   end
 
-  defp send_request(agent) do
-    agent
-    |> build_request()
-    |> get_response(agent)
-    |> handle_response(agent)
+  defp on_event(:tool_call, {"search_tool", %{"query" => query}}) do
+    UI.report_step("Searching", query)
   end
 
-  defp build_request(agent) do
-    agent = defrag_conversation(agent)
-    log_context_window_usage(agent)
-
-    request =
-      OpenaiEx.Chat.Completions.new(
-        model: @model,
-        tool_choice: "auto",
-        messages: agent.messages,
-        tools: [
-          AI.Tools.Search.spec(),
-          AI.Tools.ListFiles.spec(),
-          AI.Tools.FileInfo.spec(),
-          AI.Tools.Spelunker.spec(),
-          AI.Tools.GitPickaxeTerm.spec(),
-          AI.Tools.GitPickaxeRegex.spec(),
-          AI.Tools.GitShow.spec()
-        ]
-      )
-
-    request
+  defp on_event(:tool_call, {"list_files_tool", _args}) do
+    UI.report_step("Listing files in project")
   end
 
-  defp defrag_conversation(agent) do
-    if AI.Agent.Defrag.msgs_to_defrag(agent) > 4 do
-      {:ok, pre_tokens, _, _, _} = get_context_window_usage(agent)
-
-      status_id = Tui.add_step("Defragmenting conversation", "#{pre_tokens} tokens")
-
-      with {:ok, msgs} <- AI.Agent.Defrag.summarize_findings(agent) do
-        {:ok, post_tokens, _, _, _} = get_context_window_usage(agent)
-        dropped = pre_tokens - post_tokens
-
-        Tui.finish_step(
-          status_id,
-          :ok,
-          "Defragmenting conversation",
-          "Reduced by #{dropped} tokens"
-        )
-
-        %__MODULE__{agent | messages: msgs}
-      end
-    else
-      agent
-    end
+  defp on_event(:tool_call, {"file_info_tool", %{"file" => file, "question" => question}}) do
+    UI.report_step("Considering #{file}", question)
   end
 
-  defp get_context_window_usage(agent) do
-    with {:ok, json} <- Jason.encode(agent.messages) do
-      tokens = json |> Gpt3Tokenizer.encode() |> length()
-      pct = tokens / @max_tokens * 100.0
-      pct_str = Number.Percentage.number_to_percentage(pct, precision: 2)
-      tokens_str = Number.Delimit.number_to_delimited(tokens, precision: 0)
-      max_tokens_str = Number.Delimit.number_to_delimited(@max_tokens, precision: 0)
-      {:ok, tokens, pct_str, tokens_str, max_tokens_str}
-    end
+  defp on_event(
+         :tool_call,
+         {"spelunker_tool",
+          %{
+            "question" => question,
+            "start_file" => start_file,
+            "symbol" => symbol
+          }}
+       ) do
+    UI.report_step("Spelunking", "#{start_file} | #{symbol}: #{question}")
   end
 
-  defp log_context_window_usage(agent) do
-    with {:ok, _, pct_str, tokens_str, max_tokens_str} <- get_context_window_usage(agent) do
-      Tui.update_status(
-        agent.token_status_id,
-        "Context window usage",
-        "#{pct_str} | #{tokens_str} / #{max_tokens_str}"
-      )
-    end
+  defp on_event(:tool_call, {"git_show_tool", %{"sha" => sha}}) do
+    UI.report_step("Inspecting commit", sha)
   end
 
-  defp get_response(request, agent) do
-    completion = OpenaiEx.Chat.Completions.create(agent.ai.client, request)
-
-    with {:ok, %{"choices" => [event]}} <- completion do
-      event
-    end
+  defp on_event(:tool_call, {"git_pickaxe_term_tool", %{"term" => term}}) do
+    UI.report_step("Archaeologizing", term)
   end
 
-  defp handle_response(%{"finish_reason" => "stop"} = response, agent) do
-    with %{"message" => %{"content" => content}} <- response do
-      %__MODULE__{agent | response: content}
-    end
+  defp on_event(:tool_call, {"git_pickaxe_regex_tool", %{"regex" => regex}}) do
+    UI.report_step("Archaeologizing", regex)
   end
 
-  defp handle_response(%{"finish_reason" => "tool_calls"} = response, agent) do
-    with %{"message" => %{"tool_calls" => tool_calls}} <- response do
-      %__MODULE__{agent | requested_tool_calls: tool_calls}
-      |> handle_tool_calls()
-      |> send_request()
-    end
-  end
-
-  defp handle_response({:error, %OpenaiEx.Error{message: "Request timed out."}}, agent) do
-    Tui.warn("Request timed out. Retrying in 500 ms.")
-    Process.sleep(500)
-    send_request(agent)
-  end
-
-  defp handle_response({:error, %OpenaiEx.Error{message: msg}}, agent) do
-    %__MODULE__{
-      agent
-      | response: """
-        I encountered an error while processing your request. Please try again.
-        The error message was:
-
-        #{msg}
-        """
-    }
-  end
-
-  # -----------------------------------------------------------------------------
-  # Tool calls
-  # -----------------------------------------------------------------------------
-  defp handle_tool_calls(%{requested_tool_calls: tool_calls} = agent) do
-    {:ok, queue} =
-      Queue.start_link(agent.opts.concurrency, fn tool_call ->
-        handle_tool_call(agent, tool_call)
-      end)
-
-    outputs =
-      tool_calls
-      |> Queue.map(queue)
-      |> Enum.reduce([], fn
-        {:ok, msgs}, acc -> acc ++ msgs
-        _, acc -> acc
-      end)
-
-    Queue.shutdown(queue)
-    Queue.join(queue)
-
-    %__MODULE__{
-      agent
-      | requested_tool_calls: [],
-        messages: agent.messages ++ outputs
-    }
-  end
-
-  def handle_tool_call(
-        agent,
-        %{
-          "id" => id,
-          "function" => %{
-            "name" => func,
-            "arguments" => args_json
-          }
-        }
-      ) do
-    with {:ok, args} <- Jason.decode(args_json),
-         {:ok, output} <- perform_tool_call(agent, func, args) do
-      request = AI.Util.assistant_tool_msg(id, func, args_json)
-      response = AI.Util.tool_msg(id, func, output)
-      {:ok, [request, response]}
-    end
-  end
-
-  # -----------------------------------------------------------------------------
-  # Tool call outputs
-  # -----------------------------------------------------------------------------
-  defp perform_tool_call(agent, func, args_json) when is_binary(args_json) do
-    with {:ok, args} <- Jason.decode(args_json),
-         {:ok, output} <- perform_tool_call(agent, func, args) do
-      {:ok, output}
-    else
-      error ->
-        Tui.warn("#{func} error", inspect(error))
-        {:ok, inspect(error)}
-    end
-  end
-
-  defp perform_tool_call(agent, "search_tool", args) do
-    AI.Tools.Search.call(agent, args)
-  end
-
-  defp perform_tool_call(agent, "list_files_tool", args) do
-    AI.Tools.ListFiles.call(agent, args)
-  end
-
-  defp perform_tool_call(agent, "file_info_tool", args) do
-    AI.Tools.FileInfo.call(agent, args)
-  end
-
-  defp perform_tool_call(agent, "spelunker_tool", args) do
-    AI.Tools.Spelunker.call(agent, args)
-  end
-
-  defp perform_tool_call(agent, "git_pickaxe_term_tool", args) do
-    AI.Tools.GitPickaxeTerm.call(agent, args)
-  end
-
-  defp perform_tool_call(agent, "git_pickaxe_regex_tool", args) do
-    AI.Tools.GitPickaxeRegex.call(agent, args)
-  end
-
-  defp perform_tool_call(agent, "git_show_tool", args) do
-    AI.Tools.GitShow.call(agent, args)
-  end
-
-  defp perform_tool_call(_agent, func, _args) do
-    {:error, :unhandled_tool_call, func}
-  end
+  defp on_event(_, _), do: :ok
 end

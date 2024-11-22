@@ -45,17 +45,10 @@ defmodule AI.Tools.GitShow do
     with {:ok, sha} <- Map.fetch(args, "sha"),
          {:ok, %{"root" => root}} <- get_root(agent.opts.project) do
       file = Map.get(args, "file", nil)
-      status_id = Tui.add_step("Inspecting commit", sha)
 
       case show(root, sha, file) do
-        {:ok, output} ->
-          Tui.finish_step(status_id, :ok)
-          {:ok, "[git_show]\n#{output}"}
-
-        {:error, output} ->
-          Tui.finish_step(status_id, :error)
-          Tui.warn("git_show error", output)
-          {:ok, "[git_show]\n#{output}"}
+        {:ok, output} -> {:ok, "[git_show]\n#{output}"}
+        {:error, output} -> {:ok, "[git_show]\n#{output}"}
       end
     end
   end

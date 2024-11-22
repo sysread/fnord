@@ -4,12 +4,16 @@ defmodule Fnord do
   search code files.
   """
 
+  require Logger
+
   @doc """
   Main entry point for the application. Parses command line arguments and
   dispatches to the appropriate subcommand.
   """
   def main(args) do
     {:ok, _} = Application.ensure_all_started(:briefly)
+
+    configure_logger()
 
     with {:ok, subcommand, opts} <- parse_options(args) do
       case subcommand do
@@ -216,5 +220,22 @@ defmodule Fnord do
       IO.ANSI.enabled?() -> opts
       true -> Map.put(opts, :quiet, true)
     end
+  end
+
+  def configure_logger do
+    {:ok, handler_config} = :logger.get_handler_config(:default)
+    updated_config = Map.update!(handler_config, :config, &Map.put(&1, :type, :standard_error))
+
+    :ok = :logger.remove_handler(:default)
+    :ok = :logger.add_handler(:default, :logger_std_h, updated_config)
+
+    :ok =
+      :logger.update_formatter_config(
+        :default,
+        :template,
+        ["[", :level, "] ", :message, "\n"]
+      )
+
+    :ok = :logger.set_primary_config(:level, :info)
   end
 end

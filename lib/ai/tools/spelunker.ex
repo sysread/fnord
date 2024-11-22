@@ -53,16 +53,13 @@ defmodule AI.Tools.Spelunker do
     with {:ok, symbol} <- Map.fetch(args, "symbol"),
          {:ok, start_file} <- Map.fetch(args, "start_file"),
          {:ok, question} <- Map.fetch(args, "question") do
-      status_id = Tui.add_step("Spelunking #{start_file}: #{symbol}", question)
-
-      result =
-        agent.ai
-        |> AI.Agent.Spelunker.new(agent.opts, symbol, start_file, question)
-        |> AI.Agent.Spelunker.trace()
-
-      Tui.finish_step(status_id, :ok)
-
-      result
+      AI.Agent.Spelunker.perform(agent.ai, %{
+        project: agent.opts.project,
+        concurrency: agent.opts.concurrency,
+        symbol: symbol,
+        start_file: start_file,
+        question: question
+      })
     end
   end
 end

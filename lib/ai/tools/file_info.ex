@@ -56,19 +56,12 @@ defmodule AI.Tools.FileInfo do
     with {:ok, question} <- Map.fetch(args, "question"),
          {:ok, file} <- Map.fetch(args, "file") do
       with {:ok, contents} <- File.read(file) do
-        status_id = Tui.add_step("Considering #{file}", question)
-
         agent.ai
         |> AI.Agent.FileInfo.new(question, contents)
         |> AI.Agent.FileInfo.get_summary()
         |> case do
-          {:ok, info} ->
-            Tui.finish_step(status_id, :ok)
-            {:ok, "[file_info_tool]\n#{info}"}
-
-          {:error, reason} ->
-            Tui.finish_step(status_id, :error, reason)
-            {:error, reason}
+          {:ok, info} -> {:ok, "[file_info_tool]\n#{info}"}
+          {:error, reason} -> {:error, reason}
         end
       else
         # File read errors are not fatal, and should be communicated to the
