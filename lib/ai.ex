@@ -107,10 +107,11 @@ defmodule AI do
     embeddings =
       AI.Util.split_text(text, @token_limit)
       |> Enum.map(fn chunk ->
-        OpenaiEx.Embeddings.create(
-          ai.client,
-          OpenaiEx.Embeddings.new(model: @model, input: chunk)
-        )
+        OpenaiEx.Embeddings.new(model: @model, input: chunk)
+      end)
+      |> Enum.map(fn request ->
+        ai.client
+        |> OpenaiEx.Embeddings.create(request)
         |> case do
           {:ok, %{"data" => [%{"embedding" => embedding}]}} -> embedding
           _ -> nil
