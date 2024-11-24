@@ -1,7 +1,6 @@
 defmodule AI.Agent.FileInfo do
   defstruct [
     :ai,
-    :project,
     :question,
     :splitter,
     :summary
@@ -71,10 +70,9 @@ defmodule AI.Agent.FileInfo do
   formatted as a list.
   """
 
-  def new(ai, project, question, file_content) do
+  def new(ai, question, file_content) do
     %__MODULE__{
       ai: ai,
-      project: project,
       question: question,
       splitter: AI.TokenSplitter.new(file_content, @max_tokens),
       summary: ""
@@ -97,7 +95,6 @@ defmodule AI.Agent.FileInfo do
 
   defp finish(agent) do
     AI.Response.get(agent.ai,
-      project: agent.project,
       model: @model,
       max_tokens: @max_tokens,
       system: @final_prompt,
@@ -115,7 +112,6 @@ defmodule AI.Agent.FileInfo do
     message = prompt <> chunk
 
     AI.Response.get(agent.ai,
-      project: agent.project,
       model: @model,
       max_tokens: @max_tokens,
       system: @chunk_prompt,

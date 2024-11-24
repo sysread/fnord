@@ -6,6 +6,9 @@ defmodule Fnord do
 
   require Logger
 
+  @default_concurrency 4
+  @default_search_limit 10
+
   @doc """
   Main entry point for the application. Parses command line arguments and
   dispatches to the appropriate subcommand.
@@ -16,6 +19,8 @@ defmodule Fnord do
     configure_logger()
 
     with {:ok, subcommand, opts} <- parse_options(args) do
+      set_globals(opts)
+
       case subcommand do
         :index -> Cmd.Indexer.new(opts) |> Cmd.Indexer.run()
         :search -> Cmd.Search.run(opts)
@@ -75,7 +80,7 @@ defmodule Fnord do
       long: "--limit",
       short: "-l",
       help: "Limit the number of results",
-      default: 10
+      default: @default_search_limit
     ]
 
     detail = [
@@ -98,7 +103,7 @@ defmodule Fnord do
       short: "-c",
       help: "Number of concurrent threads to use",
       parser: :integer,
-      default: 4
+      default: @default_concurrency
     ]
 
     question = [
@@ -237,5 +242,15 @@ defmodule Fnord do
       )
 
     :ok = :logger.set_primary_config(:level, :info)
+  end
+
+  defp set_globals(args) do
+    args
+    |> Enum.each(fn
+      {:concurrency, concurrency} -> Application.put_env(:fnord, :concurrency, concurrency)
+      {:project, project} -> Application.put_env(:fnord, :project, project)
+      {:quiet, quiet} -> Application.put_env(:fnord, :quiet, quiet)
+      _ -> :ok
+    end)
   end
 end

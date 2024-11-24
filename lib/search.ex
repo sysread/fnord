@@ -1,11 +1,9 @@
 defmodule Search do
   defstruct [
-    :project,
     :query,
     :limit,
     :detail,
     :store,
-    :concurrency,
     :index_module
   ]
 
@@ -14,12 +12,10 @@ defmodule Search do
   """
   def new(opts, index_module \\ AI) do
     %__MODULE__{
-      project: opts[:project],
       query: opts[:query],
       limit: opts[:limit],
       detail: opts[:detail],
-      store: Store.new(opts[:project]),
-      concurrency: opts[:concurrency],
+      store: Store.new(),
       index_module: index_module
     }
   end
@@ -28,7 +24,7 @@ defmodule Search do
     needle = get_query_embeddings(search.query, search.index_module)
 
     {:ok, queue} =
-      Queue.start_link(search.concurrency, fn file ->
+      Queue.start_link(fn file ->
         with {:ok, data} <- get_file_data(search, file) do
           get_score(needle, data)
           |> case do

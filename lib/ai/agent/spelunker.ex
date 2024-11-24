@@ -43,8 +43,6 @@ defmodule AI.Agent.Spelunker do
 
   defp build_response(ai, opts) do
     AI.Response.get(ai,
-      project: opts.project,
-      concurrency: opts.concurrency,
       on_event: &on_event/2,
       max_tokens: @max_tokens,
       model: @model,

@@ -20,6 +20,7 @@ defmodule SearchTest do
     vec4 = [1.0, 2.0, 3.0]
     vec5 = [4.0, 5.0, 6.0]
     similarity = Search.cosine_similarity(vec4, vec5)
+
     # Compute expected value
     dot_product = Enum.zip(vec4, vec5) |> Enum.reduce(0.0, fn {a, b}, acc -> acc + a * b end)
     magnitude1 = :math.sqrt(Enum.reduce(vec4, 0.0, fn x, acc -> acc + x * x end))

@@ -6,7 +6,6 @@ defmodule Indexer do
 
   # Args
   @type indexer :: struct()
-  @type project :: String.t()
   @type file_path :: String.t()
   @type file_content :: String.t()
 
@@ -18,8 +17,8 @@ defmodule Indexer do
   # Callbacks
   @callback new() :: indexer
   @callback get_embeddings(indexer, file_path) :: embeddings | error
-  @callback get_summary(indexer, project, file_path, file_content) :: completion | error
-  @callback get_outline(indexer, project, file_path, file_content) :: completion | error
+  @callback get_summary(indexer, file_path, file_content) :: completion | error
+  @callback get_outline(indexer, file_path, file_content) :: completion | error
 
   @behaviour Indexer
 
@@ -36,14 +35,14 @@ defmodule Indexer do
   end
 
   @impl Indexer
-  def get_summary(indexer, project, file, text) do
-    AI.Agent.FileSummary.get_summary(indexer.ai, project, file, text)
+  def get_summary(indexer, file, text) do
+    AI.Agent.FileSummary.get_summary(indexer.ai, file, text)
   end
 
   @impl Indexer
-  def get_outline(indexer, project, file_path, file_content) do
+  def get_outline(indexer, file_path, file_content) do
     indexer.ai
-    |> AI.Agent.CodeMapper.new(project, file_path, file_content)
+    |> AI.Agent.CodeMapper.new(file_path, file_content)
     |> AI.Agent.CodeMapper.get_outline()
   end
 end

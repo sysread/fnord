@@ -54,8 +54,6 @@ defmodule AI.Tools.Spelunker do
          {:ok, start_file} <- Map.fetch(args, "start_file"),
          {:ok, question} <- Map.fetch(args, "question") do
       AI.Agent.Spelunker.perform(agent.ai, %{
-        project: agent.opts.project,
-        concurrency: agent.opts.concurrency,
         symbol: symbol,
         start_file: start_file,
         question: question

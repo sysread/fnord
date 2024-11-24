@@ -54,7 +54,6 @@ defmodule AI.Tools.Search do
   # -----------------------------------------------------------------------------
   defp search(query, opts) do
     opts
-    |> Map.put(:concurrency, opts.concurrency)
     |> Map.put(:detail, true)
     |> Map.put(:limit, @max_search_results)
     |> Map.put(:query, query)

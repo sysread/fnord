@@ -9,22 +9,16 @@ defmodule Cmd.Indexer do
     :opts,
     :indexer_module,
     :indexer,
-    :project,
     :root,
     :store,
-    :concurrency,
-    :reindex,
-    :quiet
+    :reindex
   ]
 
   @doc """
   Create a new `Indexer` struct.
   """
   def new(opts, indexer \\ Indexer) do
-    concurrency = Map.get(opts, :concurrency, 1)
     reindex = Map.get(opts, :reindex, false)
-    quiet = Map.get(opts, :quiet, false)
-    project = opts.project
 
     root =
       case Map.get(opts, :directory, nil) do
@@ -34,7 +28,7 @@ defmodule Cmd.Indexer do
         nil ->
           settings = Settings.new()
 
-          case get_root(settings, project) do
+          case Settings.get_root(settings) do
             {:ok, root} ->
               root
 
@@ -52,36 +46,16 @@ defmodule Cmd.Indexer do
           end
       end
 
-    Settings.new()
-    |> Settings.set_project(project, %{"root" => root})
+    Settings.set_project(Settings.new(), %{"root" => root})
 
-    idx =
-      %__MODULE__{
-        opts: opts,
-        indexer_module: indexer,
-        indexer: indexer.new(),
-        project: opts.project,
-        root: root,
-        store: Store.new(project),
-        concurrency: concurrency,
-        reindex: reindex,
-        quiet: quiet
-      }
-
-    idx
-  end
-
-  # Retrieves the project root from settings. If the project is not yet found
-  # in settings or it _is_ but the value of `"root"` is `nil`, it will return
-  # an error.
-  defp get_root(settings, project) do
-    with {:ok, info} <- Settings.get_project(settings, project),
-         {:ok, root} <- Map.fetch(info, "root") do
-      case root do
-        nil -> {:error, :not_found}
-        _ -> {:ok, Path.absname(root)}
-      end
-    end
+    %__MODULE__{
+      opts: opts,
+      indexer_module: indexer,
+      indexer: indexer.new(),
+      root: root,
+      store: Store.new(),
+      reindex: reindex
+    }
   end
 
   @doc """
@@ -89,26 +63,25 @@ defmodule Cmd.Indexer do
   is `true`, the project will be deleted and reindexed from scratch.
   """
   def run(idx) do
+    project = Application.get_env(:fnord, :project)
+
     if idx.reindex do
       # Delete entire project directory when --force-reindex is passed
-      msg = "Deleting all embeddings to force full reindexing of #{idx.project}"
+      msg = "Deleting all embeddings to force full reindexing of #{project}"
 
-      spin(idx, msg, fn ->
+      spin(msg, fn ->
         {"Burned it all to the ground", Store.delete_project(idx.store)}
       end)
     else
       # Otherwise, just delete any files that no longer exist.
-      msg = "Deleting missing files from #{idx.project}"
+      msg = "Deleting missing files from #{project}"
 
-      spin(idx, msg, fn ->
+      spin(msg, fn ->
         {"Deleted missing files", Store.delete_missing_files(idx.store, idx.root)}
       end)
     end
 
-    {:ok, queue} =
-      Queue.start_link(idx.concurrency, fn file ->
-        process_file(idx, file)
-      end)
+    {:ok, queue} = Queue.start_link(&process_file(idx, &1))
 
     scanner =
       Scanner.new(idx.root, fn file ->
@@ -116,23 +89,23 @@ defmodule Cmd.Indexer do
       end)
 
     count =
-      spin(idx, "Scanning project files", fn ->
+      spin("Scanning project files", fn ->
         num_files = count_files_to_index(idx)
         total_files = Scanner.count_files(scanner)
         msg = "Indexing #{num_files} of #{total_files} total files"
         {msg, num_files}
       end)
 
-    spin(idx, "Indexing #{idx.project}", fn ->
+    spin("Indexing #{project}", fn ->
       # count * 3 for each step in indexing a file (summary, outline, embeddings)
-      progress_bar_start(idx, :indexing, "tasks", count * 3)
+      progress_bar_start(:indexing, "tasks", count * 3)
 
       Scanner.scan(scanner)
 
       Queue.shutdown(queue)
       Queue.join(queue)
 
-      progress_bar_end(idx)
+      progress_bar_end()
 
       {"All tasks complete", :ok}
     end)
@@ -191,14 +164,14 @@ defmodule Cmd.Indexer do
   end
 
   defp get_outline(idx, file, file_contents) do
-    res = idx.indexer_module.get_outline(idx.indexer, idx.project, file, file_contents)
-    progress_bar_update(idx, :indexing)
+    res = idx.indexer_module.get_outline(idx.indexer, file, file_contents)
+    progress_bar_update(:indexing)
     res
   end
 
   defp get_summary(idx, file, file_contents) do
-    res = idx.indexer_module.get_summary(idx.indexer, idx.project, file, file_contents)
-    progress_bar_update(idx, :indexing)
+    res = idx.indexer_module.get_summary(idx.indexer, file, file_contents)
+    progress_bar_update(:indexing)
     res
   end
 
@@ -222,7 +195,7 @@ defmodule Cmd.Indexer do
     idx.indexer_module.get_embeddings(idx.indexer, to_embed)
     |> case do
       {:ok, embeddings} ->
-        progress_bar_update(idx, :indexing)
+        progress_bar_update(:indexing)
         {:ok, embeddings}
 
       {:error, %OpenaiEx.Error{message: "Request timed out."}} ->
@@ -230,12 +203,12 @@ defmodule Cmd.Indexer do
           UI.warn("request to index file timed out, retrying", "attempt #{attempt + 1}/3")
           get_embeddings(idx, file, summary, outline, file_contents, attempt + 1)
         else
-          progress_bar_update(idx, :indexing)
+          progress_bar_update(:indexing)
           {:error, "request to index file timed out after 3 attempts"}
         end
 
       {:error, reason} ->
-        progress_bar_update(idx, :indexing)
+        progress_bar_update(:indexing)
         {:error, reason}
     end
   end
@@ -250,8 +223,10 @@ defmodule Cmd.Indexer do
   # -----------------------------------------------------------------------------
   # UI interaction
   # -----------------------------------------------------------------------------
-  defp spin(idx, processing, func) do
-    if idx.quiet do
+  defp quiet?(), do: Application.get_env(:fnord, :quiet)
+
+  defp spin(processing, func) do
+    if quiet?() do
       {_msg, result} = func.()
       result
     else
@@ -259,8 +234,8 @@ defmodule Cmd.Indexer do
     end
   end
 
-  defp progress_bar_start(idx, name, label, total) do
-    if !idx.quiet do
+  defp progress_bar_start(name, label, total) do
+    if !quiet?() do
       Owl.ProgressBar.start(
         id: name,
         label: label,
@@ -271,14 +246,14 @@ defmodule Cmd.Indexer do
     end
   end
 
-  defp progress_bar_end(idx) do
-    if !idx.quiet do
+  defp progress_bar_end() do
+    if !quiet?() do
       Owl.LiveScreen.await_render()
     end
   end
 
-  defp progress_bar_update(idx, name) do
-    if !idx.quiet do
+  defp progress_bar_update(name) do
+    if !quiet?() do
       Owl.ProgressBar.inc(id: name)
     end
   end

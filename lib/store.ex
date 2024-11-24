@@ -11,7 +11,8 @@ defmodule Store do
   @doc """
   Create a new `Store` struct.
   """
-  def new(project) do
+  def new() do
+    project = Application.get_env(:fnord, :project)
     home = Settings.home()
 
     File.mkdir_p!(home)

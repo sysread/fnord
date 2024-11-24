@@ -1,7 +1,6 @@
 defmodule AI.Agent.CodeMapper do
   defstruct [
     :ai,
-    :project,
     :file_path,
     :splitter,
     :outline
@@ -73,10 +72,9 @@ defmodule AI.Agent.CodeMapper do
   Respond ONLY with your cleaned up `Accumulated Outline` section, formatted as a text outline.
   """
 
-  def new(ai, project, file_path, file_content) do
+  def new(ai, file_path, file_content) do
     %__MODULE__{
       ai: ai,
-      project: project,
       file_path: file_path,
       splitter: AI.TokenSplitter.new(file_content, @max_tokens),
       outline: ""
@@ -99,7 +97,6 @@ defmodule AI.Agent.CodeMapper do
 
   defp finish(agent) do
     AI.Response.get(agent.ai,
-      project: agent.project,
       max_tokens: @max_tokens,
       model: @model,
       system: @final_prompt,
@@ -119,7 +116,6 @@ defmodule AI.Agent.CodeMapper do
     message = prompt <> chunk
 
     AI.Response.get(agent.ai,
-      project: agent.project,
       max_tokens: @max_tokens,
       model: @model,
       system: @chunk_prompt,

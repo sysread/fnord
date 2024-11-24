@@ -21,8 +21,8 @@ defmodule AI.Tools.ListFiles do
   end
 
   @impl AI.Tools
-  def call(agent, _args) do
-    Store.new(agent.opts.project)
+  def call(_agent, _args) do
+    Store.new()
     |> Store.list_files()
     |> Enum.join("\n")
     |> then(fn res -> {:ok, "[list_files_tool]\n#{res}"} end)

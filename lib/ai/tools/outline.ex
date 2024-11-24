@@ -27,8 +27,8 @@ defmodule AI.Tools.Outline do
   end
 
   @impl AI.Tools
-  def call(agent, args) do
-    store = Store.new(agent.opts.project)
+  def call(_agent, args) do
+    store = Store.new()
 
     with {:ok, file} <- Map.fetch(args, "file"),
          {:ok, data} <- Store.get_outline(store, file) do

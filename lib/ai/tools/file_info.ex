@@ -57,7 +57,7 @@ defmodule AI.Tools.FileInfo do
          {:ok, file} <- Map.fetch(args, "file") do
       with {:ok, contents} <- File.read(file) do
         agent.ai
-        |> AI.Agent.FileInfo.new(agent.project, question, contents)
+        |> AI.Agent.FileInfo.new(question, contents)
         |> AI.Agent.FileInfo.get_summary()
         |> then(fn {:ok, response} -> {:ok, "[file_info_tool]\n#{response}"} end)
       else

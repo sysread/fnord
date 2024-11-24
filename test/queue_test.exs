@@ -1,12 +1,11 @@
 defmodule QueueTest do
   use ExUnit.Case
+  require TestUtil
 
-  def setup do
-    {:ok}
-  end
+  TestUtil.setup_args(concurrency: 2)
 
   test "workflow", _ do
-    assert {:ok, pid} = Queue.start_link(2, &(&1 * &1))
+    assert {:ok, pid} = Queue.start_link(&(&1 * &1))
     assert Process.alive?(pid)
 
     # Test mapping a range of numbers, verify that the results are in the

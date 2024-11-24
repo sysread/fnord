@@ -1,24 +1,18 @@
 defmodule AI.Response do
-  @default_concurrency 4
-
   def get(ai, opts) do
-    with {:ok, project} <- Keyword.fetch(opts, :project),
-         {:ok, max_tokens} <- Keyword.fetch(opts, :max_tokens),
+    with {:ok, max_tokens} <- Keyword.fetch(opts, :max_tokens),
          {:ok, model} <- Keyword.fetch(opts, :model),
          {:ok, system} <- Keyword.fetch(opts, :system),
          {:ok, user} <- Keyword.fetch(opts, :user) do
       tools = Keyword.get(opts, :tools, nil)
-      concurrency = Keyword.get(opts, :concurrency, @default_concurrency) || @default_concurrency
       on_event = Keyword.get(opts, :on_event, fn _, _ -> :ok end)
 
       %{
         ai: ai,
         opts: Enum.into(opts, %{}),
-        project: project,
         max_tokens: max_tokens,
         model: model,
         tools: tools,
-        concurrency: concurrency,
         on_event: on_event,
         messages: [AI.Util.system_msg(system), AI.Util.user_msg(user)],
         tool_call_requests: [],
@@ -82,10 +76,7 @@ defmodule AI.Response do
   # Tool calls
   # -----------------------------------------------------------------------------
   defp handle_tool_calls(%{tool_call_requests: tool_calls} = state) do
-    {:ok, queue} =
-      Queue.start_link(state.concurrency, fn tool_call ->
-        handle_tool_call(state, tool_call)
-      end)
+    {:ok, queue} = Queue.start_link(&handle_tool_call(state, &1))
 
     outputs =
       tool_calls

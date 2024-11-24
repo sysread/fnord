@@ -1,5 +1,11 @@
 defmodule StoreTest do
   use ExUnit.Case
+  require TestUtil
+
+  TestUtil.setup_args(
+    project: "test_project",
+    concurrency: 1
+  )
 
   setup do
     # Create a unique temporary directory
@@ -24,7 +30,7 @@ defmodule StoreTest do
   end
 
   test "new/1 creates a new store for the project", %{tmp_dir: tmp_dir} do
-    store = Store.new("test_project")
+    store = Store.new()
     expected_path = Path.join([tmp_dir, ".fnord", "test_project"])
     assert store.project == "test_project"
     assert store.path == expected_path
@@ -33,7 +39,7 @@ defmodule StoreTest do
   end
 
   test "put/5 stores file data in the store", %{tmp_dir: tmp_dir} do
-    store = Store.new("test_project")
+    store = Store.new()
 
     file_path = Path.join(tmp_dir, "file.txt")
     File.write!(file_path, "Sample content")
@@ -86,7 +92,7 @@ defmodule StoreTest do
   end
 
   test "get/2 retrieves stored data", %{tmp_dir: tmp_dir} do
-    store = Store.new("test_project")
+    store = Store.new()
 
     file_path = Path.join(tmp_dir, "file.txt")
     File.write!(file_path, "Sample content")
@@ -112,7 +118,7 @@ defmodule StoreTest do
   end
 
   test "get_embeddings/2 retrieves embeddings", %{tmp_dir: tmp_dir} do
-    store = Store.new("test_project")
+    store = Store.new()
 
     file_path = Path.join(tmp_dir, "file.txt")
     File.write!(file_path, "Sample content")
@@ -133,7 +139,7 @@ defmodule StoreTest do
   end
 
   test "list_files/1 lists all files in the store", %{tmp_dir: tmp_dir} do
-    store = Store.new("test_project")
+    store = Store.new()
 
     file_path1 = Path.join(tmp_dir, "file1.txt")
     File.write!(file_path1, "Content 1")
@@ -154,16 +160,25 @@ defmodule StoreTest do
   end
 
   test "list_projects/0 lists all projects", _ do
-    Store.new("project1")
-    Store.new("project2")
+    project = Application.get_env(:fnord, :project)
 
-    projects = Store.list_projects()
+    try do
+      Application.put_env(:fnord, :project, "project1")
+      Store.new()
 
-    assert Enum.sort(projects) == Enum.sort(["project1", "project2"])
+      Application.put_env(:fnord, :project, "project2")
+      Store.new()
+
+      projects = Store.list_projects()
+
+      assert Enum.sort(projects) == Enum.sort(["project1", "project2"])
+    after
+      Application.put_env(:fnord, :project, project)
+    end
   end
 
   test "delete_file/2 removes file from store", %{tmp_dir: tmp_dir} do
-    store = Store.new("test_project")
+    store = Store.new()
 
     file_path = Path.join(tmp_dir, "file.txt")
     File.write!(file_path, "Sample content")
@@ -185,7 +200,7 @@ defmodule StoreTest do
   end
 
   test "delete_project/1 removes the project directory", _ do
-    store = Store.new("test_project")
+    store = Store.new()
 
     assert File.exists?(store.path)
 
@@ -195,7 +210,7 @@ defmodule StoreTest do
   end
 
   test "delete_missing_files/2 deletes missing files from store", %{tmp_dir: tmp_dir} do
-    store = Store.new("test_project")
+    store = Store.new()
 
     file_path1 = Path.join(tmp_dir, "file1.txt")
     File.write!(file_path1, "Content 1")
@@ -222,7 +237,7 @@ defmodule StoreTest do
   end
 
   test "get_hash/2 retrieves hash from stored metadata", %{tmp_dir: tmp_dir} do
-    store = Store.new("test_project")
+    store = Store.new()
 
     file_path = Path.join(tmp_dir, "file.txt")
     File.write!(file_path, "Sample content")
@@ -239,7 +254,7 @@ defmodule StoreTest do
   end
 
   test "info/2 retrieves metadata for stored file", %{tmp_dir: tmp_dir} do
-    store = Store.new("test_project")
+    store = Store.new()
 
     file_path = Path.join(tmp_dir, "file.txt")
     File.write!(file_path, "Sample content")
@@ -260,7 +275,7 @@ defmodule StoreTest do
   end
 
   test "info/2 returns error when file is not in store", %{tmp_dir: tmp_dir} do
-    store = Store.new("test_project")
+    store = Store.new()
 
     file_path = Path.join(tmp_dir, "file.txt")
     File.write!(file_path, "Sample content")
@@ -270,7 +285,7 @@ defmodule StoreTest do
   end
 
   test "get_summary/2 retrieves summary for stored file", %{tmp_dir: tmp_dir} do
-    store = Store.new("test_project")
+    store = Store.new()
 
     file_path = Path.join(tmp_dir, "file.txt")
     File.write!(file_path, "Sample content")
@@ -287,7 +302,7 @@ defmodule StoreTest do
   end
 
   test "has_summary?/2 returns true when summary exists", %{tmp_dir: tmp_dir} do
-    store = Store.new("test_project")
+    store = Store.new()
 
     file_path = Path.join(tmp_dir, "file.txt")
     File.write!(file_path, "Sample content")
@@ -303,7 +318,7 @@ defmodule StoreTest do
   end
 
   test "has_summary?/2 returns false when summary does not exist", %{tmp_dir: tmp_dir} do
-    store = Store.new("test_project")
+    store = Store.new()
 
     file_path = Path.join(tmp_dir, "file.txt")
     File.write!(file_path, "Sample content")
@@ -326,7 +341,7 @@ defmodule StoreTest do
   end
 
   test "has_outline?/2 returns true when outline exists", %{tmp_dir: tmp_dir} do
-    store = Store.new("test_project")
+    store = Store.new()
 
     file_path = Path.join(tmp_dir, "file.txt")
     File.write!(file_path, "Sample content")
@@ -342,7 +357,7 @@ defmodule StoreTest do
   end
 
   test "has_outline?/2 returns false when outline does not exist", %{tmp_dir: tmp_dir} do
-    store = Store.new("test_project")
+    store = Store.new()
 
     file_path = Path.join(tmp_dir, "file.txt")
     File.write!(file_path, "Sample content")
@@ -365,7 +380,7 @@ defmodule StoreTest do
   end
 
   test "has_embeddings?/2 returns true when embeddings exist", %{tmp_dir: tmp_dir} do
-    store = Store.new("test_project")
+    store = Store.new()
 
     file_path = Path.join(tmp_dir, "file.txt")
     File.write!(file_path, "Sample content")
@@ -385,7 +400,7 @@ defmodule StoreTest do
   end
 
   test "has_embeddings?/2 returns false when embeddings do not exist", %{tmp_dir: tmp_dir} do
-    store = Store.new("test_project")
+    store = Store.new()
 
     file_path = Path.join(tmp_dir, "file.txt")
     File.write!(file_path, "Sample content")
@@ -402,7 +417,7 @@ defmodule StoreTest do
   end
 
   test "get_outline/2 retrieves outline for stored file", %{tmp_dir: tmp_dir} do
-    store = Store.new("test_project")
+    store = Store.new()
 
     file_path = Path.join(tmp_dir, "file.txt")
     File.write!(file_path, "Sample content")
@@ -419,7 +434,7 @@ defmodule StoreTest do
   end
 
   test "get_outline/2 returns error when outline does not exist", %{tmp_dir: tmp_dir} do
-    store = Store.new("test_project")
+    store = Store.new()
 
     file_path = Path.join(tmp_dir, "file.txt")
     File.write!(file_path, "Sample content")
@@ -444,7 +459,7 @@ defmodule StoreTest do
   end
 
   test "delete_missing_files/3 calls the callback for each deleted file", %{tmp_dir: tmp_dir} do
-    store = Store.new("test_project")
+    store = Store.new()
 
     file_path1 = Path.join(tmp_dir, "file1.txt")
     File.write!(file_path1, "Content 1")

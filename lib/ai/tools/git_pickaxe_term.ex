@@ -29,18 +29,13 @@ defmodule AI.Tools.GitPickaxeTerm do
   end
 
   @impl AI.Tools
-  def call(agent, args) do
+  def call(_agent, args) do
     with {:ok, term} <- Map.fetch(args, "term"),
-         {:ok, %{"root" => root}} <- get_root(agent.opts.project) do
+         {:ok, root} <- Settings.new() |> Settings.get_root() do
       case Git.pickaxe_term(root, term) do
         {:ok, output} -> {:ok, "[git_pickaxe_term_tool]\n#{output}"}
         {:error, output} -> {:ok, "[git_pickaxe_term_tool]\n#{output}"}
       end
     end
-  end
-
-  defp get_root(project) do
-    Settings.new()
-    |> Settings.get_project(project)
   end
 end

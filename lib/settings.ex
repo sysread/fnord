@@ -46,15 +46,27 @@ defmodule Settings do
     |> spew()
   end
 
-  def get_project(settings, project) do
+  def get_project(settings) do
+    project = Application.get_env(:fnord, :project)
+
     case get(settings, project, nil) do
       nil -> {:error, :not_found}
       data -> {:ok, data}
     end
   end
 
-  def set_project(settings, project, data) do
+  def set_project(settings, data) do
+    project = Application.get_env(:fnord, :project)
     set(settings, project, data)
+  end
+
+  def get_root(settings) do
+    settings
+    |> Settings.get_project()
+    |> case do
+      {:ok, %{"root" => root}} -> {:ok, Path.absname(root)}
+      {:error, _} -> {:error, :not_found}
+    end
   end
 
   defp slurp(settings) do

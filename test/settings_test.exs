@@ -32,7 +32,7 @@ defmodule SettingsTest do
     assert Settings.settings_file() == Path.join(tmp_dir, ".fnord/settings.json")
   end
 
-  test "get/3 <-> set/3", %{tmp_dir: tmp_dir} do
+  test "get/3 <-> set/3" do
     settings = Settings.new()
 
     assert Settings.get(settings, "foo", "bar") == "bar"

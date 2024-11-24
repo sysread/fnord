@@ -6,7 +6,6 @@ defmodule AI.Agent.FileSummary do
 
   defstruct [
     :ai,
-    :project,
     :file,
     :splitter,
     :summary
@@ -110,10 +109,9 @@ defmodule AI.Agent.FileSummary do
   Respond ONLY with the final, organized summary in markdown format, excluding the "Accumulated Summary" header, following the structure for either code or documentation files. Ensure the summary is clear, concise, and includes only the relevant details from the file itself.
   """
 
-  def get_summary(ai, project, file_path, file_content) do
+  def get_summary(ai, file_path, file_content) do
     %__MODULE__{
       ai: ai,
-      project: project,
       file: file_path,
       splitter: AI.TokenSplitter.new(file_content, @max_tokens),
       summary: ""
@@ -133,7 +131,6 @@ defmodule AI.Agent.FileSummary do
 
   defp finish(agent) do
     AI.Response.get(agent.ai,
-      project: agent.project,
       max_tokens: @max_tokens,
       model: @model,
       system: @final_prompt,
@@ -151,7 +148,6 @@ defmodule AI.Agent.FileSummary do
     message = prompt <> chunk
 
     AI.Response.get(agent.ai,
-      project: agent.project,
       max_tokens: @max_tokens,
       model: @model,
       system: @chunk_prompt,

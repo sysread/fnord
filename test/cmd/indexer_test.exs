@@ -1,5 +1,11 @@
 defmodule Cmd.IndexerTest do
   use ExUnit.Case
+  require TestUtil
+
+  TestUtil.setup_args(
+    concurrency: 1,
+    quiet: true
+  )
 
   setup do
     # Save the current log level
@@ -129,12 +135,12 @@ defmodule MockIndexer do
   end
 
   @impl Indexer
-  def get_summary(_idx, _project, _file, _text) do
+  def get_summary(_idx, _file, _text) do
     {:ok, "summary"}
   end
 
   @impl Indexer
-  def get_outline(_idx, _project, _file, _text) do
+  def get_outline(_idx, _file, _text) do
     {:ok, "outline"}
   end
 end
