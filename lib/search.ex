@@ -6,13 +6,13 @@ defmodule Search do
     :detail,
     :store,
     :concurrency,
-    :ai_module
+    :index_module
   ]
 
   @doc """
   Creates a new `Search` struct with the given options.
   """
-  def new(opts, ai_module \\ AI) do
+  def new(opts, index_module \\ AI) do
     %__MODULE__{
       project: opts[:project],
       query: opts[:query],
@@ -20,12 +20,12 @@ defmodule Search do
       detail: opts[:detail],
       store: Store.new(opts[:project]),
       concurrency: opts[:concurrency],
-      ai_module: ai_module
+      index_module: index_module
     }
   end
 
   def get_results(search) do
-    needle = get_query_embeddings(search.query, search.ai_module)
+    needle = get_query_embeddings(search.query, search.index_module)
 
     {:ok, queue} =
       Queue.start_link(search.concurrency, fn file ->
@@ -64,8 +64,8 @@ defmodule Search do
     end
   end
 
-  defp get_query_embeddings(query, ai_module) do
-    {:ok, [needle]} = ai_module.get_embeddings(ai_module.new(), query)
+  defp get_query_embeddings(query, index_module) do
+    {:ok, [needle]} = index_module.get_embeddings(index_module.new(), query)
     needle
   end
 

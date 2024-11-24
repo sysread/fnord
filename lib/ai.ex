@@ -74,7 +74,7 @@ defmodule AI do
     Keyword.get(opts, :tools, nil)
     |> case do
       nil -> {:ok, []}
-      tools -> get_tools(tools: tools)
+      tools -> {:ok, [tools: tools]}
     end
   end
 
