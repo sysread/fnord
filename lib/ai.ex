@@ -19,9 +19,30 @@ defmodule AI do
   @retry_interval 250
 
   @callback new() :: struct()
-  @callback get_embeddings(struct(), String.t()) :: {:ok, [String.t()]} | {:error, term()}
-  @callback get_summary(struct(), String.t(), String.t()) :: {:ok, String.t()} | {:error, term()}
-  @callback get_outline(struct(), String.t(), String.t()) :: {:ok, String.t()} | {:error, term()}
+
+  @callback get_embeddings(
+              ai :: struct(),
+              file :: String.t()
+            ) ::
+              {:ok, [String.t()]}
+              | {:error, term()}
+
+  @callback get_summary(
+              ai :: struct(),
+              project :: String.t(),
+              file_path :: String.t(),
+              file_content :: String.t()
+            ) ::
+              {:ok, String.t()}
+              | {:error, term()}
+
+  @callback get_outline(
+              ai :: struct(),
+              file_path :: String.t(),
+              file_content :: String.t()
+            ) ::
+              {:ok, String.t()}
+              | {:error, term()}
 
   @behaviour AI
 
@@ -118,7 +139,7 @@ defmodule AI do
   @doc """
   See `AI.FileSummaryAgent.get_summary/3`.
   """
-  defdelegate get_summary(ai, file, text), to: AI.Agent.FileSummary
+  defdelegate get_summary(ai, project, file, text), to: AI.Agent.FileSummary
 
   @impl AI
   @doc """

@@ -129,7 +129,7 @@ defmodule MockAI do
   end
 
   @impl AI
-  def get_summary(_ai, _file, _text) do
+  def get_summary(_ai, _project, _file, _text) do
     {:ok, "summary"}
   end
 

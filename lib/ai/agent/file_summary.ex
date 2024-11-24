@@ -6,6 +6,7 @@ defmodule AI.Agent.FileSummary do
 
   defstruct [
     :ai,
+    :project,
     :file,
     :splitter,
     :summary
@@ -109,10 +110,11 @@ defmodule AI.Agent.FileSummary do
   Respond ONLY with the final, organized summary in markdown format, excluding the "Accumulated Summary" header, following the structure for either code or documentation files. Ensure the summary is clear, concise, and includes only the relevant details from the file itself.
   """
 
-  def get_summary(ai, file, file_content) do
+  def get_summary(ai, project, file_path, file_content) do
     %__MODULE__{
       ai: ai,
-      file: file,
+      project: project,
+      file: file_path,
       splitter: AI.TokenSplitter.new(file_content, @max_tokens),
       summary: ""
     }
@@ -130,15 +132,14 @@ defmodule AI.Agent.FileSummary do
   end
 
   defp finish(agent) do
-    AI.get_completion(agent.ai,
+    AI.Response.get(agent.ai,
+      project: agent.project,
+      max_tokens: @max_tokens,
       model: @model,
-      system_prompt: @final_prompt,
-      user_prompt: get_prompt(agent)
+      system: @final_prompt,
+      user: get_prompt(agent)
     )
-    |> case do
-      {:ok, %{"message" => %{"content" => summary}}} -> {:ok, summary}
-      {:error, reason} -> {:error, reason}
-    end
+    |> then(fn {:ok, summary, _usage} -> {:ok, summary} end)
   end
 
   defp process_chunk(agent) do
@@ -149,18 +150,16 @@ defmodule AI.Agent.FileSummary do
     agent = %{agent | splitter: splitter}
     message = prompt <> chunk
 
-    AI.get_completion(agent.ai,
+    AI.Response.get(agent.ai,
+      project: agent.project,
+      max_tokens: @max_tokens,
       model: @model,
-      system_prompt: @chunk_prompt,
-      user_prompt: message
+      system: @chunk_prompt,
+      user: message
     )
-    |> case do
-      {:ok, %{"message" => %{"content" => summary}}} ->
-        {:ok, %__MODULE__{agent | splitter: splitter, summary: summary}}
-
-      {:error, reason} ->
-        {:error, inspect(reason)}
-    end
+    |> then(fn {:ok, summary, _usage} ->
+      {:ok, %{agent | splitter: splitter, summary: summary}}
+    end)
   end
 
   defp get_prompt(agent) do

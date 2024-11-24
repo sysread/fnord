@@ -197,7 +197,7 @@ defmodule Cmd.Indexer do
   end
 
   defp get_summary(idx, file, file_contents) do
-    res = idx.ai_module.get_summary(idx.ai, file, file_contents)
+    res = idx.ai_module.get_summary(idx.ai, idx.project, file, file_contents)
     progress_bar_update(idx, :indexing)
     res
   end
