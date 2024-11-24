@@ -7,20 +7,20 @@ defmodule Cmd.Indexer do
 
   defstruct [
     :opts,
+    :indexer_module,
+    :indexer,
     :project,
     :root,
     :store,
     :concurrency,
     :reindex,
-    :ai_module,
-    :ai,
     :quiet
   ]
 
   @doc """
   Create a new `Indexer` struct.
   """
-  def new(opts, ai_module \\ AI) do
+  def new(opts, indexer \\ Indexer) do
     concurrency = Map.get(opts, :concurrency, 1)
     reindex = Map.get(opts, :reindex, false)
     quiet = Map.get(opts, :quiet, false)
@@ -58,13 +58,13 @@ defmodule Cmd.Indexer do
     idx =
       %__MODULE__{
         opts: opts,
+        indexer_module: indexer,
+        indexer: indexer.new(),
         project: opts.project,
         root: root,
         store: Store.new(project),
         concurrency: concurrency,
         reindex: reindex,
-        ai_module: ai_module,
-        ai: ai_module.new(),
         quiet: quiet
       }
 
@@ -191,13 +191,13 @@ defmodule Cmd.Indexer do
   end
 
   defp get_outline(idx, file, file_contents) do
-    res = idx.ai_module.get_outline(idx.ai, idx.project, file, file_contents)
+    res = idx.indexer_module.get_outline(idx.indexer, idx.project, file, file_contents)
     progress_bar_update(idx, :indexing)
     res
   end
 
   defp get_summary(idx, file, file_contents) do
-    res = idx.ai_module.get_summary(idx.ai, idx.project, file, file_contents)
+    res = idx.indexer_module.get_summary(idx.indexer, idx.project, file, file_contents)
     progress_bar_update(idx, :indexing)
     res
   end
@@ -219,7 +219,7 @@ defmodule Cmd.Indexer do
       ```
     """
 
-    idx.ai_module.get_embeddings(idx.ai, to_embed)
+    idx.indexer_module.get_embeddings(idx.indexer, to_embed)
     |> case do
       {:ok, embeddings} ->
         progress_bar_update(idx, :indexing)

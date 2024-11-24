@@ -59,7 +59,7 @@ defmodule Cmd.SearchTest do
     file3 = Path.join(project_dir, "file3.txt")
     File.write!(file3, "other content")
 
-    # Index the files using the Indexer with MockAIForSearch
+    # Index the files using the Indexer with MockIndexerForSearch
     idx =
       Cmd.Indexer.new(
         %{
@@ -67,7 +67,7 @@ defmodule Cmd.SearchTest do
           directory: project_dir,
           quiet: true
         },
-        MockAIForSearch
+        MockIndexerForSearch
       )
 
     Cmd.Indexer.run(idx)
@@ -84,7 +84,7 @@ defmodule Cmd.SearchTest do
     # Capture the output of the Search.run/2 function
     output =
       ExUnit.CaptureIO.capture_io(fn ->
-        Cmd.Search.run(search_opts, MockAIForSearch)
+        Cmd.Search.run(search_opts, MockIndexerForSearch)
       end)
 
     # Split the output into lines
@@ -99,18 +99,18 @@ defmodule Cmd.SearchTest do
   end
 end
 
-defmodule MockAIForSearch do
+defmodule MockIndexerForSearch do
   defstruct []
 
-  @behaviour AI
+  @behaviour Indexer
 
-  @impl AI
+  @impl Indexer
   def new() do
-    %MockAIForSearch{}
+    %MockIndexerForSearch{}
   end
 
-  @impl AI
-  def get_embeddings(_ai, text) do
+  @impl Indexer
+  def get_embeddings(_idx, text) do
     embedding =
       cond do
         String.contains?(text, "file1") ->
@@ -129,13 +129,13 @@ defmodule MockAIForSearch do
     {:ok, [embedding]}
   end
 
-  @impl AI
-  def get_summary(_ai, _project, _file, _text) do
+  @impl Indexer
+  def get_summary(_idx, _project, _file, _text) do
     {:ok, "summary"}
   end
 
-  @impl AI
-  def get_outline(_ai, _project, _file, _text) do
+  @impl Indexer
+  def get_outline(_idx, _project, _file, _text) do
     {:ok, "outline"}
   end
 end

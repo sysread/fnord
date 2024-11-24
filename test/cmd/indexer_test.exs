@@ -52,7 +52,7 @@ defmodule Cmd.IndexerTest do
     # project root is not in settings.
     raises_error =
       try do
-        Cmd.Indexer.new(%{project: "test_project"}, MockAI)
+        Cmd.Indexer.new(%{project: "test_project"}, MockIndexer)
         false
       rescue
         _ -> true
@@ -66,13 +66,13 @@ defmodule Cmd.IndexerTest do
         project: "test_project",
         directory: project_dir
       },
-      MockAI
+      MockIndexer
     )
 
     # Now this should *not* raise an error
     raises_error =
       try do
-        Cmd.Indexer.new(%{project: "test_project"}, MockAI)
+        Cmd.Indexer.new(%{project: "test_project"}, MockIndexer)
         false
       rescue
         _ -> true
@@ -100,7 +100,7 @@ defmodule Cmd.IndexerTest do
           directory: project_dir,
           quiet: true
         },
-        MockAI
+        MockIndexer
       )
 
     # Run the indexing process
@@ -113,28 +113,28 @@ defmodule Cmd.IndexerTest do
   end
 end
 
-defmodule MockAI do
+defmodule MockIndexer do
   defstruct []
 
-  @behaviour AI
+  @behaviour Indexer
 
-  @impl AI
+  @impl Indexer
   def new() do
-    %MockAI{}
+    %MockIndexer{}
   end
 
-  @impl AI
-  def get_embeddings(_ai, _text) do
+  @impl Indexer
+  def get_embeddings(_idx, _text) do
     {:ok, ["embedding1", "embedding2"]}
   end
 
-  @impl AI
-  def get_summary(_ai, _project, _file, _text) do
+  @impl Indexer
+  def get_summary(_idx, _project, _file, _text) do
     {:ok, "summary"}
   end
 
-  @impl AI
-  def get_outline(_ai, _project, _file, _text) do
+  @impl Indexer
+  def get_outline(_idx, _project, _file, _text) do
     {:ok, "outline"}
   end
 end

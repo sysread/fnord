@@ -18,36 +18,6 @@ defmodule AI do
   @default_max_attempts 3
   @retry_interval 250
 
-  @callback new() :: struct()
-
-  @callback get_embeddings(
-              ai :: struct(),
-              file :: String.t()
-            ) ::
-              {:ok, [String.t()]}
-              | {:error, term()}
-
-  @callback get_summary(
-              ai :: struct(),
-              project :: String.t(),
-              file_path :: String.t(),
-              file_content :: String.t()
-            ) ::
-              {:ok, String.t()}
-              | {:error, term()}
-
-  @callback get_outline(
-              ai :: struct(),
-              project :: String.t(),
-              file_path :: String.t(),
-              file_content :: String.t()
-            ) ::
-              {:ok, String.t()}
-              | {:error, term()}
-
-  @behaviour AI
-
-  @impl AI
   @doc """
   Create a new AI instance. Instances share the same client connection.
   """
@@ -122,33 +92,5 @@ defmodule AI do
       {:error, %OpenaiEx.Error{message: msg}} ->
         {:error, msg}
     end
-  end
-
-  # -----------------------------------------------------------------------------
-  # Embeddings
-  # -----------------------------------------------------------------------------
-  @impl AI
-  @doc """
-  See `AI.EmbeddingsAgent.get_embeddings/2`.
-  """
-  defdelegate get_embeddings(ai, text), to: AI.Agent.Embeddings
-
-  # -----------------------------------------------------------------------------
-  # Summaries
-  # -----------------------------------------------------------------------------
-  @impl AI
-  @doc """
-  See `AI.FileSummaryAgent.get_summary/3`.
-  """
-  defdelegate get_summary(ai, project, file, text), to: AI.Agent.FileSummary
-
-  @impl AI
-  @doc """
-  See `AI.Agent.CodeMapperAgent`.
-  """
-  def get_outline(ai, project, file_path, file_content) do
-    ai
-    |> AI.Agent.CodeMapper.new(project, file_path, file_content)
-    |> AI.Agent.CodeMapper.get_outline()
   end
 end
