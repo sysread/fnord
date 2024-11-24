@@ -32,7 +32,7 @@ defmodule Indexer do
 
   @impl Indexer
   def get_embeddings(indexer, text) do
-    AI.Agent.Embeddings.get_embeddings(indexer.ai, text)
+    AI.get_embeddings(indexer.ai, text)
   end
 
   @impl Indexer
