@@ -230,10 +230,12 @@ defmodule Cmd.Indexer do
           UI.warn("request to index file timed out, retrying", "attempt #{attempt + 1}/3")
           get_embeddings(idx, file, summary, outline, file_contents, attempt + 1)
         else
+          progress_bar_update(idx, :indexing)
           {:error, "request to index file timed out after 3 attempts"}
         end
 
       {:error, reason} ->
+        progress_bar_update(idx, :indexing)
         {:error, reason}
     end
   end

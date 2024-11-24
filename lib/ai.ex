@@ -55,9 +55,9 @@ defmodule AI do
   end
 
   defp get_completion(ai, request, max, attempt) do
-    completion = OpenaiEx.Chat.Completions.create(ai.client, request)
-
-    case completion do
+    ai.client
+    |> OpenaiEx.Chat.Completions.create(request)
+    |> case do
       {:ok, %{"choices" => [event]}} ->
         {:ok, event}
 
@@ -103,22 +103,43 @@ defmodule AI do
   tokens to avoid exceeding the model's input limit. Returns a list of
   embeddings for each chunk.
   """
-  def get_embeddings(ai, text) do
-    embeddings =
-      AI.Util.split_text(text, @token_limit)
-      |> Enum.map(fn chunk ->
-        OpenaiEx.Embeddings.new(model: @model, input: chunk)
-      end)
-      |> Enum.map(fn request ->
-        ai.client
-        |> OpenaiEx.Embeddings.create(request)
-        |> case do
-          {:ok, %{"data" => [%{"embedding" => embedding}]}} -> embedding
-          _ -> nil
-        end
-      end)
-      |> Enum.filter(fn x -> not is_nil(x) end)
+  def get_embeddings(ai, text, options \\ []) do
+    max = Keyword.get(options, :attempts, @default_max_attempts)
 
-    {:ok, embeddings}
+    text
+    |> AI.Util.split_text(@token_limit)
+    |> Enum.map(&OpenaiEx.Embeddings.new(model: @model, input: &1))
+    |> Enum.reduce_while([], fn request, embeddings ->
+      ai
+      |> get_embedding(request, max, 1)
+      |> case do
+        {:ok, embedding} -> {:cont, [embedding | embeddings]}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+    |> case do
+      {:error, reason} -> {:error, reason}
+      embeddings -> {:ok, Enum.reverse(embeddings)}
+    end
+  end
+
+  defp get_embedding(_ai, _request, max, attempt) when attempt > max do
+    {:error, "Request timed out after #{attempt} attempts."}
+  end
+
+  defp get_embedding(ai, request, max, attempt) do
+    ai.client
+    |> OpenaiEx.Embeddings.create(request)
+    |> case do
+      {:ok, %{"data" => [%{"embedding" => embedding}]}} ->
+        {:ok, embedding}
+
+      {:error, %OpenaiEx.Error{message: "Request timed out."}} ->
+        Process.sleep(@retry_interval)
+        get_embedding(ai, request, max, attempt + 1)
+
+      {:error, %OpenaiEx.Error{message: msg}} ->
+        {:error, msg}
+    end
   end
 end
