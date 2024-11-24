@@ -38,6 +38,7 @@ defmodule AI do
 
   @callback get_outline(
               ai :: struct(),
+              project :: String.t(),
               file_path :: String.t(),
               file_content :: String.t()
             ) ::
@@ -145,9 +146,9 @@ defmodule AI do
   @doc """
   See `AI.Agent.CodeMapperAgent`.
   """
-  def get_outline(ai, file_path, file_content) do
+  def get_outline(ai, project, file_path, file_content) do
     ai
-    |> AI.Agent.CodeMapper.new(file_path, file_content)
+    |> AI.Agent.CodeMapper.new(project, file_path, file_content)
     |> AI.Agent.CodeMapper.get_outline()
   end
 end

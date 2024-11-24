@@ -135,7 +135,7 @@ defmodule MockAIForSearch do
   end
 
   @impl AI
-  def get_outline(_ai, _file, _text) do
+  def get_outline(_ai, _project, _file, _text) do
     {:ok, "outline"}
   end
 end

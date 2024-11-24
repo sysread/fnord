@@ -1,6 +1,7 @@
 defmodule AI.Agent.CodeMapper do
   defstruct [
     :ai,
+    :project,
     :file_path,
     :splitter,
     :outline
@@ -72,9 +73,10 @@ defmodule AI.Agent.CodeMapper do
   Respond ONLY with your cleaned up `Accumulated Outline` section, formatted as a text outline.
   """
 
-  def new(ai, file_path, file_content) do
+  def new(ai, project, file_path, file_content) do
     %__MODULE__{
       ai: ai,
+      project: project,
       file_path: file_path,
       splitter: AI.TokenSplitter.new(file_content, @max_tokens),
       outline: ""
@@ -96,15 +98,16 @@ defmodule AI.Agent.CodeMapper do
   end
 
   defp finish(agent) do
-    AI.get_completion(agent.ai,
+    AI.Response.get(agent.ai,
+      project: agent.project,
+      max_tokens: @max_tokens,
       model: @model,
-      system_prompt: @final_prompt,
-      user_prompt: get_prompt(agent)
+      system: @final_prompt,
+      user: get_prompt(agent)
     )
-    |> case do
-      {:ok, %{"message" => %{"content" => outline}}} -> {:ok, outline}
-      {:error, reason} -> {:error, reason}
-    end
+    |> then(fn {:ok, response, _usage} ->
+      {:ok, response}
+    end)
   end
 
   defp process_chunk(agent) do
@@ -115,18 +118,16 @@ defmodule AI.Agent.CodeMapper do
     agent = %{agent | splitter: splitter}
     message = prompt <> chunk
 
-    AI.get_completion(agent.ai,
+    AI.Response.get(agent.ai,
+      project: agent.project,
+      max_tokens: @max_tokens,
       model: @model,
-      system_prompt: @chunk_prompt,
-      user_prompt: message
+      system: @chunk_prompt,
+      user: message
     )
-    |> case do
-      {:ok, %{"message" => %{"content" => outline}}} ->
-        {:ok, %__MODULE__{agent | splitter: splitter, outline: outline}}
-
-      {:error, reason} ->
-        {:error, inspect(reason)}
-    end
+    |> then(fn {:ok, outline, _usage} ->
+      {:ok, %__MODULE__{agent | splitter: splitter, outline: outline}}
+    end)
   end
 
   defp get_prompt(agent) do
