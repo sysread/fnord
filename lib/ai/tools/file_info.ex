@@ -57,12 +57,9 @@ defmodule AI.Tools.FileInfo do
          {:ok, file} <- Map.fetch(args, "file") do
       with {:ok, contents} <- File.read(file) do
         agent.ai
-        |> AI.Agent.FileInfo.new(question, contents)
+        |> AI.Agent.FileInfo.new(agent.project, question, contents)
         |> AI.Agent.FileInfo.get_summary()
-        |> case do
-          {:ok, info} -> {:ok, "[file_info_tool]\n#{info}"}
-          {:error, reason} -> {:error, reason}
-        end
+        |> then(fn {:ok, response} -> {:ok, "[file_info_tool]\n#{response}"} end)
       else
         # File read errors are not fatal, and should be communicated to the
         # Answers Agent.

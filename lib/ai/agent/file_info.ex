@@ -1,6 +1,7 @@
 defmodule AI.Agent.FileInfo do
   defstruct [
     :ai,
+    :project,
     :question,
     :splitter,
     :summary
@@ -70,9 +71,10 @@ defmodule AI.Agent.FileInfo do
   formatted as a list.
   """
 
-  def new(ai, question, file_content) do
+  def new(ai, project, question, file_content) do
     %__MODULE__{
       ai: ai,
+      project: project,
       question: question,
       splitter: AI.TokenSplitter.new(file_content, @max_tokens),
       summary: ""
@@ -94,15 +96,14 @@ defmodule AI.Agent.FileInfo do
   end
 
   defp finish(agent) do
-    AI.get_completion(agent.ai,
+    AI.Response.get(agent.ai,
+      project: agent.project,
       model: @model,
-      system_prompt: @final_prompt,
-      user_prompt: get_prompt(agent)
+      max_tokens: @max_tokens,
+      system: @final_prompt,
+      user: get_prompt(agent)
     )
-    |> case do
-      {:ok, %{"message" => %{"content" => summary}}} -> {:ok, summary}
-      {:error, reason} -> {:error, reason}
-    end
+    |> then(fn {:ok, summary, _usage} -> {:ok, summary} end)
   end
 
   defp process_chunk(agent) do
@@ -113,18 +114,16 @@ defmodule AI.Agent.FileInfo do
     agent = %{agent | splitter: splitter}
     message = prompt <> chunk
 
-    AI.get_completion(agent.ai,
+    AI.Response.get(agent.ai,
+      project: agent.project,
       model: @model,
-      system_prompt: @chunk_prompt,
-      user_prompt: message
+      max_tokens: @max_tokens,
+      system: @chunk_prompt,
+      user: message
     )
-    |> case do
-      {:ok, %{"message" => %{"content" => summary}}} ->
-        {:ok, %__MODULE__{agent | splitter: splitter, summary: summary}}
-
-      {:error, reason} ->
-        {:error, reason}
-    end
+    |> then(fn {:ok, summary, _usage} ->
+      {:ok, %__MODULE__{agent | splitter: splitter, summary: summary}}
+    end)
   end
 
   defp get_prompt(agent) do
