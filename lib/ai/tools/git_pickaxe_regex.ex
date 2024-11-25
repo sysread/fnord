@@ -13,6 +13,10 @@ defmodule AI.Tools.GitPickaxeRegex do
         base, determine when a bug might have been introduced, or to confirm
         that seemingly orphaned code is no longer in use (when combined with
         the search_tool).
+
+        This differs from the git_pickaxe_term_tool in that it uses `git log
+        -G`, so ANY changes matching your regex are returned, not just those
+        that added or removed the term.
         """,
         parameters: %{
           type: "object",
