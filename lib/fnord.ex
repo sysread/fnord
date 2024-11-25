@@ -200,7 +200,8 @@ defmodule Fnord do
             name: "ask",
             about: "Ask the AI a question about the project",
             options: [concurrency: concurrency],
-            args: [project: project, question: question]
+            args: [project: project, question: question],
+            flags: [quiet: quiet]
           ],
           search: [
             name: "search",

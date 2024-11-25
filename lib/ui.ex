@@ -2,32 +2,48 @@ defmodule UI do
   require Logger
 
   def flush do
-    Logger.flush()
+    unless quiet?() do
+      Logger.flush()
+    end
   end
 
   def report_step(msg, detail) do
-    Logger.info(IO.ANSI.format([:green, msg, :reset, ": ", :cyan, detail, :reset], colorize?()))
+    unless quiet?() do
+      Logger.info(IO.ANSI.format([:green, msg, :reset, ": ", :cyan, detail, :reset], colorize?()))
+    end
   end
 
   def report_step(msg) do
-    Logger.info(IO.ANSI.format([:green, msg, :reset], colorize?()))
+    unless quiet?() do
+      Logger.info(IO.ANSI.format([:green, msg, :reset], colorize?()))
+    end
   end
 
   def debug_msg(msg) do
-    Logger.debug(IO.ANSI.format([:green, msg, :reset, colorize?()]))
+    unless quiet?() do
+      Logger.debug(IO.ANSI.format([:green, msg, :reset, colorize?()]))
+    end
   end
 
   def warn(msg, detail) do
-    Logger.warning(
-      IO.ANSI.format([:yellow, msg, :reset, ": ", :cyan, detail, :reset], colorize?())
-    )
+    unless quiet?() do
+      Logger.warning(
+        IO.ANSI.format([:yellow, msg, :reset, ": ", :cyan, detail, :reset], colorize?())
+      )
+    end
   end
 
   def warn(msg) do
-    Logger.warning(IO.ANSI.format([:yellow, msg, :reset, colorize?()]))
+    unless quiet?() do
+      Logger.warning(IO.ANSI.format([:yellow, msg, :reset, colorize?()]))
+    end
   end
 
-  def colorize? do
+  defp colorize? do
     :prim_tty.isatty(:stderr)
+  end
+
+  defp quiet? do
+    Application.get_env(:fnord, :quiet, false)
   end
 end
