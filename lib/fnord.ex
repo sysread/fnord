@@ -4,8 +4,6 @@ defmodule Fnord do
   search code files.
   """
 
-  require Logger
-
   @default_concurrency 4
   @default_search_limit 10
 
@@ -63,7 +61,8 @@ defmodule Fnord do
     quiet = [
       long: "--quiet",
       short: "-q",
-      help: "Suppress interactive output",
+      help:
+        "Suppress interactive output; this is automatically enabled when executed in a pipe or subshell",
       required: false
     ]
 
@@ -125,76 +124,110 @@ defmodule Fnord do
       Optimus.new!(
         name: "fnord",
         description: "fnord - intelligent code index and search",
-        about: "Index and search code files",
+        about: """
+
+        | SYNOPSIS
+
+        fnord is a code search tool and on-demand wiki for your code base. It
+        uses OpenAI's API to generated embeddings and summaries of all text
+        files in your project. You can then perform semantic searches against
+        your code base or ask the AI questions about your code.
+
+        | INDEXING A PROJECT
+
+        Index a project for the first time or after moving the project
+        directory. You must specify the project name and the directory to
+        index. The directory is only required for the first index or after
+        moving the project directory.
+
+        The first time you run this, it will take a while, but subseuqent runs
+        will only index new or changed files, and will delete files that no
+        longer exist in the project directory. You can override this behavior
+        and force a full reindex with the --reindex flag.
+
+        You can control the number of concurrent API requests with the
+        --concurrency flag. The default is 4.
+
+          $ fnord index --project my_project --dir /path/to/my_project --concurrency 8
+
+        | SEMANTIC SEARCH
+
+          $ fnord search --project my_project --query "web service api routes"
+
+        | CONVERSATIONAL INTERFACE
+
+        Note the shorthand syntax for the project and question. The AI
+        assistant may make multiple API requests as it uses the tools provided
+        by fnord to perform research tasks within the project.
+
+          $ fnord ask my_project "How do I add a new route to the external API?"
+
+        Informational log output (which can be silenced with --quiet or by
+        controlling the LOGGER_LEVEL) is emitted to STDERR. The AI's final
+        response is printed to STDOUT, allowing you to pipe the output to other
+        tools while still observing the research process.
+
+          $ fnord ask my_project "How do I add a new route to the external API?" | glow -w140
+
+        | FILE SUMMARIES
+
+        When indexing the project, fnord generates a summary of each file to
+        supplement semantic search and preempt some proportion of requests that
+        the AI must make when answering question. The summary is typically a
+        behavioral description of the file. To view the summary generated
+        during the last index:
+
+          $ fnord summary --project my_project --file /path/to/my_project/lib/my_module.ex
+
+        | CONTROL THE LOG LEVEL
+
+        fnord uses the erlang logger to emit informational messages to STDERR.
+        You can control the log level if desired with the LOGGER_LEVEL
+        environment variable.
+
+          $ LOGGER_LEVEL=error fnord index --project my_project --dir /path/to/my_project
+        """,
         allow_unknown_args: false,
         version: get_version(),
         subcommands: [
+          index: [
+            name: "index",
+            about: "Index a project",
+            options: [directory: directory, project: project, concurrency: concurrency],
+            flags: [reindex: reindex, quiet: quiet]
+          ],
+          ask: [
+            name: "ask",
+            about: "Ask the AI a question about the project",
+            options: [concurrency: concurrency],
+            args: [project: project, question: question]
+          ],
+          search: [
+            name: "search",
+            about: "Perform a semantic search within a project",
+            options: [project: project, query: query, limit: limit, concurrency: concurrency],
+            flags: [detail: detail]
+          ],
+          summary: [
+            name: "summary",
+            about: "Retrieve the AI-generated file summary used when indexing the file",
+            options: [project: project, file: file]
+          ],
           projects: [
             name: "projects",
-            about: "List all projects",
+            about: "Lists all projects",
             options: []
           ],
           files: [
             name: "files",
-            about: "List files in a project",
-            options: [
-              project: project
-            ],
-            flags: [
-              relpath: relpath
-            ]
+            about: "Lists all indexed files in a project",
+            options: [project: project],
+            flags: [relpath: relpath]
           ],
           torch: [
             name: "torch",
-            about: "Delete a previously indexed project from the database",
-            options: [
-              project: project
-            ]
-          ],
-          index: [
-            name: "index",
-            about: "Index the directory",
-            options: [
-              directory: directory,
-              project: project,
-              concurrency: concurrency
-            ],
-            flags: [
-              reindex: reindex,
-              quiet: quiet
-            ]
-          ],
-          search: [
-            name: "search",
-            about: "Search in the project",
-            options: [
-              project: project,
-              query: query,
-              limit: limit,
-              concurrency: concurrency
-            ],
-            flags: [
-              detail: detail
-            ]
-          ],
-          summary: [
-            name: "summary",
-            about: "Get a summary of a file from the project index",
-            options: [
-              project: project,
-              file: file
-            ]
-          ],
-          ask: [
-            name: "ask",
-            about: "Conversational interface to the project database",
-            options: [
-              concurrency: concurrency
-            ],
-            args: [
-              project: project,
-              question: question
-            ]
+            about: "Deletes a previously indexed project from the database",
+            options: [project: project]
           ]
         ]
       )

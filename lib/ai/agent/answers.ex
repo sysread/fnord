@@ -1,6 +1,4 @@
 defmodule AI.Agent.Answers do
-  require Logger
-
   @model "gpt-4o"
 
   @max_tokens 128_000

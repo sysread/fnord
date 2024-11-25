@@ -1,6 +1,4 @@
 defmodule AI.Agent.Spelunker do
-  require Logger
-
   defstruct [
     :ai,
     :opts,

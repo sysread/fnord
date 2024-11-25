@@ -3,8 +3,6 @@ defmodule Cmd.Indexer do
   This module provides the functionality for the `index` sub-command.
   """
 
-  require Logger
-
   defstruct [
     :opts,
     :indexer_module,
