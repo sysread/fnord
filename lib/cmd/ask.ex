@@ -5,9 +5,6 @@ defmodule Cmd.Ask do
     else
       {:error, :project_not_found} ->
         UI.error("Project not found; verify that the project has been indexed.")
-
-      {:error, reason} ->
-        UI.error(reason)
     end
   end
 
