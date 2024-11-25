@@ -120,7 +120,7 @@ defmodule AI.Agent.Answers do
   end
 
   defp on_event(:tool_call, {"git_pickaxe_tool", %{"regex" => regex}}) do
-    UI.report_step("Archaeologizing add/removal of", regex)
+    UI.report_step("Archaeologizing", regex)
   end
 
   defp on_event(_, _), do: :ok
