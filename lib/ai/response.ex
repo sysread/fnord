@@ -105,6 +105,8 @@ defmodule AI.Response do
       ) do
     request = AI.Util.assistant_tool_msg(id, func, args_json)
 
+    UI.debug("TOOL CALL ID=#{id} FUNC=#{func} ARGS=#{args_json}")
+
     with {:ok, output} <- perform_tool_call(state, func, args_json) do
       response = AI.Util.tool_msg(id, func, output)
       {:ok, [request, response]}

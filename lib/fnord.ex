@@ -275,7 +275,11 @@ defmodule Fnord do
         ["[", :level, "] ", :message, "\n"]
       )
 
-    :ok = :logger.set_primary_config(:level, :info)
+    logger_level =
+      System.get_env("LOGGER_LEVEL", "info")
+      |> String.to_existing_atom()
+
+    :ok = :logger.set_primary_config(:level, logger_level)
   end
 
   defp set_globals(args) do

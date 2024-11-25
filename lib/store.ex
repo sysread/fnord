@@ -27,6 +27,24 @@ defmodule Store do
   end
 
   @doc """
+  Returns true if the selected project exists in the store. A project exists
+  in the store if:
+  1. The project directory exists in the store.
+  2. There are entries in the project directory.
+  """
+  def project_exists?() do
+    project = Application.get_env(:fnord, :project)
+    path = Path.join(Settings.home(), project)
+    files = Path.wildcard(Path.join(path, "*"))
+
+    cond do
+      !File.dir?(path) -> false
+      Enum.empty?(files) -> false
+      true -> true
+    end
+  end
+
+  @doc """
   Permanently deletes the specified project's index directory and all its
   contents.
   """
