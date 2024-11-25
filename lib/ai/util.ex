@@ -17,18 +17,6 @@ defmodule AI.Util do
   end
 
   # -----------------------------------------------------------------------------
-  # Models
-  # -----------------------------------------------------------------------------
-  @type model :: %{
-          name: String.t(),
-          context_window: non_neg_integer
-        }
-
-  def model(:smart), do: {:ok, %{name: "gpt-4o", context_window: 128_000}}
-  def model(:fast), do: {:ok, %{name: "gpt-4o-mini", context_window: 128_000}}
-  def model(:embed), do: {:ok, %{name: "text-embedding-3-large", context_window: 8192}}
-
-  # -----------------------------------------------------------------------------
   # Messages
   # -----------------------------------------------------------------------------
   @type msg :: %{
