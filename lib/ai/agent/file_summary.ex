@@ -36,6 +36,7 @@ defmodule AI.Agent.FileSummary do
   - Structure and Continuity: Preserve the structure of the summary, maintaining a coherent flow for cross-referencing across chunks.
   - Mark Incomplete Sections: If a section seems incomplete, label it `<partial>` to complete later.
   - Avoid Redundancy: Avoid duplicating details already present unless it clarifies key linkages or structure.
+  - Semantic Search Optimization: Create a list of questions that can be answered by the content of the file.
 
   Based on the file type, update the accumulated summary as follows:
 
@@ -49,6 +50,7 @@ defmodule AI.Agent.FileSummary do
   - Implementation Details: THOROUGHLY document the internal implementation, highlighting connections between components within the file
   - Business Logic and Behaviors: Summarize the the behavior of the code from a product/feature perspective
   - Note any oddball configuration or unexpected aspects of the code or how it is organized.
+  - List any questions that can be answered by the content of the file.
 
   ## For Documentation Files (e.g., README, Wiki Pages, General Documentation):
   - Synopsis: Summarize the document's primary purpose.
@@ -56,6 +58,7 @@ defmodule AI.Agent.FileSummary do
   - Definitions and Key Terms: Note specialized terms and definitions.
   - Links and References: Include any links or references, especially to related files, modules, or external resources.
   - Key Points and Highlights: Summarize main points, noting insights that would aid semantic search.
+  - List any questions that can be answered by the content of the file.
 
   Only use information from the file itself to ensure accurate summaries without false positives from external sources.
 
@@ -78,7 +81,8 @@ defmodule AI.Agent.FileSummary do
   - Reorganize for Clarity: Organize content logically, ensuring all details flow smoothly and follow the structure below.
   - Eliminate Redundancy: Avoid duplicate information or unnecessary repetition from the accumulated notes.
   - Ensure Completeness: Ensure all sections and details are covered, completing any previously marked `<partial>` sections.
-  - Optimize for Semantic Matching: Select details that best support semantic search, especially key linkages between code or document topics.
+  - Optimize Details for Semantic Matching: Select details that best support semantic search, especially key linkages between code or document topics.
+  - Semantic Search Optimization: Create a list of questions that can be answered by the content of the file.
 
   # Final Summary Structure
   Based on the file type (Code or Documentation), structure your final summary as follows:
@@ -93,6 +97,7 @@ defmodule AI.Agent.FileSummary do
   - Implementation Details: THOROUGHLY document the internal implementation, highlighting connections between components within the file
   - Business Logic and Behaviors: Summarize the the behavior of the code from a product/feature perspective
   - Note any oddball configuration or unexpected aspects of the code or how it is organized.
+  - List any questions that can be answered by the content of the file.
 
   Do your best to adjust each section to avoid redundancy in case the accumulated summary contains duplicate information.
 
@@ -102,6 +107,7 @@ defmodule AI.Agent.FileSummary do
   - Definitions and Key Terms: Note specialized terms and definitions.
   - Links and References: Include any links or references, especially to related files, modules, or external resources.
   - Key Points and Highlights: Summarize main points, noting insights that would aid semantic search.
+  - List any questions that can be answered by the content of the file.
 
   Do your best to adjust each section to avoid redundancy in case the accumulated summary contains duplicate information.
 

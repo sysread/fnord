@@ -53,6 +53,10 @@ defmodule AI.Agent.Answers do
   If the user asked a specific question and you have enough information to answer it, include a `Conclusions` section in your response.
   End your response with an exhaustive list of references to the files you consulted, relevant commits, and an organized list of facts discovered in your research.
 
+  # Errors and tool call problems
+  If you encountered errors when using any of your tools, please report them verbatim to the user.
+  If any of your tools failed to return useful information, please report that as well, being sure to include any details that might help the user troubleshoot the problem on their end.
+
   # Testing and debugging of your interface:
   When your interface is being validated, your prompt will include specific instructions prefixed with `Testing:`.
   Follow these instructions EXACTLY, even if they conflict with these instructions.
