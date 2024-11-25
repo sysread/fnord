@@ -38,26 +38,18 @@ defmodule AI.Response do
   # Response handling
   # -----------------------------------------------------------------------------
   defp send_request(state) do
-    AI.get_completion(state.ai,
-      model: state.model,
-      messages: state.messages,
-      tools: state.tools
-    )
+    AI.get_completion(state.ai, state.model, state.messages, state.tools)
     |> handle_response(state)
   end
 
-  defp handle_response({:ok, %{"finish_reason" => "stop"} = response}, state) do
-    with %{"message" => %{"content" => content}} <- response do
-      %{state | response: content}
-    end
+  defp handle_response({:ok, :msg, response}, state) do
+    %{state | response: response}
   end
 
-  defp handle_response({:ok, %{"finish_reason" => "tool_calls"} = response}, state) do
-    with %{"message" => %{"tool_calls" => tool_calls}} <- response do
-      %{state | tool_call_requests: tool_calls}
-      |> handle_tool_calls()
-      |> send_request()
-    end
+  defp handle_response({:ok, :tool, tool_calls}, state) do
+    %{state | tool_call_requests: tool_calls}
+    |> handle_tool_calls()
+    |> send_request()
   end
 
   defp handle_response({:error, reason}, state) do
@@ -93,16 +85,7 @@ defmodule AI.Response do
     }
   end
 
-  def handle_tool_call(
-        state,
-        %{
-          "id" => id,
-          "function" => %{
-            "name" => func,
-            "arguments" => args_json
-          }
-        }
-      ) do
+  def handle_tool_call(state, %{id: id, function: %{name: func, arguments: args_json}}) do
     request = AI.Util.assistant_tool_msg(id, func, args_json)
 
     UI.debug("TOOL CALL ID=#{id} FUNC=#{func} ARGS=#{args_json}")

@@ -177,7 +177,7 @@ defmodule Cmd.Indexer do
     res
   end
 
-  defp get_embeddings(idx, file, summary, outline, file_contents, attempt \\ 0) do
+  defp get_embeddings(idx, file, summary, outline, file_contents) do
     to_embed = """
       # File
       `#{file}`
@@ -194,25 +194,9 @@ defmodule Cmd.Indexer do
       ```
     """
 
-    idx.indexer_module.get_embeddings(idx.indexer, to_embed)
-    |> case do
-      {:ok, embeddings} ->
-        progress_bar_update(:indexing)
-        {:ok, embeddings}
-
-      {:error, %OpenaiEx.Error{message: "Request timed out."}} ->
-        if attempt < 3 do
-          UI.warn("request to index file timed out, retrying", "attempt #{attempt + 1}/3")
-          get_embeddings(idx, file, summary, outline, file_contents, attempt + 1)
-        else
-          progress_bar_update(:indexing)
-          {:error, "request to index file timed out after 3 attempts"}
-        end
-
-      {:error, reason} ->
-        progress_bar_update(:indexing)
-        {:error, reason}
-    end
+    result = idx.indexer_module.get_embeddings(idx.indexer, to_embed)
+    progress_bar_update(:indexing)
+    result
   end
 
   defp sha256(file_path) do

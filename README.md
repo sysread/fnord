@@ -169,3 +169,8 @@ for the `search` command.
 - user-configurable system prompt for a given project
 - ask: report how old the index is
 - update command to run `mix escript.install github sysread/fnord` for you
+- command line option to `ask` to include additional files in the prompt for reference (e.g. notes)
+- tool to allow the assistant to save observations about the project
+  - automatically index these observations and either:
+    - make them searchable
+    - include them in the prompt

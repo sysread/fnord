@@ -19,6 +19,9 @@ defmodule AI.Agent.FileInfo do
   your context window), and collect notes about the file's contents that are
   relevant to the user's query.
 
+  Use your tools as appropriate to provide the most accurate and relevant
+  answers to the search agent's questions.
+
   You are processing file chunks in sequence, each paired with an "accumulator"
   string to update, each input in the following format:
 
@@ -70,6 +73,11 @@ defmodule AI.Agent.FileInfo do
   formatted as a list.
   """
 
+  @tools [
+    AI.Tools.GitShow.spec(),
+    AI.Tools.GitPickaxe.spec()
+  ]
+
   def new(ai, question, file_content) do
     %__MODULE__{
       ai: ai,
@@ -115,7 +123,9 @@ defmodule AI.Agent.FileInfo do
       model: @model,
       max_tokens: @max_tokens,
       system: @chunk_prompt,
-      user: message
+      user: message,
+      tools: @tools,
+      on_event: &on_event/2
     )
     |> then(fn {:ok, summary, _usage} ->
       {:ok, %__MODULE__{agent | splitter: splitter, summary: summary}}
@@ -134,4 +144,14 @@ defmodule AI.Agent.FileInfo do
 
     """
   end
+
+  defp on_event(:tool_call, {"git_show_tool", %{"sha" => sha}}) do
+    UI.report_step("[file_info] Inspecting commit", sha)
+  end
+
+  defp on_event(:tool_call, {"git_pickaxe_tool", %{"regex" => regex}}) do
+    UI.report_step("[file_info] Archaeologizing", regex)
+  end
+
+  defp on_event(_, _), do: :ok
 end

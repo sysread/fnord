@@ -11,7 +11,7 @@ defmodule AI do
   ]
 
   @type t :: %__MODULE__{
-          client: %OpenaiEx{}
+          client: %AI.OpenAI{}
         }
 
   @api_timeout 5 * 60 * 1000
@@ -22,96 +22,51 @@ defmodule AI do
   Create a new AI instance. Instances share the same client connection.
   """
   def new() do
-    api_key = System.get_env("OPENAI_API_KEY")
-
-    if is_nil(api_key) do
-      raise "Missing OpenAI API key. Please set the OPENAI_API_KEY environment variable."
-    end
-
-    openai =
-      api_key
-      |> OpenaiEx.new()
-      |> OpenaiEx.with_receive_timeout(@api_timeout)
-
-    %AI{client: openai}
+    client = AI.OpenAI.new(recv_timeout: @api_timeout)
+    %AI{client: client}
   end
 
   # -----------------------------------------------------------------------------
   # Completions
   # -----------------------------------------------------------------------------
-  def get_completion(ai, options \\ []) do
-    with {:ok, model} <- Keyword.fetch(options, :model),
-         {:ok, messages} <- get_messages(options),
-         {:ok, tools} <- get_tools(options) do
-      max = Keyword.get(options, :attempts, @default_max_attempts)
-      args = [model: model, messages: messages] ++ tools
-      request = OpenaiEx.Chat.Completions.new(args)
-      get_completion(ai, request, max, 1)
-    end
+  def get_completion(ai, model, msgs, tools) do
+    request = [ai.client, model, msgs, tools]
+    do_get_completion(ai, request, @default_max_attempts, 1)
   end
 
-  defp get_completion(_ai, _request, max, attempt) when attempt > max do
+  defp do_get_completion(_ai, _request, max, attempt) when attempt > max do
     {:error, "Request timed out after #{attempt} attempts."}
   end
 
-  defp get_completion(ai, request, max, attempt) do
-    ai.client
-    |> OpenaiEx.Chat.Completions.create(request)
+  defp do_get_completion(ai, request, max, attempt) do
+    if attempt > 1, do: Process.sleep(@retry_interval)
+
+    AI.OpenAI
+    |> apply(:get_completion, request)
     |> case do
-      {:ok, %{"choices" => [event]}} ->
-        {:ok, event}
-
-      {:error, %OpenaiEx.Error{message: "Request timed out."}} ->
-        Process.sleep(@retry_interval)
-        get_completion(ai, request, max, attempt + 1)
-
-      {:error, %OpenaiEx.Error{message: msg}} ->
-        {:error, msg}
-    end
-  end
-
-  defp get_tools(opts) do
-    Keyword.get(opts, :tools, nil)
-    |> case do
-      nil -> {:ok, []}
-      tools -> {:ok, [tools: tools]}
-    end
-  end
-
-  defp get_messages(opts) do
-    Keyword.get(opts, :messages, nil)
-    |> case do
-      nil ->
-        with {:ok, system_prompt} <- Keyword.fetch(opts, :system),
-             {:ok, user_prompt} <- Keyword.fetch(opts, :user) do
-          {:ok, [AI.Util.system_msg(system_prompt), AI.Util.user_msg(user_prompt)]}
-        end
-
-      messages ->
-        {:ok, messages}
+      {:error, :timeout} -> do_get_completion(ai, request, max, attempt + 1)
+      etc -> etc
     end
   end
 
   # -----------------------------------------------------------------------------
   # Embeddings
   # -----------------------------------------------------------------------------
-  @token_limit 8192
-  @model "text-embedding-3-large"
+  @embeddings_token_limit 8192
+  @embeddings_model "text-embedding-3-large"
 
   @doc """
   Get embeddings for the given text. The text is split into chunks of 8192
   tokens to avoid exceeding the model's input limit. Returns a list of
   embeddings for each chunk.
   """
-  def get_embeddings(ai, text, options \\ []) do
-    max = Keyword.get(options, :attempts, @default_max_attempts)
-
+  def get_embeddings(ai, text) do
     text
-    |> AI.Util.split_text(@token_limit)
-    |> Enum.map(&OpenaiEx.Embeddings.new(model: @model, input: &1))
+    |> AI.Util.split_text(@embeddings_token_limit)
+    |> Enum.map(&[ai.client, @embeddings_model, &1])
     |> Enum.reduce_while([], fn request, embeddings ->
       ai
-      |> get_embedding(request, max, 1)
+      |> get_embedding(request, @default_max_attempts, 1)
       |> case do
         {:ok, embedding} -> {:cont, [embedding | embeddings]}
         {:error, reason} -> {:halt, {:error, reason}}
@@ -128,18 +83,13 @@ defmodule AI do
   end
 
   defp get_embedding(ai, request, max, attempt) do
-    ai.client
-    |> OpenaiEx.Embeddings.create(request)
+    if attempt > 1, do: Process.sleep(@retry_interval)
+
+    AI.OpenAI
+    |> apply(:get_embedding, request)
     |> case do
-      {:ok, %{"data" => [%{"embedding" => embedding}]}} ->
-        {:ok, embedding}
-
-      {:error, %OpenaiEx.Error{message: "Request timed out."}} ->
-        Process.sleep(@retry_interval)
-        get_embedding(ai, request, max, attempt + 1)
-
-      {:error, %OpenaiEx.Error{message: msg}} ->
-        {:error, msg}
+      {:error, :timeout} -> get_embedding(ai, request, max, attempt + 1)
+      etc -> etc
     end
   end
 end

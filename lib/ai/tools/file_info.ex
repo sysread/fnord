@@ -17,10 +17,9 @@ defmodule AI.Tools.FileInfo do
         ensure the most complete answer, and make multiple calls concurrently
         if you have multiple questions about a given file.
 
-        Note that this tool only has access to the current version of the file.
-        It cannot read historical versions of the file or access the file's
-        version control history. Provide any context related to that in your
-        question as appropriate.
+        This tool has access to the git_show_tool and git_pickaxe_tool, and
+        can use these to provide context about its history and differences from
+        earlier version.
         """,
         parameters: %{
           type: "object",

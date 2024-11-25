@@ -30,23 +30,45 @@ defmodule AI.Util do
   Creates a system message object, used to define the assistant's behavior for
   the conversation.
   """
-  def system_msg(msg), do: OpenaiEx.ChatMessage.system(msg)
+  def system_msg(msg) do
+    %{
+      role: "system",
+      content: msg
+    }
+  end
 
   @doc """
   Creates a user message object, representing the user's input prompt.
   """
-  def user_msg(msg), do: OpenaiEx.ChatMessage.user(msg)
+  def user_msg(msg) do
+    %{
+      role: "user",
+      content: msg
+    }
+  end
 
   @doc """
   Creates an assistant message object, representing the assistant's response.
   """
-  def assistant_msg(msg), do: OpenaiEx.ChatMessage.assistant(msg)
+  def assistant_msg(msg) do
+    %{
+      role: "assistant",
+      content: msg
+    }
+  end
 
   @doc """
   This is the tool outputs message, which must come immediately after the
   `assistant_tool_msg/3` message with the same `tool_call_id` (`id`).
   """
-  def tool_msg(id, func, output), do: OpenaiEx.ChatMessage.tool(id, func, output)
+  def tool_msg(id, func, output) do
+    %{
+      role: "tool",
+      name: func,
+      tool_call_id: id,
+      content: output
+    }
+  end
 
   @doc """
   This is the tool call message, which must come immediately before the
