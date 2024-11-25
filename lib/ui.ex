@@ -35,7 +35,7 @@ defmodule UI do
 
   def warn(msg) do
     unless quiet?() do
-      Logger.warning(IO.ANSI.format([:yellow, msg, :reset, colorize?()]))
+      Logger.warning(IO.ANSI.format([:yellow, msg, :reset], colorize?()))
     end
   end
 

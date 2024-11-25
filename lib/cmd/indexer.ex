@@ -94,19 +94,23 @@ defmodule Cmd.Indexer do
         {msg, num_files}
       end)
 
-    spin("Indexing #{project}", fn ->
-      # count * 3 for each step in indexing a file (summary, outline, embeddings)
-      progress_bar_start(:indexing, "tasks", count * 3)
+    if count == 0 do
+      UI.warn("No files to index in #{project}")
+    else
+      spin("Indexing #{project}", fn ->
+        # count * 3 for each step in indexing a file (summary, outline, embeddings)
+        progress_bar_start(:indexing, "tasks", count * 3)
 
-      Scanner.scan(scanner)
+        Scanner.scan(scanner)
 
-      Queue.shutdown(queue)
-      Queue.join(queue)
+        Queue.shutdown(queue)
+        Queue.join(queue)
 
-      progress_bar_end()
+        progress_bar_end()
 
-      {"All tasks complete", :ok}
-    end)
+        {"All tasks complete", :ok}
+      end)
+    end
   end
 
   # -----------------------------------------------------------------------------
