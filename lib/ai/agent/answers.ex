@@ -69,8 +69,7 @@ defmodule AI.Agent.Answers do
     AI.Tools.FileInfo.spec(),
     AI.Tools.Spelunker.spec(),
     AI.Tools.GitShow.spec(),
-    AI.Tools.GitPickaxeTerm.spec(),
-    AI.Tools.GitPickaxeRegex.spec()
+    AI.Tools.GitPickaxe.spec()
   ]
 
   def perform(ai, opts) do
@@ -120,12 +119,8 @@ defmodule AI.Agent.Answers do
     UI.report_step("Inspecting commit", sha)
   end
 
-  defp on_event(:tool_call, {"git_pickaxe_term_tool", %{"term" => term}}) do
-    UI.report_step("Archaeologizing", term)
-  end
-
-  defp on_event(:tool_call, {"git_pickaxe_regex_tool", %{"regex" => regex}}) do
-    UI.report_step("Archaeologizing", regex)
+  defp on_event(:tool_call, {"git_pickaxe_tool", %{"regex" => regex}}) do
+    UI.report_step("Archaeologizing add/removal of", regex)
   end
 
   defp on_event(_, _), do: :ok

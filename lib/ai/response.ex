@@ -144,12 +144,8 @@ defmodule AI.Response do
     AI.Tools.Spelunker.call(state, args)
   end
 
-  defp perform_tool_call(state, "git_pickaxe_term_tool", args) do
-    AI.Tools.GitPickaxeTerm.call(state, args)
-  end
-
-  defp perform_tool_call(state, "git_pickaxe_regex_tool", args) do
-    AI.Tools.GitPickaxeRegex.call(state, args)
+  defp perform_tool_call(state, "git_pickaxe_tool", args) do
+    AI.Tools.GitPickaxe.call(state, args)
   end
 
   defp perform_tool_call(state, "git_show_tool", args) do
