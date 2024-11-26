@@ -163,9 +163,6 @@ for the `search` command.
 ```
 
 # TODO
-- abstract agents out into a behaviour
-  ✓ support for tool calls
-  - support for "accumulator" agents
 - user-configurable system prompt for a given project
 - ask: report how old the index is
 - tool to allow the assistant to save observations about the project
