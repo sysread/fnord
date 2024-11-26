@@ -168,7 +168,6 @@ for the `search` command.
   - support for "accumulator" agents
 - user-configurable system prompt for a given project
 - ask: report how old the index is
-- command line option to `ask` to include additional files in the prompt for reference (e.g. notes)
 - tool to allow the assistant to save observations about the project
   - automatically index these observations and either:
     - make them searchable
