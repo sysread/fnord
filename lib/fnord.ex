@@ -27,6 +27,7 @@ defmodule Fnord do
         :projects -> Cmd.Projects.run(opts)
         :files -> Cmd.Files.run(opts)
         :ask -> Cmd.Ask.run(opts)
+        :upgrade -> Cmd.Upgrade.run(opts)
       end
     else
       {:error, reason} -> IO.puts("Error: #{reason}")
@@ -117,6 +118,13 @@ defmodule Fnord do
       long: "--relpath",
       short: "-r",
       help: "Print paths relative to $CWD",
+      default: false
+    ]
+
+    yes = [
+      long: "--yes",
+      short: "-y",
+      help: "Automatically answer 'yes' to all prompts",
       default: false
     ]
 
@@ -229,6 +237,11 @@ defmodule Fnord do
             name: "torch",
             about: "Deletes a previously indexed project from the database",
             options: [project: project]
+          ],
+          upgrade: [
+            name: "upgrade",
+            about: "Upgrade fnord to the latest version",
+            flags: [yes: yes]
           ]
         ]
       )
