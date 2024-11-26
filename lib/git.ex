@@ -3,9 +3,30 @@ defmodule Git do
   Module for interacting with git.
   """
 
-  @doc """
-  Check if a file is ignored by git.
-  """
+  def is_git_repo?() do
+    Settings.new()
+    |> Settings.get_root()
+    |> case do
+      {:ok, root} -> is_git_repo?(root)
+      _ -> false
+    end
+  end
+
+  def is_git_repo?(path) do
+    case System.cmd("git", ["-C", path, "rev-parse", "--is-inside-work-tree"],
+           stderr_to_stdout: true,
+           parallelism: true,
+           env: [
+             {"GIT_TRACE", "0"},
+             {"GIT_CURL_VERBOSE", "0"},
+             {"GIT_DEBUG", "0"}
+           ]
+         ) do
+      {"true\n", 0} -> true
+      _ -> false
+    end
+  end
+
   def is_ignored?(file, git_root) do
     case System.cmd("git", ["-C", git_root, "check-ignore", file],
            stderr_to_stdout: true,

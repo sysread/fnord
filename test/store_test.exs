@@ -29,13 +29,11 @@ defmodule StoreTest do
     {:ok, tmp_dir: tmp_dir}
   end
 
-  test "new/1 creates a new store for the project", %{tmp_dir: tmp_dir} do
+  test "new/1", %{tmp_dir: tmp_dir} do
     store = Store.new()
     expected_path = Path.join([tmp_dir, ".fnord", "test_project"])
     assert store.project == "test_project"
     assert store.path == expected_path
-    assert File.exists?(expected_path)
-    assert File.dir?(expected_path)
   end
 
   test "put/5 stores file data in the store", %{tmp_dir: tmp_dir} do
@@ -164,10 +162,10 @@ defmodule StoreTest do
 
     try do
       Application.put_env(:fnord, :project, "project1")
-      Store.new()
+      Store.create_project()
 
       Application.put_env(:fnord, :project, "project2")
-      Store.new()
+      Store.create_project()
 
       projects = Store.list_projects()
 
@@ -199,8 +197,18 @@ defmodule StoreTest do
     assert files == []
   end
 
-  test "delete_project/1 removes the project directory", _ do
+  test "delete_project/1 removes the project directory", %{tmp_dir: tmp_dir} do
     store = Store.new()
+
+    file_path = Path.join(tmp_dir, "file.txt")
+    File.write!(file_path, "Sample content")
+
+    hash = "hash"
+    summary = "Summary"
+    outline = "Outline"
+    embeddings = []
+
+    Store.put(store, file_path, hash, summary, outline, embeddings)
 
     assert File.exists?(store.path)
 

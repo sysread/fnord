@@ -119,12 +119,19 @@ defmodule AI.Agent.FileInfo do
     agent = %{agent | splitter: splitter}
     message = prompt <> chunk
 
+    tools =
+      if Git.is_git_repo?() do
+        @tools
+      else
+        []
+      end
+
     AI.Response.get(agent.ai,
       model: @model,
       max_tokens: @max_tokens,
       system: @chunk_prompt,
       user: message,
-      tools: @tools,
+      tools: tools,
       on_event: &on_event/2
     )
     |> then(fn {:ok, summary, _usage} ->

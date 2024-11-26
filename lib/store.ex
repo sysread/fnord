@@ -12,18 +12,36 @@ defmodule Store do
   Create a new `Store` struct.
   """
   def new() do
-    project = Application.get_env(:fnord, :project)
     home = Settings.home()
-
     File.mkdir_p!(home)
 
+    project = get_project!()
     path = Path.join(home, project)
-    File.mkdir_p!(path)
 
     %Store{
       project: project,
       path: path
     }
+  end
+
+  @doc """
+  Get the project specified with --project. If the project name is not set, an
+  error will be raised.
+  """
+  def get_project!() do
+    Application.get_env(:fnord, :project)
+    |> case do
+      nil -> raise "--project not set"
+      project -> project
+    end
+  end
+
+  @doc """
+  Get the project directory. This is the directory where the project's files
+  are stored.
+  """
+  def get_project_dir() do
+    Path.join(Settings.home(), get_project!())
   end
 
   @doc """
@@ -33,7 +51,7 @@ defmodule Store do
   2. There are entries in the project directory.
   """
   def project_exists?() do
-    project = Application.get_env(:fnord, :project)
+    project = get_project!()
     path = Path.join(Settings.home(), project)
     files = Path.wildcard(Path.join(path, "*"))
 
@@ -42,6 +60,15 @@ defmodule Store do
       Enum.empty?(files) -> false
       true -> true
     end
+  end
+
+  @doc """
+  Creates the project directory if it does not already exist. This will create
+  a new directory in the store with the name of the project.
+  """
+  def create_project() do
+    get_project_dir()
+    |> File.mkdir_p!()
   end
 
   @doc """
@@ -115,13 +142,17 @@ defmodule Store do
   ```
   """
   def info(store, file) do
-    with path = get_entry_path(store, file),
-         file = Path.join(path, "metadata.json"),
-         {:ok, data} <- File.read(file),
-         {:ok, meta} <- Jason.decode(data) do
-      {:ok, Map.put(meta, "fnord_path", path)}
+    if project_exists?() do
+      with path = get_entry_path(store, file),
+           file = Path.join(path, "metadata.json"),
+           {:ok, data} <- File.read(file),
+           {:ok, meta} <- Jason.decode(data) do
+        {:ok, Map.put(meta, "fnord_path", path)}
+      else
+        _ -> {:error, :not_found}
+      end
     else
-      _ -> {:error, :not_found}
+      {:error, :not_found}
     end
   end
 
@@ -130,10 +161,14 @@ defmodule Store do
   exists, or `{:error, :not_found}` if it does not.
   """
   def get_hash(store, file) do
-    Store.info(store, file)
-    |> case do
-      {:ok, data} -> Map.get(data, "hash")
-      {:error, :not_found} -> {:error, :not_found}
+    if project_exists?() do
+      Store.info(store, file)
+      |> case do
+        {:ok, data} -> Map.get(data, "hash")
+        {:error, :not_found} -> {:error, :not_found}
+      end
+    else
+      {:error, :not_found}
     end
   end
 
@@ -142,10 +177,11 @@ defmodule Store do
   or `false` if it does not.
   """
   def has_summary?(store, file) do
-    store
-    |> get_entry_path(file)
-    |> Path.join("summary")
-    |> File.exists?()
+    project_exists?() &&
+      store
+      |> get_entry_path(file)
+      |> Path.join("summary")
+      |> File.exists?()
   end
 
   @doc """
@@ -153,10 +189,11 @@ defmodule Store do
   exists, or `false` if it does not.
   """
   def has_outline?(store, file) do
-    store
-    |> get_entry_path(file)
-    |> Path.join("outline")
-    |> File.exists?()
+    project_exists?() &&
+      store
+      |> get_entry_path(file)
+      |> Path.join("outline")
+      |> File.exists?()
   end
 
   @doc """
@@ -164,11 +201,12 @@ defmodule Store do
   `false` otherwise.
   """
   def has_embeddings?(store, file) do
-    with {:ok, meta} <- Store.info(store, file),
-         path = Map.get(meta, "fnord_path"),
-         files = Path.join(path, "embedding_*.json") |> Path.wildcard() do
-      Enum.any?(files, &File.exists?/1)
-    end
+    project_exists?() &&
+      with {:ok, meta} <- Store.info(store, file),
+           path = Map.get(meta, "fnord_path"),
+           files = Path.join(path, "embedding_*.json") |> Path.wildcard() do
+        Enum.any?(files, &File.exists?/1)
+      end
   end
 
   @doc """
@@ -194,22 +232,26 @@ defmodule Store do
   chunks.
   """
   def get_embeddings(store, file) do
-    with {:ok, meta} <- Store.info(store, file),
-         path = Map.get(meta, "fnord_path"),
-         files = Path.join(path, "embedding_*.json") |> Path.wildcard() do
-      files
-      |> Enum.map(fn file ->
-        with {:ok, data} <- File.read(file),
-             {:ok, embedding} <- Jason.decode(data) do
-          embedding
-        else
-          {:error, reason} ->
-            Logger.error("Error reading embedding: <#{file}> #{reason}")
-            nil
-        end
-      end)
-      |> Enum.reject(&is_nil/1)
-      |> then(&{:ok, &1})
+    if project_exists?() do
+      with {:ok, meta} <- Store.info(store, file),
+           path = Map.get(meta, "fnord_path"),
+           files = Path.join(path, "embedding_*.json") |> Path.wildcard() do
+        files
+        |> Enum.map(fn file ->
+          with {:ok, data} <- File.read(file),
+               {:ok, embedding} <- Jason.decode(data) do
+            embedding
+          else
+            {:error, reason} ->
+              Logger.error("Error reading embedding: <#{file}> #{reason}")
+              nil
+          end
+        end)
+        |> Enum.reject(&is_nil/1)
+        |> then(&{:ok, &1})
+      end
+    else
+      {:error, :not_found}
     end
   end
 
@@ -234,21 +276,25 @@ defmodule Store do
   ```
   """
   def get(store, file) do
-    with {:ok, meta} <- Store.info(store, file),
-         {:ok, summary} <- get_summary(store, file),
-         {:ok, embeddings} <- get_embeddings(store, file),
-         {:ok, outline} <- get_outline(store, file),
-         {:ok, contents} <- File.read(file) do
-      info =
-        meta
-        |> Map.put("summary", summary)
-        |> Map.put("embeddings", embeddings)
-        |> Map.put("outline", outline)
-        |> Map.put("contents", contents)
+    if project_exists?() do
+      with {:ok, meta} <- Store.info(store, file),
+           {:ok, summary} <- get_summary(store, file),
+           {:ok, embeddings} <- get_embeddings(store, file),
+           {:ok, outline} <- get_outline(store, file),
+           {:ok, contents} <- File.read(file) do
+        info =
+          meta
+          |> Map.put("summary", summary)
+          |> Map.put("embeddings", embeddings)
+          |> Map.put("outline", outline)
+          |> Map.put("contents", contents)
 
-      {:ok, info}
+        {:ok, info}
+      else
+        {:error, _} -> {:error, :not_found}
+      end
     else
-      {:error, _} -> {:error, :not_found}
+      {:error, :not_found}
     end
   end
 
@@ -257,6 +303,8 @@ defmodule Store do
   file already exists in the store, it will be overwritten.
   """
   def put(store, file, hash, summary, outline, embeddings) do
+    create_project()
+
     path = get_entry_path(store, file)
 
     # Delete the existing directory if it exists
@@ -304,30 +352,38 @@ defmodule Store do
   file paths.
   """
   def list_files(store) do
-    Path.wildcard(Path.join(store.path, "*"))
-    |> Enum.map(fn path -> Path.join(path, "metadata.json") end)
-    |> Enum.filter(&File.exists?/1)
-    |> Enum.map(fn path ->
-      path
-      |> File.read!()
-      |> Jason.decode!()
-      |> Map.get("file")
-    end)
+    if project_exists?() do
+      Path.wildcard(Path.join(store.path, "*"))
+      |> Enum.map(fn path -> Path.join(path, "metadata.json") end)
+      |> Enum.filter(&File.exists?/1)
+      |> Enum.map(fn path ->
+        path
+        |> File.read!()
+        |> Jason.decode!()
+        |> Map.get("file")
+      end)
+    else
+      []
+    end
   end
 
   defp read_file(store, file, kind) do
-    case kind do
-      :outline -> get_entry_path(store, file) |> Path.join("outline")
-      :summary -> get_entry_path(store, file) |> Path.join("summary")
-    end
-    |> File.read()
-    |> case do
-      {:ok, content} ->
-        {:ok, content}
+    if project_exists?() do
+      case kind do
+        :outline -> get_entry_path(store, file) |> Path.join("outline")
+        :summary -> get_entry_path(store, file) |> Path.join("summary")
+      end
+      |> File.read()
+      |> case do
+        {:ok, content} ->
+          {:ok, content}
 
-      {:error, reason} ->
-        {:error,
-         "unable to read #{kind} for #{file} (you may need to reindex #{store.project}): #{inspect(reason)}"}
+        {:error, reason} ->
+          {:error,
+           "unable to read #{kind} for #{file} (you may need to reindex #{store.project}): #{inspect(reason)}"}
+      end
+    else
+      {:error, "project not found"}
     end
   end
 end

@@ -72,6 +72,13 @@ defmodule AI.Agent.Answers do
     AI.Tools.GitPickaxe.spec()
   ]
 
+  @non_git_tools [
+    AI.Tools.Search.spec(),
+    AI.Tools.ListFiles.spec(),
+    AI.Tools.FileInfo.spec(),
+    AI.Tools.Spelunker.spec()
+  ]
+
   def perform(ai, opts) do
     UI.report_step("Researching", opts.question)
 
@@ -100,11 +107,18 @@ defmodule AI.Agent.Answers do
   end
 
   defp build_response(ai, includes, opts) do
+    tools =
+      if Git.is_git_repo?() do
+        @tools
+      else
+        @non_git_tools
+      end
+
     AI.Response.get(ai,
       on_event: &on_event/2,
       max_tokens: @max_tokens,
       model: @model,
-      tools: @tools,
+      tools: tools,
       system: @prompt,
       user: user_prompt(opts.question, includes)
     )
