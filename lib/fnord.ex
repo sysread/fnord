@@ -21,12 +21,12 @@ defmodule Fnord do
 
       case subcommand do
         :index -> Cmd.Indexer.new(opts) |> Cmd.Indexer.run()
+        :ask -> Cmd.Ask.run(opts)
         :search -> Cmd.Search.run(opts)
         :summary -> Cmd.Summary.run(opts)
         :torch -> Cmd.Torch.run(opts)
         :projects -> Cmd.Projects.run(opts)
         :files -> Cmd.Files.run(opts)
-        :ask -> Cmd.Ask.run(opts)
         :upgrade -> Cmd.Upgrade.run(opts)
       end
     else
@@ -47,8 +47,7 @@ defmodule Fnord do
       value_name: "DIR",
       long: "--dir",
       short: "-d",
-      help:
-        "Directory to index (required only for first index or reindex after moving the project directory)",
+      help: "Directory to index (required for first index or reindex after moving the project)",
       required: false
     ]
 
@@ -62,8 +61,7 @@ defmodule Fnord do
     quiet = [
       long: "--quiet",
       short: "-q",
-      help:
-        "Suppress interactive output; this is automatically enabled when executed in a pipe or subshell",
+      help: "Suppress interactive output; automatically enabled when executed in a pipe",
       required: false
     ]
 
@@ -98,7 +96,7 @@ defmodule Fnord do
     ]
 
     concurrency = [
-      value_name: "CONCURRENCY",
+      value_name: "WORKERS",
       long: "--concurrency",
       short: "-c",
       help: "Number of concurrent threads to use",
@@ -126,6 +124,14 @@ defmodule Fnord do
       short: "-y",
       help: "Automatically answer 'yes' to all prompts",
       default: false
+    ]
+
+    include = [
+      value_name: "FILE",
+      long: "--include",
+      short: "-i",
+      help: "Include a file in your prompt",
+      multiple: true
     ]
 
     parser =
@@ -207,7 +213,7 @@ defmodule Fnord do
           ask: [
             name: "ask",
             about: "Ask the AI a question about the project",
-            options: [concurrency: concurrency],
+            options: [concurrency: concurrency, include: include],
             args: [project: project, question: question],
             flags: [quiet: quiet]
           ],

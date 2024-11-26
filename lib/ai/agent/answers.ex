@@ -74,21 +74,48 @@ defmodule AI.Agent.Answers do
 
   def perform(ai, opts) do
     UI.report_step("Researching", opts.question)
-    {:ok, response, {label, usage}} = build_response(ai, opts)
-    UI.report_step(label, usage)
-    UI.flush()
-    IO.puts(response)
+
+    with includes = Map.get(opts, :include, []) |> get_included_files(),
+         {:ok, response, {label, usage}} <- build_response(ai, includes, opts) do
+      UI.report_step(label, usage)
+      UI.flush()
+      IO.puts(response)
+    end
   end
 
-  defp build_response(ai, opts) do
+  defp get_included_files(files) do
+    preamble = "The user has included the following file for context"
+
+    files
+    |> Enum.reduce_while([], fn file, acc ->
+      file
+      |> Path.expand()
+      |> File.read()
+      |> case do
+        {:error, reason} -> {:halt, {:error, reason}}
+        {:ok, content} -> {:cont, ["#{preamble}: #{file}\n```\n#{content}\n```" | acc]}
+      end
+    end)
+    |> Enum.join("\n\n")
+  end
+
+  defp build_response(ai, includes, opts) do
     AI.Response.get(ai,
       on_event: &on_event/2,
       max_tokens: @max_tokens,
       model: @model,
       tools: @tools,
       system: @prompt,
-      user: opts.question
+      user: user_prompt(opts.question, includes)
     )
+  end
+
+  defp user_prompt(question, includes) do
+    if includes == "" do
+      question
+    else
+      "#{question}\n#{includes}"
+    end
   end
 
   defp on_event(:tool_call, {"search_tool", %{"query" => query}}) do
