@@ -53,10 +53,17 @@ defmodule AI.Response do
   end
 
   defp handle_response({:error, reason}, state) do
+    reason =
+      if is_binary(reason) do
+        reason
+      else
+        inspect(reason)
+      end
+
     %{
       state
       | response: """
-        I encountered an error while processing your request. Please try again.
+        I encountered an error while processing your request.
         The error message was:
 
         #{reason}
