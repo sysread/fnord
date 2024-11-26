@@ -11,9 +11,9 @@ defmodule AI.Util do
   end
 
   def split_text(input, max_tokens) do
-    Gpt3Tokenizer.encode(input)
+    AI.Tokenizer.encode(input)
     |> Enum.chunk_every(max_tokens)
-    |> Enum.map(&Gpt3Tokenizer.decode(&1))
+    |> Enum.map(&AI.Tokenizer.decode(&1))
   end
 
   # -----------------------------------------------------------------------------

@@ -34,7 +34,9 @@ defmodule Fnord.MixProject do
   end
 
   defp escript do
-    [main_module: Fnord]
+    [
+      main_module: Fnord
+    ]
   end
 
   # Run "mix help compile.app" to learn about applications.
@@ -50,7 +52,6 @@ defmodule Fnord.MixProject do
       {:briefly, "~> 0.5.1"},
       {:dialyxir, "~> 1.4.4", only: [:dev], runtime: false},
       {:ex_doc, ">= 0.0.0", only: [:dev], runtime: false},
-      {:gpt3_tokenizer, "~> 0.1.0"},
       {:jason, "~> 1.4"},
       {:number, "~> 1.0.5"},
       {:optimus, "~> 0.2"},

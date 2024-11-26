@@ -196,6 +196,12 @@ defmodule Cmd.Indexer do
 
     result = idx.indexer_module.get_embeddings(idx.indexer, to_embed)
     progress_bar_update(:indexing)
+
+    case result do
+      {:error, reason} -> IO.inspect(reason)
+      _ -> nil
+    end
+
     result
   end
 

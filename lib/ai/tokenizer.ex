@@ -5,8 +5,8 @@ defmodule AI.Tokenizer do
   @behaviour AI.Tokenizer
 
   @impl AI.Tokenizer
-  def encode(text), do: Gpt3Tokenizer.encode(text)
+  def encode(text), do: AI.Tokens.encode(text)
 
   @impl AI.Tokenizer
-  def decode(tokens), do: Gpt3Tokenizer.decode(tokens)
+  def decode(tokens), do: AI.Tokens.decode(tokens)
 end

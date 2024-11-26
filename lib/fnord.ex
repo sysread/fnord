@@ -248,6 +248,11 @@ defmodule Fnord do
             name: "upgrade",
             about: "Upgrade fnord to the latest version",
             flags: [yes: yes]
+          ],
+          test: [
+            name: "test",
+            about: "Test the tokenizer",
+            options: []
           ]
         ]
       )

@@ -56,7 +56,7 @@ defmodule AI do
 
   # It's actually 8192 for this model, but this gives us a little bit of
   # wiggle room in case the tokenizer we are using falls behind.
-  @embeddings_token_limit 7500
+  @embeddings_token_limit 8192
 
   @doc """
   Get embeddings for the given text. The text is split into chunks of 8192
@@ -76,7 +76,7 @@ defmodule AI do
       end
     end)
     |> case do
-      {:error, reason} -> {:error, reason}
+      {:error, reason} -> {:error, inspect(reason)}
       embeddings -> {:ok, Enum.reverse(embeddings)}
     end
   end
