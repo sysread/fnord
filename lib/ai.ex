@@ -52,8 +52,11 @@ defmodule AI do
   # -----------------------------------------------------------------------------
   # Embeddings
   # -----------------------------------------------------------------------------
-  @embeddings_token_limit 8192
   @embeddings_model "text-embedding-3-large"
+
+  # It's actually 8192 for this model, but this gives us a little bit of
+  # wiggle room in case the tokenizer we are using falls behind.
+  @embeddings_token_limit 7500
 
   @doc """
   Get embeddings for the given text. The text is split into chunks of 8192
