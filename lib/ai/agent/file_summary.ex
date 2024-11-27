@@ -119,7 +119,7 @@ defmodule AI.Agent.FileSummary do
     %__MODULE__{
       ai: ai,
       file: file_path,
-      splitter: AI.TokenSplitter.new(file_content, @max_tokens),
+      splitter: AI.Tokenizer.Splitter.new(file_content, @max_tokens),
       summary: ""
     }
     |> reduce()
@@ -148,7 +148,7 @@ defmodule AI.Agent.FileSummary do
   defp process_chunk(agent) do
     prompt = get_prompt(agent)
 
-    {chunk, splitter} = AI.TokenSplitter.next_chunk(agent.splitter, prompt)
+    {chunk, splitter} = AI.Tokenizer.Splitter.next_chunk(agent.splitter, prompt)
 
     agent = %{agent | splitter: splitter}
     message = prompt <> chunk

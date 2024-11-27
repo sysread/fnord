@@ -2,15 +2,17 @@ defmodule AI.Tokenizer do
   @moduledoc """
   > Oh yeah? I'm gonna make my own tokenizer, with blackjack and hookers!
                                                       -- ~Bender~ ChatGPT
+
+  The only tokenizer modules available when this was written are either older
+  and don't correctly count for OpenAI's newer models (Gpt3Tokenizer) or can't
+  be used in an escript because they require priv access or OTP support beyond
+  escript's abilities (Tokenizers).
   """
-  @callback decode(list()) :: String.t()
-  @callback encode(String.t()) :: list()
+  @behaviour AI.Tokenizer.Behaviour
 
-  @behaviour AI.Tokenizer
-
-  @merges :erlang.binary_to_term(File.read!("lib/ai/tokenizer/o200k_base.merges"))
-  @vocab :erlang.binary_to_term(File.read!("lib/ai/tokenizer/o200k_base.vocab"))
-  @reverse_vocab :erlang.binary_to_term(File.read!("lib/ai/tokenizer/o200k_base.reverse_vocab"))
+  @merges :erlang.binary_to_term(File.read!("data/o200k_base.merges"))
+  @vocab :erlang.binary_to_term(File.read!("data/o200k_base.vocab"))
+  @reverse_vocab :erlang.binary_to_term(File.read!("data/o200k_base.reverse_vocab"))
 
   @pattern ~r<[^\r\n\p{L}\p{N}]?[\p{Lu}\p{Lt}\p{Lm}\p{Lo}\p{M}]*[\p{Ll}\p{Lm}\p{Lo}\p{M}]+(?i:'s|'t|'re|'ve|'m|'ll|'d)?|[^\r\n\p{L}\p{N}]?[\p{Lu}\p{Lt}\p{Lm}\p{Lo}\p{M}]+[\p{Ll}\p{Lm}\p{Lo}\p{M}]*(?i:'s|'t|'re|'ve|'m|'ll|'d)?|\p{N}{1,3}| ?[^\s\p{L}\p{N}]+[\r\n/]*|\s*[\r\n]+|\s+(?!\S)|\s+>
 
@@ -19,7 +21,7 @@ defmodule AI.Tokenizer do
     "<|endofprompt|>" => 200_018
   }
 
-  @impl AI.Tokenizer
+  @impl AI.Tokenizer.Behaviour
   def decode(token_ids) do
     Enum.map(token_ids, fn id ->
       # Return `nil` for unknown IDs
@@ -28,7 +30,7 @@ defmodule AI.Tokenizer do
     |> Enum.join("")
   end
 
-  @impl AI.Tokenizer
+  @impl AI.Tokenizer.Behaviour
   def encode(text) do
     # Step 1: Split text into initial tokens using the regex pattern
     tokens = Regex.scan(@pattern, text) |> List.flatten()

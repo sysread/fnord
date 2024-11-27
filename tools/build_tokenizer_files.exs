@@ -1,6 +1,6 @@
 #!/usr/bin/env elixir
 
-"lib/ai/tokenizer/o200k_base.tiktoken"
+"data/o200k_base.tiktoken"
 |> File.stream!([], :line)
 |> Enum.reduce({%{}, []}, fn line, {vocab_acc, merges_acc} ->
   line = String.trim(line)
@@ -27,7 +27,7 @@ end)
 
   reverse_vocab = Map.new(vocab, fn {key, value} -> {value, key} end)
 
-  File.write!("lib/ai/tokenizer/o200k_base.merges", :erlang.term_to_binary(merges))
-  File.write!("lib/ai/tokenizer/o200k_base.vocab", :erlang.term_to_binary(vocab))
-  File.write!("lib/ai/tokenizer/o200k_base.reverse_vocab", :erlang.term_to_binary(reverse_vocab))
+  File.write!("data/o200k_base.merges", :erlang.term_to_binary(merges))
+  File.write!("data/o200k_base.vocab", :erlang.term_to_binary(vocab))
+  File.write!("data/o200k_base.reverse_vocab", :erlang.term_to_binary(reverse_vocab))
 end)
