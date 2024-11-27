@@ -1,25 +1,5 @@
 defmodule AI.Util do
   # -----------------------------------------------------------------------------
-  # Token-based text utilities
-  # -----------------------------------------------------------------------------
-  def truncate_text(text, max_tokens) do
-    if String.length(text) > max_tokens do
-      String.slice(text, 0, max_tokens)
-    else
-      text
-    end
-  end
-
-  def split_text(input, max_tokens) do
-    tokenizer = AI.Tokenizer.get_impl()
-
-    input
-    |> tokenizer.encode()
-    |> Enum.chunk_every(max_tokens)
-    |> Enum.map(&tokenizer.decode(&1))
-  end
-
-  # -----------------------------------------------------------------------------
   # Messages
   # -----------------------------------------------------------------------------
   @type msg :: %{

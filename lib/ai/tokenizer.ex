@@ -58,6 +58,18 @@ defmodule AI.Tokenizer do
   end
 
   # -----------------------------------------------------------------------------
+  # Public functions
+  # -----------------------------------------------------------------------------
+  def chunk(input, max_tokens) do
+    tokenizer = AI.Tokenizer.get_impl()
+
+    input
+    |> tokenizer.encode()
+    |> Enum.chunk_every(max_tokens)
+    |> Enum.map(&tokenizer.decode(&1))
+  end
+
+  # -----------------------------------------------------------------------------
   # Private functions
   # -----------------------------------------------------------------------------
   defp apply_bpe(token) do
