@@ -53,17 +53,10 @@ defmodule AI.Tools.FileInfo do
   @impl AI.Tools
   def call(agent, args) do
     with {:ok, question} <- Map.fetch(args, "question"),
-         {:ok, file} <- Map.fetch(args, "file") do
-      with {:ok, contents} <- File.read(file) do
-        agent.ai
-        |> AI.Agent.FileInfo.new(question, contents)
-        |> AI.Agent.FileInfo.get_summary()
-        |> then(fn {:ok, response} -> {:ok, "[file_info_tool]\n#{response}"} end)
-      else
-        # File read errors are not fatal, and should be communicated to the
-        # Answers Agent.
-        {:error, reason} -> {:ok, reason |> :file.format_error() |> to_string()}
-      end
+         {:ok, file} <- Map.fetch(args, "file"),
+         {:ok, contents} <- File.read(file),
+         {:ok, response} <- AI.Agent.FileInfo.get_response(agent.ai, file, question, contents) do
+      {:ok, "[file_info_tool]\n#{response}"}
     end
   end
 end

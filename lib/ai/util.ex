@@ -2,12 +2,6 @@ defmodule AI.Util do
   # -----------------------------------------------------------------------------
   # Messages
   # -----------------------------------------------------------------------------
-  @type msg :: %{
-          :content => String.t(),
-          :role => String.t(),
-          optional(:name) => String.t(),
-          optional(:tool_call_id) => String.t()
-        }
 
   @doc """
   Creates a system message object, used to define the assistant's behavior for

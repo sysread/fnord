@@ -1,4 +1,11 @@
 defmodule AI.Response do
+  @moduledoc """
+  This module sends a request to the model and handles the response. It is able
+  to handle tool calls and responses. If the caller includes an `on_event`
+  function, it will be called whenever a tool call is performed or if a tool
+  call results in an error.
+  """
+
   def get(ai, opts) do
     with {:ok, max_tokens} <- Keyword.fetch(opts, :max_tokens),
          {:ok, model} <- Keyword.fetch(opts, :model),
