@@ -247,6 +247,7 @@ defmodule Cmd.Indexer do
   defp progress_bar_update(name) do
     if !quiet?() do
       Owl.ProgressBar.inc(id: name)
+      Owl.LiveScreen.await_render()
     end
   end
 end
