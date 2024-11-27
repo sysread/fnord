@@ -11,9 +11,12 @@ defmodule AI.Util do
   end
 
   def split_text(input, max_tokens) do
-    AI.Tokenizer.encode(input)
+    tokenizer = AI.Tokenizer.get_impl()
+
+    input
+    |> tokenizer.encode()
     |> Enum.chunk_every(max_tokens)
-    |> Enum.map(&AI.Tokenizer.decode(&1))
+    |> Enum.map(&tokenizer.decode(&1))
   end
 
   # -----------------------------------------------------------------------------

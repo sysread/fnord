@@ -76,7 +76,7 @@ defmodule AI.Agent.CodeMapper do
     %__MODULE__{
       ai: ai,
       file_path: file_path,
-      splitter: AI.Tokenizer.Splitter.new(file_content, @max_tokens),
+      splitter: AI.Splitter.new(file_content, @max_tokens),
       outline: ""
     }
   end
@@ -110,7 +110,7 @@ defmodule AI.Agent.CodeMapper do
   defp process_chunk(agent) do
     prompt = get_prompt(agent)
 
-    {chunk, splitter} = AI.Tokenizer.Splitter.next_chunk(agent.splitter, prompt)
+    {chunk, splitter} = AI.Splitter.next_chunk(agent.splitter, prompt)
 
     agent = %{agent | splitter: splitter}
     message = prompt <> chunk

@@ -8,8 +8,6 @@ defmodule AI.Tokenizer do
   be used in an escript because they require priv access or OTP support beyond
   escript's abilities (Tokenizers).
   """
-  @behaviour AI.Tokenizer.Behaviour
-
   @merges :erlang.binary_to_term(File.read!("data/o200k_base.merges"))
   @vocab :erlang.binary_to_term(File.read!("data/o200k_base.vocab"))
   @reverse_vocab :erlang.binary_to_term(File.read!("data/o200k_base.reverse_vocab"))
@@ -21,7 +19,22 @@ defmodule AI.Tokenizer do
     "<|endofprompt|>" => 200_018
   }
 
-  @impl AI.Tokenizer.Behaviour
+  # -----------------------------------------------------------------------------
+  # Behaviour definition
+  # -----------------------------------------------------------------------------
+  @callback decode(list()) :: String.t()
+  @callback encode(String.t()) :: list()
+
+  def get_impl() do
+    Application.get_env(:ai, :tokenizer_module, __MODULE__)
+  end
+
+  # -----------------------------------------------------------------------------
+  # Behaviour implementation
+  # -----------------------------------------------------------------------------
+  @behaviour AI.Tokenizer
+
+  @impl AI.Tokenizer
   def decode(token_ids) do
     Enum.map(token_ids, fn id ->
       # Return `nil` for unknown IDs
@@ -30,7 +43,7 @@ defmodule AI.Tokenizer do
     |> Enum.join("")
   end
 
-  @impl AI.Tokenizer.Behaviour
+  @impl AI.Tokenizer
   def encode(text) do
     # Step 1: Split text into initial tokens using the regex pattern
     tokens = Regex.scan(@pattern, text) |> List.flatten()
@@ -44,6 +57,9 @@ defmodule AI.Tokenizer do
     end)
   end
 
+  # -----------------------------------------------------------------------------
+  # Private functions
+  # -----------------------------------------------------------------------------
   defp apply_bpe(token) do
     # Split token into characters for BPE merging
     chars = String.graphemes(token)

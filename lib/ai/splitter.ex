@@ -1,4 +1,4 @@
-defmodule AI.Tokenizer.Splitter do
+defmodule AI.Splitter do
   @moduledoc """
   This module is used to split a string into chunks by the number of tokens,
   while accounting for *other* data that might be going with it to the API
@@ -22,8 +22,10 @@ defmodule AI.Tokenizer.Splitter do
     :done
   ]
 
-  def new(input, max_tokens, tokenizer \\ AI.Tokenizer) do
-    %AI.Tokenizer.Splitter{
+  def new(input, max_tokens) do
+    tokenizer = AI.Tokenizer.get_impl()
+
+    %AI.Splitter{
       tokenizer: tokenizer,
       max_tokens: max_tokens,
       input: input,
@@ -33,7 +35,7 @@ defmodule AI.Tokenizer.Splitter do
     }
   end
 
-  def next_chunk(%AI.Tokenizer.Splitter{done: true} = tok, _bespoke_input) do
+  def next_chunk(%AI.Splitter{done: true} = tok, _bespoke_input) do
     {:done, tok}
   end
 
@@ -44,7 +46,7 @@ defmodule AI.Tokenizer.Splitter do
 
     tok =
       if tok.offset >= length(tok.input_tokens) do
-        %AI.Tokenizer.Splitter{tok | done: true}
+        %AI.Splitter{tok | done: true}
       else
         tok
       end
@@ -52,7 +54,7 @@ defmodule AI.Tokenizer.Splitter do
     {slice, tok}
   end
 
-  defp get_slice(%AI.Tokenizer.Splitter{done: true} = tok, _num_tokens) do
+  defp get_slice(%AI.Splitter{done: true} = tok, _num_tokens) do
     {"", tok}
   end
 
@@ -60,6 +62,6 @@ defmodule AI.Tokenizer.Splitter do
     slice = Enum.slice(tok.input_tokens, tok.offset, num_tokens)
     tokens = length(slice)
     output = tok.tokenizer.decode(slice)
-    {output, %AI.Tokenizer.Splitter{tok | offset: tok.offset + tokens}}
+    {output, %AI.Splitter{tok | offset: tok.offset + tokens}}
   end
 end
