@@ -1,4 +1,4 @@
-defmodule AI.TokensTest do
+defmodule AI.TokenizerTest do
   use ExUnit.Case
 
   # From https://platform.openai.com/tokenizer
@@ -24,9 +24,9 @@ defmodule AI.TokensTest do
 
   test "encode/1 <=> decode/1" do
     input = "Now is the time for all good men to come to the aid of their country."
-    encoded = AI.Tokens.encode(input)
+    encoded = AI.Tokenizer.encode(input)
 
     assert encoded == @expected
-    assert AI.Tokens.decode(encoded) == input
+    assert AI.Tokenizer.decode(encoded) == input
   end
 end
