@@ -138,7 +138,8 @@ defmodule Fnord do
       value_name: "FILE",
       long: "--exclude",
       short: "-x",
-      help: "Exclude a file from being indexed",
+      help:
+        "Exclude a file, directory, or glob from being indexed; this is stored in the project's configuration and used on subsequent indexes",
       multiple: true
     ]
 
