@@ -1,9 +1,8 @@
 defmodule AI.Agent.FileInfo do
   @model "gpt-4o-mini"
 
-  # It's actually 128k for this model, but this gives us a little bit of
-  # wiggle room in case the tokenizer we are using falls behind.
-  @max_tokens 100_000
+  # It's actually 128k for this model, but "context window" != "attention span"
+  @max_tokens 50_000
 
   @prompt """
   You are an AI agent who is responsible for answering questions about a file's
