@@ -1,6 +1,8 @@
 defmodule AI.TokenizerTest do
   use ExUnit.Case
 
+  @input "Now is the time for all good men to come to the aid of their country."
+
   # From https://platform.openai.com/tokenizer
   @expected [
     10620,
@@ -23,10 +25,17 @@ defmodule AI.TokenizerTest do
   ]
 
   test "encode/1 <=> decode/1" do
-    input = "Now is the time for all good men to come to the aid of their country."
-    encoded = AI.Tokenizer.encode(input)
-
+    encoded = AI.Tokenizer.encode(@input)
     assert encoded == @expected
-    assert AI.Tokenizer.decode(encoded) == input
+    assert AI.Tokenizer.decode(encoded) == @input
+  end
+
+  test "chunk/2" do
+    chunks = AI.Tokenizer.chunk(@input, 10)
+
+    assert [
+             "Now is the time for all good men to come",
+             " to the aid of their country."
+           ] = chunks
   end
 end

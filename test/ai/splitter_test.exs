@@ -17,7 +17,14 @@ defmodule AI.SplitterTest do
   end
 
   setup do
-    Application.put_env(:ai, :tokenizer_module, MockTokenizer)
+    orig = Application.get_env(:fnord, :tokenizer_module)
+
+    Application.put_env(:fnord, :tokenizer_module, MockTokenizer)
+
+    on_exit(fn ->
+      Application.put_env(:fnord, :tokenizer_module, orig)
+    end)
+
     :ok
   end
 

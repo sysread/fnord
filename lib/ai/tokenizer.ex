@@ -7,17 +7,11 @@ defmodule AI.Tokenizer do
   and don't correctly count for OpenAI's newer models (Gpt3Tokenizer) or can't
   be used in an escript because they require priv access or OTP support beyond
   escript's abilities (Tokenizers).
+
+  This module tokenizes text using the `o200k_base` vocabulary and merges files
+  from OpenAI's tiktoken repo.
   """
-  @merges :erlang.binary_to_term(File.read!("data/o200k_base.merges"))
-  @vocab :erlang.binary_to_term(File.read!("data/o200k_base.vocab"))
-  @reverse_vocab :erlang.binary_to_term(File.read!("data/o200k_base.reverse_vocab"))
-
-  @pattern ~r<[^\r\n\p{L}\p{N}]?[\p{Lu}\p{Lt}\p{Lm}\p{Lo}\p{M}]*[\p{Ll}\p{Lm}\p{Lo}\p{M}]+(?i:'s|'t|'re|'ve|'m|'ll|'d)?|[^\r\n\p{L}\p{N}]?[\p{Lu}\p{Lt}\p{Lm}\p{Lo}\p{M}]+[\p{Ll}\p{Lm}\p{Lo}\p{M}]*(?i:'s|'t|'re|'ve|'m|'ll|'d)?|\p{N}{1,3}| ?[^\s\p{L}\p{N}]+[\r\n/]*|\s*[\r\n]+|\s+(?!\S)|\s+>
-
-  @special_tokens %{
-    "<|endoftext|>" => 199_999,
-    "<|endofprompt|>" => 200_018
-  }
+  import AI.Tokens_o200k_base
 
   # -----------------------------------------------------------------------------
   # Behaviour definition
@@ -26,7 +20,7 @@ defmodule AI.Tokenizer do
   @callback encode(String.t()) :: list()
 
   def get_impl() do
-    Application.get_env(:ai, :tokenizer_module, __MODULE__)
+    Application.get_env(:fnord, :tokenizer_module) || __MODULE__
   end
 
   # -----------------------------------------------------------------------------
@@ -38,7 +32,7 @@ defmodule AI.Tokenizer do
   def decode(token_ids) do
     Enum.map(token_ids, fn id ->
       # Return `nil` for unknown IDs
-      Map.get(@reverse_vocab, id, nil)
+      Map.get(get_reverse_vocab(), id, nil)
     end)
     |> Enum.join("")
   end
@@ -46,14 +40,14 @@ defmodule AI.Tokenizer do
   @impl AI.Tokenizer
   def encode(text) do
     # Step 1: Split text into initial tokens using the regex pattern
-    tokens = Regex.scan(@pattern, text) |> List.flatten()
+    tokens = Regex.scan(get_pattern(), text) |> List.flatten()
 
     # Step 2: Apply BPE merging
     bpe_tokens = Enum.map(tokens, &apply_bpe(&1))
 
     # Step 3: Map tokens to vocabulary IDs
     Enum.map(bpe_tokens, fn token ->
-      Map.get(@vocab, token, @special_tokens[token] || nil)
+      Map.get(get_vocab(), token, get_special_tokens()[token] || nil)
     end)
   end
 
@@ -76,39 +70,38 @@ defmodule AI.Tokenizer do
     # Split token into characters for BPE merging
     chars = String.graphemes(token)
 
-    # Merge adjacent pairs based on BPE rules until no further merges can be applied
+    # Merge adjacent pairs based on BPE rules
     loop_merge(chars)
   end
 
   defp loop_merge(tokens) do
+    tokens
     # Create pairs of adjacent tokens
-    pairs = Enum.zip(tokens, Enum.drop(tokens, 1))
-
+    |> Enum.zip(Enum.drop(tokens, 1))
     # Find the first pair that exists in the merge rules
-    case Enum.find(pairs, &MapSet.member?(@merges, &1)) do
+    |> Enum.find(&MapSet.member?(get_merges(), &1))
+    |> case do
+      # No more pairs to merge, return the tokens as a single string
       nil ->
-        # No more pairs to merge, return the tokens as a single string
         Enum.join(tokens, "")
 
+      # Merge the pair and continue
       pair ->
-        # Merge the pair and continue
-        merged_tokens =
-          tokens
-          |> Enum.reduce([], fn token, acc ->
-            case acc do
-              [last | rest] when {last, token} == pair ->
-                # Merge the pair into one token
-                [Enum.join(Tuple.to_list(pair), "") | rest]
+        tokens
+        |> Enum.reduce([], fn token, acc ->
+          case acc do
+            # Merge the pair into one token
+            [last | rest] when {last, token} == pair ->
+              [Enum.join(Tuple.to_list(pair), "") | rest]
 
-              _ ->
-                # Add the token to the accumulator as-is
-                [token | acc]
-            end
-          end)
-          |> Enum.reverse()
-
+            # Add the token to the accumulator as-is
+            _ ->
+              [token | acc]
+          end
+        end)
+        |> Enum.reverse()
         # Recursive call to merge further
-        loop_merge(merged_tokens)
+        |> loop_merge()
     end
   end
 end
