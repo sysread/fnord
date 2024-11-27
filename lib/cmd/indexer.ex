@@ -9,7 +9,9 @@ defmodule Cmd.Indexer do
     :indexer,
     :root,
     :store,
-    :reindex
+    :reindex,
+    :exclude,
+    :exclude_patterns
   ]
 
   @doc """
@@ -17,6 +19,18 @@ defmodule Cmd.Indexer do
   """
   def new(opts, indexer \\ Indexer) do
     reindex = Map.get(opts, :reindex, false)
+    exclude = Map.get(opts, :exclude, [])
+
+    expanded_exclude = expand_excludes(exclude)
+
+    settings = Settings.new()
+
+    project_settings =
+      Settings.get_project(settings)
+      |> case do
+        {:ok, project_settings} -> project_settings
+        {:error, :not_found} -> %{}
+      end
 
     root =
       case Map.get(opts, :directory, nil) do
@@ -24,13 +38,8 @@ defmodule Cmd.Indexer do
           Path.absname(root)
 
         nil ->
-          settings = Settings.new()
-
-          case Settings.get_root(settings) do
-            {:ok, root} ->
-              root
-
-            {:error, :not_found} ->
+          case Map.get(project_settings, "root") do
+            nil ->
               raise """
               Error: the project root was not found in the settings file.
 
@@ -41,10 +50,20 @@ defmodule Cmd.Indexer do
 
               Re-run with --dir to specify the project root directory and update the settings file.
               """
+
+            root ->
+              root
           end
       end
 
-    Settings.set_project(Settings.new(), %{"root" => root})
+    Settings.set_project(
+      Settings.new(),
+      Map.merge(project_settings, %{
+        "root" => root,
+        "exclude" => expanded_exclude,
+        "exclude_patterns" => exclude
+      })
+    )
 
     %__MODULE__{
       opts: opts,
@@ -52,7 +71,9 @@ defmodule Cmd.Indexer do
       indexer: indexer.new(),
       root: root,
       store: Store.new(),
-      reindex: reindex
+      reindex: reindex,
+      exclude: expanded_exclude,
+      exclude_patterns: exclude
     }
   end
 
@@ -62,28 +83,26 @@ defmodule Cmd.Indexer do
   """
   def run(idx) do
     project = Application.get_env(:fnord, :project)
+    UI.info("Indexing", project)
+    UI.info("Root", idx.root)
+    UI.info("Excluding", Enum.join(idx.exclude_patterns, " | "))
 
     if idx.reindex do
-      # Delete entire project directory when --force-reindex is passed
-      msg = "Deleting all embeddings to force full reindexing of #{project}"
-
-      spin(msg, fn ->
-        {"Burned it all to the ground", Store.delete_project(idx.store)}
-      end)
+      Store.delete_project(idx.store)
+      UI.report_step("Burned all of the old data to the ground to force a full reindex!")
     else
       # Otherwise, just delete any files that no longer exist.
-      msg = "Deleting missing files from #{project}"
-
-      spin(msg, fn ->
-        {"Deleted missing files", Store.delete_missing_files(idx.store, idx.root)}
-      end)
+      Store.delete_missing_files(idx.store, idx.root)
+      UI.report_step("Deleted missing and newly excluded files")
     end
 
     {:ok, queue} = Queue.start_link(&process_file(idx, &1))
 
     scanner =
       Scanner.new(idx.root, fn file ->
-        Queue.queue(queue, file)
+        if file not in idx.exclude do
+          Queue.queue(queue, file)
+        end
       end)
 
     count =
@@ -134,9 +153,13 @@ defmodule Cmd.Indexer do
     idx.root
     |> Scanner.new(fn _ -> nil end)
     |> Scanner.reduce(0, nil, fn file, acc ->
-      case get_file_hash(idx, file) do
-        {:ok, _} -> acc + 1
-        {:error, :unchanged} -> acc
+      if file in idx.exclude do
+        acc
+      else
+        case get_file_hash(idx, file) do
+          {:ok, _} -> acc + 1
+          {:error, :unchanged} -> acc
+        end
       end
     end)
   end
@@ -210,6 +233,27 @@ defmodule Cmd.Indexer do
       {:ok, content} -> :crypto.hash(:sha256, content) |> Base.encode16(case: :lower)
       {:error, reason} -> {:error, reason}
     end
+  end
+
+  # -----------------------------------------------------------------------------
+  # Helper functions
+  # -----------------------------------------------------------------------------
+  defp expand_excludes(excludes) do
+    excludes
+    |> Enum.flat_map(fn exclude ->
+      cond do
+        # If it's a directory, expand recursively to all files and directories
+        File.dir?(exclude) -> Path.wildcard(Path.join(exclude, "**/*"), match_dot: true)
+        # If it's a specific file, expand to its absolute path
+        File.exists?(exclude) -> [Path.absname(exclude)]
+        # Assume it's a glob pattern and expand it
+        true -> Path.wildcard(exclude, match_dot: true)
+      end
+    end)
+    # Filter out directories and non-existent files
+    |> Enum.filter(&File.regular?/1)
+    # Convert everything to absolute paths
+    |> Enum.map(&Path.absname/1)
   end
 
   # -----------------------------------------------------------------------------

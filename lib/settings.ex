@@ -46,8 +46,20 @@ defmodule Settings do
     |> spew()
   end
 
+  @doc """
+  Get the project specified with --project. If the project name is not set, an
+  error will be raised.
+  """
+  def get_selected_project!() do
+    Application.get_env(:fnord, :project)
+    |> case do
+      nil -> raise "--project not set"
+      project -> project
+    end
+  end
+
   def get_project(settings) do
-    project = Application.get_env(:fnord, :project)
+    project = get_selected_project!()
 
     case get(settings, project, nil) do
       nil -> {:error, :not_found}
@@ -56,13 +68,13 @@ defmodule Settings do
   end
 
   def set_project(settings, data) do
-    project = Application.get_env(:fnord, :project)
+    project = get_selected_project!()
     set(settings, project, data)
   end
 
   def get_root(settings) do
     settings
-    |> Settings.get_project()
+    |> get_project()
     |> case do
       {:ok, %{"root" => root}} -> {:ok, Path.absname(root)}
       {:error, _} -> {:error, :not_found}

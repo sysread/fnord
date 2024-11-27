@@ -134,6 +134,14 @@ defmodule Fnord do
       multiple: true
     ]
 
+    exclude = [
+      value_name: "FILE",
+      long: "--exclude",
+      short: "-x",
+      help: "Exclude a file from being indexed",
+      multiple: true
+    ]
+
     parser =
       Optimus.new!(
         name: "fnord",
@@ -207,7 +215,12 @@ defmodule Fnord do
           index: [
             name: "index",
             about: "Index a project",
-            options: [directory: directory, project: project, concurrency: concurrency],
+            options: [
+              directory: directory,
+              project: project,
+              concurrency: concurrency,
+              exclude: exclude
+            ],
             flags: [reindex: reindex, quiet: quiet]
           ],
           ask: [

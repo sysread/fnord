@@ -465,39 +465,4 @@ defmodule StoreTest do
     assert String.contains?(msg, file_path)
     assert String.contains?(msg, "you may need to reindex test_project")
   end
-
-  test "delete_missing_files/3 calls the callback for each deleted file", %{tmp_dir: tmp_dir} do
-    store = Store.new()
-
-    file_path1 = Path.join(tmp_dir, "file1.txt")
-    File.write!(file_path1, "Content 1")
-    file_path2 = Path.join(tmp_dir, "file2.txt")
-    File.write!(file_path2, "Content 2")
-
-    hash = "hash"
-    summary = "Summary"
-    outline = "Outline"
-    embeddings = []
-
-    Store.put(store, file_path1, hash, summary, outline, embeddings)
-    Store.put(store, file_path2, hash, summary, outline, embeddings)
-
-    # Delete both files from disk
-    File.rm!(file_path1)
-    File.rm!(file_path2)
-
-    # Set up a counter to count how many times the callback is called
-    {:ok, count} = Agent.start_link(fn -> 0 end)
-
-    callback = fn ->
-      Agent.update(count, &(&1 + 1))
-    end
-
-    Store.delete_missing_files(store, tmp_dir, callback)
-
-    files = Store.list_files(store)
-    assert files == []
-
-    assert Agent.get(count, & &1) == 2
-  end
 end

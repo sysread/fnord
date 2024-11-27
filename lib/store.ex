@@ -15,7 +15,7 @@ defmodule Store do
     home = Settings.home()
     File.mkdir_p!(home)
 
-    project = get_project!()
+    project = Settings.get_selected_project!()
     path = Path.join(home, project)
 
     %Store{
@@ -25,23 +25,11 @@ defmodule Store do
   end
 
   @doc """
-  Get the project specified with --project. If the project name is not set, an
-  error will be raised.
-  """
-  def get_project!() do
-    Application.get_env(:fnord, :project)
-    |> case do
-      nil -> raise "--project not set"
-      project -> project
-    end
-  end
-
-  @doc """
   Get the project directory. This is the directory where the project's files
   are stored.
   """
   def get_project_dir() do
-    Path.join(Settings.home(), get_project!())
+    Path.join(Settings.home(), Settings.get_selected_project!())
   end
 
   @doc """
@@ -51,7 +39,7 @@ defmodule Store do
   2. There are entries in the project directory.
   """
   def project_exists?() do
-    project = get_project!()
+    project = Settings.get_selected_project!()
     path = Path.join(Settings.home(), project)
     files = Path.wildcard(Path.join(path, "*"))
 
@@ -91,22 +79,24 @@ defmodule Store do
   @doc """
   Permanently delete any files that are indexed but no longer exist on disk.
   """
-  def delete_missing_files(store, root, callback \\ fn -> nil end) do
+  def delete_missing_files(store, root) do
+    exclude =
+      Settings.new()
+      |> Settings.get_project()
+      |> case do
+        {:ok, %{"exclude" => exclude}} -> exclude
+        _ -> []
+      end
+
     store
     |> list_files()
     |> Enum.each(fn file ->
       cond do
-        !File.exists?(file) ->
-          delete_file(store, file)
-          callback.()
-
+        !File.exists?(file) -> delete_file(store, file)
+        file in exclude -> delete_file(store, file)
         # There was a bug allowing git-ignored files to be indexed
-        Git.is_ignored?(file, root) ->
-          delete_file(store, file)
-          callback.()
-
-        true ->
-          :ok
+        Git.is_ignored?(file, root) -> delete_file(store, file)
+        true -> :ok
       end
     end)
   end

@@ -50,15 +50,23 @@ defmodule Cmd.IndexerTest do
       end
     end)
 
-    {:ok, home_dir: home_dir, store_dir: Path.join(home_dir, ".fnord"), project_dir: project_dir}
+    project = "test_project"
+    Application.put_env(:fnord, :project, "test_project")
+    on_exit(fn -> Application.put_env(:fnord, :project, nil) end)
+
+    {:ok,
+     home_dir: home_dir,
+     store_dir: Path.join(home_dir, ".fnord"),
+     project_dir: project_dir,
+     project: project}
   end
 
-  test "--directory", %{project_dir: project_dir} do
+  test "--directory", %{project: project, project_dir: project_dir} do
     # Ensure an error is raised an error if directory is not provided when the
     # project root is not in settings.
     raises_error =
       try do
-        Cmd.Indexer.new(%{project: "test_project"}, MockIndexer)
+        Cmd.Indexer.new(%{project: project}, MockIndexer)
         false
       rescue
         _ -> true

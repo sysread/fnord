@@ -5,13 +5,9 @@ defmodule UI do
     Logger.flush()
   end
 
-  def report_step(msg) do
-    Logger.info(IO.ANSI.format([:green, msg, :reset], colorize?()))
-  end
+  def report_step(msg), do: info(msg)
 
-  def report_step(msg, detail) do
-    Logger.info(IO.ANSI.format([:green, msg, :reset, ": ", :cyan, detail, :reset], colorize?()))
-  end
+  def report_step(msg, detail), do: info(msg, detail)
 
   def debug(msg) do
     Logger.debug(IO.ANSI.format([:green, msg, :reset], colorize?()))
@@ -19,6 +15,14 @@ defmodule UI do
 
   def debug(msg, detail) do
     Logger.debug(IO.ANSI.format([:green, msg, :reset, ": ", :cyan, detail, :reset], colorize?()))
+  end
+
+  def info(msg) do
+    Logger.info(IO.ANSI.format([:green, msg, :reset], colorize?()))
+  end
+
+  def info(msg, detail) do
+    Logger.info(IO.ANSI.format([:green, msg, :reset, ": ", :cyan, detail, :reset], colorize?()))
   end
 
   def warn(msg) do
