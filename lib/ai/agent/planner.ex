@@ -64,6 +64,9 @@ defmodule AI.Agent.Planner do
        #{msgs_json}
        ```
        """}
+    else
+      {error_msgs, error_tools} ->
+        {:error, "Failed to encode JSON. Errors: #{inspect({error_msgs, error_tools})}"}
     end
   end
 end
