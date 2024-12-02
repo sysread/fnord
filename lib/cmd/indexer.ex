@@ -41,8 +41,8 @@ defmodule Cmd.Indexer do
       store: Store.new(),
       reindex: reindex,
       root: Map.get(settings, "root"),
-      exclude: Map.get(settings, "exclude"),
-      exclude_patterns: Map.get(settings, "exclude_patterns")
+      exclude: Map.get(settings, "exclude") || [],
+      exclude_patterns: Map.get(settings, "exclude_patterns") || []
     }
   end
 
