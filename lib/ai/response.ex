@@ -27,12 +27,14 @@ defmodule AI.Response do
          {:ok, user} <- Keyword.fetch(opts, :user) do
       tools = Keyword.get(opts, :tools, nil)
       on_event = Keyword.get(opts, :on_event, fn _, _ -> :ok end)
+      use_planner = Keyword.get(opts, :use_planner, false)
 
       %{
         ai: ai,
         opts: Enum.into(opts, %{}),
         max_tokens: max_tokens,
         model: model,
+        use_planner: use_planner,
         tools: tools,
         on_event: on_event,
         messages: [AI.Util.system_msg(system), AI.Util.user_msg(user)],
@@ -70,6 +72,7 @@ defmodule AI.Response do
   defp handle_response({:ok, :tool, tool_calls}, state) do
     %{state | tool_call_requests: tool_calls}
     |> handle_tool_calls()
+    |> maybe_use_planner()
     |> send_request()
   end
 
@@ -90,6 +93,26 @@ defmodule AI.Response do
         #{reason}
         """
     }
+  end
+
+  # -----------------------------------------------------------------------------
+  # Planner
+  # -----------------------------------------------------------------------------
+  defp maybe_use_planner(%{use_planner: false} = state) do
+    state
+  end
+
+  defp maybe_use_planner(%{ai: ai, use_planner: true, messages: msgs, tools: tools} = state) do
+    case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools}) do
+      {:ok, response, _usage} ->
+        UI.report_step("Planning next step(s)", response)
+        planner_msg = AI.Util.system_msg(response)
+        %{state | messages: state.messages ++ [planner_msg]}
+
+      {:error, reason} ->
+        state.on_event.(:planner_error, reason)
+        state
+    end
   end
 
   # -----------------------------------------------------------------------------

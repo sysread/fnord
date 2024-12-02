@@ -131,7 +131,8 @@ defmodule AI.Agent.Answers do
       model: @model,
       tools: tools,
       system: @prompt,
-      user: user_prompt(opts.question, includes)
+      user: user_prompt(opts.question, includes),
+      use_planner: true
     )
   end
 
