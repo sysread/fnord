@@ -1,4 +1,9 @@
-defmodule AI.Tokens_o200k_base do
+defmodule AI.Tokenizer.Tokens_o200k_base do
+  @moduledoc """
+  This module implements the o200k-base tokenizer model used by OpenAI's
+  `gpt-4o` models.
+  """
+
   @merges :erlang.binary_to_term(File.read!("data/o200k_base.merges"))
   @vocab :erlang.binary_to_term(File.read!("data/o200k_base.vocab"))
   @reverse_vocab :erlang.binary_to_term(File.read!("data/o200k_base.reverse_vocab"))

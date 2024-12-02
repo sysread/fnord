@@ -1,41 +1,95 @@
 defmodule AI.TokenizerTest do
+  @moduledoc """
+  Use the [official tokenizer](https://platform.openai.com/tokenizer) to
+  generate token IDs for `@input` to add new test cases.
+
+  Note that `text-embedding-3-large` uses the same tokenizer as
+  `gpt-3.5`/`gpt-3.5-turbo` in the official tool.
+  """
+
   use ExUnit.Case
 
   @input "Now is the time for all good men to come to the aid of their country."
 
-  # From https://platform.openai.com/tokenizer
-  @expected [
-    10620,
-    382,
-    290,
-    1058,
-    395,
-    722,
-    1899,
-    1966,
-    316,
-    3063,
-    316,
-    290,
-    13765,
-    328,
-    1043,
-    4931,
-    13
-  ]
+  describe "cl100k-base" do
+    setup do
+      tokens = [
+        7184,
+        374,
+        279,
+        892,
+        369,
+        682,
+        1695,
+        3026,
+        311,
+        2586,
+        311,
+        279,
+        12576,
+        315,
+        872,
+        3224,
+        13
+      ]
 
-  test "encode/1 <=> decode/1" do
-    encoded = AI.Tokenizer.encode(@input)
-    assert encoded == @expected
-    assert AI.Tokenizer.decode(encoded) == @input
+      {:ok, tokens: tokens, model: "text-embedding-3-large"}
+    end
+
+    test "encode/1 <=> decode/1", %{tokens: tokens, model: model} do
+      encoded = AI.Tokenizer.encode(@input, model)
+      assert encoded == tokens
+      assert AI.Tokenizer.decode(encoded, model) == @input
+    end
+
+    test "chunk/2", %{model: model} do
+      chunks = AI.Tokenizer.chunk(@input, 10, model)
+
+      assert [
+               "Now is the time for all good men to come",
+               " to the aid of their country."
+             ] = chunks
+    end
   end
 
-  test "chunk/2" do
-    chunks = AI.Tokenizer.chunk(@input, 10)
+  describe "o200k-base" do
+    setup do
+      tokens = [
+        10620,
+        382,
+        290,
+        1058,
+        395,
+        722,
+        1899,
+        1966,
+        316,
+        3063,
+        316,
+        290,
+        13765,
+        328,
+        1043,
+        4931,
+        13
+      ]
 
-    assert [
-             "Now is the time for all good men to come",
-             " to the aid of their country."
-           ] = chunks
+      {:ok, tokens: tokens, model: "gpt-4o"}
+    end
+
+    test "encode/1 <=> decode/1", %{tokens: tokens, model: model} do
+      encoded = AI.Tokenizer.encode(@input, model)
+      assert encoded == tokens
+      assert AI.Tokenizer.decode(encoded, model) == @input
+    end
+
+    test "chunk/2", %{model: model} do
+      chunks = AI.Tokenizer.chunk(@input, 10, model)
+
+      assert [
+               "Now is the time for all good men to come",
+               " to the aid of their country."
+             ] = chunks
+    end
   end
 end

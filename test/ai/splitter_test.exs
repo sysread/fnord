@@ -6,12 +6,12 @@ defmodule AI.SplitterTest do
     @behaviour AI.Tokenizer
 
     @impl AI.Tokenizer
-    def encode(text) do
+    def encode(text, _model) do
       text |> String.split()
     end
 
     @impl AI.Tokenizer
-    def decode(tokens) do
+    def decode(tokens, _model) do
       tokens |> Enum.join(" ")
     end
   end
@@ -31,7 +31,7 @@ defmodule AI.SplitterTest do
   test "next_chunk/1" do
     input = "the quick brown fox jumps over the lazy dog"
 
-    splitter = AI.Splitter.new(input, 5)
+    splitter = AI.Splitter.new(input, 5, "mst-3k")
 
     assert {"the quick brown", %{offset: 3} = splitter} =
              AI.Splitter.next_chunk(splitter, "how now")

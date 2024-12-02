@@ -70,7 +70,7 @@ defmodule AI.Accumulator do
 
       %__MODULE__{
         ai: ai,
-        splitter: AI.Splitter.new(input, max_tokens),
+        splitter: AI.Splitter.new(input, max_tokens, model),
         buffer: "",
         max_tokens: max_tokens,
         model: model,

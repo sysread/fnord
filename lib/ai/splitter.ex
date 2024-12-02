@@ -14,22 +14,20 @@ defmodule AI.Splitter do
   """
 
   defstruct [
-    :tokenizer,
     :max_tokens,
+    :model,
     :input,
     :input_tokens,
     :offset,
     :done
   ]
 
-  def new(input, max_tokens) do
-    tokenizer = AI.Tokenizer.get_impl()
-
+  def new(input, max_tokens, model) do
     %AI.Splitter{
-      tokenizer: tokenizer,
       max_tokens: max_tokens,
+      model: model,
       input: input,
-      input_tokens: tokenizer.encode(input),
+      input_tokens: AI.Tokenizer.encode(input, model),
       offset: 0,
       done: false
     }
@@ -40,7 +38,7 @@ defmodule AI.Splitter do
   end
 
   def next_chunk(tok, bespoke_input) do
-    bespoke_tokens = tok.tokenizer.encode(bespoke_input) |> length()
+    bespoke_tokens = AI.Tokenizer.encode(bespoke_input, tok.model) |> length()
     remaining_tokens = tok.max_tokens - bespoke_tokens
     {slice, tok} = get_slice(tok, remaining_tokens)
 
@@ -61,7 +59,7 @@ defmodule AI.Splitter do
   defp get_slice(tok, num_tokens) do
     slice = Enum.slice(tok.input_tokens, tok.offset, num_tokens)
     tokens = length(slice)
-    output = tok.tokenizer.decode(slice)
+    output = AI.Tokenizer.decode(slice, tok.model)
     {output, %AI.Splitter{tok | offset: tok.offset + tokens}}
   end
 end

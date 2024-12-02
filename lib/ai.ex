@@ -65,7 +65,7 @@ defmodule AI do
   """
   def get_embeddings(ai, text) do
     text
-    |> AI.Tokenizer.chunk(@embeddings_token_limit)
+    |> AI.Tokenizer.chunk(@embeddings_token_limit, @embeddings_model)
     |> Enum.map(&[ai.client, @embeddings_model, &1])
     |> Enum.reduce_while([], fn request, embeddings ->
       ai

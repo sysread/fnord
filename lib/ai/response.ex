@@ -32,8 +32,8 @@ defmodule AI.Response do
     end
   end
 
-  defp context_window_usage(%{messages: msgs, max_tokens: max_tokens}) do
-    tokens = msgs |> inspect() |> AI.Tokenizer.encode() |> length()
+  defp context_window_usage(%{model: model, messages: msgs, max_tokens: max_tokens}) do
+    tokens = msgs |> inspect() |> AI.Tokenizer.encode(model) |> length()
     pct = tokens / max_tokens * 100.0
     pct_str = Number.Percentage.number_to_percentage(pct, precision: 2)
     tokens_str = Number.Delimit.number_to_delimited(tokens, precision: 0)
