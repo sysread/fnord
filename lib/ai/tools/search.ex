@@ -33,18 +33,17 @@ defmodule AI.Tools.Search do
 
   @impl AI.Tools
   def call(agent, args) do
-    with {:ok, query} <- Map.fetch(args, "query") do
-      with {:ok, matches} <- search(query, agent.opts) do
-        matches
-        |> Enum.map(fn {file, score, data} ->
-          """
-          # `#{file}` (cosine similarity: #{score})
-          #{data["summary"]}
-          """
-        end)
-        |> Enum.join("\n-----\n")
-        |> then(fn res -> {:ok, "[search_tool]\n#{res}"} end)
-      end
+    with {:ok, query} <- Map.fetch(args, "query"),
+         {:ok, matches} <- search(query, agent.opts) do
+      matches
+      |> Enum.map(fn {file, score, data} ->
+        """
+        # `#{file}` (cosine similarity: #{score})
+        #{data["summary"]}
+        """
+      end)
+      |> Enum.join("\n-----\n")
+      |> then(fn res -> {:ok, "[search_tool]\n#{res}"} end)
     end
   end
 

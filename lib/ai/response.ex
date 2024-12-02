@@ -129,45 +129,10 @@ defmodule AI.Response do
     end
   end
 
-  # -----------------------------------------------------------------------------
-  # Tool call outputs
-  # -----------------------------------------------------------------------------
   defp perform_tool_call(state, func, args_json) when is_binary(args_json) do
     with {:ok, args} <- Jason.decode(args_json) do
       state.on_event.(:tool_call, {func, args})
-      perform_tool_call(state, func, args)
+      AI.Tools.perform_tool_call(state, func, args)
     end
-  end
-
-  defp perform_tool_call(state, "search_tool", args) do
-    AI.Tools.Search.call(state, args)
-  end
-
-  defp perform_tool_call(state, "list_files_tool", args) do
-    AI.Tools.ListFiles.call(state, args)
-  end
-
-  defp perform_tool_call(state, "file_info_tool", args) do
-    AI.Tools.FileInfo.call(state, args)
-  end
-
-  defp perform_tool_call(state, "spelunker_tool", args) do
-    AI.Tools.Spelunker.call(state, args)
-  end
-
-  defp perform_tool_call(state, "git_pickaxe_tool", args) do
-    AI.Tools.GitPickaxe.call(state, args)
-  end
-
-  defp perform_tool_call(state, "git_show_tool", args) do
-    AI.Tools.GitShow.call(state, args)
-  end
-
-  defp perform_tool_call(state, "outline_tool", args) do
-    AI.Tools.Outline.call(state, args)
-  end
-
-  defp perform_tool_call(_state, func, _args) do
-    {:error, :unhandled_tool_call, func}
   end
 end

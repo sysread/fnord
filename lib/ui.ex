@@ -9,6 +9,12 @@ defmodule UI do
 
   def report_step(msg, detail), do: info(msg, detail)
 
+  def inspect(item, label) do
+    Logger.debug(label, Kernel.inspect(item, pretty: true))
+    Logger.flush()
+    item
+  end
+
   def debug(msg) do
     Logger.debug(IO.ANSI.format([:green, msg, :reset], colorize?()))
   end
