@@ -70,6 +70,7 @@ defmodule Settings do
   def set_project(settings, data) do
     project = get_selected_project!()
     set(settings, project, data)
+    data
   end
 
   def get_root(settings) do

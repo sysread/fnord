@@ -19,62 +19,65 @@ defmodule Cmd.Indexer do
   """
   def new(opts, indexer \\ Indexer) do
     reindex = Map.get(opts, :reindex, false)
-    exclude = Map.get(opts, :exclude, [])
+    settings = get_settings(opts)
 
-    expanded_exclude = expand_excludes(exclude)
+    if Map.get(settings, "root") == nil do
+      raise """
+      Error: the project root was not found in the settings file.
 
+      This can happen under the following circumstances:
+        - the first index of a project
+        - the first index reindexing after moving the project directory
+        - the first index after the upgrade that made --dir optional
+
+      Re-run with --dir to specify the project root directory and update the settings file.
+      """
+    end
+
+    %__MODULE__{
+      opts: opts,
+      indexer_module: indexer,
+      indexer: indexer.new(),
+      store: Store.new(),
+      reindex: reindex,
+      root: Map.get(settings, "root"),
+      exclude: Map.get(settings, "exclude"),
+      exclude_patterns: Map.get(settings, "exclude_patterns")
+    }
+  end
+
+  defp get_settings(opts) do
     settings = Settings.new()
 
-    project_settings =
+    # Get the project's current settings
+    project =
       Settings.get_project(settings)
       |> case do
         {:ok, project_settings} -> project_settings
         {:error, :not_found} -> %{}
       end
 
-    root =
-      case Map.get(opts, :directory, nil) do
-        root when is_binary(root) ->
-          Path.absname(root)
-
-        nil ->
-          case Map.get(project_settings, "root") do
-            nil ->
-              raise """
-              Error: the project root was not found in the settings file.
-
-              This can happen under the following circumstances:
-                - the first index of a project
-                - the first index reindexing after moving the project directory
-                - the first index after the upgrade that made --dir optional
-
-              Re-run with --dir to specify the project root directory and update the settings file.
-              """
-
-            root ->
-              root
-          end
+    # Update the root if provided in user options
+    project =
+      case Map.get(opts, :directory) do
+        nil -> project
+        root -> Map.put(project, "root", Path.absname(root))
       end
 
-    Settings.set_project(
-      Settings.new(),
-      Map.merge(project_settings, %{
-        "root" => root,
-        "exclude" => expanded_exclude,
-        "exclude_patterns" => exclude
-      })
-    )
+    # Update the exclusions if provided in user options
+    project =
+      case Map.get(opts, :exclude) do
+        [] ->
+          project
 
-    %__MODULE__{
-      opts: opts,
-      indexer_module: indexer,
-      indexer: indexer.new(),
-      root: root,
-      store: Store.new(),
-      reindex: reindex,
-      exclude: expanded_exclude,
-      exclude_patterns: exclude
-    }
+        excludes ->
+          project
+          |> Map.put("exclude_patterns", excludes)
+          |> Map.put("exclude", expand_excludes(excludes))
+      end
+
+    # Save the updated settings and return the project map
+    Settings.set_project(settings, project)
   end
 
   @doc """
@@ -238,6 +241,8 @@ defmodule Cmd.Indexer do
   # -----------------------------------------------------------------------------
   # Helper functions
   # -----------------------------------------------------------------------------
+  defp expand_excludes(nil), do: nil
+
   defp expand_excludes(excludes) do
     excludes
     |> Enum.flat_map(fn exclude ->
