@@ -16,21 +16,31 @@ defmodule AI.Agent.FileInfo do
     AI.Tools.GitPickaxe.spec()
   ]
 
-  def get_response(ai, file, question, content) do
-    question = """
-    File: #{file}
-    Question: #{question}
-    """
+  # -----------------------------------------------------------------------------
+  # Behaviour implementation
+  # -----------------------------------------------------------------------------
+  @behaviour AI.Agent
 
-    AI.Accumulator.get_response(ai,
-      max_tokens: @max_tokens,
-      model: @model,
-      tools: @tools,
-      prompt: @prompt,
-      input: content,
-      question: question,
-      on_event: &on_event/2
-    )
+  @impl AI.Agent
+  def get_response(ai, opts) do
+    with {:ok, file} <- Map.fetch(opts, :file),
+         {:ok, question} <- Map.fetch(opts, :question),
+         {:ok, content} <- Map.fetch(opts, :content) do
+      question = """
+      File: #{file}
+      Question: #{question}
+      """
+
+      AI.Accumulator.get_response(ai,
+        max_tokens: @max_tokens,
+        model: @model,
+        tools: @tools,
+        prompt: @prompt,
+        input: content,
+        question: question,
+        on_event: &on_event/2
+      )
+    end
   end
 
   defp on_event(:tool_call, {"git_show_tool", %{"sha" => sha}}) do

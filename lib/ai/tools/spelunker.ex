@@ -53,7 +53,7 @@ defmodule AI.Tools.Spelunker do
     with {:ok, symbol} <- Map.fetch(args, "symbol"),
          {:ok, start_file} <- Map.fetch(args, "start_file"),
          {:ok, question} <- Map.fetch(args, "question") do
-      AI.Agent.Spelunker.perform(agent.ai, %{
+      AI.Agent.Spelunker.get_response(agent.ai, %{
         symbol: symbol,
         start_file: start_file,
         question: question

@@ -45,11 +45,11 @@ defmodule Indexer do
 
   @impl Indexer
   def get_summary(indexer, file, content) do
-    AI.Agent.FileSummary.get_response(indexer.ai, file, content)
+    AI.Agent.FileSummary.get_response(indexer.ai, %{file: file, content: content})
   end
 
   @impl Indexer
   def get_outline(indexer, file, content) do
-    AI.Agent.CodeMapper.get_response(indexer.ai, file, content)
+    AI.Agent.CodeMapper.get_response(indexer.ai, %{file: file, content: content})
   end
 end

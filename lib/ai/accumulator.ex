@@ -59,6 +59,7 @@ defmodule AI.Accumulator do
   -----
   """
 
+  @spec get_response(AI.t(), keyword) :: {:ok, String.t()}
   def get_response(ai, opts \\ []) do
     with {:ok, max_tokens} <- Keyword.fetch(opts, :max_tokens),
          {:ok, model} <- Keyword.fetch(opts, :model),

@@ -35,13 +35,22 @@ defmodule AI.Agent.CodeMapper do
   ```
   """
 
-  def get_response(ai, file, content) do
-    AI.Accumulator.get_response(ai,
-      max_tokens: @max_tokens,
-      model: @model,
-      prompt: @prompt,
-      input: content,
-      question: "Generate an outline of the code in the file: #{file}"
-    )
+  # -----------------------------------------------------------------------------
+  # Behaviour implementation
+  # -----------------------------------------------------------------------------
+  @behaviour AI.Agent
+
+  @impl AI.Agent
+  def get_response(ai, opts) do
+    with {:ok, file} <- Map.fetch(opts, :file),
+         {:ok, content} <- Map.fetch(opts, :content) do
+      AI.Accumulator.get_response(ai,
+        max_tokens: @max_tokens,
+        model: @model,
+        prompt: @prompt,
+        input: content,
+        question: "Generate an outline of the code in the file: #{file}"
+      )
+    end
   end
 end

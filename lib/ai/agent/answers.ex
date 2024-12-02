@@ -79,7 +79,13 @@ defmodule AI.Agent.Answers do
     AI.Tools.Spelunker.spec()
   ]
 
-  def perform(ai, opts) do
+  # -----------------------------------------------------------------------------
+  # Behaviour implementation
+  # -----------------------------------------------------------------------------
+  @behaviour AI.Agent
+
+  @impl AI.Agent
+  def get_response(ai, opts) do
     UI.report_step("Researching", opts.question)
 
     with includes = Map.get(opts, :include, []) |> get_included_files(),
@@ -87,9 +93,14 @@ defmodule AI.Agent.Answers do
       UI.report_step(label, usage)
       UI.flush()
       IO.puts(response)
+
+      {:ok, response}
     end
   end
 
+  # -----------------------------------------------------------------------------
+  # Private functions
+  # -----------------------------------------------------------------------------
   defp get_included_files(files) do
     preamble = "The user has included the following file for context"
 

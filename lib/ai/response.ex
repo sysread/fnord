@@ -6,6 +6,20 @@ defmodule AI.Response do
   call results in an error.
   """
 
+  @type response :: {
+          :ok,
+          String.t(),
+          context_window_usage
+        }
+
+  @type context_window_usage :: {
+          # "Context window usage"
+          String.t(),
+          # "50.00% | 500 / 1000"
+          String.t()
+        }
+
+  @spec get(AI.t(), keyword) :: response
   def get(ai, opts) do
     with {:ok, max_tokens} <- Keyword.fetch(opts, :max_tokens),
          {:ok, model} <- Keyword.fetch(opts, :model),

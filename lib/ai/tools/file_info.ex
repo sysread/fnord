@@ -55,7 +55,12 @@ defmodule AI.Tools.FileInfo do
     with {:ok, question} <- Map.fetch(args, "question"),
          {:ok, file} <- Map.fetch(args, "file"),
          {:ok, contents} <- File.read(file),
-         {:ok, response} <- AI.Agent.FileInfo.get_response(agent.ai, file, question, contents) do
+         {:ok, response} <-
+           AI.Agent.FileInfo.get_response(agent.ai, %{
+             file: file,
+             question: question,
+             contents: contents
+           }) do
       {:ok, "[file_info_tool]\n#{response}"}
     end
   end

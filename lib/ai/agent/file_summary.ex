@@ -36,13 +36,22 @@ defmodule AI.Agent.FileSummary do
   Only use information from the file itself to ensure accurate summaries without false positives from external sources.
   """
 
-  def get_response(ai, file, content) do
-    AI.Accumulator.get_response(ai,
-      max_tokens: @max_tokens,
-      model: @model,
-      prompt: @prompt,
-      input: content,
-      question: "Summarize the content of the file: #{file}"
-    )
+  # -----------------------------------------------------------------------------
+  # Behaviour implementation
+  # -----------------------------------------------------------------------------
+  @behaviour AI.Agent
+
+  @impl AI.Agent
+  def get_response(ai, opts) do
+    with {:ok, file} <- Map.fetch(opts, :file),
+         {:ok, content} <- Map.fetch(opts, :content) do
+      AI.Accumulator.get_response(ai,
+        max_tokens: @max_tokens,
+        model: @model,
+        prompt: @prompt,
+        input: content,
+        question: "Summarize the content of the file: #{file}"
+      )
+    end
   end
 end

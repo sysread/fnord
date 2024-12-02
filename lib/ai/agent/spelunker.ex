@@ -33,12 +33,21 @@ defmodule AI.Agent.Spelunker do
     AI.Tools.Outline.spec()
   ]
 
-  def perform(ai, opts) do
+  # -----------------------------------------------------------------------------
+  # Behaviour implementation
+  # -----------------------------------------------------------------------------
+  @behaviour AI.Agent
+
+  @impl AI.Agent
+  def get_response(ai, opts) do
     with {:ok, response, _usage} <- build_response(ai, opts) do
       {:ok, response}
     end
   end
 
+  # -----------------------------------------------------------------------------
+  # Private functions
+  # -----------------------------------------------------------------------------
   defp build_response(ai, opts) do
     AI.Response.get(ai,
       on_event: &on_event/2,

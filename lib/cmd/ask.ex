@@ -3,7 +3,7 @@ defmodule Cmd.Ask do
 
   def run(opts) do
     with :ok <- validate(opts) do
-      AI.Agent.Answers.perform(AI.new(), opts)
+      AI.Agent.Answers.get_response(AI.new(), opts)
     else
       {:error, :project_not_found} -> UI.error(@project_not_found_error)
     end
