@@ -27,6 +27,8 @@ defmodule AI.Agent.Planner do
   4. If the user is asking how to perform an action or implement code, suggest searches that might lead to examples that could be cited in the final response
   5. Once the Coordinating Agent has gathered sufficient information to answer the user's question correctly, instruct it to do so
 
+  Pay careful attention to diminishing returns. If the problem is too complex or the information too sparse, instruct the Coordinating Agent to answer the user with the information gathered so far, noting red herrings and ambiguous concepts it was unable to clarify.
+
   Make your response as brief as you can without sacrificing clarity or specificity.
   Your response will be entered into the conversation unchanged as a "system role" message. Phrase it appropriately.
   """

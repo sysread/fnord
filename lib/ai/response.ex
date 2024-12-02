@@ -61,8 +61,14 @@ defmodule AI.Response do
   # Response handling
   # -----------------------------------------------------------------------------
   defp send_request(state) do
-    AI.get_completion(state.ai, state.model, state.messages, state.tools)
+    state
+    |> maybe_use_planner()
+    |> get_completion()
     |> handle_response(state)
+  end
+
+  def get_completion(state) do
+    AI.get_completion(state.ai, state.model, state.messages, state.tools)
   end
 
   defp handle_response({:ok, :msg, response}, state) do

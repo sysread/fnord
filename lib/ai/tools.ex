@@ -14,7 +14,15 @@ defmodule AI.Tools do
   calls. What happens behind closed APIs is none of MY business.
   """
 
+  @doc """
+  Returns the OpenAPI spec for the tool as an elixir map.
+  """
   @callback spec() :: map
+
+  @doc """
+  Calls the tool with the provided arguments and returns the response as an :ok
+  tuple.
+  """
   @callback call(agent :: struct, args :: map) :: {:ok, String.t()}
 
   @tools %{

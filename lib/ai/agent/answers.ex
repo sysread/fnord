@@ -44,6 +44,7 @@ defmodule AI.Agent.Answers do
 
   # Response
   Prioritize completeness and accuracy in your response.
+  Do not use flowery prose. Keep your tone conversational and brief.
   Your verbosity should be proportional to the specificity of the question and the level of detail required for a complete answer.
   Include code citations or examples whenever possible.
   If you are unable to find a complete answer, explain the situation.
