@@ -7,21 +7,23 @@ defmodule Cmd.SearchTest do
     quiet: true
   )
 
+  # Quiet down logging from the indexer
   setup do
-    # Save the current log level
-    current_level = Logger.level()
-
-    # Disable logging
+    old_log_level = Logger.level()
     Logger.configure(level: :none)
-
-    # Return the current log level to restore later
-    on_exit(fn ->
-      Logger.configure(level: current_level)
-    end)
-
+    on_exit(fn -> Logger.configure(level: old_log_level) end)
     :ok
   end
 
+  # Set the global project settings
+  setup do
+    original_project = Application.get_env(:fnord, :project)
+    Application.put_env(:fnord, :project, "test_project")
+    on_exit(fn -> Application.put_env(:fnord, :project, original_project) end)
+    {:ok, project: "test_project"}
+  end
+
+  # Set up temp directories for fnord home and project
   setup do
     # Create temporary directories for the home and project
     {:ok, home_dir} = Briefly.create(directory: true)

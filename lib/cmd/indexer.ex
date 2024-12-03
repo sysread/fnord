@@ -11,7 +11,7 @@ defmodule Cmd.Indexer do
     :store,
     :reindex,
     :exclude,
-    :exclude_patterns
+    :expanded_exclude
   ]
 
   @doc """
@@ -34,6 +34,9 @@ defmodule Cmd.Indexer do
       """
     end
 
+    exclude = Map.get(settings, "exclude")
+    expanded_exclude = expand_excludes(exclude)
+
     %__MODULE__{
       opts: opts,
       indexer_module: indexer,
@@ -41,11 +44,13 @@ defmodule Cmd.Indexer do
       store: Store.new(),
       reindex: reindex,
       root: Map.get(settings, "root"),
-      exclude: Map.get(settings, "exclude") || [],
-      exclude_patterns: Map.get(settings, "exclude_patterns") || []
+      exclude: exclude || [],
+      expanded_exclude: expanded_exclude || []
     }
   end
 
+  # Retrieves project settings from the config file, then overrides any values
+  # that were explicitly set in the command line invocation.
   defp get_settings(opts) do
     settings = Settings.new()
 
@@ -55,6 +60,24 @@ defmodule Cmd.Indexer do
       |> case do
         {:ok, project_settings} -> project_settings
         {:error, :not_found} -> %{}
+      end
+
+    # ---------------------------------------------------------------------------
+    # The presence of exclude_patterns means they have an old settings file.
+    # We removed that in 0.4.37. If they have it, try to fix it.
+    #
+    # The old `exclude` was the expanded patterns, and `exclude_patterns` was
+    # the user's -x selections. We need to replace `exclude` with the contents
+    # of `exclude_patterns` and then delete `exclude_patterns`, which is
+    # deprecated.
+    # ---------------------------------------------------------------------------
+    project =
+      if Map.has_key?(project, "exclude_patterns") do
+        project = Map.put(project, "exclude", project["exclude_patterns"])
+        project = Map.delete(project, "exclude_patterns")
+        Settings.set_project(settings, project)
+      else
+        project
       end
 
     # Update the root if provided in user options
@@ -67,13 +90,8 @@ defmodule Cmd.Indexer do
     # Update the exclusions if provided in user options
     project =
       case Map.get(opts, :exclude) do
-        [] ->
-          project
-
-        excludes ->
-          project
-          |> Map.put("exclude_patterns", excludes)
-          |> Map.put("exclude", expand_excludes(excludes))
+        [] -> project
+        exclude -> Map.put(project, "exclude", exclude)
       end
 
     # Save the updated settings and return the project map
@@ -88,7 +106,7 @@ defmodule Cmd.Indexer do
     project = Application.get_env(:fnord, :project)
     UI.info("Indexing", project)
     UI.info("Root", idx.root)
-    UI.info("Excluding", Enum.join(idx.exclude_patterns, " | "))
+    UI.info("Excluding", Enum.join(idx.exclude, " | "))
 
     if idx.reindex do
       Store.delete_project(idx.store)
@@ -103,7 +121,7 @@ defmodule Cmd.Indexer do
 
     scanner =
       Scanner.new(idx.root, fn file ->
-        if file not in idx.exclude do
+        if file not in idx.expanded_exclude do
           Queue.queue(queue, file)
         end
       end)
@@ -156,7 +174,7 @@ defmodule Cmd.Indexer do
     idx.root
     |> Scanner.new(fn _ -> nil end)
     |> Scanner.reduce(0, nil, fn file, acc ->
-      if file in idx.exclude do
+      if file in idx.expanded_exclude do
         acc
       else
         case get_file_hash(idx, file) do

@@ -90,7 +90,7 @@ defmodule Settings do
   end
 
   defp spew(settings) do
-    File.write!(settings.path, Jason.encode!(settings.data))
+    File.write!(settings.path, Jason.encode!(settings.data, pretty: true))
     settings
   end
 
