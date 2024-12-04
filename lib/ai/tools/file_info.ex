@@ -65,7 +65,12 @@ defmodule AI.Tools.FileInfo do
     else
       {:error, :enoent} ->
         {:error,
-         "The requested file does not exist. It may have been added since the most recent reindexing of the project."}
+         """
+         The requested file does not exist. It may have been added since the
+         most recent reindexing of the project. If the file is only present in
+         a topic branch that has not yet been merged, it may not be visible to
+         this tool.
+         """}
 
       {:error, reason} ->
         {:error, reason}
