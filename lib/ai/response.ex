@@ -78,7 +78,6 @@ defmodule AI.Response do
   defp handle_response({:ok, :tool, tool_calls}, state) do
     %{state | tool_call_requests: tool_calls}
     |> handle_tool_calls()
-    |> maybe_use_planner()
     |> send_request()
   end
 
