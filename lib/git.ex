@@ -3,6 +3,16 @@ defmodule Git do
   Module for interacting with git.
   """
 
+  @common_args [
+    stderr_to_stdout: true,
+    parallelism: true,
+    env: [
+      {"GIT_TRACE", "0"},
+      {"GIT_CURL_VERBOSE", "0"},
+      {"GIT_DEBUG", "0"}
+    ]
+  ]
+
   def is_git_repo?() do
     Settings.new()
     |> Settings.get_root()
@@ -13,80 +23,45 @@ defmodule Git do
   end
 
   def is_git_repo?(path) do
-    case System.cmd("git", ["-C", path, "rev-parse", "--is-inside-work-tree"],
-           stderr_to_stdout: true,
-           parallelism: true,
-           env: [
-             {"GIT_TRACE", "0"},
-             {"GIT_CURL_VERBOSE", "0"},
-             {"GIT_DEBUG", "0"}
-           ]
-         ) do
-      {"true\n", 0} -> true
+    case git(path, ["rev-parse", "--is-inside-work-tree"]) do
+      {:ok, "true"} -> true
       _ -> false
     end
   end
 
   def is_ignored?(file, git_root) do
-    case System.cmd("git", ["-C", git_root, "check-ignore", file],
-           stderr_to_stdout: true,
-           parallelism: true,
-           env: [
-             {"GIT_TRACE", "0"},
-             {"GIT_CURL_VERBOSE", "0"},
-             {"GIT_DEBUG", "0"}
-           ]
-         ) do
-      {_, 0} -> true
-      {_, _} -> false
+    case git(git_root, ["check-ignore", file]) do
+      {:ok, _} -> true
+      _ -> false
     end
   end
 
   def pickaxe_regex(git_root, regex) do
-    case System.cmd("git", ["-C", git_root, "log", "-G", regex],
-           stderr_to_stdout: true,
-           parallelism: true,
-           env: [
-             {"GIT_TRACE", "0"},
-             {"GIT_CURL_VERBOSE", "0"},
-             {"GIT_DEBUG", "0"}
-           ]
-         ) do
-      {output, 0} -> {:ok, output}
-      {output, _} -> {:error, output}
-    end
+    git(git_root, ["log", "-G", regex])
   end
 
   def show(git_root, sha) do
-    case System.cmd("git", ["-C", git_root, "show", sha],
-           stderr_to_stdout: true,
-           parallelism: true,
-           env: [
-             {"GIT_TRACE", "0"},
-             {"GIT_CURL_VERBOSE", "0"},
-             {"GIT_DEBUG", "0"}
-           ]
-         ) do
-      {output, 0} -> {:ok, output}
-      {output, _} -> {:error, output}
-    end
+    git(git_root, ["show", sha])
   end
 
   def show(git_root, sha, file) do
     # Make file relative to git root
     file = Path.relative_to(file, git_root)
+    git(git_root, ["show", "#{sha}:#{file}"])
+  end
 
-    case System.cmd("git", ["-C", git_root, "show", "#{sha}:#{file}"],
-           stderr_to_stdout: true,
-           parallelism: true,
-           env: [
-             {"GIT_TRACE", "0"},
-             {"GIT_CURL_VERBOSE", "0"},
-             {"GIT_DEBUG", "0"}
-           ]
-         ) do
-      {output, 0} -> {:ok, output}
-      {output, _} -> {:error, output}
+  # -----------------------------------------------------------------------------
+  # Private functions
+  # -----------------------------------------------------------------------------
+  defp git(root, args) do
+    args = ["-C", root] ++ args
+    git(args)
+  end
+
+  defp git(args) do
+    case System.cmd("git", args, @common_args) do
+      {output, 0} -> {:ok, String.trim_trailing(output)}
+      {output, _} -> {:error, String.trim_trailing(output)}
     end
   end
 end
