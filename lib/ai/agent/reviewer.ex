@@ -14,6 +14,7 @@ defmodule AI.Agent.Reviewer do
   # Step 1
   Use your tools to learn how the current code functions.
   Investigate related files and modules that may be affected by the changes (for example, if an existing function is altered, search for other call sites to see how it is used).
+  Read the individual commits using the git_show_tool to understand the changes made. You can sometimes glean the purpose of the changes from the commit messages and the sequence of the change diffs.
   Take the time necessary to understand the features and behaviors being modified.
   Try to identify the _purpose_ of the changes using the provided diff, commits, and the results of your research.
 
