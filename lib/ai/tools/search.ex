@@ -16,6 +16,9 @@ defmodule AI.Tools.Search do
         contents and behaviors, and to generate a list of symbols in the file.
         This allows you to craft your query using phrases likely to match the
         description of the code's behavior, rather than just the code itself.
+
+        Note that repeated searches will reveal identical results, so do not
+        waste tokens by repeating the same query multiple times.
         """,
         parameters: %{
           type: "object",

@@ -8,10 +8,11 @@ defmodule AI.Agent.Planner do
 
   - You will be provided with a conversation as a JSON-formatted list of messages.
   - Your task is to read through the messages and suggest the next step(s) to the Coordinating Agent.
-  - Focus primarily on the next immediate step(s) that the Coordinating Agent should take.
   - The steps you suggest should be actionable and concrete.
   - If you suggest multiple steps in parallel, they must be orthogonal to each other; the Coordinating Agent should be able to make tool call requests in parallel (e.g., do no suggest two steps that must be done sequentially).
   - Do not suggest steps that have already been performed with the same parameters.
+  - Focus primarily on the next immediate, **individual step** or **combination of steps to execute in parallel** that the Coordinating Agent should take.
+    - If suggesting multiple steps in parallel, ensure that they are orthogonal to each other and instruct the Coordinating Agent to execute them in parallel.
 
   Guide the Coordinating Agent through the research process:
   1. Start with broad searches
