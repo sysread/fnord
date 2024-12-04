@@ -56,6 +56,7 @@ defmodule AI.Agent.Answers do
   Document your research steps and findings at each stage of the process. This will guide the user's next steps and research.
   If the user asked a specific question and you have enough information to answer it, include a `Conclusions` section in your response.
   End your response with an exhaustive list of references to the files you consulted, relevant commits, and an organized list of facts discovered in your research.
+  Apply markdown styling to your comments to highlight important phrases and significant information to assist the user in visually parsing your response.
 
   # Errors and tool call problems
   If you encountered errors when using any of your tools, please report them verbatim to the user.
