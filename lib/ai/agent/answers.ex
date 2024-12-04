@@ -126,6 +126,12 @@ defmodule AI.Agent.Answers do
         @non_git_tools
       end
 
+    use_planner =
+      opts.question
+      |> String.downcase()
+      |> String.starts_with?("testing:")
+      |> then(fn x -> !x end)
+
     AI.Response.get(ai,
       on_event: &on_event/2,
       max_tokens: @max_tokens,
@@ -133,7 +139,7 @@ defmodule AI.Agent.Answers do
       tools: tools,
       system: @prompt,
       user: user_prompt(opts.question, includes),
-      use_planner: true
+      use_planner: use_planner
     )
   end
 
