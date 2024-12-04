@@ -29,6 +29,7 @@ defmodule AI.Tools do
     "file_info_tool" => AI.Tools.FileInfo,
     "git_pickaxe_tool" => AI.Tools.GitPickaxe,
     "git_show_tool" => AI.Tools.GitShow,
+    "git_diff_branch_tool" => AI.Tools.GitDiffBranch,
     "list_files_tool" => AI.Tools.ListFiles,
     "outline_tool" => AI.Tools.Outline,
     "search_tool" => AI.Tools.Search,

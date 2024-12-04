@@ -13,7 +13,8 @@ defmodule AI.Agent.FileInfo do
 
   @tools [
     AI.Tools.GitShow.spec(),
-    AI.Tools.GitPickaxe.spec()
+    AI.Tools.GitPickaxe.spec(),
+    AI.Tools.GitDiffBranch.spec()
   ]
 
   # -----------------------------------------------------------------------------
@@ -31,10 +32,17 @@ defmodule AI.Agent.FileInfo do
       Question: #{question}
       """
 
+      tools =
+        if Git.is_git_repo?() do
+          @tools
+        else
+          []
+        end
+
       AI.Accumulator.get_response(ai,
         max_tokens: @max_tokens,
         model: @model,
-        tools: @tools,
+        tools: tools,
         prompt: @prompt,
         input: content,
         question: question,
@@ -49,6 +57,10 @@ defmodule AI.Agent.FileInfo do
 
   defp on_event(:tool_call, {"git_pickaxe_tool", %{"regex" => regex}}) do
     UI.report_step("[file_info] Archaeologizing", regex)
+  end
+
+  defp on_event(:tool_call, {"git_diff_branch_tool", %{"topic" => topic, "base" => base}}) do
+    UI.report_step("[file_info] Diffing branches", "#{base}..#{topic}")
   end
 
   defp on_event(_, _), do: :ok

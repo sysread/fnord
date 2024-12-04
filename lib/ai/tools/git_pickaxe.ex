@@ -33,9 +33,8 @@ defmodule AI.Tools.GitPickaxe do
 
   @impl AI.Tools
   def call(_agent, args) do
-    with {:ok, regex} <- Map.fetch(args, "regex"),
-         {:ok, root} <- Settings.new() |> Settings.get_root() do
-      case Git.pickaxe_regex(root, regex) do
+    with {:ok, regex} <- Map.fetch(args, "regex") do
+      case Git.pickaxe_regex(regex) do
         {:ok, output} -> {:ok, "[git_pickaxe_tool]\n#{output}"}
         {:error, output} -> {:ok, "[git_pickaxe_tool]\n#{output}"}
       end

@@ -11,6 +11,9 @@ defmodule AI.Agent.Answers do
   Provide the user with the most complete and accurate answer to their question by using the tools at your disposal to research the code base and analyze the code base.
   Assume the user is requesting information about the code base, even if what they are asking for does not immediately appear to be code-related.
 
+  Initially, your conversation will occur with the Planner Agent, who will suggest strategies for researching the code to answer the user's question.
+  Once the Planner Agent indicates that you have sufficient information, proceed with your response to the user.
+
   # Guidelines
   1. Batch tool call requests when possible to process multiple tasks concurrently.
   2. Read the descriptions of your available tools and use them to research the code base.
@@ -64,21 +67,19 @@ defmodule AI.Agent.Answers do
   If there is no conflict, ignore these instructions while performing your research and crafting your response, and then follow them EXACTLY afterward.
   """
 
-  @tools [
-    AI.Tools.Search.spec(),
-    AI.Tools.ListFiles.spec(),
-    AI.Tools.FileInfo.spec(),
-    AI.Tools.Spelunker.spec(),
-    AI.Tools.GitShow.spec(),
-    AI.Tools.GitPickaxe.spec()
-  ]
-
   @non_git_tools [
     AI.Tools.Search.spec(),
     AI.Tools.ListFiles.spec(),
     AI.Tools.FileInfo.spec(),
     AI.Tools.Spelunker.spec()
   ]
+
+  @tools @non_git_tools ++
+           [
+             AI.Tools.GitShow.spec(),
+             AI.Tools.GitPickaxe.spec(),
+             AI.Tools.GitDiffBranch.spec()
+           ]
 
   # -----------------------------------------------------------------------------
   # Behaviour implementation
@@ -181,6 +182,10 @@ defmodule AI.Agent.Answers do
 
   defp on_event(:tool_call, {"git_pickaxe_tool", %{"regex" => regex}}) do
     UI.report_step("Archaeologizing", regex)
+  end
+
+  defp on_event(:tool_call, {"git_diff_branch_tool", %{"topic" => topic, "base" => base}}) do
+    UI.report_step("[file_info] Diffing branches", "#{base}..#{topic}")
   end
 
   defp on_event(_, _), do: :ok

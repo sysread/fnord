@@ -42,17 +42,16 @@ defmodule AI.Tools.GitShow do
 
   @impl AI.Tools
   def call(_agent, args) do
-    with {:ok, sha} <- Map.fetch(args, "sha"),
-         {:ok, root} <- Settings.new() |> Settings.get_root() do
+    with {:ok, sha} <- Map.fetch(args, "sha") do
       file = Map.get(args, "file", nil)
 
-      case show(root, sha, file) do
+      case show(sha, file) do
         {:ok, output} -> {:ok, "[git_show]\n#{output}"}
         {:error, output} -> {:ok, "[git_show]\n#{output}"}
       end
     end
   end
 
-  defp show(root, sha, nil), do: Git.show(root, sha)
-  defp show(root, sha, file), do: Git.show(root, sha, file)
+  defp show(sha, nil), do: Git.show(sha)
+  defp show(sha, file), do: Git.show(sha, file)
 end

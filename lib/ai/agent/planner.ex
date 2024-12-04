@@ -29,9 +29,11 @@ defmodule AI.Agent.Planner do
   5. Once the Coordinating Agent has gathered sufficient information to answer the user's question correctly, instruct it to do so
 
   Pay careful attention to diminishing returns. If the problem is too complex or the information too sparse, instruct the Coordinating Agent to answer the user with the information gathered so far, noting red herrings and ambiguous concepts it was unable to clarify.
+  Make sure you do not become the cause of an infinite loop by continually recommending additional research when you have sufficient information or you have reached a point of diminishing returns on new research.
+  SERIOUSLY, don't just keep recommending the same steps over and over. Tell the other agent when to stop. YOU be the mature one who sets this boundary!
 
   Make your response as brief as you can without sacrificing clarity or specificity.
-  Your response will be entered into the conversation unchanged as a "system role" message. Phrase it appropriately.
+  Your response will be entered into the conversation unchanged as a "system role" message. Only the Orchestrating Agent will be able to see it, not the user. Phrase it appropriately.
   """
 
   # -----------------------------------------------------------------------------

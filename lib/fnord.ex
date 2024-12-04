@@ -28,6 +28,7 @@ defmodule Fnord do
         :projects -> Cmd.Projects.run(opts)
         :files -> Cmd.Files.run(opts)
         :upgrade -> Cmd.Upgrade.run(opts)
+        :review -> Cmd.Review.run(opts)
       end
     else
       {:error, reason} -> IO.puts("Error: #{reason}")
@@ -143,6 +144,23 @@ defmodule Fnord do
       multiple: true
     ]
 
+    topic = [
+      value_name: "TOPIC_BRANCH",
+      long: "--topic",
+      short: "-t",
+      help: "The topic branch",
+      required: true
+    ]
+
+    base = [
+      value_name: "BASE_BRANCH",
+      long: "--base",
+      short: "-b",
+      help: "The base branch (default: main)",
+      default: "main",
+      required: true
+    ]
+
     parser =
       Optimus.new!(
         name: "fnord",
@@ -229,6 +247,13 @@ defmodule Fnord do
             about: "Ask the AI a question about the project",
             options: [concurrency: concurrency, include: include],
             args: [project: project, question: question],
+            flags: [quiet: quiet]
+          ],
+          review: [
+            name: "review",
+            about:
+              "Review a topic branch against another branch. Note that this always uses the remote branches on origin.",
+            options: [project: project, concurrency: concurrency, topic: topic, base: base],
             flags: [quiet: quiet]
           ],
           search: [

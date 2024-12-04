@@ -108,9 +108,11 @@ defmodule AI.Response do
   end
 
   defp maybe_use_planner(%{ai: ai, use_planner: true, messages: msgs, tools: tools} = state) do
+    UI.report_step("Planning next step(s)")
+
     case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools}) do
       {:ok, response, _usage} ->
-        UI.report_step("Planning next step(s)", response)
+        UI.report_step("Current plan", response)
         planner_msg = AI.Util.system_msg(response)
         %{state | messages: state.messages ++ [planner_msg]}
 
@@ -144,7 +146,7 @@ defmodule AI.Response do
   def handle_tool_call(state, %{id: id, function: %{name: func, arguments: args_json}}) do
     request = AI.Util.assistant_tool_msg(id, func, args_json)
 
-    UI.debug("TOOL CALL ID=#{id} FUNC=#{func} ARGS=#{args_json}")
+    UI.debug("Tool call", "#{func} -> #{args_json}")
 
     with {:ok, output} <- perform_tool_call(state, func, args_json) do
       response = AI.Util.tool_msg(id, func, output)

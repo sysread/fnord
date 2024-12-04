@@ -62,6 +62,16 @@ defmodule AI.Tools.FileInfo do
              content: content
            }) do
       {:ok, "[file_info_tool]\n#{response}"}
+    else
+      {:error, :enoent} ->
+        {:error,
+         "The requested file does not exist. It may have been added since the most recent reindexing of the project."}
+
+      {:error, reason} ->
+        {:error, reason}
+
+      error ->
+        error
     end
   end
 end
