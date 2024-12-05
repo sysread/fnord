@@ -1,5 +1,5 @@
 defmodule AI.Agent.CodeMapper do
-  @model "gpt-4o-mini"
+  @model "gpt-4o"
 
   # It's actually 128k for this model, but "context window" != "attention span"
   @max_tokens 50_000
@@ -7,6 +7,7 @@ defmodule AI.Agent.CodeMapper do
   @prompt """
   You are the Code Mapper Agent. You will receive the contents of a code file.
   You will generate an outline of the code in the file, identifying symbols like ctags, but in a human-readable format.
+  Ensure that you capture EVERY module/package, global, constant, class, method, function, and behavior in the file, based on the language's terminology.
   For every function, include a list of other functions it calls, including notes about the conditions under which a function calls other functions.
   Your organization is hierarchical, and depends on the programming language(s) in the file.
   If there is no higher-level organization, use "GLOBAL" as the top-level.

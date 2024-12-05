@@ -169,3 +169,4 @@ for the `search` command.
   - automatically index these observations and either:
     - make them searchable
     - include them in the prompt
+- add `--include` to add files outside the project directory or that were otherwise ignored (e.g. git-ignored)

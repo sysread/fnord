@@ -13,6 +13,7 @@ defmodule AI.Agent.Answers do
 
   Initially, your conversation will occur with the Planner Agent, who will suggest strategies for researching the code to answer the user's question.
   Once the Planner Agent indicates that you have sufficient information, proceed with your response to the user.
+  Listen carefully to the Planner Agent's suggestions and do your best to follow them.
 
   # Guidelines
   1. Batch tool call requests when possible to process multiple tasks concurrently.
@@ -153,6 +154,14 @@ defmodule AI.Agent.Answers do
     end
   end
 
+  defp on_event(:planner, response) do
+    UI.report_step("✓ Next step(s)", response)
+  end
+
+  defp on_event(:planner_error, reason) do
+    UI.error("Planner", reason)
+  end
+
   defp on_event(:tool_call, {"search_tool", %{"query" => query}}) do
     UI.report_step("Searching", query)
   end
@@ -163,6 +172,13 @@ defmodule AI.Agent.Answers do
 
   defp on_event(:tool_call, {"file_info_tool", %{"file" => file, "question" => question}}) do
     UI.report_step("Considering #{file}", question)
+  end
+
+  defp on_event(
+         :tool_call_result,
+         {"file_info_tool", %{"file" => file, "question" => question}, {:ok, response}}
+       ) do
+    UI.report_step("✓ Considered #{file}", "#{question}\n#{response}")
   end
 
   defp on_event(

@@ -112,7 +112,7 @@ defmodule AI.Response do
 
     case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools}) do
       {:ok, response, _usage} ->
-        UI.report_step("Current plan", response)
+        state.on_event.(:planner, response)
         planner_msg = AI.Util.system_msg(response)
         %{state | messages: state.messages ++ [planner_msg]}
 
@@ -162,7 +162,9 @@ defmodule AI.Response do
   defp perform_tool_call(state, func, args_json) when is_binary(args_json) do
     with {:ok, args} <- Jason.decode(args_json) do
       state.on_event.(:tool_call, {func, args})
-      AI.Tools.perform_tool_call(state, func, args)
+      result = AI.Tools.perform_tool_call(state, func, args)
+      state.on_event.(:tool_call_result, {func, args, result})
+      result
     end
   end
 end
