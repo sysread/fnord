@@ -34,6 +34,8 @@ defmodule Cmd.Indexer do
   end
 
   def run(idx) do
+    start_time = System.monotonic_time()
+
     UI.info("Project", idx.project.name)
     UI.info("Root", idx.project.source_root)
     UI.info("Exclude", Enum.join(idx.project.exclude, " | "))
@@ -77,6 +79,10 @@ defmodule Cmd.Indexer do
         {"All tasks complete", :ok}
       end)
     end
+
+    elapsed_time = System.monotonic_time() - start_time
+    elapsed_seconds = :timer.tc(elapsed_time, :second)
+    UI.info("Elapsed time", "#{elapsed_seconds} seconds")
   end
 
   # ----------------------------------------------------------------------------
