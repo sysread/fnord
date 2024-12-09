@@ -9,11 +9,22 @@ defmodule Cmd.Summary do
   def run(opts) do
     # Make sure that the file path is an absolute path
     file_path = Path.absname(opts.file)
-    store = Store.new()
+    project = Store.get_project(opts.project)
 
-    with {:ok, summary} <- Store.get_summary(store, file_path) do
+    with {:ok, entry} <- get_file(project, file_path),
+         {:ok, summary} <- Store.Entry.read_summary(entry) do
       IO.puts("# File: #{file_path}")
       IO.puts(summary)
+    end
+  end
+
+  defp get_file(project, file_path) do
+    entry = Store.Entry.new_from_file_path(project, file_path)
+
+    if Store.Entry.exists_in_store?(entry) do
+      {:ok, entry}
+    else
+      {:error, :entry_not_found}
     end
   end
 end

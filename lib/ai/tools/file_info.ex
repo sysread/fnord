@@ -54,7 +54,7 @@ defmodule AI.Tools.FileInfo do
   def call(agent, args) do
     with {:ok, question} <- Map.fetch(args, "question"),
          {:ok, file} <- Map.fetch(args, "file"),
-         {:ok, content} <- File.read(file),
+         {:ok, content} <- get_file_contents(file),
          {:ok, response} <-
            AI.Agent.FileInfo.get_response(agent.ai, %{
              file: file,
@@ -77,6 +77,17 @@ defmodule AI.Tools.FileInfo do
 
       error ->
         error
+    end
+  end
+
+  defp get_file_contents(file) do
+    project = Store.get_project()
+    entry = Store.Entry.new_from_file_path(project, file)
+
+    if Store.Entry.source_file_exists?(entry) do
+      Store.Entry.read_source_file(entry)
+    else
+      {:error, :enoent}
     end
   end
 end

@@ -3,7 +3,7 @@ defmodule Cmd.Torch do
   Permanently deletes the project from the store.
   """
   def run(_opts) do
-    Store.new()
-    |> Store.delete_project()
+    Store.get_project()
+    |> Store.Project.delete()
   end
 end

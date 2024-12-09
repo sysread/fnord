@@ -89,13 +89,15 @@ defmodule Cmd.IndexerTest do
         Cmd.Indexer.new(%{project: "test_project"}, MockIndexer)
         false
       rescue
-        _ -> true
+        e ->
+          IO.inspect(e, label: "An unexpected error was raised")
+          true
       end
 
     refute raises_error
   end
 
-  test "run/4", %{store_dir: store_dir, project_dir: project_dir} do
+  test "run/4", %{project_dir: project_dir} do
     file_1 = Path.join(project_dir, "file1.txt")
     file_2 = Path.join(project_dir, "file2.txt")
 
@@ -121,9 +123,14 @@ defmodule Cmd.IndexerTest do
     Cmd.Indexer.run(idx)
 
     # Check that the files were indexed
-    assert File.dir?(Path.join(store_dir, "test_project"))
-    assert Store.list_projects() == ["test_project"]
-    assert Store.list_files(idx.store) == [file_1]
+    Store.list_projects()
+    |> Enum.map(& &1.name)
+    |> then(&assert(&1 == ["test_project"]))
+
+    Store.get_project("test_project")
+    |> Store.Project.stored_files()
+    |> Enum.map(& &1.file)
+    |> then(&assert(&1 == [file_1]))
   end
 end
 
@@ -139,7 +146,7 @@ defmodule MockIndexer do
 
   @impl Indexer
   def get_embeddings(_idx, _text) do
-    {:ok, ["embedding1", "embedding2"]}
+    {:ok, [[1, 2, 3], [4, 5, 6]]}
   end
 
   @impl Indexer

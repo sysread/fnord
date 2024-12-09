@@ -14,15 +14,15 @@ defmodule Cmd.Search do
     opts
     |> Search.new(ai_module)
     |> Search.get_results()
-    |> Enum.each(fn {file, score, data} ->
+    |> Enum.each(fn {entry, score, data} ->
       if opts.detail do
         IO.puts("""
         -----
-        # File: #{file} | Score: #{score}
-        #{Map.get(data, "summary")}
+        # File: #{entry.file} | Score: #{score}
+        #{data.summary}
         """)
       else
-        IO.puts(file)
+        IO.puts(entry.file)
       end
     end)
   end

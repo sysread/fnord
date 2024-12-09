@@ -28,11 +28,30 @@ defmodule AI.Tools.Outline do
 
   @impl AI.Tools
   def call(_agent, args) do
-    store = Store.new()
-
     with {:ok, file} <- Map.fetch(args, "file"),
-         {:ok, data} <- Store.get_outline(store, file) do
-      {:ok, data}
+         {:ok, project} <- get_project(),
+         {:ok, entry} <- get_entry(project, file) do
+      Store.Entry.read_outline(entry)
+    end
+  end
+
+  defp get_project() do
+    project = Store.get_project()
+
+    if Store.Project.exists_in_store?(project) do
+      {:ok, project}
+    else
+      {:error, :project_not_found}
+    end
+  end
+
+  defp get_entry(project, file) do
+    entry = Store.Entry.new_from_file_path(project, file)
+
+    if Store.Entry.exists_in_store?(entry) do
+      {:ok, entry}
+    else
+      {:error, :entry_not_found}
     end
   end
 end

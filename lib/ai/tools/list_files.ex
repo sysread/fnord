@@ -22,8 +22,10 @@ defmodule AI.Tools.ListFiles do
 
   @impl AI.Tools
   def call(_agent, _args) do
-    Store.new()
-    |> Store.list_files()
+    Store.get_project()
+    |> Store.Project.stored_files()
+    |> Stream.map(& &1.rel_path)
+    |> Enum.sort()
     |> Enum.join("\n")
     |> then(fn res -> {:ok, "[list_files_tool]\n#{res}"} end)
   end

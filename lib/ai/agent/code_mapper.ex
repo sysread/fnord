@@ -16,8 +16,7 @@ defmodule AI.Agent.CodeMapper do
   Do not respond with any explanation or context, just the outline, in text format with no special formatting (just list markers).
 
   For example, for a Python module, organize the code first by class, then by method:
-  ```
-  # Accumulated Outline
+
   - <file> $file_path
   - <namespace> GLOBAL
     - <variable> DEFAULT_X
@@ -33,7 +32,6 @@ defmodule AI.Agent.CodeMapper do
       - <method> move_to(x, y)
         - <call> __init__(x, y) - when (x, y) is not the current position
       - <class method> from_string(string)
-  ```
   """
 
   # -----------------------------------------------------------------------------

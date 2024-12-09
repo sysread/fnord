@@ -10,9 +10,11 @@ defmodule Cmd.Ask do
   end
 
   defp validate(_opts) do
-    cond do
-      !Store.project_exists?() -> {:error, :project_not_found}
+    Store.get_project()
+    |> Store.Project.exists_in_store?()
+    |> case do
       true -> :ok
+      false -> {:error, :project_not_found}
     end
   end
 end

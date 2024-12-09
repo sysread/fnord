@@ -3,7 +3,6 @@ defmodule Search do
     :query,
     :limit,
     :detail,
-    :store,
     :index_module
   ]
 
@@ -15,7 +14,6 @@ defmodule Search do
       query: opts[:query],
       limit: opts[:limit],
       detail: opts[:detail],
-      store: Store.new(),
       index_module: index_module
     }
   end
@@ -24,21 +22,19 @@ defmodule Search do
     needle = get_query_embeddings(search.query, search.index_module)
 
     {:ok, queue} =
-      Queue.start_link(fn file ->
-        with {:ok, data} <- get_file_data(search, file) do
-          get_score(needle, data)
-          |> case do
-            {:ok, score} -> {file, score, data}
-            {:error, :no_embeddings} -> nil
-          end
+      Queue.start_link(fn entry ->
+        with {:ok, data} <- get_file_data(search, entry) do
+          needle
+          |> get_score(data)
+          |> then(&{entry, &1, data})
         else
           _ -> nil
         end
       end)
 
     results =
-      search
-      |> list_files()
+      Store.get_project()
+      |> Store.Project.source_files()
       |> Queue.map(queue)
       |> Enum.reject(&is_nil/1)
       |> Enum.sort(fn {_, score1, _}, {_, score2, _} -> score1 >= score2 end)
@@ -50,35 +46,23 @@ defmodule Search do
     results
   end
 
-  defp get_score(needle, data) do
-    data
-    |> Map.get("embeddings", [])
-    |> Enum.map(fn emb -> cosine_similarity(needle, emb) end)
-    |> case do
-      [] -> {:error, :no_embeddings}
-      scores -> {:ok, Enum.max(scores)}
-    end
-  end
-
   defp get_query_embeddings(query, index_module) do
     {:ok, [needle]} = index_module.get_embeddings(index_module.new(), query)
     needle
   end
 
-  defp list_files(search) do
-    Store.list_files(search.store)
-  end
-
-  defp get_file_data(search, file) do
+  defp get_file_data(search, entry) do
     if search.detail do
-      Store.get(search.store, file)
+      Store.Entry.read(entry)
     else
-      with {:ok, embeddings} <- Store.get_embeddings(search.store, file) do
-        {:ok, %{"embeddings" => embeddings}}
-      else
-        {:error, _} -> {:error, :file}
+      with {:ok, embeddings} <- Store.Entry.read_embeddings(entry) do
+        {:ok, %{embeddings: embeddings}}
       end
     end
+  end
+
+  defp get_score(needle, %{embeddings: embeddings}) do
+    cosine_similarity(needle, embeddings)
   end
 
   # Computes the cosine similarity between two vectors

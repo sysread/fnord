@@ -31,14 +31,20 @@ defmodule AI.Tokenizer.Default do
     vocab = tokenizer.get_vocab()
     special_tokens = tokenizer.get_special_tokens()
 
-    # Step 1: Split text with the tokenizer-specific pattern
-    pattern
-    |> Regex.scan(text)
-    |> List.flatten()
-    # Step 2: Apply byte pair encoding merging
-    |> Enum.map(&apply_bpe(&1, model))
-    # Step 3: Map tokens to vocabulary IDs
-    |> Enum.map(&Map.get(vocab, &1, special_tokens[&1] || nil))
+    try do
+      # Step 1: Split text with the tokenizer-specific pattern
+      pattern
+      |> Regex.scan(text)
+      |> List.flatten()
+      # Step 2: Apply byte pair encoding merging
+      |> Enum.map(&apply_bpe(&1, model))
+      # Step 3: Map tokens to vocabulary IDs
+      |> Enum.map(&Map.get(vocab, &1, special_tokens[&1] || nil))
+    rescue
+      e in ArgumentError ->
+        IO.inspect(text, label: "Input text (raw)", limit: :infinity)
+        {:error, e}
+    end
   end
 
   # -----------------------------------------------------------------------------
