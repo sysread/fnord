@@ -4,7 +4,7 @@ defmodule Fnord do
   search code files.
   """
 
-  @default_concurrency 4
+  @default_concurrency 8
   @default_search_limit 10
 
   @doc """
