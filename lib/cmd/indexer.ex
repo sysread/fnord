@@ -99,13 +99,22 @@ defmodule Cmd.Indexer do
   # ----------------------------------------------------------------------------
   defp process_entry(idx, entry) do
     with {:ok, contents} <- Store.Entry.read_source_file(entry),
-         {:ok, summary} <- get_summary(idx, entry.file, contents),
-         {:ok, outline} <- get_outline(idx, entry.file, contents),
+         {:ok, summary, outline} <- get_derivatives(idx, entry.file, contents),
          {:ok, embeddings} <- get_embeddings(idx, entry.file, summary, outline, contents),
          :ok <- Store.Entry.save(entry, summary, outline, embeddings) do
       :ok
     else
       {:error, reason} -> UI.warn("Error processing #{entry.file}", inspect(reason))
+    end
+  end
+
+  defp get_derivatives(idx, file, file_contents) do
+    summary_task = Task.async(fn -> get_summary(idx, file, file_contents) end)
+    outline_task = Task.async(fn -> get_outline(idx, file, file_contents) end)
+
+    with {:ok, summary} <- Task.await(summary_task, :infinity),
+         {:ok, outline} <- Task.await(outline_task, :infinity) do
+      {:ok, summary, outline}
     end
   end
 
