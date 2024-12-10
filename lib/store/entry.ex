@@ -2,8 +2,8 @@ defmodule Store.Entry do
   defstruct [
     :project,
     :file,
-    :key,
     :rel_path,
+    :key,
     :store_path,
     :metadata,
     :summary,
@@ -12,24 +12,21 @@ defmodule Store.Entry do
   ]
 
   def new_from_file_path(project, file) do
-    file_path =
-      file
-      |> Path.expand()
-      |> Path.absname()
+    abs_path = file |> Store.Project.expand_path(project)
+    rel_path = abs_path |> Store.Project.relative_path(project)
 
-    key = key(file_path)
-    rel_path = Path.relative_to(file_path, project.source_root)
+    key = key(abs_path)
     store_path = Path.join(project.store_path, key)
-    metadata = Store.Metadata.new(store_path, file_path)
-    summary = Store.Summary.new(store_path, file_path)
-    outline = Store.Outline.new(store_path, file_path)
-    embeddings = Store.Embeddings.new(store_path, file_path)
+    metadata = Store.Metadata.new(store_path, abs_path)
+    summary = Store.Summary.new(store_path, abs_path)
+    outline = Store.Outline.new(store_path, abs_path)
+    embeddings = Store.Embeddings.new(store_path, abs_path)
 
     %__MODULE__{
       project: project,
-      file: file_path,
-      key: key,
+      file: abs_path,
       rel_path: rel_path,
+      key: key,
       store_path: store_path,
       metadata: metadata,
       summary: summary,

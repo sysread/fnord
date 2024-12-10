@@ -57,15 +57,24 @@ defmodule Store.Project do
     File.rm_rf!(project.store_path)
   end
 
-  def relative_to_project_root(project, path) do
-    relpath =
-      path
-      |> Path.absname(project.source_root)
-      |> Path.expand()
+  def expand_path(path, project) do
+    path
+    |> Path.absname(project.source_root)
+    |> Path.expand()
+  end
+
+  def relative_path(path, project) do
+    path
+    |> expand_path(project)
+    |> Path.relative_to(project.source_root)
+  end
+
+  def find_path_in_source_root(project, path) do
+    path = expand_path(project, path)
 
     cond do
-      File.dir?(relpath) -> {:ok, :dir, relpath}
-      File.regular?(relpath) -> {:ok, :file, relpath}
+      File.dir?(path) -> {:ok, :dir, path}
+      File.regular?(path) -> {:ok, :file, path}
       true -> {:ok, :not_found, path}
     end
   end
@@ -96,6 +105,12 @@ defmodule Store.Project do
     DirStream.new(project.source_root, &want_dir?(&1, excluded, project.source_root))
     |> Stream.filter(&want_file?(&1, excluded, project.source_root))
     |> Stream.map(&Store.Entry.new_from_file_path(project, &1))
+  end
+
+  def stale_source_files(project) do
+    project
+    |> source_files()
+    |> Stream.filter(&Store.Entry.is_stale?/1)
   end
 
   def delete_missing_files(project) do
@@ -174,8 +189,8 @@ defmodule Store.Project do
     else
       project.exclude
       |> Enum.flat_map(fn exclude ->
-        project
-        |> relative_to_project_root(exclude)
+        exclude
+        |> find_path_in_source_root(project)
         |> case do
           # If it's a directory, exclude all files in that directory
           {:ok, :dir, path} -> Path.wildcard(Path.join(path, "**/*"), match_dot: true)

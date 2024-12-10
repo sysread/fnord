@@ -48,17 +48,11 @@ defmodule Cmd.Indexer do
 
     {:ok, queue} = Queue.start_link(&process_entry(idx, &1))
 
-    all_files =
-      idx.project
-      |> Store.Project.source_files()
-
-    files =
-      all_files
-      |> Stream.filter(&Store.Entry.is_stale?/1)
-      |> Enum.to_list()
+    all_files = Store.Project.source_files(idx.project)
+    stale_files = Store.Project.stale_source_files(idx.project)
 
     total = Enum.count(all_files)
-    count = Enum.count(files)
+    count = Enum.count(stale_files)
 
     if count == 0 do
       UI.warn("No files to index in #{idx.project.name}")
@@ -68,7 +62,7 @@ defmodule Cmd.Indexer do
         progress_bar_start(:indexing, "Tasks", count * 3)
 
         # queue files
-        Enum.each(files, &Queue.queue(queue, &1))
+        Enum.each(stale_files, &Queue.queue(queue, &1))
 
         # wait on queue to complete
         Queue.shutdown(queue)
