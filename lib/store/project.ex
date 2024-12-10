@@ -57,6 +57,19 @@ defmodule Store.Project do
     File.rm_rf!(project.store_path)
   end
 
+  def relative_to_project_root(project, path) do
+    relpath =
+      path
+      |> Path.absname(project.source_root)
+      |> Path.expand()
+
+    cond do
+      File.dir?(relpath) -> {:ok, :dir, relpath}
+      File.regular?(relpath) -> {:ok, :file, relpath}
+      true -> {:ok, :not_found, path}
+    end
+  end
+
   def exists_in_store?(project) do
     path = project.store_path
     files = Path.wildcard(Path.join(path, "*"))
@@ -80,15 +93,9 @@ defmodule Store.Project do
   def source_files(project) do
     excluded = excluded_paths(project)
 
-    DirStream.new(project.source_root, fn path ->
-      want_dir?(path, excluded, project.source_root)
-    end)
-    |> Stream.filter(fn path ->
-      want_file?(path, excluded, project.source_root)
-    end)
-    |> Stream.map(fn path ->
-      Store.Entry.new_from_file_path(project, path)
-    end)
+    DirStream.new(project.source_root, &want_dir?(&1, excluded, project.source_root))
+    |> Stream.filter(&want_file?(&1, excluded, project.source_root))
+    |> Stream.map(&Store.Entry.new_from_file_path(project, &1))
   end
 
   def delete_missing_files(project) do
@@ -101,7 +108,7 @@ defmodule Store.Project do
         !Store.Entry.source_file_exists?(entry) -> Store.Entry.delete(entry)
         Store.Entry.is_git_ignored?(entry) -> Store.Entry.delete(entry)
         MapSet.member?(excluded_files, entry.file) -> Store.Entry.delete(entry)
-        true -> :ok
+        true -> is_text?(entry.file)
       end
     end)
   end
@@ -167,13 +174,15 @@ defmodule Store.Project do
     else
       project.exclude
       |> Enum.flat_map(fn exclude ->
-        cond do
-          # If it's a directory, expand recursively to all files and directories
-          File.dir?(exclude) -> Path.wildcard(Path.join(exclude, "**/*"), match_dot: true)
-          # If it's a specific file, expand to its absolute path
-          File.exists?(exclude) -> [Path.absname(exclude)]
-          # Assume it's a glob pattern and expand it
-          true -> Path.wildcard(exclude, match_dot: true)
+        project
+        |> relative_to_project_root(exclude)
+        |> case do
+          # If it's a directory, exclude all files in that directory
+          {:ok, :dir, path} -> Path.wildcard(Path.join(path, "**/*"), match_dot: true)
+          # If it's a single file, exclude just that file
+          {:ok, :file, path} -> [path]
+          # Otherwise, treat it as a glob
+          _ -> Path.wildcard(exclude, match_dot: true)
         end
       end)
       # Filter out directories and non-existent files
