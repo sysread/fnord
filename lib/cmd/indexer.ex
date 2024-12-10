@@ -36,7 +36,16 @@ defmodule Cmd.Indexer do
   def run(idx) do
     UI.info("Project", idx.project.name)
     UI.info("Root", idx.project.source_root)
-    UI.info("Exclude", Enum.join(idx.project.exclude, " | "))
+
+    UI.info(
+      "Exclude",
+      idx.project.exclude
+      |> Enum.join(" | ")
+      |> case do
+        "" -> "None"
+        x -> x
+      end
+    )
 
     if reindex?(idx) do
       Store.Project.delete(idx.project)
@@ -64,9 +73,15 @@ defmodule Cmd.Indexer do
         # queue files
         Enum.each(stale_files, &Queue.queue(queue, &1))
 
+        # start a monitor that displays in-progress files
+        monitor = start_in_progress_jobs_monitor(queue)
+
         # wait on queue to complete
         Queue.shutdown(queue)
         Queue.join(queue)
+
+        # wait on monitor to terminate
+        Task.await(monitor)
 
         {"All tasks complete", :ok}
       end)
@@ -162,6 +177,43 @@ defmodule Cmd.Indexer do
     if !quiet?() do
       Owl.ProgressBar.inc(id: name)
       Owl.LiveScreen.await_render()
+    end
+  end
+
+  defp start_in_progress_jobs_monitor(queue) do
+    if quiet?() do
+      Task.async(fn -> :ok end)
+    else
+      Owl.LiveScreen.add_block(:in_progress, state: "")
+
+      Task.async(fn ->
+        in_progress_jobs(queue)
+        Owl.LiveScreen.update(:in_progress, "Indexing complete")
+        Owl.LiveScreen.await_render()
+      end)
+    end
+  end
+
+  defp in_progress_jobs(queue) do
+    unless Queue.is_idle(queue) do
+      jobs =
+        queue
+        |> Queue.in_progress_jobs()
+        |> Enum.map(&"- #{&1.rel_path}")
+        |> Enum.join("\n")
+
+      box =
+        Owl.Box.new(jobs,
+          title: "[ In Progress Files ]",
+          border_style: :solid_rounded,
+          horizontal_aling: :left,
+          padding_x: 1
+        )
+
+      Owl.LiveScreen.update(:in_progress, box)
+
+      Process.sleep(250)
+      in_progress_jobs(queue)
     end
   end
 end

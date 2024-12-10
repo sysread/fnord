@@ -55,6 +55,21 @@ defmodule Queue do
     |> Enum.map(&Task.await(&1, :infinity))
   end
 
+  @doc """
+  Returns a list of jobs currently being processed.
+  """
+  def in_progress_jobs(pid) do
+    GenServer.call(pid, :in_progress_jobs, :infinity)
+  end
+
+  @doc """
+  Returns true if the queue is idle (no waiters, nothing in the queue), false
+  otherwise.
+  """
+  def is_idle(pid) do
+    GenServer.call(pid, :is_idle, :infinity)
+  end
+
   # -----------------------------------------------------------------------------
   # Server Callbacks
   # -----------------------------------------------------------------------------
@@ -65,7 +80,8 @@ defmodule Queue do
       callback: callback,
       workers: [],
       shutdown: false,
-      waiting: []
+      waiting: [],
+      in_progress_tasks: %{}
     }
 
     state = start_workers(state)
@@ -92,6 +108,37 @@ defmodule Queue do
     check_if_done(state)
   end
 
+  def handle_cast({:complete_job, task_pid}, state) do
+    state = %{
+      state
+      | in_progress_tasks: Map.delete(state.in_progress_tasks, task_pid)
+    }
+
+    {:noreply, state}
+  end
+
+  def handle_call(:is_idle, _from, state) do
+    pending_count =
+      state.in_progress_tasks
+      |> Map.keys()
+      |> Enum.count()
+
+    if :queue.is_empty(state.jobs) and pending_count == 0 do
+      {:reply, true, state}
+    else
+      {:reply, false, state}
+    end
+  end
+
+  def handle_call(:in_progress_jobs, _from, state) do
+    jobs =
+      state.in_progress_tasks
+      |> Map.values()
+      |> Enum.sort()
+
+    {:reply, jobs, state}
+  end
+
   def handle_call({:request_job, _worker_pid}, _from, state) do
     if :queue.is_empty(state.jobs) do
       if state.shutdown do
@@ -101,7 +148,13 @@ defmodule Queue do
       end
     else
       {{:value, {args, task_pid}}, jobs} = :queue.out(state.jobs)
-      state = %{state | jobs: jobs}
+
+      state = %{
+        state
+        | jobs: jobs,
+          in_progress_tasks: Map.put(state.in_progress_tasks, task_pid, args)
+      }
+
       {:reply, {:job, {args, task_pid}}, state}
     end
   end
@@ -153,6 +206,7 @@ defmodule Queue.Worker do
       {:job, {args, task_pid}} ->
         result = callback.(args)
         send(task_pid, {:result, result})
+        GenServer.cast(queue_pid, {:complete_job, task_pid})
         loop(queue_pid, callback)
 
       :no_job ->
