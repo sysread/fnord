@@ -43,6 +43,7 @@ defmodule AI.Agent.Answers do
   ALWAYS attempt to determine if something is already implemented in the code base.
   That is the ABSOLUTE BEST answer when the user wants to know how to build something.
 
+  When the user requests instructions, try to identify relevant conventions or patterns in the code base that the user should be aware of.
   Look for examples of what the user wants to do already present in the code base and model your answer on those when possible.
   Be sure to cite the files where the examples can be found.
 
