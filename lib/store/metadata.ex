@@ -44,6 +44,7 @@ defmodule Store.Metadata do
   end
 
   defp mkhash(file) do
-    :crypto.hash(:sha256, File.read!(file)) |> Base.encode16(case: :lower)
+    :crypto.hash(:sha256, File.read!(file))
+    |> Base.encode16(case: :lower)
   end
 end

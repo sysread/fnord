@@ -12,8 +12,8 @@ defmodule Store.Entry do
   ]
 
   def new_from_file_path(project, file) do
-    abs_path = file |> Store.Project.expand_path(project)
-    rel_path = abs_path |> Store.Project.relative_path(project)
+    abs_path = Store.Project.expand_path(file, project)
+    rel_path = Store.Project.relative_path(abs_path, project)
 
     key = key(abs_path)
     store_path = Path.join(project.store_path, key)
@@ -65,7 +65,7 @@ defmodule Store.Entry do
   def create(entry), do: File.mkdir_p!(entry.store_path)
   def delete(entry), do: File.rm_rf!(entry.store_path)
 
-  def is_incomplete(entry) do
+  def is_incomplete?(entry) do
     cond do
       !has_metadata?(entry) -> true
       !has_summary?(entry) -> true
@@ -75,18 +75,23 @@ defmodule Store.Entry do
     end
   end
 
-  def is_stale?(entry) do
-    # Files that are missing or have missing indexes must be reindexed.
-    !exists_in_store?(entry) ||
-      is_incomplete(entry) ||
-      !hash_is_current?(entry)
-  end
-
   def hash_is_current?(entry) do
     with {:ok, hash} <- get_last_hash(entry) do
       hash == file_sha256(entry.file)
     else
       _ -> false
+    end
+  end
+
+  def is_stale?(entry) do
+    cond do
+      # Never indexed
+      !exists_in_store?(entry) -> true
+      # Files that are missing or have missing indexes must be reindexed
+      is_incomplete?(entry) -> true
+      # File contents have changed
+      !hash_is_current?(entry) -> true
+      true -> false
     end
   end
 
@@ -99,9 +104,9 @@ defmodule Store.Entry do
          {:ok, embeddings} <- read_embeddings(entry) do
       info =
         metadata
-        |> Map.put(:summary, summary)
-        |> Map.put(:outline, outline)
-        |> Map.put(:embeddings, embeddings)
+        |> Map.put("summary", summary)
+        |> Map.put("outline", outline)
+        |> Map.put("embeddings", embeddings)
 
       {:ok, info}
     end
@@ -152,21 +157,6 @@ defmodule Store.Entry do
   def save_embeddings(entry, embeddings), do: Store.Embeddings.write(entry.embeddings, embeddings)
 
   # -----------------------------------------------------------------------------
-  # misc
-  # -----------------------------------------------------------------------------
-
-  @doc """
-  Embeddings used to be stored as multiple files, one for each
-  context-window-sized file chunk. Now we combine them. This section attempts
-  to detect the old embeddings style and correct them.
-  """
-  def fix_old_embeddings(entry) do
-    entry.store_path
-    |> Path.join("embeddings_*.json")
-    |> Path.wildcard()
-  end
-
-  # -----------------------------------------------------------------------------
   # Private functions
   # -----------------------------------------------------------------------------
   defp get_last_hash(entry) do
@@ -185,6 +175,7 @@ defmodule Store.Entry do
   end
 
   defp sha256(content) do
-    :crypto.hash(:sha256, content) |> Base.encode16(case: :lower)
+    :crypto.hash(:sha256, content)
+    |> Base.encode16(case: :lower)
   end
 end

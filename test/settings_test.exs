@@ -1,6 +1,8 @@
 defmodule SettingsTest do
   use ExUnit.Case
 
+  require TestUtil
+
   # Set up a temporary directory and override the HOME environment variable
   setup do
     # Create a unique temporary directory

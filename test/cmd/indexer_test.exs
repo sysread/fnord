@@ -1,26 +1,8 @@
 defmodule Cmd.IndexerTest do
   use ExUnit.Case
-  require TestUtil
+  use TestUtil
 
-  TestUtil.setup_args(
-    concurrency: 1,
-    quiet: true
-  )
-
-  setup do
-    # Save the current log level
-    current_level = Logger.level()
-
-    # Disable logging
-    Logger.configure(level: :none)
-
-    # Return the current log level to restore later
-    on_exit(fn ->
-      Logger.configure(level: current_level)
-    end)
-
-    :ok
-  end
+  setup_args(concurrency: 1, quiet: true)
 
   setup do
     # Create a temporary home directory for our app to store data
@@ -140,22 +122,14 @@ defmodule MockIndexer do
   @behaviour Indexer
 
   @impl Indexer
-  def new() do
-    %MockIndexer{}
-  end
+  def new(), do: %MockIndexer{}
 
   @impl Indexer
-  def get_embeddings(_idx, _text) do
-    {:ok, [[1, 2, 3], [4, 5, 6]]}
-  end
+  def get_embeddings(_idx, _text), do: {:ok, [[1, 2, 3], [4, 5, 6]]}
 
   @impl Indexer
-  def get_summary(_idx, _file, _text) do
-    {:ok, "summary"}
-  end
+  def get_summary(_idx, _file, _text), do: {:ok, "summary"}
 
   @impl Indexer
-  def get_outline(_idx, _file, _text) do
-    {:ok, "outline"}
-  end
+  def get_outline(_idx, _file, _text), do: {:ok, "outline"}
 end
