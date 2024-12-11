@@ -213,7 +213,7 @@ defmodule Cmd.Indexer do
 
       box =
         Owl.Box.new(jobs,
-          title: "[ In Progress Files ]",
+          title: "[ In Progress ]",
           border_style: :solid_rounded,
           horizontal_aling: :left,
           padding_x: 1

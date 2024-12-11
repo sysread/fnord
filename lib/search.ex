@@ -56,12 +56,12 @@ defmodule Search do
       Store.Entry.read(entry)
     else
       with {:ok, embeddings} <- Store.Entry.read_embeddings(entry) do
-        {:ok, %{embeddings: embeddings}}
+        {:ok, %{"embeddings" => embeddings}}
       end
     end
   end
 
-  defp get_score(needle, %{embeddings: embeddings}) do
+  defp get_score(needle, %{"embeddings" => embeddings}) do
     cosine_similarity(needle, embeddings)
   end
 
