@@ -122,6 +122,8 @@ defmodule AI.Agent.Answers do
   end
 
   defp build_response(ai, includes, opts) do
+    show_work = Map.get(opts, :show_work, false)
+
     tools =
       if Git.is_git_repo?() do
         @tools
@@ -136,13 +138,14 @@ defmodule AI.Agent.Answers do
       |> then(fn x -> !x end)
 
     AI.Response.get(ai,
-      on_event: &on_event/2,
       max_tokens: @max_tokens,
       model: @model,
       tools: tools,
       system: @prompt,
       user: user_prompt(opts.question, includes),
-      use_planner: use_planner
+      use_planner: use_planner,
+      log_tool_calls: true,
+      log_tool_call_results: show_work
     )
   end
 
@@ -153,57 +156,4 @@ defmodule AI.Agent.Answers do
       "#{question}\n#{includes}"
     end
   end
-
-  defp on_event(:planner, response) do
-    UI.report_step("✓ Next step(s)", response)
-  end
-
-  defp on_event(:planner_error, reason) do
-    UI.error("Planner", reason)
-  end
-
-  defp on_event(:tool_call, {"search_tool", %{"query" => query}}) do
-    UI.report_step("Searching", query)
-  end
-
-  defp on_event(:tool_call, {"list_files_tool", _args}) do
-    UI.report_step("Listing files in project")
-  end
-
-  defp on_event(:tool_call, {"file_info_tool", %{"file" => file, "question" => question}}) do
-    UI.report_step("Considering #{file}", question)
-  end
-
-  defp on_event(
-         :tool_call_result,
-         {"file_info_tool", %{"file" => file, "question" => question}, {:ok, response}}
-       ) do
-    UI.report_step("✓ Considered #{file}", "#{question}\n#{response}")
-  end
-
-  defp on_event(
-         :tool_call,
-         {"spelunker_tool",
-          %{
-            "question" => question,
-            "start_file" => start_file,
-            "symbol" => symbol
-          }}
-       ) do
-    UI.report_step("Spelunking", "#{start_file} | #{symbol}: #{question}")
-  end
-
-  defp on_event(:tool_call, {"git_show_tool", %{"sha" => sha}}) do
-    UI.report_step("Inspecting commit", sha)
-  end
-
-  defp on_event(:tool_call, {"git_pickaxe_tool", %{"regex" => regex}}) do
-    UI.report_step("Archaeologizing", regex)
-  end
-
-  defp on_event(:tool_call, {"git_diff_branch_tool", %{"topic" => topic, "base" => base}}) do
-    UI.report_step("[file_info] Diffing branches", "#{base}..#{topic}")
-  end
-
-  defp on_event(_, _), do: :ok
 end

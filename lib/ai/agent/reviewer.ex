@@ -105,16 +105,19 @@ defmodule AI.Agent.Reviewer do
     with {:ok, topic} <- Map.fetch(opts, :topic),
          {:ok, base} <- Map.fetch(opts, :base),
          {:ok, prompt} <- user_prompt(topic, base) do
+      show_work = Map.get(opts, :show_work, false)
+
       UI.report_step("Reviewing", topic)
 
       AI.Response.get(ai,
-        on_event: &on_event/2,
         max_tokens: @max_tokens,
         model: @model,
         tools: @tools,
         system: @prompt,
         user: prompt,
-        use_planner: true
+        use_planner: true,
+        log_tool_calls: true,
+        log_tool_call_results: show_work
       )
     end
   end
@@ -133,42 +136,4 @@ defmodule AI.Agent.Reviewer do
        """}
     end
   end
-
-  defp on_event(:tool_call, {"search_tool", %{"query" => query}}) do
-    UI.report_step("Searching", query)
-  end
-
-  defp on_event(:tool_call, {"list_files_tool", _args}) do
-    UI.report_step("Listing files in project")
-  end
-
-  defp on_event(:tool_call, {"file_info_tool", %{"file" => file, "question" => question}}) do
-    UI.report_step("Considering #{file}", question)
-  end
-
-  defp on_event(
-         :tool_call,
-         {"spelunker_tool",
-          %{
-            "question" => question,
-            "start_file" => start_file,
-            "symbol" => symbol
-          }}
-       ) do
-    UI.report_step("Spelunking", "#{start_file} | #{symbol}: #{question}")
-  end
-
-  defp on_event(:tool_call, {"git_show_tool", %{"sha" => sha}}) do
-    UI.report_step("Inspecting commit", sha)
-  end
-
-  defp on_event(:tool_call, {"git_pickaxe_tool", %{"regex" => regex}}) do
-    UI.report_step("Archaeologizing", regex)
-  end
-
-  defp on_event(:tool_call, {"git_diff_branch_tool", %{"topic" => topic, "base" => base}}) do
-    UI.report_step("[file_info] Diffing branches", "#{base}..#{topic}")
-  end
-
-  defp on_event(_, _), do: :ok
 end

@@ -6,11 +6,28 @@ defmodule UI do
   end
 
   def report_step(msg), do: info(msg)
-
   def report_step(msg, detail), do: info(msg, detail)
 
+  def begin_step(msg, detail \\ nil) do
+    if is_nil(detail) do
+      Logger.info(IO.ANSI.format([:green, msg, :reset], colorize?()))
+    else
+      Logger.info(IO.ANSI.format([:green, msg, :reset, ": ", :cyan, detail, :reset], colorize?()))
+    end
+  end
+
+  def end_step(msg, detail \\ nil) do
+    if is_nil(detail) do
+      Logger.info(IO.ANSI.format([:yellow, msg, :reset], colorize?()))
+    else
+      Logger.info(
+        IO.ANSI.format([:yellow, msg, :reset, ": ", :cyan, detail, :reset], colorize?())
+      )
+    end
+  end
+
   def inspect(item, label) do
-    Logger.debug(label, Kernel.inspect(item, pretty: true))
+    Logger.debug(label, Kernel.inspect(item, pretty: true, binaries: :as_strings))
     Logger.flush()
     item
   end

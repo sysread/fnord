@@ -26,8 +26,9 @@ defmodule AI.Response do
          {:ok, system} <- Keyword.fetch(opts, :system),
          {:ok, user} <- Keyword.fetch(opts, :user) do
       tools = Keyword.get(opts, :tools, nil)
-      on_event = Keyword.get(opts, :on_event, fn _, _ -> :ok end)
       use_planner = Keyword.get(opts, :use_planner, false)
+      log_tool_calls = Keyword.get(opts, :log_tool_calls, false)
+      log_tool_call_results = Keyword.get(opts, :log_tool_call_results, false)
 
       %{
         ai: ai,
@@ -36,7 +37,8 @@ defmodule AI.Response do
         model: model,
         use_planner: use_planner,
         tools: tools,
-        on_event: on_event,
+        log_tool_calls: log_tool_calls,
+        log_tool_call_results: log_tool_call_results,
         messages: [AI.Util.system_msg(system), AI.Util.user_msg(user)],
         tool_call_requests: [],
         response: nil
@@ -108,16 +110,16 @@ defmodule AI.Response do
   end
 
   defp maybe_use_planner(%{ai: ai, use_planner: true, messages: msgs, tools: tools} = state) do
-    UI.report_step("Planning next step(s)")
+    on_event(state, :tool_call, {"planner", %{}})
 
     case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools}) do
       {:ok, response, _usage} ->
-        state.on_event.(:planner, response)
+        on_event(state, :tool_call_result, {"planner", %{}, response})
         planner_msg = AI.Util.system_msg(response)
         %{state | messages: state.messages ++ [planner_msg]}
 
       {:error, reason} ->
-        state.on_event.(:planner_error, reason)
+        on_event(state, :tool_call_error, {"planner", %{}, reason})
         state
     end
   end
@@ -153,7 +155,7 @@ defmodule AI.Response do
       {:ok, [request, response]}
     else
       {:error, reason} ->
-        state.on_event.(:tool_call_error, {func, args_json, reason})
+        on_event(state, :tool_call_error, {func, args_json, reason})
         response = AI.Util.tool_msg(id, func, reason)
         {:ok, [request, response]}
     end
@@ -161,10 +163,112 @@ defmodule AI.Response do
 
   defp perform_tool_call(state, func, args_json) when is_binary(args_json) do
     with {:ok, args} <- Jason.decode(args_json) do
-      state.on_event.(:tool_call, {func, args})
+      on_event(state, :tool_call, {func, args})
       result = AI.Tools.perform_tool_call(state, func, args)
-      state.on_event.(:tool_call_result, {func, args, result})
+      on_event(state, :tool_call_result, {func, args, result})
       result
     end
   end
+
+  # -----------------------------------------------------------------------------
+  # Tool call UI integration
+  # -----------------------------------------------------------------------------
+  defp log_tool_call(state, step) do
+    if state.log_tool_calls do
+      UI.begin_step(step)
+    end
+  end
+
+  defp log_tool_call(state, step, msg) do
+    if state.log_tool_calls do
+      UI.begin_step(step, msg)
+    end
+  end
+
+  defp log_tool_call_result(state, step, msg) do
+    if state.log_tool_call_results do
+      UI.end_step(step, msg)
+    end
+  end
+
+  defp log_tool_call_error(_state, tool, reason) do
+    UI.error("Error calling #{tool}", reason)
+  end
+
+  # ----------------------------------------------------------------------------
+  # Planner
+  # ----------------------------------------------------------------------------
+  defp on_event(state, :tool_call, {"planner", _}) do
+    log_tool_call(state, "Planning next steps")
+  end
+
+  defp on_event(state, :tool_call_result, {"planner", _, plan}) do
+    log_tool_call_result(state, "Next steps", plan)
+  end
+
+  # ----------------------------------------------------------------------------
+  # Search tool
+  # ----------------------------------------------------------------------------
+  defp on_event(state, :tool_call, {"search_tool", args}) do
+    log_tool_call(state, "Searching", args["query"])
+  end
+
+  # ----------------------------------------------------------------------------
+  # List files tool
+  # ----------------------------------------------------------------------------
+  defp on_event(state, :tool_call, {"list_files_tool", _}) do
+    log_tool_call(state, "Listing files in project")
+  end
+
+  # ----------------------------------------------------------------------------
+  # File info tool
+  # ----------------------------------------------------------------------------
+  defp on_event(state, :tool_call, {"file_info_tool", args}) do
+    log_tool_call(state, "Considering #{args["file"]}", args["question"])
+  end
+
+  defp on_event(state, :tool_call_result, {"file_info_tool", args, {:ok, response}}) do
+    log_tool_call_result(
+      state,
+      "Considered #{args["file"]}",
+      "#{args["question"]}\n\n#{response}"
+    )
+  end
+
+  # ----------------------------------------------------------------------------
+  # Spelunker tool
+  # ----------------------------------------------------------------------------
+  defp on_event(state, :tool_call, {"spelunker_tool", args}) do
+    msg = "#{args["start_file"]} | #{args["symbol"]}: #{args["question"]}"
+    log_tool_call(state, "Spelunking", msg)
+  end
+
+  defp on_event(state, :tool_call_result, {"spelunker_tool", args, {:ok, response}}) do
+    msg = "#{args["start_file"]} | #{args["symbol"]}: #{args["question"]}\n\n#{response}"
+    log_tool_call_result(state, "Spelunked", msg)
+  end
+
+  # ----------------------------------------------------------------------------
+  # Git tools
+  # ----------------------------------------------------------------------------
+  defp on_event(state, :tool_call, {"git_show_tool", args}) do
+    log_tool_call(state, "Inspecting commit", args["sha"])
+  end
+
+  defp on_event(state, :tool_call, {"git_pickaxe_tool", args}) do
+    log_tool_call(state, "Archaeologizing", args["regex"])
+  end
+
+  defp on_event(state, :tool_call, {"git_diff_branch_tool", args}) do
+    log_tool_call(state, "Diffing branches", "#{args["base"]}..#{args["topic"]}")
+  end
+
+  # ----------------------------------------------------------------------------
+  # Fallbacks and error messages
+  # ----------------------------------------------------------------------------
+  defp on_event(state, :tool_call_error, {tool, _, reason}) do
+    log_tool_call_error(state, tool, reason)
+  end
+
+  defp on_event(_state, _, _), do: :ok
 end

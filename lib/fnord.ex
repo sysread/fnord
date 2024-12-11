@@ -161,6 +161,12 @@ defmodule Fnord do
       required: true
     ]
 
+    show_work = [
+      long: "--show-work",
+      short: "-s",
+      help: "Display more of the research performed by the agent; disabled if --quiet is set"
+    ]
+
     parser =
       Optimus.new!(
         name: "fnord",
@@ -247,14 +253,14 @@ defmodule Fnord do
             about: "Ask the AI a question about the project",
             options: [concurrency: concurrency, include: include],
             args: [project: project, question: question],
-            flags: [quiet: quiet]
+            flags: [quiet: quiet, show_work: show_work]
           ],
           review: [
             name: "review",
             about:
               "Review a topic branch against another branch. Note that this always uses the remote branches on origin.",
             options: [project: project, concurrency: concurrency, topic: topic, base: base],
-            flags: [quiet: quiet]
+            flags: [quiet: quiet, show_work: show_work]
           ],
           search: [
             name: "search",
