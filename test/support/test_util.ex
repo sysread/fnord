@@ -24,6 +24,7 @@ defmodule TestUtil do
       import TestUtil,
         only: [
           setup_args: 1,
+          tmpdir: 0,
           mock_project: 1,
           mock_git_project: 1,
           mock_source_file: 3,
@@ -42,7 +43,7 @@ defmodule TestUtil do
     on_exit(fn -> System.put_env("HOME", orig) end)
 
     # Create a temp dir to be our HOME directory
-    {:ok, tmp_dir} = Briefly.create(directory: true)
+    {:ok, tmp_dir} = tmpdir()
     System.put_env("HOME", tmp_dir)
 
     {:ok, fnord_home: tmp_dir}
@@ -67,14 +68,18 @@ defmodule TestUtil do
   # -----------------------------------------------------------------------------
   # Helpers
   # -----------------------------------------------------------------------------
+  def tmpdir() do
+    Briefly.create(directory: true)
+  end
+
   def mock_project(name) do
     # Save the original fnord environment variable and restore it on exit
     orig = Application.get_all_env(:fnord)
     on_exit(fn -> Application.put_all_env(fnord: orig) end)
+    Application.put_env(:fnord, :project, name)
 
     # Create a temp dir to be our source directory for the project
-    {:ok, tmp_dir} = Briefly.create(directory: true)
-    Application.put_env(:fnord, :project, name)
+    {:ok, tmp_dir} = tmpdir()
 
     name
     |> Store.get_project()
@@ -83,14 +88,22 @@ defmodule TestUtil do
 
   def mock_git_project(name) do
     project = mock_project(name)
+    repo = project.source_root
+
+    git_env = [
+      {"GIT_TRACE", "0"},
+      {"GIT_CURL_VERBOSE", "0"},
+      {"GIT_DEBUG", "0"}
+    ]
+
+    System.cmd("git", ["config", "--global", "init.defaultBranch", "main"],
+      cd: repo,
+      env: git_env
+    )
 
     System.cmd("git", ["init"],
-      cd: project.source_root,
-      env: [
-        {"GIT_TRACE", "0"},
-        {"GIT_CURL_VERBOSE", "0"},
-        {"GIT_DEBUG", "0"}
-      ]
+      cd: repo,
+      env: git_env
     )
 
     project

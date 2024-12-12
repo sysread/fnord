@@ -4,115 +4,83 @@ defmodule Cmd.IndexerTest do
 
   setup_args(concurrency: 1, quiet: true)
 
-  setup do
-    # Create a temporary home directory for our app to store data
-    {:ok, home_dir} = Briefly.create(directory: true)
+  describe "run" do
+    setup do
+      project = mock_git_project("test_project")
+      {:ok, project: project}
+    end
 
-    # Create a temporary project directory and initialize it as a git repo
-    {:ok, project_dir} = Briefly.create(directory: true)
+    test "positive path", %{project: project} do
+      file = mock_source_file(project, "file1.txt", "file1")
+      mock_source_file(project, "file2.txt", "file2")
 
-    System.cmd("git", ["init"],
-      cd: project_dir,
-      env: [
-        {"GIT_TRACE", "0"},
-        {"GIT_CURL_VERBOSE", "0"},
-        {"GIT_DEBUG", "0"}
-      ]
-    )
+      # Make file2 git-ignored
+      git_ignore(project, ["file2.txt"])
 
-    # Temporarily override the HOME environment variable
-    original_home = System.get_env("HOME")
-    System.put_env("HOME", home_dir)
+      # Create an indexer for the project
+      idx = Cmd.Indexer.new(%{project: project.name, quiet: true}, MockIndexer)
 
-    on_exit(fn ->
-      if original_home do
-        System.put_env("HOME", original_home)
-      else
-        System.delete_env("HOME")
-      end
-    end)
+      # Run the indexing process
+      Cmd.Indexer.run(idx)
 
-    project = "test_project"
-    Application.put_env(:fnord, :project, "test_project")
-    on_exit(fn -> Application.put_env(:fnord, :project, nil) end)
+      # Check that the files were indexed
+      Store.list_projects()
+      |> Enum.map(& &1.name)
+      |> then(&assert(&1 == ["test_project"]))
 
-    {:ok,
-     home_dir: home_dir,
-     store_dir: Path.join(home_dir, ".fnord"),
-     project_dir: project_dir,
-     project: project}
+      Store.get_project("test_project")
+      |> Store.Project.stored_files()
+      |> Enum.map(& &1.file)
+      |> then(&assert(&1 == [file]))
+    end
   end
 
-  test "--directory", %{project: project, project_dir: project_dir} do
-    # Ensure an error is raised an error if directory is not provided when the
-    # project root is not in settings.
-    raises_error =
-      try do
-        Cmd.Indexer.new(%{project: project}, MockIndexer)
-        false
-      rescue
-        _ -> true
-      end
+  describe "new" do
+    test "raises an exception when source :directory is not passed or present in settings" do
+      raises_error =
+        try do
+          Cmd.Indexer.new(%{project: "test_project"}, MockIndexer)
+          false
+        rescue
+          _ -> true
+        end
 
-    assert raises_error
+      assert raises_error
+    end
 
-    # This should create the settings entry
-    Cmd.Indexer.new(
-      %{
-        project: "test_project",
-        directory: project_dir
-      },
-      MockIndexer
-    )
+    test "succeeds when source :directory is passed" do
+      # Create a temp dir to be our source :directory
+      {:ok, tmp_dir} = tmpdir()
 
-    # Now this should *not* raise an error
-    raises_error =
-      try do
-        Cmd.Indexer.new(%{project: "test_project"}, MockIndexer)
-        false
-      rescue
-        e ->
-          IO.inspect(e, label: "An unexpected error was raised")
-          true
-      end
+      raises_error =
+        try do
+          Cmd.Indexer.new(%{project: "test_project", directory: tmp_dir}, MockIndexer)
+          false
+        rescue
+          e ->
+            IO.inspect(e, label: "An unexpected error was raised")
+            true
+        end
 
-    refute raises_error
-  end
+      refute raises_error
+    end
 
-  test "run/4", %{project_dir: project_dir} do
-    file_1 = Path.join(project_dir, "file1.txt")
-    file_2 = Path.join(project_dir, "file2.txt")
+    test "succeeds when source :directory is in settings" do
+      # Create a new project in a temp dir with saved settings
+      project = mock_project("test_project")
 
-    # Insert a couple of files into the project
-    File.write!(file_1, "file1")
-    File.write!(file_2, "file2")
+      raises_error =
+        try do
+          Cmd.Indexer.new(%{project: project.name}, MockIndexer)
+          false
+        rescue
+          e ->
+            IO.inspect(e, label: "An unexpected error was raised")
+            true
+        end
 
-    # Make file2 git-ignored
-    File.write!(Path.join(project_dir, ".gitignore"), "file2.txt")
-
-    # Create an indexer for the project
-    idx =
-      Cmd.Indexer.new(
-        %{
-          project: "test_project",
-          directory: project_dir,
-          quiet: true
-        },
-        MockIndexer
-      )
-
-    # Run the indexing process
-    Cmd.Indexer.run(idx)
-
-    # Check that the files were indexed
-    Store.list_projects()
-    |> Enum.map(& &1.name)
-    |> then(&assert(&1 == ["test_project"]))
-
-    Store.get_project("test_project")
-    |> Store.Project.stored_files()
-    |> Enum.map(& &1.file)
-    |> then(&assert(&1 == [file_1]))
+      refute raises_error
+    end
   end
 end
 

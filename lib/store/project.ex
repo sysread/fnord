@@ -19,15 +19,11 @@ defmodule Store.Project do
     }
   end
 
-  def get_settings(project) do
-    %{
+  def save_settings(project, source_root \\ nil, exclude \\ nil) do
+    settings = %{
       "root" => project.source_root,
       "exclude" => project.exclude
     }
-  end
-
-  def save_settings(project, source_root, exclude) do
-    settings = get_settings(project)
 
     settings =
       if is_nil(source_root) do
