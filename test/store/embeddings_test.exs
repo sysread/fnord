@@ -1,6 +1,8 @@
 defmodule Store.EmbeddingsTest do
   use ExUnit.Case
-  require TestUtil
+  use TestUtil
+
+  setup do: set_log_level(:none)
 
   setup do
     # Create a temporary directory for testing

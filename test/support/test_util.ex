@@ -1,21 +1,6 @@
 defmodule TestUtil do
   use ExUnit.CaseTemplate
 
-  defmacro setup_args(args) do
-    quote do
-      setup do
-        orig = Application.get_all_env(:fnord)
-        on_exit(fn -> Application.put_all_env(fnord: orig) end)
-
-        Enum.each(unquote(args), fn {key, val} ->
-          Application.put_env(:fnord, key, val)
-        end)
-
-        :ok
-      end
-    end
-  end
-
   # ----------------------------------------------------------------------------
   # `use TestUtil` will import the `setup_args/1` macro.
   # ----------------------------------------------------------------------------
@@ -23,12 +8,13 @@ defmodule TestUtil do
     quote do
       import TestUtil,
         only: [
-          setup_args: 1,
           tmpdir: 0,
           mock_project: 1,
           mock_git_project: 1,
           mock_source_file: 3,
-          git_ignore: 2
+          git_ignore: 2,
+          set_log_level: 1,
+          set_config: 1
         ]
     end
   end
@@ -119,5 +105,23 @@ defmodule TestUtil do
     project.source_root
     |> Path.join(".gitignore")
     |> File.write!(Enum.join(patterns, "\n"))
+  end
+
+  def set_log_level(level \\ :none) do
+    old_log_level = Logger.level()
+    Logger.configure(level: level)
+    on_exit(fn -> Logger.configure(level: old_log_level) end)
+    :ok
+  end
+
+  def set_config(config) do
+    orig = Application.get_all_env(:fnord)
+    on_exit(fn -> Application.put_all_env(fnord: orig) end)
+
+    Enum.each(config, fn {key, val} ->
+      Application.put_env(:fnord, key, val)
+    end)
+
+    :ok
   end
 end

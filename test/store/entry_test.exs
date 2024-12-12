@@ -5,7 +5,7 @@ defmodule Store.EntryTest do
   @text "how now brown bureaucrat"
   @alt_text "now is the time for all good men to come to the aid of their country"
 
-  setup_args(concurrency: 1, quiet: true)
+  setup do: set_config(concurrency: 1, quiet: true)
 
   setup do
     {:ok, project: mock_project("blarg")}
@@ -82,7 +82,7 @@ defmodule Store.EntryTest do
             directory: ctx.project.source_root,
             quiet: true
           },
-          MockIndexer
+          MockIndexerForEntryTest
         )
 
       # Run the indexing process
@@ -310,13 +310,13 @@ defmodule Store.EntryTest do
   end
 end
 
-defmodule MockIndexer do
+defmodule MockIndexerForEntryTest do
   defstruct []
 
   @behaviour Indexer
 
   @impl Indexer
-  def new(), do: %MockIndexer{}
+  def new(), do: %MockIndexerForEntryTest{}
 
   @impl Indexer
   def get_embeddings(_idx, _text), do: {:ok, [[1, 2, 3], [4, 5, 6]]}

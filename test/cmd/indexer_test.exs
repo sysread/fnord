@@ -2,7 +2,7 @@ defmodule Cmd.IndexerTest do
   use ExUnit.Case
   use TestUtil
 
-  setup_args(concurrency: 1, quiet: true)
+  setup do: set_config(concurrency: 1, quiet: true)
 
   describe "run" do
     setup do

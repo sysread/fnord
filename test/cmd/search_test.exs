@@ -1,78 +1,27 @@
 defmodule Cmd.SearchTest do
   use ExUnit.Case
-  require TestUtil
+  use TestUtil
 
-  TestUtil.setup_args(
-    concurrency: 1,
-    quiet: true
-  )
+  setup do: set_config(concurrency: 1, quiet: true)
+  setup do: set_log_level(:none)
 
-  # Quiet down logging from the indexer
   setup do
-    old_log_level = Logger.level()
-    Logger.configure(level: :none)
-    on_exit(fn -> Logger.configure(level: old_log_level) end)
-    :ok
+    project = mock_project("test_project")
+    {:ok, project: project}
   end
 
-  # Set the global project settings
-  setup do
-    original_project = Application.get_env(:fnord, :project)
-    Application.put_env(:fnord, :project, "test_project")
-    on_exit(fn -> Application.put_env(:fnord, :project, original_project) end)
-    {:ok, project: "test_project"}
-  end
-
-  # Set up temp directories for fnord home and project
-  setup do
-    # Create temporary directories for the home and project
-    {:ok, home_dir} = Briefly.create(directory: true)
-    {:ok, project_dir} = Briefly.create(directory: true)
-
-    # Initialize the project directory as a git repository
-    System.cmd("git", ["init"],
-      cd: project_dir,
-      env: [
-        {"GIT_TRACE", "0"},
-        {"GIT_CURL_VERBOSE", "0"},
-        {"GIT_DEBUG", "0"}
-      ]
-    )
-
-    # Temporarily override the HOME environment variable
-    original_home = System.get_env("HOME")
-    System.put_env("HOME", home_dir)
-
-    on_exit(fn ->
-      if original_home do
-        System.put_env("HOME", original_home)
-      else
-        System.delete_env("HOME")
-      end
-    end)
-
-    {:ok, home_dir: home_dir, project_dir: project_dir}
-  end
-
-  test "search returns files ranked by similarity to query", %{
-    project_dir: project_dir
-  } do
+  test "search returns files ranked by similarity to query", %{project: project} do
     # Create sample files with known content
-    file1 = Path.join(project_dir, "file1.txt")
-    File.write!(file1, "file1")
-
-    file2 = Path.join(project_dir, "file2.txt")
-    File.write!(file2, "file2")
-
-    file3 = Path.join(project_dir, "file3.txt")
-    File.write!(file3, "other content")
+    file1 = mock_source_file(project, "file1.txt", "file1")
+    file2 = mock_source_file(project, "file2.txt", "file2")
+    file3 = mock_source_file(project, "file3.txt", "other content")
 
     # Index the files using the Indexer with MockIndexerForSearch
     idx =
       Cmd.Indexer.new(
         %{
-          project: "test_project",
-          directory: project_dir,
+          project: project.name,
+          directory: project.source_root,
           quiet: true
         },
         MockIndexerForSearch

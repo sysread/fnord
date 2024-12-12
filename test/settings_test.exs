@@ -1,37 +1,14 @@
 defmodule SettingsTest do
   use ExUnit.Case
 
-  require TestUtil
+  use TestUtil
 
-  # Set up a temporary directory and override the HOME environment variable
-  setup do
-    # Create a unique temporary directory
-    {:ok, tmp_dir} = Briefly.create(directory: true)
-
-    # Save the original HOME environment variable
-    original_home = System.get_env("HOME")
-
-    # Override the HOME environment variable with the temporary directory
-    System.put_env("HOME", tmp_dir)
-
-    # Ensure the original HOME is restored after tests
-    on_exit(fn ->
-      if original_home do
-        System.put_env("HOME", original_home)
-      else
-        System.delete_env("HOME")
-      end
-    end)
-
-    {:ok, tmp_dir: tmp_dir}
+  test "home/0", %{fnord_home: fnord_home} do
+    assert Settings.home() == Path.join(fnord_home, ".fnord")
   end
 
-  test "home/0", %{tmp_dir: tmp_dir} do
-    assert Settings.home() == Path.join(tmp_dir, ".fnord")
-  end
-
-  test "settings_file/0", %{tmp_dir: tmp_dir} do
-    assert Settings.settings_file() == Path.join(tmp_dir, ".fnord/settings.json")
+  test "settings_file/0", %{fnord_home: fnord_home} do
+    assert Settings.settings_file() == Path.join(fnord_home, ".fnord/settings.json")
   end
 
   test "get/3 <-> set/3" do
