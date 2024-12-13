@@ -12,10 +12,14 @@ defmodule AI.Tools.FileInfo do
         will analyze the file and answer your question as specifically as
         possible. Ensure that you craft your question to explicitly identify
         how you want the information presented. Specific questions with
-        explicit output instructions typically yield the best results. It is
-        recommended that you ask only a *single* question per tool call to
-        ensure the most complete answer, and make multiple calls concurrently
-        if you have multiple questions about a given file.
+        explicit output instructions typically yield the best results.
+
+        It is recommended that you ask only a *single* question per tool call
+        to ensure the most complete answer, and make multiple calls
+        concurrently if you have multiple questions about a given file.
+        Additionally, because the user may specify a file with a relative path,
+        it is recommended that you use your search_tool to find the file's
+        correct path first.
 
         This tool has access to the git_show_tool and git_pickaxe_tool, and
         can use these to provide context about its history and differences from
