@@ -22,7 +22,7 @@ defmodule Cmd.Search do
         #{data.summary}
         """)
       else
-        IO.puts(entry.file)
+        IO.puts("#{score}\t#{entry.file}")
       end
     end)
   end

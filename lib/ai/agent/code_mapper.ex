@@ -1,5 +1,5 @@
 defmodule AI.Agent.CodeMapper do
-  @model "gpt-4o"
+  @model "gpt-4o-mini"
 
   # It's actually 128k for this model, but "context window" != "attention span"
   @max_tokens 50_000

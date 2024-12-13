@@ -102,6 +102,7 @@ defmodule Cmd.Indexer do
          {:ok, summary, outline} <- get_derivatives(idx, entry.file, contents),
          {:ok, embeddings} <- get_embeddings(idx, entry.file, summary, outline, contents),
          :ok <- Store.Entry.save(entry, summary, outline, embeddings) do
+      UI.debug("✓ #{entry.file}")
       :ok
     else
       {:error, reason} -> UI.warn("Error processing #{entry.file}", inspect(reason))
@@ -163,6 +164,7 @@ defmodule Cmd.Indexer do
   # ----------------------------------------------------------------------------
   defp spin(processing, func) do
     if quiet?() do
+      UI.info(processing)
       {_msg, result} = func.()
       result
     else
