@@ -44,7 +44,11 @@ defmodule Cmd.SearchTest do
       end)
 
     # Split the output into lines
-    results = output |> String.split("\n", trim: true)
+    results =
+      output
+      |> String.split("\n", trim: true)
+      |> Enum.map(fn line -> String.split(line, "\t") end)
+      |> Enum.map(fn [_similarity, file] -> file end)
 
     # Assert that file1.txt is the first result
     assert List.first(results) == file1
