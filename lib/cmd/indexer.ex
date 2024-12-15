@@ -7,6 +7,10 @@ defmodule Cmd.Indexer do
   ]
 
   def new(opts, indexer \\ Indexer) do
+    with {:ok, project_name} <- Map.fetch(opts, :project) do
+      Application.put_env(:fnord, :project, project_name)
+    end
+
     project =
       Store.get_project()
       |> Store.Project.save_settings(
