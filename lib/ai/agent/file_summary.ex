@@ -52,6 +52,7 @@ defmodule AI.Agent.FileSummary do
         input: content,
         question: "Summarize the content of the file: #{file}"
       )
+      |> then(fn {:ok, %{response: response}} -> {:ok, response} end)
     end
   end
 end

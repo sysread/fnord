@@ -93,19 +93,28 @@ defmodule AI.Agent.Answers do
   def get_response(ai, opts) do
     UI.report_step("Researching", opts.question)
 
-    with includes = Map.get(opts, :include, []) |> get_included_files(),
-         {:ok, response, {label, usage}} <- build_response(ai, includes, opts) do
+    with includes = opts |> Map.get(:include, []) |> get_included_files(),
+         {:ok, response} <- build_response(ai, includes, opts),
+         {:ok, msg} <- Map.fetch(response, :response),
+         {label, usage} <- AI.Completion.context_window_usage(response) do
+      save_conversation(response)
+
       UI.report_step(label, usage)
       UI.flush()
-      IO.puts(response)
+      IO.puts(msg)
 
-      {:ok, response}
+      {:ok, msg}
     end
   end
 
   # -----------------------------------------------------------------------------
   # Private functions
   # -----------------------------------------------------------------------------
+  defp save_conversation(%AI.Completion{messages: messages}) do
+    Store.Conversation.new()
+    |> Store.Conversation.write(__MODULE__, messages)
+  end
+
   defp get_included_files(files) do
     preamble = "The user has included the following file for context"
 
@@ -138,12 +147,16 @@ defmodule AI.Agent.Answers do
       |> String.starts_with?("testing:")
       |> then(fn x -> !x end)
 
-    AI.Response.get(ai,
+    messages = [
+      AI.Util.system_msg(@prompt),
+      user_prompt(opts.question, includes)
+    ]
+
+    AI.Completion.get(ai,
       max_tokens: @max_tokens,
       model: @model,
       tools: tools,
-      system: @prompt,
-      user: user_prompt(opts.question, includes),
+      messages: messages,
       use_planner: use_planner,
       log_tool_calls: true,
       log_tool_call_results: show_work
@@ -156,5 +169,6 @@ defmodule AI.Agent.Answers do
     else
       "#{question}\n#{includes}"
     end
+    |> AI.Util.user_msg()
   end
 end

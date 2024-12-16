@@ -1,36 +1,53 @@
-defmodule AI.Response do
+defmodule AI.Completion do
   @moduledoc """
   This module sends a request to the model and handles the response. It is able
   to handle tool calls and responses. If the caller includes an `on_event`
   function, it will be called whenever a tool call is performed or if a tool
   call results in an error.
   """
+  defstruct [
+    :ai,
+    :opts,
+    :max_tokens,
+    :model,
+    :use_planner,
+    :tools,
+    :log_tool_calls,
+    :log_tool_call_results,
+    :messages,
+    :tool_call_requests,
+    :response
+  ]
 
-  @type response :: {
-          :ok,
-          String.t(),
-          context_window_usage
+  @type t :: %__MODULE__{
+          ai: AI.t(),
+          opts: Keyword.t(),
+          max_tokens: non_neg_integer(),
+          model: String.t(),
+          use_planner: boolean(),
+          tools: list(),
+          log_tool_calls: boolean(),
+          log_tool_call_results: boolean(),
+          messages: list(),
+          tool_call_requests: list(),
+          response: String.t() | nil
         }
 
-  @type context_window_usage :: {
-          # "Context window usage"
-          String.t(),
-          # "50.00% | 500 / 1000"
-          String.t()
-        }
+  @type success :: {:ok, t}
+  @type error :: {:error, String.t()}
+  @type response :: success | error
 
-  @spec get(AI.t(), keyword) :: response
+  @spec get(AI.t(), Keyword.t()) :: response
   def get(ai, opts) do
     with {:ok, max_tokens} <- Keyword.fetch(opts, :max_tokens),
          {:ok, model} <- Keyword.fetch(opts, :model),
-         {:ok, system} <- Keyword.fetch(opts, :system),
-         {:ok, user} <- Keyword.fetch(opts, :user) do
+         {:ok, messages} <- Keyword.fetch(opts, :messages) do
       tools = Keyword.get(opts, :tools, nil)
       use_planner = Keyword.get(opts, :use_planner, false)
       log_tool_calls = Keyword.get(opts, :log_tool_calls, false)
       log_tool_call_results = Keyword.get(opts, :log_tool_call_results, false)
 
-      %{
+      %__MODULE__{
         ai: ai,
         opts: Enum.into(opts, %{}),
         max_tokens: max_tokens,
@@ -39,18 +56,16 @@ defmodule AI.Response do
         tools: tools,
         log_tool_calls: log_tool_calls,
         log_tool_call_results: log_tool_call_results,
-        messages: [AI.Util.system_msg(system), AI.Util.user_msg(user)],
+        messages: messages,
         tool_call_requests: [],
         response: nil
       }
       |> send_request()
-      |> then(fn state ->
-        {:ok, state.response, context_window_usage(state)}
-      end)
+      |> then(&{:ok, &1})
     end
   end
 
-  defp context_window_usage(%{model: model, messages: msgs, max_tokens: max_tokens}) do
+  def context_window_usage(%{model: model, messages: msgs, max_tokens: max_tokens}) do
     tokens = msgs |> inspect() |> AI.Tokenizer.encode(model) |> length()
     pct = tokens / max_tokens * 100.0
     pct_str = Number.Percentage.number_to_percentage(pct, precision: 2)
@@ -60,30 +75,35 @@ defmodule AI.Response do
   end
 
   # -----------------------------------------------------------------------------
-  # Response handling
+  # Completion handling
   # -----------------------------------------------------------------------------
   defp send_request(state) do
     state
     |> maybe_use_planner()
     |> get_completion()
-    |> handle_response(state)
+    |> handle_response()
   end
 
   def get_completion(state) do
-    AI.get_completion(state.ai, state.model, state.messages, state.tools)
+    response = AI.get_completion(state.ai, state.model, state.messages, state.tools)
+    {response, state}
   end
 
-  defp handle_response({:ok, :msg, response}, state) do
-    %{state | response: response}
+  defp handle_response({{:ok, :msg, response}, state}) do
+    %{
+      state
+      | messages: state.messages ++ [AI.Util.assistant_msg(response)],
+        response: response
+    }
   end
 
-  defp handle_response({:ok, :tool, tool_calls}, state) do
+  defp handle_response({{:ok, :tool, tool_calls}, state}) do
     %{state | tool_call_requests: tool_calls}
     |> handle_tool_calls()
     |> send_request()
   end
 
-  defp handle_response({:error, reason}, state) do
+  defp handle_response({{:error, reason}, state}) do
     reason =
       if is_binary(reason) do
         reason
@@ -113,10 +133,10 @@ defmodule AI.Response do
     on_event(state, :tool_call, {"planner", %{}})
 
     case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools}) do
-      {:ok, response, _usage} ->
+      {:ok, %{response: response}} ->
         on_event(state, :tool_call_result, {"planner", %{}, response})
         planner_msg = AI.Util.system_msg(response)
-        %{state | messages: state.messages ++ [planner_msg]}
+        %__MODULE__{state | messages: state.messages ++ [planner_msg]}
 
       {:error, reason} ->
         on_event(state, :tool_call_error, {"planner", %{}, reason})
@@ -138,7 +158,7 @@ defmodule AI.Response do
     Queue.shutdown(queue)
     Queue.join(queue)
 
-    %{
+    %__MODULE__{
       state
       | tool_call_requests: [],
         messages: state.messages ++ outputs
@@ -271,4 +291,25 @@ defmodule AI.Response do
   end
 
   defp on_event(_state, _, _), do: :ok
+
+  # -----------------------------------------------------------------------------
+  # Misc private functions
+  # -----------------------------------------------------------------------------
+  defp debug_messages(state) do
+    IO.puts("--------------------------------------------------------------------------------")
+    IO.puts("MESSAGES:")
+    IO.puts("--------------------------------------------------------------------------------")
+
+    state.messages
+    |> Enum.each(fn
+      %{role: "user", content: msg} -> IO.puts("USER: #{msg}")
+      %{role: "assistant", content: msg} -> IO.puts("ASSISTANT: #{msg}")
+      %{role: "system", content: msg} -> IO.puts("SYSTEM: #{msg}")
+      msg -> IO.puts("OTHER: #{inspect(msg)}")
+    end)
+
+    IO.puts("--------------------------------------------------------------------------------")
+
+    state
+  end
 end

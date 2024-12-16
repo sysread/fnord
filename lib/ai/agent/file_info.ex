@@ -48,6 +48,7 @@ defmodule AI.Agent.FileInfo do
         question: question,
         on_event: &on_event/2
       )
+      |> then(fn {:ok, %{response: response}} -> {:ok, response} end)
     end
   end
 

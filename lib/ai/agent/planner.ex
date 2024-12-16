@@ -47,11 +47,13 @@ defmodule AI.Agent.Planner do
     with {:ok, msgs} <- Map.fetch(opts, :msgs),
          {:ok, tools} <- Map.fetch(opts, :tools),
          {:ok, user} <- build_user_msg(msgs, tools) do
-      AI.Response.get(ai,
+      AI.Completion.get(ai,
         max_tokens: @max_tokens,
         model: @model,
-        system: @prompt,
-        user: user
+        messages: [
+          AI.Util.system_msg(@prompt),
+          AI.Util.user_msg(user)
+        ]
       )
     end
   end

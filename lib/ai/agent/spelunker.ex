@@ -40,7 +40,7 @@ defmodule AI.Agent.Spelunker do
 
   @impl AI.Agent
   def get_response(ai, opts) do
-    with {:ok, response, _usage} <- build_response(ai, opts) do
+    with {:ok, %{response: response}} <- build_response(ai, opts) do
       {:ok, response}
     end
   end
@@ -49,18 +49,20 @@ defmodule AI.Agent.Spelunker do
   # Private functions
   # -----------------------------------------------------------------------------
   defp build_response(ai, opts) do
-    AI.Response.get(ai,
+    AI.Completion.get(ai,
       on_event: &on_event/2,
       max_tokens: @max_tokens,
       model: @model,
       tools: @tools,
-      system: @prompt,
-      user: """
-      The Answers Agent has requested your assistance in tracing a path
-      through the code base, beginning with the symbol `#{opts.symbol}` in the
-      file `#{opts.start_file}`, in order to discover the answer to this question:
-      `#{opts.question}`.
-      """
+      messages: [
+        AI.Util.system_msg(@prompt),
+        AI.Util.user_msg("""
+        The Answers Agent has requested your assistance in tracing a path
+        through the code base, beginning with the symbol `#{opts.symbol}` in
+        the file `#{opts.start_file}`, in order to discover the answer to this
+        question: `#{opts.question}`.
+        """)
+      ]
     )
   end
 

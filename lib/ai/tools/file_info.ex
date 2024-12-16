@@ -17,8 +17,9 @@ defmodule AI.Tools.FileInfo do
         It is recommended that you ask only a *single* question per tool call
         to ensure the most complete answer, and make multiple calls
         concurrently if you have multiple questions about a given file.
+
         Additionally, because the user may specify a file with a relative path,
-        it is recommended that you use your search_tool to find the file's
+        it is recommended that you use your list_files_tool to find the file's
         correct path first.
 
         This tool has access to the git_show_tool and git_pickaxe_tool, and
@@ -70,10 +71,10 @@ defmodule AI.Tools.FileInfo do
       {:error, :enoent} ->
         {:error,
          """
-         The requested file does not exist. It may have been added since the
-         most recent reindexing of the project. If the file is only present in
-         a topic branch that has not yet been merged, it may not be visible to
-         this tool.
+         The requested file does not exist.
+         - If the file name is correct, verify the path using the search or the file listing tool.
+         - It may have been added since the most recent reindexing of the project.
+         - If the file is only present in a topic branch that has not yet been merged, it may not be visible to this tool.
          """}
 
       {:error, reason} ->

@@ -81,12 +81,13 @@ defmodule AI.Agent.Reviewer do
   @impl AI.Agent
   def get_response(ai, opts) do
     with {:ok, _} <- Git.git_root(),
-         {:ok, response, {label, usage}} <- build_response(ai, opts) do
+         {:ok, %{response: msg} = response} <- build_response(ai, opts),
+         {label, usage} <- AI.Completion.context_window_usage(response) do
       UI.report_step(label, usage)
       UI.flush()
-      IO.puts(response)
+      IO.puts(msg)
 
-      {:ok, response}
+      {:ok, msg}
     else
       {:error, :not_a_git_repo} ->
         UI.error("Not a git repository", opts.project)
@@ -107,14 +108,18 @@ defmodule AI.Agent.Reviewer do
          {:ok, prompt} <- user_prompt(topic, base) do
       show_work = Map.get(opts, :show_work, false)
 
+      messages = [
+        AI.Util.system_msg(@prompt),
+        AI.Util.user_msg(prompt)
+      ]
+
       UI.report_step("Reviewing", topic)
 
-      AI.Response.get(ai,
+      AI.Completion.get(ai,
         max_tokens: @max_tokens,
         model: @model,
         tools: @tools,
-        system: @prompt,
-        user: prompt,
+        messages: messages,
         use_planner: true,
         log_tool_calls: true,
         log_tool_call_results: show_work
@@ -124,16 +129,18 @@ defmodule AI.Agent.Reviewer do
 
   defp user_prompt(topic_branch, base_branch) do
     with {:ok, {commits, changes}} <- Git.diff_branch(topic_branch, base_branch) do
-      {:ok,
-       """
-       # Reviewing #{topic_branch} against #{base_branch}
+      msg =
+        AI.Util.user_msg("""
+        # Reviewing #{topic_branch} against #{base_branch}
 
-       ## Commits
-       #{commits}
+        ## Commits
+        #{commits}
 
-       ## Changes
-       #{changes}
-       """}
+        ## Changes
+        #{changes}
+        """)
+
+      {:ok, msg}
     end
   end
 end

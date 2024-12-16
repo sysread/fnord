@@ -46,11 +46,16 @@ defmodule Store.Project do
   end
 
   def create(project) do
-    File.mkdir_p!(project.store_path)
+    project.store_path |> File.mkdir_p!()
+    project.store_path |> Path.join("conversations") |> File.mkdir_p!()
   end
 
   def delete(project) do
-    File.rm_rf!(project.store_path)
+    project.store_path
+    |> Path.join("*/metadata.json")
+    |> Path.wildcard()
+    |> Enum.map(&Path.dirname/1)
+    |> Enum.each(fn path -> File.rm_rf!(path) end)
   end
 
   def expand_path(path, project) do
@@ -90,8 +95,9 @@ defmodule Store.Project do
 
   def stored_files(project) do
     project.store_path
-    |> Path.join("*")
+    |> Path.join("*/metadata.json")
     |> Path.wildcard()
+    |> Enum.map(&Path.dirname/1)
     |> Enum.map(&Store.Entry.new_from_entry_path(project, &1))
   end
 
@@ -122,6 +128,15 @@ defmodule Store.Project do
         true -> is_text?(entry.file)
       end
     end)
+  end
+
+  def conversations(project) do
+    project.store_path
+    |> Path.join(["conversations", "*.json"])
+    |> Path.wildcard()
+    |> Enum.map(&Path.basename(&1, ".json"))
+    |> Enum.map(&Store.Conversation.new(&1, project))
+    |> then(&{:ok, &1})
   end
 
   # -----------------------------------------------------------------------------

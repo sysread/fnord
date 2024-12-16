@@ -55,11 +55,15 @@ defmodule AI.Accumulator do
   [your accumulated response]
   ```
 
-  Respond ONLY with your cleaned up `Accumulated Response` section, formatted per the guidelines below.
+  Respond ONLY with your cleaned up `Accumulated Response` section, without the header, `# Accumulated Response`.
   -----
   """
 
-  @spec get_response(AI.t(), keyword) :: {:ok, String.t()}
+  @type success :: {:ok, AI.Completion.t()}
+  @type error :: {:error, String.t()}
+  @type response :: success | error
+
+  @spec get_response(AI.t(), Keyword.t()) :: response
   def get_response(ai, opts \\ []) do
     with {:ok, max_tokens} <- Keyword.fetch(opts, :max_tokens),
          {:ok, model} <- Keyword.fetch(opts, :model),
@@ -85,7 +89,27 @@ defmodule AI.Accumulator do
   end
 
   defp reduce(%{splitter: %{done: true}} = acc) do
-    finish(acc)
+    user_prompt = """
+    # Question / Goal
+    #{acc.question}
+
+    # Accumulated Response
+    #{acc.buffer}
+    """
+
+    system_prompt = """
+    #{@final_prompt}
+    #{acc.prompt}
+    """
+
+    AI.Completion.get(acc.ai,
+      max_tokens: acc.max_tokens,
+      model: acc.model,
+      messages: [
+        AI.Util.system_msg(system_prompt),
+        AI.Util.user_msg(user_prompt)
+      ]
+    )
   end
 
   defp reduce(%{splitter: %{done: false}} = acc) do
@@ -118,40 +142,17 @@ defmodule AI.Accumulator do
     #{acc.prompt}
     """
 
-    AI.Response.get(acc.ai,
+    AI.Completion.get(acc.ai,
       max_tokens: acc.max_tokens,
       model: acc.model,
-      system: system_prompt,
-      user: user_prompt,
-      tools: acc.tools
+      tools: acc.tools,
+      messages: [
+        AI.Util.system_msg(system_prompt),
+        AI.Util.user_msg(user_prompt)
+      ]
     )
-    |> then(fn {:ok, buffer, _usage} ->
-      {:ok, %__MODULE__{acc | splitter: splitter, buffer: buffer}}
-    end)
-  end
-
-  defp finish(acc) do
-    user_prompt = """
-    # Question / Goal
-    #{acc.question}
-
-    # Accumulated Response
-    #{acc.buffer}
-    """
-
-    system_prompt = """
-    #{@final_prompt}
-    #{acc.prompt}
-    """
-
-    AI.Response.get(acc.ai,
-      max_tokens: acc.max_tokens,
-      model: acc.model,
-      system: system_prompt,
-      user: user_prompt
-    )
-    |> then(fn {:ok, response, _usage} ->
-      {:ok, response}
+    |> then(fn {:ok, %{response: response}} ->
+      {:ok, %__MODULE__{acc | splitter: splitter, buffer: response}}
     end)
   end
 end
