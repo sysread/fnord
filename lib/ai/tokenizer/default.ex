@@ -9,6 +9,9 @@ defmodule AI.Tokenizer.Default do
     "text-embedding-3-large" => AI.Tokenizer.Tokens_cl100k_base
   }
 
+  # A special fallback token ID for unknown tokens
+  @fallback_token 200_020
+
   # -----------------------------------------------------------------------------
   # Behaviour implementation
   # -----------------------------------------------------------------------------
@@ -20,7 +23,20 @@ defmodule AI.Tokenizer.Default do
     reverse_vocab = tokenizer.get_reverse_vocab()
 
     token_ids
-    |> Enum.map(&Map.get(reverse_vocab, &1, ""))
+    |> Enum.map(fn
+      {@fallback_token, raw_token} ->
+        # Return the original token text for fallback entries
+        raw_token
+
+      token_id when is_integer(token_id) ->
+        # Lookup in reverse_vocab, or empty string if not found
+        Map.get(reverse_vocab, token_id, "")
+
+      # In case something unexpected slips through
+      other ->
+        IO.warn("Unexpected token in decode: #{inspect(other)}")
+        ""
+    end)
     |> Enum.join("")
   end
 
@@ -32,14 +48,32 @@ defmodule AI.Tokenizer.Default do
     special_tokens = tokenizer.get_special_tokens()
 
     try do
-      # Step 1: Split text with the tokenizer-specific pattern
+      # Step 1: Split text using the tokenizer-specific pattern
       pattern
       |> Regex.scan(text)
       |> List.flatten()
-      # Step 2: Apply byte pair encoding merging
+      # Step 2: Apply BPE merging for each token
       |> Enum.map(&apply_bpe(&1, model))
-      # Step 3: Map tokens to vocabulary IDs
-      |> Enum.map(&Map.get(vocab, &1, special_tokens[&1] || nil))
+      # Step 3: Convert to token IDs, falling back to special fallback tokens for unknowns
+      |> Enum.map(fn token ->
+        case Map.get(vocab, token) do
+          nil ->
+            # Check if it's a special token
+            case special_tokens[token] do
+              nil ->
+                # **FALLBACK**: if not in vocab or special_tokens, return tuple
+                {@fallback_token, token}
+
+              special_id ->
+                # Known special token
+                special_id
+            end
+
+          id ->
+            # Known vocab token
+            id
+        end
+      end)
     rescue
       e in ArgumentError ->
         IO.inspect(text, label: "Input text (raw)", limit: :infinity)
@@ -95,7 +129,7 @@ defmodule AI.Tokenizer.Default do
           end
         end)
         |> Enum.reverse()
-        # Recursive call to merge further
+        # Recursive call to handle further merges
         |> loop_merge(model)
     end
   end
