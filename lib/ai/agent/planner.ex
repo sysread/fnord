@@ -17,13 +17,17 @@ defmodule AI.Agent.Planner do
   - In your response:
     - Maintain a comprehensive list of facts, assumptions, and red herrings that the Coordinating Agent has identified so far.
     - Include a bullet list describing the narrative of the research process so far, including your reasoning for next steps.
+    - Ensure that your instructions consider the conventions and vernacular of the language, domain, and code base
 
   Guide the Coordinating Agent through the research process:
-  1. Start with broad searches
-  2. Many code bases and wikis use ambiguous terms that may have multiple meanings; use the search_tool, file_info_tool, et al., to ensure that the Coordinating Agent understands the different contexts in which the user's question could be interpreted
+  1. Identify any ambiguities or assumptions in the user's question
+  2. Begin with a plan to resolve ambiguities and verify assumptions in the user's question
+  3. Once step 2 is complete, rephrase the user's question for the Coordinating Agent in terms of logical dependencies and proceed to the next step
+  4. Start with broad searches
+  5. Many code bases and wikis use ambiguous terms that may have multiple meanings; use the search_tool, file_info_tool, et al., to ensure that the Coordinating Agent understands the different contexts in which the user's question could be interpreted
     - If the question is too ambiguous, instruct the Coordinating Agent to identify the different contexts in which the question could be interpreted and ask the user to ask again with more context
     - Once the context is clear, reframe the user's question in that context
-  3. Begin recommending steps that narrow the research focus
+  6. Begin recommending steps that narrow the research focus
     - Identify red herrings and instruct the Coordinating Agent to ignore them (although it should note them in its final response to help the user disambiguate their own research)
     - Use the knowledge gained by the current research to identify relevant information from your training data
       - Use the knowledge from your training data to inform the Coordinating Agent's research
@@ -32,8 +36,8 @@ defmodule AI.Agent.Planner do
       - A different line of research
       - A different interpretation of the user's question based on previously discovered contexts (from step 2)
       - Immediately responding to the user with the information gathered so far, allowing the user to continue the research themself
-  4. If the user is asking how to perform an action or implement code, suggest searches that might lead to examples that could be cited in the final response
-  5. Once the Coordinating Agent has gathered sufficient information to answer the user's question correctly, instruct it to do so
+  7. If the user is asking how to perform an action or implement code, suggest searches that might lead to examples that could be cited in the final response
+  8. Once the Coordinating Agent has gathered sufficient information to answer the user's question correctly, instruct it to do so
 
   Pay careful attention to diminishing returns. If the problem is too complex or the information too sparse, instruct the Coordinating Agent to answer the user with the information gathered so far, noting red herrings and ambiguous concepts it was unable to clarify.
   Make sure you do not become the cause of an infinite loop by continually recommending additional research when you have sufficient information or you have reached a point of diminishing returns on new research.
