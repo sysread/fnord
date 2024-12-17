@@ -5,6 +5,10 @@ defmodule AI.Accumulator do
   the supplied agent prompt to include instructions for accumulating a response
   across multiple chunks based on the `max_tokens` parameter supplied to the
   `get_response` function.
+
+  Note that while this makes use of the `AI.Completion` module, it does NOT
+  have the same interface and cannot be used for long-running conversations, as
+  it does not accept a list of messages as its input.
   """
 
   defstruct [
@@ -89,17 +93,17 @@ defmodule AI.Accumulator do
   end
 
   defp reduce(%{splitter: %{done: true}} = acc) do
+    system_prompt = """
+    #{@final_prompt}
+    #{acc.prompt}
+    """
+
     user_prompt = """
     # Question / Goal
     #{acc.question}
 
     # Accumulated Response
     #{acc.buffer}
-    """
-
-    system_prompt = """
-    #{@final_prompt}
-    #{acc.prompt}
     """
 
     AI.Completion.get(acc.ai,
@@ -133,7 +137,12 @@ defmodule AI.Accumulator do
     # message size.
     {chunk, splitter} = AI.Splitter.next_chunk(acc.splitter, user_prompt)
     acc = %{acc | splitter: splitter}
-    user_prompt = user_prompt <> chunk
+
+    user_prompt = """
+    #{user_prompt}
+
+    #{chunk}
+    """
 
     # The system prompt is the prompt for the chunk response, along with the
     # caller's agent instructions.
