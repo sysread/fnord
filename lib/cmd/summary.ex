@@ -12,9 +12,18 @@ defmodule Cmd.Summary do
     project = Store.get_project(opts.project)
 
     with {:ok, entry} <- get_file(project, file_path),
-         {:ok, summary} <- Store.Entry.read_summary(entry) do
-      IO.puts("# File: #{file_path}")
+         {:ok, summary} <- Store.Entry.read_summary(entry),
+         {:ok, outline} <- Store.Entry.read_outline(entry) do
+      IO.puts("# File: `#{file_path}`")
+      IO.puts("- Store location: `#{entry.store_path}`")
+
+      IO.puts("----------")
+      IO.puts("# Summary")
       IO.puts(summary)
+
+      IO.puts("----------")
+      IO.puts("# Outline")
+      IO.puts(outline)
     end
   end
 
