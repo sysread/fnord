@@ -29,6 +29,7 @@ defmodule Fnord do
         :files -> Cmd.Files.run(opts)
         :upgrade -> Cmd.Upgrade.run(opts)
         :review -> Cmd.Review.run(opts)
+        :conversations -> Cmd.Conversations.run(opts)
       end
     else
       {:error, reason} -> IO.puts("Error: #{reason}")
@@ -198,6 +199,23 @@ defmodule Fnord do
               "Review a topic branch against another branch. Note that this always uses the remote branches on origin.",
             options: [project: project, concurrency: concurrency, topic: topic, base: base],
             flags: [quiet: quiet, show_work: show_work]
+          ],
+          conversations: [
+            name: "conversations",
+            about: "List all conversations in the project",
+            options: [project: project],
+            flags: [
+              file: [
+                long: "--file",
+                short: "-f",
+                help: "Print the path to the conversation file"
+              ],
+              question: [
+                long: "--question",
+                short: "-q",
+                help: "include the question prompting the conversation"
+              ]
+            ]
           ],
           search: [
             name: "search",

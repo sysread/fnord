@@ -30,4 +30,9 @@ defmodule Store do
     |> Enum.map(&Path.basename/1)
     |> Enum.map(&Store.Project.new(&1, home))
   end
+
+  def list_conversations() do
+    get_project()
+    |> Store.Project.conversations()
+  end
 end

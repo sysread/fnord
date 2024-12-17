@@ -20,15 +20,14 @@ defmodule Store.Conversation do
     }
   end
 
-  def exists?(conversation) do
-    File.exists?(conversation.store_path)
+  def name(conversation) do
+    conversation.store_path
+    |> Path.basename()
+    |> String.replace(".json", "")
   end
 
-  def read(conversation) do
-    with {:ok, json} <- File.read(conversation.store_path),
-         {:ok, data} <- Jason.decode(json) do
-      {:ok, data}
-    end
+  def exists?(conversation) do
+    File.exists?(conversation.store_path)
   end
 
   def write(conversation, agent, messages) do
@@ -48,6 +47,22 @@ defmodule Store.Conversation do
         )
 
         error
+    end
+  end
+
+  def read(conversation) do
+    with {:ok, json} <- File.read(conversation.store_path) do
+      Jason.decode(json)
+    end
+  end
+
+  def question(conversation) do
+    with {:ok, data} <- read(conversation),
+         {:ok, messages} <- Map.fetch(data, "messages") do
+      messages
+      |> Enum.find(&(Map.get(&1, "role") == "user"))
+      |> Map.get("content")
+      |> then(&{:ok, &1})
     end
   end
 

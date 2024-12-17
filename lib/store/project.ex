@@ -132,11 +132,10 @@ defmodule Store.Project do
 
   def conversations(project) do
     project.store_path
-    |> Path.join(["conversations", "*.json"])
+    |> Path.join(["conversations/*.json"])
     |> Path.wildcard()
     |> Enum.map(&Path.basename(&1, ".json"))
     |> Enum.map(&Store.Conversation.new(&1, project))
-    |> then(&{:ok, &1})
   end
 
   # -----------------------------------------------------------------------------
