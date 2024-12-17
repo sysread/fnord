@@ -1,14 +1,16 @@
 defmodule AI.Agent.FileInfo do
-  @model "gpt-4o"
+  @model "gpt-4o-mini"
 
   # It's actually 128k for this model, but "context window" != "attention span"
   @max_tokens 50_000
 
   @prompt """
-  You are an AI agent who is responsible for answering questions about a file's
-  contents. The AI search agent will request specific details about a file. Use
-  your tools as appropriate to provide the most accurate and relevant answers
-  to the search agent's questions.
+  You are an AI agent who is responsible for answering questions about a file's contents.
+  The user will request specific details about a file.
+  Use your tools as appropriate to provide the most accurate and relevant answers to the user's questions.
+  Quote the file contents as appropriate to provide context for your responses.
+  Ensure that your information is ACCURATE and matches the information in the contents of the file.
+  Make your response is as brief as possible while including ALL information requested by the user.
   """
 
   @tools [

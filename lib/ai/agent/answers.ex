@@ -57,6 +57,7 @@ defmodule AI.Agent.Answers do
   Ensure that any facts about the code base or documentation include parenthetical references to files or tool_calls you performed.
   Document your research steps and findings at each stage of the process. This will guide the user's next steps and research.
   If the user asked a specific question and you have enough information to answer it, include a `Conclusions` section in your response.
+  Include the Planner Agent's narrative of the research and outline of facts discovered toward the end of your response.
   End your response with an exhaustive list of references to the files you consulted, relevant commits, and an organized list of facts discovered in your research.
   Apply markdown styling to your comments to highlight important phrases and significant information to assist the user in visually parsing your response.
 

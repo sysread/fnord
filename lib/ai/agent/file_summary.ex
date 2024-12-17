@@ -34,6 +34,7 @@ defmodule AI.Agent.FileSummary do
   - List questions that can be answered by the content of the file.
 
   Only use information from the file itself to ensure accurate summaries without false positives from external sources.
+  Keep your response as brief as possible without omitting any relevant information.
   """
 
   # -----------------------------------------------------------------------------
