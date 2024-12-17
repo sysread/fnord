@@ -291,25 +291,4 @@ defmodule AI.Completion do
   end
 
   defp on_event(_state, _, _), do: :ok
-
-  # -----------------------------------------------------------------------------
-  # Misc private functions
-  # -----------------------------------------------------------------------------
-  defp debug_messages(state) do
-    IO.puts("--------------------------------------------------------------------------------")
-    IO.puts("MESSAGES:")
-    IO.puts("--------------------------------------------------------------------------------")
-
-    state.messages
-    |> Enum.each(fn
-      %{role: "user", content: msg} -> IO.puts("USER: #{msg}")
-      %{role: "assistant", content: msg} -> IO.puts("ASSISTANT: #{msg}")
-      %{role: "system", content: msg} -> IO.puts("SYSTEM: #{msg}")
-      msg -> IO.puts("OTHER: #{inspect(msg)}")
-    end)
-
-    IO.puts("--------------------------------------------------------------------------------")
-
-    state
-  end
 end
