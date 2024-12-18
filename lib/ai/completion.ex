@@ -241,6 +241,17 @@ defmodule AI.Completion do
   end
 
   # ----------------------------------------------------------------------------
+  # File contents tool
+  # ----------------------------------------------------------------------------
+  defp on_event(state, :tool_call, {"file_contents_tool", args}) do
+    log_tool_call(state, "Retrieving contents of", args["file"])
+  end
+
+  defp on_event(state, :tool_call_result, {"file_contents_tool", args, {:ok, _}}) do
+    log_tool_call_result(state, "Retrieved contents of", args["file"])
+  end
+
+  # ----------------------------------------------------------------------------
   # File info tool
   # ----------------------------------------------------------------------------
   defp on_event(state, :tool_call, {"file_info_tool", args}) do

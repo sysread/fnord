@@ -94,7 +94,8 @@ defmodule AI.Agent.Answers do
     AI.Tools.Search.spec(),
     AI.Tools.ListFiles.spec(),
     AI.Tools.FileInfo.spec(),
-    AI.Tools.Spelunker.spec()
+    AI.Tools.Spelunker.spec(),
+    AI.Tools.FileContents.spec()
   ]
 
   @tools @non_git_tools ++

@@ -184,7 +184,10 @@ defmodule Fnord do
               concurrency: concurrency,
               exclude: exclude
             ],
-            flags: [reindex: reindex, quiet: quiet]
+            flags: [
+              reindex: reindex,
+              quiet: quiet
+            ]
           ],
           ask: [
             name: "ask",

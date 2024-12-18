@@ -11,6 +11,12 @@ defmodule AI.Tools.GitShow do
         Retrieves the commit message and diff for a given commit SHA. This is
         usefl to determine when a bug might have been introduced, or to confirm
         that seemingly orphaned code is no longer in use.
+
+        This tool may also be used to view the raw contents of a file at a
+        specific commit. Use HEAD to get the currently checked out version.
+        This is equivalent to `git show $sha:$file`. NOTE that this version may
+        not match the most recently indexed version that is available to the
+        file_info_tool.
         """,
         parameters: %{
           type: "object",
@@ -20,7 +26,8 @@ defmodule AI.Tools.GitShow do
               type: "string",
               description: """
               The SHA of the commit to retrieve. It may be either the full SHA
-              or a short SHA.
+              or a short SHA, a branch name, HEAD, or any other valid git
+              reference that `git show` can resolve.
               """
             },
             file: %{

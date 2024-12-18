@@ -8,22 +8,21 @@ defmodule AI.Tools.FileInfo do
       function: %{
         name: "file_info_tool",
         description: """
-        Requests specialized information about a specific file. The AI agent
-        will analyze the file and answer your question as specifically as
-        possible. Ensure that you craft your question to explicitly identify
-        how you want the information presented. Specific questions with
-        explicit output instructions typically yield the best results.
+        Requests information about a file. Ensure that you craft your question
+        to explicitly identify how you want the information presented. Nuanced
+        questions with an output template yield the best results.
 
-        It is recommended that you ask only a *single* question per tool call
-        to ensure the most complete answer, and make multiple calls
-        concurrently if you have multiple questions about a given file.
+        This tool can be used to extract sections of code, functions,
+        interfaces, definitions, or entire file contents upon request. NOTE
+        that this is the most recently indexed version of the file; use
+        git_show_tool to view the current or a specific historical version. Use
+        file_contents tool to get the raw file contents.
 
-        Additionally, because the user may specify a file with a relative path,
-        it is recommended that you use your list_files_tool to find the file's
-        correct path first.
+        Ensure the file path matches one provided by the list_files_tool or
+        search_tool to avoid enoent errors.
 
-        This tool has access to the git_show_tool and git_pickaxe_tool, and
-        can use these to provide context about its history and differences from
+        This tool has access to the git_show_tool and git_pickaxe_tool, and can
+        use these to provide context about its history and differences from
         earlier version.
         """,
         parameters: %{
@@ -33,7 +32,7 @@ defmodule AI.Tools.FileInfo do
             file: %{
               type: "string",
               description: """
-              The file to ask the question about. It must be the absolute path
+              The file to ask the question about. It must be the complete path
               provided by the search_tool or list_files_tool.
               """
             },

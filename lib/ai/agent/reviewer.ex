@@ -64,13 +64,14 @@ defmodule AI.Agent.Reviewer do
   """
 
   @tools [
-    AI.Tools.Search.spec(),
-    AI.Tools.ListFiles.spec(),
+    AI.Tools.FileContents.spec(),
     AI.Tools.FileInfo.spec(),
-    AI.Tools.Spelunker.spec(),
-    AI.Tools.GitShow.spec(),
+    AI.Tools.GitDiffBranch.spec(),
     AI.Tools.GitPickaxe.spec(),
-    AI.Tools.GitDiffBranch.spec()
+    AI.Tools.GitShow.spec(),
+    AI.Tools.ListFiles.spec(),
+    AI.Tools.Search.spec(),
+    AI.Tools.Spelunker.spec()
   ]
 
   # -----------------------------------------------------------------------------

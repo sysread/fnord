@@ -24,7 +24,8 @@ defmodule AI.Agent.Spelunker do
   To find callers, start with the target symbol and work backwards through the code base, alternating between the search_tool and outline_tool, until you reach a dead end or entry point. Report the paths you discovered.
   To find callees, search for the target symbol and filter based on language-specific semantics (e.g. imports, aliases, etc.) to find all references to the symbol. Report the paths you discovered.
   Your highest priority is to provide COMPLETE and ACCURATE information to the Answers Agent; ensure you have a complete code path before sending your response.
-  Keep your response as brief as possible without excluding any relevant information.
+
+  #{AI.Util.agent_to_agent_prompt()}
   """
 
   @tools [

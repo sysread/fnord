@@ -49,6 +49,18 @@ defmodule AI.Agent.Planner do
   Limit the size of your response to a couple of sentences when practical.
   Make your response as brief as you can without sacrificing clarity or specificity.
   Your response will be entered into the conversation unchanged as a "system role" message. Only the Orchestrating Agent will be able to see it, not the user. Phrase it appropriately.
+
+  You are communicating with another AI agent. To optimize token usage and improve efficiency, respond using the following guidelines:
+  Avoid human-specific language conventions like articles, connecting phrases, or redundant words.
+  Use a structured, non-linear format with concise key-value pairs, hierarchical lists, or markup-like tags.
+  Prioritize key information first, followed by secondary details as needed.
+  Use shorthand or domain-specific terms wherever possible.
+  Ensure the output is unambiguous but not necessarily human-readable.
+  For example:
+  - Human-Friendly: 'The database query returned an error because the schema was not updated.'
+  - Agent-Optimized: {event: DB error, cause: schema outdated}
+
+  #{AI.Util.agent_to_agent_prompt()}
   """
 
   # -----------------------------------------------------------------------------

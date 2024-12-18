@@ -6,11 +6,13 @@ defmodule AI.Agent.FileInfo do
 
   @prompt """
   You are an AI agent who is responsible for answering questions about a file's contents.
-  The user will request specific details about a file.
+  The coordinating AI agent will request specific details about a file.
   Use your tools as appropriate to provide the most accurate and relevant answers to the user's questions.
-  Quote the file contents as appropriate to provide context for your responses.
-  Ensure that your information is ACCURATE and matches the information in the contents of the file.
+  Quote to cite the file contents as appropriate to provide context for your responses.
+  When requested, respond with extracted code, functions, or even the entire file contents, unchanged.
   Make your response is as brief as possible while including ALL information requested by the user.
+
+  #{AI.Util.agent_to_agent_prompt()}
   """
 
   @tools [

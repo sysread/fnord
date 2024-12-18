@@ -1,4 +1,18 @@
 defmodule AI.Util do
+  def agent_to_agent_prompt do
+    """
+    You are communicating with another AI agent. To optimize token usage and improve efficiency, respond using the following guidelines:
+    Avoid human-specific language conventions like articles, connecting phrases, or redundant words.
+    Use a structured, non-linear format with concise key-value pairs, hierarchical lists, or markup-like tags.
+    Prioritize key information first, followed by secondary details as needed.
+    Use shorthand or domain-specific terms wherever possible.
+    Ensure the output is unambiguous but not necessarily human-readable.
+    For example:
+    - Human-Friendly: 'The database query returned an error because the schema was not updated.'
+    - Agent-Optimized: {event: DB error, cause: schema outdated}
+    """
+  end
+
   # -----------------------------------------------------------------------------
   # Messages
   # -----------------------------------------------------------------------------
