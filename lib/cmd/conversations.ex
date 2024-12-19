@@ -20,7 +20,14 @@ defmodule Cmd.Conversations do
 
       out =
         if question do
-          taken = String.length(name) + String.length(conversation.store_path) + 6
+          taken = String.length(name) + 3
+
+          taken =
+            if file do
+              taken + String.length(conversation.store_path) + 3
+            else
+              taken
+            end
 
           {:ok, question} = Store.Conversation.question(conversation)
           [IO.ANSI.format([:cyan, ellipsis(question, cols - taken), :reset]) | out]
