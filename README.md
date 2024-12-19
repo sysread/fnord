@@ -65,7 +65,7 @@ fnord index --project foo --dir /path/to/foo
 You can **reindex** the project, forcing it to reindex all files.
 
 ```bash
-fnord index --project foo --dir /path/to/foo --reindex
+fnord index -p foo -d /path/to/foo --reindex
 ```
 
 You can also watch the project for changes and reindex them as they happen
@@ -88,13 +88,13 @@ fnord-watch -p foo -d /path/to/foo
 Search for files in the project that match a query.
 
 ```bash
-fnord search --project foo --query "some search query"
+fnord search -p foo -q "some search query"
 ```
 
 If you want more detail about each file matched:
 
 ```bash
-fnord search --project foo --query "some search query" --detail
+fnord search -p foo -q "some search query" --detail
 ```
 
 ### Ask
@@ -111,9 +111,10 @@ fnord ask -p foo -q "summarize the dependencies of this project" | glow
 ### Miscellaneous
 
 - **List projects:** `fnord projects`
-- **List files in a project:** `fnord files --project foo`
-- **Show the AI-generated summary of a file:** `fnord summary --project foo --file bar`
-- **Delete a project:** `fnord delete --project foo`
+- **List files in a project:** `fnord files -p foo`
+- **Show the AI-generated summary of a file:** `fnord summary -p foo -f bar.ext`
+- **Delete a project:** `fnord delete -p foo`
+- **Show conversations:** `fnord conversations -p foo -q`
 
 Note that deleting a project only deletes from the index, not the actual files.
 
@@ -168,5 +169,9 @@ for the `search` command.
 - tool to allow the assistant to save observations about the project
   - automatically index these observations and either:
     - make them searchable
-    - include them in the prompt
-- add `--include` to add files outside the project directory or that were otherwise ignored (e.g. git-ignored)
+    - automatically include them in the prompt
+- conversation semantic search
+  - tool call for agents to use
+- project notes
+  - tool to allow the ai to save notes for future reference
+  - tool to allow the ai to search notes
