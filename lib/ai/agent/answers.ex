@@ -112,28 +112,32 @@ defmodule AI.Agent.Answers do
 
   @impl AI.Agent
   def get_response(ai, opts) do
-    UI.report_step("Researching", opts.question)
-
     with includes = opts |> Map.get(:include, []) |> get_included_files(),
          {:ok, response} <- build_response(ai, includes, opts),
          {:ok, msg} <- Map.fetch(response, :response),
          {label, usage} <- AI.Completion.context_window_usage(response) do
-      save_conversation(response)
-
       UI.report_step(label, usage)
       UI.flush()
+
       IO.puts(msg)
 
+      save_conversation(response, opts)
+      UI.flush()
+
       {:ok, msg}
+    else
+      error ->
+        UI.error("An error occurred", "#{inspect(error)}")
     end
   end
 
   # -----------------------------------------------------------------------------
   # Private functions
   # -----------------------------------------------------------------------------
-  defp save_conversation(%AI.Completion{messages: messages}) do
-    Store.Conversation.new()
-    |> Store.Conversation.write(__MODULE__, messages)
+  defp save_conversation(%AI.Completion{messages: messages}, %{conversation: conversation}) do
+    Store.Conversation.write(conversation, __MODULE__, messages)
+    UI.debug("Conversation saved to file", conversation.store_path)
+    UI.report_step("Conversation saved", conversation.id)
   end
 
   defp get_included_files(files) do
@@ -168,20 +172,41 @@ defmodule AI.Agent.Answers do
       |> String.starts_with?("testing:")
       |> then(fn x -> !x end)
 
-    messages = [
-      AI.Util.system_msg(@prompt),
-      user_prompt(opts.question, includes)
-    ]
-
     AI.Completion.get(ai,
       max_tokens: @max_tokens,
       model: @model,
       tools: tools,
-      messages: messages,
+      messages: build_messages(opts, includes),
       use_planner: use_planner,
+      log_msgs: true,
       log_tool_calls: true,
       log_tool_call_results: show_work
     )
+  end
+
+  defp build_messages(%{conversation: conversation} = opts, includes) do
+    user_msg = user_prompt(opts.question, includes)
+
+    if Store.Conversation.exists?(conversation) do
+      with {:ok, _timestamp, %{"messages" => messages}} <- Store.Conversation.read(conversation) do
+        # Conversations are stored as JSON and parsed into a map with string
+        # keys, so we need to convert the keys to atoms.
+        messages =
+          messages
+          |> Enum.map(fn msg ->
+            Map.new(msg, fn {k, v} ->
+              {String.to_atom(k), v}
+            end)
+          end)
+
+        messages ++ [user_msg]
+      else
+        error ->
+          raise error
+      end
+    else
+      [AI.Util.system_msg(@prompt), user_msg]
+    end
   end
 
   defp user_prompt(question, includes) do

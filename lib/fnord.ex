@@ -168,6 +168,12 @@ defmodule Fnord do
       help: "Display more of the research performed by the agent; disabled if --quiet is set"
     ]
 
+    follow = [
+      long: "--follow",
+      short: "-f",
+      help: "Follow up the conversation with another question/prompt"
+    ]
+
     parser =
       Optimus.new!(
         name: "fnord",
@@ -192,9 +198,21 @@ defmodule Fnord do
           ask: [
             name: "ask",
             about: "Ask the AI a question about the project",
-            options: [concurrency: concurrency, include: include],
-            args: [project: project, question: question],
-            flags: [quiet: quiet, show_work: show_work]
+            options: [
+              project: project,
+              question: question,
+              concurrency: concurrency,
+              include: include,
+              follow: follow
+            ],
+            flags: [
+              show_work: show_work,
+              replay: [
+                long: "--replay",
+                short: "-r",
+                help: "Replay a conversation (with --follow is set)"
+              ]
+            ]
           ],
           review: [
             name: "review",

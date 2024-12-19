@@ -12,6 +12,7 @@ defmodule AI.Completion do
     :model,
     :use_planner,
     :tools,
+    :log_msgs,
     :log_tool_calls,
     :log_tool_call_results,
     :messages,
@@ -26,6 +27,7 @@ defmodule AI.Completion do
           model: String.t(),
           use_planner: boolean(),
           tools: list(),
+          log_msgs: boolean(),
           log_tool_calls: boolean(),
           log_tool_call_results: boolean(),
           messages: list(),
@@ -44,22 +46,27 @@ defmodule AI.Completion do
          {:ok, messages} <- Keyword.fetch(opts, :messages) do
       tools = Keyword.get(opts, :tools, nil)
       use_planner = Keyword.get(opts, :use_planner, false)
+      log_msgs = Keyword.get(opts, :log_msgs, false)
       log_tool_calls = Keyword.get(opts, :log_tool_calls, false)
       log_tool_call_results = Keyword.get(opts, :log_tool_call_results, false)
 
-      %__MODULE__{
+      state = %__MODULE__{
         ai: ai,
         opts: Enum.into(opts, %{}),
         max_tokens: max_tokens,
         model: model,
         use_planner: use_planner,
         tools: tools,
+        log_msgs: log_msgs,
         log_tool_calls: log_tool_calls,
         log_tool_call_results: log_tool_call_results,
         messages: messages,
         tool_call_requests: [],
         response: nil
       }
+
+      state
+      |> replay_conversation()
       |> send_request()
       |> then(&{:ok, &1})
     end
@@ -193,6 +200,18 @@ defmodule AI.Completion do
   # -----------------------------------------------------------------------------
   # Tool call UI integration
   # -----------------------------------------------------------------------------
+  defp log_user_msg(state, msg) do
+    if state.log_msgs do
+      UI.report_step("You", msg)
+    end
+  end
+
+  defp log_assistant_msg(state, msg) do
+    if state.log_msgs do
+      UI.report_step("Assistant", msg)
+    end
+  end
+
   defp log_tool_call(state, step) do
     if state.log_tool_calls do
       UI.begin_step(step)
@@ -302,4 +321,53 @@ defmodule AI.Completion do
   end
 
   defp on_event(_state, _, _), do: :ok
+
+  # ----------------------------------------------------------------------------
+  # Continuing a conversation
+  # ----------------------------------------------------------------------------
+  defp replay_conversation(state) do
+    # Make a lookup for tool call args by id
+    tool_call_args =
+      state.messages
+      |> Enum.reduce(%{}, fn msg, acc ->
+        case msg do
+          %{role: "assistant", content: nil, tool_calls: tool_calls} ->
+            tool_calls
+            |> Enum.map(fn %{"id" => id, "function" => %{"arguments" => args}} ->
+              {id, args}
+            end)
+            |> Enum.into(acc)
+
+          _ ->
+            acc
+        end
+      end)
+
+    state.messages
+    # Skip the first message, which is the system prompt for the agent
+    |> Enum.drop(1)
+    |> Enum.each(fn
+      %{role: "assistant", content: nil, tool_calls: tool_calls} ->
+        tool_calls
+        |> Enum.each(fn %{"function" => %{"name" => func, "arguments" => args_json}} ->
+          with {:ok, args} <- Jason.decode(args_json) do
+            on_event(state, :tool_call, {func, args})
+          end
+        end)
+
+      %{role: "tool", name: func, tool_call_id: id, content: content} ->
+        on_event(state, :tool_call_result, {func, tool_call_args[id], content})
+
+      %{role: "system", content: content} ->
+        on_event(state, :tool_call_result, {"planner", %{}, content})
+
+      %{role: "assistant", content: content} ->
+        log_assistant_msg(state, content)
+
+      %{role: "user", content: content} ->
+        log_user_msg(state, content)
+    end)
+
+    state
+  end
 end

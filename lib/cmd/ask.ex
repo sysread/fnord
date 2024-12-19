@@ -3,6 +3,7 @@ defmodule Cmd.Ask do
 
   def run(opts) do
     with :ok <- validate(opts) do
+      opts = Map.put(opts, :conversation, get_conversation(opts))
       AI.Agent.Answers.get_response(AI.new(), opts)
     else
       {:error, :project_not_found} -> UI.error(@project_not_found_error)
@@ -16,5 +17,13 @@ defmodule Cmd.Ask do
       true -> :ok
       false -> {:error, :project_not_found}
     end
+  end
+
+  defp get_conversation(%{follow: nil}) do
+    Store.Conversation.new()
+  end
+
+  defp get_conversation(%{follow: conversation_id}) do
+    Store.Conversation.new(conversation_id)
   end
 end

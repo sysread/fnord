@@ -102,10 +102,10 @@ fnord search --project foo --query "some search query" --detail
 Ask the AI assistant to answer questions about your project.
 
 ```bash
-fnord ask foo "how do you run the tests for this project?"
+fnord ask -p foo -q "how do you run the tests for this project?"
 
 # Pipe output to `glow` to render markdown
-fnord ask foo "summarize the dependencies of this project" | glow
+fnord ask -p foo -q "summarize the dependencies of this project" | glow
 ```
 
 ### Miscellaneous

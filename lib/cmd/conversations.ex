@@ -6,40 +6,45 @@ defmodule Cmd.Conversations do
     file = opts[:file]
 
     Store.list_conversations()
-    |> Enum.sort_by(&Store.Conversation.name/1, :desc)
-    |> Enum.each(fn conversation ->
-      name = conversation |> Store.Conversation.name()
-      out = [IO.ANSI.format([:green, name, :reset])]
+    |> case do
+      [] ->
+        IO.puts("No conversations found.")
 
-      out =
-        if file do
-          [IO.ANSI.format([:cyan, conversation.store_path, :reset]) | out]
-        else
-          out
-        end
+      conversations ->
+        conversations
+        |> Enum.each(fn conversation ->
+          out = [IO.ANSI.format([:green, conversation.id, :reset])]
 
-      out =
-        if question do
-          taken = String.length(name) + 3
-
-          taken =
+          out =
             if file do
-              taken + String.length(conversation.store_path) + 3
+              [IO.ANSI.format([:cyan, conversation.store_path, :reset]) | out]
             else
-              taken
+              out
             end
 
-          {:ok, question} = Store.Conversation.question(conversation)
-          [IO.ANSI.format([:cyan, ellipsis(question, cols - taken), :reset]) | out]
-        else
-          out
-        end
+          out =
+            if question do
+              taken = String.length(conversation.id) + 3
 
-      out
-      |> Enum.reverse()
-      |> Enum.join(" | ")
-      |> IO.puts()
-    end)
+              taken =
+                if file do
+                  taken + String.length(conversation.store_path) + 3
+                else
+                  taken
+                end
+
+              {:ok, question} = Store.Conversation.question(conversation)
+              [IO.ANSI.format([:cyan, ellipsis(question, cols - taken), :reset]) | out]
+            else
+              out
+            end
+
+          out
+          |> Enum.reverse()
+          |> Enum.join(" | ")
+          |> IO.puts()
+        end)
+    end
   end
 
   defp ellipsis(str, limit) do

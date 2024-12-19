@@ -33,7 +33,8 @@ defmodule AI.Tools do
     "list_files_tool" => AI.Tools.ListFiles,
     "outline_tool" => AI.Tools.Outline,
     "search_tool" => AI.Tools.Search,
-    "spelunker_tool" => AI.Tools.Spelunker
+    "spelunker_tool" => AI.Tools.Spelunker,
+    "file_contents_tool" => AI.Tools.FileContents
   }
 
   def perform_tool_call(state, tool, args) do

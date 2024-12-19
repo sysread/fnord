@@ -56,7 +56,8 @@ defmodule Fnord.MixProject do
       {:number, "~> 1.0.5"},
       {:optimus, "~> 0.2"},
       {:owl, "~> 0.12"},
-      {:httpoison, "~> 2.2.1"}
+      {:httpoison, "~> 2.2.1"},
+      {:elixir_uuid, "~> 1.6", hex: :uuid_utils}
     ]
   end
 end
