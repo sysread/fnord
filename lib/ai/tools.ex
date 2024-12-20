@@ -26,15 +26,16 @@ defmodule AI.Tools do
   @callback call(agent :: struct, args :: map) :: {:ok, String.t()}
 
   @tools %{
+    "file_contents_tool" => AI.Tools.FileContents,
     "file_info_tool" => AI.Tools.FileInfo,
+    "git_diff_branch_tool" => AI.Tools.GitDiffBranch,
+    "git_log_tool" => AI.Tools.GitLog,
     "git_pickaxe_tool" => AI.Tools.GitPickaxe,
     "git_show_tool" => AI.Tools.GitShow,
-    "git_diff_branch_tool" => AI.Tools.GitDiffBranch,
     "list_files_tool" => AI.Tools.ListFiles,
     "outline_tool" => AI.Tools.Outline,
     "search_tool" => AI.Tools.Search,
-    "spelunker_tool" => AI.Tools.Spelunker,
-    "file_contents_tool" => AI.Tools.FileContents
+    "spelunker_tool" => AI.Tools.Spelunker
   }
 
   def perform_tool_call(state, tool, args) do

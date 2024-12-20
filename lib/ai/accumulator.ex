@@ -19,8 +19,7 @@ defmodule AI.Accumulator do
     :model,
     :tools,
     :prompt,
-    :question,
-    :on_event
+    :question
   ]
 
   @accumulator_prompt """
@@ -75,7 +74,6 @@ defmodule AI.Accumulator do
          {:ok, input} <- Keyword.fetch(opts, :input),
          {:ok, question} <- Keyword.fetch(opts, :question) do
       tools = Keyword.get(opts, :tools, nil)
-      on_event = Keyword.get(opts, :on_event, fn _, _ -> :ok end)
 
       %__MODULE__{
         ai: ai,
@@ -85,8 +83,7 @@ defmodule AI.Accumulator do
         model: model,
         tools: tools,
         prompt: prompt,
-        question: question,
-        on_event: on_event
+        question: question
       }
       |> reduce()
     end

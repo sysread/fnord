@@ -17,6 +17,10 @@ defmodule AI.Tools.Search do
         This allows you to craft your query using phrases likely to match the
         description of the code's behavior, rather than just the code itself.
 
+        The search_tool does NOT have access to historical data or commit
+        messages. It only searches the most recently indexed version of the
+        project.
+
         Note that repeated searches will reveal identical results, so do not
         waste tokens by repeating the same query multiple times.
         """,

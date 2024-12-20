@@ -67,6 +67,7 @@ defmodule AI.Agent.Reviewer do
     AI.Tools.FileContents.spec(),
     AI.Tools.FileInfo.spec(),
     AI.Tools.GitDiffBranch.spec(),
+    AI.Tools.GitLog.spec(),
     AI.Tools.GitPickaxe.spec(),
     AI.Tools.GitShow.spec(),
     AI.Tools.ListFiles.spec(),

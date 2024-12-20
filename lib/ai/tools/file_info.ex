@@ -21,9 +21,9 @@ defmodule AI.Tools.FileInfo do
         Ensure the file path matches one provided by the list_files_tool or
         search_tool to avoid enoent errors.
 
-        This tool has access to the git_show_tool and git_pickaxe_tool, and can
-        use these to provide context about its history and differences from
-        earlier version.
+        This tool has access to the git_log_tool, git_show_tool,
+        git_pickaxe_tool, and can use these to provide context about its
+        history and differences from earlier version.
         """,
         parameters: %{
           type: "object",

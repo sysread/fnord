@@ -313,6 +313,10 @@ defmodule AI.Completion do
     log_tool_call(state, "Diffing branches", "#{args["base"]}..#{args["topic"]}")
   end
 
+  defp on_event(state, :tool_call, {"git_log_tool", args}) do
+    log_tool_call_result(state, "Inspecting git history", inspect(args))
+  end
+
   # ----------------------------------------------------------------------------
   # Fallbacks and error messages
   # ----------------------------------------------------------------------------

@@ -52,7 +52,6 @@ defmodule AI.Agent.Spelunker do
   # -----------------------------------------------------------------------------
   defp build_response(ai, opts) do
     AI.Completion.get(ai,
-      on_event: &on_event/2,
       max_tokens: @max_tokens,
       model: @model,
       tools: @tools,
@@ -67,18 +66,4 @@ defmodule AI.Agent.Spelunker do
       ]
     )
   end
-
-  defp on_event(:tool_call, {"search_tool", %{"query" => query}}) do
-    UI.report_step("Searching", query)
-  end
-
-  defp on_event(:tool_call, {"list_files_tool", _args}) do
-    UI.report_step("Listing files in project")
-  end
-
-  defp on_event(:tool_call, {"file_info_tool", %{"file" => file, "question" => question}}) do
-    UI.report_step("Considering #{file}", question)
-  end
-
-  defp on_event(_, _), do: :ok
 end
