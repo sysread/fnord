@@ -1,15 +1,27 @@
 defmodule AI.Util do
+  @role_system "system"
+  @role_user "user"
+  @role_assistant "assistant"
+  @role_tool "tool"
+
   def agent_to_agent_prompt do
     """
-    You are communicating with another AI agent. To optimize token usage and improve efficiency, respond using the following guidelines:
-    Avoid human-specific language conventions like articles, connecting phrases, or redundant words.
-    Use a structured, non-linear format with concise key-value pairs, hierarchical lists, or markup-like tags.
-    Prioritize key information first, followed by secondary details as needed.
-    Use shorthand or domain-specific terms wherever possible.
-    Ensure the output is unambiguous but not necessarily human-readable.
+    You are communicating with another AI agent.
+
+    Optimize token usage and efficiency using the following guidelines:
+    - Avoid human-specific language conventions like articles, connecting phrases, or redundant words.
+    - Use a structured, non-linear format with concise key-value pairs, hierarchical lists, or markup-like tags.
+    - Prioritize key information first, followed by secondary details as needed.
+    - Use shorthand or domain-specific terms wherever possible.
+    - Ensure the output is unambiguous but not necessarily human-readable.
+
     For example:
-    - Human-Friendly: 'The database query returned an error because the schema was not updated.'
-    - Agent-Optimized: {event: DB error, cause: schema outdated}
+    - "The database query returned an error because the schema was not updated."
+      - Agent-Optimized: {event db error, cause outdated schema}
+    - "Use the search_tool to identify examples of existing implementations of X that the user can reference."
+      - Agent-Optimized: {search_tool, query X implementation}
+    - "The user requested information about 'X', which appears to have multiple meanings in the context of the project."
+      - Agent-Optimized: {disambiguate X, respond multiple meaning}
     """
   end
 
@@ -23,7 +35,7 @@ defmodule AI.Util do
   """
   def system_msg(msg) do
     %{
-      role: "system",
+      role: @role_system,
       content: msg
     }
   end
@@ -33,7 +45,7 @@ defmodule AI.Util do
   """
   def user_msg(msg) do
     %{
-      role: "user",
+      role: @role_user,
       content: msg
     }
   end
@@ -43,7 +55,7 @@ defmodule AI.Util do
   """
   def assistant_msg(msg) do
     %{
-      role: "assistant",
+      role: @role_assistant,
       content: msg
     }
   end
@@ -54,7 +66,7 @@ defmodule AI.Util do
   """
   def tool_msg(id, func, output) do
     %{
-      role: "tool",
+      role: @role_tool,
       name: func,
       tool_call_id: id,
       content: output
@@ -67,7 +79,7 @@ defmodule AI.Util do
   """
   def assistant_tool_msg(id, func, args) do
     %{
-      role: "assistant",
+      role: @role_assistant,
       content: nil,
       tool_calls: [
         %{

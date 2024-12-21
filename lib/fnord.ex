@@ -17,7 +17,7 @@ defmodule Fnord do
     configure_logger()
 
     with {:ok, subcommand, opts} <- parse_options(args) do
-      set_globals(opts)
+      opts = set_globals(opts)
 
       case subcommand do
         :index -> Cmd.Indexer.new(opts) |> Cmd.Indexer.run()
@@ -62,9 +62,10 @@ defmodule Fnord do
 
     quiet = [
       long: "--quiet",
-      short: "-q",
+      short: "-Q",
       help: "Suppress interactive output; automatically enabled when executed in a pipe",
-      required: false
+      required: false,
+      default: false
     ]
 
     query = [
@@ -162,11 +163,13 @@ defmodule Fnord do
       required: true
     ]
 
-    show_work = [
-      long: "--show-work",
-      short: "-s",
-      help: "Display more of the research performed by the agent; disabled if --quiet is set"
-    ]
+    show_work =
+      [
+        long: "--show-work",
+        short: "-s",
+        help: "Display tool call results; enable by default by setting FNORD_SHOW_WORK"
+        # default: System.get_env("FNORD_SHOW_WORK", "false") in ["1", "true", "TRUE"]
+      ]
 
     follow = [
       long: "--follow",
@@ -217,7 +220,7 @@ defmodule Fnord do
           review: [
             name: "review",
             about:
-              "Review a topic branch against another branch. Note that this always uses the remote branches on origin.",
+              "Review a topic branch against another branch. This always uses the remote branches on origin.",
             options: [project: project, concurrency: concurrency, topic: topic, base: base],
             flags: [quiet: quiet, show_work: show_work]
           ],
@@ -273,12 +276,12 @@ defmodule Fnord do
         ]
       )
 
-    with {[subcommand], result} <- Optimus.parse!(parser, args) do
+    with {:ok, args} <- pre_process_args(args),
+         {[subcommand], result} <- Optimus.parse!(parser, args) do
       options =
         result.args
         |> Map.merge(result.options)
         |> Map.merge(result.flags)
-        |> maybe_override_quiet()
 
       {:ok, subcommand, options}
     else
@@ -289,16 +292,6 @@ defmodule Fnord do
   defp get_version do
     {:ok, vsn} = :application.get_key(:fnord, :vsn)
     to_string(vsn)
-  end
-
-  # Overrides the --quiet flag if it was not already specified by the user and
-  # the escript is not connected to a tty.
-  defp maybe_override_quiet(opts) do
-    cond do
-      opts[:quiet] -> opts
-      IO.ANSI.enabled?() -> opts
-      true -> Map.put(opts, :quiet, true)
-    end
   end
 
   def configure_logger do
@@ -322,13 +315,48 @@ defmodule Fnord do
     :ok = :logger.set_primary_config(:level, logger_level)
   end
 
+  defp pre_process_args(args) do
+    args =
+      if "--show-work" not in args && "-s" not in args do
+        if System.get_env("FNORD_SHOW_WORK", "false") in ["1", "true", "TRUE"] do
+          args ++ ["--show-work"]
+        else
+          args
+        end
+      else
+        args
+      end
+
+    {:ok, args}
+  end
+
   defp set_globals(args) do
     args
     |> Enum.each(fn
-      {:concurrency, concurrency} -> Application.put_env(:fnord, :concurrency, concurrency)
-      {:project, project} -> Application.put_env(:fnord, :project, project)
-      {:quiet, quiet} -> Application.put_env(:fnord, :quiet, quiet)
-      _ -> :ok
+      {:concurrency, concurrency} ->
+        Application.put_env(:fnord, :concurrency, concurrency)
+
+      {:project, project} ->
+        Application.put_env(:fnord, :project, project)
+
+      {:quiet, quiet} ->
+        Application.put_env(:fnord, :quiet, quiet)
+
+      {:show_work, show_work} ->
+        Application.put_env(:fnord, :show_work, show_work)
+
+      _ ->
+        :ok
     end)
+
+    # --------------------------------------------------------------------------
+    # When not connected to a TTY, the --quiet flag is automatically enabled,
+    # unless the user explicitly specifies it.
+    # --------------------------------------------------------------------------
+    cond do
+      args[:quiet] -> args
+      IO.ANSI.enabled?() -> args
+      true -> Map.put(args, :quiet, true)
+    end
   end
 end

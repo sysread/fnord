@@ -47,8 +47,12 @@ defmodule AI.Completion do
       tools = Keyword.get(opts, :tools, nil)
       use_planner = Keyword.get(opts, :use_planner, false)
       log_msgs = Keyword.get(opts, :log_msgs, false)
-      log_tool_calls = Keyword.get(opts, :log_tool_calls, false)
-      log_tool_call_results = Keyword.get(opts, :log_tool_call_results, false)
+
+      log_tool_calls =
+        Keyword.get(opts, :log_tool_calls, !Application.get_env(:fnord, :quiet))
+
+      log_tool_call_results =
+        Keyword.get(opts, :log_tool_call_results, Application.get_env(:fnord, :show_work))
 
       state = %__MODULE__{
         ai: ai,
