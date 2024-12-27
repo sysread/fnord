@@ -7,13 +7,8 @@ defmodule Store.Conversation do
 
   @store_dir "conversations"
 
-  def new() do
-    UUID.uuid4() |> new(Store.get_project())
-  end
-
-  def new(id) do
-    id |> new(Store.get_project())
-  end
+  def new(), do: new(UUID.uuid4(), Store.get_project())
+  def new(id), do: new(id, Store.get_project())
 
   def new(id, project) do
     %__MODULE__{
