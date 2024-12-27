@@ -94,10 +94,17 @@ defmodule Store.Project do
   end
 
   def stored_files(project) do
+    # Start with the path to the project in the store
     project.store_path
+    # Each entry is a dir that contains metadata.json; this step ignores things
+    # like the conversations directory.
     |> Path.join("*/metadata.json")
+    # Expand the glob
     |> Path.wildcard()
+    # Strip metadata.json from the each listing, leaving the directory path for
+    # the individual entry.
     |> Enum.map(&Path.dirname/1)
+    # Create an Entry for each directory.
     |> Enum.map(&Store.Entry.new_from_entry_path(project, &1))
   end
 
