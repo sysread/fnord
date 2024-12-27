@@ -36,6 +36,9 @@ defmodule Store.Prompt do
 
   @store_dir "prompts"
 
+  # -----------------------------------------------------------------------------
+  # Instance functions
+  # -----------------------------------------------------------------------------
   def new(), do: new(UUID.uuid4())
 
   def new(id) do
@@ -82,8 +85,8 @@ defmodule Store.Prompt do
     # Generate and save embeddings for the prompt.
     # --------------------------------------------------------------------------
     embeddings_json =
-      prompt
-      |> generate_embeddings(search_text)
+      search_text
+      |> generate_embeddings!()
       |> Jason.encode!()
 
     prompt_path
@@ -94,14 +97,16 @@ defmodule Store.Prompt do
   end
 
   def read(prompt) do
-    with {:ok, prompt_text} <- prompt.store_path |> Path.join("prompt.md") |> File.read(),
-         {:ok, questions} <- prompt.store_path |> Path.join("questions.md") |> File.read(),
-         {:ok, embeddings} <- prompt.store_path |> Path.join("embeddings.json") |> File.read() do
+    with {:ok, version} <- get_current_version_number(prompt),
+         {:ok, prompt_text} <- read_prompt(prompt, version),
+         {:ok, questions} <- read_questions(prompt, version),
+         {:ok, embeddings} <- read_embeddings(prompt, version) do
       {:ok,
        %{
          prompt: prompt_text,
          questions: questions,
-         embeddings: embeddings
+         embeddings: embeddings,
+         version: version
        }}
     end
   end
@@ -115,13 +120,75 @@ defmodule Store.Prompt do
     end
   end
 
+  # -----------------------------------------------------------------------------
+  # Non-instnace functions
+  # -----------------------------------------------------------------------------
+  def list_prompts() do
+    Store.store_home()
+    |> Path.join(@store_dir)
+    |> File.ls()
+    |> case do
+      {:ok, dirs} ->
+        dirs
+        |> Enum.sort()
+        |> Enum.map(&new(&1))
+
+      _ ->
+        []
+    end
+  end
+
+  def search(query) do
+    needle = generate_embeddings!(query)
+
+    list_prompts()
+    |> Enum.reduce([], fn prompt, acc ->
+      with {:ok, version} = get_current_version_number(prompt),
+           {:ok, embeddings} <- read_embeddings(prompt, version) do
+        score = AI.Util.cosine_similarity(needle, embeddings)
+        [{score, prompt} | acc]
+      else
+        _ -> acc
+      end
+    end)
+    |> Enum.sort(fn {a, _}, {b, _} -> a >= b end)
+  end
+
   # ----------------------------------------------------------------------------
   # Private functions
   # ----------------------------------------------------------------------------
-  defp generate_embeddings(prompt, text) do
-    text
-    |> AI.get_embeddings(AI.new(), text)
-    |> Enum.zip_with(&Enum.max/1)
+  defp read_prompt(prompt, version) do
+    prompt.store_path
+    |> Path.join("v#{version}")
+    |> Path.join("prompt.md")
+    |> File.read()
+  end
+
+  defp read_questions(prompt, version) do
+    prompt.store_path
+    |> Path.join("v#{version}")
+    |> Path.join("questions.md")
+    |> File.read()
+  end
+
+  defp read_embeddings(prompt, version) do
+    prompt.store_path
+    |> Path.join("v#{version}")
+    |> Path.join("embeddings.json")
+    |> File.read()
+    |> case do
+      {:ok, json} -> Jason.decode(json)
+      error -> error
+    end
+  end
+
+  defp generate_embeddings!(text) do
+    AI.new()
+    |> AI.get_embeddings(text)
+    |> case do
+      {:ok, embeddings} -> Enum.zip_with(embeddings, &Enum.max/1)
+      {:error, reason} -> raise "Failed to generate embeddings: #{inspect(reason)}"
+    end
   end
 
   defp get_current_version_path(prompt) do
