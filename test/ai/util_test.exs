@@ -1,4 +1,4 @@
-defmodule SearchTest do
+defmodule AI.UtilTest do
   use ExUnit.Case
 
   test "cosine_similarity/2 computes correct similarity", _context do
@@ -7,19 +7,19 @@ defmodule SearchTest do
     vec3 = [1.0, 0.0, 0.0]
 
     # Cosine similarity between orthogonal vectors should be 0
-    assert Search.cosine_similarity(vec1, vec2) == 0.0
+    assert AI.Util.cosine_similarity(vec1, vec2) == 0.0
 
     # Cosine similarity between identical vectors should be 1
-    assert Search.cosine_similarity(vec1, vec3) == 1.0
+    assert AI.Util.cosine_similarity(vec1, vec3) == 1.0
 
     # Cosine similarity between vector and itself
-    similarity = Search.cosine_similarity(vec1, vec1)
+    similarity = AI.Util.cosine_similarity(vec1, vec1)
     assert similarity == 1.0
 
     # Cosine similarity between arbitrary vectors
     vec4 = [1.0, 2.0, 3.0]
     vec5 = [4.0, 5.0, 6.0]
-    similarity = Search.cosine_similarity(vec4, vec5)
+    similarity = AI.Util.cosine_similarity(vec4, vec5)
 
     # Compute expected value
     dot_product = Enum.zip(vec4, vec5) |> Enum.reduce(0.0, fn {a, b}, acc -> acc + a * b end)
