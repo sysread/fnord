@@ -72,6 +72,7 @@ defmodule AI.Completion do
       state
       |> replay_conversation()
       |> send_request()
+      |> maybe_finish_planner()
       |> then(&{:ok, &1})
     end
   end
@@ -142,6 +143,35 @@ defmodule AI.Completion do
 
   defp maybe_use_planner(%{ai: ai, use_planner: true, messages: msgs, tools: tools} = state) do
     on_event(state, :tool_call, {"planner", %{}})
+
+    case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools}) do
+      {:ok, %{response: response}} ->
+        on_event(state, :tool_call_result, {"planner", %{}, response})
+        planner_msg = AI.Util.system_msg(response)
+        %__MODULE__{state | messages: state.messages ++ [planner_msg]}
+
+      {:error, reason} ->
+        on_event(state, :tool_call_error, {"planner", %{}, reason})
+        state
+    end
+  end
+
+  defp maybe_finish_planner(%{use_planner: false} = state) do
+    state
+  end
+
+  defp maybe_finish_planner(%{ai: ai, use_planner: true, messages: msgs, tools: tools} = state) do
+    on_event(state, :tool_call, {"feedback", %{}})
+
+    msgs =
+      msgs ++
+        [
+          AI.Util.system_msg("""
+          NOTE TO PLANNER: The orchestrating AI has completed its work. This is
+          your opportunity to evaluate the results and save or update research
+          strategies to improve future performance.
+          """)
+        ]
 
     case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools}) do
       {:ok, %{response: response}} ->
@@ -247,6 +277,21 @@ defmodule AI.Completion do
 
   defp on_event(state, :tool_call_result, {"planner", _, plan}) do
     log_tool_call_result(state, "Next steps", plan)
+  end
+
+  defp on_event(state, :tool_call, {"feedback", _}) do
+    log_tool_call(state, "Consolidating lessons learned from this session")
+  end
+
+  # -----------------------------------------------------------------------------
+  # Research Strategies
+  # -----------------------------------------------------------------------------
+  defp on_event(state, :tool_call, {"search_strategies_tool", args}) do
+    log_tool_call(state, "Searching for research strategies", args["query"])
+  end
+
+  defp on_event(state, :tool_call, {"save_strategy_tool", args}) do
+    log_tool_call(state, "Saving research strategy", args["title"])
   end
 
   # ----------------------------------------------------------------------------
