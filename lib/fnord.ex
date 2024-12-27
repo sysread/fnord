@@ -168,7 +168,6 @@ defmodule Fnord do
         long: "--show-work",
         short: "-s",
         help: "Display tool call results; enable by default by setting FNORD_SHOW_WORK"
-        # default: System.get_env("FNORD_SHOW_WORK", "false") in ["1", "true", "TRUE"]
       ]
 
     follow = [
@@ -317,7 +316,7 @@ defmodule Fnord do
 
   defp pre_process_args(args) do
     args =
-      if "--show-work" not in args && "-s" not in args do
+      if "ask" in args && "--show-work" not in args && "-s" not in args do
         if System.get_env("FNORD_SHOW_WORK", "false") in ["1", "true", "TRUE"] do
           args ++ ["--show-work"]
         else
