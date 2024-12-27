@@ -1,6 +1,10 @@
 defmodule Store do
   require Logger
 
+  @non_project_paths MapSet.new([
+                       "prompts"
+                     ])
+
   def store_home() do
     home = Settings.home()
     File.mkdir_p!(home)
@@ -28,6 +32,7 @@ defmodule Store do
     |> Path.wildcard()
     |> Enum.filter(&File.dir?/1)
     |> Enum.map(&Path.basename/1)
+    |> Enum.reject(&MapSet.member?(@non_project_paths, &1))
     |> Enum.map(&Store.Project.new(&1, home))
   end
 
