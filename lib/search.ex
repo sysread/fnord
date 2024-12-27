@@ -62,19 +62,6 @@ defmodule Search do
   end
 
   defp get_score(needle, %{"embeddings" => embeddings}) do
-    cosine_similarity(needle, embeddings)
-  end
-
-  # Computes the cosine similarity between two vectors
-  def cosine_similarity(vec1, vec2) do
-    dot_product = Enum.zip(vec1, vec2) |> Enum.reduce(0.0, fn {a, b}, acc -> acc + a * b end)
-    magnitude1 = :math.sqrt(Enum.reduce(vec1, 0.0, fn x, acc -> acc + x * x end))
-    magnitude2 = :math.sqrt(Enum.reduce(vec2, 0.0, fn x, acc -> acc + x * x end))
-
-    if magnitude1 == 0.0 or magnitude2 == 0.0 do
-      0.0
-    else
-      dot_product / (magnitude1 * magnitude2)
-    end
+    AI.Util.cosine_similarity(needle, embeddings)
   end
 end
