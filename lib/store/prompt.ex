@@ -20,10 +20,12 @@ defmodule Store.Prompt do
       -> prompts/
         -> <$PROMPT_ID>/
           -> v1
+            -> title.md
             -> prompt.md
             -> questions.md
             -> embeddings.json
           -> v2
+            -> title.md
             -> prompt.md
             -> questions.md
             -> embeddings.json
@@ -31,6 +33,7 @@ defmodule Store.Prompt do
   """
 
   defstruct [
+    :id,
     :store_path
   ]
 
@@ -43,6 +46,7 @@ defmodule Store.Prompt do
 
   def new(id) do
     %__MODULE__{
+      id: id,
       store_path: build_store_dir(id)
     }
   end
@@ -51,7 +55,7 @@ defmodule Store.Prompt do
     File.exists?(prompt.store_path)
   end
 
-  def write(prompt, prompt_text, title, questions) do
+  def write(prompt, title, prompt_text, questions) do
     # --------------------------------------------------------------------------
     # Determine the versioned path for the new prompt.
     # --------------------------------------------------------------------------
@@ -63,6 +67,13 @@ defmodule Store.Prompt do
     File.mkdir_p!(prompt_path)
 
     # --------------------------------------------------------------------------
+    # Write the title to the prompt's store path.
+    # --------------------------------------------------------------------------
+    prompt_path
+    |> Path.join("title.md")
+    |> File.write!(title)
+
+    # --------------------------------------------------------------------------
     # Write the prompt's text to the prompt's store path.
     # --------------------------------------------------------------------------
     prompt_path
@@ -72,20 +83,20 @@ defmodule Store.Prompt do
     # --------------------------------------------------------------------------
     # Write the prompt's questions to the prompt's store path.
     # --------------------------------------------------------------------------
-    search_text = """
-    # #{title}
-    #{questions}
-    """
+    questions =
+      questions
+      |> Enum.map(&"- #{&1}")
+      |> Enum.join("\n")
 
     prompt_path
     |> Path.join("questions.md")
-    |> File.write!(search_text)
+    |> File.write!(questions)
 
     # --------------------------------------------------------------------------
     # Generate and save embeddings for the prompt.
     # --------------------------------------------------------------------------
     embeddings_json =
-      search_text
+      "# #{title}\n#{prompt_text}\n\n#{questions}"
       |> generate_embeddings!()
       |> Jason.encode!()
 
@@ -97,17 +108,56 @@ defmodule Store.Prompt do
   end
 
   def read(prompt) do
-    with {:ok, version} <- get_current_version_number(prompt),
+    with {:ok, version} <- get_current_version_number(prompt) do
+      read(prompt, version)
+    end
+  end
+
+  def read(prompt, version) do
+    with {:ok, title} <- read_title(prompt, version),
          {:ok, prompt_text} <- read_prompt(prompt, version),
          {:ok, questions} <- read_questions(prompt, version),
          {:ok, embeddings} <- read_embeddings(prompt, version) do
       {:ok,
        %{
+         title: title,
          prompt: prompt_text,
          questions: questions,
          embeddings: embeddings,
          version: version
        }}
+    end
+  end
+
+  def read_title(prompt, version) do
+    prompt.store_path
+    |> Path.join("v#{version}")
+    |> Path.join("title.md")
+    |> File.read()
+  end
+
+  def read_prompt(prompt, version) do
+    prompt.store_path
+    |> Path.join("v#{version}")
+    |> Path.join("prompt.md")
+    |> File.read()
+  end
+
+  def read_questions(prompt, version) do
+    prompt.store_path
+    |> Path.join("v#{version}")
+    |> Path.join("questions.md")
+    |> File.read()
+  end
+
+  def read_embeddings(prompt, version) do
+    prompt.store_path
+    |> Path.join("v#{version}")
+    |> Path.join("embeddings.json")
+    |> File.read()
+    |> case do
+      {:ok, json} -> Jason.decode(json)
+      error -> error
     end
   end
 
@@ -152,36 +202,12 @@ defmodule Store.Prompt do
       end
     end)
     |> Enum.sort(fn {a, _}, {b, _} -> a >= b end)
+    |> Enum.take(3)
   end
 
   # ----------------------------------------------------------------------------
   # Private functions
   # ----------------------------------------------------------------------------
-  defp read_prompt(prompt, version) do
-    prompt.store_path
-    |> Path.join("v#{version}")
-    |> Path.join("prompt.md")
-    |> File.read()
-  end
-
-  defp read_questions(prompt, version) do
-    prompt.store_path
-    |> Path.join("v#{version}")
-    |> Path.join("questions.md")
-    |> File.read()
-  end
-
-  defp read_embeddings(prompt, version) do
-    prompt.store_path
-    |> Path.join("v#{version}")
-    |> Path.join("embeddings.json")
-    |> File.read()
-    |> case do
-      {:ok, json} -> Jason.decode(json)
-      error -> error
-    end
-  end
-
   defp generate_embeddings!(text) do
     AI.new()
     |> AI.get_embeddings(text)
