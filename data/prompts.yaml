@@ -1,4 +1,5 @@
-- title: "Codebase Exploration and Understanding"
+- id: "code-exploration-and-understanding"
+  title: "Codebase Exploration and Understanding"
   questions:
     - "How do I add a new $X?"
     - "What functions or modules relate to $TOPIC?"
@@ -14,7 +15,8 @@
     6. DO NOT use git-related tools unless they are explicitly listed in the available tools. If they are, consider using `git_log_tool` to explore the history of relevant files or functions.
     7. Synthesize a concise and actionable response summarizing findings and next steps.
 
-- title: "Debugging and Troubleshooting"
+- id: "debugging-and-troubleshooting"
+  title: "Debugging and Troubleshooting"
   questions:
     - "What's the root cause of this error? $STACKTRACE"
     - "What changes recently introduced $BUG or $ERROR?"
@@ -27,7 +29,8 @@
     5. Cross-reference semantic search results and file definitions to triangulate the root cause.
     6. Summarize root cause findings with references to files or commits, and recommend debugging strategies.
 
-- title: "Code Flow and Relationships"
+- id: "code-flow-and-relationships"
+  title: "Code Flow and Relationships"
   questions:
     - "What is the logical flow from function $X to function $Y?"
     - "What modules or functions call $X?"
@@ -40,7 +43,8 @@
     5. Use git tools (e.g., `git_log_tool`) ONLY if explicitly available, to trace historical changes or commits associated with `$X` or `$Y`.
     6. Compile a step-by-step logical flow or dependency graph between `$X` and `$Y`.
 
-- title: "Test and Build Information"
+- id: "test-and-build-information"
+  title: "Test and Build Information"
   questions:
     - "How do I run the tests?"
     - "What tests exist for $FEATURE?"
@@ -54,7 +58,8 @@
     5. DO NOT use git tools unless explicitly listed in available tools. If available, inspect commit history (`git_log_tool`) to identify recent CI or test changes.
     6. Summarize testing or build instructions, linking dependencies or configurations to their usage.
 
-- title: "Version History and Changes"
+- id: "version-history-and-changes"
+  title: "Version History and Changes"
   questions:
     - "When was $FUNCTION or $MODULE added or modified?"
     - "What does the commit history for $FILE look like?"
@@ -66,7 +71,8 @@
     4. If the project is not a git repository, rely on `search_tool` and `list_files_tool` to approximate relevant files.
     5. Summarize findings with commit details, authors, and reasons (if documented).
 
-- title: "Semantic Search and High-Level Summaries"
+- id: "semantic-search-and-high-level-summaries"
+  title: "Semantic Search and High-Level Summaries"
   questions:
     - "Where in the project is $TOPIC discussed?"
     - "Summarize the implementation of $FEATURE."
@@ -79,7 +85,8 @@
     5. DO NOT use git tools unless available, and only for historical context (e.g., `git_log_tool`).
     6. Compile a clear, high-level summary for the user, referencing specific files or patterns.
 
-- title: "Operational and Setup Tasks"
+- id: "operational-and-setup-tasks"
+  title: "Operational and Setup Tasks"
   questions:
     - "How do I set up this project locally?"
     - "What environment variables are required?"
@@ -92,7 +99,8 @@
     5. DO NOT use git tools unless explicitly listed as available. If they are, examine setup-related commits for historical context.
     6. Provide a step-by-step setup guide based on extracted information.
 
-- title: "Documentation and Metadata"
+- id: "documentation-and-metadata"
+  title: "Documentation and Metadata"
   questions:
     - "What does the documentation say about $FEATURE or $MODULE?"
     - "What README or guide exists for $TOPIC?"

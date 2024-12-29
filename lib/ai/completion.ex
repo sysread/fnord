@@ -146,7 +146,7 @@ defmodule AI.Completion do
 
     case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools}) do
       {:ok, %{response: response}} ->
-        on_event(state, :tool_call_result, {"planner", %{}, response})
+        on_event(state, :tool_call_result, {"planner", %{}, {:ok, response}})
         planner_msg = AI.Util.system_msg(response)
         %__MODULE__{state | messages: state.messages ++ [planner_msg]}
 
@@ -175,8 +175,13 @@ defmodule AI.Completion do
         ]
 
     case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools}) do
-      {:ok, %{response: response}} ->
+      {:ok, %{response: response}} when is_binary(response) ->
         on_event(state, :tool_call_result, {"planner", %{}, response})
+        planner_msg = AI.Util.system_msg(response)
+        %__MODULE__{state | messages: state.messages ++ [planner_msg]}
+
+      {:ok, %{response: response}} ->
+        on_event(state, :tool_call_result, {"planner", %{}, Jason.encode!(response)})
         planner_msg = AI.Util.system_msg(response)
         %__MODULE__{state | messages: state.messages ++ [planner_msg]}
 
@@ -226,7 +231,15 @@ defmodule AI.Completion do
   defp perform_tool_call(state, func, args_json) when is_binary(args_json) do
     with {:ok, args} <- Jason.decode(args_json) do
       on_event(state, :tool_call, {func, args})
-      result = AI.Tools.perform_tool_call(state, func, args)
+
+      result =
+        AI.Tools.perform_tool_call(state, func, args)
+        |> case do
+          {:ok, response} when is_binary(response) -> {:ok, response}
+          {:ok, response} -> Jason.encode(response)
+          other -> other
+        end
+
       on_event(state, :tool_call_result, {func, args, result})
       result
     end
@@ -276,7 +289,7 @@ defmodule AI.Completion do
     log_tool_call(state, "Planning next steps")
   end
 
-  defp on_event(state, :tool_call_result, {"planner", _, plan}) do
+  defp on_event(state, :tool_call_result, {"planner", _, {:ok, plan}}) do
     log_tool_call_result(state, "Next steps", plan)
   end
 
@@ -291,8 +304,22 @@ defmodule AI.Completion do
     log_tool_call(state, "Searching for research strategies", args["query"])
   end
 
+  defp on_event(state, :tool_call_result, {"search_strategies_tool", _, {:ok, strategies}}) do
+    titles =
+      strategies
+      |> Jason.decode!()
+      |> Enum.map(fn %{"title" => title} -> title end)
+      |> Enum.join(" | ")
+
+    log_tool_call(state, "Identified possible research strategies", titles)
+  end
+
   defp on_event(state, :tool_call, {"save_strategy_tool", args}) do
     log_tool_call(state, "Saving research strategy", args["title"])
+  end
+
+  defp on_event(state, :tool_call_result, {"save_strategy_tool", args, _}) do
+    log_tool_call(state, "Saved research strategy", args["title"])
   end
 
   # ----------------------------------------------------------------------------

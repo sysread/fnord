@@ -30,6 +30,13 @@ defmodule Store.Prompt do
             -> questions.md
             -> embeddings.json
   ```
+
+  There are a number of initial prompts that are installed the first time the
+  prompt store is searched. These prompts are defined in `data/prompts.yaml`.
+  When a new version of fnord is installed, the next time the prompt store is
+  searched, the prompts will be updated to the latest versions. "Default"
+  prompts can be distinguished by using a title slug for its id, rather than a
+  UUID.
   """
 
   defstruct [
@@ -89,10 +96,7 @@ defmodule Store.Prompt do
     # --------------------------------------------------------------------------
     # Write the prompt's questions to the prompt's store path.
     # --------------------------------------------------------------------------
-    questions =
-      questions
-      |> Enum.map(&"- #{&1}")
-      |> Enum.join("\n")
+    questions = format_questions(questions)
 
     prompt_path
     |> Path.join("questions.md")
@@ -225,6 +229,12 @@ defmodule Store.Prompt do
     end
   end
 
+  defp format_questions(questions) do
+    questions
+    |> Enum.map(&"- #{&1}")
+    |> Enum.join("\n")
+  end
+
   defp get_current_version_path(prompt) do
     prompt
     |> list_versions()
@@ -271,12 +281,44 @@ defmodule Store.Prompt do
     |> Path.join(id)
   end
 
-  defp install_initial_strategies() do
-    unless Store.store_home() |> Path.join(@store_dir) |> File.exists?() do
-      @initial_strategies
-      |> Enum.each(fn %{title: title, questions: questions, prompt: prompt} ->
-        write(new(), title, prompt, questions)
-      end)
+  # ----------------------------------------------------------------------------
+  # Initial strategies
+  # ----------------------------------------------------------------------------
+  def install_initial_strategies() do
+    @initial_strategies
+    |> Enum.each(fn %{
+                      "id" => id,
+                      "title" => title,
+                      "prompt" => prompt_str,
+                      "questions" => questions
+                    } ->
+      prompt = new(id)
+
+      version =
+        get_current_version_number(prompt)
+        |> case do
+          {:ok, version} -> version
+          {:error, :not_found} -> 0
+        end
+
+      if differs?(prompt, version, prompt_str, questions) do
+        write(prompt, title, prompt_str, questions)
+      end
+    end)
+  end
+
+  defp differs?(prompt, version, prompt_str, questions) do
+    if exists?(prompt) do
+      {:ok, old_questions} = read_questions(prompt, version)
+      {:ok, old_prompt} = read_prompt(prompt, version)
+
+      cond do
+        old_questions != format_questions(questions) -> true
+        old_prompt != prompt_str -> true
+        true -> false
+      end
+    else
+      true
     end
   end
 end

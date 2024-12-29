@@ -33,6 +33,7 @@ defmodule Cmd.Ask do
 
   defp maybe_set_show_work_flag(opts) do
     if System.get_env("FNORD_SHOW_WORK", "false") in ["1", "true", "TRUE"] do
+      Application.put_env(:fnord, :show_work, true)
       Map.put(opts, :show_work, true)
     else
       opts

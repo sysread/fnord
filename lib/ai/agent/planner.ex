@@ -42,10 +42,14 @@ defmodule AI.Agent.Planner do
   - *Goal setting*: Clearly outline goals for the Coordinating Agent to achieve
     - Clearly distinguish between purely research tasks and implementation tasks
     - Provide customizes instructions for the Coordinating Agent based on the desired outcome implied by the user's query
-  - *Outline the next research steps*: Provide a plan for the Coordinating Agent to follow
-  - *Adaptive research:* Be prepared to change your Research Strategy as new information is uncovered
-  - *Conventions*: Account for the conventions of the programming language, problem domain, and code base
-  - *Efficiency*: 
+  - *Outline the next research steps*:
+    - Provide a plan for the Coordinating Agent to follow
+  - *Adaptive research:*
+    - Be prepared to change your Research Strategy as new information is uncovered
+    - Feel free to mix and match Research Strategies to optimize for the user's query
+  - *Conventions*:
+    - Account for the conventions of the programming language, problem domain, and code base
+  - *Efficiency*:
     - Suggest multiple tool calls in parallel when possible
     - Respond tersely: only increase verbosity when the Orchestrating Agent appears to struggle with your instructions
     - Avoid redundancey: you will have access to all of your previous responses each time you are consulted
@@ -53,10 +57,9 @@ defmodule AI.Agent.Planner do
   # COMPLETION INSTRUCTIONS
   - If appropriate, update the selected Research Strategy to refine its instructions based on its performance.
     - Avoid topic-specific strategies:
-      - Bad: "How to implement a linked list"
-      - Good: "How to implement a data structure"
-      - Bad: "How to fix a bug in the Foo module"
-      - Good: "How to identify the root cause of a bug"
+      - TOO SPECIFIC: "Implementing a linked list"     | CORRECT: "Implementing a data structure"
+      - TOO SPECIFIC: "Fixing a bug in the Foo module" | CORRECT: "Identifying the root cause of a bug"
+      - TOO SPECIFIC: "Organizing SQL packages"        | CORRECT: "Organizing packages by topic"
   - When all required information has been gathered and further research shows diminishing returns, provide approval to the Coordinating Agent to move forward with their response.
     - Confirm that the proposed response answers the user's original query and is complete, accurate, and actionable.
   - Instruct it to include example code, links to documentation, and references to example files as appropriate.
