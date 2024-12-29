@@ -16,15 +16,9 @@ defmodule AI.Tools.SaveStrategy do
         strategy exactly as it was provided by the search_strategies_tool. This
         parameter should be left out when saving a new strategy.
 
-        The research strategy is composed of 3 components. The first is a short
-        title describing the strategy (e.g. "How do implement a code artifact
-        when the the user's terminology may refer to multiple concepts" or "How
-        to trace the origin of a bug across multiple apps in a monorepo"). The
-        second is the prompt that will guide the AI agent in performing its
-        research. Finally, you must include a list of example user queries for
-        which this prompt is appropriate. The example queries will become the
-        primary basis for the search_strategies_tool to identify this strategy
-        in the future.
+        Research strategies should ALWAYS be general enough to apply to all
+        software projects, not just the currently selected one. They should be
+        100% orthogonal to the project, language, or domain.
         """,
         parameters: %{
           type: "object",
@@ -79,16 +73,12 @@ defmodule AI.Tools.SaveStrategy do
     with {:ok, title} <- Map.fetch(args, "title"),
          {:ok, prompt} <- Map.fetch(args, "prompt"),
          {:ok, questions} <- Map.fetch(args, "questions") do
-      Map.get(args, "id", nil)
-      |> case do
-        nil -> Store.Prompt.new()
-        id -> Store.Prompt.new(id)
-      end
+      args
+      |> Map.get("id", nil)
+      |> Store.Prompt.new()
       |> Store.Prompt.write(title, prompt, questions)
-      |> case do
-        {:ok, _prompt} -> {:ok, "Strategy saved successfully."}
-        {:error, _reason} -> {:error, "Failed to save strategy: #{inspect(args)}"}
-      end
+
+      {:ok, "Strategy saved successfully."}
     end
   end
 end

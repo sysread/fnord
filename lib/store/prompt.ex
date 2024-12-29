@@ -39,10 +39,16 @@ defmodule Store.Prompt do
 
   @store_dir "prompts"
 
+  # ----------------------------------------------------------------------------
+  # These are installed the first time the prompt store is searched.
+  # ----------------------------------------------------------------------------
+  @initial_strategies YamlElixir.read_from_file!("data/prompts.yaml")
+
   # -----------------------------------------------------------------------------
   # Instance functions
   # -----------------------------------------------------------------------------
   def new(), do: new(UUID.uuid4())
+  def new(nil), do: new(UUID.uuid4())
 
   def new(id) do
     %__MODULE__{
@@ -104,7 +110,7 @@ defmodule Store.Prompt do
     |> Path.join("embeddings.json")
     |> File.write!(embeddings_json)
 
-    {:ok, prompt}
+    prompt
   end
 
   def read(prompt) do
@@ -188,7 +194,9 @@ defmodule Store.Prompt do
     end
   end
 
-  def search(query) do
+  def search(query, max_results \\ 5) do
+    install_initial_strategies()
+
     needle = generate_embeddings!(query)
 
     list_prompts()
@@ -202,7 +210,7 @@ defmodule Store.Prompt do
       end
     end)
     |> Enum.sort(fn {a, _}, {b, _} -> a >= b end)
-    |> Enum.take(3)
+    |> Enum.take(max_results)
   end
 
   # ----------------------------------------------------------------------------
@@ -261,5 +269,14 @@ defmodule Store.Prompt do
     Store.store_home()
     |> Path.join(@store_dir)
     |> Path.join(id)
+  end
+
+  defp install_initial_strategies() do
+    unless Store.store_home() |> Path.join(@store_dir) |> File.exists?() do
+      @initial_strategies
+      |> Enum.each(fn %{title: title, questions: questions, prompt: prompt} ->
+        write(new(), title, prompt, questions)
+      end)
+    end
   end
 end
