@@ -51,22 +51,11 @@ defmodule AI.Tools.SearchStrategies do
       |> Store.Prompt.search()
       |> Enum.reduce([], fn {_score, prompt}, acc ->
         with {:ok, info} <- Store.Prompt.read(prompt) do
-          [
-            """
-            # #{info.title}
-            - **ID:** #{prompt.id}
-            ```
-            #{info.prompt}
-            ```
-            """
-            | acc
-          ]
-        else
-          _ -> acc
+          info = Map.drop(info, [:embeddings])
+          [info | acc]
         end
       end)
       |> Enum.reverse()
-      |> Enum.join("\n-----\n")
       |> then(&{:ok, &1})
     end
   end

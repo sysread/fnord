@@ -78,7 +78,7 @@ defmodule AI.Tools.SaveStrategy do
       |> Store.Prompt.new()
       |> Store.Prompt.write(title, prompt, questions)
 
-      {:ok, "Strategy saved successfully."}
+      {:ok, "Research strategy saved successfully."}
     end
   end
 end
