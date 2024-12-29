@@ -51,13 +51,14 @@ defmodule Fnord.MixProject do
     [
       {:briefly, "~> 0.5.1"},
       {:dialyxir, "~> 1.4.4", only: [:dev], runtime: false},
+      {:elixir_uuid, "~> 1.6", hex: :uuid_utils},
       {:ex_doc, ">= 0.0.0", only: [:dev], runtime: false},
+      {:httpoison, "~> 2.2.1"},
       {:jason, "~> 1.4"},
       {:number, "~> 1.0.5"},
       {:optimus, "~> 0.2"},
       {:owl, "~> 0.12"},
-      {:httpoison, "~> 2.2.1"},
-      {:elixir_uuid, "~> 1.6", hex: :uuid_utils}
+      {:yaml_elixir, "~> 2.11", only: [:dev, :test]}
     ]
   end
 end

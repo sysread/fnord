@@ -168,8 +168,9 @@ defmodule AI.Completion do
         [
           AI.Util.system_msg("""
           NOTE TO PLANNER: The orchestrating AI has completed its work. This is
-          your opportunity to evaluate the results and save or update research
-          strategies to improve future performance.
+          your opportunity to evaluate the results and create or update
+          research strategies to improve future performance using your
+          available tools if appropriate.
           """)
         ]
 
