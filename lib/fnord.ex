@@ -275,8 +275,7 @@ defmodule Fnord do
         ]
       )
 
-    with {:ok, args} <- pre_process_args(args),
-         {[subcommand], result} <- Optimus.parse!(parser, args) do
+    with {[subcommand], result} <- Optimus.parse!(parser, args) do
       options =
         result.args
         |> Map.merge(result.options)
@@ -312,21 +311,6 @@ defmodule Fnord do
       |> String.to_existing_atom()
 
     :ok = :logger.set_primary_config(:level, logger_level)
-  end
-
-  defp pre_process_args(args) do
-    args =
-      if "ask" in args && "--show-work" not in args && "-s" not in args do
-        if System.get_env("FNORD_SHOW_WORK", "false") in ["1", "true", "TRUE"] do
-          args ++ ["--show-work"]
-        else
-          args
-        end
-      else
-        args
-      end
-
-    {:ok, args}
   end
 
   defp set_globals(args) do
