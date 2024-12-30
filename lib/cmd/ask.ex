@@ -46,6 +46,11 @@ defmodule Cmd.Ask do
           ]
         ],
         flags: [
+          continue: [
+            long: "--continue",
+            short: "-c",
+            help: "Continue the most recent conversation (ignored when --follow is set)"
+          ],
           replay: [
             long: "--replay",
             short: "-r",
@@ -59,7 +64,8 @@ defmodule Cmd.Ask do
   @impl Cmd
   def run(opts) do
     with :ok <- validate(opts) do
-      opts = Map.put(opts, :conversation, get_conversation(opts))
+      conversation = get_conversation(opts)
+      opts = Map.put(opts, :conversation, conversation)
       AI.Agent.Answers.get_response(AI.new(), opts)
     else
       {:error, :project_not_found} -> UI.error(@project_not_found_error)
@@ -75,11 +81,17 @@ defmodule Cmd.Ask do
     end
   end
 
-  defp get_conversation(%{follow: nil}) do
-    Store.Conversation.new()
+  defp get_conversation(%{follow: conversation_id}) when is_binary(conversation_id) do
+    Store.Conversation.new(conversation_id)
   end
 
-  defp get_conversation(%{follow: conversation_id}) do
-    Store.Conversation.new(conversation_id)
+  defp get_conversation(%{continue: true}) do
+    Store.get_project()
+    |> Store.Project.conversations()
+    |> Enum.at(0)
+  end
+
+  defp get_conversation(_opts) do
+    Store.Conversation.new()
   end
 end

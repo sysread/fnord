@@ -138,11 +138,24 @@ defmodule Store.Project do
   end
 
   def conversations(project) do
-    project.store_path
-    |> Path.join(["conversations/*.json"])
-    |> Path.wildcard()
-    |> Enum.map(&Path.basename(&1, ".json"))
-    |> Enum.map(&Store.Conversation.new(&1, project))
+    conversations =
+      project.store_path
+      |> Path.join(["conversations/*.json"])
+      |> Path.wildcard()
+      |> Enum.map(&Path.basename(&1, ".json"))
+      |> Enum.map(&Store.Conversation.new(&1, project))
+
+    timestamps =
+      conversations
+      |> Enum.reduce(%{}, fn conversation, acc ->
+        timestamp = Store.Conversation.timestamp(conversation)
+        Map.put(acc, conversation.id, timestamp)
+      end)
+
+    conversations
+    |> Enum.sort(fn a, b ->
+      timestamps[a.id] > timestamps[b.id]
+    end)
   end
 
   # -----------------------------------------------------------------------------
