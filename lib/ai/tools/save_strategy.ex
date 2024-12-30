@@ -27,8 +27,9 @@ defmodule AI.Tools.SaveStrategy do
             id: %{
               type: "string",
               description: """
-              Existing strategies identified by the search_strategies_tool may be updated by providing the ID of the strategy to update.
-              The ID is provided by the search_strategies_tool.
+              Existing strategies identified by the search_strategies_tool may
+              be updated by providing the ID of the strategy to update. The ID
+              MUST be one provided by the search_strategies_tool.
               """
             },
             title: %{
@@ -47,10 +48,8 @@ defmodule AI.Tools.SaveStrategy do
               type: "string",
               description: """
               The prompt text of the research strategy.
-              Prompts should be concise, project-agnostic, and define a *research strategy* that can be followed to solve a class of problems.
-              This prompt will be used to guide the orchestrating AI agent in its research.
-              This should be completely orthogonal to any specific project or the details of the user's current query.
-              Instead, attempt to create a generalized prompt that instructs the orchestrating AI agent on how to proceed with research for this class of problem.
+              Prompts should capture the classification of the research strategy, not the specifics of any particular project or the domain of the user's current query.
+              Prompts should be written as an imperative, actionable list of concrete research steps.
               """
             },
             questions: %{
@@ -58,8 +57,7 @@ defmodule AI.Tools.SaveStrategy do
               items: %{type: "string"},
               description: """
               Provide a list of example questions for which this research strategy is appropriate to solve.
-              This should be completely orthogonal to any specific project or the details of the user's current query.
-              Instead, attempt to create generalized questions whose solution would be optimally identified by this class of research strategy.
+              Questions should be semantically related to the title and prompt to ensure effective matching using cosine similarity.
               """
             }
           }
@@ -71,14 +69,17 @@ defmodule AI.Tools.SaveStrategy do
   @impl AI.Tools
   def call(_agent, args) do
     with {:ok, title} <- Map.fetch(args, "title"),
-         {:ok, prompt} <- Map.fetch(args, "prompt"),
+         {:ok, prompt_text} <- Map.fetch(args, "prompt"),
          {:ok, questions} <- Map.fetch(args, "questions") do
-      args
-      |> Map.get("id", nil)
-      |> Store.Prompt.new()
-      |> Store.Prompt.write(title, prompt, questions)
+      id = Map.get(args, "id", nil)
+      prompt = Store.Prompt.new(id)
 
-      {:ok, "Research strategy saved successfully."}
+      if is_nil(id) || Store.Prompt.exists?(prompt) do
+        Store.Prompt.write(prompt, title, prompt_text, questions)
+        {:ok, "Research strategy saved successfully."}
+      else
+        {:error, "The provided ID does not exist."}
+      end
     end
   end
 end

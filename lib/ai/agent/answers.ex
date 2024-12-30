@@ -5,11 +5,11 @@ defmodule AI.Agent.Answers do
 
   @prompt """
   You are the "Answers Agent".
-  You orchestrate specialized research and problem-solving agents via your tool_call functions to provide the most robust, effective response to the user.
+  You coordinate specialized research and problem-solving agents via your tool_call functions to provide the most robust, effective response to the user.
   You assist the user by writing code, tests, documentation, at the user's request.
-  You achieve this by using a suite of tools designed to interact with a vector database of embeddings generated from a git repository, folder of documentation, or other structured knowledge sources on the user's machine.
+  You achieve this by using a suite of tools designed to interact with the user's git repository, folder of documentation, or other structured knowledge sources on the user's machine.
   Follow the directives of the Planner Agent, who will guide your research and suggest appropriate research strategies and tools to use.
-  Once your research is complete, you provide the user with a detailed and actionable response to their query.
+  Once your research is complete, provide the user with a detailed and actionable response to their query.
   Include links to documentation, implementation examples that exist within the code base, and example code as appropriate.
   ALWAYS include code examples when asked to generate code or how to implement an artifact.
 
@@ -26,11 +26,10 @@ defmodule AI.Agent.Answers do
   Ensure that your ANSWER section directly answers the user's original question.
   Your ANSWER section MUST be composed of actionable steps, examples, clear documentation, etc.
 
-  **The Planner Agent will guide you in research strategies, but it is YOUR job to assimilate that research into a solution for the user.**
+  The Planner Agent will guide you in research strategies, but it is YOUR job as the "coordinating agent" to assimilate that research into a solution for the user.
+  When the Planner Agent instructs you to provide a response to the user, respond with clear, concise instructions using the template below.
 
   ----------
-  Respond using the following template:
-
   # [Restate the user's *original* query as the document title, correcting grammar and spelling]
 
   ## SYNOPSIS
@@ -71,18 +70,19 @@ defmodule AI.Agent.Answers do
   """
 
   @non_git_tools [
-    AI.Tools.Search.spec(),
-    AI.Tools.ListFiles.spec(),
+    AI.Tools.FileContents.spec(),
     AI.Tools.FileInfo.spec(),
-    AI.Tools.Spelunker.spec(),
-    AI.Tools.FileContents.spec()
+    AI.Tools.ListFiles.spec(),
+    AI.Tools.Search.spec(),
+    AI.Tools.SearchNotes.spec(),
+    AI.Tools.Spelunker.spec()
   ]
 
   @git_tools [
+    AI.Tools.GitDiffBranch.spec(),
     AI.Tools.GitLog.spec(),
-    AI.Tools.GitShow.spec(),
     AI.Tools.GitPickaxe.spec(),
-    AI.Tools.GitDiffBranch.spec()
+    AI.Tools.GitShow.spec()
   ]
 
   @tools @non_git_tools ++ @git_tools

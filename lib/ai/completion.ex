@@ -48,11 +48,9 @@ defmodule AI.Completion do
       use_planner = Keyword.get(opts, :use_planner, false)
       log_msgs = Keyword.get(opts, :log_msgs, false)
 
-      log_tool_calls =
-        Keyword.get(opts, :log_tool_calls, !Application.get_env(:fnord, :quiet))
-
-      log_tool_call_results =
-        Keyword.get(opts, :log_tool_call_results, Application.get_env(:fnord, :show_work))
+      quiet? = Application.get_env(:fnord, :quiet)
+      log_tool_calls = Keyword.get(opts, :log_tool_calls, !quiet?)
+      log_tool_call_results = Keyword.get(opts, :log_tool_call_results, !quiet?)
 
       state = %__MODULE__{
         ai: ai,
@@ -168,9 +166,9 @@ defmodule AI.Completion do
         [
           AI.Util.system_msg("""
           NOTE TO PLANNER: The orchestrating AI has completed its work. This is
-          your opportunity to evaluate the results and create or update
-          research strategies to improve future performance using your
-          available tools if appropriate.
+          your opportunity to evaluate the results, create or update research
+          strategies, and save your notes to improve future performance using
+          your tools.
           """)
         ]
 
@@ -298,10 +296,25 @@ defmodule AI.Completion do
   end
 
   # -----------------------------------------------------------------------------
+  # Notes
+  # -----------------------------------------------------------------------------
+  defp on_event(state, :tool_call, {"save_notes", args}) do
+    log_tool_call(state, "Saving research", args["notes"] |> Enum.join(" | "))
+  end
+
+  defp on_event(state, :tool_call, {"search_notes", args}) do
+    log_tool_call(state, "Searching prior research", args["query"])
+  end
+
+  defp on_event(state, :tool_call_result, {"search_notes", _, {:ok, notes}}) do
+    log_tool_call_result(state, "Found prior research", notes |> Enum.join(" | "))
+  end
+
+  # -----------------------------------------------------------------------------
   # Research Strategies
   # -----------------------------------------------------------------------------
-  defp on_event(state, :tool_call, {"search_strategies_tool", args}) do
-    log_tool_call(state, "Searching for research strategies", args["query"])
+  defp on_event(state, :tool_call, {"search_strategies_tool", %{"query" => query}}) do
+    log_tool_call(state, "Searching for research strategies", query)
   end
 
   defp on_event(state, :tool_call_result, {"search_strategies_tool", _, {:ok, strategies}}) do
@@ -314,12 +327,24 @@ defmodule AI.Completion do
     log_tool_call(state, "Identified possible research strategies", titles)
   end
 
-  defp on_event(state, :tool_call, {"save_strategy_tool", args}) do
-    log_tool_call(state, "Saving research strategy", args["title"])
+  defp on_event(state, :tool_call, {"save_strategy_tool", %{"title" => title, "id" => id}}) do
+    log_tool_call(state, "Updating research strategy", "[id: #{id}] #{title}")
   end
 
-  defp on_event(state, :tool_call_result, {"save_strategy_tool", args, _}) do
-    log_tool_call(state, "Saved research strategy", args["title"])
+  defp on_event(state, :tool_call, {"save_strategy_tool", %{"title" => title}}) do
+    log_tool_call(state, "Saving new research strategy", title)
+  end
+
+  defp on_event(
+         state,
+         :tool_call_result,
+         {"save_strategy_tool", %{"title" => title, "id" => id}, {:ok, _}}
+       ) do
+    log_tool_call(state, "Updated research strategy", "[id: #{id}] #{title}")
+  end
+
+  defp on_event(state, :tool_call_result, {"save_strategy_tool", %{"title" => title}, {:ok, _}}) do
+    log_tool_call(state, "Saved new research strategy", title)
   end
 
   # ----------------------------------------------------------------------------

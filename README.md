@@ -12,6 +12,8 @@ provide a conversational interface to your codebase, notes, and other
 - On-demand playbooks assembled from documentation and code
 - Troubleshooting and debugging
 - Git archaeology
+- Learns about your project(s) over time
+- Improves its research capabilities with each interaction
 
 ## Installation
 
@@ -112,6 +114,8 @@ fnord ask -p foo -q "summarize the dependencies of this project" | glow
 
 - **List projects:** `fnord projects`
 - **List files in a project:** `fnord files -p foo`
+- **List learned insights:** `fnord notes -p foo`
+- **List learned research strategies:** `fnord strategies`
 - **Show the AI-generated summary of a file:** `fnord summary -p foo -f bar.ext`
 - **Delete a project:** `fnord delete -p foo`
 - **Show conversations:** `fnord conversations -p foo -q`
@@ -166,12 +170,3 @@ for the `search` command.
 # TODO
 - user-configurable system prompt for a given project
 - ask: report how old the index is
-- tool to allow the assistant to save observations about the project
-  - automatically index these observations and either:
-    - make them searchable
-    - automatically include them in the prompt
-- conversation semantic search
-  - tool call for agents to use
-- project notes
-  - tool to allow the ai to save notes for future reference
-  - tool to allow the ai to search notes
