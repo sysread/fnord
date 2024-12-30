@@ -97,7 +97,7 @@ defmodule Store.Note do
     end
   end
 
-  def search(project, query, max_results \\ 10) do
+  def search(project, query, max_results \\ 20) do
     needle = generate_embeddings!(query)
 
     list_notes(project)

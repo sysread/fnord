@@ -243,7 +243,7 @@ defmodule Store.Prompt do
     end
   end
 
-  def search(query, max_results \\ 5) do
+  def search(query, max_results \\ 10) do
     install_initial_strategies()
 
     needle = generate_embeddings!(query)
@@ -330,8 +330,6 @@ defmodule Store.Prompt do
   # Initial strategies
   # ----------------------------------------------------------------------------
   def install_initial_strategies() do
-    UI.debug("Preparing research strategy library")
-
     @initial_strategies
     |> Enum.each(fn %{
                       "id" => id,

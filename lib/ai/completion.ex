@@ -142,6 +142,8 @@ defmodule AI.Completion do
   defp maybe_use_planner(%{ai: ai, use_planner: true, messages: msgs, tools: tools} = state) do
     on_event(state, :tool_call, {"planner", %{}})
 
+    msgs = Enum.reject(msgs, fn msg -> msg.role == "system" end)
+
     case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools}) do
       {:ok, %{response: response}} ->
         on_event(state, :tool_call_result, {"planner", %{}, {:ok, response}})
@@ -248,31 +250,31 @@ defmodule AI.Completion do
   # -----------------------------------------------------------------------------
   defp log_user_msg(state, msg) do
     if state.log_msgs do
-      UI.report_step("You", msg)
+      UI.info("You", msg)
     end
   end
 
   defp log_assistant_msg(state, msg) do
     if state.log_msgs do
-      UI.report_step("Assistant", msg)
+      UI.info("Assistant", msg)
     end
   end
 
   defp log_tool_call(state, step) do
     if state.log_tool_calls do
-      UI.begin_step(step)
+      UI.info(step)
     end
   end
 
   defp log_tool_call(state, step, msg) do
     if state.log_tool_calls do
-      UI.begin_step(step, msg)
+      UI.info(step, msg)
     end
   end
 
   defp log_tool_call_result(state, step, msg) do
     if state.log_tool_call_results do
-      UI.end_step(step, msg)
+      UI.debug(step, msg)
     end
   end
 
@@ -284,11 +286,11 @@ defmodule AI.Completion do
   # Planner
   # ----------------------------------------------------------------------------
   defp on_event(state, :tool_call, {"planner", _}) do
-    log_tool_call(state, "Planning next steps")
+    log_tool_call(state, "Evaluating research and planning next steps")
   end
 
   defp on_event(state, :tool_call_result, {"planner", _, {:ok, plan}}) do
-    log_tool_call_result(state, "Next steps", plan)
+    log_tool_call_result(state, "Research plan", plan)
   end
 
   defp on_event(state, :tool_call, {"feedback", _}) do
@@ -298,16 +300,22 @@ defmodule AI.Completion do
   # -----------------------------------------------------------------------------
   # Notes
   # -----------------------------------------------------------------------------
-  defp on_event(state, :tool_call, {"save_notes", args}) do
+  defp on_event(state, :tool_call, {"save_notes_tool", args}) do
     log_tool_call(state, "Saving research", args["notes"] |> Enum.join(" | "))
   end
 
-  defp on_event(state, :tool_call, {"search_notes", args}) do
+  defp on_event(state, :tool_call, {"search_notes_tool", args}) do
     log_tool_call(state, "Searching prior research", args["query"])
   end
 
-  defp on_event(state, :tool_call_result, {"search_notes", _, {:ok, notes}}) do
-    log_tool_call_result(state, "Found prior research", notes |> Enum.join(" | "))
+  defp on_event(state, :tool_call_result, {"search_notes_tool", _, {:ok, notes}}) do
+    notes =
+      notes
+      |> Jason.decode!()
+      |> Enum.map(fn note -> "- #{note}" end)
+      |> Enum.join("\n")
+
+    log_tool_call_result(state, "Found prior research", "\n#{notes}")
   end
 
   # -----------------------------------------------------------------------------
@@ -321,10 +329,10 @@ defmodule AI.Completion do
     titles =
       strategies
       |> Jason.decode!()
-      |> Enum.map(fn %{"title" => title} -> title end)
-      |> Enum.join(" | ")
+      |> Enum.map(fn %{"title" => title} -> "- #{title}" end)
+      |> Enum.join("\n")
 
-    log_tool_call(state, "Identified possible research strategies", titles)
+    log_tool_call(state, "Identified possible research strategies", "\n#{titles}")
   end
 
   defp on_event(state, :tool_call, {"save_strategy_tool", %{"title" => title, "id" => id}}) do
