@@ -22,12 +22,34 @@
     - "What changes recently introduced $BUG or $ERROR?"
     - "What file defines $FUNCTION or $CONSTANT?"
   prompt: |
-    1. If `$STACKTRACE` or `$ERROR` is provided, use `search_tool` to locate the relevant line numbers, modules, or functions.
-    2. If a specific function or constant is mentioned, use `file_info_tool` to analyze its definition.
-    3. Use `spelunker_tool` to trace the upstream callers or downstream callees of `$FUNCTION`.
-    4. If git tools are available, use `git_pickaxe_tool` to identify changes introducing `$BUG` or `$ERROR` in commit history. DO NOT use git tools if they are not in the available tools list.
-    5. Cross-reference semantic search results and file definitions to triangulate the root cause.
-    6. Summarize root cause findings with references to files or commits, and recommend debugging strategies.
+    1. Analyze the Error Context:
+       - If `$STACKTRACE` or `$ERROR` is provided, use `search_tool` to locate the associated line numbers, modules, or functions in the codebase. Focus on identifying the source of the issue.
+       - Take note of any assumptions that can safely be made based on the query or programming language (e.g. immutability, type safety).
+    2. Investigate Specific Identifiers:
+       - If a specific function, method, or constant is mentioned:
+         - Use `file_info_tool` to retrieve its definition and inspect its surrounding context (e.g., imports, dependencies, or usage patterns).
+         - Use `search_tool` to locate references to the identifier throughout the project.
+    3. Trace Code Relationships:
+       - Use `spelunker_tool` to analyze upstream callers or downstream callees of `$FUNCTION`. Leverage the prebuilt call map to trace function interactions, dependencies, and affected pathways.
+    4. Analyze Code History:
+       - Use `git_pickaxe_tool` to search the commit history for changes introducing `$BUG` or `$ERROR`. Prioritize:
+         - Lines or functions relevant to the stack trace or function mentioned.
+         - Commit messages and diffs for context.
+       - Supplement with other git tools (e.g., `git_log_tool`, `git_show_tool`) for broader or specific commit details.
+       - **Important**: Only use Git tools if they are included in the available tools list.
+    5. Correlate Findings Across Tools:
+       - Cross-reference results from `search_tool`, `file_info_tool`, and `spelunker_tool` to establish a clear picture of:
+         - Which modules or functions are likely involved.
+         - How changes in the codebase might correlate with the observed bug.
+    6. Summarize and Recommend Actions:
+       - Provide a detailed explanation of the root cause, including:
+         - Specific references to files, functions, or commits.
+         - Hypotheses based on tool outputs (e.g., a faulty function call, a breaking change).
+       - If no root cause could be identified:
+         - Clearly note in bold that you were unable to find the root cause.
+         - Recommend further steps for debugging or troubleshooting
+           - Write a test case to reproduce the error
+           - Cite locations in the code to insert printf-debugging or logging
 
 - id: "code-flow-and-relationships"
   title: "Code Flow and Relationships"
