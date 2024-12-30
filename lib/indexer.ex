@@ -1,6 +1,6 @@
 defmodule Indexer do
   @moduledoc """
-  This behaviour wraps the AI-powered operations used by `Cmd.Indexer` to allow
+  This behaviour wraps the AI-powered operations used by `Cmd.Index` to allow
   overrides for testing.
   """
 

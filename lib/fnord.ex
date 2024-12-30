@@ -4,9 +4,6 @@ defmodule Fnord do
   search code files.
   """
 
-  @default_concurrency 8
-  @default_search_limit 10
-
   @doc """
   Main entry point for the application. Parses command line arguments and
   dispatches to the appropriate subcommand.
@@ -19,245 +16,37 @@ defmodule Fnord do
     with {:ok, subcommand, opts} <- parse_options(args) do
       opts = set_globals(opts)
 
-      case subcommand do
-        :index -> Cmd.Indexer.new(opts) |> Cmd.Indexer.run()
-        :ask -> Cmd.Ask.run(opts)
-        :search -> Cmd.Search.run(opts)
-        :summary -> Cmd.Summary.run(opts)
-        :torch -> Cmd.Torch.run(opts)
-        :projects -> Cmd.Projects.run(opts)
-        :files -> Cmd.Files.run(opts)
-        :upgrade -> Cmd.Upgrade.run(opts)
-        :conversations -> Cmd.Conversations.run(opts)
-        :notes -> Cmd.Notes.run(opts)
-        :strategies -> Cmd.Strategies.run(opts)
-      end
+      cmd = to_module_name(subcommand)
+      apply(cmd, :run, [opts])
+
+      subcommand |> to_module_name() |> apply(:run, [opts])
     else
       {:error, reason} -> IO.puts("Error: #{reason}")
     end
   end
 
   defp parse_options(args) do
-    project = [
-      value_name: "PROJECT",
-      long: "--project",
-      short: "-p",
-      help: "Project name",
-      required: true
-    ]
-
-    directory = [
-      value_name: "DIR",
-      long: "--dir",
-      short: "-d",
-      help: "Directory to index (required for first index or reindex after moving the project)",
-      required: false
-    ]
-
-    reindex = [
-      long: "--reindex",
-      short: "-r",
-      help: "Reindex the project",
-      default: false
-    ]
-
-    quiet = [
-      long: "--quiet",
-      short: "-Q",
-      help: "Suppress interactive output; automatically enabled when executed in a pipe",
-      required: false,
-      default: false
-    ]
-
-    query = [
-      value_name: "QUERY",
-      long: "--query",
-      short: "-q",
-      help: "Search query",
-      required: true
-    ]
-
-    limit = [
-      value_name: "LIMIT",
-      long: "--limit",
-      short: "-l",
-      help: "Limit the number of results",
-      default: @default_search_limit
-    ]
-
-    detail = [
-      long: "--detail",
-      help: "Include AI-generated file summary",
-      default: false
-    ]
-
-    file = [
-      value_name: "FILE",
-      long: "--file",
-      short: "-f",
-      help: "File to summarize",
-      required: true
-    ]
-
-    concurrency = [
-      value_name: "WORKERS",
-      long: "--concurrency",
-      short: "-c",
-      help: "Number of concurrent threads to use",
-      parser: :integer,
-      default: @default_concurrency
-    ]
-
-    question = [
-      value_name: "QUESTION",
-      long: "--question",
-      short: "-q",
-      help: "The prompt to ask the AI",
-      required: true
-    ]
-
-    relpath = [
-      long: "--relpath",
-      short: "-r",
-      help: "Print paths relative to $CWD",
-      default: false
-    ]
-
-    yes = [
-      long: "--yes",
-      short: "-y",
-      help: "Automatically answer 'yes' to all prompts",
-      default: false
-    ]
-
-    include = [
-      value_name: "FILE",
-      long: "--include",
-      short: "-i",
-      help: "Include a file in your prompt",
-      multiple: true
-    ]
-
-    exclude = [
-      value_name: "FILE",
-      long: "--exclude",
-      short: "-x",
-      help:
-        "Exclude a file, directory, or glob from being indexed; this is stored in the project's configuration and used on subsequent indexes",
-      multiple: true
-    ]
-
-    follow = [
-      long: "--follow",
-      short: "-f",
-      help: "Follow up the conversation with another question/prompt"
-    ]
-
     parser =
       Optimus.new!(
         name: "fnord",
         description: "fnord - intelligent code index and search",
         allow_unknown_args: false,
         version: get_version(),
-        subcommands: [
-          index: [
-            name: "index",
-            about: "Index a project",
-            options: [
-              directory: directory,
-              project: project,
-              concurrency: concurrency,
-              exclude: exclude
-            ],
-            flags: [
-              reindex: reindex,
-              quiet: quiet
-            ]
-          ],
-          ask: [
-            name: "ask",
-            about: "Ask the AI a question about the project",
-            options: [
-              project: project,
-              question: question,
-              concurrency: concurrency,
-              include: include,
-              follow: follow
-            ],
-            flags: [
-              replay: [
-                long: "--replay",
-                short: "-r",
-                help: "Replay a conversation (with --follow is set)"
-              ]
-            ]
-          ],
-          conversations: [
-            name: "conversations",
-            about: "List all conversations in the project",
-            options: [project: project],
-            flags: [
-              file: [
-                long: "--file",
-                short: "-f",
-                help: "Print the path to the conversation file"
-              ],
-              question: [
-                long: "--question",
-                short: "-q",
-                help: "include the question prompting the conversation"
-              ]
-            ]
-          ],
-          search: [
-            name: "search",
-            about: "Perform a semantic search within a project",
-            options: [project: project, query: query, limit: limit, concurrency: concurrency],
-            flags: [detail: detail]
-          ],
-          summary: [
-            name: "summary",
-            about: "Retrieve the AI-generated file summary used when indexing the file",
-            options: [project: project, file: file]
-          ],
-          projects: [
-            name: "projects",
-            about: "Lists all projects",
-            options: []
-          ],
-          files: [
-            name: "files",
-            about: "Lists all indexed files in a project",
-            options: [project: project],
-            flags: [relpath: relpath]
-          ],
-          torch: [
-            name: "torch",
-            about: "Deletes a previously indexed project from the database",
-            options: [project: project]
-          ],
-          upgrade: [
-            name: "upgrade",
-            about: "Upgrade fnord to the latest version",
-            flags: [yes: yes]
-          ],
-          notes: [
-            name: "notes",
-            about: "List facts about the project inferred from prior research",
-            options: [project: project],
-            flags: [
-              reset: [
-                long: "--reset",
-                short: "-r",
-                help: "Delete all stored notes for the project. This action is irreversible."
-              ]
-            ]
-          ],
-          strategies: [
-            name: "strategies",
-            about: "List all saved research strategies"
+        subcommands:
+          [
+            Cmd.Ask,
+            Cmd.Conversations,
+            Cmd.Files,
+            Cmd.Index,
+            Cmd.Notes,
+            Cmd.Projects,
+            Cmd.Search,
+            Cmd.Strategies,
+            Cmd.Summary,
+            Cmd.Torch,
+            Cmd.Upgrade
           ]
-        ]
+          |> Enum.flat_map(& &1.spec())
       )
 
     with {[subcommand], result} <- Optimus.parse!(parser, args) do
@@ -323,5 +112,14 @@ defmodule Fnord do
       IO.ANSI.enabled?() -> args
       true -> Map.put(args, :quiet, true)
     end
+  end
+
+  defp to_module_name(subcommand) do
+    submodule =
+      subcommand
+      |> Atom.to_string()
+      |> Macro.camelize()
+
+    Module.concat("Cmd", submodule)
   end
 end
