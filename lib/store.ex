@@ -39,8 +39,5 @@ defmodule Store do
   def list_conversations() do
     get_project()
     |> Store.Project.conversations()
-    |> Enum.sort(fn a, b ->
-      Store.Conversation.timestamp(a) > Store.Conversation.timestamp(b)
-    end)
   end
 end

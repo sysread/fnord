@@ -48,6 +48,12 @@ defmodule Cmd.Index do
           ]
         ],
         flags: [
+          defrag_notes: [
+            long: "--defrag-notes",
+            short: "-D",
+            help: "Consolidate saved notes",
+            default: false
+          ],
           reindex: [
             long: "--reindex",
             short: "-r",
@@ -70,10 +76,10 @@ defmodule Cmd.Index do
   def run(opts) do
     opts
     |> new()
-    |> index_project()
+    |> perform_task()
   end
 
-  def index_project(idx) do
+  def perform_task(idx) do
     UI.info("Project", idx.project.name)
     UI.info("Root", idx.project.source_root)
 
@@ -87,44 +93,10 @@ defmodule Cmd.Index do
       end
     )
 
-    if reindex?(idx) do
-      Store.Project.delete(idx.project)
-      UI.report_step("Burned all of the old data to the ground to force a full reindex!")
-    else
-      Store.Project.delete_missing_files(idx.project)
-      UI.report_step("Deleted missing and newly excluded files")
-    end
+    index_project(idx)
 
-    {:ok, queue} = Queue.start_link(&process_entry(idx, &1))
-
-    all_files = Store.Project.source_files(idx.project)
-    stale_files = Store.Project.stale_source_files(idx.project)
-
-    total = Enum.count(all_files)
-    count = Enum.count(stale_files)
-
-    if count == 0 do
-      UI.warn("No files to index in #{idx.project.name}")
-    else
-      spin("Indexing #{count} / #{total} files", fn ->
-        # files * 3 for each step in indexing a file (summary, outline, embeddings)
-        progress_bar_start(:indexing, "Tasks", count * 3)
-
-        # queue files
-        Enum.each(stale_files, &Queue.queue(queue, &1))
-
-        # start a monitor that displays in-progress files
-        monitor = start_in_progress_jobs_monitor(queue)
-
-        # wait on queue to complete
-        Queue.shutdown(queue)
-        Queue.join(queue)
-
-        # wait on monitor to terminate
-        Task.await(monitor)
-
-        {"All tasks complete", :ok}
-      end)
+    if Map.get(idx.opts, :defrag_notes, false) do
+      defrag_notes(idx)
     end
   end
 
@@ -165,9 +137,156 @@ defmodule Cmd.Index do
   defp quiet?(), do: Application.get_env(:fnord, :quiet)
   defp reindex?(idx), do: Map.get(idx.opts, :reindex, false)
 
+  # -----------------------------------------------------------------------------
+  # Verifying saved notes
+  # -----------------------------------------------------------------------------
+  defp defrag_notes(idx) do
+    notes =
+      idx.project
+      |> Store.Note.list_notes()
+      |> Enum.reduce([], fn note, acc ->
+        with {:ok, text} <- Store.Note.read_note(note) do
+          [text | acc]
+        else
+          _ -> acc
+        end
+      end)
+      |> Enum.reverse()
+
+    consolidate_saved_notes(idx, notes)
+  end
+
+  defp consolidate_saved_notes(_idx, []) do
+    UI.warn("Verifying prior research: nothing to do")
+  end
+
+  defp consolidate_saved_notes(idx, original_notes) do
+    total = Enum.count(original_notes)
+    UI.report_step("Consolidating and fact-checking prior research", "Analyzing #{total} notes")
+
+    AI.new()
+    |> AI.Agent.NotesConsolidator.get_response(%{notes: original_notes})
+    |> case do
+      {:ok, notes} ->
+        IO.puts("# Consolidated Notes")
+
+        notes = String.split(notes, "\n")
+
+        notes
+        |> Enum.each(fn text ->
+          IO.puts("- #{text}")
+        end)
+
+        original_count = Enum.count(original_notes)
+        new_count = Enum.count(notes)
+
+        difference =
+          ((new_count - original_count) / original_count * 100)
+          |> Float.round(0)
+          |> trunc()
+          |> abs()
+
+        IO.puts("""
+
+        There is a #{difference}% change in note count:
+          * Original: #{original_count}
+          *  Updated: #{new_count}
+
+        """)
+
+        if difference > 25 do
+          msg =
+            [
+              :red,
+              """
+              >>> WARNING! <<<
+              ! The consolidated notes differ by #{difference}% from the original notes.
+              ! Check the consolidated notes carefully before proceeding.
+              """,
+              :reset
+            ]
+            |> IO.ANSI.format()
+
+          IO.puts(msg)
+        end
+
+        if UI.confirm("Replace your saved notes with the consolidated list?") do
+          spin("Saving consolidated notes", fn ->
+            {:ok, queue} =
+              Queue.start_link(fn text ->
+                idx.project
+                |> Store.Note.new()
+                |> Store.Note.write(text)
+              end)
+
+            UI.report_step("Clearing old notes")
+            Store.Note.reset_project_notes(idx.project)
+
+            # queue files
+            Enum.each(notes, &Queue.queue(queue, &1))
+
+            # wait on queue to complete
+            Queue.shutdown(queue)
+            Queue.join(queue)
+
+            {"#{new_count} notes saved", :ok}
+          end)
+
+          UI.info("Notes saved.")
+        else
+          UI.warn("Consolidation of notes aborted at user request")
+        end
+
+      error ->
+        UI.warn("Error consolidating notes", inspect(error))
+    end
+  end
+
   # ----------------------------------------------------------------------------
   # Indexing process
   # ----------------------------------------------------------------------------
+  defp index_project(idx) do
+    if reindex?(idx) do
+      Store.Project.delete(idx.project)
+      UI.report_step("Burned all of the old data to the ground to force a full reindex!")
+    else
+      Store.Project.delete_missing_files(idx.project)
+      UI.report_step("Deleted missing and newly excluded files")
+    end
+
+    all_files = Store.Project.source_files(idx.project)
+    stale_files = Store.Project.stale_source_files(idx.project)
+
+    total = Enum.count(all_files)
+    count = Enum.count(stale_files)
+
+    if count == 0 do
+      UI.warn("No files to index in #{idx.project.name}")
+    else
+      {:ok, queue} = Queue.start_link(&process_entry(idx, &1))
+
+      spin("Indexing #{count} / #{total} files", fn ->
+        # files * 3 for each step in indexing a file (summary, outline, embeddings)
+        progress_bar_start(:indexing, "Tasks", count * 3)
+
+        # queue files
+        Enum.each(stale_files, &Queue.queue(queue, &1))
+
+        # start a monitor that displays in-progress files
+        monitor = start_in_progress_jobs_monitor(queue)
+
+        # wait on queue to complete
+        Queue.shutdown(queue)
+        Queue.join(queue)
+
+        # wait on monitor to terminate
+        Task.await(monitor)
+
+        {"All file indexing tasks complete", :ok}
+      end)
+    end
+  end
+
   defp process_entry(idx, entry) do
     with {:ok, contents} <- Store.Entry.read_source_file(entry),
          {:ok, summary, outline} <- get_derivatives(idx, entry.file, contents),
