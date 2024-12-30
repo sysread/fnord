@@ -1,4 +1,38 @@
 defmodule Cmd.Conversations do
+  @behaviour Cmd
+
+  @impl Cmd
+  def spec do
+    [
+      conversations: [
+        name: "conversations",
+        about: "List all conversations in the project",
+        options: [
+          project: [
+            value_name: "PROJECT",
+            long: "--project",
+            short: "-p",
+            help: "Project name",
+            required: true
+          ]
+        ],
+        flags: [
+          file: [
+            long: "--file",
+            short: "-f",
+            help: "Print the path to the conversation file"
+          ],
+          question: [
+            long: "--question",
+            short: "-q",
+            help: "include the question prompting the conversation"
+          ]
+        ]
+      ]
+    ]
+  end
+
+  @impl Cmd
   def run(opts) do
     cols = Owl.IO.columns()
 

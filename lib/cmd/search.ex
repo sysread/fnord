@@ -1,15 +1,57 @@
 defmodule Cmd.Search do
-  @moduledoc """
-  This module provides the functionality for the `search` sub-command.
-  """
+  @default_search_limit 10
 
-  @doc """
-  Searches the given project for previously indexed files (see `Indexing`) that
-  match the given query. The search results are printed to the console.
+  @behaviour Cmd
 
-  Note that the query input is first sent to OpenAI's API to generate an
-  embedding to match against the vector store.
-  """
+  @impl Cmd
+  def spec do
+    [
+      search: [
+        name: "search",
+        about: "Perform a semantic search within a project",
+        flags: [
+          detail: [
+            long: "--detail",
+            help: "Include AI-generated file summary",
+            default: false
+          ]
+        ],
+        options: [
+          project: [
+            value_name: "PROJECT",
+            long: "--project",
+            short: "-p",
+            help: "Project name",
+            required: true
+          ],
+          query: [
+            value_name: "QUERY",
+            long: "--query",
+            short: "-q",
+            help: "Search query",
+            required: true
+          ],
+          limit: [
+            value_name: "LIMIT",
+            long: "--limit",
+            short: "-l",
+            help: "Limit the number of results",
+            default: @default_search_limit
+          ],
+          concurrency: [
+            value_name: "WORKERS",
+            long: "--concurrency",
+            short: "-c",
+            help: "Number of concurrent threads to use",
+            parser: :integer,
+            default: Cmd.default_concurrency()
+          ]
+        ]
+      ]
+    ]
+  end
+
+  @impl Cmd
   def run(opts, ai_module \\ AI) do
     opts
     |> Search.new(ai_module)

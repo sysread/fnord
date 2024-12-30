@@ -1,4 +1,4 @@
-defmodule Cmd.IndexerTest do
+defmodule Cmd.IndexTest do
   use ExUnit.Case
   use TestUtil
 
@@ -18,10 +18,10 @@ defmodule Cmd.IndexerTest do
       git_ignore(project, ["file2.txt"])
 
       # Create an indexer for the project
-      idx = Cmd.Indexer.new(%{project: project.name, quiet: true}, MockIndexer)
+      idx = Cmd.Index.new(%{project: project.name, quiet: true}, MockIndexer)
 
       # Run the indexing process
-      Cmd.Indexer.run(idx)
+      Cmd.Index.index_project(idx)
 
       # Check that the files were indexed
       Store.list_projects()
@@ -39,7 +39,7 @@ defmodule Cmd.IndexerTest do
     test "raises an exception when source :directory is not passed or present in settings" do
       raises_error =
         try do
-          Cmd.Indexer.new(%{project: "test_project"}, MockIndexer)
+          Cmd.Index.new(%{project: "test_project"}, MockIndexer)
           false
         rescue
           _ -> true
@@ -54,7 +54,7 @@ defmodule Cmd.IndexerTest do
 
       raises_error =
         try do
-          Cmd.Indexer.new(%{project: "test_project", directory: tmp_dir}, MockIndexer)
+          Cmd.Index.new(%{project: "test_project", directory: tmp_dir}, MockIndexer)
           false
         rescue
           e ->
@@ -71,7 +71,7 @@ defmodule Cmd.IndexerTest do
 
       raises_error =
         try do
-          Cmd.Indexer.new(%{project: project.name}, MockIndexer)
+          Cmd.Index.new(%{project: project.name}, MockIndexer)
           false
         rescue
           e ->

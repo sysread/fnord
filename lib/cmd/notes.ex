@@ -1,4 +1,33 @@
 defmodule Cmd.Notes do
+  @behaviour Cmd
+
+  @impl Cmd
+  def spec() do
+    [
+      notes: [
+        name: "notes",
+        about: "List facts about the project inferred from prior research",
+        options: [
+          project: [
+            value_name: "PROJECT",
+            long: "--project",
+            short: "-p",
+            help: "Project name",
+            required: true
+          ]
+        ],
+        flags: [
+          reset: [
+            long: "--reset",
+            short: "-r",
+            help: "Delete all stored notes for the project. This action is irreversible."
+          ]
+        ]
+      ]
+    ]
+  end
+
+  @impl Cmd
   def run(opts) do
     project = Store.get_project() |> validate_project()
 
@@ -41,13 +70,8 @@ defmodule Cmd.Notes do
 
   defp reset_notes(project) do
     IO.puts("Resetting notes for `#{project.name}`:")
-
-    project
-    |> Store.Note.reset_project_notes()
-    |> case do
-      {:ok, _} -> IO.puts("✓ Notes reset")
-      {:error, reason} -> fail(reason)
-    end
+    Store.Note.reset_project_notes(project)
+    IO.puts("✓ Notes reset")
   end
 
   defp fail(reason) do

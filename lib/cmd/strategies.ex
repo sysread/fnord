@@ -1,4 +1,17 @@
 defmodule Cmd.Strategies do
+  @behaviour Cmd
+
+  @impl Cmd
+  def spec() do
+    [
+      strategies: [
+        name: "strategies",
+        about: "List all saved research strategies"
+      ]
+    ]
+  end
+
+  @impl Cmd
   def run(_opts) do
     Store.Prompt.install_initial_strategies()
 

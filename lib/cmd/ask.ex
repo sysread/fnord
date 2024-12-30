@@ -1,6 +1,62 @@
 defmodule Cmd.Ask do
   @project_not_found_error "Project not found; verify that the project has been indexed."
 
+  @behaviour Cmd
+
+  @impl Cmd
+  def spec() do
+    [
+      ask: [
+        name: "ask",
+        about: "Ask the AI a question about the project",
+        options: [
+          project: [
+            value_name: "PROJECT",
+            long: "--project",
+            short: "-p",
+            help: "Project name",
+            required: true
+          ],
+          question: [
+            value_name: "QUESTION",
+            long: "--question",
+            short: "-q",
+            help: "The prompt to ask the AI",
+            required: true
+          ],
+          concurrency: [
+            value_name: "WORKERS",
+            long: "--concurrency",
+            short: "-c",
+            help: "Number of concurrent threads to use",
+            parser: :integer,
+            default: Cmd.default_concurrency()
+          ],
+          include: [
+            value_name: "FILE",
+            long: "--include",
+            short: "-i",
+            help: "Include a file in your prompt",
+            multiple: true
+          ],
+          follow: [
+            long: "--follow",
+            short: "-f",
+            help: "Follow up the conversation with another question/prompt"
+          ]
+        ],
+        flags: [
+          replay: [
+            long: "--replay",
+            short: "-r",
+            help: "Replay a conversation (with --follow is set)"
+          ]
+        ]
+      ]
+    ]
+  end
+
+  @impl Cmd
   def run(opts) do
     with :ok <- validate(opts) do
       opts = Map.put(opts, :conversation, get_conversation(opts))

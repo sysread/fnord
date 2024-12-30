@@ -1,11 +1,33 @@
 defmodule Cmd.Summary do
-  @moduledoc """
-  This module provides the functionality for the `summary` sub-command.
-  """
+  @behaviour Cmd
 
-  @doc """
-  Run the summary process using the given `project` and `file_path`.
-  """
+  @impl Cmd
+  def spec do
+    [
+      summary: [
+        name: "summary",
+        about: "Retrieve the AI-generated file summary used when indexing the file",
+        options: [
+          project: [
+            value_name: "PROJECT",
+            long: "--project",
+            short: "-p",
+            help: "Project name",
+            required: true
+          ],
+          file: [
+            value_name: "FILE",
+            long: "--file",
+            short: "-f",
+            help: "File to summarize",
+            required: true
+          ]
+        ]
+      ]
+    ]
+  end
+
+  @impl Cmd
   def run(opts) do
     # Make sure that the file path is an absolute path
     file_path = Path.absname(opts.file)

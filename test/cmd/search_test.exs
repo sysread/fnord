@@ -18,7 +18,7 @@ defmodule Cmd.SearchTest do
 
     # Index the files using the Indexer with MockIndexerForSearch
     idx =
-      Cmd.Indexer.new(
+      Cmd.Index.new(
         %{
           project: project.name,
           directory: project.source_root,
@@ -27,7 +27,7 @@ defmodule Cmd.SearchTest do
         MockIndexerForSearch
       )
 
-    Cmd.Indexer.run(idx)
+    Cmd.Index.index_project(idx)
 
     # Define search options
     search_opts = %{

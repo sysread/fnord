@@ -76,7 +76,7 @@ defmodule Store.EntryTest do
 
       # Create an indexer for the project
       idx =
-        Cmd.Indexer.new(
+        Cmd.Index.new(
           %{
             project: ctx.project.name,
             directory: ctx.project.source_root,
@@ -86,7 +86,7 @@ defmodule Store.EntryTest do
         )
 
       # Run the indexing process
-      Cmd.Indexer.run(idx)
+      Cmd.Index.index_project(idx)
 
       assert Store.Entry.exists_in_store?(entry)
     end
