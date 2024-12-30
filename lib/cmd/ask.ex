@@ -3,11 +3,7 @@ defmodule Cmd.Ask do
 
   def run(opts) do
     with :ok <- validate(opts) do
-      opts =
-        opts
-        |> Map.put(:conversation, get_conversation(opts))
-        |> maybe_set_show_work_flag()
-
+      opts = Map.put(opts, :conversation, get_conversation(opts))
       AI.Agent.Answers.get_response(AI.new(), opts)
     else
       {:error, :project_not_found} -> UI.error(@project_not_found_error)
@@ -29,14 +25,5 @@ defmodule Cmd.Ask do
 
   defp get_conversation(%{follow: conversation_id}) do
     Store.Conversation.new(conversation_id)
-  end
-
-  defp maybe_set_show_work_flag(opts) do
-    if System.get_env("FNORD_SHOW_WORK", "false") in ["1", "true", "TRUE"] do
-      Application.put_env(:fnord, :show_work, true)
-      Map.put(opts, :show_work, true)
-    else
-      opts
-    end
   end
 end

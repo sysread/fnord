@@ -8,8 +8,11 @@ defmodule AI.Tools.SearchStrategies do
       function: %{
         name: "search_strategies_tool",
         description: """
-        "Research Strategies" are previously saved prompts that can be used to
-        guide the research strategy of the orchestrating AI agent.
+        "Research Strategies" are previously saved research plans that can be
+        used to guide the research strategy of the orchestrating AI agent.
+        Research Strategies are agnostic to the project and the context of the
+        user's query, instead focusing on the process to follow when
+        researching specific classes of problems.
 
         This tool performs a semantic search of your saved research strategies.
         Returns up to 3 matching strategies' title, ID, and prompt. The ID may

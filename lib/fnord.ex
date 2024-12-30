@@ -28,8 +28,9 @@ defmodule Fnord do
         :projects -> Cmd.Projects.run(opts)
         :files -> Cmd.Files.run(opts)
         :upgrade -> Cmd.Upgrade.run(opts)
-        :review -> Cmd.Review.run(opts)
         :conversations -> Cmd.Conversations.run(opts)
+        :notes -> Cmd.Notes.run(opts)
+        :strategies -> Cmd.Strategies.run(opts)
       end
     else
       {:error, reason} -> IO.puts("Error: #{reason}")
@@ -146,30 +147,6 @@ defmodule Fnord do
       multiple: true
     ]
 
-    topic = [
-      value_name: "TOPIC_BRANCH",
-      long: "--topic",
-      short: "-t",
-      help: "The topic branch",
-      required: true
-    ]
-
-    base = [
-      value_name: "BASE_BRANCH",
-      long: "--base",
-      short: "-b",
-      help: "The base branch (default: main)",
-      default: "main",
-      required: true
-    ]
-
-    show_work =
-      [
-        long: "--show-work",
-        short: "-s",
-        help: "Display tool call results; enable by default by setting FNORD_SHOW_WORK"
-      ]
-
     follow = [
       long: "--follow",
       short: "-f",
@@ -208,20 +185,12 @@ defmodule Fnord do
               follow: follow
             ],
             flags: [
-              show_work: show_work,
               replay: [
                 long: "--replay",
                 short: "-r",
                 help: "Replay a conversation (with --follow is set)"
               ]
             ]
-          ],
-          review: [
-            name: "review",
-            about:
-              "Review a topic branch against another branch. This always uses the remote branches on origin.",
-            options: [project: project, concurrency: concurrency, topic: topic, base: base],
-            flags: [quiet: quiet, show_work: show_work]
           ],
           conversations: [
             name: "conversations",
@@ -271,6 +240,15 @@ defmodule Fnord do
             name: "upgrade",
             about: "Upgrade fnord to the latest version",
             flags: [yes: yes]
+          ],
+          notes: [
+            name: "notes",
+            about: "List facts about the project inferred from prior research",
+            options: [project: project]
+          ],
+          strategies: [
+            name: "strategies",
+            about: "List all saved research strategies"
           ]
         ]
       )
@@ -324,9 +302,6 @@ defmodule Fnord do
 
       {:quiet, quiet} ->
         Application.put_env(:fnord, :quiet, quiet)
-
-      {:show_work, show_work} ->
-        Application.put_env(:fnord, :show_work, show_work)
 
       _ ->
         :ok

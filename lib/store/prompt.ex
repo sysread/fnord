@@ -58,17 +58,38 @@ defmodule Store.Prompt do
   def new(nil), do: new(UUID.uuid4())
 
   def new(id) do
-    %__MODULE__{
-      id: id,
-      store_path: build_store_dir(id)
-    }
+    %__MODULE__{id: id, store_path: build_store_dir(id)}
   end
 
   def exists?(prompt) do
     File.exists?(prompt.store_path)
   end
 
+  def version(prompt) do
+    get_current_version_number(prompt)
+  end
+
   def write(prompt, title, prompt_text, questions) do
+    qstr = format_questions(questions)
+
+    list_prompts()
+    |> Enum.find(fn p ->
+      with {:ok, version} <- get_current_version_number(p),
+           {:ok, old_title} when old_title == title <- read_title(p, version),
+           {:ok, old_prompt} when old_prompt == prompt_text <- read_prompt(p, version),
+           {:ok, old_questions} when old_questions == qstr <- read_questions(p, version) do
+        true
+      else
+        _ -> false
+      end
+    end)
+    |> case do
+      nil -> do_write(prompt, title, prompt_text, questions)
+      p -> {:error, {:prompt_exists, p.id}}
+    end
+  end
+
+  defp do_write(prompt, title, prompt_text, questions) do
     # --------------------------------------------------------------------------
     # Determine the versioned path for the new prompt.
     # --------------------------------------------------------------------------
@@ -114,7 +135,7 @@ defmodule Store.Prompt do
     |> Path.join("embeddings.json")
     |> File.write!(embeddings_json)
 
-    prompt
+    {:ok, prompt}
   end
 
   def read(prompt) do
@@ -139,11 +160,23 @@ defmodule Store.Prompt do
     end
   end
 
+  def read_title(prompt) do
+    with {:ok, version} <- get_current_version_number(prompt) do
+      read_title(prompt, version)
+    end
+  end
+
   def read_title(prompt, version) do
     prompt.store_path
     |> Path.join("v#{version}")
     |> Path.join("title.md")
     |> File.read()
+  end
+
+  def read_prompt(prompt) do
+    with {:ok, version} <- get_current_version_number(prompt) do
+      read_prompt(prompt, version)
+    end
   end
 
   def read_prompt(prompt, version) do
@@ -153,11 +186,23 @@ defmodule Store.Prompt do
     |> File.read()
   end
 
+  def read_questions(prompt) do
+    with {:ok, version} <- get_current_version_number(prompt) do
+      read_questions(prompt, version)
+    end
+  end
+
   def read_questions(prompt, version) do
     prompt.store_path
     |> Path.join("v#{version}")
     |> Path.join("questions.md")
     |> File.read()
+  end
+
+  def read_embeddings(prompt) do
+    with {:ok, version} <- get_current_version_number(prompt) do
+      read_embeddings(prompt, version)
+    end
   end
 
   def read_embeddings(prompt, version) do
@@ -181,7 +226,7 @@ defmodule Store.Prompt do
   end
 
   # -----------------------------------------------------------------------------
-  # Non-instnace functions
+  # Common functions
   # -----------------------------------------------------------------------------
   def list_prompts() do
     Store.store_home()
@@ -285,6 +330,8 @@ defmodule Store.Prompt do
   # Initial strategies
   # ----------------------------------------------------------------------------
   def install_initial_strategies() do
+    UI.debug("Preparing research strategy library")
+
     @initial_strategies
     |> Enum.each(fn %{
                       "id" => id,
@@ -294,28 +341,24 @@ defmodule Store.Prompt do
                     } ->
       prompt = new(id)
 
-      version =
-        get_current_version_number(prompt)
-        |> case do
-          {:ok, version} -> version
-          {:error, :not_found} -> 0
-        end
-
-      if differs?(prompt, version, prompt_str, questions) do
+      if differs?(prompt, prompt_str, questions) do
         write(prompt, title, prompt_str, questions)
       end
     end)
   end
 
-  defp differs?(prompt, version, prompt_str, questions) do
+  defp differs?(prompt, prompt_str, questions) do
     if exists?(prompt) do
-      {:ok, old_questions} = read_questions(prompt, version)
-      {:ok, old_prompt} = read_prompt(prompt, version)
-
-      cond do
-        old_questions != format_questions(questions) -> true
-        old_prompt != prompt_str -> true
-        true -> false
+      with {:ok, version} <- get_current_version_number(prompt),
+           {:ok, old_questions} <- read_questions(prompt, version),
+           {:ok, old_prompt} <- read_prompt(prompt, version) do
+        cond do
+          old_questions != format_questions(questions) -> true
+          old_prompt != prompt_str -> true
+          true -> false
+        end
+      else
+        _ -> true
       end
     else
       true

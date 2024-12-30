@@ -111,3 +111,35 @@
     3. Use `file_info_tool` to summarize documentation sections or metadata relevant to the query.
     4. If detailed content is needed, use `file_contents_tool` to extract specific sections or guides.
     5. Synthesize an answer by compiling key documentation references.
+
+- id: "code-review-and-analysis"
+  title: "Code Review and Analysis"
+  questions:
+    - "What changes were introduced in $TOPIC_BRANCH?"
+    - "Are there any potential issues with the recent commits?"
+    - "How do the changes in $TOPIC_BRANCH impact the rest of the project?"
+    - "What files or functions were most affected by these changes?"
+    - "Please explain changes to business logic in $TOPIC_BRANCH."
+    - "Please conduct a code review of $TOPIC_BRANCH."
+  prompt: |
+    1. Use `git_diff_branch_tool` to retrieve a diff between `$TOPIC_BRANCH` and `$BASE_BRANCH` (default to `origin/main` unless specified by the user).
+    2. Summarize the changes by extracting key additions, deletions, and modifications. Highlight files and functions with significant changes.
+    3. Use `git_show_tool`, `file_contents_tool`, `file_info_tool`, and `search_tool` to cross-reference affected files or functions for their context and purpose within the project.
+    4. If relevant, trace dependencies or relationships using `spelunker_tool` to understand downstream or upstream impacts.
+    5. Identify potential issues, but generally restrict your analysis to the code being changed
+      - Do focus on:
+        - Logical errors or inconsistencies
+        - Poor separation of concerns
+        - Conflicts with existing functionality
+        - Missing test cases for new features or changes
+        - Unnecessary complexity introduced in the code
+        - Spelling errors, typos, or inconsistent naming conventions
+        - Missing documentation or comments
+      - Do not focus on:
+        - Separation of concerns in the codebase as a whole
+        - Missing test cases in the code base as a whole
+    6. Synthesize a review summary with:
+      - Key changes.
+      - Observed strengths and areas for improvement.
+      - Suggestions for additional testing, refactoring, or documentation.
+    7. NOTE that your other git tools may refer to local or remote versions of files depending on their arguments, so be cautious when using them for code review purposes.
