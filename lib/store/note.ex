@@ -113,12 +113,23 @@ defmodule Store.Note do
     |> Enum.take(max_results)
   end
 
+  def reset_project_notes(project) do
+    project
+    |> build_store_path()
+    |> File.rm_rf()
+  end
+
   # ----------------------------------------------------------------------------
   # Private functions
   # ----------------------------------------------------------------------------
-  defp build_store_path(project, id) do
+  defp build_store_path(project) do
     project.store_path
     |> Path.join(@store_dir)
+  end
+
+  defp build_store_path(project, id) do
+    project
+    |> build_store_path()
     |> Path.join(id)
   end
 
