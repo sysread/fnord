@@ -168,5 +168,5 @@ for the `search` command.
 ```
 
 # TODO
-- user-configurable system prompt for a given project
 - ask: report how old the index is
+- index: option to verify and consolidate notes
