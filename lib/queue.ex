@@ -13,7 +13,7 @@ defmodule Queue do
   Returns {:ok, pid}
   """
   def start_link(callback) do
-    max_workers = Application.get_env(:fnord, :concurrency)
+    max_workers = Application.get_env(:fnord, :workers)
     GenServer.start_link(__MODULE__, {callback, max_workers})
   end
 

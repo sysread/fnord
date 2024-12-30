@@ -24,13 +24,13 @@ defmodule Cmd.Ask do
             help: "The prompt to ask the AI",
             required: true
           ],
-          concurrency: [
+          workers: [
             value_name: "WORKERS",
-            long: "--concurrency",
-            short: "-c",
-            help: "Number of concurrent threads to use",
+            long: "--workers",
+            short: "-w",
+            help: "Number of concurrent workers to use",
             parser: :integer,
-            default: Cmd.default_concurrency()
+            default: Cmd.default_workers()
           ],
           include: [
             value_name: "FILE",

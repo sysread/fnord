@@ -89,8 +89,8 @@ defmodule Fnord do
   defp set_globals(args) do
     args
     |> Enum.each(fn
-      {:concurrency, concurrency} ->
-        Application.put_env(:fnord, :concurrency, concurrency)
+      {:workers, workers} ->
+        Application.put_env(:fnord, :workers, workers)
 
       {:project, project} ->
         Application.put_env(:fnord, :project, project)

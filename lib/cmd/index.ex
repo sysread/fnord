@@ -30,13 +30,13 @@ defmodule Cmd.Index do
             help: "Project name",
             required: true
           ],
-          concurrency: [
+          workers: [
             value_name: "WORKERS",
-            long: "--concurrency",
-            short: "-c",
-            help: "Number of concurrent threads to use",
+            long: "--workers",
+            short: "-w",
+            help: "Number of concurrent workers to use",
             parser: :integer,
-            default: Cmd.default_concurrency()
+            default: Cmd.default_workers()
           ],
           exclude: [
             value_name: "FILE",
