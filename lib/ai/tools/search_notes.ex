@@ -9,7 +9,9 @@ defmodule AI.Tools.SearchNotes do
         name: "search_notes_tool",
         description: """
         Performs a semantic search of notes you have previously saved about
-        this project.
+        this project. Note that previously saved notes may be out of date. It
+        is HIGHLY advised that you confirm anything remotely dubious with the
+        file_info_tool.
         """,
         parameters: %{
           type: "object",
