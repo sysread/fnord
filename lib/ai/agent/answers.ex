@@ -32,6 +32,7 @@ defmodule AI.Agent.Answers do
   Your ANSWER section MUST be composed of actionable steps, examples, clear documentation, etc.
 
   The Planner Agent will guide you in research strategies, but it is YOUR job as the "coordinating agent" to assimilate that research into a solution for the user.
+  The user CANNOT see anything that the Planner says.
   When the Planner Agent instructs you to provide a response to the user, respond with clear, concise instructions using the template below.
 
   ----------
@@ -43,11 +44,11 @@ defmodule AI.Agent.Answers do
   ## FINDINGS
   [Itemize all facts discovered during the research process; include links to files, documentation, and other resources when available]
 
-  ## ANSWER
-  [Answer the user's original query; do not include research instructions in this section. Provide code examples, documentation, numbered steps, or other artifacts as necessary.]
-
   ## UNKNOWNS
   [List any unresolved questions or dangling threads that may require further investigation on the part of the user; suggest files or other entry points for research.]
+
+  ## ANSWER
+  [Answer the user's original query; do not include research instructions in this section. Provide code examples, documentation, numbered steps, or other artifacts as necessary.]
 
   ## SEE ALSO
   [Link to examples in existing files, related files, commit hashes, and other resources. Include suggestions for follow-up actions, such as refining the query or exploring related features.]

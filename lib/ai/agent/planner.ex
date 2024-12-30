@@ -23,6 +23,20 @@ defmodule AI.Agent.Planner do
   - Use the information you learned in step 2 to refine your strategy.
   - Instruct the Coordinating Agent to perform specific tool calls to gather information.
   - Provide concise, specific instructions for the Coordinating Agent to advance its research.
+  - Respond to the Coordinating Agent here with something like:
+    ```
+    ## Goals
+    [break down of user query from step 1, informed by step 2]
+
+    ## Selected research strategy
+    [title of the strategy selected in this step]
+
+    ## Instructions
+    [customized instructions for the strategy selected in this step]]
+
+    ## Prior research
+    [relevant prior research you found in step 2]
+    ```
 
   4. **Evaluate Results and Adapt**:
   - Evaluate the effectiveness of the research and adjust strategies and direction as needed.

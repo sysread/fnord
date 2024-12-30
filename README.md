@@ -70,6 +70,13 @@ You can **reindex** the project, forcing it to reindex all files.
 fnord index -p foo -d /path/to/foo --reindex
 ```
 
+`fnord` learns about your project over time, so every now and then it's a good
+idea to **consolidate** the notes it has taken.
+
+```bash
+fnord index -p foo --defrag-notes
+```
+
 You can also watch the project for changes and reindex them as they happen
 using [watchman](https://github.com/facebook/watchman). Just be sure to use
 `--quiet` to suppress interactive output.
@@ -108,13 +115,16 @@ fnord ask -p foo -q "how do you run the tests for this project?"
 
 # Pipe output to `glow` to render markdown
 fnord ask -p foo -q "summarize the dependencies of this project" | glow
+
+# Reveal tool calls and research steps
+LOGGER_LEVEL=debug fnord ask -p foo -q "summarize the dependencies of this project" | glow
 ```
 
 ### Miscellaneous
 
 - **List projects:** `fnord projects`
 - **List files in a project:** `fnord files -p foo`
-- **List learned insights:** `fnord notes -p foo`
+- **List learned insights and inferences:** `fnord notes -p foo`
 - **List learned research strategies:** `fnord strategies`
 - **Show the AI-generated summary of a file:** `fnord summary -p foo -f bar.ext`
 - **Delete a project:** `fnord delete -p foo`
