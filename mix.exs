@@ -58,7 +58,7 @@ defmodule Fnord.MixProject do
       {:number, "~> 1.0.5"},
       {:optimus, "~> 0.2"},
       {:owl, "~> 0.12"},
-      {:yaml_elixir, "~> 2.11", only: [:dev, :test]}
+      {:yaml_elixir, "~> 2.11"}
     ]
   end
 end
