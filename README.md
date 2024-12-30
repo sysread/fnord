@@ -157,9 +157,9 @@ for the `search` command.
         "type": "integer",
         "description": "Limit the number of results (default: 10)."
       },
-      "concurrency": {
+      "workers": {
         "type": "integer",
-        "description": "Number of concurrent threads to use for the search (default: 4)."
+        "description": "Number of concurrent workers to use for the search."
       }
     },
     "required": ["project", "query"]

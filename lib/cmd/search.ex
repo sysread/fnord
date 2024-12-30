@@ -38,13 +38,13 @@ defmodule Cmd.Search do
             help: "Limit the number of results",
             default: @default_search_limit
           ],
-          concurrency: [
+          workers: [
             value_name: "WORKERS",
-            long: "--concurrency",
-            short: "-c",
-            help: "Number of concurrent threads to use",
+            long: "--workers",
+            short: "-w",
+            help: "Number of workers threads to use",
             parser: :integer,
-            default: Cmd.default_concurrency()
+            default: Cmd.default_workers()
           ]
         ]
       ]

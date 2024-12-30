@@ -2,7 +2,7 @@ defmodule QueueTest do
   use ExUnit.Case
   use TestUtil
 
-  setup do: set_config(concurrency: 2)
+  setup do: set_config(workers: 2)
 
   test "workflow", _ do
     assert {:ok, pid} = Queue.start_link(&(&1 * &1))
