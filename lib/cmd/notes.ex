@@ -9,7 +9,7 @@ defmodule Cmd.Notes do
       |> Store.Note.list_notes()
       |> Enum.each(fn note ->
         with {:ok, text} <- Store.Note.read_note(note) do
-          IO.puts("- #{text}")
+          IO.puts("- `#{note.id}` #{text}")
         end
       end)
     else

@@ -12,7 +12,7 @@
     3. If no specific file is mentioned, list relevant files using `list_files_tool` and identify candidates based on their names or summaries.
     4. Use the `file_contents_tool` to fetch key files or relevant excerpts.
     5. Analyze the flow and context of `$VARIABLE` or `$STRUCT` using references from search results.
-    6. DO NOT use git-related tools unless they are explicitly listed in the available tools. If they are, consider using `git_log_tool` to explore the history of relevant files or functions.
+    6. If git tools are available, consider using `git_log_tool` to explore the history of relevant files or functions.
     7. Synthesize a concise and actionable response summarizing findings and next steps.
 
 - id: "debugging-and-troubleshooting"
@@ -55,7 +55,7 @@
     2. If a specific `$FEATURE` is mentioned, search for test files or test-related comments.
     3. Use `list_files_tool` to identify `README`, configuration files (e.g., `docker-compose.yml`, `.env`, `Makefile`), or CI scripts.
     4. Use `file_contents_tool` to examine key files such as `README.md` or `build` scripts for instructions.
-    5. DO NOT use git tools unless explicitly listed in available tools. If available, inspect commit history (`git_log_tool`) to identify recent CI or test changes.
+    5. If git tools are available, inspect commit history (`git_log_tool`) to identify recent CI or test changes.
     6. Summarize testing or build instructions, linking dependencies or configurations to their usage.
 
 - id: "version-history-and-changes"
@@ -82,7 +82,7 @@
     2. Summarize findings using AI-generated summaries of matched files, fetched via `file_info_tool`.
     3. Identify patterns, libraries, or dependencies from related files or their comments.
     4. If necessary, fetch full files using `file_contents_tool` to extract implementation details.
-    5. DO NOT use git tools unless available, and only for historical context (e.g., `git_log_tool`).
+    5. If git tools are available, use them for historical context (e.g., `git_log_tool`).
     6. Compile a clear, high-level summary for the user, referencing specific files or patterns.
 
 - id: "operational-and-setup-tasks"
@@ -96,7 +96,7 @@
     2. Search for mentions of "setup," "installation," or `$SERVICE` using `search_tool`.
     3. Use `file_info_tool` to summarize key configuration files and settings.
     4. If available, examine file contents using `file_contents_tool` for detailed instructions.
-    5. DO NOT use git tools unless explicitly listed as available. If they are, examine setup-related commits for historical context.
+    5. If git tools are available, examine setup-related commits for historical context.
     6. Provide a step-by-step setup guide based on extracted information.
 
 - id: "documentation-and-metadata"

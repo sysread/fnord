@@ -15,12 +15,11 @@ defmodule AI.Tools.SearchStrategies do
         researching specific classes of problems.
 
         This tool performs a semantic search of your saved research strategies.
-        Returns up to 3 matching strategies' title, ID, and prompt. The ID may
-        be used to update the strategy later.
+        Returns up to 10 matching strategies' title, ID, and prompt. The ID may
+        be used to update or refine the strategy later.
 
-        It is up to **you** to decide which strategy is most appropriate for
-        the user's query and/or to optionally customize it for the user's
-        current query.
+        It is up to **YOU** to decide which strategy is most appropriate for
+        the user's query and to adapt it for the user's current query.
 
         After providing the strategy to the orchestrating AI agent, you may
         elect to use the `save_strategy_tool` to refine the strategy by
@@ -52,10 +51,16 @@ defmodule AI.Tools.SearchStrategies do
     with {:ok, query} <- Map.fetch(args, "query") do
       query
       |> Store.Prompt.search()
-      |> Enum.reduce([], fn {_score, prompt}, acc ->
+      |> Enum.reduce([], fn {score, prompt}, acc ->
         with {:ok, info} <- Store.Prompt.read(prompt) do
-          info = Map.drop(info, [:embeddings])
-          [info | acc]
+          data = %{
+            id: prompt.id,
+            title: info.title,
+            prompt: info.prompt,
+            match_score: score
+          }
+
+          [data | acc]
         end
       end)
       |> Enum.reverse()
