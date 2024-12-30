@@ -69,9 +69,16 @@ defmodule Cmd.Notes do
   end
 
   defp reset_notes(project) do
-    IO.puts("Resetting notes for `#{project.name}`:")
-    Store.Note.reset_project_notes(project)
-    IO.puts("✓ Notes reset")
+    if UI.confirm(
+         "Are you sure you want to delete all notes for #{project.name}? This is irreversible!",
+         false
+       ) do
+      IO.puts("Resetting notes for `#{project.name}`:")
+      Store.Note.reset_project_notes(project)
+      IO.puts("✓ Notes reset")
+    else
+      IO.puts("Aborted")
+    end
   end
 
   defp fail(reason) do

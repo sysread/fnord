@@ -16,10 +16,9 @@ defmodule Fnord do
     with {:ok, subcommand, opts} <- parse_options(args) do
       opts = set_globals(opts)
 
-      cmd = to_module_name(subcommand)
-      apply(cmd, :run, [opts])
-
-      subcommand |> to_module_name() |> apply(:run, [opts])
+      subcommand
+      |> to_module_name()
+      |> apply(:run, [opts])
     else
       {:error, reason} -> IO.puts("Error: #{reason}")
     end

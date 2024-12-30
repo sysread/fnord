@@ -1,6 +1,18 @@
 defmodule UI do
   require Logger
 
+  def confirm(_msg, true), do: true
+
+  def confirm(msg, _default) do
+    IO.write("#{msg} (y/n) ")
+
+    case IO.gets("") do
+      "y\n" -> true
+      "Y\n" -> true
+      _ -> false
+    end
+  end
+
   def flush do
     Logger.flush()
   end
