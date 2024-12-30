@@ -244,7 +244,14 @@ defmodule Fnord do
           notes: [
             name: "notes",
             about: "List facts about the project inferred from prior research",
-            options: [project: project]
+            options: [project: project],
+            flags: [
+              reset: [
+                long: "--reset",
+                short: "-r",
+                help: "Delete all stored notes for the project. This action is irreversible."
+              ]
+            ]
           ],
           strategies: [
             name: "strategies",
