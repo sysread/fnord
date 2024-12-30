@@ -48,13 +48,11 @@ defmodule Cmd.Notes do
   end
 
   defp show_notes(project) do
-    IO.puts("# Project notes: #{project.name}")
-
     project
     |> Store.Note.list_notes()
     |> case do
       [] ->
-        IO.puts("No notes found")
+        IO.puts(:stderr, "No notes found")
 
       notes ->
         notes

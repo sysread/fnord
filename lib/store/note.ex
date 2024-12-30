@@ -59,7 +59,12 @@ defmodule Store.Note do
   def read(note) do
     with {:ok, text} <- read_note(note),
          {:ok, embeddings} <- read_embeddings(note) do
-      {:ok, %{text: text, embeddings: embeddings}}
+      {:ok,
+       %{
+         id: note.id,
+         text: text,
+         embeddings: embeddings
+       }}
     end
   end
 

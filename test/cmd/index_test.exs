@@ -21,7 +21,7 @@ defmodule Cmd.IndexTest do
       idx = Cmd.Index.new(%{project: project.name, quiet: true}, MockIndexer)
 
       # Run the indexing process
-      Cmd.Index.index_project(idx)
+      Cmd.Index.perform_task(idx)
 
       # Check that the files were indexed
       Store.list_projects()

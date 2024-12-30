@@ -86,7 +86,7 @@ defmodule Store.EntryTest do
         )
 
       # Run the indexing process
-      Cmd.Index.index_project(idx)
+      Cmd.Index.perform_task(idx)
 
       assert Store.Entry.exists_in_store?(entry)
     end

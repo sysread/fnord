@@ -12,10 +12,12 @@ defmodule AI.Tools.SearchNotes do
         this project. Note that previously saved notes may be out of date. It
         is HIGHLY advised that you confirm anything remotely dubious with the
         file_info_tool.
+
+        If no query is provided, ALL notes will be returned.
         """,
         parameters: %{
           type: "object",
-          required: ["query"],
+          required: [],
           properties: %{
             query: %{
               type: "string",
@@ -29,17 +31,28 @@ defmodule AI.Tools.SearchNotes do
 
   @impl AI.Tools
   def call(_agent, args) do
-    with {:ok, query} <- Map.fetch(args, "query") do
-      project = Store.get_project()
+    query = Map.get(args, "query", nil)
+    project = Store.get_project()
 
-      Store.Note.search(project, query)
-      |> Enum.reduce([], fn {_score, note}, acc ->
-        with {:ok, text} <- Store.Note.read_note(note) do
-          [text | acc]
-        end
-      end)
-      |> Enum.reverse()
-      |> then(&{:ok, &1})
-    end
+    project
+    |> get_notes(query)
+    |> then(&{:ok, &1})
+  end
+
+  defp get_notes(project, nil) do
+    project
+    |> Store.Note.list_notes()
+    |> Enum.map(&Store.Note.read_note/1)
+  end
+
+  defp get_notes(project, query) do
+    project
+    |> Store.Note.search(query)
+    |> Enum.reduce([], fn {_score, note}, acc ->
+      with {:ok, text} <- Store.Note.read_note(note) do
+        [text | acc]
+      end
+    end)
+    |> Enum.reverse()
   end
 end

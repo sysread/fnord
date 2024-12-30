@@ -1,6 +1,8 @@
 defmodule UI do
   require Logger
 
+  def confirm(msg), do: confirm(msg, false)
+
   def confirm(_msg, true), do: true
 
   def confirm(msg, _default) do

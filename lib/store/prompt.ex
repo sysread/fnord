@@ -340,6 +340,7 @@ defmodule Store.Prompt do
       prompt = new(id)
 
       if differs?(prompt, prompt_str, questions) do
+        UI.info("Saving research prompt: #{title}")
         write(prompt, title, prompt_str, questions)
       end
     end)

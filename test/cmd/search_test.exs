@@ -27,7 +27,7 @@ defmodule Cmd.SearchTest do
         MockIndexerForSearch
       )
 
-    Cmd.Index.index_project(idx)
+    Cmd.Index.perform_task(idx)
 
     # Define search options
     search_opts = %{
