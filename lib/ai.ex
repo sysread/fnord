@@ -86,7 +86,9 @@ defmodule AI do
   end
 
   defp get_embedding(ai, request, max, attempt) do
-    if attempt > 1, do: Process.sleep(@retry_interval)
+    if attempt > 1 do
+      Process.sleep(@retry_interval)
+    end
 
     AI.OpenAI
     |> apply(:get_embedding, request)
