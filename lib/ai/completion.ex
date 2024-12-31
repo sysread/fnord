@@ -304,8 +304,12 @@ defmodule AI.Completion do
     log_tool_call(state, "Saving research", args["notes"] |> Enum.join(" | "))
   end
 
-  defp on_event(state, :tool_call, {"search_notes_tool", args}) do
-    log_tool_call(state, "Searching prior research", args["query"])
+  defp on_event(state, :tool_call, {"search_notes_tool", %{"query" => query}}) do
+    log_tool_call(state, "Searching prior research", query)
+  end
+
+  defp on_event(state, :tool_call, {"search_notes_tool", _args}) do
+    log_tool_call(state, "Searching prior research")
   end
 
   defp on_event(state, :tool_call_result, {"search_notes_tool", _, {:ok, notes}}) do
