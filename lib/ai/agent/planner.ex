@@ -20,6 +20,7 @@ defmodule AI.Agent.Planner do
   3. **Select and Adapt Research Strategies**:
   - Unless explicitly instructed otherwise in the user's query, use the search_strategies_tool to identify useful research strategies.
   - Select and adapt an existing strategy to fit the query context and specific user needs.
+  - Include the research strategy's ID number. You may need it later in step 5.
   - Use the information you learned in step 2 to refine your strategy.
   - Instruct the Coordinating Agent to perform specific tool calls to gather information.
   - Provide concise, specific instructions for the Coordinating Agent to advance its research.
