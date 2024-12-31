@@ -41,15 +41,21 @@ defmodule AI.Tools.SearchNotes do
 
   defp get_notes(project, nil) do
     project
-    |> Store.Note.list_notes()
-    |> Enum.map(&Store.Note.read_note/1)
+    |> Store.Project.notes()
+    |> Enum.reduce([], fn note, acc ->
+      with {:ok, text} <- Store.Project.Note.read_note(note) do
+        [text | acc]
+      else
+        _ -> acc
+      end
+    end)
   end
 
   defp get_notes(project, query) do
     project
-    |> Store.Note.search(query)
+    |> Store.Project.search_notes(query)
     |> Enum.reduce([], fn {_score, note}, acc ->
-      with {:ok, text} <- Store.Note.read_note(note) do
+      with {:ok, text} <- Store.Project.Note.read_note(note) do
         [text | acc]
       end
     end)

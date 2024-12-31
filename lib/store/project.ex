@@ -3,8 +3,13 @@ defmodule Store.Project do
     :name,
     :store_path,
     :source_root,
-    :exclude
+    :exclude,
+    :conversation_dir,
+    :notes_dir
   ]
+
+  @conversation_dir "conversations"
+  @notes_dir "notes"
 
   def new(project_name, store_path) do
     settings = Settings.new() |> Settings.get(project_name, %{})
@@ -15,7 +20,9 @@ defmodule Store.Project do
       name: project_name,
       store_path: store_path,
       source_root: root,
-      exclude: exclude
+      exclude: exclude,
+      conversation_dir: Path.join(store_path, @conversation_dir),
+      notes_dir: Path.join(store_path, @notes_dir)
     }
   end
 
@@ -105,7 +112,7 @@ defmodule Store.Project do
     # the individual entry.
     |> Enum.map(&Path.dirname/1)
     # Create an Entry for each directory.
-    |> Enum.map(&Store.Entry.new_from_entry_path(project, &1))
+    |> Enum.map(&Store.Project.Entry.new_from_entry_path(project, &1))
   end
 
   def source_files(project) do
@@ -113,13 +120,13 @@ defmodule Store.Project do
 
     DirStream.new(project.source_root, &want_dir?(&1, excluded, project.source_root))
     |> Stream.filter(&want_file?(&1, excluded, project.source_root))
-    |> Stream.map(&Store.Entry.new_from_file_path(project, &1))
+    |> Stream.map(&Store.Project.Entry.new_from_file_path(project, &1))
   end
 
   def stale_source_files(project) do
     project
     |> source_files()
-    |> Stream.filter(&Store.Entry.is_stale?/1)
+    |> Stream.filter(&Store.Project.Entry.is_stale?/1)
   end
 
   def delete_missing_files(project) do
@@ -129,26 +136,29 @@ defmodule Store.Project do
     |> stored_files()
     |> Enum.each(fn entry ->
       cond do
-        !Store.Entry.source_file_exists?(entry) -> Store.Entry.delete(entry)
-        Store.Entry.is_git_ignored?(entry) -> Store.Entry.delete(entry)
-        MapSet.member?(excluded_files, entry.file) -> Store.Entry.delete(entry)
+        !Store.Project.Entry.source_file_exists?(entry) -> Store.Project.Entry.delete(entry)
+        Store.Project.Entry.is_git_ignored?(entry) -> Store.Project.Entry.delete(entry)
+        MapSet.member?(excluded_files, entry.file) -> Store.Project.Entry.delete(entry)
         true -> is_text?(entry.file)
       end
     end)
   end
 
+  # -----------------------------------------------------------------------------
+  # Conversations
+  # -----------------------------------------------------------------------------
   def conversations(project) do
     conversations =
       project.store_path
       |> Path.join(["conversations/*.json"])
       |> Path.wildcard()
       |> Enum.map(&Path.basename(&1, ".json"))
-      |> Enum.map(&Store.Conversation.new(&1, project))
+      |> Enum.map(&Store.Project.Conversation.new(&1, project))
 
     timestamps =
       conversations
       |> Enum.reduce(%{}, fn conversation, acc ->
-        timestamp = Store.Conversation.timestamp(conversation)
+        timestamp = Store.Project.Conversation.timestamp(conversation)
         Map.put(acc, conversation.id, timestamp)
       end)
 
@@ -156,6 +166,46 @@ defmodule Store.Project do
     |> Enum.sort(fn a, b ->
       timestamps[a.id] > timestamps[b.id]
     end)
+  end
+
+  # -----------------------------------------------------------------------------
+  # Notes
+  # -----------------------------------------------------------------------------
+  def notes(project) do
+    project.notes_dir
+    |> File.ls()
+    |> case do
+      {:ok, dirs} ->
+        dirs
+        |> Enum.sort()
+        |> Enum.map(fn id ->
+          Store.Project.Note.new(project, id)
+        end)
+
+      _ ->
+        []
+    end
+  end
+
+  def search_notes(project, query, max_results \\ 20) do
+    needle = AI.Util.generate_embeddings!(query)
+
+    project
+    |> notes()
+    |> Enum.reduce([], fn note, acc ->
+      with {:ok, embeddings} <- Store.Project.Note.read_embeddings(note) do
+        score = AI.Util.cosine_similarity(needle, embeddings)
+        [{score, note} | acc]
+      else
+        _ -> acc
+      end
+    end)
+    |> Enum.sort(fn {a, _}, {b, _} -> a >= b end)
+    |> Enum.take(max_results)
+  end
+
+  def reset_notes(project) do
+    File.rm_rf(project.notes_dir)
   end
 
   # -----------------------------------------------------------------------------

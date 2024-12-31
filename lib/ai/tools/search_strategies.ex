@@ -50,7 +50,7 @@ defmodule AI.Tools.SearchStrategies do
   def call(_agent, args) do
     with {:ok, query} <- Map.fetch(args, "query") do
       query
-      |> Store.Prompt.search()
+      |> Store.search_prompts()
       |> Enum.reduce([], fn {score, prompt}, acc ->
         with {:ok, info} <- Store.Prompt.read(prompt) do
           data = %{

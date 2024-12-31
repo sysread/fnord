@@ -38,6 +38,18 @@ defmodule AI.Util do
     end
   end
 
+  def generate_embeddings!(text) do
+    AI.new()
+    |> AI.get_embeddings(text)
+    |> case do
+      {:ok, embeddings} ->
+        Enum.zip_with(embeddings, &Enum.max/1)
+
+      {:error, reason} ->
+        raise "Failed to generate embeddings: #{inspect(reason)}"
+    end
+  end
+
   # -----------------------------------------------------------------------------
   # Messages
   # -----------------------------------------------------------------------------

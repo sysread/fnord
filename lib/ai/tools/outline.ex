@@ -31,7 +31,7 @@ defmodule AI.Tools.Outline do
     with {:ok, file} <- Map.fetch(args, "file"),
          {:ok, project} <- get_project(),
          {:ok, entry} <- get_entry(project, file) do
-      Store.Entry.read_outline(entry)
+      Store.Project.Entry.read_outline(entry)
     end
   end
 
@@ -46,9 +46,9 @@ defmodule AI.Tools.Outline do
   end
 
   defp get_entry(project, file) do
-    entry = Store.Entry.new_from_file_path(project, file)
+    entry = Store.Project.Entry.new_from_file_path(project, file)
 
-    if Store.Entry.exists_in_store?(entry) do
+    if Store.Project.Entry.exists_in_store?(entry) do
       {:ok, entry}
     else
       {:error, :entry_not_found}

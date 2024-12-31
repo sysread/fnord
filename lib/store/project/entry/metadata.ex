@@ -1,11 +1,11 @@
-defmodule Store.Metadata do
+defmodule Store.Project.Entry.Metadata do
   defstruct [:store_path, :source_file]
 
   @filename "metadata.json"
 
-  @behaviour Store.EntryFile
+  @behaviour Store.Project.EntryFile
 
-  @impl Store.EntryFile
+  @impl Store.Project.EntryFile
   def new(entry_path, source_file) do
     %__MODULE__{
       store_path: Path.join(entry_path, @filename),
@@ -13,13 +13,13 @@ defmodule Store.Metadata do
     }
   end
 
-  @impl Store.EntryFile
+  @impl Store.Project.EntryFile
   def exists?(file), do: file |> store_path() |> File.exists?()
 
-  @impl Store.EntryFile
+  @impl Store.Project.EntryFile
   def store_path(file), do: file.store_path
 
-  @impl Store.EntryFile
+  @impl Store.Project.EntryFile
   def read(file) do
     file.store_path
     |> File.read()
@@ -29,7 +29,7 @@ defmodule Store.Metadata do
     end
   end
 
-  @impl Store.EntryFile
+  @impl Store.Project.EntryFile
   def write(file, _) do
     %{
       file: file.source_file,

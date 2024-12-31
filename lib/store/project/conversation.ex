@@ -1,4 +1,4 @@
-defmodule Store.Conversation do
+defmodule Store.Project.Conversation do
   defstruct [
     :project,
     :store_path,

@@ -1,11 +1,11 @@
-defmodule Store.Embeddings do
+defmodule Store.Project.Entry.Embeddings do
   defstruct [:store_path, :source_file]
 
   @filename "embeddings.json"
 
-  @behaviour Store.EntryFile
+  @behaviour Store.Project.EntryFile
 
-  @impl Store.EntryFile
+  @impl Store.Project.EntryFile
   def new(entry_path, source_file) do
     entry = %__MODULE__{
       store_path: Path.join(entry_path, @filename),
@@ -27,13 +27,13 @@ defmodule Store.Embeddings do
     entry
   end
 
-  @impl Store.EntryFile
+  @impl Store.Project.EntryFile
   def store_path(entry), do: entry.store_path
 
-  @impl Store.EntryFile
+  @impl Store.Project.EntryFile
   def exists?(entry), do: File.exists?(entry.store_path)
 
-  @impl Store.EntryFile
+  @impl Store.Project.EntryFile
   def read(entry) do
     entry
     |> store_path()
@@ -44,7 +44,7 @@ defmodule Store.Embeddings do
     end
   end
 
-  @impl Store.EntryFile
+  @impl Store.Project.EntryFile
   def write(entry, embeddings) do
     # Embeddings used to be stored separately for each chunk of the file (when
     # the file was too large for the model to process in one go). This is no

@@ -1,4 +1,4 @@
-defmodule Store.Entry do
+defmodule Store.Project.Entry do
   defstruct [
     :project,
     :file,
@@ -17,10 +17,10 @@ defmodule Store.Entry do
 
     key = key(abs_path)
     store_path = Path.join(project.store_path, key)
-    metadata = Store.Metadata.new(store_path, abs_path)
-    summary = Store.Summary.new(store_path, abs_path)
-    outline = Store.Outline.new(store_path, abs_path)
-    embeddings = Store.Embeddings.new(store_path, abs_path)
+    metadata = Store.Project.Entry.Metadata.new(store_path, abs_path)
+    summary = Store.Project.Entry.Summary.new(store_path, abs_path)
+    outline = Store.Project.Entry.Outline.new(store_path, abs_path)
+    embeddings = Store.Project.Entry.Embeddings.new(store_path, abs_path)
 
     %__MODULE__{
       project: project,
@@ -127,34 +127,38 @@ defmodule Store.Entry do
   # -----------------------------------------------------------------------------
   # metadata.json
   # -----------------------------------------------------------------------------
-  def metadata_file_path(entry), do: Store.Metadata.store_path(entry.metadata)
-  def has_metadata?(entry), do: Store.Metadata.exists?(entry.metadata)
-  def read_metadata(entry), do: Store.Metadata.read(entry.metadata)
-  def save_metadata(entry), do: Store.Metadata.write(entry.metadata, nil)
+  def metadata_file_path(entry), do: Store.Project.Entry.Metadata.store_path(entry.metadata)
+  def has_metadata?(entry), do: Store.Project.Entry.Metadata.exists?(entry.metadata)
+  def read_metadata(entry), do: Store.Project.Entry.Metadata.read(entry.metadata)
+  def save_metadata(entry), do: Store.Project.Entry.Metadata.write(entry.metadata, nil)
 
   # -----------------------------------------------------------------------------
   # summary
   # -----------------------------------------------------------------------------
-  def summary_file_path(entry), do: Store.Summary.store_path(entry.summary)
-  def has_summary?(entry), do: Store.Summary.exists?(entry.summary)
-  def read_summary(entry), do: Store.Summary.read(entry.summary)
-  def save_summary(entry, data), do: Store.Summary.write(entry.summary, data)
+  def summary_file_path(entry), do: Store.Project.Entry.Summary.store_path(entry.summary)
+  def has_summary?(entry), do: Store.Project.Entry.Summary.exists?(entry.summary)
+  def read_summary(entry), do: Store.Project.Entry.Summary.read(entry.summary)
+  def save_summary(entry, data), do: Store.Project.Entry.Summary.write(entry.summary, data)
 
   # -----------------------------------------------------------------------------
   # outline
   # -----------------------------------------------------------------------------
-  def outline_file_path(entry), do: Store.Outline.store_path(entry.outline)
-  def has_outline?(entry), do: Store.Outline.exists?(entry.outline)
-  def read_outline(entry), do: Store.Outline.read(entry.outline)
-  def save_outline(entry, data), do: Store.Outline.write(entry.outline, data)
+  def outline_file_path(entry), do: Store.Project.Entry.Outline.store_path(entry.outline)
+  def has_outline?(entry), do: Store.Project.Entry.Outline.exists?(entry.outline)
+  def read_outline(entry), do: Store.Project.Entry.Outline.read(entry.outline)
+  def save_outline(entry, data), do: Store.Project.Entry.Outline.write(entry.outline, data)
 
   # -----------------------------------------------------------------------------
   # embeddings
   # -----------------------------------------------------------------------------
-  def embeddings_file_paths(entry), do: Store.Embeddings.store_path(entry.embeddings)
-  def has_embeddings?(entry), do: Store.Embeddings.exists?(entry.embeddings)
-  def read_embeddings(entry), do: Store.Embeddings.read(entry.embeddings)
-  def save_embeddings(entry, embeddings), do: Store.Embeddings.write(entry.embeddings, embeddings)
+  def embeddings_file_paths(entry),
+    do: Store.Project.Entry.Embeddings.store_path(entry.embeddings)
+
+  def has_embeddings?(entry), do: Store.Project.Entry.Embeddings.exists?(entry.embeddings)
+  def read_embeddings(entry), do: Store.Project.Entry.Embeddings.read(entry.embeddings)
+
+  def save_embeddings(entry, embeddings),
+    do: Store.Project.Entry.Embeddings.write(entry.embeddings, embeddings)
 
   # -----------------------------------------------------------------------------
   # Private functions

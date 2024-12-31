@@ -58,10 +58,10 @@ defmodule AI.Tools.FileContents do
 
   defp get_file_contents(file) do
     project = Store.get_project()
-    entry = Store.Entry.new_from_file_path(project, file)
+    entry = Store.Project.Entry.new_from_file_path(project, file)
 
-    if Store.Entry.source_file_exists?(entry) do
-      Store.Entry.read_source_file(entry)
+    if Store.Project.Entry.source_file_exists?(entry) do
+      Store.Project.Entry.read_source_file(entry)
     else
       {:error, :enoent}
     end

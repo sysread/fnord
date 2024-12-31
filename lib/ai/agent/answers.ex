@@ -66,6 +66,7 @@ defmodule AI.Agent.Answers do
       - "- Ada Lovelace, in her famous cookbook"
       - "- Abraham Lincoln, live on Tic Tok at Gettysburg"
       - "- Taylor Swift, in her keynote at The Perl Conference (no, not that one, the new one, where she did the round table with Merlyn)"
+      - "- The Jargon File, updated so all definitions are in Gen Z slang"
   ]
   """
 
@@ -117,7 +118,7 @@ defmodule AI.Agent.Answers do
   # Private functions
   # -----------------------------------------------------------------------------
   defp save_conversation(%AI.Completion{messages: messages}, %{conversation: conversation}) do
-    Store.Conversation.write(conversation, __MODULE__, messages)
+    Store.Project.Conversation.write(conversation, __MODULE__, messages)
     UI.debug("Conversation saved to file", conversation.store_path)
     UI.report_step("Conversation saved", conversation.id)
   end
@@ -165,8 +166,9 @@ defmodule AI.Agent.Answers do
   defp build_messages(%{conversation: conversation} = opts, includes) do
     user_msg = user_prompt(opts.question, includes)
 
-    if Store.Conversation.exists?(conversation) do
-      with {:ok, _timestamp, %{"messages" => messages}} <- Store.Conversation.read(conversation) do
+    if Store.Project.Conversation.exists?(conversation) do
+      with {:ok, _timestamp, %{"messages" => messages}} <-
+             Store.Project.Conversation.read(conversation) do
         # Conversations are stored as JSON and parsed into a map with string
         # keys, so we need to convert the keys to atoms.
         messages =

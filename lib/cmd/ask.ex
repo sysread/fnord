@@ -82,7 +82,7 @@ defmodule Cmd.Ask do
   end
 
   defp get_conversation(%{follow: conversation_id}) when is_binary(conversation_id) do
-    Store.Conversation.new(conversation_id)
+    Store.Project.Conversation.new(conversation_id)
   end
 
   defp get_conversation(%{continue: true}) do
@@ -92,6 +92,6 @@ defmodule Cmd.Ask do
   end
 
   defp get_conversation(_opts) do
-    Store.Conversation.new()
+    Store.Project.Conversation.new()
   end
 end

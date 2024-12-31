@@ -51,9 +51,6 @@ defmodule Store.Prompt do
   # ----------------------------------------------------------------------------
   @initial_strategies YamlElixir.read_from_file!("data/prompts.yaml")
 
-  # -----------------------------------------------------------------------------
-  # Instance functions
-  # -----------------------------------------------------------------------------
   def new(), do: new(UUID.uuid4())
   def new(nil), do: new(UUID.uuid4())
 
@@ -72,7 +69,7 @@ defmodule Store.Prompt do
   def write(prompt, title, prompt_text, questions) do
     qstr = format_questions(questions)
 
-    list_prompts()
+    Store.list_prompts()
     |> Enum.find(fn p ->
       with {:ok, version} <- get_current_version_number(p),
            {:ok, old_title} when old_title == title <- read_title(p, version),
@@ -128,7 +125,7 @@ defmodule Store.Prompt do
     # --------------------------------------------------------------------------
     embeddings_json =
       "# #{title}\n#{prompt_text}\n\n#{questions}"
-      |> generate_embeddings!()
+      |> AI.Util.generate_embeddings!()
       |> Jason.encode!()
 
     prompt_path
@@ -225,55 +222,9 @@ defmodule Store.Prompt do
     end
   end
 
-  # -----------------------------------------------------------------------------
-  # Common functions
-  # -----------------------------------------------------------------------------
-  def list_prompts() do
-    Store.store_home()
-    |> Path.join(@store_dir)
-    |> File.ls()
-    |> case do
-      {:ok, dirs} ->
-        dirs
-        |> Enum.sort()
-        |> Enum.map(&new(&1))
-
-      _ ->
-        []
-    end
-  end
-
-  def search(query, max_results \\ 10) do
-    install_initial_strategies()
-
-    needle = generate_embeddings!(query)
-
-    list_prompts()
-    |> Enum.reduce([], fn prompt, acc ->
-      with {:ok, version} = get_current_version_number(prompt),
-           {:ok, embeddings} <- read_embeddings(prompt, version) do
-        score = AI.Util.cosine_similarity(needle, embeddings)
-        [{score, prompt} | acc]
-      else
-        _ -> acc
-      end
-    end)
-    |> Enum.sort(fn {a, _}, {b, _} -> a >= b end)
-    |> Enum.take(max_results)
-  end
-
   # ----------------------------------------------------------------------------
   # Private functions
   # ----------------------------------------------------------------------------
-  defp generate_embeddings!(text) do
-    AI.new()
-    |> AI.get_embeddings(text)
-    |> case do
-      {:ok, embeddings} -> Enum.zip_with(embeddings, &Enum.max/1)
-      {:error, reason} -> raise "Failed to generate embeddings: #{inspect(reason)}"
-    end
-  end
-
   defp format_questions(questions) do
     questions
     |> Enum.map(&"- #{&1}")

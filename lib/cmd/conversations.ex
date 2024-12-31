@@ -39,7 +39,8 @@ defmodule Cmd.Conversations do
     question = opts[:question]
     file = opts[:file]
 
-    Store.list_conversations()
+    Store.get_project()
+    |> Store.Project.conversations()
     |> case do
       [] ->
         IO.puts("No conversations found.")
@@ -67,7 +68,7 @@ defmodule Cmd.Conversations do
                   taken
                 end
 
-              {:ok, question} = Store.Conversation.question(conversation)
+              {:ok, question} = Store.Project.Conversation.question(conversation)
               [IO.ANSI.format([:cyan, ellipsis(question, cols - taken), :reset]) | out]
             else
               out

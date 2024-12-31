@@ -137,108 +137,142 @@ defmodule Cmd.Index do
   defp quiet?(), do: Application.get_env(:fnord, :quiet)
   defp reindex?(idx), do: Map.get(idx.opts, :reindex, false)
 
-  # -----------------------------------------------------------------------------
-  # Verifying saved notes
-  # -----------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
+  # Notes
+  # ----------------------------------------------------------------------------
   defp defrag_notes(idx) do
-    notes =
-      idx.project
-      |> Store.Note.list_notes()
-      |> Enum.reduce([], fn note, acc ->
-        with {:ok, text} <- Store.Note.read_note(note) do
-          [text | acc]
-        else
-          _ -> acc
-        end
-      end)
-      |> Enum.reverse()
+    original_notes = get_notes(idx)
+    original_count = Enum.count(original_notes)
 
-    consolidate_saved_notes(idx, notes)
+    with {:ok, consolidated} <- consolidate_saved_notes(idx, original_notes),
+         {:ok, fact_checked} <- fact_check_saved_notes(idx, consolidated),
+         :ok <- confirm_updated_notes(idx, fact_checked, original_count) do
+      save_updated_notes(idx, fact_checked)
+    else
+      :aborted -> UI.warn("Defragmenting notes", "Aborted at user request")
+      error -> UI.warn("Defragmenting notes", inspect(error))
+    end
   end
 
+  defp get_notes(idx) do
+    idx.project
+    |> Store.Project.notes()
+    |> Enum.reduce([], fn note, acc ->
+      with {:ok, text} <- Store.Project.Note.read_note(note) do
+        [text | acc]
+      else
+        _ -> acc
+      end
+    end)
+    |> Enum.reverse()
+  end
+
+  defp confirm_updated_notes(_idx, notes, original_count) do
+    IO.puts("# Defragmented Notes")
+    notes |> Enum.each(fn text -> IO.puts("- #{text}") end)
+    new_count = Enum.count(notes)
+
+    difference =
+      ((new_count - original_count) / original_count * 100)
+      |> Float.round(0)
+      |> trunc()
+      |> abs()
+
+    IO.puts("""
+
+    There is a #{difference}% change in note count:
+      * Original: #{original_count}
+      *  Updated: #{new_count}
+
+    """)
+
+    if difference > 25 do
+      msg =
+        [
+          :red,
+          """
+          >>> WARNING! <<<
+          ! The updated notes differ by #{difference}% from the original notes.
+          ! Check the updated notes carefully before proceeding.
+          """,
+          :reset
+        ]
+        |> IO.ANSI.format()
+
+      IO.puts(msg)
+    end
+
+    if UI.confirm("Replace your saved notes with the updated list?") do
+      :ok
+    else
+      :aborted
+    end
+  end
+
+  defp save_updated_notes(idx, notes) do
+    count = Enum.count(notes)
+
+    spin("Updating notes", fn ->
+      {:ok, queue} =
+        Queue.start_link(fn text ->
+          idx.project
+          |> Store.Project.Note.new()
+          |> Store.Project.Note.write(text)
+        end)
+
+      UI.report_step("Clearing old notes")
+      Store.Project.reset_notes(idx.project)
+
+      # queue files
+      Enum.each(notes, &Queue.queue(queue, &1))
+
+      # wait on queue to complete
+      Queue.shutdown(queue)
+      Queue.join(queue)
+
+      {"#{count} notes saved", :ok}
+    end)
+
+    UI.info("Notes saved.")
+  end
+
+  # ----------------------------------------------------------------------------
+  # Consolidating saved notes
+  # ----------------------------------------------------------------------------
   defp consolidate_saved_notes(_idx, []) do
-    UI.warn("Verifying prior research: nothing to do")
+    UI.info("Consolidating prior research", "Nothing to do")
+    {:ok, []}
   end
 
-  defp consolidate_saved_notes(idx, original_notes) do
-    total = Enum.count(original_notes)
-    UI.report_step("Consolidating and fact-checking prior research", "Analyzing #{total} notes")
+  defp consolidate_saved_notes(_idx, original_notes) do
+    original_count = Enum.count(original_notes)
+    UI.report_step("Consolidating prior research", "Analyzing #{original_count} notes")
 
     AI.new()
     |> AI.Agent.NotesConsolidator.get_response(%{notes: original_notes})
     |> case do
-      {:ok, notes} ->
-        IO.puts("# Consolidated Notes")
+      {:ok, notes} -> {:ok, String.split(notes, "\n")}
+      error -> {:error, error}
+    end
+  end
 
-        notes = String.split(notes, "\n")
+  # ----------------------------------------------------------------------------
+  # Fact-checking
+  # ----------------------------------------------------------------------------
+  defp fact_check_saved_notes(_idx, []) do
+    UI.info("Fact-checking prior research", "Nothing to do")
+    {:ok, []}
+  end
 
-        notes
-        |> Enum.each(fn text ->
-          IO.puts("- #{text}")
-        end)
+  defp fact_check_saved_notes(_idx, original_notes) do
+    original_count = Enum.count(original_notes)
+    UI.report_step("Fact-checking prior research", "Analyzing #{original_count} notes")
 
-        original_count = Enum.count(original_notes)
-        new_count = Enum.count(notes)
-
-        difference =
-          ((new_count - original_count) / original_count * 100)
-          |> Float.round(0)
-          |> trunc()
-          |> abs()
-
-        IO.puts("""
-
-        There is a #{difference}% change in note count:
-          * Original: #{original_count}
-          *  Updated: #{new_count}
-
-        """)
-
-        if difference > 25 do
-          msg =
-            [
-              :red,
-              """
-              >>> WARNING! <<<
-              ! The consolidated notes differ by #{difference}% from the original notes.
-              ! Check the consolidated notes carefully before proceeding.
-              """,
-              :reset
-            ]
-            |> IO.ANSI.format()
-
-          IO.puts(msg)
-        end
-
-        if UI.confirm("Replace your saved notes with the consolidated list?") do
-          spin("Saving consolidated notes", fn ->
-            {:ok, queue} =
-              Queue.start_link(fn text ->
-                idx.project
-                |> Store.Note.new()
-                |> Store.Note.write(text)
-              end)
-
-            UI.report_step("Clearing old notes")
-            Store.Note.reset_project_notes(idx.project)
-
-            # queue files
-            Enum.each(notes, &Queue.queue(queue, &1))
-
-            # wait on queue to complete
-            Queue.shutdown(queue)
-            Queue.join(queue)
-
-            {"#{new_count} notes saved", :ok}
-          end)
-
-          UI.info("Notes saved.")
-        else
-          UI.warn("Consolidation of notes aborted at user request")
-        end
-
-      error ->
-        UI.warn("Error consolidating notes", inspect(error))
+    AI.new()
+    |> AI.Agent.NotesVerifier.get_response(%{notes: original_notes})
+    |> case do
+      {:ok, notes} -> {:ok, String.split(notes, "\n")}
+      error -> {:error, error}
     end
   end
 
@@ -289,10 +323,10 @@ defmodule Cmd.Index do
   end
 
   defp process_entry(idx, entry) do
-    with {:ok, contents} <- Store.Entry.read_source_file(entry),
+    with {:ok, contents} <- Store.Project.Entry.read_source_file(entry),
          {:ok, summary, outline} <- get_derivatives(idx, entry.file, contents),
          {:ok, embeddings} <- get_embeddings(idx, entry.file, summary, outline, contents),
-         :ok <- Store.Entry.save(entry, summary, outline, embeddings) do
+         :ok <- Store.Project.Entry.save(entry, summary, outline, embeddings) do
       UI.debug("✓ #{entry.file}")
       :ok
     else

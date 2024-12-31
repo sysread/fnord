@@ -41,8 +41,8 @@ defmodule AI.Tools.SaveNotes do
 
       Enum.each(notes, fn note ->
         project
-        |> Store.Note.new()
-        |> Store.Note.write(note)
+        |> Store.Project.Note.new()
+        |> Store.Project.Note.write(note)
       end)
 
       {:ok, "Notes saved."}

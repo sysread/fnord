@@ -1,4 +1,4 @@
-defmodule Store.OutlineTest do
+defmodule Store.Project.Entry.OutlineTest do
   use ExUnit.Case
 
   setup do
@@ -16,7 +16,7 @@ defmodule Store.OutlineTest do
     entry_path: entry_path,
     source_file: source_file
   } do
-    outline = Store.Outline.new(entry_path, source_file)
+    outline = Store.Project.Entry.Outline.new(entry_path, source_file)
 
     assert outline.store_path == Path.join(entry_path, "outline")
     assert outline.source_file == source_file
@@ -26,54 +26,54 @@ defmodule Store.OutlineTest do
     entry_path: entry_path,
     source_file: source_file
   } do
-    outline = Store.Outline.new(entry_path, source_file)
+    outline = Store.Project.Entry.Outline.new(entry_path, source_file)
 
-    assert Store.Outline.store_path(outline) == Path.join(entry_path, "outline")
+    assert Store.Project.Entry.Outline.store_path(outline) == Path.join(entry_path, "outline")
   end
 
   test "exists?/1 returns true if file exists", %{entry_path: entry_path} do
     store_path = Path.join(entry_path, "outline")
     File.write!(store_path, "test data")
 
-    outline = Store.Outline.new(entry_path, "dummy_source")
+    outline = Store.Project.Entry.Outline.new(entry_path, "dummy_source")
 
-    assert Store.Outline.exists?(outline)
+    assert Store.Project.Entry.Outline.exists?(outline)
   end
 
   test "exists?/1 returns false if file does not exist", %{entry_path: entry_path} do
     store_path = Path.join(entry_path, "outline")
     File.rm(store_path)
 
-    outline = Store.Outline.new(entry_path, "dummy_source")
+    outline = Store.Project.Entry.Outline.new(entry_path, "dummy_source")
 
-    refute Store.Outline.exists?(outline)
+    refute Store.Project.Entry.Outline.exists?(outline)
   end
 
   test "read/1 reads the file contents", %{entry_path: entry_path} do
     store_path = Path.join(entry_path, "outline")
     File.write!(store_path, "test data")
 
-    outline = Store.Outline.new(entry_path, "dummy_source")
+    outline = Store.Project.Entry.Outline.new(entry_path, "dummy_source")
 
-    assert Store.Outline.read(outline) == {:ok, "test data"}
+    assert Store.Project.Entry.Outline.read(outline) == {:ok, "test data"}
   end
 
   test "read/1 returns error if file does not exist", %{entry_path: entry_path} do
-    outline = Store.Outline.new(entry_path, "dummy_source")
+    outline = Store.Project.Entry.Outline.new(entry_path, "dummy_source")
 
-    assert {:error, _reason} = Store.Outline.read(outline)
+    assert {:error, _reason} = Store.Project.Entry.Outline.read(outline)
   end
 
   test "write/2 writes binary data to file", %{entry_path: entry_path} do
-    outline = Store.Outline.new(entry_path, "dummy_source")
-    assert :ok == Store.Outline.write(outline, "new data")
+    outline = Store.Project.Entry.Outline.new(entry_path, "dummy_source")
+    assert :ok == Store.Project.Entry.Outline.write(outline, "new data")
 
-    assert File.read!(Store.Outline.store_path(outline)) == "new data"
+    assert File.read!(Store.Project.Entry.Outline.store_path(outline)) == "new data"
   end
 
   test "write/2 returns error if data is not binary", %{entry_path: entry_path} do
-    outline = Store.Outline.new(entry_path, "dummy_source")
+    outline = Store.Project.Entry.Outline.new(entry_path, "dummy_source")
 
-    assert {:error, :unsupported} == Store.Outline.write(outline, 12345)
+    assert {:error, :unsupported} == Store.Project.Entry.Outline.write(outline, 12345)
   end
 end

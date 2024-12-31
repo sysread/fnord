@@ -53,9 +53,9 @@ defmodule Search do
 
   defp get_file_data(search, entry) do
     if search.detail do
-      Store.Entry.read(entry)
+      Store.Project.Entry.read(entry)
     else
-      with {:ok, embeddings} <- Store.Entry.read_embeddings(entry) do
+      with {:ok, embeddings} <- Store.Project.Entry.read_embeddings(entry) do
         {:ok, %{"embeddings" => embeddings}}
       end
     end

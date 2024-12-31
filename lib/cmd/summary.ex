@@ -34,8 +34,8 @@ defmodule Cmd.Summary do
     project = Store.get_project(opts.project)
 
     with {:ok, entry} <- get_file(project, file_path),
-         {:ok, summary} <- Store.Entry.read_summary(entry),
-         {:ok, outline} <- Store.Entry.read_outline(entry) do
+         {:ok, summary} <- Store.Project.Entry.read_summary(entry),
+         {:ok, outline} <- Store.Project.Entry.read_outline(entry) do
       IO.puts("# File: `#{file_path}`")
       IO.puts("- Store location: `#{entry.store_path}`")
 
@@ -50,9 +50,9 @@ defmodule Cmd.Summary do
   end
 
   defp get_file(project, file_path) do
-    entry = Store.Entry.new_from_file_path(project, file_path)
+    entry = Store.Project.Entry.new_from_file_path(project, file_path)
 
-    if Store.Entry.exists_in_store?(entry) do
+    if Store.Project.Entry.exists_in_store?(entry) do
       {:ok, entry}
     else
       {:error, :entry_not_found}
