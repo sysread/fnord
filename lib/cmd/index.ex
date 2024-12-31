@@ -250,6 +250,7 @@ defmodule Cmd.Index do
       Store.Project.delete(idx.project)
       UI.report_step("Burned all of the old data to the ground to force a full reindex!")
     else
+      UI.info("Scanning project...")
       Store.Project.delete_missing_files(idx.project)
       UI.report_step("Deleted missing and newly excluded files")
     end
