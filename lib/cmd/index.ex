@@ -82,7 +82,14 @@ defmodule Cmd.Index do
   def perform_task(idx) do
     UI.info("Project", idx.project.name)
     UI.info("   Root", idx.project.source_root)
-    UI.info("Exclude", Enum.join(idx.project.exclude, " | ") || "None")
+
+    UI.info(
+      "Exclude",
+      case idx.project.exclude do
+        nil -> "None"
+        globs -> Enum.join(globs, " | ")
+      end
+    )
 
     Cmd.Index.Embeddings.index_project(idx)
     Cmd.Index.Notes.defrag(idx)

@@ -2,6 +2,24 @@ defmodule AI.Tools.SaveStrategy do
   @behaviour AI.Tools
 
   @impl AI.Tools
+  def ui_note_on_request(%{"title" => title, "id" => id}) do
+    {"Updating research strategy", "#{title} (id: #{id})"}
+  end
+
+  def ui_note_on_request(%{"title" => title}) do
+    {"Saving new research strategy", "#{title}"}
+  end
+
+  @impl AI.Tools
+  def ui_note_on_result(%{"title" => title, "id" => id}, _result) do
+    {"Updated research strategy", "#{title} (id: #{id})"}
+  end
+
+  def ui_note_on_result(%{"title" => title}, _result) do
+    {"Saved new research strategy", "#{title}"}
+  end
+
+  @impl AI.Tools
   def spec() do
     %{
       type: "function",
@@ -29,7 +47,7 @@ defmodule AI.Tools.SaveStrategy do
               description: """
               Existing strategies identified by the search_strategies_tool may
               be updated by providing the ID of the strategy to update. The ID
-              MUST be one provided by the search_strategies_tool.
+              MUST be one provided by the search_strategies_tool, verbatim.
               """
             },
             title: %{

@@ -23,7 +23,25 @@ defmodule AI.Tools do
   Calls the tool with the provided arguments and returns the response as an :ok
   tuple.
   """
-  @callback call(agent :: struct, args :: map) :: {:ok, any()}
+  @callback call(agent :: struct, args :: map) :: {:ok, any}
+
+  @doc """
+  Return either a short string or a string tuple of label + detail to be
+  displayed when the tool is called.
+  """
+  @callback ui_note_on_request(args :: map) ::
+              {String.t(), String.t()}
+              | String.t()
+              | nil
+
+  @doc """
+  Return either a short string or a string tuple of label + detail to be
+  displayed when the tool call is successful.
+  """
+  @callback ui_note_on_result(args :: map, result :: any) ::
+              {String.t(), String.t()}
+              | String.t()
+              | nil
 
   @tools %{
     "file_contents_tool" => AI.Tools.FileContents,
@@ -42,10 +60,28 @@ defmodule AI.Tools do
     "spelunker_tool" => AI.Tools.Spelunker
   }
 
-  def perform_tool_call(state, tool, args) do
+  def tool_module(tool) do
     case Map.get(@tools, tool) do
       nil -> {:error, :unknown_tool, tool}
-      module -> module.call(state, args)
+      module -> {:ok, module}
+    end
+  end
+
+  def perform_tool_call(state, tool, args) do
+    with {:ok, module} <- tool_module(tool) do
+      module.call(state, args)
+    end
+  end
+
+  def on_tool_request(tool, args) do
+    with {:ok, module} <- tool_module(tool) do
+      module.ui_note_on_request(args)
+    end
+  end
+
+  def on_tool_result(tool, args, result) do
+    with {:ok, module} <- tool_module(tool) do
+      module.ui_note_on_result(args, result)
     end
   end
 end

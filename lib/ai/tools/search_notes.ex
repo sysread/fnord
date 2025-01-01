@@ -2,6 +2,22 @@ defmodule AI.Tools.SearchNotes do
   @behaviour AI.Tools
 
   @impl AI.Tools
+  def ui_note_on_request(%{"query" => query}) do
+    {"Searching prior research", query}
+  end
+
+  @impl AI.Tools
+  def ui_note_on_result(_args, result) do
+    notes =
+      result
+      |> Jason.decode!()
+      |> Enum.map(fn note -> "- #{note}" end)
+      |> Enum.join("\n")
+
+    {"Found prior research", "\n#{notes}"}
+  end
+
+  @impl AI.Tools
   def spec() do
     %{
       type: "function",

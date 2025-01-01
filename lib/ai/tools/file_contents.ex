@@ -2,6 +2,12 @@ defmodule AI.Tools.FileContents do
   @behaviour AI.Tools
 
   @impl AI.Tools
+  def ui_note_on_request(args), do: {"Retrieving file", args["file"]}
+
+  @impl AI.Tools
+  def ui_note_on_result(args, _result), do: {"Retrieved file", args["file"]}
+
+  @impl AI.Tools
   def spec() do
     %{
       type: "function",

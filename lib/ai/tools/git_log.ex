@@ -2,6 +2,14 @@ defmodule AI.Tools.GitLog do
   @behaviour AI.Tools
 
   @impl AI.Tools
+  def ui_note_on_request(args) do
+    {"Inspcting git history", inspect(args)}
+  end
+
+  @impl AI.Tools
+  def ui_note_on_result(_args, _result), do: nil
+
+  @impl AI.Tools
   def spec() do
     %{
       type: "function",

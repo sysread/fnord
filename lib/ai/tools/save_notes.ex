@@ -2,6 +2,12 @@ defmodule AI.Tools.SaveNotes do
   @behaviour AI.Tools
 
   @impl AI.Tools
+  def ui_note_on_request(%{"notes" => notes}), do: {"Saving research", Enum.join(notes, "\n")}
+
+  @impl AI.Tools
+  def ui_note_on_result(_args, _result), do: nil
+
+  @impl AI.Tools
   def spec() do
     %{
       type: "function",

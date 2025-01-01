@@ -272,6 +272,12 @@ defmodule AI.Completion do
     end
   end
 
+  defp log_tool_call_result(state, step) do
+    if state.log_tool_call_results do
+      UI.debug(step)
+    end
+  end
+
   defp log_tool_call_result(state, step, msg) do
     if state.log_tool_call_results do
       UI.debug(step, msg)
@@ -298,143 +304,27 @@ defmodule AI.Completion do
   end
 
   # -----------------------------------------------------------------------------
-  # Notes
+  # Tool call logging
   # -----------------------------------------------------------------------------
-  defp on_event(state, :tool_call, {"save_notes_tool", args}) do
-    log_tool_call(state, "Saving research", args["notes"] |> Enum.join(" | "))
+  defp on_event(state, :tool_call, {tool, args}) do
+    AI.Tools.on_tool_request(tool, args)
+    |> case do
+      nil -> state
+      {step, msg} -> log_tool_call(state, step, msg)
+      step -> log_tool_call(state, step)
+    end
   end
 
-  defp on_event(state, :tool_call, {"search_notes_tool", %{"query" => query}}) do
-    log_tool_call(state, "Searching prior research", query)
+  defp on_event(state, :tool_call_result, {tool, args, {:ok, result}}) do
+    AI.Tools.on_tool_result(tool, args, result)
+    |> case do
+      nil -> state
+      {step, msg} -> log_tool_call_result(state, step, msg)
+      step -> log_tool_call_result(state, step)
+    end
   end
 
-  defp on_event(state, :tool_call, {"search_notes_tool", _args}) do
-    log_tool_call(state, "Searching prior research")
-  end
-
-  defp on_event(state, :tool_call_result, {"search_notes_tool", _, {:ok, notes}}) do
-    notes =
-      notes
-      |> Jason.decode!()
-      |> Enum.map(fn note -> "- #{note}" end)
-      |> Enum.join("\n")
-
-    log_tool_call_result(state, "Found prior research", "\n#{notes}")
-  end
-
-  # -----------------------------------------------------------------------------
-  # Research Strategies
-  # -----------------------------------------------------------------------------
-  defp on_event(state, :tool_call, {"search_strategies_tool", %{"query" => query}}) do
-    log_tool_call(state, "Searching for research strategies", query)
-  end
-
-  defp on_event(state, :tool_call_result, {"search_strategies_tool", _, {:ok, strategies}}) do
-    titles =
-      strategies
-      |> Jason.decode!()
-      |> Enum.map(fn %{"title" => title} -> "- #{title}" end)
-      |> Enum.join("\n")
-
-    log_tool_call(state, "Identified possible research strategies", "\n#{titles}")
-  end
-
-  defp on_event(state, :tool_call, {"save_strategy_tool", %{"title" => title, "id" => id}}) do
-    log_tool_call(state, "Updating research strategy", "[id: #{id}] #{title}")
-  end
-
-  defp on_event(state, :tool_call, {"save_strategy_tool", %{"title" => title}}) do
-    log_tool_call(state, "Saving new research strategy", title)
-  end
-
-  defp on_event(
-         state,
-         :tool_call_result,
-         {"save_strategy_tool", %{"title" => title, "id" => id}, {:ok, _}}
-       ) do
-    log_tool_call(state, "Updated research strategy", "[id: #{id}] #{title}")
-  end
-
-  defp on_event(state, :tool_call_result, {"save_strategy_tool", %{"title" => title}, {:ok, _}}) do
-    log_tool_call(state, "Saved new research strategy", title)
-  end
-
-  # ----------------------------------------------------------------------------
-  # Search tool
-  # ----------------------------------------------------------------------------
-  defp on_event(state, :tool_call, {"search_tool", args}) do
-    log_tool_call(state, "Searching", args["query"])
-  end
-
-  # ----------------------------------------------------------------------------
-  # List files tool
-  # ----------------------------------------------------------------------------
-  defp on_event(state, :tool_call, {"list_files_tool", _}) do
-    log_tool_call(state, "Listing files in project")
-  end
-
-  # ----------------------------------------------------------------------------
-  # File contents tool
-  # ----------------------------------------------------------------------------
-  defp on_event(state, :tool_call, {"file_contents_tool", args}) do
-    log_tool_call(state, "Retrieving file", args["file"])
-  end
-
-  defp on_event(state, :tool_call_result, {"file_contents_tool", args, {:ok, _}}) do
-    log_tool_call_result(state, "Retrieved file", args["file"])
-  end
-
-  # ----------------------------------------------------------------------------
-  # File info tool
-  # ----------------------------------------------------------------------------
-  defp on_event(state, :tool_call, {"file_info_tool", args}) do
-    log_tool_call(state, "Considering #{args["file"]}", args["question"])
-  end
-
-  defp on_event(state, :tool_call_result, {"file_info_tool", args, {:ok, response}}) do
-    log_tool_call_result(
-      state,
-      "Considered #{args["file"]}",
-      "#{args["question"]}\n\n#{response}"
-    )
-  end
-
-  # ----------------------------------------------------------------------------
-  # Spelunker tool
-  # ----------------------------------------------------------------------------
-  defp on_event(state, :tool_call, {"spelunker_tool", args}) do
-    msg = "#{args["start_file"]} | #{args["symbol"]}: #{args["question"]}"
-    log_tool_call(state, "Spelunking", msg)
-  end
-
-  defp on_event(state, :tool_call_result, {"spelunker_tool", args, {:ok, response}}) do
-    msg = "#{args["start_file"]} | #{args["symbol"]}: #{args["question"]}\n\n#{response}"
-    log_tool_call_result(state, "Spelunked", msg)
-  end
-
-  # ----------------------------------------------------------------------------
-  # Git tools
-  # ----------------------------------------------------------------------------
-  defp on_event(state, :tool_call, {"git_show_tool", args}) do
-    log_tool_call(state, "Inspecting commit", args["sha"])
-  end
-
-  defp on_event(state, :tool_call, {"git_pickaxe_tool", args}) do
-    log_tool_call(state, "Archaeologizing", args["regex"])
-  end
-
-  defp on_event(state, :tool_call, {"git_diff_branch_tool", args}) do
-    log_tool_call(state, "Diffing branches", "#{args["base"]}..#{args["topic"]}")
-  end
-
-  defp on_event(state, :tool_call, {"git_log_tool", args}) do
-    log_tool_call_result(state, "Inspecting git history", inspect(args))
-  end
-
-  # ----------------------------------------------------------------------------
-  # Fallbacks and error messages
-  # ----------------------------------------------------------------------------
-  defp on_event(state, :tool_call_error, {tool, _, reason}) do
+  defp on_event(state, :tool_call_error, {tool, _, {:error, reason}}) do
     log_tool_call_error(state, tool, reason)
   end
 

@@ -2,6 +2,14 @@ defmodule AI.Tools.GitDiffBranch do
   @behaviour AI.Tools
 
   @impl AI.Tools
+  def ui_note_on_request(%{"base" => base, "topic" => topic}) do
+    {"Diffing branches", "Diffing branches #{base}..#{topic}"}
+  end
+
+  @impl AI.Tools
+  def ui_note_on_result(_args, _result), do: nil
+
+  @impl AI.Tools
   def spec() do
     %{
       type: "function",

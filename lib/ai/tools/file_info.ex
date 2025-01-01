@@ -2,6 +2,16 @@ defmodule AI.Tools.FileInfo do
   @behaviour AI.Tools
 
   @impl AI.Tools
+  def ui_note_on_request(args) do
+    {"Considering #{args["file"]}", args["question"]}
+  end
+
+  @impl AI.Tools
+  def ui_note_on_result(args, result) do
+    {"Considered #{args["file"]}", "#{args["question"]}\n\n#{result}"}
+  end
+
+  @impl AI.Tools
   def spec() do
     %{
       type: "function",

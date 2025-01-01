@@ -57,10 +57,12 @@ defmodule Cmd.Notes do
       notes ->
         notes
         |> Enum.each(fn note ->
-          with {:ok, text} <- Store.Project.Note.read_note(note) do
-            IO.puts("- `#{note.id}` #{text}")
-          else
-            {:error, reason} -> fail(reason)
+          with {:ok, {topic, facts}} <- Store.Project.Note.parse(note) do
+            IO.puts("\n# #{topic}")
+
+            facts
+            |> Enum.map(&"- #{&1}")
+            |> Enum.each(&IO.puts/1)
           end
         end)
     end

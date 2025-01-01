@@ -2,6 +2,22 @@ defmodule AI.Tools.SearchStrategies do
   @behaviour AI.Tools
 
   @impl AI.Tools
+  def ui_note_on_request(%{"query" => query}) do
+    {"Searching for research strategies", query}
+  end
+
+  @impl AI.Tools
+  def ui_note_on_result(_args, result) do
+    titles =
+      result
+      |> Jason.decode!()
+      |> Enum.map(fn %{"title" => title, "id" => id} -> "- #{title} (id: #{id})" end)
+      |> Enum.join("\n")
+
+    {"Identified possible research strategies", "\n#{titles}"}
+  end
+
+  @impl AI.Tools
   def spec() do
     %{
       type: "function",

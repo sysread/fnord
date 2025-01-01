@@ -50,7 +50,6 @@ defmodule Cmd.Index.Notes do
     notes
     |> Enum.each(fn note ->
       {topic, facts} = Store.Project.Note.parse_string(note)
-
       IO.puts("\n## #{topic}")
 
       facts
