@@ -11,7 +11,6 @@ defmodule AI.Tools.SearchNotes do
     notes =
       result
       |> Jason.decode!()
-      |> Enum.map(fn note -> "- #{note}" end)
       |> Enum.join("\n")
 
     {"Found prior research", "\n#{notes}"}

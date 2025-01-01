@@ -237,6 +237,7 @@ defmodule AI.Completion do
         |> case do
           {:ok, response} when is_binary(response) -> {:ok, response}
           {:ok, response} -> Jason.encode(response)
+          :ok -> {:ok, "#{func} completed successfully"}
           other -> other
         end
 
