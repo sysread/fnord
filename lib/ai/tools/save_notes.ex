@@ -40,16 +40,25 @@ defmodule AI.Tools.SaveNotes do
 
   @impl AI.Tools
   def call(_agent, args) do
-    with {:ok, notes} <- Map.fetch(args, "notes") do
+    with {:ok, notes} <- Map.fetch(args, "notes"),
+         :ok <- validate_notes(notes) do
       project = Store.get_project()
-
-      Enum.each(notes, fn note ->
-        project
-        |> Store.Project.Note.new()
-        |> Store.Project.Note.write(note)
-      end)
-
-      {:ok, "Notes saved."}
+      notes |> Enum.each(&new_note(&1, project))
+      :ok
     end
+  end
+
+  defp validate_notes(notes) do
+    if Enum.all?(notes, &Store.Project.Note.is_valid_format?/1) do
+      :ok
+    else
+      {:error, :invalid_format}
+    end
+  end
+
+  defp new_note(text, project) do
+    project
+    |> Store.Project.Note.new()
+    |> Store.Project.Note.write(text)
   end
 end

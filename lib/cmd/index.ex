@@ -81,6 +81,7 @@ defmodule Cmd.Index do
 
   def perform_task(idx) do
     UI.info("Project", idx.project.name)
+    UI.info("Workers", Application.get_env(:fnord, :workers) |> to_string())
     UI.info("   Root", idx.project.source_root)
 
     UI.info(

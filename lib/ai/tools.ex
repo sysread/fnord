@@ -23,7 +23,10 @@ defmodule AI.Tools do
   Calls the tool with the provided arguments and returns the response as an :ok
   tuple.
   """
-  @callback call(agent :: struct, args :: map) :: {:ok, any}
+  @callback call(agent :: struct, args :: map) ::
+              :ok
+              | {:ok, any}
+              | {:error, any}
 
   @doc """
   Return either a short string or a string tuple of label + detail to be

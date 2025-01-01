@@ -21,33 +21,37 @@ defmodule Store.Project.Note do
   end
 
   def write(note, text) do
-    # Ensure the note's store path exists.
-    note.store_path
-    |> File.mkdir_p!()
+    if is_valid_format?(text) do
+      # Ensure the note's store path exists.
+      note.store_path
+      |> File.mkdir_p!()
 
-    # Has the note changed since the last save?
-    is_changed? =
-      with {:ok, orig} <- read_note(note) do
-        orig != text
-      else
-        _ -> true
+      # Has the note changed since the last save?
+      is_changed? =
+        with {:ok, orig} <- read_note(note) do
+          orig != text
+        else
+          _ -> true
+        end
+
+      if is_changed? do
+        # Write the note's text to the note's store path.
+        note.store_path
+        |> Path.join("note.md")
+        |> File.write!(text)
+
+        # Generate and save embeddings for the note.
+        embeddings_json =
+          text
+          |> AI.Util.generate_embeddings!()
+          |> Jason.encode!()
+
+        note.store_path
+        |> Path.join("embeddings.json")
+        |> File.write(embeddings_json)
       end
-
-    if is_changed? do
-      # Write the note's text to the note's store path.
-      note.store_path
-      |> Path.join("note.md")
-      |> File.write!(text)
-
-      # Generate and save embeddings for the note.
-      embeddings_json =
-        text
-        |> AI.Util.generate_embeddings!()
-        |> Jason.encode!()
-
-      note.store_path
-      |> Path.join("embeddings.json")
-      |> File.write!(embeddings_json)
+    else
+      {:error, :invalid_format}
     end
   end
 
@@ -79,14 +83,27 @@ defmodule Store.Project.Note do
     end
   end
 
+  def is_valid_format?(note_text) do
+    note_text
+    |> parse_string()
+    |> case do
+      {:ok, _parsed} -> true
+      {:error, :invalid_format} -> false
+    end
+  end
+
   def parse(note) do
     with {:ok, text} <- read_note(note) do
-      {:ok, parse_topic(text)}
+      parse_string(text)
     end
   end
 
   def parse_string(note_text) do
-    parse_topic(note_text)
+    try do
+      {:ok, parse_topic(note_text)}
+    rescue
+      _ -> {:error, :invalid_format}
+    end
   end
 
   defp parse_topic(input_str) do

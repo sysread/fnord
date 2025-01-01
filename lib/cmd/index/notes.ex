@@ -49,12 +49,17 @@ defmodule Cmd.Index.Notes do
 
     notes
     |> Enum.each(fn note ->
-      {topic, facts} = Store.Project.Note.parse_string(note)
-      IO.puts("\n## #{topic}")
+      with {:ok, {topic, facts}} <- Store.Project.Note.parse_string(note) do
+        IO.puts("\n## #{topic}")
 
-      facts
-      |> Enum.map(&"- #{&1}")
-      |> Enum.each(&IO.puts/1)
+        facts
+        |> Enum.map(&"- #{&1}")
+        |> Enum.each(&IO.puts/1)
+      else
+        {:error, :invalid_format} ->
+          IO.puts(:stderr, "Invalid note format: #{note}")
+          IO.puts(:stderr, "Cancelling defragmentation")
+      end
     end)
 
     IO.puts("""
@@ -102,7 +107,22 @@ defmodule Cmd.Index.Notes do
     UI.info("Notes saved.")
   end
 
-  defp clean_topic_list(input_str) do
+  defp validate_notes(notes_string) do
+    notes_string
+    |> parse_topic_list()
+    |> Enum.reduce_while([], fn text, acc ->
+      case Store.Project.Note.parse_string(text) do
+        {:ok, _parsed} -> {:cont, [text | acc]}
+        {:error, :invalid_format} -> {:halt, :invalid_format}
+      end
+    end)
+    |> case do
+      :invalid_format -> {:error, :invalid_format}
+      notes -> {:ok, notes}
+    end
+  end
+
+  defp parse_topic_list(input_str) do
     input_str
     |> String.trim("```")
     |> String.trim("'''")
@@ -124,11 +144,10 @@ defmodule Cmd.Index.Notes do
     original_count = Enum.count(original_notes)
     UI.report_step("Consolidating prior research", "Analyzing #{original_count} notes")
 
-    AI.new()
-    |> AI.Agent.NotesConsolidator.get_response(%{notes: original_notes})
-    |> case do
-      {:ok, notes} -> {:ok, clean_topic_list(notes)}
-      error -> {:error, error}
+    with args = %{notes: original_notes},
+         {:ok, consolidated} <- AI.Agent.NotesConsolidator.get_response(AI.new(), args),
+         {:ok, notes} <- validate_notes(consolidated) do
+      {:ok, notes}
     end
   end
 
@@ -144,11 +163,10 @@ defmodule Cmd.Index.Notes do
     original_count = Enum.count(original_notes)
     UI.report_step("Fact-checking prior research", "Analyzing #{original_count} notes")
 
-    AI.new()
-    |> AI.Agent.NotesVerifier.get_response(%{notes: original_notes})
-    |> case do
-      {:ok, notes} -> {:ok, clean_topic_list(notes)}
-      error -> {:error, error}
+    with args = %{notes: original_notes},
+         {:ok, consolidated} <- AI.Agent.NotesVerifier.get_response(AI.new(), args),
+         {:ok, notes} <- validate_notes(consolidated) do
+      {:ok, notes}
     end
   end
 end
