@@ -1,10 +1,13 @@
 defmodule AI.Agent.NotesVerifier do
   @model "gpt-4o"
+
   @max_tokens 128_000
+
   @prompt """
   You are an AI agent responsible for fact-checking a list of notes.
-  You will be presented with a list of individual facts formatted in markdown.
-  Facts are defined as a single imperative statement.
+  You will be presented with a mess of individual facts and documents.
+  Input may include mixed formats. It is your job to organize them into a coherent structure.
+  Investigate each of the claims in each note and attempt to fact-check them.
 
   Process:
   1. Use the list_files_tool to get a list of all current files in the project
@@ -22,17 +25,17 @@ defmodule AI.Agent.NotesVerifier do
   - If the fact is `proven`, update the fact to reflect the correct information
   - If the fact is `disproven`, remove the fact
   - If the fact is `inconclusive`, leave the fact as is; this **should** happen often because the fact may have been inferred from multiple files
+  - Do not include this tag in the final output; it is for your reference only
 
   Combine as many tool calls as possible to parallelize your work
   - Default concurrency is 8, and is handled by a pool of workers. Go nuts.
   - You could totally do a request to the file_info_tool for EVERY fact at once and let the pool worry about it.
 
-  It is IMPERATIVE that NO FACTUALLY ACCURATE INFORMATION IS LOST.
-  If your new list is more than 25% shorter than the original, DOUBLE-CHECK YOUR WORK.
-  **If you are unsure, leave the note intact.**
+  If a prior agent left notes prefixed with proven|disproven|inconclusive, go ahead and remove them from the note.
+  It is ESSENTIAL that NO FACTUALLY ACCURATE INFORMATION IS LOST.
+  **If you are unsure, leave the note intact (but fix any formatting issues).**
 
-  Respond with the consolidated list of facts as an unordered markdown list.
-  Do not include any comments, summary, or explanation - JUST the list.
+  #{AI.Util.notebook_format_prompt()}
   """
 
   @tools [
@@ -51,8 +54,7 @@ defmodule AI.Agent.NotesVerifier do
     with {:ok, notes} <- Map.fetch(opts, :notes) do
       question =
         notes
-        |> Enum.map(fn note -> "- #{note}" end)
-        |> Enum.join("\n")
+        |> Enum.join("\n-----\n")
         |> AI.Util.user_msg()
 
       AI.Completion.get(ai,

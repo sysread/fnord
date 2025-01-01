@@ -78,4 +78,46 @@ defmodule Store.Project.Note do
       error -> error
     end
   end
+
+  def parse(note) do
+    with {:ok, text} <- read_note(note) do
+      {:ok, parse_topic(text)}
+    end
+  end
+
+  def parse_string(note_text) do
+    parse_topic(note_text)
+  end
+
+  defp parse_topic(input_str) do
+    [topic, rest] =
+      input_str
+      |> String.trim()
+      |> String.trim_leading("{")
+      |> String.trim_trailing("}")
+      |> String.trim()
+      |> String.trim_leading("topic ")
+      |> String.split("{", parts: 2)
+      |> Enum.map(&String.trim/1)
+
+    facts = parse_facts("{#{rest}")
+
+    {topic, facts}
+  end
+
+  defp parse_facts(input_str) do
+    input_str
+    |> String.trim()
+    |> String.trim_leading("{")
+    |> String.trim_trailing("}")
+    |> String.split("} {")
+    |> Enum.map(&parse_fact/1)
+  end
+
+  defp parse_fact(input_str) do
+    input_str
+    |> String.trim()
+    |> String.trim_leading("fact ")
+    |> String.trim()
+  end
 end

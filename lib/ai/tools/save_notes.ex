@@ -19,10 +19,8 @@ defmodule AI.Tools.SaveNotes do
             notes: %{
               type: "array",
               description: """
-              The text of each note to save. This should phrased such that it
-              includes relevant context to understand the note. For example:
-                - Wrong: "queries are stored in the Foo module"
-                - Correct: "SQL queries are stored in the Foo module"
+              Format: `{topic <topic> {fact <fact>} {fact <fact>} ...}`
+              ONE `topic` per note, with multiple `fact`s per topic.
               """,
               items: %{
                 type: "string"

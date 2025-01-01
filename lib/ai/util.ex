@@ -4,6 +4,31 @@ defmodule AI.Util do
   @role_assistant "assistant"
   @role_tool "tool"
 
+  def notebook_format_prompt do
+    """
+    Your audience is another AI LLM agent.
+    Optimize token usage and efficiency using the following guidelines:
+    - Avoid human-specific language conventions like articles, connecting phrases, or redundant words.
+    - Use a structured, non-linear format with concise key-value pairs, hierarchical lists, or markup-like tags.
+    - Prioritize key information first, followed by secondary details as needed.
+    - Use shorthand or domain-specific terms wherever possible.
+    - Ensure the output is unambiguous but not necessarily human-readable.
+
+    Respond STRICTLY in the `topic` format below. **Do not deviate.**
+
+    **Required format:**
+    - Use this structure: `{topic <topic> {fact <fact>} {fact <fact>} ...}`
+    - Place exactly ONE topic per line.
+    - Failure to adhere to the exact format will result in an invalid output.
+
+    Example output:
+
+      {topic dog {fact is mammal} {fact 4 legs} {fact strong sense smell}}
+      {topic cat {fact is mammal} {fact 4 legs} {fact assholes}}
+      {topic bird {fact is avian} {fact 2 wings} {fact some fly}}
+    """
+  end
+
   def agent_to_agent_prompt do
     """
     You are communicating with another AI agent.
