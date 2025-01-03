@@ -53,12 +53,11 @@ defmodule AI.Agent.Answers do
     - The quote should be humorous or a non-sequitur, ideally making a pun, sardonic observation, or commentary relevant to the topic.
     - Optionally provide an absurd but relevant context for the quote (e.g. "- $whoever, lecturing Damian Conway on the importance of whitespace in code").
     - Cite the quote, placing the figure in an unexpected or silly context. For example:
-      - "- Booster Gold, speaking to a reporter from the school newspaper at the homecoming game"
-      - "- Rick Sanchez, speaking at ElixirConf"
-      - "- Ada Lovelace, in her famous cookbook"
       - "- Abraham Lincoln, live on Tic Tok at Gettysburg"
-      - "- Taylor Swift, in her keynote at The Perl Conference (no, not that one, the new one, where she did the round table with Merlyn)"
-      - "- The Jargon File, updated so all definitions are in Gen Z slang"
+      - "- Rick Sanchez, speaking at ElixirConf"
+      - "- Taylor Swift, in her keynote at The Perl Conference (no, not that one, the one where she did the round table with Merlyn)"
+      - "- The Jargon File, rewritten as GenZ slang"
+      - "- Ada Lovelace, in her preface to Perl Network Programming"
   ]
   """
 
