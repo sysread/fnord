@@ -7,7 +7,7 @@ defmodule Indexer do
   # -----------------------------------------------------------------------------
   # Input Types
   # -----------------------------------------------------------------------------
-  @type indexer :: struct()
+  @type indexer :: struct
   @type file_path :: String.t()
   @type file_content :: String.t()
 
@@ -15,14 +15,14 @@ defmodule Indexer do
   # Output Types
   # -----------------------------------------------------------------------------
   @type completion :: {:ok, String.t()}
-  @type embeddings :: {:ok, [String.t()]}
-  @type error :: {:error, term()}
+  @type embeddings :: {:ok, [float]}
+  @type error :: {:error, term}
 
   # -----------------------------------------------------------------------------
   # Behaviour Definition
   # -----------------------------------------------------------------------------
   @callback new() :: indexer
-  @callback get_embeddings(indexer, file_path) :: embeddings | error
+  @callback get_embeddings(indexer, file_content) :: embeddings | error
   @callback get_summary(indexer, file_path, file_content) :: completion | error
   @callback get_outline(indexer, file_path, file_content) :: completion | error
 
