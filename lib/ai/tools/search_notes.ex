@@ -3,7 +3,7 @@ defmodule AI.Tools.SearchNotes do
 
   @impl AI.Tools
   def ui_note_on_request(%{"query" => query}) do
-    {"Searching prior research", query}
+    {"Searching prior research", query || "All notes"}
   end
 
   @impl AI.Tools
