@@ -20,7 +20,8 @@
   questions:
     - "What's the root cause of this error? $STACKTRACE"
     - "What changes recently introduced $BUG or $ERROR?"
-    - "What file defines $FUNCTION or $CONSTANT?"
+    - "A user reported a bug. Please diagnose it."
+    - "Under what conditions can $BUG occur?"
   prompt: |
     1. Analyze the Error Context:
        - If `$STACKTRACE` or `$ERROR` is provided, use `search_tool` to locate the associated line numbers, modules, or functions in the codebase. Focus on identifying the source of the issue.
@@ -41,7 +42,11 @@
        - Cross-reference results from `search_tool`, `file_info_tool`, and `spelunker_tool` to establish a clear picture of:
          - Which modules or functions are likely involved.
          - How changes in the codebase might correlate with the observed bug.
-    6. Summarize and Recommend Actions:
+    6. Detailed Root Cause Analysis:
+       - Never respond with instructions for the user to troubleshoot on their own unless you can't find anything useful.
+         - Explain that you were unable to find any possible causes
+         - Suggest locations to add printf debugging to help identify the issue
+         - Write unit test cases to reproduce the error for the user
        - Provide a detailed explanation of the root cause, including:
          - Specific references to files, functions, or commits.
          - Hypotheses based on tool outputs (e.g., a faulty function call, a breaking change).
@@ -176,7 +181,7 @@
     1. Set Context:
        - Use `list_files_tool` to identify all files in the same directory or namespace as `$MODULE`, `$FEATURE`, or `$FILE`
        - Use `search_tool` to query the namespace for comprehensive background information, which can help determine next steps
-       - Refine those findings further with the `file_info_tool`. 
+       - Refine those findings further with the `file_info_tool`.
        - Search for existing documentation using `search_tool` to understand what is already covered
     2. Plan Structure:
        - Start the documentation with a high-level overview:
@@ -216,4 +221,5 @@
     #### Key Points to Emphasize:
     - Documentation should always aim for clarity and completeness but avoid unnecessary verbosity.
     - Top-down explanations are most effective: general concepts first, then specific details.
-    - Ensure the documentation is actionable and includes examples to aid understanding.
+    - Explain entities in terms of Components, Behaviors, Relationships, and Dependencies.
+    - Ensure the documentation is detailed and includes examples to aid understanding.

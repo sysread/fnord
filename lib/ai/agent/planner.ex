@@ -48,10 +48,18 @@ defmodule AI.Agent.Planner do
   5. **Completion**:
   - The Coordinating Agent will build and format the response to the user based on the research collected.
   - Instruct the Coordinating Agent to create a response to the user when all necessary information is collected.
+    - Clearly indicate to the Coordinating Agent *HOW* to respond to the user.
+    - What did the user ask for? What format does the user's request imply?
+    - For example, did you ask you to:
+      - **Diagnose a bug**: provide background information and a clear solution, with examples and references to related file paths
+      - **Explain or document a concept**: provide a top-down walkthrough of the concept, including definitions, examples, and references to files
+      - **Generate code**: provide a complete code snippet, including imports, function definitions, and usage examples (and tests, of course)
   - Save useful findings and inferences, regardless of their immediate relevance to the current query, for future use, using the save_notes_tool.
     - Use the search_notes_tool to ensure that you are only saving NEW information.
     - The Coordinating Agent does NOT have access to the save_notes_tool - ONLY YOU DO, so YOU must save the notes.
     - Respond with tool calls to save new notes before responding to the Coordinating Agent.
+    - If the user requested investigation or documentation, this is an excellent opportunity to save a lot of notes for future use.
+    - Remember to format your new notes correctly!
   - Examine the effectiveness of your research strategy and optionally suggest improvements to the research strategy library using the suggest_strategy_tool.
     - If recommending a refinement, ensure you provide the research strategy's ID from step 3.
 

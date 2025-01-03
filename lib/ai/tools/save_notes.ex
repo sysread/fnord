@@ -28,9 +28,9 @@ defmodule AI.Tools.SaveNotes do
             notes: %{
               type: "array",
               description: """
+              **Failing to follow this format will result in an parsing error.**
               ONE `topic` per note, with multiple `fact`s per topic.
-              Format: `{topic "<topic>" {fact "<fact>"} {fact "<fact>"} ...}`
-              Failing to follow this format will result in an parsing error.
+              FORMAT: {topic "<topic>" {fact "<fact>"} {fact "<fact>"} ...}
               """,
               items: %{
                 type: "string"

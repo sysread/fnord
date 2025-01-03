@@ -121,7 +121,7 @@ defmodule Store.Project.Conversation do
     |> Enum.map(fn {key, value} ->
       converted_key =
         if is_binary(key) do
-          String.to_existing_atom(key)
+          String.to_atom(key)
         else
           key
         end

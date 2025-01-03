@@ -325,6 +325,12 @@ defmodule Store.Prompt do
                     } ->
       prompt = new(id)
 
+      # I have NO idea why, but THIS line HAS to be here, otherwise the
+      # differs? conditional below won't be executed. This is incredibly
+      # confusing an frustrating, but apparently I've got to leave it in until
+      # if figure this BS out.
+      UI.debug("Analyzing research prompt: #{id}")
+
       if differs?(prompt, prompt_str, questions) do
         UI.info("Saving research prompt: #{title}")
         write(prompt, title, prompt_str, questions)
