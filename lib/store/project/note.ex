@@ -20,21 +20,21 @@ defmodule Store.Project.Note do
     File.exists?(note.store_path)
   end
 
+  def is_changed?(note, text) do
+    with {:ok, orig} <- read_note(note) do
+      orig != text
+    else
+      _ -> true
+    end
+  end
+
   def write(note, text) do
     if is_valid_format?(text) do
       # Ensure the note's store path exists.
-      note.store_path
-      |> File.mkdir_p!()
+      File.mkdir_p!(note.store_path)
 
       # Has the note changed since the last save?
-      is_changed? =
-        with {:ok, orig} <- read_note(note) do
-          orig != text
-        else
-          _ -> true
-        end
-
-      if is_changed? do
+      if is_changed?(note, text) do
         # Write the note's text to the note's store path.
         note.store_path
         |> Path.join("note.md")
