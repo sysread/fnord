@@ -71,22 +71,24 @@ defmodule MockIndexerForSearch do
 
   @impl Indexer
   def get_embeddings(_idx, text) do
+    base = List.duplicate(0.0, 3072)
+
     embedding =
       cond do
         String.contains?(text, "file1") ->
-          Enum.concat([1.0], List.duplicate(0.0, 3071))
+          base |> List.replace_at(0, 1.0)
 
         String.contains?(text, "file2") ->
-          Enum.concat([0.0, 1.0], List.duplicate(0.0, 3071))
+          base |> List.replace_at(1, 1.0)
 
         String.contains?(text, "other content") ->
-          Enum.concat([0.0, 0.0, 1.0], List.duplicate(0.0, 3070))
+          base |> List.replace_at(2, 1.0)
 
         true ->
           List.duplicate(0.0, 3072)
       end
 
-    {:ok, [embedding]}
+    {:ok, embedding}
   end
 
   @impl Indexer

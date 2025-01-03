@@ -58,6 +58,14 @@ defmodule AI.Util do
 
   # Computes the cosine similarity between two vectors
   def cosine_similarity(vec1, vec2) do
+    if length(vec1) != length(vec2) do
+      raise ArgumentError, """
+      Vectors must have the same length to compute cosine similarity.
+      - Left: #{length(vec1)}
+      - Right: #{length(vec2)}
+      """
+    end
+
     dot_product = Enum.zip(vec1, vec2) |> Enum.reduce(0.0, fn {a, b}, acc -> acc + a * b end)
     magnitude1 = :math.sqrt(Enum.reduce(vec1, 0.0, fn x, acc -> acc + x * x end))
     magnitude2 = :math.sqrt(Enum.reduce(vec2, 0.0, fn x, acc -> acc + x * x end))

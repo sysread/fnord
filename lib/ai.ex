@@ -59,6 +59,17 @@ defmodule AI do
   @embeddings_token_limit 6000
 
   @doc """
+  Identical to `get_embeddings/2`, but raises an error if the request fails.
+  """
+  def get_embeddings!(ai, text) do
+    with {:ok, embeddings} <- get_embeddings(ai, text) do
+      embeddings
+    else
+      {:error, reason} -> raise reason
+    end
+  end
+
+  @doc """
   Get embeddings for the given text. The text is split into chunks of 8192
   tokens to avoid exceeding the model's input limit. Returns a list of
   embeddings for each chunk.
@@ -67,38 +78,28 @@ defmodule AI do
     text
     |> AI.Tokenizer.chunk(@embeddings_token_limit, @embeddings_model)
     |> Enum.map(&[ai.client, @embeddings_model, &1])
-    |> Enum.reduce_while([], fn request, embeddings ->
+    |> Enum.reduce_while([], fn request, acc ->
       ai
       |> get_embedding(request, @default_max_attempts, 1)
       |> case do
-        {:ok, embedding} -> {:cont, [embedding | embeddings]}
-        {:error, reason} -> {:halt, {:error, reason}}
+        {:ok, embedding} ->
+          if acc == [] do
+            {:cont, embedding}
+          else
+            # For each dimension, find the maximum value across all embeddings.
+            # This isn't necessarily the _most_ accurate, but it selects the
+            # highest rating for each dimension found in the file, which should
+            # be reasonable for semantic searching.
+            {:cont, Enum.zip_with(acc, embedding, fn a, b -> max(a, b) end)}
+          end
+
+        {:error, reason} ->
+          {:halt, {:error, reason}}
       end
     end)
     |> case do
-      {:error, reason} ->
-        {:error, inspect(reason)}
-
-      embeddings ->
-        {:ok,
-         embeddings
-         |> Enum.reverse()
-         # For each dimension, find the maximum value across all embeddings.
-         # This isn't necessarily the _most_ accurate, but it selects the
-         # highest rating for each dimension found in the file, which should be
-         # reasonable for semantic searching.
-         |> Enum.zip_with(&Enum.max/1)}
-    end
-  end
-
-  @doc """
-  Identical to `get_embeddings/2`, but raises an error if the request fails.
-  """
-  def get_embeddings!(ai, text) do
-    with {:ok, embeddings} <- get_embeddings(ai, text) do
-      embeddings
-    else
-      {:error, reason} -> raise reason
+      {:error, reason} -> {:error, inspect(reason)}
+      embeddings -> {:ok, embeddings}
     end
   end
 

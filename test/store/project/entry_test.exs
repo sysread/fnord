@@ -292,7 +292,7 @@ defmodule Store.Project.EntryTest do
         entry,
         "summary text",
         "- outline\n  - sub-outline",
-        [[1, 2, 3]]
+        [1, 2, 3]
       )
 
       file = entry.file
@@ -319,7 +319,7 @@ defmodule MockIndexerForEntryTest do
   def new(), do: %MockIndexerForEntryTest{}
 
   @impl Indexer
-  def get_embeddings(_idx, _text), do: {:ok, [[1, 2, 3], [4, 5, 6]]}
+  def get_embeddings(_idx, _text), do: {:ok, [4, 5, 6]}
 
   @impl Indexer
   def get_summary(_idx, _file, _text), do: {:ok, "summary"}

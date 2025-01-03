@@ -45,5 +45,10 @@ defmodule Store.Project.NoteParserTest do
       assert {:error, :invalid_format, :facts} ==
                Store.Project.NoteParser.parse(~S|{topic foo {fact}}|)
     end
+
+    test ~S|{topic {fact foo}}| do
+      assert {:error, :invalid_format, :topic} ==
+               Store.Project.NoteParser.parse(~S|{topic {fact foo}}|)
+    end
   end
 end

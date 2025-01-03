@@ -73,7 +73,7 @@ defmodule Store.Project.Entry.EmbeddingsTest do
     File.write!(old_style_file, Jason.encode!(%{"old" => "data"}))
 
     embeddings = Store.Project.Entry.Embeddings.new(entry_path, "dummy_source")
-    data = [[5, 10], [3, 15]]
+    data = [5, 15]
 
     assert :ok == Store.Project.Entry.Embeddings.write(embeddings, data)
 

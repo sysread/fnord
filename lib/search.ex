@@ -47,7 +47,7 @@ defmodule Search do
   end
 
   defp get_query_embeddings(query, index_module) do
-    {:ok, [needle]} = index_module.get_embeddings(index_module.new(), query)
+    {:ok, needle} = index_module.get_embeddings(index_module.new(), query)
     needle
   end
 
