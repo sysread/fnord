@@ -100,16 +100,39 @@ defmodule Store.PromptTest do
     # --------------------------------------------------------------------------
     # Try to save it again with different parameters, which should succeed.
     # --------------------------------------------------------------------------
+    v2_title = "Doing the thing - but slightly different this time"
+
     assert {:ok, ^prompt} =
              Prompt.write(
                prompt,
-               title <> " - but slightly different this time",
+               v2_title,
                prompt_str,
                questions,
                MockIndexerForPrompts
              )
 
     assert ["v0", "v1"] = Prompt.list_versions(prompt)
+
+    # --------------------------------------------------------------------------
+    # Test whether versioned reads behave correctly
+    # --------------------------------------------------------------------------
+    assert {:ok,
+            %{
+              title: ^title,
+              prompt: ^prompt_str,
+              questions: ^questions_str,
+              embeddings: [1, 2, 3],
+              version: 0
+            }} = Prompt.read(prompt, 0)
+
+    assert {:ok,
+            %{
+              title: ^v2_title,
+              prompt: ^prompt_str,
+              questions: ^questions_str,
+              embeddings: [1, 2, 3],
+              version: 1
+            }} = Prompt.read(prompt, 1)
   end
 end
 

@@ -151,12 +151,31 @@ defmodule Store.Prompt do
     end
   end
 
+  @doc """
+  Reads the prompt from the store. If the prompt does not exist, an error will
+  be returned (`{:error, :not_found}`). Returns an `:ok` tuple with the prompt's
+  title, prompt text, questions, and embeddings:
+  ```
+  {:ok,
+   %{
+     title: title,
+     prompt: prompt_text,
+     questions: questions,
+     embeddings: embeddings,
+     version: version
+   }}
+  ```
+  """
   def read(prompt) do
     with {:ok, version} <- get_current_version_number(prompt) do
       read(prompt, version)
     end
   end
 
+  @doc """
+  Reads the prompt from the store at the given version. Returns the same
+  information as `read/1`.
+  """
   def read(prompt, version) do
     with {:ok, title} <- read_title(prompt, version),
          {:ok, prompt_text} <- read_prompt(prompt, version),
