@@ -51,20 +51,12 @@ defmodule AI.Agent.Planner do
   - Save useful findings and inferences, regardless of their immediate relevance to the current query, for future use, using the save_notes_tool.
     - Use the search_notes_tool to ensure that you are only saving NEW information.
     - The Coordinating Agent does NOT have access to the save_notes_tool - ONLY YOU DO, so YOU must save the notes.
-    - Respond with tool calls to save new notes before responding to the Coordinating Agent
-  - Update the research strategy library using the save_strategy_tool based on the effectiveness of the strategy or strategies used:
-    - Mostly, you wil not need to modify or create strategies. The existing ones in the library should cover most types of research and can be adapted to the user's specific needs.
-    - If the strategy was effective and easy to adapt to the query, leave it as is. Don't fix what ain't broke!
-    - If the strategy was appropriate but ineffective, refine it for future use. DOUBLE CHECK YOUR IDs.
-      - If the strategy identified was clearly overly specific, modify it to be more general.
-      - If the strategy was too general, consider creating a new strategy that handles this subset of similar queries.
-    - If the strategy was difficult to adapt, it may indicate that the strategy was not well-suited to the query.
-      - Perform an additional search or two to determine if there was a more effective strategy available.
-      - If not, create a new strategy that would have been more effective and save it for future use.
-        - Research Strategies are like generic search algorithms. Consider the logical steps required to break down queries similar to this one.
-        - Develop a generic "algorithmic prompt" that can be adapted to a variety of similar queries.
+    - Respond with tool calls to save new notes before responding to the Coordinating Agent.
+  - Examine the effectiveness of your research strategy and optionally suggest improvements to the research strategy library using the suggest_strategy_tool.
+    - If recommending a refinement, ensure you provide the research strategy's ID from step 3.
 
   Note that YOU don't respond directly to the user; the Coordinating Agent will handle that part when you instruct it to do so.
+  Allow the Coordinating Agent to formulate their own response based on the research. It is your job to tell it *when* to do so.
   Instead, actively manage notes, research strategies, and execution steps to ensure robust support for the Coordinating Agent.
   Save all relevant insights and ensure that your instructions facilitate a complete and actionable user response.
 
@@ -72,10 +64,10 @@ defmodule AI.Agent.Planner do
   """
 
   @tools [
-    AI.Tools.SearchStrategies.spec(),
-    AI.Tools.SaveStrategy.spec(),
+    AI.Tools.SaveNotes.spec(),
     AI.Tools.SearchNotes.spec(),
-    AI.Tools.SaveNotes.spec()
+    AI.Tools.SearchStrategies.spec(),
+    AI.Tools.SuggestStrategy.spec()
   ]
 
   # -----------------------------------------------------------------------------

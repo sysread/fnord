@@ -2,7 +2,9 @@ defmodule AI.Tools.SaveNotes do
   @behaviour AI.Tools
 
   @impl AI.Tools
-  def ui_note_on_request(%{"notes" => notes}), do: {"Saving research", Enum.join(notes, "\n")}
+  def ui_note_on_request(%{"notes" => notes}) do
+    {"Saving research", Enum.join(notes, "\n")}
+  end
 
   @impl AI.Tools
   def ui_note_on_result(_args, _result), do: nil
@@ -15,8 +17,9 @@ defmodule AI.Tools.SaveNotes do
         name: "save_notes_tool",
         description: """
         Saves short notes about the project that you have learned from your
-        research efforts. These should be short, concise facts about the
-        project or the domain in which it operates.
+        research efforts. These should be concise facts about the project or
+        the domain in which it operates, inferences you have made from your
+        research, or short guides to common operations within the project.
         """,
         parameters: %{
           type: "object",
@@ -25,8 +28,9 @@ defmodule AI.Tools.SaveNotes do
             notes: %{
               type: "array",
               description: """
-              Format: `{topic <topic> {fact <fact>} {fact <fact>} ...}`
               ONE `topic` per note, with multiple `fact`s per topic.
+              Format: `{topic "<topic>" {fact "<fact>"} {fact "<fact>"} ...}`
+              Failing to follow this format will result in an parsing error.
               """,
               items: %{
                 type: "string"

@@ -87,8 +87,8 @@ defmodule Store.Project.Note do
     note_text
     |> parse_string()
     |> case do
-      {:ok, _parsed} -> true
-      {:error, :invalid_format} -> false
+      {:ok, _} -> true
+      {:error, :invalid_format, _} -> false
     end
   end
 
@@ -98,43 +98,7 @@ defmodule Store.Project.Note do
     end
   end
 
-  def parse_string(note_text) do
-    try do
-      {:ok, parse_topic(note_text)}
-    rescue
-      _ -> {:error, :invalid_format}
-    end
-  end
-
-  defp parse_topic(input_str) do
-    [topic, rest] =
-      input_str
-      |> String.trim()
-      |> String.trim_leading("{")
-      |> String.trim_trailing("}")
-      |> String.trim()
-      |> String.trim_leading("topic ")
-      |> String.split("{", parts: 2)
-      |> Enum.map(&String.trim/1)
-
-    facts = parse_facts("{#{rest}")
-
-    {topic, facts}
-  end
-
-  defp parse_facts(input_str) do
-    input_str
-    |> String.trim()
-    |> String.trim_leading("{")
-    |> String.trim_trailing("}")
-    |> String.split("} {")
-    |> Enum.map(&parse_fact/1)
-  end
-
-  defp parse_fact(input_str) do
-    input_str
-    |> String.trim()
-    |> String.trim_leading("fact ")
-    |> String.trim()
+  def parse_string(input) do
+    Store.Project.NoteParser.parse(input)
   end
 end

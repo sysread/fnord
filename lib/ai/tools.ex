@@ -60,7 +60,8 @@ defmodule AI.Tools do
     "search_notes_tool" => AI.Tools.SearchNotes,
     "search_strategies_tool" => AI.Tools.SearchStrategies,
     "search_tool" => AI.Tools.Search,
-    "spelunker_tool" => AI.Tools.Spelunker
+    "spelunker_tool" => AI.Tools.Spelunker,
+    "suggest_strategy_tool" => AI.Tools.SuggestStrategy
   }
 
   def tool_module(tool) do
@@ -78,13 +79,21 @@ defmodule AI.Tools do
 
   def on_tool_request(tool, args) do
     with {:ok, module} <- tool_module(tool) do
-      module.ui_note_on_request(args)
+      try do
+        module.ui_note_on_request(args)
+      rescue
+        e in ArgumentError -> "Error logging tool call request: #{inspect(e)}"
+      end
     end
   end
 
   def on_tool_result(tool, args, result) do
     with {:ok, module} <- tool_module(tool) do
-      module.ui_note_on_result(args, result)
+      try do
+        module.ui_note_on_result(args, result)
+      rescue
+        e in ArgumentError -> "Error logging tool call result: #{inspect(e)}"
+      end
     end
   end
 end

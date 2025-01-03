@@ -39,29 +39,18 @@ defmodule AI.Agent.Answers do
   ----------
   # [Restate the user's *original* query as the document title, correcting grammar and spelling]
 
-  ## SYNOPSIS
-  [List the components of the user's query, as restated by the Planner Agent]
+  [produce a structured response to the user's query, including code snippets, links to documentation, and other resources as needed]
 
-  ## ANSWER
-  [Answer the user's original query; do not include research instructions in this section. Provide code examples, documentation, numbered steps, or other artifacts as necessary.]
-
-  ## FINDINGS
-  [Itemize all facts discovered during the research process; include links to files, documentation, and other resources when available]
-
-  ## UNKNOWNS
-  [List any unresolved questions or dangling threads that may require further investigation on the part of the user; suggest files or other entry points for research.]
-
-  ## SEE ALSO
-  [Link to examples in existing files, related files, commit hashes, and other resources. Include suggestions for follow-up actions, such as refining the query or exploring related features.]
-
-  ## MOTD
+  # MOTD
   [
+    Finish up with a humorous MOTD.
     - Invent a darkly clever, sarcastic quote and misattribute it to a historical, mythological, or pop culture figure.
-    - The quote should be in the tone of the selected figure.
+    - The quote should be in the voice of the selected figure.
     - The quote should find some connection between the figure's persona and the context of the user's query or project.
     - The quote should be humorous or a non-sequitur, ideally making a pun, sardonic observation, or commentary relevant to the topic.
+    - Optionally provide an absurd but relevant context for the quote (e.g. "- $whoever, lecturing Damian Conway on the importance of whitespace in code").
     - Cite the quote, placing the figure in an unexpected or silly context. For example:
-      - "- Booster Gold, speaking to a reporter from the school newspaper at half time while eyeing the cheerleaders"
+      - "- Booster Gold, speaking to a reporter from the school newspaper at the homecoming game"
       - "- Rick Sanchez, speaking at ElixirConf"
       - "- Ada Lovelace, in her famous cookbook"
       - "- Abraham Lincoln, live on Tic Tok at Gettysburg"
@@ -71,6 +60,7 @@ defmodule AI.Agent.Answers do
   """
 
   @non_git_tools [
+    AI.Tools.SaveNotes.spec(),
     AI.Tools.FileContents.spec(),
     AI.Tools.FileInfo.spec(),
     AI.Tools.ListFiles.spec(),

@@ -56,8 +56,9 @@ defmodule Cmd.Index.Notes do
         |> Enum.map(&"- #{&1}")
         |> Enum.each(&IO.puts/1)
       else
-        {:error, :invalid_format} ->
-          IO.puts(:stderr, "Invalid note format: #{note}")
+        {:error, :invalid_format, type} ->
+          msg = "Invalid note format (improperly formatted #{to_string(type)}: #{note}"
+          IO.puts(:stderr, msg)
           IO.puts(:stderr, "Cancelling defragmentation")
       end
     end)
@@ -111,9 +112,10 @@ defmodule Cmd.Index.Notes do
     notes_string
     |> parse_topic_list()
     |> Enum.reduce_while([], fn text, acc ->
-      case Store.Project.Note.parse_string(text) do
-        {:ok, _parsed} -> {:cont, [text | acc]}
-        {:error, :invalid_format} -> {:halt, :invalid_format}
+      if Store.Project.Note.is_valid_format?(text) do
+        {:cont, [text | acc]}
+      else
+        {:halt, :invalid_format}
       end
     end)
     |> case do

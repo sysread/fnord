@@ -10,7 +10,7 @@ defmodule AI.Agent.NotesConsolidator do
   Break down all the information into discrete facts, then reorganize them into topical "notebooks", combining like facts and eliminating redundancy where possible.
   **It is ESSENTIAL that no information is lost.**
 
-  #{AI.Util.notebook_format_prompt()}
+  #{AI.Util.note_format_prompt()}
   """
 
   # -----------------------------------------------------------------------------

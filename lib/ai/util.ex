@@ -4,7 +4,7 @@ defmodule AI.Util do
   @role_assistant "assistant"
   @role_tool "tool"
 
-  def notebook_format_prompt do
+  def note_format_prompt do
     """
     Your audience is another AI LLM agent.
     Optimize token usage and efficiency using the following guidelines:
@@ -18,6 +18,9 @@ defmodule AI.Util do
 
     **Required format:**
     - Use this structure: `{topic <topic> {fact <fact>} {fact <fact>} ...}`
+    - `<topic>` and `<fact>` are either:
+      - Bare string: a short string that does NOT contain `{` or `}`
+      - Quoted string: a string bounded by `"`s which may contain escaped `"`
     - Place exactly ONE topic per line.
     - Failure to adhere to the exact format will result in an invalid output.
 
@@ -26,6 +29,7 @@ defmodule AI.Util do
       {topic dog {fact is mammal} {fact 4 legs} {fact strong sense smell}}
       {topic cat {fact is mammal} {fact 4 legs} {fact assholes}}
       {topic bird {fact is avian} {fact 2 wings} {fact some fly}}
+      {topic "sea creature" {fact is aquatic} {fact "can be delicious"} {fact "not always a \"fish\""}}
     """
   end
 
@@ -47,6 +51,8 @@ defmodule AI.Util do
       - Agent-Optimized: {search_tool, query X implementation}
     - "The user requested information about 'X', which appears to have multiple meanings in the context of the project."
       - Agent-Optimized: {disambiguate X, respond multiple meaning}
+    - "I performed the following tasks: X, Y, and Z
+      - Agent-Optimized: {done {task X} {task Y} {task Z}}
     """
   end
 

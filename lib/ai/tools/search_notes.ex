@@ -8,12 +8,13 @@ defmodule AI.Tools.SearchNotes do
 
   @impl AI.Tools
   def ui_note_on_result(_args, result) do
-    notes =
-      result
-      |> Jason.decode!()
-      |> Enum.join("\n")
-
-    {"Found prior research", "\n#{notes}"}
+    result
+    |> Jason.decode!()
+    |> Enum.join("\n")
+    |> case do
+      "" -> "No relevant notes found"
+      notes -> {"Found prior research", "\n#{notes}"}
+    end
   end
 
   @impl AI.Tools

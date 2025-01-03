@@ -35,7 +35,7 @@ defmodule AI.Agent.NotesVerifier do
   It is ESSENTIAL that NO FACTUALLY ACCURATE INFORMATION IS LOST.
   **If you are unsure, leave the note intact (but fix any formatting issues).**
 
-  #{AI.Util.notebook_format_prompt()}
+  #{AI.Util.note_format_prompt()}
   """
 
   @tools [

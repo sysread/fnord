@@ -142,12 +142,15 @@ defmodule AI.Completion do
   defp maybe_use_planner(%{ai: ai, use_planner: true, messages: msgs, tools: tools} = state) do
     on_event(state, :tool_call, {"planner", %{}})
 
-    msgs = Enum.reject(msgs, fn msg -> msg.role == "system" end)
+    # Build a list of all messages except for the initial system prompt. The
+    # planner needs access to its own previous responses, but we don't want it
+    # to confuse the calling agent's prompt with its own.
+    msgs = Enum.drop(msgs, 1)
 
     case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools}) do
       {:ok, %{response: response}} ->
         on_event(state, :tool_call_result, {"planner", %{}, {:ok, response}})
-        planner_msg = AI.Util.system_msg(response)
+        planner_msg = AI.Util.user_msg("From the Planner Agent: #{response}")
         %__MODULE__{state | messages: state.messages ++ [planner_msg]}
 
       {:error, reason} ->
