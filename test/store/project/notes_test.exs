@@ -40,7 +40,7 @@ defmodule Store.Project.NotesTest do
     note = Note.new(ctx.project, "DEADBEEF")
     refute Note.exists?(note)
 
-    assert :ok = Note.write(note, topic, MockIndexerForNotes)
+    assert {:ok, ^note} = Note.write(note, topic, MockIndexerForNotes)
     assert Note.exists?(note)
 
     assert {:ok, ^topic} = Note.read_note(note)

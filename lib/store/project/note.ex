@@ -33,16 +33,12 @@ defmodule Store.Project.Note do
         |> File.write!(text)
 
         # Generate and save embeddings for the note.
-        embeddings_json =
-          with idx <- indexer.new(),
-               {:ok, embeddings} <- indexer.get_embeddings(idx, text),
-               {:ok, json} <- Jason.encode(embeddings) do
-            json
-          end
-
-        note.store_path
-        |> Path.join("embeddings.json")
-        |> File.write(embeddings_json)
+        with idx <- indexer.new(),
+             {:ok, embeddings} <- indexer.get_embeddings(idx, text),
+             {:ok, json} <- Jason.encode(embeddings),
+             :ok <- note.store_path |> Path.join("embeddings.json") |> File.write(json) do
+          {:ok, note}
+        end
       end
     else
       {:error, :invalid_format}

@@ -51,22 +51,40 @@ defmodule Store.Prompt do
   # ----------------------------------------------------------------------------
   @initial_strategies YamlElixir.read_from_file!("data/prompts.yaml")
 
+  @doc """
+  Create a new prompt with a random UUID.
+  """
   def new(), do: new(UUID.uuid4())
+
+  @doc """
+  Create a new prompt with the given ID. This is used to access an existing
+  prompt. If `id` is `nil`, acts as an alias for `new/0`.
+  """
   def new(nil), do: new(UUID.uuid4())
+  def new(id), do: %__MODULE__{id: id, store_path: build_store_dir(id)}
 
-  def new(id) do
-    %__MODULE__{id: id, store_path: build_store_dir(id)}
-  end
-
+  @doc """
+  Returns true if the prompt has been written to the store.
+  """
   def exists?(prompt) do
     File.exists?(prompt.store_path)
   end
 
+  @doc """
+  Returns the current version of the prompt. Prompts are automatically
+  versioned with incremental numbers for tracking.
+  """
   def version(prompt) do
     get_current_version_number(prompt)
   end
 
-  def write(prompt, title, prompt_text, questions) do
+  @doc """
+  Saves the prompt to the store. If the prompt already exists but thew `title`,
+  `prompt_text`, or `questions` have changed, it will be given an incremented
+  version number. If they have not changed, an error will be returned
+  (`{:error, {:prompt_exists, id}}`).
+  """
+  def write(prompt, title, prompt_text, questions, indexer \\ Indexer) do
     qstr = format_questions(questions)
 
     Store.list_prompts()
@@ -81,12 +99,12 @@ defmodule Store.Prompt do
       end
     end)
     |> case do
-      nil -> do_write(prompt, title, prompt_text, questions)
+      nil -> do_write(prompt, title, prompt_text, questions, indexer)
       p -> {:error, {:prompt_exists, p.id}}
     end
   end
 
-  defp do_write(prompt, title, prompt_text, questions) do
+  defp do_write(prompt, title, prompt_text, questions, indexer) do
     # --------------------------------------------------------------------------
     # Determine the versioned path for the new prompt.
     # --------------------------------------------------------------------------
@@ -123,16 +141,14 @@ defmodule Store.Prompt do
     # --------------------------------------------------------------------------
     # Generate and save embeddings for the prompt.
     # --------------------------------------------------------------------------
-    embeddings_json =
-      AI.new()
-      |> AI.get_embeddings!("# #{title}\n#{prompt_text}\n\n#{questions}")
-      |> Jason.encode!()
+    embeddings_text = [title, prompt_text, questions] |> Enum.join("\n")
 
-    prompt_path
-    |> Path.join("embeddings.json")
-    |> File.write!(embeddings_json)
-
-    {:ok, prompt}
+    with idx <- indexer.new(),
+         {:ok, embeddings} <- indexer.get_embeddings(idx, embeddings_text),
+         {:ok, json} <- Jason.encode(embeddings),
+         :ok <- prompt_path |> Path.join("embeddings.json") |> File.write(json) do
+      {:ok, prompt}
+    end
   end
 
   def read(prompt) do
