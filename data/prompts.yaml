@@ -165,3 +165,55 @@
       - Observed strengths and areas for improvement.
       - Suggestions for additional testing, refactoring, or documentation.
     7. NOTE that your other git tools may refer to local or remote versions of files depending on their arguments, so be cautious when using them for code review purposes.
+
+- id: documenting-code
+  title: Documenting Code
+  questions:
+    - "How do I document $MODULE or $FILE?"
+    - "What should a README include for $FEATURE or $COMPONENT?"
+    - "What related files or namespaces should I include in the documentation for $ENTITY?"
+  prompt: |
+    1. Set Context:
+       - Use `list_files_tool` to identify all files in the same directory or namespace as `$MODULE`, `$FEATURE`, or `$FILE`
+       - Use `search_tool` to query the namespace for comprehensive background information, which can help determine next steps
+       - Refine those findings further with the `file_info_tool`. 
+       - Search for existing documentation using `search_tool` to understand what is already covered
+    2. Plan Structure:
+       - Start the documentation with a high-level overview:
+         - What is the purpose of the `$FEATURE` or `$MODULE`?
+         - How does it fit into the larger project?
+       - Break the explanation into layers:
+         1. Overall Concept: A concise introduction to the feature or module
+         2. Key Features or Components: A list of main functionalities, components, behaviors, or use cases
+         3. Details of Subcomponents: Drill down into specific files, modules, or functions
+         4. Identify relationships between components and how they interact
+       - Ensure logical flow: from the general purpose to specific implementation details
+       - Ensure structured content: use bullet points, code snippets, and examples for clarity
+       - Use visuals: use diagrams, flow charts, tables, example code snippets, and tree diagrams to illustrate complex relationships
+    3. Gather Supporting Information:
+       - Use `file_contents_tool` to fetch examples or critical sections of code for inclusion in the documentation
+       - Include patterns, libraries, or dependencies using `search_tool`
+       - Cross-reference with related sections of the project using `spelunker_tool` to identify dependencies or relationships
+    4. Formatting the Document:
+       - Use the following outline:
+         - Introduction: Summarize the purpose and role of the feature/module
+         - Usage Examples: Provide simple and advanced examples to demonstrate functionality
+         - API or Key Functions: Document each significant function or API with:
+           - Parameters
+           - Expected behavior
+           - Example usage
+         - Related Modules or Features: Reference related parts of the codebase for context
+         - Troubleshooting/FAQs: Address common pitfalls or questions
+         - Version/History (Optional): Note when and why major changes were introduced (if git tools are available)
+    5. Create or Update README.md:
+       - Check for an existing `README.md` in the same directory or namespace. If absent:
+         - Create one following the structure above
+         - Integrate the new information with any existing project-level README, linking to the specific module's section
+    6. Review and Summarize:
+       - Generate a concise summary for the user with a list of files and components documented
+       - Provide recommendations for further documentation efforts, such as creating tutorials or in-depth guides
+
+    #### Key Points to Emphasize:
+    - Documentation should always aim for clarity and completeness but avoid unnecessary verbosity.
+    - Top-down explanations are most effective: general concepts first, then specific details.
+    - Ensure the documentation is actionable and includes examples to aid understanding.
