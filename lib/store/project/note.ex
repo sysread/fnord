@@ -42,8 +42,8 @@ defmodule Store.Project.Note do
 
         # Generate and save embeddings for the note.
         embeddings_json =
-          text
-          |> AI.Util.generate_embeddings!()
+          AI.new()
+          |> AI.get_embeddings!(text)
           |> Jason.encode!()
 
         note.store_path

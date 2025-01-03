@@ -62,7 +62,7 @@ defmodule Store do
   def search_prompts(query, max_results \\ 3) do
     Store.Prompt.install_initial_strategies()
 
-    needle = AI.Util.generate_embeddings!(query)
+    needle = AI.get_embeddings!(AI.new(), query)
 
     list_prompts()
     |> Enum.reduce([], fn prompt, acc ->

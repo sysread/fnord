@@ -124,8 +124,8 @@ defmodule Store.Prompt do
     # Generate and save embeddings for the prompt.
     # --------------------------------------------------------------------------
     embeddings_json =
-      "# #{title}\n#{prompt_text}\n\n#{questions}"
-      |> AI.Util.generate_embeddings!()
+      AI.new()
+      |> AI.get_embeddings!("# #{title}\n#{prompt_text}\n\n#{questions}")
       |> Jason.encode!()
 
     prompt_path

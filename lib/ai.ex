@@ -76,8 +76,25 @@ defmodule AI do
       end
     end)
     |> case do
-      {:error, reason} -> {:error, inspect(reason)}
-      embeddings -> {:ok, Enum.reverse(embeddings)}
+      {:error, reason} ->
+        {:error, inspect(reason)}
+
+      embeddings ->
+        {:ok,
+         embeddings
+         |> Enum.reverse()
+         |> Enum.zip_with(&Enum.max/1)}
+    end
+  end
+
+  @doc """
+  Identical to `get_embeddings/2`, but raises an error if the request fails.
+  """
+  def get_embeddings!(ai, text) do
+    with {:ok, embeddings} <- get_embeddings(ai, text) do
+      embeddings
+    else
+      {:error, reason} -> raise reason
     end
   end
 

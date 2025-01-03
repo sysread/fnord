@@ -188,7 +188,7 @@ defmodule Store.Project do
   end
 
   def search_notes(project, query, max_results \\ 20) do
-    needle = AI.Util.generate_embeddings!(query)
+    needle = AI.get_embeddings!(AI.new(), query)
 
     project
     |> notes()
