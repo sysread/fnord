@@ -68,7 +68,7 @@ defmodule AI.Agent.Answers do
     AI.Tools.FileInfo.spec(),
     AI.Tools.ListFiles.spec(),
     AI.Tools.Search.spec(),
-    AI.Tools.SearchNotes.spec(),
+    AI.Tools.PriorResearch.spec(),
     AI.Tools.Spelunker.spec()
   ]
 

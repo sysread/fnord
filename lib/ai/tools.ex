@@ -55,6 +55,7 @@ defmodule AI.Tools do
     "git_show_tool" => AI.Tools.GitShow,
     "list_files_tool" => AI.Tools.ListFiles,
     "outline_tool" => AI.Tools.Outline,
+    "prior_research_tool" => AI.Tools.PriorResearch,
     "save_notes_tool" => AI.Tools.SaveNotes,
     "save_strategy_tool" => AI.Tools.SaveStrategy,
     "search_notes_tool" => AI.Tools.SearchNotes,

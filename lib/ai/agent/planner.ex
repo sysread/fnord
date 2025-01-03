@@ -72,8 +72,8 @@ defmodule AI.Agent.Planner do
   """
 
   @tools [
+    AI.Tools.PriorResearch.spec(),
     AI.Tools.SaveNotes.spec(),
-    AI.Tools.SearchNotes.spec(),
     AI.Tools.SearchStrategies.spec(),
     AI.Tools.SuggestStrategy.spec()
   ]
