@@ -3,7 +3,7 @@ defmodule AI.Tools.SaveNotes do
 
   @impl AI.Tools
   def ui_note_on_request(%{"notes" => notes}) do
-    {"Saving research", Enum.join(notes, "\n")}
+    {"Saving research", inspect(notes)}
   end
 
   @impl AI.Tools
