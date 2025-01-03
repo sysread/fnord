@@ -83,6 +83,10 @@ defmodule AI do
         {:ok,
          embeddings
          |> Enum.reverse()
+         # For each dimension, find the maximum value across all embeddings.
+         # This isn't necessarily the _most_ accurate, but it selects the
+         # highest rating for each dimension found in the file, which should be
+         # reasonable for semantic searching.
          |> Enum.zip_with(&Enum.max/1)}
     end
   end

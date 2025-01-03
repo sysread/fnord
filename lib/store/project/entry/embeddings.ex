@@ -57,11 +57,6 @@ defmodule Store.Project.Entry.Embeddings do
     |> Enum.each(&File.rm_rf!/1)
 
     embeddings
-    # For each dimension, find the maximum value across all embeddings. This
-    # isn't necessarily the _most_ accurate, but it selects the highest rating
-    # for each dimension found in the file, which should be reasonable for
-    # semantic searching.
-    |> Enum.zip_with(&Enum.max/1)
     |> Jason.encode()
     |> case do
       {:ok, json} -> File.write(entry.store_path, json)
