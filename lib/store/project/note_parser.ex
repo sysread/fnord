@@ -35,11 +35,15 @@ defmodule Store.Project.NoteParser do
     \s*
   /x
 
-  def parse(input) do
+  def parse(input) when is_binary(input) do
     with {:ok, topic, facts_string} <- parse_topic(input),
          {:ok, facts} <- parse_facts(facts_string) do
       {:ok, {topic, facts}}
     end
+  end
+
+  def parse(_input) do
+    {:error, :invalid_format, :input}
   end
 
   defp parse_topic(input) do

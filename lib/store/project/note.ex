@@ -20,15 +20,7 @@ defmodule Store.Project.Note do
     File.exists?(note.store_path)
   end
 
-  def is_changed?(note, text) do
-    with {:ok, orig} <- read_note(note) do
-      orig != text
-    else
-      _ -> true
-    end
-  end
-
-  def write(note, text) do
+  def write(note, text, indexer \\ Indexer) do
     if is_valid_format?(text) do
       # Ensure the note's store path exists.
       File.mkdir_p!(note.store_path)
@@ -42,9 +34,11 @@ defmodule Store.Project.Note do
 
         # Generate and save embeddings for the note.
         embeddings_json =
-          AI.new()
-          |> AI.get_embeddings!(text)
-          |> Jason.encode!()
+          with idx <- indexer.new(),
+               {:ok, embeddings} <- indexer.get_embeddings(idx, text),
+               {:ok, json} <- Jason.encode(embeddings) do
+            json
+          end
 
         note.store_path
         |> Path.join("embeddings.json")
@@ -83,6 +77,9 @@ defmodule Store.Project.Note do
     end
   end
 
+  # -----------------------------------------------------------------------------
+  # Formatting
+  # -----------------------------------------------------------------------------
   def is_valid_format?(note_text) do
     note_text
     |> parse_string()
@@ -100,5 +97,16 @@ defmodule Store.Project.Note do
 
   def parse_string(input) do
     Store.Project.NoteParser.parse(input)
+  end
+
+  # -----------------------------------------------------------------------------
+  # Private functions
+  # -----------------------------------------------------------------------------
+  defp is_changed?(note, text) do
+    with {:ok, orig} <- read_note(note) do
+      orig != text
+    else
+      _ -> true
+    end
   end
 end
