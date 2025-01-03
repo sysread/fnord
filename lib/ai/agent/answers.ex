@@ -108,7 +108,7 @@ defmodule AI.Agent.Answers do
   # Private functions
   # -----------------------------------------------------------------------------
   defp save_conversation(%AI.Completion{messages: messages}, %{conversation: conversation}) do
-    Store.Project.Conversation.write(conversation, __MODULE__, messages)
+    Store.Project.Conversation.write(conversation, messages)
     UI.debug("Conversation saved to file", conversation.store_path)
     UI.report_step("Conversation saved", conversation.id)
   end
@@ -157,22 +157,10 @@ defmodule AI.Agent.Answers do
     user_msg = user_prompt(opts.question, includes)
 
     if Store.Project.Conversation.exists?(conversation) do
-      with {:ok, _timestamp, %{"messages" => messages}} <-
-             Store.Project.Conversation.read(conversation) do
-        # Conversations are stored as JSON and parsed into a map with string
-        # keys, so we need to convert the keys to atoms.
-        messages =
-          messages
-          |> Enum.map(fn msg ->
-            Map.new(msg, fn {k, v} ->
-              {String.to_atom(k), v}
-            end)
-          end)
-
+      with {:ok, _timestamp, messages} <- Store.Project.Conversation.read(conversation) do
         messages ++ [user_msg]
       else
-        error ->
-          raise error
+        error -> raise error
       end
     else
       [AI.Util.system_msg(@prompt), user_msg]

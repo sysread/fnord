@@ -1,4 +1,14 @@
 defmodule Store.Project.Conversation do
+  @moduledoc """
+  Conversations are stored per project in the project's store dir, under
+  `converations/`. Each conversation is given a UUID identifier and stored as a
+  JSON file with the keys:
+    - `messages`: a list of messages in the conversation
+    - `timestamp`: the time the conversation was last written to
+
+  Existing conversations are retrieved by their UUID identifier.
+  """
+
   defstruct [
     :project,
     :store_path,
@@ -7,9 +17,22 @@ defmodule Store.Project.Conversation do
 
   @store_dir "conversations"
 
+  @doc """
+  Create a new conversation with a new UUID identifier and the globally
+  selected project.
+  """
   def new(), do: new(UUID.uuid4(), Store.get_project())
-  def new(id), do: new(id, Store.get_project())
 
+  @doc """
+  Create a new conversation from an existing UUID identifier and the globally
+  selected project.
+  """
+  def(new(id), do: new(id, Store.get_project()))
+
+  @doc """
+  Create a new conversation from an existing UUID identifier and an explicitly
+  specified project.
+  """
   def new(id, project) do
     %__MODULE__{
       project: project,
@@ -18,17 +41,18 @@ defmodule Store.Project.Conversation do
     }
   end
 
-  def name(conversation) do
-    conversation.store_path
-    |> Path.basename()
-    |> String.replace(".json", "")
-  end
-
+  @doc """
+  Returns true if the conversation exists on disk, false otherwise.
+  """
   def exists?(conversation) do
     File.exists?(conversation.store_path)
   end
 
-  def write(conversation, agent, messages) do
+  @doc """
+  Saves the conversation in the store. The conversation's timestamp is updated
+  to the current time.
+  """
+  def write(conversation, messages) do
     conversation.project
     |> build_store_dir()
     |> File.mkdir_p()
@@ -37,10 +61,7 @@ defmodule Store.Project.Conversation do
       DateTime.utc_now()
       |> DateTime.to_unix()
 
-    data = %{
-      agent: inspect(agent),
-      messages: messages
-    }
+    data = %{messages: messages}
 
     with {:ok, json} <- Jason.encode(data),
          :ok <- File.write(conversation.store_path, "#{timestamp}:#{json}") do
@@ -48,15 +69,23 @@ defmodule Store.Project.Conversation do
     end
   end
 
+  @doc """
+  Reads the conversation from the store. Returns a tuple with the timestamp and
+  the messages in the conversation.
+  """
   def read(conversation) do
     with {:ok, contents} <- File.read(conversation.store_path),
          [timestamp, json] <- String.split(contents, ":", parts: 2),
          {:ok, timestamp} <- timestamp |> String.to_integer() |> DateTime.from_unix(),
-         {:ok, data} <- Jason.decode(json) do
-      {:ok, timestamp, data}
+         {:ok, %{"messages" => msgs}} <- Jason.decode(json) do
+      {:ok, timestamp, Enum.map(msgs, &string_keys_to_atoms/1)}
     end
   end
 
+  @doc """
+  Returns the timestamp of the conversation. If the conversation has not yet
+  been saved to the store, returns 0.
+  """
   def timestamp(conversation) do
     if exists?(conversation) do
       with {:ok, contents} <- File.read(conversation.store_path),
@@ -71,14 +100,42 @@ defmodule Store.Project.Conversation do
     end
   end
 
+  @doc """
+  Returns the user's prompting message in the conversation. This is considered
+  to be the first "user" role message in the conversation.
+  """
   def question(conversation) do
-    with {:ok, _, data} <- read(conversation),
-         {:ok, messages} <- Map.fetch(data, "messages") do
-      messages
-      |> Enum.find(&(Map.get(&1, "role") == "user"))
-      |> Map.get("content")
+    with {:ok, _, msgs} <- read(conversation) do
+      msgs
+      |> Enum.find(&(Map.get(&1, :role) == "user"))
+      |> Map.get(:content)
       |> then(&{:ok, &1})
     end
+  end
+
+  # -----------------------------------------------------------------------------
+  # Private functions
+  # -----------------------------------------------------------------------------
+  defp string_keys_to_atoms(map) when is_map(map) do
+    map
+    |> Enum.map(fn {key, value} ->
+      converted_key =
+        if is_binary(key) do
+          String.to_existing_atom(key)
+        else
+          key
+        end
+
+      converted_value =
+        if is_map(value) do
+          string_keys_to_atoms(value)
+        else
+          value
+        end
+
+      {converted_key, converted_value}
+    end)
+    |> Enum.into(%{})
   end
 
   defp build_store_dir(project) do
