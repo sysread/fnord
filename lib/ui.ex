@@ -59,6 +59,8 @@ defmodule UI do
   end
 
   def info(msg, detail) do
+    msg = msg || ""
+    detail = detail || ""
     Logger.info(IO.ANSI.format([:green, msg, :reset, ": ", :cyan, detail, :reset], colorize?()))
   end
 

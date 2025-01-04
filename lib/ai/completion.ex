@@ -121,15 +121,21 @@ defmodule AI.Completion do
         inspect(reason)
       end
 
-    %{
-      state
-      | response: """
-        I encountered an error while processing your request.
-        The error message was:
+    conversation = Jason.encode!(state.messages, pretty: true)
 
-        #{reason}
-        """
-    }
+    error_msg = """
+    I encountered an error while processing your request.
+    The error message was:
+
+    #{reason}
+
+    Here is the conversation that led to the error:
+    #{conversation}
+    """
+
+    IO.puts(:stderr, error_msg)
+
+    %{state | response: error_msg}
   end
 
   # -----------------------------------------------------------------------------
@@ -141,11 +147,6 @@ defmodule AI.Completion do
 
   defp maybe_use_planner(%{ai: ai, use_planner: true, messages: msgs, tools: tools} = state) do
     on_event(state, :tool_call, {"planner", %{}})
-
-    # Build a list of all messages except for the initial system prompt. The
-    # planner needs access to its own previous responses, but we don't want it
-    # to confuse the calling agent's prompt with its own.
-    msgs = Enum.drop(msgs, 1)
 
     case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools}) do
       {:ok, %{response: response}} ->

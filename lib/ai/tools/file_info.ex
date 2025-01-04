@@ -3,12 +3,22 @@ defmodule AI.Tools.FileInfo do
 
   @impl AI.Tools
   def ui_note_on_request(args) do
-    {"Considering #{args["file"]}", args["question"]}
+    with {:ok, file} <- Map.fetch(args, "file"),
+         {:ok, question} <- Map.fetch(args, "question") do
+      {"Considering #{file}", question}
+    else
+      _ -> "file_info_tool received invalid arguments"
+    end
   end
 
   @impl AI.Tools
   def ui_note_on_result(args, result) do
-    {"Considered #{args["file"]}", "#{args["question"]}\n\n#{result}"}
+    with {:ok, file} <- Map.fetch(args, "file"),
+         {:ok, question} <- Map.fetch(args, "question") do
+      {"Considered #{file}", "#{question}\n\n#{result}"}
+    else
+      _ -> "file_info_tool received invalid arguments"
+    end
   end
 
   @impl AI.Tools

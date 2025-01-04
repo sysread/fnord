@@ -59,7 +59,7 @@ defmodule AI.Agent.Planner do
     - The Coordinating Agent does NOT have access to the save_notes_tool - ONLY YOU DO, so YOU must save the notes.
     - Respond with tool calls to save new notes before responding to the Coordinating Agent.
     - If the user requested investigation or documentation, this is an excellent opportunity to save a lot of notes for future use.
-    - Remember to format your new notes correctly!
+    - Avoid saving dated, time-sensitive, or irrelevant information.
   - Examine the effectiveness of your research strategy and optionally suggest improvements to the research strategy library using the suggest_strategy_tool.
     - If recommending a refinement, ensure you provide the research strategy's ID from step 3.
 
@@ -87,36 +87,44 @@ defmodule AI.Agent.Planner do
   def get_response(ai, opts) do
     with {:ok, msgs} <- Map.fetch(opts, :msgs),
          {:ok, tools} <- Map.fetch(opts, :tools),
-         {:ok, user} <- build_user_msg(msgs, tools) do
+         {:ok, convo} <- build_conversation(msgs, tools) do
       AI.Completion.get(ai,
         max_tokens: @max_tokens,
         model: @model,
         tools: @tools,
         messages: [
           AI.Util.system_msg(@prompt),
-          AI.Util.user_msg(user)
+          AI.Util.user_msg(convo)
         ]
       )
     end
   end
 
-  defp build_user_msg(msgs, tools) do
-    with {:ok, msgs_json} <- Jason.encode(msgs),
-         {:ok, tools_json} <- Jason.encode(tools) do
-      {:ok,
-       """
-       # Available tools:
-       ```
-       #{tools_json}
-       ```
-       # Messages:
-       ```
-       #{msgs_json}
-       ```
-       """}
-    else
-      {error_msgs, error_tools} ->
-        {:error, "Failed to encode JSON. Errors: #{inspect({error_msgs, error_tools})}"}
-    end
+  defp build_conversation(msgs, tools) do
+    # Build a list of all messages except for system messages.
+    msgs =
+      msgs
+      |> Enum.reject(fn %{role: role} -> role == "system" end)
+      |> Jason.encode!(pretty: true)
+
+    # Reduce the tools list to the names and descriptions to save tokens.
+    tools =
+      tools
+      |> Enum.map(fn %{function: %{name: name, description: desc}} ->
+        "`#{name}`: #{desc}"
+      end)
+      |> Enum.join("\n")
+
+    {:ok,
+     """
+     # Available tools:
+     ```
+     #{tools}
+     ```
+     # Messages:
+     ```
+     #{msgs}
+     ```
+     """}
   end
 end

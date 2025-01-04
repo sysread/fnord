@@ -178,16 +178,14 @@ defmodule Store.Project do
       {:ok, dirs} ->
         dirs
         |> Enum.sort()
-        |> Enum.map(fn id ->
-          Store.Project.Note.new(project, id)
-        end)
+        |> Enum.map(&Store.Project.Note.new(project, &1))
 
       _ ->
         []
     end
   end
 
-  def search_notes(project, query, max_results \\ 20) do
+  def search_notes(project, query, max_results \\ 10) do
     needle = AI.get_embeddings!(AI.new(), query)
 
     project

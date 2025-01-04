@@ -71,9 +71,17 @@ defmodule AI.Tools.GitLog do
     |> format_response()
   end
 
+  # git log --abbrev-commit --decorate=short --cherry-mark --pretty=format:'%h %s (%cr) <%an> %d'
   defp build_git_log_args(args) do
+    default_args = [
+      "--abbrev-commit",
+      "--decorate=short",
+      "--cherry-mark",
+      "--pretty=format:'%h %s (%cr) <%an> %d'"
+    ]
+
     args
-    |> Enum.reduce(["-p"], fn
+    |> Enum.reduce(default_args, fn
       {"since", since}, acc -> acc ++ ["--since", since]
       {"until", until}, acc -> acc ++ ["--until", until]
       {"author", author}, acc -> acc ++ ["--author", author]

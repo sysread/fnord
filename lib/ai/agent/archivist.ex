@@ -5,16 +5,13 @@ defmodule AI.Agent.Archivist do
 
   @prompt """
   You are the Archivist Agent.
-  You are responsible for reading, organizing, assimilating, and managing prior research.
+  You are responsible for reading, organizing, and assimilating prior research.
   You will be provided with a query from the Planner Agent or the Answers Agent LLMs.
-  Use your tools to search through the existing research and respond will ALL relevant information.
+  Reorganize the information, optimizing it for relevance to the current query.
+  Keep your responses as concise as possible to maximize information density in your response.
 
   #{AI.Util.agent_to_agent_prompt()}
   """
-
-  @tools [
-    AI.Tools.SearchNotes.spec()
-  ]
 
   @behaviour AI.Agent
 
@@ -27,14 +24,24 @@ defmodule AI.Agent.Archivist do
   end
 
   defp build_response(ai, query) do
-    AI.Completion.get(ai,
+    AI.Accumulator.get_response(ai,
       max_tokens: @max_tokens,
       model: @model,
-      tools: @tools,
-      messages: [
-        AI.Util.system_msg(@prompt),
-        AI.Util.user_msg(query)
-      ]
+      prompt: @prompt,
+      question: query,
+      input: get_notes(query)
     )
+  end
+
+  defp get_notes(query) do
+    Store.get_project()
+    |> Store.Project.search_notes(query)
+    |> Enum.reduce([], fn {_score, note}, acc ->
+      with {:ok, text} <- Store.Project.Note.read_note(note) do
+        [text | acc]
+      end
+    end)
+    |> Enum.reverse()
+    |> Enum.join("\n")
   end
 end

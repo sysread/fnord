@@ -58,7 +58,6 @@ defmodule AI.Tools do
     "prior_research_tool" => AI.Tools.PriorResearch,
     "save_notes_tool" => AI.Tools.SaveNotes,
     "save_strategy_tool" => AI.Tools.SaveStrategy,
-    "search_notes_tool" => AI.Tools.SearchNotes,
     "search_strategies_tool" => AI.Tools.SearchStrategies,
     "search_tool" => AI.Tools.Search,
     "spelunker_tool" => AI.Tools.Spelunker,
