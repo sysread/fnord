@@ -75,8 +75,7 @@ defmodule AI.Tools do
     with {:ok, module} <- tool_module(tool) do
       module.call(state, args)
     else
-      :error -> {:error, :invalid_arg}
-      error -> error
+      {:error, :unknown_tool, tool} -> {:error, :unknown_tool, tool}
     end
   end
 
