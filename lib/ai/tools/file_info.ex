@@ -3,18 +3,24 @@ defmodule AI.Tools.FileInfo do
 
   @impl AI.Tools
   def ui_note_on_request(args) do
-    with {:ok, file} <- Map.fetch(args, "file"),
-         {:ok, question} <- Map.fetch(args, "question") do
-      {"Considering #{file}", question}
-    end
+    file = Map.get(args, "file", "MISSING")
+    question = Map.get(args, "question", "MISSING")
+    {"Considering #{file}", question}
   end
 
   @impl AI.Tools
   def ui_note_on_result(args, result) do
-    with {:ok, file} <- Map.fetch(args, "file"),
-         {:ok, question} <- Map.fetch(args, "question") do
-      {"Considered #{file}", "#{question}\n\n#{result}"}
-    end
+    file = Map.get(args, "file", "MISSING")
+    question = Map.get(args, "question", "MISSING")
+
+    result =
+      if is_binary(result) do
+        result
+      else
+        inspect(result)
+      end
+
+    {"Considered #{file}", "#{question}\n\n#{result}"}
   end
 
   @impl AI.Tools

@@ -4,13 +4,14 @@ defmodule AI.Agent.NotesConsolidator do
   @max_tokens 128_000
 
   @prompt """
+  #{AI.Util.note_format_prompt()}
+  #
   You are an AI agent responsible for analyzing a list of facts and consolidating them.
   You will be presented with a mess of individual facts and documents.
   Input may include mixed formats. It is your job to organize them into a coherent structure.
-  Break down all the information into discrete facts, then reorganize them into topical "notebooks", combining like facts and eliminating redundancy where possible.
+  Break down all the information into discrete facts, then reorganize them by topic.
+  Combine IDENTICAL facts.
   **It is ESSENTIAL that no information is lost.**
-
-  #{AI.Util.note_format_prompt()}
   """
 
   # -----------------------------------------------------------------------------

@@ -225,6 +225,12 @@ defmodule AI.Completion do
       response = AI.Util.tool_msg(id, func, output)
       {:ok, [request, response]}
     else
+      :error ->
+        on_event(state, :tool_call_error, {func, args_json, :error})
+        msg = "An error occurred (most likely incorrect arguments)"
+        response = AI.Util.tool_msg(id, func, msg)
+        {:ok, [request, response]}
+
       {:error, reason} ->
         on_event(state, :tool_call_error, {func, args_json, reason})
         response = AI.Util.tool_msg(id, func, reason)

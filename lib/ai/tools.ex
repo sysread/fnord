@@ -27,6 +27,7 @@ defmodule AI.Tools do
               :ok
               | {:ok, any}
               | {:error, any}
+              | :error
 
   @doc """
   Return either a short string or a string tuple of label + detail to be
