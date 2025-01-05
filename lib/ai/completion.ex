@@ -149,7 +149,7 @@ defmodule AI.Completion do
     on_event(state, :tool_call, {"planner", %{}})
 
     case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools}) do
-      {:ok, %{response: response}} ->
+      {:ok, response} ->
         on_event(state, :tool_call_result, {"planner", %{}, {:ok, response}})
         planner_msg = AI.Util.user_msg("From the Planner Agent: #{response}")
         %__MODULE__{state | messages: state.messages ++ [planner_msg]}
@@ -179,12 +179,12 @@ defmodule AI.Completion do
         ]
 
     case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools}) do
-      {:ok, %{response: response}} when is_binary(response) ->
+      {:ok, response} when is_binary(response) ->
         on_event(state, :tool_call_result, {"planner", %{}, response})
         planner_msg = AI.Util.system_msg(response)
         %__MODULE__{state | messages: state.messages ++ [planner_msg]}
 
-      {:ok, %{response: response}} ->
+      {:ok, response} ->
         on_event(state, :tool_call_result, {"planner", %{}, Jason.encode!(response)})
         planner_msg = AI.Util.system_msg(response)
         %__MODULE__{state | messages: state.messages ++ [planner_msg]}

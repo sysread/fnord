@@ -6,8 +6,6 @@ defmodule AI.Tools.FileInfo do
     with {:ok, file} <- Map.fetch(args, "file"),
          {:ok, question} <- Map.fetch(args, "question") do
       {"Considering #{file}", question}
-    else
-      _ -> "file_info_tool received invalid arguments"
     end
   end
 
@@ -16,8 +14,6 @@ defmodule AI.Tools.FileInfo do
     with {:ok, file} <- Map.fetch(args, "file"),
          {:ok, question} <- Map.fetch(args, "question") do
       {"Considered #{file}", "#{question}\n\n#{result}"}
-    else
-      _ -> "file_info_tool received invalid arguments"
     end
   end
 
@@ -45,7 +41,9 @@ defmodule AI.Tools.FileInfo do
         git_pickaxe_tool, and can use these to provide context about its
         history and differences from earlier version.
         """,
+        strict: true,
         parameters: %{
+          additionalProperties: false,
           type: "object",
           required: ["file", "question"],
           properties: %{
@@ -101,8 +99,8 @@ defmodule AI.Tools.FileInfo do
       {:error, reason} ->
         {:error, reason}
 
-      error ->
-        error
+      :error ->
+        {:error, :incorrect_argument_format}
     end
   end
 

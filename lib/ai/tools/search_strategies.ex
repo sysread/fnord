@@ -41,7 +41,9 @@ defmodule AI.Tools.SearchStrategies do
         elect to use the `save_strategy_tool` to refine the strategy by
         improving the prompt, title, or example questions.
         """,
+        strict: true,
         parameters: %{
+          additionalProperties: false,
           type: "object",
           required: ["query"],
           properties: %{

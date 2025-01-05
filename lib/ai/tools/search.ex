@@ -30,7 +30,9 @@ defmodule AI.Tools.Search do
         Note that repeated searches will reveal identical results, so do not
         waste tokens by repeating the same query multiple times.
         """,
+        strict: true,
         parameters: %{
+          additionalProperties: false,
           type: "object",
           required: ["query"],
           properties: %{

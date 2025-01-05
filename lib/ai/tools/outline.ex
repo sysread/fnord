@@ -14,7 +14,9 @@ defmodule AI.Tools.Outline do
       function: %{
         name: "outline_tool",
         description: "Retrieves an outline of symbols and calls in an indexed code file.",
+        strict: true,
         parameters: %{
+          additionalProperties: false,
           type: "object",
           required: ["file"],
           properties: %{

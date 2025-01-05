@@ -17,7 +17,9 @@ defmodule AI.Tools.ListFiles do
         Lists all files in the project database. You can discover quite a bit
         about a project by examining the layout of the repository.
         """,
+        strict: true,
         parameters: %{
+          additionalProperties: false,
           type: "object",
           required: [],
           properties: %{}

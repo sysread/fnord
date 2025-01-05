@@ -18,7 +18,9 @@ defmodule AI.Tools.PriorResearch do
       function: %{
         name: "prior_research_tool",
         description: "",
+        strict: true,
         parameters: %{
+          additionalProperties: false,
           type: "object",
           required: ["query"],
           properties: %{

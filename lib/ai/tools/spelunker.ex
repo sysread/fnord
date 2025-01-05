@@ -20,7 +20,9 @@ defmodule AI.Tools.Spelunker do
         answering questions about the structure of the code and is able to
         traverse multiple modules to provide you with a call tree.
         """,
+        strict: true,
         parameters: %{
+          additionalProperties: false,
           type: "object",
           required: ["symbol", "start_file", "question"],
           properties: %{

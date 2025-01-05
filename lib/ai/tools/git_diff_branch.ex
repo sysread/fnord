@@ -2,7 +2,8 @@ defmodule AI.Tools.GitDiffBranch do
   @behaviour AI.Tools
 
   @impl AI.Tools
-  def ui_note_on_request(%{"base" => base, "topic" => topic}) do
+  def ui_note_on_request(%{"topic" => topic} = args) do
+    base = Map.get(args, "base", "origin/main")
     {"Diffing branches", "Diffing branches #{base}..#{topic}"}
   end
 
@@ -38,7 +39,8 @@ defmodule AI.Tools.GitDiffBranch do
               description: """
               The base branch to diff against. If not provided, it defaults to
               `origin/main`.
-              """
+              """,
+              default: "origin/main"
             }
           }
         }

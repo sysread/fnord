@@ -329,7 +329,7 @@ defmodule Store.Prompt do
       # differs? conditional below won't be executed. This is incredibly
       # confusing an frustrating, but apparently I've got to leave it in until
       # if figure this BS out.
-      UI.debug("Analyzing research prompt: #{id}")
+      # UI.debug("Analyzing research prompt: #{id}")
 
       if differs?(prompt, prompt_str, questions) do
         UI.info("Saving research prompt: #{title}")

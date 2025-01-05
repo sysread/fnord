@@ -74,6 +74,9 @@ defmodule AI.Tools do
   def perform_tool_call(state, tool, args) do
     with {:ok, module} <- tool_module(tool) do
       module.call(state, args)
+    else
+      :error -> {:error, :invalid_arg}
+      error -> error
     end
   end
 
@@ -82,7 +85,11 @@ defmodule AI.Tools do
       try do
         module.ui_note_on_request(args)
       rescue
-        e in ArgumentError -> "Error logging tool call request: #{inspect(e)}"
+        e in ArgumentError ->
+          {
+            "Error logging tool call request for <#{tool}> (args: #{inspect(args)})",
+            inspect(e)
+          }
       end
     end
   end
@@ -92,7 +99,11 @@ defmodule AI.Tools do
       try do
         module.ui_note_on_result(args, result)
       rescue
-        e in ArgumentError -> "Error logging tool call result: #{inspect(e)}"
+        e in ArgumentError ->
+          {
+            "Error logging tool call result for <#{tool}> (args: #{inspect(args)})",
+            inspect(e)
+          }
       end
     end
   end

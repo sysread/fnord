@@ -21,7 +21,9 @@ defmodule AI.Tools.SaveNotes do
         the domain in which it operates, inferences you have made from your
         research, or short guides to common operations within the project.
         """,
+        strict: true,
         parameters: %{
+          additionalProperties: false,
           type: "object",
           required: ["topic", "facts"],
           properties: %{

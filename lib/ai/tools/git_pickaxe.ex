@@ -23,7 +23,9 @@ defmodule AI.Tools.GitPickaxe do
         This tool utilizes `git log -G`, so any changes matching your regex are
         returned, not just those that added or removed the term.
         """,
+        strict: true,
         parameters: %{
+          additionalProperties: false,
           type: "object",
           required: ["regex"],
           properties: %{

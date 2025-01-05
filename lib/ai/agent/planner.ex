@@ -87,17 +87,24 @@ defmodule AI.Agent.Planner do
   def get_response(ai, opts) do
     with {:ok, msgs} <- Map.fetch(opts, :msgs),
          {:ok, tools} <- Map.fetch(opts, :tools),
-         {:ok, convo} <- build_conversation(msgs, tools) do
-      AI.Completion.get(ai,
-        max_tokens: @max_tokens,
-        model: @model,
-        tools: @tools,
-        messages: [
-          AI.Util.system_msg(@prompt),
-          AI.Util.user_msg(convo)
-        ]
-      )
+         {:ok, convo} <- build_conversation(msgs, tools),
+         {:ok, %{response: response}} <- get_completion(ai, convo) do
+      {:ok, response}
+    else
+      :error -> {:error, :invalid_input}
     end
+  end
+
+  defp get_completion(ai, convo) do
+    AI.Completion.get(ai,
+      max_tokens: @max_tokens,
+      model: @model,
+      tools: @tools,
+      messages: [
+        AI.Util.system_msg(@prompt),
+        AI.Util.user_msg(convo)
+      ]
+    )
   end
 
   defp build_conversation(msgs, tools) do

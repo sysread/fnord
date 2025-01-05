@@ -27,7 +27,9 @@ defmodule AI.Tools.SuggestStrategy do
         list of steps that could refer to other strategies like "How to extract
         the body of a function").
         """,
+        strict: true,
         parameters: %{
+          additionalProperties: false,
           type: "object",
           required: ["title", "plan"],
           properties: %{
