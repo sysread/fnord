@@ -2,25 +2,21 @@ defmodule AI.Tools.FileInfo do
   @behaviour AI.Tools
 
   @impl AI.Tools
-  def ui_note_on_request(args) do
-    file = Map.get(args, "file", "MISSING")
-    question = Map.get(args, "question", "MISSING")
+  def ui_note_on_request(%{"file" => file, "question" => question}) do
     {"Considering #{file}", question}
   end
 
+  def ui_note_on_request(args) do
+    {"file_info_tool", "invalid arguments: #{inspect(args)}"}
+  end
+
   @impl AI.Tools
-  def ui_note_on_result(args, result) do
-    file = Map.get(args, "file", "MISSING")
-    question = Map.get(args, "question", "MISSING")
-
-    result =
-      if is_binary(result) do
-        result
-      else
-        inspect(result)
-      end
-
+  def ui_note_on_result(%{"file" => file, "question" => question}, result) do
     {"Considered #{file}", "#{question}\n\n#{result}"}
+  end
+
+  def ui_note_on_result(_args, _result) do
+    nil
   end
 
   @impl AI.Tools
