@@ -19,4 +19,14 @@ defmodule SettingsTest do
     settings = Settings.set(settings, "foo", "baz")
     assert Settings.get(settings, "foo", "bar") == "baz"
   end
+
+  test "delete/2" do
+    settings = Settings.new()
+
+    settings = Settings.set(settings, "foo", "baz")
+    assert Settings.get(settings, "foo", "bar") == "baz"
+
+    settings = Settings.delete(settings, "foo")
+    assert Settings.get(settings, "foo", :deleted) == :deleted
+  end
 end

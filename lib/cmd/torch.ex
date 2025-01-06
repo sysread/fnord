@@ -26,6 +26,6 @@ defmodule Cmd.Torch do
   """
   def run(_opts) do
     Store.get_project()
-    |> Store.Project.delete()
+    |> Store.Project.torch()
   end
 end

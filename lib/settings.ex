@@ -47,6 +47,16 @@ defmodule Settings do
   end
 
   @doc """
+  Delete a value from the settings store.
+  """
+  def delete(settings, key) do
+    key = make_key(key)
+
+    %Settings{settings | data: Map.delete(settings.data, key)}
+    |> spew()
+  end
+
+  @doc """
   Get the project specified with --project. If the project name is not set, an
   error will be raised.
   """

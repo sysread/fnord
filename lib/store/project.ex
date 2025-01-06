@@ -58,11 +58,20 @@ defmodule Store.Project do
   end
 
   def delete(project) do
+    # Delete indexed files
     project.store_path
     |> Path.join("*/metadata.json")
     |> Path.wildcard()
     |> Enum.map(&Path.dirname/1)
     |> Enum.each(fn path -> File.rm_rf!(path) end)
+  end
+
+  def torch(project) do
+    # Delete entire directory
+    File.rm_rf!(project.store_path)
+
+    # Remove from settings
+    Settings.new() |> Settings.delete(project.name)
   end
 
   def expand_path(path, project) do
