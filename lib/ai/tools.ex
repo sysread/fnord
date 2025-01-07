@@ -65,23 +65,23 @@ defmodule AI.Tools do
     "suggest_strategy_tool" => AI.Tools.SuggestStrategy
   }
 
-  def tool_module(tool) do
-    case Map.get(@tools, tool) do
+  def tool_module(tool, tools \\ @tools) do
+    case Map.get(tools, tool) do
       nil -> {:error, :unknown_tool, tool}
       module -> {:ok, module}
     end
   end
 
-  def perform_tool_call(state, tool, args) do
-    with {:ok, module} <- tool_module(tool) do
+  def perform_tool_call(state, tool, args, tools \\ @tools) do
+    with {:ok, module} <- tool_module(tool, tools),
+         :ok <- validate_required_args(tool, args, tools) do
       module.call(state, args)
-    else
-      {:error, :unknown_tool, tool} -> {:error, :unknown_tool, tool}
     end
   end
 
-  def on_tool_request(tool, args) do
-    with {:ok, module} <- tool_module(tool) do
+  def on_tool_request(tool, args, tools \\ @tools) do
+    with {:ok, module} <- tool_module(tool, tools),
+         :ok <- validate_required_args(tool, args, tools) do
       try do
         module.ui_note_on_request(args)
       rescue
@@ -94,8 +94,8 @@ defmodule AI.Tools do
     end
   end
 
-  def on_tool_result(tool, args, result) do
-    with {:ok, module} <- tool_module(tool) do
+  def on_tool_result(tool, args, result, tools \\ @tools) do
+    with {:ok, module} <- tool_module(tool, tools) do
       try do
         module.ui_note_on_result(args, result)
       rescue
@@ -105,6 +105,39 @@ defmodule AI.Tools do
             inspect(e)
           }
       end
+    end
+  end
+
+  def validate_required_args(tool, args, tools \\ @tools) do
+    with {:ok, module} <- tool_module(tool, tools) do
+      module.spec()
+      |> Map.get(:function)
+      |> Map.get(:parameters)
+      |> Map.get(:required)
+      |> check_required_args(args)
+    end
+  end
+
+  defp check_required_args([], _args) do
+    :ok
+  end
+
+  defp check_required_args([key | keys], args) do
+    with :ok <- get_arg(args, key) do
+      check_required_args(keys, args)
+    else
+      _ -> {:error, :missing_argument, key}
+    end
+  end
+
+  defp get_arg(args, key) do
+    args
+    |> Map.fetch(key)
+    |> case do
+      :error -> {:error, :missing_argument, key}
+      {:ok, ""} -> {:error, :missing_argument, key}
+      {:ok, nil} -> {:error, :missing_argument, key}
+      _ -> :ok
     end
   end
 end

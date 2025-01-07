@@ -235,6 +235,19 @@ defmodule AI.Completion do
         on_event(state, :tool_call_error, {func, args_json, reason})
         response = AI.Util.tool_msg(id, func, reason)
         {:ok, [request, response]}
+
+      {:error, :missing_argument, key} ->
+        on_event(state, :tool_call_error, {func, args_json, "Missing required argument: #{key}"})
+
+        error = """
+        Your attempt to call #{func} failed because it was missing a required argument, '#{key}'.
+        The parameter `#{key}` must be included and cannot be `null` or an empty string.
+        Please consult the tool's spec to confirm which arguments are required.
+        Your tool call request supplied the following arguments: #{args_json}.
+        """
+
+        response = AI.Util.tool_msg(id, func, error)
+        {:ok, [request, response]}
     end
   end
 
