@@ -85,12 +85,25 @@ defmodule AI.Tools do
       try do
         module.ui_note_on_request(args)
       rescue
-        e in ArgumentError ->
-          {
+        e ->
+          UI.error(
             "Error logging tool call request for <#{tool}> (args: #{inspect(args)})",
             inspect(e)
-          }
+          )
+
+          nil
       end
+    else
+      {:error, :missing_argument, _key} ->
+        nil
+
+      error ->
+        UI.error(
+          "Error logging tool call request for <#{tool}> (args: #{inspect(args)})",
+          inspect(error)
+        )
+
+        nil
     end
   end
 

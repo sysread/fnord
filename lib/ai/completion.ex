@@ -1,9 +1,7 @@
 defmodule AI.Completion do
   @moduledoc """
   This module sends a request to the model and handles the response. It is able
-  to handle tool calls and responses. If the caller includes an `on_event`
-  function, it will be called whenever a tool call is performed or if a tool
-  call results in an error.
+  to handle tool calls and responses.
   """
   defstruct [
     :ai,
@@ -232,12 +230,12 @@ defmodule AI.Completion do
         {:ok, [request, response]}
 
       {:error, reason} ->
-        on_event(state, :tool_call_error, {func, args_json, reason})
+        on_event(state, :tool_call_error, {func, args_json, {:error, reason}})
         response = AI.Util.tool_msg(id, func, reason)
         {:ok, [request, response]}
 
       {:error, :unknown_tool, tool} ->
-        on_event(state, :tool_call_error, {func, args_json, "Unknown tool: #{tool}"})
+        on_event(state, :tool_call_error, {func, args_json, {:error, "Unknown tool: #{tool}"}})
 
         error = """
         Your attempt to call #{func} failed because the tool '#{tool}' is unknown.
@@ -249,7 +247,11 @@ defmodule AI.Completion do
         {:ok, [request, response]}
 
       {:error, :missing_argument, key} ->
-        on_event(state, :tool_call_error, {func, args_json, "Missing required argument: #{key}"})
+        on_event(
+          state,
+          :tool_call_error,
+          {func, args_json, {:error, "Missing required argument: #{key}"}}
+        )
 
         error = """
         Your attempt to call #{func} failed because it was missing a required argument, '#{key}'.
@@ -360,7 +362,7 @@ defmodule AI.Completion do
     end
   end
 
-  defp on_event(state, :tool_call_error, {tool, _, {:error, reason}}) do
+  defp on_event(state, :tool_call_error, {tool, _args_json, {:error, reason}}) do
     log_tool_call_error(state, tool, reason)
   end
 
