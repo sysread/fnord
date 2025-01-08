@@ -43,7 +43,11 @@ defmodule AI.Agent.Answers do
   ----------
   # [Restate the user's *original* query as the document title, correcting grammar and spelling]
 
-  [produce a structured response to the user's query, including code snippets, links to documentation, and other resources as needed]
+  [
+    - produce a structured response to the user's query
+    - include code snippets, links to documentation, and other resources as needed
+    - when documenting or explaining a path through the code, provide a walk-through of the workflow, quoting lines of code (with file name) followed by explanation, like when responding in-line to an email
+  ]
 
   # MOTD
   [
