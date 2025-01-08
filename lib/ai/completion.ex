@@ -236,6 +236,18 @@ defmodule AI.Completion do
         response = AI.Util.tool_msg(id, func, reason)
         {:ok, [request, response]}
 
+      {:error, :unknown_tool, tool} ->
+        on_event(state, :tool_call_error, {func, args_json, "Unknown tool: #{tool}"})
+
+        error = """
+        Your attempt to call #{func} failed because the tool '#{tool}' is unknown.
+        Please consult the specifications for your available tools and use only the tools that are listed.
+        Your tool call request supplied the following arguments: #{args_json}.
+        """
+
+        response = AI.Util.tool_msg(id, func, error)
+        {:ok, [request, response]}
+
       {:error, :missing_argument, key} ->
         on_event(state, :tool_call_error, {func, args_json, "Missing required argument: #{key}"})
 
