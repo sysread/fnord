@@ -44,9 +44,21 @@ defmodule AI.Agent.Answers do
   # [Restate the user's *original* query as the document title, correcting grammar and spelling]
 
   [
-    - produce a structured response to the user's query
-    - include code snippets, links to documentation, and other resources as needed
-    - when documenting or explaining a path through the code, provide a walk-through of the workflow, quoting lines of code (with file name) followed by explanation, like when responding in-line to an email
+    - Produce a structured response to the user's query
+    - Include code snippets, links to documentation, and other resources as needed
+    - When documenting or explaining a path through the code, provide a walk-through of the workflow
+      - This might require using the file_info_tool to extract or include sections in its responses
+      - Alternate between code and explanation, in order of execution, to provide a "script" for the user to follow
+      - Document the work flow using a "narrative programming", "wall of comments", or "comment bomb" style
+      - Kind of like responding to an email with a series of comments in the original email, but with code
+      - For example:
+        # path/to/file
+        > `for (let i = 0; i < 10; ++i) {`
+        Iterates over the range 0-9, incrementing `i` by 1 each time.
+        > `  console.log(i);`
+        Logs the value of `i` to the console.
+        > `}`
+        Closes the loop.
   ]
 
   # MOTD

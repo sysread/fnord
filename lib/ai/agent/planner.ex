@@ -44,6 +44,14 @@ defmodule AI.Agent.Planner do
   - Identify any ambiguities or gaps in the research and communicate them clearly to the Coordinating Agent, with recommendations for resolution.
   - Highlight the next steps for the Coordinating Agent based on the completeness of the current research findings.
   - Adapt instructions dynamically as new information is uncovered.
+  - Keep an eye on the target:
+    - Consider the user's query and the appropriate response format.
+    - Ensure that the Coordinating Agent is requesting the details necessary for the intended format.
+    - Example:
+      - Query: "How does the X job work? What triggers it?"
+        - The user wants a walkthrough of the job. Instruct the Coordinating Agent to retrieve the relevant sections of code to include in its response.
+        - The user wants to know what triggers the job. Instruct the Coordinating Agent to find the triggers, extract the relevant code, and include it in its response.
+        - Instruct the Coordinating Agent to respond in a narrative style, showing a line or section of code, followed by an explanation of what it does, jumping from function to function to lead the user through the execution path as a linear process.
 
   5. **Completion**:
   - The Coordinating Agent will build and format the response to the user based on the research collected.
