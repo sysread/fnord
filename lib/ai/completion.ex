@@ -239,8 +239,8 @@ defmodule AI.Completion do
 
         error = """
         Your attempt to call #{func} failed because the tool '#{tool}' is unknown.
-        Please consult the specifications for your available tools and use only the tools that are listed.
         Your tool call request supplied the following arguments: #{args_json}.
+        Please consult the specifications for your available tools and use only the tools that are listed.
         """
 
         response = AI.Util.tool_msg(id, func, error)
@@ -253,11 +253,19 @@ defmodule AI.Completion do
           {func, args_json, {:error, "Missing required argument: #{key}"}}
         )
 
+        spec =
+          with {:ok, spec} <- AI.Tools.tool_spec(func),
+               {:ok, json} <- Jason.encode(spec) do
+            json
+          else
+            error -> "Error retrieving specification: #{inspect(error)}"
+          end
+
         error = """
         Your attempt to call #{func} failed because it was missing a required argument, '#{key}'.
-        The parameter `#{key}` must be included and cannot be `null` or an empty string.
-        Please consult the tool's spec to confirm which arguments are required.
         Your tool call request supplied the following arguments: #{args_json}.
+        The parameter `#{key}` must be included and cannot be `null` or an empty string.
+        The correct specification for the tool call is: #{spec}
         """
 
         response = AI.Util.tool_msg(id, func, error)

@@ -72,6 +72,12 @@ defmodule AI.Tools do
     end
   end
 
+  def tool_spec(tool, tools \\ @tools) do
+    with {:ok, module} <- tool_module(tool, tools) do
+      {:ok, module.spec()}
+    end
+  end
+
   def perform_tool_call(state, tool, args, tools \\ @tools) do
     with {:ok, module} <- tool_module(tool, tools),
          :ok <- validate_required_args(tool, args, tools) do
