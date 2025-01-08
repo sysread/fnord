@@ -1,5 +1,8 @@
 defmodule AI.ToolsTest do
   use ExUnit.Case
+  use TestUtil
+
+  setup do: set_log_level(:none)
 
   defmodule MockTool do
     @behaviour AI.Tools
@@ -67,13 +70,11 @@ defmodule AI.ToolsTest do
 
   describe "on_tool_request/3" do
     test "fails when tool is not registered" do
-      assert {:error, :unknown_tool, "mock_tool"} =
-               AI.Tools.on_tool_request("mock_tool", @req_args)
+      assert AI.Tools.on_tool_request("mock_tool", @req_args) |> is_nil
     end
 
     test "fails when missing required args" do
-      assert {:error, :missing_argument, "required_arg"} =
-               AI.Tools.on_tool_request("mock_tool", @empty_args, @tools)
+      assert AI.Tools.on_tool_request("mock_tool", @empty_args, @tools) |> is_nil
     end
 
     test "successfully logs tool request" do
