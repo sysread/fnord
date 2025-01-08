@@ -30,7 +30,8 @@ defmodule AI.Tools.Spelunker do
               type: "string",
               description: """
               The symbol to use as a reference when either tracing callees,
-              calleers, or paths through the code base.
+              calleers, or paths through the code base. This could be a
+              variable, function, value, etc.
               """
             },
             start_file: %{
