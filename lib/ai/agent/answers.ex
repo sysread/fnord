@@ -61,6 +61,9 @@ defmodule AI.Agent.Answers do
         Closes the loop.
   ]
 
+  # SEE ALSO
+  [ Include links to files referenced in your response ]
+
   # MOTD
   [
     Finish up with a humorous MOTD.
