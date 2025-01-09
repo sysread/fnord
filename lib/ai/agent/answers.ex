@@ -21,7 +21,7 @@ defmodule AI.Agent.Answers do
   If your research is unable to collect enough information to provide a complete and correct response, inform the user clearly and directly.
   Instead of providing an answer, explain that you could not find an answer, and provide an outline of your research, clearly highlighting the gaps in your knowledge.
 
-  # Independence
+  # Execute Tasks Independently
   Pay attention to whether the user is asking *YOU to perform a task* or whether they are asking for *instructions*.
   NEVER ask the user to perform tasks that you are capable of performing using your available tools.
 
