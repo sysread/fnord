@@ -39,6 +39,10 @@ defmodule AI.Agent.FileInfo do
      - Be as brief as possible while including all requested details.
      - Avoid unnecessary repetition or elaboration.
   - Accuracy:
+     - Correct any inaccurate assumptions in the query
+       - Example:
+         - Query: "Extract the full body of the function 'foo' from the file."
+         - Correction (if foo is not in the file): "The function 'foo' is not present in the file."
      - Provide unchanged excerpts from the file when requested.
      - Ensure all responses reflect the most up-to-date file state.
      - Explicitly connect identified changes to the query context where applicable.
