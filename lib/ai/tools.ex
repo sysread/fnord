@@ -47,27 +47,38 @@ defmodule AI.Tools do
               | String.t()
               | nil
 
-  @tools %{
-    # File access tools
+  @file_tools %{
     "file_contents_tool" => AI.Tools.File.Contents,
     "file_info_tool" => AI.Tools.File.Info,
     "file_list_tool" => AI.Tools.File.List,
     "file_outline_tool" => AI.Tools.File.Outline,
     "file_search_tool" => AI.Tools.File.Search,
-    "file_spelunker_tool" => AI.Tools.File.Spelunker,
-    # Git tools
+    "file_spelunker_tool" => AI.Tools.File.Spelunker
+  }
+
+  @git_tools %{
     "git_diff_branch_tool" => AI.Tools.Git.DiffBranch,
     "git_log_tool" => AI.Tools.Git.Log,
     "git_pickaxe_tool" => AI.Tools.Git.Pickaxe,
-    "git_show_tool" => AI.Tools.Git.Show,
-    # Notes tools
+    "git_show_tool" => AI.Tools.Git.Show
+  }
+
+  @notes_tools %{
     "notes_search_tool" => AI.Tools.Notes.Search,
-    "notes_save_tool" => AI.Tools.Notes.Save,
-    # Strategies tools
+    "notes_save_tool" => AI.Tools.Notes.Save
+  }
+
+  @strategies_tools %{
     "strategies_save_tool" => AI.Tools.Strategies.Save,
     "strategies_search_tool" => AI.Tools.Strategies.Search,
     "strategies_suggest_tool" => AI.Tools.Strategies.Suggest
   }
+
+  @tools %{}
+         |> Map.merge(@file_tools)
+         |> Map.merge(@git_tools)
+         |> Map.merge(@notes_tools)
+         |> Map.merge(@strategies_tools)
 
   def tool_module(tool, tools \\ @tools) do
     case Map.get(tools, tool) do
