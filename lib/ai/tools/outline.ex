@@ -40,6 +40,15 @@ defmodule AI.Tools.Outline do
          {:ok, project} <- get_project(),
          {:ok, entry} <- get_entry(project, file) do
       Store.Project.Entry.read_outline(entry)
+    else
+      :error ->
+        {:error, "Missing required parameter: file."}
+
+      {:error, :project_not_found} ->
+        {:error, "This project has not yet been created by the user."}
+
+      {:error, :entry_not_found} ->
+        {:error, "File path not found. Please verify the correct path."}
     end
   end
 
