@@ -176,7 +176,3 @@ for the `search` command.
   }
 }
 ```
-
-# TODO
-- ask: report how old the index is
-- index: option to verify and consolidate notes
