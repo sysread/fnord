@@ -88,8 +88,12 @@ defmodule AI.Tools do
   end
 
   def tool_spec!(tool, tools \\ @tools) do
-    {:ok, module} = tool_module(tool, tools)
-    module.spec()
+    with {:ok, module} <- tool_module(tool, tools) do
+      module.spec()
+    else
+      {:error, :unknown_tool, _tool} ->
+        raise ArgumentError, "Unknown tool: #{tool}"
+    end
   end
 
   def tool_spec(tool, tools \\ @tools) do

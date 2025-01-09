@@ -63,6 +63,19 @@ defmodule AI.ToolsTest do
     end
   end
 
+  describe "tool_spec!/2" do
+    test "fails when tool is not registered" do
+      assert_raise ArgumentError, "Unknown tool: mock_tool", fn ->
+        AI.Tools.tool_spec!("mock_tool")
+      end
+    end
+
+    test "succeeds when tool is registered" do
+      spec = MockTool.spec()
+      assert ^spec = AI.Tools.tool_spec!("mock_tool", @tools)
+    end
+  end
+
   describe "perform_tool_call/4" do
     test "fails when tool is not registered" do
       assert {:error, :unknown_tool, "mock_tool"} =
