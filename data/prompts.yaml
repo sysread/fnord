@@ -9,7 +9,7 @@
   prompt: |
     1. Use the `search_tool` to perform a semantic search for `$X` or `$TOPIC` across the project files.
     2. If the user specifies a module or file, use the `file_info_tool` to summarize its purpose.
-    3. If no specific file is mentioned, list relevant files using `list_files_tool` and identify candidates based on their names or summaries.
+    3. If no specific file is mentioned, list relevant files using `file_list_tool` and identify candidates based on their names or summaries.
     4. Use the `file_contents_tool` to fetch key files or relevant excerpts.
     5. Analyze the flow and context of `$VARIABLE` or `$STRUCT` using references from search results.
     6. If git tools are available, consider using `git_log_tool` to explore the history of relevant files or functions.
@@ -80,7 +80,7 @@
   prompt: |
     1. Use `search_tool` to locate references to "tests," "CI," or "dependencies" in files and directories.
     2. If a specific `$FEATURE` is mentioned, search for test files or test-related comments.
-    3. Use `list_files_tool` to identify `README`, configuration files (e.g., `docker-compose.yml`, `.env`, `Makefile`), or CI scripts.
+    3. Use `file_list_tool` to identify `README`, configuration files (e.g., `docker-compose.yml`, `.env`, `Makefile`), or CI scripts.
     4. Use `file_contents_tool` to examine key files such as `README.md` or `build` scripts for instructions.
     5. If git tools are available, inspect commit history (`git_log_tool`) to identify recent CI or test changes.
     6. Summarize testing or build instructions, linking dependencies or configurations to their usage.
@@ -95,7 +95,7 @@
     1. If git tools are available, use `git_log_tool` to identify when `$FUNCTION` or `$MODULE` was added or modified. DO NOT use git tools if not listed in the available tools.
     2. Use `git_pickaxe_tool` to search commit diffs for `$CODE_SNIPPET` or `$FUNCTION`.
     3. Use `file_info_tool` to cross-reference definitions or modifications in relevant files.
-    4. If the project is not a git repository, rely on `search_tool` and `list_files_tool` to approximate relevant files.
+    4. If the project is not a git repository, rely on `search_tool` and `file_list_tool` to approximate relevant files.
     5. Summarize findings with commit details, authors, and reasons (if documented).
 
 - id: "semantic-search-and-high-level-summaries"
@@ -119,7 +119,7 @@
     - "What environment variables are required?"
     - "How is $SERVICE configured to run in this project?"
   prompt: |
-    1. Use `list_files_tool` to locate setup-related files (`README.md`, `.env`, `docker-compose.yml`, etc.).
+    1. Use `file_list_tool` to locate setup-related files (`README.md`, `.env`, `docker-compose.yml`, etc.).
     2. Search for mentions of "setup," "installation," or `$SERVICE` using `search_tool`.
     3. Use `file_info_tool` to summarize key configuration files and settings.
     4. If available, examine file contents using `file_contents_tool` for detailed instructions.
@@ -133,7 +133,7 @@
     - "What README or guide exists for $TOPIC?"
     - "What file contains instructions for $SETUP?"
   prompt: |
-    1. Use `list_files_tool` to identify documentation files such as `README.md`, `CONTRIBUTING.md`, or guides.
+    1. Use `file_list_tool` to identify documentation files such as `README.md`, `CONTRIBUTING.md`, or guides.
     2. Perform a semantic search using `search_tool` for mentions of `$FEATURE`, `$MODULE`, or `$SETUP`.
     3. Use `file_info_tool` to summarize documentation sections or metadata relevant to the query.
     4. If detailed content is needed, use `file_contents_tool` to extract specific sections or guides.
@@ -179,7 +179,7 @@
     - "What related files or namespaces should I include in the documentation for $ENTITY?"
   prompt: |
     1. Set Context:
-       - Use `list_files_tool` to identify all files in the same directory or namespace as `$MODULE`, `$FEATURE`, or `$FILE`
+       - Use `file_list_tool` to identify all files in the same directory or namespace as `$MODULE`, `$FEATURE`, or `$FILE`
        - Use `search_tool` to query the namespace for comprehensive background information, which can help determine next steps
        - Refine those findings further with the `file_info_tool`.
        - Search for existing documentation using `search_tool` to understand what is already covered

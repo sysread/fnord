@@ -118,8 +118,8 @@ defmodule AI.Agent.Strategizer do
   """
 
   @tools [
-    AI.Tools.SearchStrategies.spec(),
-    AI.Tools.SaveStrategy.spec()
+    AI.Tools.tool_spec!("strategies_search_tool"),
+    AI.Tools.tool_spec!("strategies_save_tool")
   ]
 
   @behaviour AI.Agent

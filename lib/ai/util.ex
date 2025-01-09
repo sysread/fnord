@@ -47,7 +47,7 @@ defmodule AI.Util do
     For example:
     - "The database query returned an error because the schema was not updated."
       - Agent-Optimized: {event db error, cause outdated schema}
-    - "Use the search_tool to identify examples of existing implementations of X that the user can reference."
+    - "Use the file_search_tool to identify examples of existing implementations of X that the user can reference."
       - Agent-Optimized: {search_tool, query X implementation}
     - "The user requested information about 'X', which appears to have multiple meanings in the context of the project."
       - Agent-Optimized: {disambiguate X, respond multiple meaning}

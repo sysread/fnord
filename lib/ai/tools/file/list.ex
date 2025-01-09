@@ -1,4 +1,4 @@
-defmodule AI.Tools.ListFiles do
+defmodule AI.Tools.File.List do
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -12,7 +12,7 @@ defmodule AI.Tools.ListFiles do
     %{
       type: "function",
       function: %{
-        name: "list_files_tool",
+        name: "file_list_tool",
         description: """
         Lists all files in the project database. You can discover quite a bit
         about a project by examining the layout of the repository.
@@ -35,6 +35,6 @@ defmodule AI.Tools.ListFiles do
     |> Stream.map(& &1.rel_path)
     |> Enum.sort()
     |> Enum.join("\n")
-    |> then(fn res -> {:ok, "[list_files_tool]\n#{res}"} end)
+    |> then(fn res -> {:ok, "[file_list_tool]\n#{res}"} end)
   end
 end

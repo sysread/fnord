@@ -1,4 +1,4 @@
-defmodule AI.Tools.SearchStrategies do
+defmodule AI.Tools.Strategies.Search do
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -22,7 +22,7 @@ defmodule AI.Tools.SearchStrategies do
     %{
       type: "function",
       function: %{
-        name: "search_strategies_tool",
+        name: "strategies_search_tool",
         description: """
         "Research Strategies" are previously saved research plans that can be
         used to guide the research strategy of the orchestrating AI agent.

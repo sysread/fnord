@@ -1,4 +1,4 @@
-defmodule AI.Tools.PriorResearch do
+defmodule AI.Tools.Notes.Search do
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -16,7 +16,7 @@ defmodule AI.Tools.PriorResearch do
     %{
       type: "function",
       function: %{
-        name: "prior_research_tool",
+        name: "notes_search_tool",
         description: "",
         strict: true,
         parameters: %{

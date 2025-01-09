@@ -1,4 +1,4 @@
-defmodule AI.Tools.GitPickaxe do
+defmodule AI.Tools.Git.Pickaxe do
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -18,7 +18,7 @@ defmodule AI.Tools.GitPickaxe do
         is useful to identify when an entity was added or removed from the code
         base, determine when a bug might have been introduced, or to confirm
         that seemingly orphaned code is no longer in use (when combined with
-        the search_tool).
+        the file_search_tool).
 
         This tool utilizes `git log -G`, so any changes matching your regex are
         returned, not just those that added or removed the term.

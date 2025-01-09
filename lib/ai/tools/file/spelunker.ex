@@ -1,4 +1,4 @@
-defmodule AI.Tools.Spelunker do
+defmodule AI.Tools.File.Spelunker do
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -12,9 +12,9 @@ defmodule AI.Tools.Spelunker do
     %{
       type: "function",
       function: %{
-        name: "spelunker_tool",
+        name: "file_spelunker_tool",
         description: """
-        The spelunker_tool is an AI-powered graph search tool that allows you
+        The file_spelunker_tool is an AI-powered graph search tool that allows you
         to trace execution paths through the code base. It can identify
         callees, callers, and paths from one symbol to another. It excels at
         answering questions about the structure of the code and is able to

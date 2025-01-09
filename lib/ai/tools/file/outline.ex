@@ -1,4 +1,4 @@
-defmodule AI.Tools.Outline do
+defmodule AI.Tools.File.Outline do
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -12,7 +12,7 @@ defmodule AI.Tools.Outline do
     %{
       type: "function",
       function: %{
-        name: "outline_tool",
+        name: "file_outline_tool",
         description: "Retrieves an outline of symbols and calls in an indexed code file.",
         strict: true,
         parameters: %{
@@ -25,7 +25,7 @@ defmodule AI.Tools.Outline do
               description: """
               The absolute file path to the code file in the project. This
               parameter MUST be a **confirmed file** in the repository, as
-              returned by the list_files_tool or the search_tool.
+              returned by the file_list_tool or the file_search_tool.
               """
             }
           }

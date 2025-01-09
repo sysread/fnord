@@ -1,4 +1,4 @@
-defmodule AI.Tools.Search do
+defmodule AI.Tools.File.Search do
   @max_search_results 5
 
   @behaviour AI.Tools
@@ -14,7 +14,7 @@ defmodule AI.Tools.Search do
     %{
       type: "function",
       function: %{
-        name: "search_tool",
+        name: "file_search_tool",
         description: """
         The search tool uses a semantic search to find files that match your
         query input. The entire project has been indexed using a deep vector
@@ -23,7 +23,7 @@ defmodule AI.Tools.Search do
         This allows you to craft your query using phrases likely to match the
         description of the code's behavior, rather than just the code itself.
 
-        The search_tool does NOT have access to historical data or commit
+        The file_search_tool does NOT have access to historical data or commit
         messages. It only searches the most recently indexed version of the
         project.
 

@@ -1,4 +1,4 @@
-defmodule AI.Tools.SuggestStrategy do
+defmodule AI.Tools.Strategies.Suggest do
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -16,7 +16,7 @@ defmodule AI.Tools.SuggestStrategy do
     %{
       type: "function",
       function: %{
-        name: "suggest_strategy_tool",
+        name: "strategies_suggest_tool",
         description: """
         "Research Strategies" are lists of actionable instructions for how to
         approach a class of research task. They may be granular descriptions of

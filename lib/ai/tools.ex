@@ -48,21 +48,25 @@ defmodule AI.Tools do
               | nil
 
   @tools %{
-    "file_contents_tool" => AI.Tools.FileContents,
-    "file_info_tool" => AI.Tools.FileInfo,
-    "git_diff_branch_tool" => AI.Tools.GitDiffBranch,
-    "git_log_tool" => AI.Tools.GitLog,
-    "git_pickaxe_tool" => AI.Tools.GitPickaxe,
-    "git_show_tool" => AI.Tools.GitShow,
-    "list_files_tool" => AI.Tools.ListFiles,
-    "outline_tool" => AI.Tools.Outline,
-    "prior_research_tool" => AI.Tools.PriorResearch,
-    "save_notes_tool" => AI.Tools.SaveNotes,
-    "save_strategy_tool" => AI.Tools.SaveStrategy,
-    "search_strategies_tool" => AI.Tools.SearchStrategies,
-    "search_tool" => AI.Tools.Search,
-    "spelunker_tool" => AI.Tools.Spelunker,
-    "suggest_strategy_tool" => AI.Tools.SuggestStrategy
+    # File access tools
+    "file_contents_tool" => AI.Tools.File.Contents,
+    "file_info_tool" => AI.Tools.File.Info,
+    "file_list_tool" => AI.Tools.File.List,
+    "file_outline_tool" => AI.Tools.File.Outline,
+    "file_search_tool" => AI.Tools.File.Search,
+    "file_spelunker_tool" => AI.Tools.File.Spelunker,
+    # Git tools
+    "git_diff_branch_tool" => AI.Tools.Git.DiffBranch,
+    "git_log_tool" => AI.Tools.Git.Log,
+    "git_pickaxe_tool" => AI.Tools.Git.Pickaxe,
+    "git_show_tool" => AI.Tools.Git.Show,
+    # Notes tools
+    "notes_search_tool" => AI.Tools.Notes.Search,
+    "notes_save_tool" => AI.Tools.Notes.Save,
+    # Strategies tools
+    "strategies_save_tool" => AI.Tools.Strategies.Save,
+    "strategies_search_tool" => AI.Tools.Strategies.Search,
+    "strategies_suggest_tool" => AI.Tools.Strategies.Suggest
   }
 
   def tool_module(tool, tools \\ @tools) do
@@ -70,6 +74,11 @@ defmodule AI.Tools do
       nil -> {:error, :unknown_tool, tool}
       module -> {:ok, module}
     end
+  end
+
+  def tool_spec!(tool, tools \\ @tools) do
+    {:ok, module} = tool_module(tool, tools)
+    module.spec()
   end
 
   def tool_spec(tool, tools \\ @tools) do

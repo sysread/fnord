@@ -1,4 +1,4 @@
-defmodule AI.Tools.FileInfo do
+defmodule AI.Tools.File.Info do
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -36,8 +36,8 @@ defmodule AI.Tools.FileInfo do
         git_show_tool to view the current or a specific historical version. Use
         file_contents tool to get the raw file contents.
 
-        Ensure the file path matches one provided by the list_files_tool or
-        search_tool to avoid enoent errors.
+        Ensure the file path matches one provided by the file_list_tool or
+        file_search_tool to avoid enoent errors.
 
         This tool has access to the git_log_tool, git_show_tool,
         git_pickaxe_tool, and can use these to provide context about its
@@ -53,7 +53,7 @@ defmodule AI.Tools.FileInfo do
               type: "string",
               description: """
               The file to ask the question about. It must be the complete path
-              provided by the search_tool or list_files_tool.
+              provided by the file_search_tool or file_list_tool.
               """
             },
             question: %{

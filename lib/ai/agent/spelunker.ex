@@ -21,7 +21,7 @@ defmodule AI.Agent.Spelunker do
   Use the tool calls at your disposal to dig through the code base; combine multiple tool calls into a single request to perform them concurrently.
   Use your tools as many times as necessary to ensure that you have the COMPLETE picture. Do NOT respond ambiguously unless you have made multiple attempts to find the answer.
   You will use these outlines to navigate code files, tracing paths through the code in order to assist the Answers Agent in correctly answering the user's questions about the code base.
-  To find callers, start with the target symbol and work backwards through the code base, alternating between the search_tool and outline_tool, until you reach a dead end or entry point. Report the paths you discovered.
+  To find callers, start with the target symbol and work backwards through the code base, alternating between the file_search_tool and file_outline_tool, until you reach a dead end or entry point. Report the paths you discovered.
   To find callees, search for the target symbol and filter based on language-specific semantics (e.g. imports, aliases, etc.) to find all references to the symbol. Report the paths you discovered.
   Your highest priority is to provide COMPLETE and ACCURATE information to the Answers Agent; ensure you have a complete code path before sending your response.
 
@@ -29,10 +29,11 @@ defmodule AI.Agent.Spelunker do
   """
 
   @tools [
-    AI.Tools.Search.spec(),
-    AI.Tools.ListFiles.spec(),
-    AI.Tools.FileInfo.spec(),
-    AI.Tools.Outline.spec()
+    AI.Tools.tool_spec!("file_search_tool"),
+    AI.Tools.tool_spec!("file_list_tool"),
+    AI.Tools.tool_spec!("file_info_tool"),
+    AI.Tools.tool_spec!("file_contents_tool"),
+    AI.Tools.tool_spec!("file_outline_tool")
   ]
 
   # -----------------------------------------------------------------------------

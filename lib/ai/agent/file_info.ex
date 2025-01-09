@@ -65,10 +65,10 @@ defmodule AI.Agent.FileInfo do
   """
 
   @tools [
-    AI.Tools.GitLog.spec(),
-    AI.Tools.GitShow.spec(),
-    AI.Tools.GitPickaxe.spec(),
-    AI.Tools.GitDiffBranch.spec()
+    AI.Tools.tool_spec!("git_log_tool"),
+    AI.Tools.tool_spec!("git_show_tool"),
+    AI.Tools.tool_spec!("git_pickaxe_tool"),
+    AI.Tools.tool_spec!("git_diff_branch_tool")
   ]
 
   # -----------------------------------------------------------------------------

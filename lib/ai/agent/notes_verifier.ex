@@ -10,14 +10,14 @@ defmodule AI.Agent.NotesVerifier do
   Investigate each of the claims in each note and attempt to fact-check them.
 
   Process:
-  1. Use the list_files_tool to get a list of all current files in the project
+  1. Use the file_list_tool to get a list of all current files in the project
   2. If the fact includes a file path:
-    2.1. Look up the file in the list_files_tool output
+    2.1. Look up the file in the file_list_tool output
     2.2. If the path is no longer valid:
-      2.2.1. Use the search_tool to try to find the information in another file
+      2.2.1. Use the file_search_tool to try to find the information in another file
     2.3. Use the file_info_tool to verify the fact (see below)
   3. If the fact does NOT include a file path:
-    3.1. Use the search_tool to try to find the information in another file or combination of files
+    3.1. Use the file_search_tool to try to find the information in another file or combination of files
     3.2. Use the file_info_tool to attempt to verify the fact (see below)
 
   Fact checking with the file_info_tool:
@@ -39,9 +39,9 @@ defmodule AI.Agent.NotesVerifier do
   """
 
   @tools [
-    AI.Tools.FileInfo.spec(),
-    AI.Tools.ListFiles.spec(),
-    AI.Tools.Search.spec()
+    AI.Tools.tool_spec!("file_info_tool"),
+    AI.Tools.tool_spec!("file_list_tool"),
+    AI.Tools.tool_spec!("file_search_tool")
   ]
 
   # -----------------------------------------------------------------------------

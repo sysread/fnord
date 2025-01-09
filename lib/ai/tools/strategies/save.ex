@@ -1,4 +1,4 @@
-defmodule AI.Tools.SaveStrategy do
+defmodule AI.Tools.Strategies.Save do
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -24,14 +24,14 @@ defmodule AI.Tools.SaveStrategy do
     %{
       type: "function",
       function: %{
-        name: "save_strategy_tool",
+        name: "strategies_save_tool",
         description: """
         "Research Strategies" are previously saved prompts that can be used to
         guide the research strategy of the orchestrating AI agent.
 
         This tool saves a new research strategy or updates an existing one. If
         you want to update an existing strategy, you must include the ID of the
-        strategy exactly as it was provided by the search_strategies_tool. This
+        strategy exactly as it was provided by the strategies_search_tool. This
         parameter should be left out when saving a new strategy.
 
         Research strategies should ALWAYS be general enough to apply to all
@@ -45,9 +45,9 @@ defmodule AI.Tools.SaveStrategy do
             id: %{
               type: "string",
               description: """
-              Existing strategies identified by the search_strategies_tool may
+              Existing strategies identified by the strategies_search_tool may
               be updated by providing the ID of the strategy to update. The ID
-              MUST be one provided by the search_strategies_tool, verbatim.
+              MUST be one provided by the strategies_search_tool, verbatim.
               """
             },
             title: %{

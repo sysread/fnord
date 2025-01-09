@@ -1,4 +1,4 @@
-defmodule AI.Tools.FileContents do
+defmodule AI.Tools.File.Contents do
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -24,7 +24,7 @@ defmodule AI.Tools.FileContents do
               type: "string",
               description: """
               The file whose contents you wish to review. It must be the
-              complete path provided by the search_tool or list_files_tool.
+              complete path provided by the file_search_tool or file_list_tool.
               """
             }
           }

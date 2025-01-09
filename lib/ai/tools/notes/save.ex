@@ -1,4 +1,4 @@
-defmodule AI.Tools.SaveNotes do
+defmodule AI.Tools.Notes.Save do
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -14,7 +14,7 @@ defmodule AI.Tools.SaveNotes do
     %{
       type: "function",
       function: %{
-        name: "save_notes_tool",
+        name: "notes_save_tool",
         description: """
         Saves research notes about the project that you have learned from your
         research efforts. These should be concise facts about the project or

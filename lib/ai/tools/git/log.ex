@@ -1,4 +1,4 @@
-defmodule AI.Tools.GitLog do
+defmodule AI.Tools.Git.Log do
   @behaviour AI.Tools
 
   @impl AI.Tools

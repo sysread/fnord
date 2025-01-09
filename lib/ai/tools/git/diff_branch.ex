@@ -1,4 +1,4 @@
-defmodule AI.Tools.GitDiffBranch do
+defmodule AI.Tools.Git.DiffBranch do
   @behaviour AI.Tools
 
   @impl AI.Tools

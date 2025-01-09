@@ -1,4 +1,4 @@
-defmodule AI.Tools.GitShow do
+defmodule AI.Tools.Git.Show do
   @behaviour AI.Tools
 
   @impl AI.Tools

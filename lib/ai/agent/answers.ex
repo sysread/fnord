@@ -83,20 +83,20 @@ defmodule AI.Agent.Answers do
   """
 
   @non_git_tools [
-    AI.Tools.SaveNotes.spec(),
-    AI.Tools.FileContents.spec(),
-    AI.Tools.FileInfo.spec(),
-    AI.Tools.ListFiles.spec(),
-    AI.Tools.Search.spec(),
-    AI.Tools.PriorResearch.spec(),
-    AI.Tools.Spelunker.spec()
+    AI.Tools.tool_spec!("file_contents_tool"),
+    AI.Tools.tool_spec!("file_info_tool"),
+    AI.Tools.tool_spec!("file_list_tool"),
+    AI.Tools.tool_spec!("file_search_tool"),
+    AI.Tools.tool_spec!("file_spelunker_tool"),
+    AI.Tools.tool_spec!("notes_save_tool"),
+    AI.Tools.tool_spec!("notes_search_tool")
   ]
 
   @git_tools [
-    AI.Tools.GitDiffBranch.spec(),
-    AI.Tools.GitLog.spec(),
-    AI.Tools.GitPickaxe.spec(),
-    AI.Tools.GitShow.spec()
+    AI.Tools.tool_spec!("git_diff_branch_tool"),
+    AI.Tools.tool_spec!("git_log_tool"),
+    AI.Tools.tool_spec!("git_pickaxe_tool"),
+    AI.Tools.tool_spec!("git_show_tool")
   ]
 
   @tools @non_git_tools ++ @git_tools
