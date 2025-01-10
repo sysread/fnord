@@ -28,15 +28,19 @@ defmodule Store.Project do
 
   def save_settings(project, source_root \\ nil, exclude \\ nil) do
     settings = %{
-      "root" => project.source_root,
-      "exclude" => project.exclude
+      "exclude" => project.exclude,
+      "root" =>
+        case project.source_root do
+          nil -> nil
+          _ -> Path.expand(project.source_root)
+        end
     }
 
     settings =
       if is_nil(source_root) do
         settings
       else
-        Map.put(settings, "root", source_root)
+        Map.put(settings, "root", Path.expand(source_root))
       end
 
     settings =
