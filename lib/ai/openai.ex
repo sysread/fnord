@@ -43,7 +43,7 @@ defmodule AI.OpenAI do
     Http.post_json(@completion_endpoint, headers, payload, openai.http_options)
     |> case do
       {:ok, response} -> get_completion_response(response)
-      {:error, error} -> {:error, error}
+      {:error, error} -> get_error_response(error)
     end
   end
 
@@ -75,5 +75,20 @@ defmodule AI.OpenAI do
 
   defp get_tool_call(%{"id" => id, "function" => %{"name" => name, "arguments" => args}}) do
     %{id: id, function: %{name: name, arguments: args}}
+  end
+
+  defp get_error_response({http_status, json_error_string}) do
+    json_error_string
+    |> Jason.decode()
+    |> case do
+      {:ok, %{"error" => %{"code" => code, "message" => msg}}} ->
+        {:error, %{http_status: http_status, code: code, message: msg}}
+
+      {:ok, error} ->
+        {:error, %{http_status: http_status, error: inspect(error, pretty: true)}}
+
+      {:error, _} ->
+        {:error, %{http_status: http_status, error: json_error_string}}
+    end
   end
 end

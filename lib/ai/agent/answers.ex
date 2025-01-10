@@ -5,6 +5,11 @@ defmodule AI.Agent.Answers do
 
   @test_prompt """
   Perform the requested test exactly as instructed by the user.
+  If the user is requesting a "mic check":
+    - Respond with an intelligently humorous message to indicate that the request was received
+    - Examples:
+      - "Welcome, my son... welcome to the machine."
+      - "I'm sorry, Dave. I'm afraid I can't do that."
   If the user is requesting a "smoke test", test **ALL** of your available tools in turn
     - **TEST EVERY SINGLE TOOL YOU HAVE ONCE**
     - The user will verify that you called EVERY tool using the debug logs

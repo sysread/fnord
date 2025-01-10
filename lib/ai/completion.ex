@@ -126,27 +126,44 @@ defmodule AI.Completion do
     |> send_request()
   end
 
+  defp handle_response({{:error, %{http_status: http_status, code: code, message: msg}}, state}) do
+    error_msg = """
+    I encountered an error while processing your request.
+
+    - HTTP Status: #{http_status}
+    - Error code: #{code}
+    - Message: #{msg}
+    """
+
+    %{state | response: error_msg}
+  end
+
+  defp handle_response({{:error, %{http_status: http_status, message: msg}}, state}) do
+    error_msg = """
+    I encountered an error while processing your request.
+
+    - HTTP Status: #{http_status}
+    - Message: #{msg}
+    """
+
+    %{state | response: error_msg}
+  end
+
   defp handle_response({{:error, reason}, state}) do
     reason =
       if is_binary(reason) do
         reason
       else
-        inspect(reason)
+        inspect(reason, pretty: true)
       end
-
-    conversation = Jason.encode!(state.messages, pretty: true)
 
     error_msg = """
     I encountered an error while processing your request.
+
     The error message was:
 
     #{reason}
-
-    Here is the conversation that led to the error:
-    #{conversation}
     """
-
-    IO.puts(:stderr, error_msg)
 
     %{state | response: error_msg}
   end
