@@ -1,5 +1,5 @@
 defmodule Store.Project.NoteParserTest do
-  use ExUnit.Case
+  use Fnord.TestCase
 
   describe "parse/1" do
     test ~S|{topic foo {fact bar}}| do

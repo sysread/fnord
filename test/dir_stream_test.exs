@@ -1,5 +1,5 @@
 defmodule DirStreamTest do
-  use ExUnit.Case
+  use Fnord.TestCase
 
   setup do
     # Create a temporary directory structure for testing

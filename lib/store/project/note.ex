@@ -20,7 +20,7 @@ defmodule Store.Project.Note do
     File.exists?(note.store_path)
   end
 
-  def write(note, text, indexer \\ Indexer) do
+  def write(note, text) do
     if is_valid_format?(text) do
       # Ensure the note's store path exists.
       File.mkdir_p!(note.store_path)
@@ -33,8 +33,8 @@ defmodule Store.Project.Note do
         |> File.write!(text)
 
         # Generate and save embeddings for the note.
-        with idx <- indexer.new(),
-             {:ok, embeddings} <- indexer.get_embeddings(idx, text),
+        with idx <- Indexer.impl().new(),
+             {:ok, embeddings} <- Indexer.impl().get_embeddings(idx, text),
              {:ok, json} <- Jason.encode(embeddings),
              :ok <- note.store_path |> Path.join("embeddings.json") |> File.write(json) do
           {:ok, note}

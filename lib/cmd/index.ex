@@ -3,7 +3,6 @@ defmodule Cmd.Index do
 
   defstruct [
     :opts,
-    :indexer_module,
     :indexer,
     :project
   ]
@@ -96,7 +95,7 @@ defmodule Cmd.Index do
     Cmd.Index.Notes.defrag(idx)
   end
 
-  def new(opts, indexer \\ Indexer) do
+  def new(opts) do
     with {:ok, project_name} <- Map.fetch(opts, :project) do
       Application.put_env(:fnord, :project, project_name)
     end
@@ -121,8 +120,7 @@ defmodule Cmd.Index do
 
     %__MODULE__{
       opts: opts,
-      indexer_module: indexer,
-      indexer: indexer.new(),
+      indexer: Indexer.impl().new(),
       project: project
     }
   end

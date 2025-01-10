@@ -3,7 +3,7 @@ defmodule AI.Tools.Git.Log do
 
   @impl AI.Tools
   def ui_note_on_request(args) do
-    {"Inspcting git history", inspect(args)}
+    {"Inspecting git history", inspect(args)}
   end
 
   @impl AI.Tools

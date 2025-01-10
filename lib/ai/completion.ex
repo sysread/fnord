@@ -82,6 +82,21 @@ defmodule AI.Completion do
     {"Context window usage", "#{pct_str} | #{tokens_str} / #{max_tokens_str}"}
   end
 
+  def tools_used(%{messages: messages}) do
+    messages
+    |> Enum.reduce(%{}, fn
+      %{tool_calls: tool_calls}, acc ->
+        tool_calls
+        |> Enum.reduce(acc, fn
+          %{function: %{name: func}}, acc ->
+            Map.update(acc, func, 1, &(&1 + 1))
+        end)
+
+      _, acc ->
+        acc
+    end)
+  end
+
   # -----------------------------------------------------------------------------
   # Completion handling
   # -----------------------------------------------------------------------------

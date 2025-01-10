@@ -7,7 +7,7 @@ defmodule AI.TokenizerTest do
   `gpt-3.5`/`gpt-3.5-turbo` in the official tool.
   """
 
-  use ExUnit.Case
+  use Fnord.TestCase
 
   @input "Now is the time for all good men to come to the aid of their country."
 

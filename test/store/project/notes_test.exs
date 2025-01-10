@@ -1,14 +1,10 @@
 defmodule Store.Project.NotesTest do
-  use ExUnit.Case
-  use TestUtil
+  use Fnord.TestCase
 
   alias Store.Project.Note
 
   setup do: set_config(workers: 1, quiet: true)
-
-  setup do
-    {:ok, project: mock_project("blarg")}
-  end
+  setup do: {:ok, project: mock_project("blarg")}
 
   test "new: project only", ctx do
     note = Note.new(ctx.project)
@@ -40,7 +36,7 @@ defmodule Store.Project.NotesTest do
     note = Note.new(ctx.project, "DEADBEEF")
     refute Note.exists?(note)
 
-    assert {:ok, ^note} = Note.write(note, topic, MockIndexerForNotes)
+    assert {:ok, ^note} = Note.write(note, topic)
     assert Note.exists?(note)
 
     assert {:ok, ^topic} = Note.read_note(note)
@@ -59,22 +55,4 @@ defmodule Store.Project.NotesTest do
     refute Note.exists?(note)
     assert {:error, :enoent} = Note.read(note)
   end
-end
-
-defmodule MockIndexerForNotes do
-  defstruct []
-
-  @behaviour Indexer
-
-  @impl Indexer
-  def new(), do: %MockIndexerForNotes{}
-
-  @impl Indexer
-  def get_embeddings(_idx, _text), do: {:ok, [1, 2, 3]}
-
-  @impl Indexer
-  def get_summary(_idx, _file, _text), do: {:ok, "summary"}
-
-  @impl Indexer
-  def get_outline(_idx, _file, _text), do: {:ok, "outline"}
 end

@@ -1,14 +1,10 @@
 defmodule Cmd.IndexTest do
-  use ExUnit.Case
-  use TestUtil
+  use Fnord.TestCase
 
   setup do: set_config(workers: 1, quiet: true)
 
   describe "run" do
-    setup do
-      project = mock_git_project("test_project")
-      {:ok, project: project}
-    end
+    setup do: {:ok, project: mock_git_project("test_project")}
 
     test "positive path", %{project: project} do
       file = mock_source_file(project, "file1.txt", "file1")
@@ -18,7 +14,7 @@ defmodule Cmd.IndexTest do
       git_ignore(project, ["file2.txt"])
 
       # Create an indexer for the project
-      idx = Cmd.Index.new(%{project: project.name, quiet: true}, MockIndexer)
+      idx = Cmd.Index.new(%{project: project.name, quiet: true})
 
       # Run the indexing process
       Cmd.Index.perform_task(idx)
@@ -39,7 +35,7 @@ defmodule Cmd.IndexTest do
     test "raises an exception when source :directory is not passed or present in settings" do
       raises_error =
         try do
-          Cmd.Index.new(%{project: "test_project"}, MockIndexer)
+          Cmd.Index.new(%{project: "test_project"})
           false
         rescue
           _ -> true
@@ -54,7 +50,7 @@ defmodule Cmd.IndexTest do
 
       raises_error =
         try do
-          Cmd.Index.new(%{project: "test_project", directory: tmp_dir}, MockIndexer)
+          Cmd.Index.new(%{project: "test_project", directory: tmp_dir})
           false
         rescue
           e ->
@@ -71,7 +67,7 @@ defmodule Cmd.IndexTest do
 
       raises_error =
         try do
-          Cmd.Index.new(%{project: project.name}, MockIndexer)
+          Cmd.Index.new(%{project: project.name})
           false
         rescue
           e ->
@@ -82,22 +78,4 @@ defmodule Cmd.IndexTest do
       refute raises_error
     end
   end
-end
-
-defmodule MockIndexer do
-  defstruct []
-
-  @behaviour Indexer
-
-  @impl Indexer
-  def new(), do: %MockIndexer{}
-
-  @impl Indexer
-  def get_embeddings(_idx, _text), do: {:ok, [1, 2, 3]}
-
-  @impl Indexer
-  def get_summary(_idx, _file, _text), do: {:ok, "summary"}
-
-  @impl Indexer
-  def get_outline(_idx, _file, _text), do: {:ok, "outline"}
 end

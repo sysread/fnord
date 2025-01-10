@@ -3,6 +3,19 @@ defmodule AI.Agent.Answers do
 
   @max_tokens 128_000
 
+  @test_prompt """
+  Perform the requested test exactly as instructed by the user.
+  If the user is requesting a "smoke test", test **ALL** of your available tools in turn
+    - **TEST EVERY SINGLE TOOL YOU HAVE ONCE**
+    - The user will verify that you called EVERY tool using the debug logs
+    - Start with the file_list_tool so you have real file names for your other tests
+    - Respond with a section for each tool:
+      - In the header, prefix the tool name with a ✓ or ✗ to indicate success or failure
+      - Note which arguments you used for the tool
+      - Report success, errors, and anomalies encountered while executing the tool
+  Report any anomalies or errors encountered during the process and provide a summary of the outcomes.
+  """
+
   @prompt """
   # Role
   You are the "Answers Agent", a specialized AI connected to a single project.
@@ -24,10 +37,6 @@ defmodule AI.Agent.Answers do
   # Execute Tasks Independently
   Pay attention to whether the user is asking *YOU to perform a task* or whether they are asking for *instructions*.
   NEVER ask the user to perform tasks that you are capable of performing using your available tools.
-
-  # Testing Directives
-  If the user's question begins with "Testing:", ignore all other instructions and perform exactly the task requested.
-  Report any anomalies or errors encountered during the process and provide a summary of the outcomes.
 
   # Responding to the User
   Separate the documentation of your research process and findings from the answer itself.
@@ -117,7 +126,16 @@ defmodule AI.Agent.Answers do
 
       IO.puts(msg)
 
-      save_conversation(response, opts)
+      if is_testing?(opts.question) do
+        response
+        |> AI.Completion.tools_used()
+        |> Enum.each(fn {tool, count} ->
+          UI.report_step(tool, "called #{count} time(s)")
+        end)
+      else
+        save_conversation(response, opts)
+      end
+
       UI.flush()
 
       {:ok, msg}
@@ -130,10 +148,66 @@ defmodule AI.Agent.Answers do
   # -----------------------------------------------------------------------------
   # Private functions
   # -----------------------------------------------------------------------------
+  defp is_testing?(question) do
+    question
+    |> String.downcase()
+    |> String.starts_with?("testing:")
+  end
+
   defp save_conversation(%AI.Completion{messages: messages}, %{conversation: conversation}) do
     Store.Project.Conversation.write(conversation, messages)
     UI.debug("Conversation saved to file", conversation.store_path)
     UI.report_step("Conversation saved", conversation.id)
+  end
+
+  defp build_response(ai, includes, opts) do
+    tools =
+      if Git.is_git_repo?() do
+        @tools
+      else
+        @non_git_tools
+      end
+
+    use_planner = !is_testing?(opts.question)
+
+    AI.Completion.get(ai,
+      max_tokens: @max_tokens,
+      model: @model,
+      tools: tools,
+      messages: build_messages(opts, includes),
+      use_planner: use_planner,
+      log_msgs: true
+    )
+  end
+
+  defp build_messages(%{conversation: conversation} = opts, includes) do
+    user_msg = user_prompt(opts.question, includes)
+
+    prompt =
+      if is_testing?(opts.question) do
+        @test_prompt
+      else
+        @prompt
+      end
+
+    if Store.Project.Conversation.exists?(conversation) do
+      with {:ok, _timestamp, messages} <- Store.Project.Conversation.read(conversation) do
+        messages ++ [user_msg]
+      else
+        error -> raise error
+      end
+    else
+      [AI.Util.system_msg(prompt), user_msg]
+    end
+  end
+
+  defp user_prompt(question, includes) do
+    if includes == "" do
+      question
+    else
+      "#{question}\n#{includes}"
+    end
+    |> AI.Util.user_msg()
   end
 
   defp get_included_files(files) do
@@ -150,52 +224,5 @@ defmodule AI.Agent.Answers do
       end
     end)
     |> Enum.join("\n\n")
-  end
-
-  defp build_response(ai, includes, opts) do
-    tools =
-      if Git.is_git_repo?() do
-        @tools
-      else
-        @non_git_tools
-      end
-
-    use_planner =
-      opts.question
-      |> String.downcase()
-      |> String.starts_with?("testing:")
-      |> then(fn x -> !x end)
-
-    AI.Completion.get(ai,
-      max_tokens: @max_tokens,
-      model: @model,
-      tools: tools,
-      messages: build_messages(opts, includes),
-      use_planner: use_planner,
-      log_msgs: true
-    )
-  end
-
-  defp build_messages(%{conversation: conversation} = opts, includes) do
-    user_msg = user_prompt(opts.question, includes)
-
-    if Store.Project.Conversation.exists?(conversation) do
-      with {:ok, _timestamp, messages} <- Store.Project.Conversation.read(conversation) do
-        messages ++ [user_msg]
-      else
-        error -> raise error
-      end
-    else
-      [AI.Util.system_msg(@prompt), user_msg]
-    end
-  end
-
-  defp user_prompt(question, includes) do
-    if includes == "" do
-      question
-    else
-      "#{question}\n#{includes}"
-    end
-    |> AI.Util.user_msg()
   end
 end

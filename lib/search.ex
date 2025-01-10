@@ -2,24 +2,22 @@ defmodule Search do
   defstruct [
     :query,
     :limit,
-    :detail,
-    :index_module
+    :detail
   ]
 
   @doc """
   Creates a new `Search` struct with the given options.
   """
-  def new(opts, index_module \\ AI) do
+  def new(opts) do
     %__MODULE__{
       query: opts[:query],
       limit: opts[:limit],
-      detail: opts[:detail],
-      index_module: index_module
+      detail: opts[:detail]
     }
   end
 
   def get_results(search) do
-    needle = get_query_embeddings(search.query, search.index_module)
+    needle = get_query_embeddings(search.query)
 
     {:ok, queue} =
       Queue.start_link(fn entry ->
@@ -46,8 +44,9 @@ defmodule Search do
     results
   end
 
-  defp get_query_embeddings(query, index_module) do
-    {:ok, needle} = index_module.get_embeddings(index_module.new(), query)
+  defp get_query_embeddings(query) do
+    idx = Indexer.impl()
+    {:ok, needle} = idx.get_embeddings(idx.new(), query)
     needle
   end
 

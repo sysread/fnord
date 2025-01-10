@@ -73,13 +73,13 @@ defmodule Cmd.Index.Embeddings do
   end
 
   defp get_outline(idx, file, file_contents) do
-    res = idx.indexer_module.get_outline(idx.indexer, file, file_contents)
+    res = Indexer.impl().get_outline(idx.indexer, file, file_contents)
     Cmd.Index.UI.progress_bar_update(:indexing)
     res
   end
 
   defp get_summary(idx, file, file_contents) do
-    res = idx.indexer_module.get_summary(idx.indexer, file, file_contents)
+    res = Indexer.impl().get_summary(idx.indexer, file, file_contents)
     Cmd.Index.UI.progress_bar_update(:indexing)
     res
   end
@@ -101,7 +101,7 @@ defmodule Cmd.Index.Embeddings do
       ```
     """
 
-    result = idx.indexer_module.get_embeddings(idx.indexer, to_embed)
+    result = Indexer.impl().get_embeddings(idx.indexer, to_embed)
     Cmd.Index.UI.progress_bar_update(:indexing)
 
     case result do

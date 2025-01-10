@@ -52,9 +52,9 @@ defmodule Cmd.Search do
   end
 
   @impl Cmd
-  def run(opts, ai_module \\ AI) do
+  def run(opts) do
     opts
-    |> Search.new(ai_module)
+    |> Search.new()
     |> Search.get_results()
     |> Enum.each(fn {entry, score, data} ->
       if opts.detail do

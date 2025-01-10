@@ -29,39 +29,33 @@ defmodule AI.Tokenizer do
   # -----------------------------------------------------------------------------
   @doc """
   Returns the tokenizer implementation module currently in use. This is defined
-  in the application config, under `fnord/tokenizer_module`, allowing it to be
+  in the application config, under `fnord/tokenizer`, allowing it to be
   overridden for testing.
   """
-  def get_impl() do
-    Application.get_env(:fnord, :tokenizer_module) || @default_impl
+  def impl() do
+    Application.get_env(:fnord, :tokenizer) || @default_impl
   end
 
   @doc """
   Encodes a text string into a list of token IDs using the algorithm defined
   for the specified model.
   """
-  def encode(text, model) do
-    get_impl().encode(text, model)
-  end
+  def encode(text, model), do: impl().encode(text, model)
 
   @doc """
   Decodes a list of token IDs into a text string using the algorithm defined
   for the specified model.
   """
-  def decode(token_ids, model) do
-    get_impl().decode(token_ids, model)
-  end
+  def decode(token_ids, model), do: impl().decode(token_ids, model)
 
   @doc """
   Splits a string into chunks of `max_tokens` tokens using the algorithm
   defined for the specified model.
   """
   def chunk(input, max_tokens, model) do
-    tokenizer = AI.Tokenizer.get_impl()
-
     input
-    |> tokenizer.encode(model)
+    |> encode(model)
     |> Enum.chunk_every(max_tokens)
-    |> Enum.map(&tokenizer.decode(&1, model))
+    |> Enum.map(&decode(&1, model))
   end
 end

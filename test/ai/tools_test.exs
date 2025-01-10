@@ -1,6 +1,5 @@
 defmodule AI.ToolsTest do
-  use ExUnit.Case
-  use TestUtil
+  use Fnord.TestCase
 
   setup do: set_log_level(:none)
 

@@ -1,15 +1,11 @@
 defmodule Store.Project.EntryTest do
-  use ExUnit.Case
-  use TestUtil
+  use Fnord.TestCase
 
   @text "how now brown bureaucrat"
   @alt_text "now is the time for all good men to come to the aid of their country"
 
   setup do: set_config(workers: 1, quiet: true)
-
-  setup do
-    {:ok, project: mock_project("blarg")}
-  end
+  setup do: {:ok, project: mock_project("blarg")}
 
   describe "new_from_file_path/2" do
     test "basics", ctx do
@@ -76,14 +72,11 @@ defmodule Store.Project.EntryTest do
 
       # Create an indexer for the project
       idx =
-        Cmd.Index.new(
-          %{
-            project: ctx.project.name,
-            directory: ctx.project.source_root,
-            quiet: true
-          },
-          MockIndexerForEntryTest
-        )
+        Cmd.Index.new(%{
+          project: ctx.project.name,
+          directory: ctx.project.source_root,
+          quiet: true
+        })
 
       # Run the indexing process
       Cmd.Index.perform_task(idx)
@@ -308,22 +301,4 @@ defmodule Store.Project.EntryTest do
               }} = Store.Project.Entry.read(entry)
     end
   end
-end
-
-defmodule MockIndexerForEntryTest do
-  defstruct []
-
-  @behaviour Indexer
-
-  @impl Indexer
-  def new(), do: %MockIndexerForEntryTest{}
-
-  @impl Indexer
-  def get_embeddings(_idx, _text), do: {:ok, [4, 5, 6]}
-
-  @impl Indexer
-  def get_summary(_idx, _file, _text), do: {:ok, "summary"}
-
-  @impl Indexer
-  def get_outline(_idx, _file, _text), do: {:ok, "outline"}
 end

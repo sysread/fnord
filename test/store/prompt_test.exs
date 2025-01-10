@@ -1,14 +1,10 @@
 defmodule Store.PromptTest do
-  use ExUnit.Case
-  use TestUtil
+  use Fnord.TestCase
 
   alias Store.Prompt
 
   setup do: set_config(workers: 1, quiet: true)
-
-  setup do
-    {:ok, project: mock_project("blarg")}
-  end
+  setup do: {:ok, project: mock_project("blarg")}
 
   test "new/0" do
     prompt = Prompt.new()
@@ -50,14 +46,7 @@ defmodule Store.PromptTest do
     # --------------------------------------------------------------------------
     # Save the prompt
     # --------------------------------------------------------------------------
-    assert {:ok, ^prompt} =
-             Prompt.write(
-               prompt,
-               title,
-               prompt_str,
-               questions,
-               MockIndexerForPrompts
-             )
+    assert {:ok, ^prompt} = Prompt.write(prompt, title, prompt_str, questions)
 
     assert Prompt.exists?(prompt)
     assert {:ok, version} = Prompt.version(prompt)
@@ -88,28 +77,14 @@ defmodule Store.PromptTest do
     # --------------------------------------------------------------------------
     id = prompt.id
 
-    assert {:error, {:prompt_exists, ^id}} =
-             Prompt.write(
-               prompt,
-               title,
-               prompt_str,
-               questions,
-               MockIndexerForPrompts
-             )
+    assert {:error, {:prompt_exists, ^id}} = Prompt.write(prompt, title, prompt_str, questions)
 
     # --------------------------------------------------------------------------
     # Try to save it again with different parameters, which should succeed.
     # --------------------------------------------------------------------------
     v2_title = "Doing the thing - but slightly different this time"
 
-    assert {:ok, ^prompt} =
-             Prompt.write(
-               prompt,
-               v2_title,
-               prompt_str,
-               questions,
-               MockIndexerForPrompts
-             )
+    assert {:ok, ^prompt} = Prompt.write(prompt, v2_title, prompt_str, questions)
 
     assert ["v0", "v1"] = Prompt.list_versions(prompt)
 
@@ -134,22 +109,4 @@ defmodule Store.PromptTest do
               version: 1
             }} = Prompt.read(prompt, 1)
   end
-end
-
-defmodule MockIndexerForPrompts do
-  defstruct []
-
-  @behaviour Indexer
-
-  @impl Indexer
-  def new(), do: %MockIndexerForPrompts{}
-
-  @impl Indexer
-  def get_embeddings(_idx, _text), do: {:ok, [1, 2, 3]}
-
-  @impl Indexer
-  def get_summary(_idx, _file, _text), do: {:ok, "summary"}
-
-  @impl Indexer
-  def get_outline(_idx, _file, _text), do: {:ok, "outline"}
 end

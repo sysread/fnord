@@ -84,7 +84,7 @@ defmodule Store.Prompt do
   version number. If they have not changed, an error will be returned
   (`{:error, {:prompt_exists, id}}`).
   """
-  def write(prompt, title, prompt_text, questions, indexer \\ Indexer) do
+  def write(prompt, title, prompt_text, questions) do
     qstr = format_questions(questions)
 
     Store.list_prompts()
@@ -99,12 +99,12 @@ defmodule Store.Prompt do
       end
     end)
     |> case do
-      nil -> do_write(prompt, title, prompt_text, questions, indexer)
+      nil -> do_write(prompt, title, prompt_text, questions)
       p -> {:error, {:prompt_exists, p.id}}
     end
   end
 
-  defp do_write(prompt, title, prompt_text, questions, indexer) do
+  defp do_write(prompt, title, prompt_text, questions) do
     # --------------------------------------------------------------------------
     # Determine the versioned path for the new prompt.
     # --------------------------------------------------------------------------
@@ -143,8 +143,8 @@ defmodule Store.Prompt do
     # --------------------------------------------------------------------------
     embeddings_text = [title, prompt_text, questions] |> Enum.join("\n")
 
-    with idx <- indexer.new(),
-         {:ok, embeddings} <- indexer.get_embeddings(idx, embeddings_text),
+    with idx <- Indexer.impl().new(),
+         {:ok, embeddings} <- Indexer.impl().get_embeddings(idx, embeddings_text),
          {:ok, json} <- Jason.encode(embeddings),
          :ok <- prompt_path |> Path.join("embeddings.json") |> File.write(json) do
       {:ok, prompt}

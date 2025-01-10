@@ -1,34 +1,13 @@
 defmodule AI.SplitterTest do
-  use ExUnit.Case
+  use Fnord.TestCase
 
-  # Mock tokenizer that just splits on spaces insteead of generating tokens.
-  defmodule MockTokenizer do
-    @behaviour AI.Tokenizer
-
-    @impl AI.Tokenizer
-    def encode(text, _model) do
-      text |> String.split()
-    end
-
-    @impl AI.Tokenizer
-    def decode(tokens, _model) do
-      tokens |> Enum.join(" ")
-    end
-  end
-
-  setup do
-    orig = Application.get_env(:fnord, :tokenizer_module)
-
-    Application.put_env(:fnord, :tokenizer_module, MockTokenizer)
-
-    on_exit(fn ->
-      Application.put_env(:fnord, :tokenizer_module, orig)
-    end)
-
-    :ok
-  end
+  setup do: set_config(:tokenizer, MockTokenizer)
 
   test "next_chunk/1" do
+    MockTokenizer
+    |> Mox.stub(:encode, fn text, _model -> String.split(text) end)
+    |> Mox.stub(:decode, fn tokens, _model -> Enum.join(tokens, " ") end)
+
     input = "the quick brown fox jumps over the lazy dog"
 
     splitter = AI.Splitter.new(input, 5, "mst-3k")

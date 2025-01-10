@@ -1,7 +1,5 @@
 defmodule SettingsTest do
-  use ExUnit.Case
-
-  use TestUtil
+  use Fnord.TestCase
 
   test "home/0", %{fnord_home: fnord_home} do
     assert Settings.home() == Path.join(fnord_home, ".fnord")

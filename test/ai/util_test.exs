@@ -1,5 +1,5 @@
 defmodule AI.UtilTest do
-  use ExUnit.Case
+  use Fnord.TestCase
 
   test "cosine_similarity/2 computes correct similarity", _context do
     vec1 = [1.0, 0.0, 0.0]

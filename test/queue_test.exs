@@ -1,6 +1,5 @@
 defmodule QueueTest do
-  use ExUnit.Case
-  use TestUtil
+  use Fnord.TestCase
 
   setup do: set_config(workers: 2)
 

@@ -1,5 +1,5 @@
 defmodule Store.Project.Entry.SummaryTest do
-  use ExUnit.Case
+  use Fnord.TestCase
 
   setup do
     dir_path = Path.join(System.tmp_dir!(), "store_summary_test")

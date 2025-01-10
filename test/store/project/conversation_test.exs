@@ -1,6 +1,5 @@
 defmodule Store.Project.ConversationTest do
-  use ExUnit.Case
-  use TestUtil
+  use Fnord.TestCase
 
   alias Store.Project.Conversation
 
