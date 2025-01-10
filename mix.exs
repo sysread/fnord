@@ -7,7 +7,7 @@ defmodule Fnord.MixProject do
       version: "0.5.5",
       elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
-      description: "Index, search, and investigate your code base with OpenAI's embeddings API",
+      description: "An AI powered, conversational interface for your project that learns",
       package: package(),
       deps: deps(),
       escript: escript(),

@@ -4,6 +4,8 @@ defmodule Fnord do
   search code files.
   """
 
+  @desc "fnord - an AI powered, conversational interface for your project that learns"
+
   @doc """
   Main entry point for the application. Parses command line arguments and
   dispatches to the appropriate subcommand.
@@ -28,7 +30,7 @@ defmodule Fnord do
     parser =
       Optimus.new!(
         name: "fnord",
-        description: "fnord - intelligent code index and search",
+        description: @desc,
         allow_unknown_args: false,
         version: get_version(),
         subcommands:
