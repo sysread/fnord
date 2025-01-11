@@ -19,9 +19,7 @@ defmodule AI.Tools.Git.DiffBranch do
         description: """
         Diffs two branches and returns a list of the commits in the branch as
         well as the diff of changes between $topic and $base. If $base is not
-        provided, it defaults to `origin/main`. Note that this *always* uses
-        the `origin/` prefix for the branches. If the user did not prefix the
-        branch with `origin/`, you should note that detail to them.
+        provided, it defaults to `origin/main`.
         """,
         parameters: %{
           type: "object",
@@ -29,17 +27,11 @@ defmodule AI.Tools.Git.DiffBranch do
           properties: %{
             topic: %{
               type: "string",
-              description: """
-              The topic branch to diff. Note that this *will* be prefixed with
-              `origin/`.
-              """
+              description: "The topic branch to diff (will be prefixed with `origin/`"
             },
             base: %{
               type: "string",
-              description: """
-              The base branch to diff against. If not provided, it defaults to
-              `origin/main`.
-              """,
+              description: "The base branch to diff against (default: `origin/main`)",
               default: "origin/main"
             }
           }

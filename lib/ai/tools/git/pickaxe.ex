@@ -16,9 +16,8 @@ defmodule AI.Tools.Git.Pickaxe do
         description: """
         Searches git history for commits that include the supplied regex. This
         is useful to identify when an entity was added or removed from the code
-        base, determine when a bug might have been introduced, or to confirm
-        that seemingly orphaned code is no longer in use (when combined with
-        the file_search_tool).
+        base, when a bug might have been introduced, or to confirm that
+        apparently orphaned code is no longer in use.
 
         This tool utilizes `git log -G`, so any changes matching your regex are
         returned, not just those that added or removed the term.

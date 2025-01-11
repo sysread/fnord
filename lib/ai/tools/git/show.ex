@@ -14,15 +14,10 @@ defmodule AI.Tools.Git.Show do
       function: %{
         name: "git_show_tool",
         description: """
-        Retrieves the commit message and diff for a given commit SHA. This is
-        usefl to determine when a bug might have been introduced, or to confirm
-        that seemingly orphaned code is no longer in use.
-
-        This tool may also be used to view the raw contents of a file at a
-        specific commit. Use HEAD to get the currently checked out version.
-        This is equivalent to `git show $sha:$file`. NOTE that this version may
-        not match the most recently indexed version that is available to the
-        file_info_tool.
+        Retrieves the commit message and diff for a given commit SHA. This tool
+        may also be used to view the raw contents of a file at a specific
+        commit. Use HEAD to get the currently checked out version. This is
+        equivalent to `git show $sha:$file`.
         """,
         parameters: %{
           type: "object",
@@ -39,10 +34,9 @@ defmodule AI.Tools.Git.Show do
             file: %{
               type: "string",
               description: """
-              Optionally, you can include a file path. This changes the
-              behavior of the tool to show you the complete file at a given
-              commit, rather than showing you the commit message and diff. This
-              is equivalent to `git show $sha:$file`.
+              Optional file path. This changes the behavior of the tool to show
+              you the complete file at a given commit instead of the commit
+              message and diff. This is equivalent to `git show $sha:$file`.
 
               To see the current version of the file, use the sha `HEAD`.
               """

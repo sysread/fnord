@@ -16,19 +16,10 @@ defmodule AI.Tools.File.Search do
       function: %{
         name: "file_search_tool",
         description: """
-        The search tool uses a semantic search to find files that match your
-        query input. The entire project has been indexed using a deep vector
-        space, with each file being pre-processed by an AI to summarize its
-        contents and behaviors, and to generate a list of symbols in the file.
-        This allows you to craft your query using phrases likely to match the
-        description of the code's behavior, rather than just the code itself.
-
-        The file_search_tool does NOT have access to historical data or commit
-        messages. It only searches the most recently indexed version of the
-        project.
-
-        Note that repeated searches will reveal identical results, so do not
-        waste tokens by repeating the same query multiple times.
+        The search tool uses a semantic search to find project files matching
+        your query input. This tool does NOT have access to historical data or
+        commit messages. It only searches the most recently indexed version of
+        the project.
         """,
         strict: true,
         parameters: %{

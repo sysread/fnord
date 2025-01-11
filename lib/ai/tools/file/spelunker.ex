@@ -14,11 +14,10 @@ defmodule AI.Tools.File.Spelunker do
       function: %{
         name: "file_spelunker_tool",
         description: """
-        The file_spelunker_tool is an AI-powered graph search tool that allows you
-        to trace execution paths through the code base. It can identify
-        callees, callers, and paths from one symbol to another. It excels at
-        answering questions about the structure of the code and is able to
-        traverse multiple modules to provide you with a call tree.
+        Instructs an LLM to trace execution paths through the code to identify
+        callers, callees, paths, and conditional logic affecting them. It can
+        answer questions about the structure of the code and traverse multiple
+        files to provide a call tree.
         """,
         strict: true,
         parameters: %{
@@ -29,26 +28,21 @@ defmodule AI.Tools.File.Spelunker do
             symbol: %{
               type: "string",
               description: """
-              The symbol to use as a reference when either tracing callees,
-              calleers, or paths through the code base. This could be a
-              variable, function, value, etc.
+              A symbol to use as an anchor reference to start the search from.
+              For example, a function name, variable, or value.
               """
             },
             start_file: %{
               type: "string",
-              description: """
-              Absolute file path to the code file in the project from which the
-              search will start.
-              """
+              description: "A file path from the file_list_tool or file_search_tool."
             },
             question: %{
               type: "string",
               description: """
-              Instructs the Spelunker agent what to trace. For example:
-              - Identify all functions called by <symbol>.
-              - Identify all functions that call <symbol>.
-              - Starting from <start file>, trace the path from <symbol> to <symbol in another file>.
-              - Attempt to find all entry points that result in a call to <symbol>.
+              A prompt for the spelunker agent to respond to. For example:
+              - Identify all functions called by <symbol>
+              - Identify all functions that call <symbol>
+              - Starting from <start file>:<symbol>, trace logic to <end file>:<symbol>
               """
             }
           }

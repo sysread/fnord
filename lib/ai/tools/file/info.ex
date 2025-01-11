@@ -26,22 +26,13 @@ defmodule AI.Tools.File.Info do
       function: %{
         name: "file_info_tool",
         description: """
-        Requests information about a file. Ensure that you craft your question
-        to explicitly identify how you want the information presented. Nuanced
-        questions with an output template yield the best results.
-
-        This tool can be used to extract sections of code, functions,
-        interfaces, definitions, or entire file contents upon request. NOTE
-        that this is the most recently indexed version of the file; use
-        git_show_tool to view the current or a specific historical version. Use
-        file_contents tool to get the raw file contents.
-
-        Ensure the file path matches one provided by the file_list_tool or
-        file_search_tool to avoid enoent errors.
-
-        This tool has access to the git_log_tool, git_show_tool,
-        git_pickaxe_tool, and can use these to provide context about its
-        history and differences from earlier version.
+        Requests information about a file. An LLM will use your question to
+        extract relevant information from the file. Specify exactly how you
+        want the response formatted (e.g. exact code sections, interfaces,
+        explanations, yes/no, etc.). The file path must match the one provided
+        by the file_list_tool or file_search_tool to avoid enoent errors. This
+        tool can use git to provide context about its history and differences
+        from earlier version.
         """,
         strict: true,
         parameters: %{
@@ -51,22 +42,11 @@ defmodule AI.Tools.File.Info do
           properties: %{
             file: %{
               type: "string",
-              description: """
-              The file to ask the question about. It must be the complete path
-              provided by the file_search_tool or file_list_tool.
-              """
+              description: "A file path from the file_list_tool or file_search_tool."
             },
             question: %{
               type: "string",
-              description: """
-              The question to ask. For example:
-              - How is X initialized in the constructor?
-              - Respond with the complete code block for the function Y.
-              - Trace the flow of data when function Y is called with the argument Z.
-              - Does this module implement $the_interface_the_user_is_looking_for?
-              - List all user-facing commands exposed by this module.
-              - How can this module's public interface be used to implement X?
-              """
+              description: "A complete prompt for the LLM to respond to."
             }
           }
         }
