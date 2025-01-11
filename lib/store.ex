@@ -10,10 +10,6 @@ defmodule Store do
     home
   end
 
-  def prompts_dir() do
-    Path.join(store_home(), @prompts_dir)
-  end
-
   # -----------------------------------------------------------------------------
   # Projects
   # -----------------------------------------------------------------------------
@@ -45,6 +41,10 @@ defmodule Store do
   # -----------------------------------------------------------------------------
   # Prompts
   # -----------------------------------------------------------------------------
+  def prompts_dir() do
+    Path.join(store_home(), @prompts_dir)
+  end
+
   def list_prompts() do
     prompts_dir()
     |> File.ls()
@@ -62,7 +62,9 @@ defmodule Store do
   def search_prompts(query, max_results \\ 3) do
     Store.Prompt.install_initial_strategies()
 
-    needle = AI.get_embeddings!(AI.new(), query)
+    {:ok, needle} =
+      Indexer.impl().new()
+      |> Indexer.impl().get_embeddings(query)
 
     list_prompts()
     |> Enum.reduce([], fn prompt, acc ->

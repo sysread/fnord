@@ -1,12 +1,12 @@
 defmodule SettingsTest do
   use Fnord.TestCase
 
-  test "home/0", %{fnord_home: fnord_home} do
-    assert Settings.home() == Path.join(fnord_home, ".fnord")
+  test "home/0", %{home_dir: home_dir} do
+    assert Settings.home() == Path.join(home_dir, ".fnord")
   end
 
-  test "settings_file/0", %{fnord_home: fnord_home} do
-    assert Settings.settings_file() == Path.join(fnord_home, ".fnord/settings.json")
+  test "settings_file/0", %{home_dir: home_dir} do
+    assert Settings.settings_file() == Path.join(home_dir, ".fnord/settings.json")
   end
 
   test "get/3 <-> set/3" do
