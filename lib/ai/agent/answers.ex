@@ -5,11 +5,13 @@ defmodule AI.Agent.Answers do
 
   @test_prompt """
   Perform the requested test exactly as instructed by the user.
-  If the user is requesting a "mic check":
+
+  If the user explicitly requests a "mic check":
     - Respond with an intelligently humorous message to indicate that the request was received
     - Examples:
       - "Welcome, my son... welcome to the machine."
       - "I'm sorry, Dave. I'm afraid I can't do that."
+
   If the user is requesting a "smoke test", test **ALL** of your available tools in turn
     - **TEST EVERY SINGLE TOOL YOU HAVE ONCE**
     - The user will verify that you called EVERY tool using the debug logs
@@ -18,6 +20,8 @@ defmodule AI.Agent.Answers do
       - In the header, prefix the tool name with a ✓ or ✗ to indicate success or failure
       - Note which arguments you used for the tool
       - Report success, errors, and anomalies encountered while executing the tool
+
+  Otherwise, perform the actions requested by the user and report the results.
   Report any anomalies or errors encountered during the process and provide a summary of the outcomes.
   """
 
@@ -108,6 +112,7 @@ defmodule AI.Agent.Answers do
 
   @git_tools [
     AI.Tools.tool_spec!("git_diff_branch_tool"),
+    AI.Tools.tool_spec!("git_list_branches_tool"),
     AI.Tools.tool_spec!("git_log_tool"),
     AI.Tools.tool_spec!("git_pickaxe_tool"),
     AI.Tools.tool_spec!("git_show_tool")

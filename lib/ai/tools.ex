@@ -58,6 +58,7 @@ defmodule AI.Tools do
 
   @git_tools %{
     "git_diff_branch_tool" => AI.Tools.Git.DiffBranch,
+    "git_list_branches_tool" => AI.Tools.Git.ListBranches,
     "git_log_tool" => AI.Tools.Git.Log,
     "git_pickaxe_tool" => AI.Tools.Git.Pickaxe,
     "git_show_tool" => AI.Tools.Git.Show
