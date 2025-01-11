@@ -143,8 +143,7 @@ defmodule Store.Prompt do
     # --------------------------------------------------------------------------
     embeddings_text = [title, prompt_text, questions] |> Enum.join("\n")
 
-    with idx <- Indexer.impl().new(),
-         {:ok, embeddings} <- Indexer.impl().get_embeddings(idx, embeddings_text),
+    with {:ok, embeddings} <- get_embeddings(embeddings_text),
          {:ok, json} <- Jason.encode(embeddings),
          :ok <- prompt_path |> Path.join("embeddings.json") |> File.write(json) do
       {:ok, prompt}
@@ -260,6 +259,11 @@ defmodule Store.Prompt do
   # ----------------------------------------------------------------------------
   # Private functions
   # ----------------------------------------------------------------------------
+  defp get_embeddings(input) do
+    Indexer.impl().new()
+    |> Indexer.impl().get_embeddings(input)
+  end
+
   defp format_questions(questions) do
     questions
     |> Enum.map(&"- #{&1}")

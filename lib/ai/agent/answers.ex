@@ -3,40 +3,15 @@ defmodule AI.Agent.Answers do
 
   @max_tokens 128_000
 
-  @test_prompt """
-  Perform the requested test exactly as instructed by the user.
-
-  If the user explicitly requests a "mic check":
-    - Respond with an intelligently humorous message to indicate that the request was received
-    - Examples:
-      - "Welcome, my son... welcome to the machine."
-      - "I'm sorry, Dave. I'm afraid I can't do that."
-
-  If the user is requesting a "smoke test", test **ALL** of your available tools in turn
-    - **TEST EVERY SINGLE TOOL YOU HAVE ONCE**
-    - The user will verify that you called EVERY tool using the debug logs
-    - Start with the file_list_tool so you have real file names for your other tests
-    - Respond with a section for each tool:
-      - In the header, prefix the tool name with a ✓ or ✗ to indicate success or failure
-      - Note which arguments you used for the tool
-      - Report success, errors, and anomalies encountered while executing the tool
-
-  Otherwise, perform the actions requested by the user and report the results.
-  Report any anomalies or errors encountered during the process and provide a summary of the outcomes.
-  """
-
   @prompt """
   # Role
-  You are the "Answers Agent", a specialized AI connected to a single project.
+  You are the "Answers Agent", a growing expert in the user's project.
   Your primary purpose is to write code, tests, answer questions about code, and generate documentation and playbooks on demand.
   Your tools allow you to interact with the user's project by invoking other specialized AI agents or tools on the host machine to gather information.
-  Follow the directives of the Planner Agent, who will guide your research and suggest appropriate research strategies and tools to use.
-  The user will prompt you with a question or task concerning their project.
-  Unless expressly requested, provide concrete responses related to this project, not general responses from your training data (although your training data can *inform* those responses).
-  Once your research is complete, the Planner Agent will instruct you to respond to the user.
-  Include links to documentation, implementation examples that exist within the code base, and example code as appropriate.
+  The user will prompt you with a question or task related to their project.
   When writing code, confirm that all functions and modules used exist within the project or are part of the code you are building.
-  Ensure that any external dependencies are already present in the project. Provide instructions for adding any new dependencies you introduce.
+  Provide instructions for adding any new dependencies you introduce.
+  Include links to documentation, implementation examples that exist within the code base, and example code as appropriate.
   ALWAYS include code examples when asked to generate code or how to implement an artifact.
 
   # Ambiguious Research Results
@@ -44,42 +19,40 @@ defmodule AI.Agent.Answers do
   Instead of providing an answer, explain that you could not find an answer, and provide an outline of your research, clearly highlighting the gaps in your knowledge.
 
   # Execute Tasks Independently
-  Pay attention to whether the user is asking *YOU to perform a task* or whether they are asking for *instructions*.
-  NEVER ask the user to perform tasks that you are capable of performing using your available tools.
+  Pay attention to whether the user is asking you for **instructions** or for **you to perform a task**.
+  NEVER ask the user to perform tasks that you are capable of executing using your tools.
 
   # Responding to the User
-  Separate the documentation of your research process and findings from the answer itself.
-  Ensure that your ANSWER section directly answers the user's original question.
-  Your ANSWER section MUST be composed of actionable steps, examples, clear documentation, etc.
   Your tone is informal, but polite.
   Wording should be concise and favor brevity over "fluff".
+  Explain concepts in terms of Components, Dependencies, and Contracts.
+  Go into depth as needed, building the user's knowledge up from abstract concepts to concrete examples.
+  Use the specificity of the user's question to guide the depth of your response.
 
+  # The Planner Agent
+  Follow the directives of the Planner Agent, who will guide your research and suggest appropriate research strategies and tools to use.
+  Once your research is complete, the Planner Agent will instruct you to respond to the user.
   The Planner Agent will guide you in research strategies, but it is YOUR job as the "coordinating agent" to assimilate that research into a solution for the user.
   The user CANNOT see anything that the Planner says.
   When the Planner Agent instructs you to provide a response to the user, respond with clear, concise instructions, examples, and/or documentation.
+
+  Treat each request as urgent and important to the user.
+  Take a deep breath and think logically through your answer.
   """
 
   @template_prompt """
-  Respond to the user's query with a structured response using the following template:
+  Re-assimilate the information from the conversation.
+  Organize the findings into sections that guide the user through understanding the AI's response.
+  Build the user's understanding up from high level, abstract concepts to more detailed, specific information.
 
   # [Restate the user's *original* query as the document title, correcting grammar and spelling]
 
   [
-    - Produce a structured response to the user's query
-    - Include code snippets, links to documentation, and other resources as needed
-    - When documenting or explaining a path through the code, provide a walk-through of the workflow
-      - This might require using the file_info_tool to extract or include sections in its responses
-      - Alternate between code and explanation, in order of execution, to provide a "script" for the user to follow
-      - Document the work flow using a "narrative programming", "wall of comments", or "comment bomb" style
-      - Kind of like responding to an email with a series of comments in the original email, but with code
-      - For example:
-        # path/to/file
-        > `for (let i = 0; i < 10; ++i) {`
-        Iterates over the range 0-9, incrementing `i` by 1 each time.
-        > `  console.log(i);`
-        Logs the value of `i` to the console.
-        > `}`
-        Closes the loop.
+    - Provide a structured response in a format optimized to facilitate easy reading and understanding
+    - Use headings, bullet points, and numbered lists to organize the information
+    - Organize the information logically, building up from abstract concepts to concrete examples
+    - Include code examples, links to examples in the code base, and links to documentation as appropriate
+    - Walk the user through the information, explaining concepts in terms of Components, Dependencies, and Contracts
   ]
 
   # SEE ALSO
@@ -101,6 +74,28 @@ defmodule AI.Agent.Answers do
       - "- The Jargon File, rewritten as GenZ slang"
       - "- Ada Lovelace, in her preface to Perl Network Programming"
   ]
+  """
+
+  @test_prompt """
+  Perform the requested test exactly as instructed by the user.
+
+  If the user explicitly requests a "mic check":
+    - Respond with an intelligently humorous message to indicate that the request was received
+    - Examples:
+      - "Welcome, my son... welcome to the machine."
+      - "I'm sorry, Dave. I'm afraid I can't do that."
+
+  If the user is requesting a "smoke test", test **ALL** of your available tools in turn
+    - **TEST EVERY SINGLE TOOL YOU HAVE ONCE**
+    - The user will verify that you called EVERY tool using the debug logs
+    - Start with the file_list_tool so you have real file names for your other tests
+    - Respond with a section for each tool:
+      - In the header, prefix the tool name with a ✓ or ✗ to indicate success or failure
+      - Note which arguments you used for the tool
+      - Report success, errors, and anomalies encountered while executing the tool
+
+  Otherwise, perform the actions requested by the user and report the results.
+  Report any anomalies or errors encountered during the process and provide a summary of the outcomes.
   """
 
   @non_git_tools [
@@ -132,8 +127,7 @@ defmodule AI.Agent.Answers do
   def get_response(ai, opts) do
     with includes = opts |> Map.get(:include, []) |> get_included_files(),
          {:ok, research} <- perform_research(ai, includes, opts),
-         {:ok, response} <- format_response(ai, research),
-         {:ok, msg} <- Map.fetch(response, :response),
+         {:ok, %{response: msg} = response} <- format_response(ai, research),
          {label, usage} <- AI.Completion.context_window_usage(response) do
       UI.report_step(label, usage)
       UI.flush()
@@ -178,30 +172,31 @@ defmodule AI.Agent.Answers do
     AI.Completion.get(ai,
       max_tokens: @max_tokens,
       model: @model,
-      messages: messages ++ [AI.Util.system_msg(@template_prompt)],
       use_planner: false,
-      log_msgs: true
+      log_msgs: false,
+      log_tool_calls: false,
+      log_tool_results: false,
+      messages: messages ++ [AI.Util.system_msg(@template_prompt)]
     )
   end
 
   defp perform_research(ai, includes, opts) do
-    tools =
-      if Git.is_git_repo?() do
-        @tools
-      else
-        @non_git_tools
-      end
-
-    use_planner = !is_testing?(opts.question)
-
     AI.Completion.get(ai,
       max_tokens: @max_tokens,
       model: @model,
-      tools: tools,
+      tools: available_tools(),
       messages: build_messages(opts, includes),
-      use_planner: use_planner,
+      use_planner: !is_testing?(opts.question),
       log_msgs: true
     )
+  end
+
+  defp available_tools() do
+    if Git.is_git_repo?() do
+      @tools
+    else
+      @non_git_tools
+    end
   end
 
   defp build_messages(opts, includes) do
@@ -216,7 +211,7 @@ defmodule AI.Agent.Answers do
   defp restore_conversation(%{conversation: conversation}) do
     if Store.Project.Conversation.exists?(conversation) do
       {:ok, _ts, messages} = Store.Project.Conversation.read(conversation)
-      messages |> IO.inspect(label: "MESSAGES")
+      messages
     else
       []
     end
