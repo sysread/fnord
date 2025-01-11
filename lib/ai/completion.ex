@@ -412,16 +412,16 @@ defmodule AI.Completion do
   # Continuing a conversation
   # ----------------------------------------------------------------------------
   defp replay_conversation(state) do
+    messages = Util.string_keys_to_atoms(state.messages)
+
     # Make a lookup for tool call args by id
     tool_call_args =
-      state.messages
+      messages
       |> Enum.reduce(%{}, fn msg, acc ->
         case msg do
           %{role: "assistant", content: nil, tool_calls: tool_calls} ->
             tool_calls
-            |> Enum.map(fn %{"id" => id, "function" => %{"arguments" => args}} ->
-              {id, args}
-            end)
+            |> Enum.map(fn %{id: id, function: %{arguments: args}} -> {id, args} end)
             |> Enum.into(acc)
 
           _ ->
@@ -429,13 +429,13 @@ defmodule AI.Completion do
         end
       end)
 
-    state.messages
+    messages
     # Skip the first message, which is the system prompt for the agent
     |> Enum.drop(1)
     |> Enum.each(fn
       %{role: "assistant", content: nil, tool_calls: tool_calls} ->
         tool_calls
-        |> Enum.each(fn %{"function" => %{"name" => func, "arguments" => args_json}} ->
+        |> Enum.each(fn %{function: %{name: func, arguments: args_json}} ->
           with {:ok, args} <- Jason.decode(args_json) do
             on_event(state, :tool_call, {func, args})
           end

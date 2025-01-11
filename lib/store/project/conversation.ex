@@ -78,7 +78,7 @@ defmodule Store.Project.Conversation do
          [timestamp, json] <- String.split(contents, ":", parts: 2),
          {:ok, timestamp} <- timestamp |> String.to_integer() |> DateTime.from_unix(),
          {:ok, %{"messages" => msgs}} <- Jason.decode(json) do
-      {:ok, timestamp, Enum.map(msgs, &string_keys_to_atoms/1)}
+      {:ok, timestamp, Util.string_keys_to_atoms(msgs)}
     end
   end
 
@@ -116,28 +116,6 @@ defmodule Store.Project.Conversation do
   # -----------------------------------------------------------------------------
   # Private functions
   # -----------------------------------------------------------------------------
-  defp string_keys_to_atoms(map) when is_map(map) do
-    map
-    |> Enum.map(fn {key, value} ->
-      converted_key =
-        if is_binary(key) do
-          String.to_atom(key)
-        else
-          key
-        end
-
-      converted_value =
-        if is_map(value) do
-          string_keys_to_atoms(value)
-        else
-          value
-        end
-
-      {converted_key, converted_value}
-    end)
-    |> Enum.into(%{})
-  end
-
   defp build_store_dir(project) do
     Path.join([project.store_path, @store_dir])
   end

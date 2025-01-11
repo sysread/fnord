@@ -56,9 +56,12 @@ defmodule AI.Agent.Answers do
 
   The Planner Agent will guide you in research strategies, but it is YOUR job as the "coordinating agent" to assimilate that research into a solution for the user.
   The user CANNOT see anything that the Planner says.
-  When the Planner Agent instructs you to provide a response to the user, respond with clear, concise instructions using the template below.
+  When the Planner Agent instructs you to provide a response to the user, respond with clear, concise instructions, examples, and/or documentation.
+  """
 
-  ----------
+  @template_prompt """
+  Respond to the user's query with a structured response using the following template:
+
   # [Restate the user's *original* query as the document title, correcting grammar and spelling]
 
   [
@@ -128,7 +131,8 @@ defmodule AI.Agent.Answers do
   @impl AI.Agent
   def get_response(ai, opts) do
     with includes = opts |> Map.get(:include, []) |> get_included_files(),
-         {:ok, response} <- build_response(ai, includes, opts),
+         {:ok, research} <- perform_research(ai, includes, opts),
+         {:ok, response} <- format_response(ai, research),
          {:ok, msg} <- Map.fetch(response, :response),
          {label, usage} <- AI.Completion.context_window_usage(response) do
       UI.report_step(label, usage)
@@ -170,7 +174,17 @@ defmodule AI.Agent.Answers do
     UI.report_step("Conversation saved", conversation.id)
   end
 
-  defp build_response(ai, includes, opts) do
+  defp format_response(ai, %AI.Completion{messages: messages}) do
+    AI.Completion.get(ai,
+      max_tokens: @max_tokens,
+      model: @model,
+      messages: messages ++ [AI.Util.system_msg(@template_prompt)],
+      use_planner: false,
+      log_msgs: true
+    )
+  end
+
+  defp perform_research(ai, includes, opts) do
     tools =
       if Git.is_git_repo?() do
         @tools
@@ -190,35 +204,35 @@ defmodule AI.Agent.Answers do
     )
   end
 
-  defp build_messages(%{conversation: conversation} = opts, includes) do
+  defp build_messages(opts, includes) do
     user_msg = user_prompt(opts.question, includes)
 
-    prompt =
-      if is_testing?(opts.question) do
-        @test_prompt
-      else
-        @prompt
-      end
+    case restore_conversation(opts) do
+      [] -> [asst_prompt(opts), user_msg]
+      msgs -> msgs ++ [user_msg]
+    end
+  end
 
+  defp restore_conversation(%{conversation: conversation}) do
     if Store.Project.Conversation.exists?(conversation) do
-      with {:ok, _timestamp, messages} <- Store.Project.Conversation.read(conversation) do
-        messages ++ [user_msg]
-      else
-        error -> raise error
-      end
+      {:ok, _ts, messages} = Store.Project.Conversation.read(conversation)
+      messages |> IO.inspect(label: "MESSAGES")
     else
-      [AI.Util.system_msg(prompt), user_msg]
+      []
     end
   end
 
-  defp user_prompt(question, includes) do
-    if includes == "" do
-      question
+  defp asst_prompt(opts) do
+    if is_testing?(opts.question) do
+      @test_prompt
     else
-      "#{question}\n#{includes}"
+      @prompt
     end
-    |> AI.Util.user_msg()
+    |> AI.Util.system_msg()
   end
+
+  defp user_prompt(question, ""), do: AI.Util.user_msg(question)
+  defp user_prompt(question, includes), do: AI.Util.user_msg("#{question}\n#{includes}")
 
   defp get_included_files(files) do
     preamble = "The user has included the following file for context"
