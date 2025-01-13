@@ -67,6 +67,7 @@ defmodule AI.Completion do
 
       state
       |> replay_conversation()
+      |> maybe_start_planner()
       |> send_request()
       |> maybe_finish_planner()
       |> then(&{:ok, &1})
@@ -171,56 +172,52 @@ defmodule AI.Completion do
   # -----------------------------------------------------------------------------
   # Planner
   # -----------------------------------------------------------------------------
-  defp maybe_use_planner(%{use_planner: false} = state) do
-    state
-  end
+  defp maybe_start_planner(%{use_planner: false} = state), do: state
 
-  defp maybe_use_planner(%{ai: ai, use_planner: true, messages: msgs, tools: tools} = state) do
-    on_event(state, :tool_call, {"planner", %{}})
+  defp maybe_start_planner(%{ai: ai, use_planner: true, messages: msgs, tools: tools} = state) do
+    log_tool_call(state, "Building a research plan")
 
-    case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools}) do
+    case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools, stage: :initial}) do
       {:ok, response} ->
-        on_event(state, :tool_call_result, {"planner", %{}, {:ok, response}})
+        log_tool_call_result(state, "Research plan", response)
         planner_msg = AI.Util.user_msg("From the Planner Agent: #{response}")
         %__MODULE__{state | messages: state.messages ++ [planner_msg]}
 
       {:error, reason} ->
-        on_event(state, :tool_call_error, {"planner", %{}, reason})
+        log_tool_call_error(state, "planner", reason)
         state
     end
   end
 
-  defp maybe_finish_planner(%{use_planner: false} = state) do
-    state
-  end
+  defp maybe_use_planner(%{use_planner: false} = state), do: state
 
-  defp maybe_finish_planner(%{ai: ai, use_planner: true, messages: msgs, tools: tools} = state) do
-    on_event(state, :tool_call, {"feedback", %{}})
+  defp maybe_use_planner(%{ai: ai, use_planner: true, messages: msgs, tools: tools} = state) do
+    log_tool_call(state, "Evaluating research and planning next steps")
 
-    msgs =
-      msgs ++
-        [
-          AI.Util.system_msg("""
-          NOTE TO PLANNER: The orchestrating AI has completed its work. This is
-          your opportunity to evaluate the results, create or update research
-          strategies, and save your notes to improve future performance using
-          your tools.
-          """)
-        ]
-
-    case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools}) do
-      {:ok, response} when is_binary(response) ->
-        on_event(state, :tool_call_result, {"planner", %{}, response})
-        planner_msg = AI.Util.system_msg(response)
+    case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools, stage: :checkin}) do
+      {:ok, response} ->
+        log_tool_call_result(state, "Refining research plan", response)
+        planner_msg = AI.Util.user_msg("From the Planner Agent: #{response}")
         %__MODULE__{state | messages: state.messages ++ [planner_msg]}
 
+      {:error, reason} ->
+        log_tool_call_error(state, "planner", reason)
+        state
+    end
+  end
+
+  defp maybe_finish_planner(%{use_planner: false} = state), do: state
+
+  defp maybe_finish_planner(%{ai: ai, use_planner: true, messages: msgs, tools: tools} = state) do
+    log_tool_call(state, "Consolidating lessons learned from the research")
+
+    case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools, stage: :finish}) do
       {:ok, response} ->
-        on_event(state, :tool_call_result, {"planner", %{}, Jason.encode!(response)})
         planner_msg = AI.Util.system_msg(response)
         %__MODULE__{state | messages: state.messages ++ [planner_msg]}
 
       {:error, reason} ->
-        on_event(state, :tool_call_error, {"planner", %{}, reason})
+        log_tool_call_error(state, "planner", reason)
         state
     end
   end
@@ -366,21 +363,6 @@ defmodule AI.Completion do
 
   defp log_tool_call_error(_state, tool, reason) do
     UI.error("Error calling #{tool}", reason)
-  end
-
-  # ----------------------------------------------------------------------------
-  # Planner
-  # ----------------------------------------------------------------------------
-  defp on_event(state, :tool_call, {"planner", _}) do
-    log_tool_call(state, "Evaluating research and planning next steps")
-  end
-
-  defp on_event(state, :tool_call_result, {"planner", _, {:ok, plan}}) do
-    log_tool_call_result(state, "Research plan", plan)
-  end
-
-  defp on_event(state, :tool_call, {"feedback", _}) do
-    log_tool_call(state, "Consolidating lessons learned from this session")
   end
 
   # -----------------------------------------------------------------------------

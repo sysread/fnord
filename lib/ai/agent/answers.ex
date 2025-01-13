@@ -42,17 +42,21 @@ defmodule AI.Agent.Answers do
 
   @motd_prompt """
   # MOTD
-  [
+  > [
     Finish up with a humorous quote as the MOTD.
     - Select a real quotation from a historical/mythological/modern figure or fictional character.
     - Attribute the quotation to a humorous or ironic context relevant to the query or research being performed.
 
-    Examples:
-    - "It's not what happens to you, but how you react to it that matters." - Epictetus, troubleshooting a merge conflict
-    - "Why 100? If I were wrong, one would have been enough." - Albert Einstein, on the importance of unit tests
-    - "Appear at points which the enemy must hasten to defend; march swiftly to places where you are not expected." - Sun Tzu, in a Slack thread about an improved test suite
-    - "Just be yourself, there is no one better." - Taylor Swift, during her keynote at ElixirConf on the strict separation of concerns
-    - "There are no mistakes, just happy little accidents." - Bob Ross, after force-pushing `main`
+    For example:
+    - _It's not what happens to you, but how you react to it that matters._ - Epictetus, troubleshooting a merge conflict
+    - _Why 100? If I were wrong, one would have been enough._ - Albert Einstein, on the importance of unit tests
+    - _Appear at points which the enemy must hasten to defend; march swiftly to places where you are not expected._ - Sun Tzu, in a Slack thread about an improved test suite
+    - _Just be yourself, there is no one better._ - Taylor Swift, during her keynote at ElixirConf on the strict separation of concerns
+    - _There are no mistakes, just happy little accidents._ - Bob Ross, after force-pushing `main`
+
+    (those are just examples; **come up with your own!**)
+    (put the attribution on a separate line to make it easier to read)
+    (also note the leading `>` to make this a blockquote)
   ]
   """
 
