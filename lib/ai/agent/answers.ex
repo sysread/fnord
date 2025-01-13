@@ -88,10 +88,14 @@ defmodule AI.Agent.Answers do
 
   If the user is requesting a (*literal*) `smoke test`, test **ALL** of your available tools in turn
     - **TEST EVERY SINGLE TOOL YOU HAVE ONCE**
+    - Consider the logical dependencies between tools in order to get real values for arguments
+      - For example:
+        - The file_contents_tool requires a file name, which can be obtained from the file_list_tool
+        - The git_diff_branch_tool requires a branch name, which can be obtained from the git_list_branches_tool
     - The user will verify that you called EVERY tool using the debug logs
     - Start with the file_list_tool so you have real file names for your other tests
     - Respond with a section for each tool:
-      - In the header, prefix the tool name with a ✓ or ✗ to indicate success or failure
+      - In the header, prefix the tool name with a `✓` or `✗` to indicate success or failure
       - Note which arguments you used for the tool
       - Report success, errors, and anomalies encountered while executing the tool
 
