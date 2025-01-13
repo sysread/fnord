@@ -56,7 +56,7 @@ defmodule AI.Agent.Answers do
 
     (those are just examples; **come up with your own!**)
     (put the attribution on a separate line to make it easier to read)
-    (also note the leading `>` to make this a blockquote)
+    (also note the leading `>` to make this a blockquote and the `# MOTD` header)
   ]
   """
 
@@ -113,7 +113,6 @@ defmodule AI.Agent.Answers do
     AI.Tools.tool_spec!("file_list_tool"),
     AI.Tools.tool_spec!("file_search_tool"),
     AI.Tools.tool_spec!("file_spelunker_tool"),
-    AI.Tools.tool_spec!("notes_save_tool"),
     AI.Tools.tool_spec!("notes_search_tool")
   ]
 
@@ -184,7 +183,7 @@ defmodule AI.Agent.Answers do
       use_planner: false,
       log_msgs: false,
       log_tool_calls: false,
-      log_tool_results: false,
+      log_tool_call_results: false,
       messages: messages ++ [AI.Util.system_msg(@template_prompt)]
     )
   end

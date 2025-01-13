@@ -47,11 +47,27 @@ defmodule Cmd.Index.UI do
   end
 
   defp in_progress_jobs(queue) do
+    cols = Owl.IO.columns() || 80
+
     unless Queue.is_idle(queue) do
       jobs =
         queue
         |> Queue.in_progress_jobs()
-        |> Enum.map(&"- #{&1.rel_path}")
+        |> Enum.map(fn job ->
+          try do
+            "- #{job.rel_path}"
+          rescue
+            _ ->
+              # -9 for ellipsis (3), leading space+dash (2), and the box's
+              # padding (1 for left + 1 for right).
+              job
+              |> String.slice(0, cols - 9)
+              |> case do
+                ^job -> "- #{job}"
+                slice -> "- #{slice}..."
+              end
+          end
+        end)
         |> Enum.join("\n")
 
       box =
