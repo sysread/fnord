@@ -77,6 +77,8 @@ defmodule AI.OpenAI do
     %{id: id, function: %{name: name, arguments: args}}
   end
 
+  defp get_error_response(:closed), do: {:error, "Connection closed"}
+
   defp get_error_response({http_status, json_error_string}) do
     json_error_string
     |> Jason.decode()
