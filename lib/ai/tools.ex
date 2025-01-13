@@ -128,6 +128,7 @@ defmodule AI.Tools do
 
   def on_tool_request(tool, args, tools \\ @tools) do
     with {:ok, module} <- tool_module(tool, tools),
+         {:ok, args} <- module.read_args(args),
          :ok <- validate_required_args(tool, args, tools) do
       try do
         module.ui_note_on_request(args)
@@ -155,7 +156,8 @@ defmodule AI.Tools do
   end
 
   def on_tool_result(tool, args, result, tools \\ @tools) do
-    with {:ok, module} <- tool_module(tool, tools) do
+    with {:ok, module} <- tool_module(tool, tools),
+         {:ok, args} <- module.read_args(args) do
       try do
         module.ui_note_on_result(args, result)
       rescue
