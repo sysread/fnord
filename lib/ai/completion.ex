@@ -393,6 +393,13 @@ defmodule AI.Completion do
   end
 
   defp on_event(state, :tool_call_error, {tool, _args_json, {:error, reason}}) do
+    reason =
+      if is_binary(reason) do
+        reason
+      else
+        inspect(reason, pretty: true)
+      end
+
     log_tool_call_error(state, tool, reason)
   end
 
