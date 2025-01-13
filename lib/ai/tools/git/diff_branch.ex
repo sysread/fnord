@@ -11,6 +11,17 @@ defmodule AI.Tools.Git.DiffBranch do
   def ui_note_on_result(_args, _result), do: nil
 
   @impl AI.Tools
+  def read_args(args) do
+    with {:ok, topic} <- read_topic(args) do
+      base = Map.get(args, "base", "origin/main")
+      {:ok, %{"topic" => topic, "base" => base}}
+    end
+  end
+
+  defp read_topic(%{"topic" => topic}), do: {:ok, topic}
+  defp read_topic(_args), do: AI.Tools.required_arg_error("topic")
+
+  @impl AI.Tools
   def spec() do
     %{
       type: "function",

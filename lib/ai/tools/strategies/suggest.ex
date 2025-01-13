@@ -12,6 +12,20 @@ defmodule AI.Tools.Strategies.Suggest do
   end
 
   @impl AI.Tools
+  def read_args(args) do
+    with {:ok, title} <- get_title(args),
+         {:ok, plan} <- get_plan(args) do
+      {:ok, %{"title" => title, "plan" => plan}}
+    end
+  end
+
+  defp get_title(%{"title" => title}), do: {:ok, title}
+  defp get_title(_args), do: AI.Tools.required_arg_error("title")
+
+  defp get_plan(%{"plan" => plan}), do: {:ok, plan}
+  defp get_plan(_args), do: AI.Tools.required_arg_error("plan")
+
+  @impl AI.Tools
   def spec() do
     %{
       type: "function",

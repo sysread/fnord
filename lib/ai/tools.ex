@@ -14,6 +14,8 @@ defmodule AI.Tools do
   calls. What happens behind closed APIs is none of MY business.
   """
 
+  @type args_error :: {:error, :missing_argument, String.t()}
+
   @doc """
   Returns the OpenAPI spec for the tool as an elixir map.
   """
@@ -28,6 +30,13 @@ defmodule AI.Tools do
               | {:ok, any}
               | {:error, any}
               | :error
+
+  @doc """
+  Reads the arguments and returns a map of the arguments if they are valid.
+  This is used to validate args before the tool is called. The result is what
+  is passed to `call/2`, `ui_note_on_request/1`, and `ui_note_on_result/2`.
+  """
+  @callback read_args(args :: map) :: {:ok, map} | args_error
 
   @doc """
   Return either a short string or a string tuple of label + detail to be
@@ -47,6 +56,9 @@ defmodule AI.Tools do
               | String.t()
               | nil
 
+  # ----------------------------------------------------------------------------
+  # Tool Registry
+  # ----------------------------------------------------------------------------
   @file_tools %{
     "file_contents_tool" => AI.Tools.File.Contents,
     "file_info_tool" => AI.Tools.File.Info,
@@ -81,6 +93,9 @@ defmodule AI.Tools do
          |> Map.merge(@notes_tools)
          |> Map.merge(@strategies_tools)
 
+  # ----------------------------------------------------------------------------
+  # API Functions
+  # ----------------------------------------------------------------------------
   def tool_module(tool, tools \\ @tools) do
     case Map.get(tools, tool) do
       nil -> {:error, :unknown_tool, tool}
@@ -105,6 +120,7 @@ defmodule AI.Tools do
 
   def perform_tool_call(state, tool, args, tools \\ @tools) do
     with {:ok, module} <- tool_module(tool, tools),
+         {:ok, args} <- module.read_args(args),
          :ok <- validate_required_args(tool, args, tools) do
       module.call(state, args)
     end
@@ -162,6 +178,20 @@ defmodule AI.Tools do
     end
   end
 
+  def required_arg_error(key) do
+    {:error, :missing_argument, key}
+  end
+
+  def with_args(tool, args, fun) do
+    with {:ok, module} <- tool_module(tool),
+         {:ok, args} <- module.read_args(args) do
+      fun.(args)
+    end
+  end
+
+  # ----------------------------------------------------------------------------
+  # Private Functions
+  # ----------------------------------------------------------------------------
   defp check_required_args([], _args) do
     :ok
   end
@@ -170,7 +200,7 @@ defmodule AI.Tools do
     with :ok <- get_arg(args, key) do
       check_required_args(keys, args)
     else
-      _ -> {:error, :missing_argument, key}
+      _ -> required_arg_error(key)
     end
   end
 
@@ -178,9 +208,9 @@ defmodule AI.Tools do
     args
     |> Map.fetch(key)
     |> case do
-      :error -> {:error, :missing_argument, key}
-      {:ok, ""} -> {:error, :missing_argument, key}
-      {:ok, nil} -> {:error, :missing_argument, key}
+      :error -> required_arg_error(key)
+      {:ok, ""} -> required_arg_error(key)
+      {:ok, nil} -> required_arg_error(key)
       _ -> :ok
     end
   end

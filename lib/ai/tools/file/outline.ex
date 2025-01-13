@@ -8,6 +8,11 @@ defmodule AI.Tools.File.Outline do
   def ui_note_on_result(_args, _result), do: nil
 
   @impl AI.Tools
+  def read_args(%{"file" => file}), do: {:ok, %{"file" => file}}
+  def read_args(%{"file_path" => file}), do: {:ok, %{"file" => file}}
+  def read_args(_args), do: AI.Tools.required_arg_error("file")
+
+  @impl AI.Tools
   def spec() do
     %{
       type: "function",

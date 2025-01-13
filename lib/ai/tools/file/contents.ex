@@ -8,6 +8,11 @@ defmodule AI.Tools.File.Contents do
   def ui_note_on_result(args, _result), do: {"Retrieved file", args["file"]}
 
   @impl AI.Tools
+  def read_args(%{"file" => file}), do: {:ok, %{"file" => file}}
+  def read_args(%{"file_path" => file}), do: {:ok, %{"file" => file}}
+  def read_args(_args), do: AI.Tools.required_arg_error("file")
+
+  @impl AI.Tools
   def spec() do
     %{
       type: "function",

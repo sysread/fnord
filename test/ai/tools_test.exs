@@ -13,6 +13,10 @@ defmodule AI.ToolsTest do
     def ui_note_on_result(_args, result), do: {"Result", result}
 
     @impl AI.Tools
+    def read_args(%{"required_arg" => _}), do: {:ok, %{"required_arg" => "blarg"}}
+    def read_args(_args), do: AI.Tools.required_arg_error("required_arg")
+
+    @impl AI.Tools
     def call(_agent, _args), do: {:ok, "Huzzah!"}
 
     @impl AI.Tools

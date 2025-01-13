@@ -8,6 +8,9 @@ defmodule AI.Tools.File.List do
   def ui_note_on_result(_args, _result), do: nil
 
   @impl AI.Tools
+  def read_args(args), do: {:ok, args}
+
+  @impl AI.Tools
   def spec() do
     %{
       type: "function",

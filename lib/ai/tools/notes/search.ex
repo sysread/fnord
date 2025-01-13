@@ -12,6 +12,10 @@ defmodule AI.Tools.Notes.Search do
   end
 
   @impl AI.Tools
+  def read_args(%{"query" => query}), do: {:ok, %{"query" => query}}
+  def read_args(_args), do: AI.Tools.required_arg_error("query")
+
+  @impl AI.Tools
   def spec() do
     %{
       type: "function",

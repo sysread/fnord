@@ -307,19 +307,21 @@ defmodule AI.Completion do
 
   defp perform_tool_call(state, func, args_json) when is_binary(args_json) do
     with {:ok, args} <- Jason.decode(args_json) do
-      on_event(state, :tool_call, {func, args})
+      AI.Tools.with_args(func, args, fn args ->
+        on_event(state, :tool_call, {func, args})
 
-      result =
-        AI.Tools.perform_tool_call(state, func, args)
-        |> case do
-          {:ok, response} when is_binary(response) -> {:ok, response}
-          {:ok, response} -> Jason.encode(response)
-          :ok -> {:ok, "#{func} completed successfully"}
-          other -> other
-        end
+        result =
+          AI.Tools.perform_tool_call(state, func, args)
+          |> case do
+            {:ok, response} when is_binary(response) -> {:ok, response}
+            {:ok, response} -> Jason.encode(response)
+            :ok -> {:ok, "#{func} completed successfully"}
+            other -> other
+          end
 
-      on_event(state, :tool_call_result, {func, args, result})
-      result
+        on_event(state, :tool_call_result, {func, args, result})
+        result
+      end)
     end
   end
 
@@ -385,21 +387,25 @@ defmodule AI.Completion do
   # Tool call logging
   # -----------------------------------------------------------------------------
   defp on_event(state, :tool_call, {tool, args}) do
-    AI.Tools.on_tool_request(tool, args)
-    |> case do
-      nil -> state
-      {step, msg} -> log_tool_call(state, step, msg)
-      step -> log_tool_call(state, step)
-    end
+    AI.Tools.with_args(tool, args, fn args ->
+      AI.Tools.on_tool_request(tool, args)
+      |> case do
+        nil -> state
+        {step, msg} -> log_tool_call(state, step, msg)
+        step -> log_tool_call(state, step)
+      end
+    end)
   end
 
   defp on_event(state, :tool_call_result, {tool, args, {:ok, result}}) do
-    AI.Tools.on_tool_result(tool, args, result)
-    |> case do
-      nil -> state
-      {step, msg} -> log_tool_call_result(state, step, msg)
-      step -> log_tool_call_result(state, step)
-    end
+    AI.Tools.with_args(tool, args, fn args ->
+      AI.Tools.on_tool_result(tool, args, result)
+      |> case do
+        nil -> state
+        {step, msg} -> log_tool_call_result(state, step, msg)
+        step -> log_tool_call_result(state, step)
+      end
+    end)
   end
 
   defp on_event(state, :tool_call_error, {tool, _args_json, {:error, reason}}) do

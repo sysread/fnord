@@ -20,6 +20,32 @@ defmodule AI.Tools.Strategies.Save do
   end
 
   @impl AI.Tools
+  def read_args(args) do
+    with {:ok, title} <- get_title(args),
+         {:ok, prompt_text} <- get_prompt(args),
+         {:ok, questions} <- get_questions(args) do
+      id = Map.get(args, "id", nil)
+
+      {:ok,
+       %{
+         "title" => title,
+         "prompt" => prompt_text,
+         "questions" => questions,
+         "id" => id
+       }}
+    end
+  end
+
+  defp get_title(%{"title" => title}), do: {:ok, title}
+  defp get_title(_args), do: AI.Tools.required_arg_error("title")
+
+  defp get_prompt(%{"prompt" => prompt}), do: {:ok, prompt}
+  defp get_prompt(_args), do: AI.Tools.required_arg_error("prompt")
+
+  defp get_questions(%{"questions" => questions}), do: {:ok, questions}
+  defp get_questions(_args), do: AI.Tools.required_arg_error("questions")
+
+  @impl AI.Tools
   def spec() do
     %{
       type: "function",

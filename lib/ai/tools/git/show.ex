@@ -8,6 +8,17 @@ defmodule AI.Tools.Git.Show do
   def ui_note_on_result(_args, _result), do: nil
 
   @impl AI.Tools
+  def read_args(args) do
+    with {:ok, sha} <- get_sha(args) do
+      file = Map.get(args, "file", nil)
+      {:ok, %{"sha" => sha, "file" => file}}
+    end
+  end
+
+  defp get_sha(%{"sha" => sha}), do: {:ok, sha}
+  defp get_sha(_args), do: AI.Tools.required_arg_error("sha")
+
+  @impl AI.Tools
   def spec() do
     %{
       type: "function",

@@ -10,6 +10,19 @@ defmodule AI.Tools.Git.Log do
   def ui_note_on_result(_args, _result), do: nil
 
   @impl AI.Tools
+  def read_args(args) do
+    {:ok,
+     Map.take(args, [
+       "since",
+       "until",
+       "author",
+       "grep",
+       "max_count",
+       "path"
+     ])}
+  end
+
+  @impl AI.Tools
   def spec() do
     %{
       type: "function",

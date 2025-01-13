@@ -20,6 +20,21 @@ defmodule AI.Tools.File.Info do
   end
 
   @impl AI.Tools
+  def read_args(args) do
+    with {:ok, file} <- get_file(args),
+         {:ok, question} <- get_question(args) do
+      {:ok, %{"file" => file, "question" => question}}
+    end
+  end
+
+  defp get_file(%{"file" => file}), do: {:ok, file}
+  defp get_file(%{"file_path" => file}), do: {:ok, file}
+  defp get_file(_args), do: AI.Tools.required_arg_error("file")
+
+  defp get_question(%{"question" => question}), do: {:ok, question}
+  defp get_question(_args), do: AI.Tools.required_arg_error("question")
+
+  @impl AI.Tools
   def spec() do
     %{
       type: "function",
