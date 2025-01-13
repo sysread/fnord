@@ -40,6 +40,22 @@ defmodule AI.Agent.Answers do
   Take a deep breath and think logically through your answer.
   """
 
+  @motd_prompt """
+  # MOTD
+  [
+    Finish up with a humorous quote as the MOTD.
+    - Select a real quotation from a historical/mythological/modern figure or fictional character.
+    - Attribute the quotation to a humorous or ironic context relevant to the query or research being performed.
+
+    Examples:
+    - "It's not what happens to you, but how you react to it that matters." - Epictetus, troubleshooting a merge conflict
+    - "Why 100? If I were wrong, one would have been enough." - Albert Einstein, on the importance of unit tests
+    - "Appear at points which the enemy must hasten to defend; march swiftly to places where you are not expected." - Sun Tzu, in a Slack thread about an improved test suite
+    - "Just be yourself, there is no one better." - Taylor Swift, during her keynote at ElixirConf on the strict separation of concerns
+    - "There are no mistakes, just happy little accidents." - Bob Ross, after force-pushing `main`
+  ]
+  """
+
   @template_prompt """
   Re-assimilate the information from the conversation.
   Organize the findings into sections that guide the user through understanding the AI's response.
@@ -58,34 +74,19 @@ defmodule AI.Agent.Answers do
   # SEE ALSO
   [ Include links to files referenced in your response ]
 
-  # MOTD
-  [
-    Finish up with a humorous MOTD.
-    - Invent a darkly clever, sarcastic quote and misattribute it to a historical, mythological, or pop culture figure.
-    - The quote should be in the voice of the selected figure.
-    - The quote should find some connection between the figure's persona and the context of the user's query or project.
-    - The quote should be humorous or a non-sequitur, ideally making a pun, sardonic observation, or commentary relevant to the topic.
-    - Optionally provide an absurd but relevant context for the quote (e.g. "- $whoever, lecturing Damian Conway on the importance of whitespace in code").
-    - Cite the quote, placing the figure in an unexpected or silly context. For example:
-      - "- Bob Ross, coding happy little algorithms"
-      - "- Abraham Lincoln, live on Tic Tok at Gettysburg"
-      - "- Rick Sanchez, speaking at ElixirConf"
-      - "- Taylor Swift, in her keynote at The Perl Conference"
-      - "- The Jargon File, rewritten as GenZ slang"
-      - "- Ada Lovelace, in her preface to Perl Network Programming"
-  ]
+  #{@motd_prompt}
   """
 
   @test_prompt """
   Perform the requested test exactly as instructed by the user.
 
-  If the user explicitly requests a "mic check":
+  If the user explicitly requests a (*literal*) `mic check`:
     - Respond with an intelligently humorous message to indicate that the request was received
     - Examples:
       - "Welcome, my son... welcome to the machine."
       - "I'm sorry, Dave. I'm afraid I can't do that."
 
-  If the user is requesting a "smoke test", test **ALL** of your available tools in turn
+  If the user is requesting a (*literal*) `smoke test`, test **ALL** of your available tools in turn
     - **TEST EVERY SINGLE TOOL YOU HAVE ONCE**
     - The user will verify that you called EVERY tool using the debug logs
     - Start with the file_list_tool so you have real file names for your other tests
