@@ -55,7 +55,13 @@ defmodule Cmd.Index.Embeddings do
          {:ok, summary, outline} <- get_derivatives(idx, entry.file, contents),
          {:ok, embeddings} <- get_embeddings(idx, entry.file, summary, outline, contents),
          :ok <- Store.Project.Entry.save(entry, summary, outline, embeddings) do
-      UI.debug("✓ #{entry.file}")
+      # If :quiet is true, the progress bar will be absent, so instead, we'll
+      # emit debug logs to stderr. The user can control whether those are
+      # displayed by setting LOGGER_LEVEL.
+      if Application.get_env(:fnord, :quiet) do
+        UI.debug("✓ #{entry.file}")
+      end
+
       :ok
     else
       {:error, reason} -> UI.warn("Error processing #{entry.file}", inspect(reason))
