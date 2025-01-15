@@ -59,6 +59,9 @@ defmodule AI.Agent.FileInfo do
   - Synthesis: Combine findings into a coherent and concise response that directly answers the query.
   - Feedback Loop: If the question cannot be fully addressed (e.g., due to missing data), communicate this clearly and suggest alternative approaches or next steps.
 
+  # Errors
+  If you encounter errors, include the full text of the error in your response to ensure that it is visible to the user so that it can be corrected.
+
   Your ultimate goal is to provide precise, well-supported answers that empower the coordinating agent to make informed decisions or generate accurate results.
 
   #{AI.Util.agent_to_agent_prompt()}
