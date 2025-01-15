@@ -33,6 +33,36 @@ defmodule AI.Util do
     """
   end
 
+  @spec validate_notes_string(String.t()) ::
+          {:ok, [String.t()]}
+          | {:error, :invalid_format}
+  def validate_notes_string(notes_string) do
+    notes_string
+    |> parse_topic_list()
+    |> Enum.reduce_while([], fn text, acc ->
+      if Store.Project.Note.is_valid_format?(text) do
+        {:cont, [text | acc]}
+      else
+        {:halt, :invalid_format}
+      end
+    end)
+    |> case do
+      :invalid_format -> {:error, :invalid_format}
+      notes -> {:ok, notes}
+    end
+  end
+
+  @spec parse_topic_list(String.t()) :: [String.t()]
+  def parse_topic_list(input_str) do
+    input_str
+    |> String.trim("```")
+    |> String.trim("'''")
+    |> String.trim("\"\"\"")
+    |> String.trim()
+    |> String.split("\n")
+    |> Enum.map(&String.trim/1)
+  end
+
   def agent_to_agent_prompt do
     """
     You are communicating with another AI agent.

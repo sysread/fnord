@@ -1,4 +1,6 @@
 defmodule Cmd.Index.Notes do
+  @consolidation_batch_size 4
+
   # ----------------------------------------------------------------------------
   # Options
   # ----------------------------------------------------------------------------
@@ -12,17 +14,141 @@ defmodule Cmd.Index.Notes do
       original_notes = get_notes(idx)
       original_count = Enum.count(original_notes)
 
-      with {:ok, consolidated} <- consolidate_saved_notes(idx, original_notes),
-           {:ok, fact_checked} <- fact_check_saved_notes(idx, consolidated),
-           :ok <- confirm_updated_notes(idx, fact_checked, original_count) do
+      with {:ok, consolidated} <- consolidate_saved_notes(original_notes),
+           {:ok, fact_checked} <- fact_check_saved_notes(consolidated),
+           :ok <- confirm_updated_notes(fact_checked, original_count) do
         save_updated_notes(idx, fact_checked)
       else
+        :no_change -> UI.info("Defragmenting notes", "No changes needed")
         :aborted -> UI.warn("Defragmenting notes", "Aborted at user request")
-        error -> UI.warn("Defragmenting notes", inspect(error))
       end
     end
   end
 
+  # ----------------------------------------------------------------------------
+  # Consolidating saved notes
+  # ----------------------------------------------------------------------------
+  @type note :: String.t()
+  @type batch :: [note]
+
+  @spec consolidate_saved_notes([note]) :: {:ok, [note]}
+  defp consolidate_saved_notes([]) do
+    UI.info("Consolidating prior research", "Nothing to do")
+    {:ok, []}
+  end
+
+  defp consolidate_saved_notes(original_notes) do
+    count = Enum.count(original_notes)
+
+    UI.report_step("Consolidating prior research")
+
+    Cmd.Index.UI.progress_bar_start(:consolidation, "Tasks", count)
+
+    {:ok, result} =
+      original_notes
+      |> consolidate_notes()
+      |> AI.Util.validate_notes_string()
+
+    UI.report_step("Consolidated notes", "Consolidated #{count} notes into #{Enum.count(result)}")
+
+    {:ok, result}
+  end
+
+  @spec consolidate_notes([note]) :: note
+  defp consolidate_notes([note]) when is_binary(note), do: note
+
+  defp consolidate_notes(notes) do
+    notes
+    |> Enum.chunk_every(@consolidation_batch_size)
+    |> consolidate_notes_batches()
+    |> consolidate_notes()
+  end
+
+  @spec consolidate_notes_batches([batch]) :: [note]
+  defp consolidate_notes_batches(notes_batches) do
+    ai = AI.new()
+
+    {:ok, queue} =
+      Queue.start_link(fn batch ->
+        result =
+          with {:ok, note} <- AI.Agent.NotesConsolidator.get_response(ai, %{notes: batch}) do
+            note
+          else
+            # Return the original notes unchanged in case of an error
+            error ->
+              UI.error("Error consolidating notes", inspect(error))
+              Enum.join(batch, "\n")
+          end
+
+        1..Enum.count(batch)
+        |> Enum.each(fn _ ->
+          Cmd.Index.UI.progress_bar_update(:consolidation)
+        end)
+
+        result
+      end)
+
+    notes_batches
+    |> Queue.map(queue)
+    |> then(fn notes ->
+      Queue.shutdown(queue)
+      Queue.join(queue)
+      notes
+    end)
+  end
+
+  # ----------------------------------------------------------------------------
+  # Fact-checking
+  # ----------------------------------------------------------------------------
+  @spec fact_check_saved_notes([note]) :: {:ok, [note]}
+  defp fact_check_saved_notes([]) do
+    UI.info("Fact-checking prior research", "Nothing to do")
+    {:ok, []}
+  end
+
+  defp fact_check_saved_notes(original_notes) do
+    original_count = Enum.count(original_notes)
+
+    UI.report_step("Fact-checking prior research", "Analyzing #{original_count} notes")
+    Cmd.Index.UI.progress_bar_start(:fact_checking, "Verifying prior research", original_count)
+    {:ok, queue} = Queue.start_link(&fact_check_saved_note(&1))
+
+    # queue files
+    confirmed =
+      original_notes
+      |> Queue.map(queue)
+      |> Enum.reduce([], fn
+        {:ok, confirmed}, acc -> acc ++ confirmed
+        _, acc -> acc
+      end)
+
+    # wait on queue to complete
+    Queue.shutdown(queue)
+    Queue.join(queue)
+
+    {:ok, confirmed}
+  end
+
+  @spec fact_check_saved_note(note) :: {:ok, String.t()} | {:error, any}
+  defp fact_check_saved_note(note) do
+    ai = AI.new()
+    args = %{note: note}
+
+    with {:ok, {confirmed, refuted}} <- AI.Agent.FactChecker.get_response(ai, args),
+         {:ok, validated} <- AI.Util.validate_notes_string(confirmed) do
+      Cmd.Index.UI.progress_bar_update(:fact_checking)
+
+      if refuted != "" do
+        UI.report_step("Refuted prior research", refuted)
+      end
+
+      {:ok, validated}
+    end
+  end
+
+  # -----------------------------------------------------------------------------
+  # Retrieval and saving
+  # -----------------------------------------------------------------------------
   defp get_notes(idx) do
     idx.project
     |> Store.Project.notes()
@@ -34,50 +160,6 @@ defmodule Cmd.Index.Notes do
       end
     end)
     |> Enum.reverse()
-  end
-
-  defp confirm_updated_notes(_idx, notes, original_count) do
-    new_count = Enum.count(notes)
-
-    difference =
-      ((new_count - original_count) / original_count * 100)
-      |> Float.round(0)
-      |> trunc()
-      |> abs()
-
-    IO.puts("# Defragmented Notes")
-
-    notes
-    |> Enum.each(fn note ->
-      with {:ok, {topic, facts}} <- Store.Project.Note.parse_string(note) do
-        IO.puts("\n## #{topic}")
-
-        facts
-        |> Enum.map(&"- #{&1}")
-        |> Enum.each(&IO.puts/1)
-      else
-        {:error, :invalid_format, type} ->
-          msg = "Invalid note format (improperly formatted #{to_string(type)}: #{note}"
-          IO.puts(:stderr, msg)
-          IO.puts(:stderr, "Cancelling defragmentation")
-      end
-    end)
-
-    IO.puts("""
-
-    /-----------------------------------------------------------
-    | There is a #{difference}% change in note count:
-    |   * Original: #{original_count}
-    |   *  Updated: #{new_count}
-    \-----------------------------------------------------------
-
-    """)
-
-    if UI.confirm("Replace your saved notes with the updated list?") do
-      :ok
-    else
-      :aborted
-    end
   end
 
   defp save_updated_notes(idx, notes) do
@@ -108,67 +190,64 @@ defmodule Cmd.Index.Notes do
     UI.info("Notes saved.")
   end
 
-  defp validate_notes(notes_string) do
-    notes_string
-    |> parse_topic_list()
-    |> Enum.reduce_while([], fn text, acc ->
-      if Store.Project.Note.is_valid_format?(text) do
-        {:cont, [text | acc]}
+  # -----------------------------------------------------------------------------
+  # Confirmation and validation
+  # -----------------------------------------------------------------------------
+  defp confirm_updated_notes([], 0), do: :no_change
+
+  defp confirm_updated_notes(notes, original_count) do
+    new_count = Enum.count(notes)
+    change = abs(new_count - original_count)
+
+    difference =
+      case change do
+        0 ->
+          0
+
+        _ ->
+          (new_count / original_count * 100)
+          |> Float.round(0)
+          |> trunc()
+      end
+
+    IO.puts("# Defragmented Notes")
+
+    notes
+    |> Enum.each(fn note ->
+      with {:ok, {topic, facts}} <- Store.Project.Note.parse_string(note) do
+        IO.puts("\n## #{topic}")
+
+        facts
+        |> Enum.map(&"- #{&1}")
+        |> Enum.each(&IO.puts/1)
       else
-        {:halt, :invalid_format}
+        {:error, :invalid_format, type} ->
+          IO.puts(:stderr, "")
+
+          IO.puts("""
+          WARNING - Invalid note format - Improperly formatted #{to_string(type)}:
+
+          ```
+          #{note}
+          ```
+          """)
       end
     end)
-    |> case do
-      :invalid_format -> {:error, :invalid_format}
-      notes -> {:ok, notes}
-    end
-  end
 
-  defp parse_topic_list(input_str) do
-    input_str
-    |> String.trim("```")
-    |> String.trim("'''")
-    |> String.trim("\"\"\"")
-    |> String.trim()
-    |> String.split("\n")
-    |> Enum.map(&String.trim/1)
-  end
+    IO.puts("""
 
-  # ----------------------------------------------------------------------------
-  # Consolidating saved notes
-  # ----------------------------------------------------------------------------
-  defp consolidate_saved_notes(_idx, []) do
-    UI.info("Consolidating prior research", "Nothing to do")
-    {:ok, []}
-  end
+    /-----------------------------------------------------------
+    | There is a #{difference}% change in note count:
+    |   * Original: #{original_count}
+    |   *  Updated: #{new_count}
+    \-----------------------------------------------------------
 
-  defp consolidate_saved_notes(_idx, original_notes) do
-    original_count = Enum.count(original_notes)
-    UI.report_step("Consolidating prior research", "Analyzing #{original_count} notes")
+    """)
 
-    with args = %{notes: original_notes},
-         {:ok, consolidated} <- AI.Agent.NotesConsolidator.get_response(AI.new(), args),
-         {:ok, notes} <- validate_notes(consolidated) do
-      {:ok, notes}
-    end
-  end
-
-  # ----------------------------------------------------------------------------
-  # Fact-checking
-  # ----------------------------------------------------------------------------
-  defp fact_check_saved_notes(_idx, []) do
-    UI.info("Fact-checking prior research", "Nothing to do")
-    {:ok, []}
-  end
-
-  defp fact_check_saved_notes(_idx, original_notes) do
-    original_count = Enum.count(original_notes)
-    UI.report_step("Fact-checking prior research", "Analyzing #{original_count} notes")
-
-    with args = %{notes: original_notes},
-         {:ok, consolidated} <- AI.Agent.NotesVerifier.get_response(AI.new(), args),
-         {:ok, notes} <- validate_notes(consolidated) do
-      {:ok, notes}
+    if UI.confirm("Replace your saved notes with the updated list?") do
+      :ok
+    else
+      :aborted
     end
   end
 end
