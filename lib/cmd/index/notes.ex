@@ -39,14 +39,14 @@ defmodule Cmd.Index.Notes do
 
   defp consolidate_saved_notes(original_notes) do
     count = Enum.count(original_notes)
+    batch_count = count_batches(count)
 
     UI.report_step("Consolidating prior research")
-
-    Cmd.Index.UI.progress_bar_start(:consolidation, "Tasks", count)
+    Cmd.Index.UI.progress_bar_start(:consolidation, "Tasks", batch_count)
 
     {:ok, result} =
       original_notes
-      |> consolidate_notes()
+      |> consolidate_notes
       |> AI.Util.validate_notes_string()
 
     UI.report_step("Consolidated notes", "Consolidated #{count} notes into #{Enum.count(result)}")
@@ -80,10 +80,7 @@ defmodule Cmd.Index.Notes do
               Enum.join(batch, "\n")
           end
 
-        1..Enum.count(batch)
-        |> Enum.each(fn _ ->
-          Cmd.Index.UI.progress_bar_update(:consolidation)
-        end)
+        Cmd.Index.UI.progress_bar_update(:consolidation)
 
         result
       end)
@@ -95,6 +92,19 @@ defmodule Cmd.Index.Notes do
       Queue.join(queue)
       notes
     end)
+  end
+
+  defp count_batches(notes_count), do: count_batches(notes_count, 0)
+
+  defp count_batches(1, acc), do: acc
+
+  defp count_batches(notes_count, acc) do
+    batches =
+      1..notes_count
+      |> Enum.chunk_every(@consolidation_batch_size)
+      |> Enum.count()
+
+    count_batches(batches, acc + batches)
   end
 
   # ----------------------------------------------------------------------------
@@ -144,50 +154,6 @@ defmodule Cmd.Index.Notes do
 
       {:ok, validated}
     end
-  end
-
-  # -----------------------------------------------------------------------------
-  # Retrieval and saving
-  # -----------------------------------------------------------------------------
-  defp get_notes(idx) do
-    idx.project
-    |> Store.Project.notes()
-    |> Enum.reduce([], fn note, acc ->
-      with {:ok, text} <- Store.Project.Note.read_note(note) do
-        [text | acc]
-      else
-        _ -> acc
-      end
-    end)
-    |> Enum.reverse()
-  end
-
-  defp save_updated_notes(idx, notes) do
-    count = Enum.count(notes)
-
-    Cmd.Index.UI.spin("Updating notes", fn ->
-      {:ok, queue} =
-        Queue.start_link(fn text ->
-          idx.project
-          |> Store.Project.Note.new()
-          |> Store.Project.Note.write(text)
-        end)
-
-      UI.report_step("Clearing old notes")
-      Store.Project.reset_notes(idx.project)
-
-      # queue files
-      UI.report_step("Saving consolidated notes")
-      Enum.each(notes, &Queue.queue(queue, &1))
-
-      # wait on queue to complete
-      Queue.shutdown(queue)
-      Queue.join(queue)
-
-      {"#{count} notes saved", :ok}
-    end)
-
-    UI.info("Notes saved.")
   end
 
   # -----------------------------------------------------------------------------
@@ -249,5 +215,49 @@ defmodule Cmd.Index.Notes do
     else
       :aborted
     end
+  end
+
+  # -----------------------------------------------------------------------------
+  # Retrieval and saving
+  # -----------------------------------------------------------------------------
+  defp get_notes(idx) do
+    idx.project
+    |> Store.Project.notes()
+    |> Enum.reduce([], fn note, acc ->
+      with {:ok, text} <- Store.Project.Note.read_note(note) do
+        [text | acc]
+      else
+        _ -> acc
+      end
+    end)
+    |> Enum.reverse()
+  end
+
+  defp save_updated_notes(idx, notes) do
+    count = Enum.count(notes)
+
+    Cmd.Index.UI.spin("Updating notes", fn ->
+      {:ok, queue} =
+        Queue.start_link(fn text ->
+          idx.project
+          |> Store.Project.Note.new()
+          |> Store.Project.Note.write(text)
+        end)
+
+      UI.report_step("Clearing old notes")
+      Store.Project.reset_notes(idx.project)
+
+      # queue files
+      UI.report_step("Saving consolidated notes")
+      Enum.each(notes, &Queue.queue(queue, &1))
+
+      # wait on queue to complete
+      Queue.shutdown(queue)
+      Queue.join(queue)
+
+      {"#{count} notes saved", :ok}
+    end)
+
+    UI.info("Notes saved.")
   end
 end
