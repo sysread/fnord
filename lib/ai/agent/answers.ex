@@ -14,6 +14,11 @@ defmodule AI.Agent.Answers do
   Include links to documentation, implementation examples that exist within the code base, and example code as appropriate.
   ALWAYS include code examples when asked to generate code or how to implement an artifact.
 
+  # Tool Call Errors
+  When a tool call fails, inspect the error.
+  It is typically the result of a required argument missing or an incorrect argument type.
+  Try it again with the correct arguments.
+
   # Ambiguious Research Results
   If your research is unable to collect enough information to provide a complete and correct response, inform the user clearly and directly.
   Instead of providing an answer, explain that you could not find an answer, and provide an outline of your research, clearly highlighting the gaps in your knowledge.
@@ -46,6 +51,7 @@ defmodule AI.Agent.Answers do
     Finish up with a humorous quote as the MOTD.
     - Select a real quotation from a historical/mythological/modern figure or fictional character.
     - Attribute the quotation to a humorous or ironic context relevant to the query or research being performed.
+    - Play it with a straight face; no "imaginary so-and-so" - play it like it's a real.
 
     For example:
     - _It's not what happens to you, but how you react to it that matters._ - Epictetus, troubleshooting a merge conflict
@@ -149,7 +155,9 @@ defmodule AI.Agent.Answers do
           UI.report_step(tool, "called #{count} time(s)")
         end)
       else
-        save_conversation(response, opts)
+        with {:ok, conversation_id} <- save_conversation(response, opts) do
+          IO.puts("Conversation saved with ID: #{conversation_id}")
+        end
       end
 
       UI.flush()
@@ -174,6 +182,7 @@ defmodule AI.Agent.Answers do
     Store.Project.Conversation.write(conversation, messages)
     UI.debug("Conversation saved to file", conversation.store_path)
     UI.report_step("Conversation saved", conversation.id)
+    {:ok, conversation.id}
   end
 
   defp format_response(ai, %AI.Completion{messages: messages}) do
