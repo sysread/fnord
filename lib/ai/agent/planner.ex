@@ -17,7 +17,7 @@ defmodule AI.Agent.Planner do
   - Prior research may be outdated or based on incomplete information, so instruct the Coordinating Agent to confirm with the file_info_tool before relying on it.
 
   3. **Select and Adapt Research Strategies**:
-  - Unless explicitly instructed otherwise in the user's query, use the strategies_search_tool to identify useful research strategies.
+  - Use the strategies_search_tool to identify useful research strategies.
   - Select and adapt an existing strategy to fit the query context and specific user needs.
   - Use the information you learned in step 2 to inform your adapted strategy.
   - Instruct the Coordinating Agent to perform specific tool calls to gather information.
