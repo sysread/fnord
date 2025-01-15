@@ -49,7 +49,9 @@ defmodule Store.Prompt do
   # ----------------------------------------------------------------------------
   # These are installed the first time the prompt store is searched.
   # ----------------------------------------------------------------------------
-  @initial_strategies YamlElixir.read_from_file!("data/prompts.yaml")
+  @prompts_file "data/prompts.yaml"
+  @external_resource @prompts_file
+  @initial_strategies YamlElixir.read_from_file!(@prompts_file)
 
   @doc """
   Create a new prompt with a random UUID.
@@ -329,14 +331,8 @@ defmodule Store.Prompt do
                     } ->
       prompt = new(id)
 
-      # I have NO idea why, but THIS line HAS to be here, otherwise the
-      # differs? conditional below won't be executed. This is incredibly
-      # confusing an frustrating, but apparently I've got to leave it in until
-      # if figure this BS out.
-      # UI.debug("Analyzing research prompt: #{id}")
-
       if differs?(prompt, prompt_str, questions) do
-        UI.info("Saving research prompt: #{title}")
+        UI.info("Saving new or updated research prompt: #{title}")
         write(prompt, title, prompt_str, questions)
       end
     end)
