@@ -82,7 +82,7 @@ defmodule AI.Agent.Answers do
   ]
 
   # SEE ALSO
-  [ Include links to files referenced in your response ]
+  [ List files referenced in your response ]
 
   #{@motd_prompt}
   """
@@ -156,7 +156,10 @@ defmodule AI.Agent.Answers do
         end)
       else
         with {:ok, conversation_id} <- save_conversation(response, opts) do
-          IO.puts("Conversation saved with ID: #{conversation_id}")
+          IO.puts("""
+          -----
+          **Conversation saved with ID:** `#{conversation_id}`
+          """)
         end
       end
 
