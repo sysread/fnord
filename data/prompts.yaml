@@ -1,3 +1,21 @@
+- id: "priming-research-notes"
+  title: "Priming Research Notes"
+  questions:
+    - "Prime your research notes for this project."
+    - "What is this project about?"
+    - "What are the key components or features of this project?"
+    - "What is the purpose of this project?"
+  prompt: |
+    1. Use the `notes_search_tool` to assimilate what you currently know about the project.
+    2. Use the `list_files_tool` to retrieve all files in the project.
+    3. Use the `file_info_tool` to summarize the contents of any `README.md` files.
+    4. Use the `file_search_tool` to search for any documentation or notes related to the project.
+    5. Evaluate the project structure; identify and document key directories and files.
+    6. Use your file tools to explore the code base and try to identify organizational patterns.
+    7. Use your file tools to identify external dependencies.
+    8. **Planner: categorize and organize all of the research and use the `notes_save_tool` to save your findings.**
+    9. Respond with a detailed outline of your findings.
+
 - id: "code-exploration-and-understanding"
   title: "Codebase Exploration and Understanding"
   questions:
@@ -7,7 +25,7 @@
     - "How does $FEATURE work in this project?"
     - "What does $VARIABLE or $STRUCT represent?"
   prompt: |
-    1. Use the `search_tool` to perform a semantic search for `$X` or `$TOPIC` across the project files.
+    1. Use the `file_search_tool` to perform a semantic search for `$X` or `$TOPIC` across the project files.
     2. If the user specifies a module or file, use the `file_info_tool` to summarize its purpose.
     3. If no specific file is mentioned, list relevant files using `file_list_tool` and identify candidates based on their names or summaries.
     4. Use the `file_contents_tool` to fetch key files or relevant excerpts.
@@ -24,14 +42,14 @@
     - "Under what conditions can $BUG occur?"
   prompt: |
     1. Analyze the Error Context:
-       - If `$STACKTRACE` or `$ERROR` is provided, use `search_tool` to locate the associated line numbers, modules, or functions in the codebase. Focus on identifying the source of the issue.
+       - If `$STACKTRACE` or `$ERROR` is provided, use `file_search_tool` to locate the associated line numbers, modules, or functions in the codebase. Focus on identifying the source of the issue.
        - Take note of any assumptions that can safely be made based on the query or programming language (e.g. immutability, type safety).
     2. Investigate Specific Identifiers:
        - If a specific function, method, or constant is mentioned:
          - Use `file_info_tool` to retrieve its definition and inspect its surrounding context (e.g., imports, dependencies, or usage patterns).
-         - Use `search_tool` to locate references to the identifier throughout the project.
+         - Use `file_search_tool` to locate references to the identifier throughout the project.
     3. Trace Code Relationships:
-       - Use `spelunker_tool` to analyze upstream callers or downstream callees of `$FUNCTION`. Leverage the prebuilt call map to trace function interactions, dependencies, and affected pathways.
+       - Use `file_spelunker_tool` to analyze upstream callers or downstream callees of `$FUNCTION`. Leverage the prebuilt call map to trace function interactions, dependencies, and affected pathways.
     4. Analyze Code History:
        - Use `git_pickaxe_tool` to search the commit history for changes introducing `$BUG` or `$ERROR`. Prioritize:
          - Lines or functions relevant to the stack trace or function mentioned.
@@ -39,7 +57,7 @@
        - Supplement with other git tools (e.g., `git_log_tool`, `git_show_tool`) for broader or specific commit details.
        - **Important**: Only use Git tools if they are included in the available tools list.
     5. Correlate Findings Across Tools:
-       - Cross-reference results from `search_tool`, `file_info_tool`, and `spelunker_tool` to establish a clear picture of:
+       - Cross-reference results from `file_search_tool`, `file_info_tool`, and `file_spelunker_tool` to establish a clear picture of:
          - Which modules or functions are likely involved.
          - How changes in the codebase might correlate with the observed bug.
     6. Detailed Root Cause Analysis:
@@ -63,8 +81,8 @@
     - "What modules or functions call $X?"
     - "Where is $Y used in the project?"
   prompt: |
-    1. Use the `spelunker_tool` to map the logical flow and identify callers or callees of `$X` and `$Y`.
-    2. Use `search_tool` to locate semantic matches for `$X` and `$Y` in project files to identify references.
+    1. Use the `file_spelunker_tool` to map the logical flow and identify callers or callees of `$X` and `$Y`.
+    2. Use `file_search_tool` to locate semantic matches for `$X` and `$Y` in project files to identify references.
     3. If detailed analysis is needed, fetch the full contents of relevant files using `file_contents_tool`.
     4. Supplement insights by reviewing related file summaries via `file_info_tool`.
     5. Use git tools (e.g., `git_log_tool`) ONLY if explicitly available, to trace historical changes or commits associated with `$X` or `$Y`.
@@ -78,7 +96,7 @@
     - "Where is the CI configuration defined, and how does it work?"
     - "What dependencies are required to build this project?"
   prompt: |
-    1. Use `search_tool` to locate references to "tests," "CI," or "dependencies" in files and directories.
+    1. Use `file_search_tool` to locate references to "tests," "CI," or "dependencies" in files and directories.
     2. If a specific `$FEATURE` is mentioned, search for test files or test-related comments.
     3. Use `file_list_tool` to identify `README`, configuration files (e.g., `docker-compose.yml`, `.env`, `Makefile`), or CI scripts.
     4. Use `file_contents_tool` to examine key files such as `README.md` or `build` scripts for instructions.
@@ -95,7 +113,7 @@
     1. If git tools are available, use `git_log_tool` to identify when `$FUNCTION` or `$MODULE` was added or modified. DO NOT use git tools if not listed in the available tools.
     2. Use `git_pickaxe_tool` to search commit diffs for `$CODE_SNIPPET` or `$FUNCTION`.
     3. Use `file_info_tool` to cross-reference definitions or modifications in relevant files.
-    4. If the project is not a git repository, rely on `search_tool` and `file_list_tool` to approximate relevant files.
+    4. If the project is not a git repository, rely on `file_search_tool` and `file_list_tool` to approximate relevant files.
     5. Summarize findings with commit details, authors, and reasons (if documented).
 
 - id: "semantic-search-and-high-level-summaries"
@@ -105,7 +123,7 @@
     - "Summarize the implementation of $FEATURE."
     - "What patterns or libraries are used in $FEATURE?"
   prompt: |
-    1. Use `search_tool` to perform a semantic search for `$TOPIC` or `$FEATURE` in the project.
+    1. Use `file_search_tool` to perform a semantic search for `$TOPIC` or `$FEATURE` in the project.
     2. Summarize findings using AI-generated summaries of matched files, fetched via `file_info_tool`.
     3. Identify patterns, libraries, or dependencies from related files or their comments.
     4. If necessary, fetch full files using `file_contents_tool` to extract implementation details.
@@ -120,7 +138,7 @@
     - "How is $SERVICE configured to run in this project?"
   prompt: |
     1. Use `file_list_tool` to locate setup-related files (`README.md`, `.env`, `docker-compose.yml`, etc.).
-    2. Search for mentions of "setup," "installation," or `$SERVICE` using `search_tool`.
+    2. Search for mentions of "setup," "installation," or `$SERVICE` using `file_search_tool`.
     3. Use `file_info_tool` to summarize key configuration files and settings.
     4. If available, examine file contents using `file_contents_tool` for detailed instructions.
     5. If git tools are available, examine setup-related commits for historical context.
@@ -134,7 +152,7 @@
     - "What file contains instructions for $SETUP?"
   prompt: |
     1. Use `file_list_tool` to identify documentation files such as `README.md`, `CONTRIBUTING.md`, or guides.
-    2. Perform a semantic search using `search_tool` for mentions of `$FEATURE`, `$MODULE`, or `$SETUP`.
+    2. Perform a semantic search using `file_search_tool` for mentions of `$FEATURE`, `$MODULE`, or `$SETUP`.
     3. Use `file_info_tool` to summarize documentation sections or metadata relevant to the query.
     4. If detailed content is needed, use `file_contents_tool` to extract specific sections or guides.
     5. Synthesize an answer by compiling key documentation references.
@@ -151,8 +169,8 @@
   prompt: |
     1. Use `git_diff_branch_tool` to retrieve a diff between `$TOPIC_BRANCH` and `$BASE_BRANCH` (default to `origin/main` unless specified by the user).
     2. Summarize the changes by extracting key additions, deletions, and modifications. Highlight files and functions with significant changes.
-    3. Use `git_show_tool`, `file_contents_tool`, `file_info_tool`, and `search_tool` to cross-reference affected files or functions for their context and purpose within the project.
-    4. If relevant, trace dependencies or relationships using `spelunker_tool` to understand downstream or upstream impacts.
+    3. Use `git_show_tool`, `file_contents_tool`, `file_info_tool`, and `file_search_tool` to cross-reference affected files or functions for their context and purpose within the project.
+    4. If relevant, trace dependencies or relationships using `file_spelunker_tool` to understand downstream or upstream impacts.
     5. Identify potential issues, but generally restrict your analysis to the code being changed
       - Do focus on:
         - Logical errors or inconsistencies
@@ -180,9 +198,9 @@
   prompt: |
     1. Set Context:
        - Use `file_list_tool` to identify all files in the same directory or namespace as `$MODULE`, `$FEATURE`, or `$FILE`
-       - Use `search_tool` to query the namespace for comprehensive background information, which can help determine next steps
+       - Use `file_search_tool` to query the namespace for comprehensive background information, which can help determine next steps
        - Refine those findings further with the `file_info_tool`.
-       - Search for existing documentation using `search_tool` to understand what is already covered
+       - Search for existing documentation using `file_search_tool` to understand what is already covered
     2. Plan Structure:
        - Start the documentation with a high-level overview:
          - What is the purpose of the `$FEATURE` or `$MODULE`?
@@ -197,8 +215,8 @@
        - Use visuals: use diagrams, flow charts, tables, example code snippets, and tree diagrams to illustrate complex relationships
     3. Gather Supporting Information:
        - Use `file_contents_tool` to fetch examples or critical sections of code for inclusion in the documentation
-       - Include patterns, libraries, or dependencies using `search_tool`
-       - Cross-reference with related sections of the project using `spelunker_tool` to identify dependencies or relationships
+       - Include patterns, libraries, or dependencies using `file_search_tool`
+       - Cross-reference with related sections of the project using `file_spelunker_tool` to identify dependencies or relationships
     4. Formatting the Document:
        - Use the following outline:
          - Introduction: Summarize the purpose and role of the feature/module
