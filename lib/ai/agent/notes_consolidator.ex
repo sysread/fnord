@@ -10,8 +10,9 @@ defmodule AI.Agent.NotesConsolidator do
   You will be presented with a mess of individual facts and documents.
   Input may include mixed formats. It is your job to organize them into a coherent structure.
   Break down all the information into discrete facts, then reorganize them by topic.
-  Combine IDENTICAL facts.
-  Do NOT combine facts that are similar but not identical.
+  - DO *combine* IDENTICAL facts.
+  - DO NOT *combine* facts that are similar but not identical.
+  - DO *consolidate* facts that have IDENTICAL topics.
   **It is ESSENTIAL that no information is lost.**
   """
 
