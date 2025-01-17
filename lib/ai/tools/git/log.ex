@@ -77,7 +77,7 @@ defmodule AI.Tools.Git.Log do
   end
 
   @impl AI.Tools
-  def call(_agent, args) do
+  def call(_completion, args) do
     args
     |> build_git_log_args()
     |> Git.git_log()

@@ -32,7 +32,7 @@ defmodule AI.Tools.File.List do
   end
 
   @impl AI.Tools
-  def call(_agent, _args) do
+  def call(_completion, _args) do
     Store.get_project()
     |> Store.Project.stored_files()
     |> Stream.map(& &1.rel_path)

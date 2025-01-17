@@ -69,7 +69,7 @@ defmodule AI.Tools.Strategies.Search do
   end
 
   @impl AI.Tools
-  def call(_agent, args) do
+  def call(_completion, args) do
     with {:ok, query} <- Map.fetch(args, "query") do
       query
       |> Store.search_prompts()

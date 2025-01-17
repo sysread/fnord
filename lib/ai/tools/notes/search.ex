@@ -42,9 +42,9 @@ defmodule AI.Tools.Notes.Search do
   end
 
   @impl AI.Tools
-  def call(agent, args) do
+  def call(completion, args) do
     with {:ok, query} <- Map.fetch(args, "query") do
-      AI.Agent.Archivist.get_response(agent.ai, %{query: query})
+      AI.Agent.Archivist.get_response(completion.ai, %{query: query})
     end
   end
 end

@@ -7,14 +7,66 @@ defmodule AI.Tools do
   capabilities and arguments, using a map to represent the OpenAPI spec.
 
   The `call/2` function generates the tool call response. It accepts the
-  requesting agent's struct and a map, derived from the parsed JSON provided by
-  the agent, containing the tool call arguments. Note that, because the
-  arguments are parsed from JSON, the keys will all be strings. Whether those
-  are converted to symbols is between the tool implementation and the code it
-  calls. What happens behind closed APIs is none of MY business.
+  requesting `AI.Completion`'s struct and a map derived from the parsed JSON
+  provided by the agent, containing the tool call arguments. Note that, because
+  the arguments are parsed from JSON, the keys will all be strings. Whether
+  those are converted to symbols is between the tool implementation and the
+  code it calls. What happens behind closed APIs is none of MY business.
+
+  ## Skeleton Implementation
+  ```elixir
+  defmodule AI.Tools.MyNewTool do
+    @behaviour AI.Tools
+
+    @impl AI.Tools
+    def ui_note_on_request(_args) do
+      {"Doing something", "This tool is doing something."}
+    end
+
+    @impl AI.Tools
+    def ui_note_on_result(_args, _result) do
+      {"Did something", "This tool did something."}
+    end
+
+    @impl AI.Tools
+    def read_args(args) do
+      {:ok, args}
+    end
+
+    @impl AI.Tools
+    def spec() do
+      %{
+        type: "function",
+        function: %{
+          name: "something_tool",
+          description: "This tool does something.",
+          strict: true,
+          parameters: %{
+            additionalProperties: false,
+            type: "object",
+            required: ["thing"],
+            properties: %{
+              thing: %{
+                type: "string",
+                description: "The thing to do."
+              }
+            }
+          }
+        }
+      }
+    end
+
+    @impl AI.Tools
+    def call(_completion, args) do
+      {:ok, "IMPLEMENT ME"}
+    end
+  end
+  ```
   """
 
-  @type args_error :: {:error, :missing_argument, String.t()}
+  @type args_error ::
+          {:error, :missing_argument, String.t()}
+          | {:error, :invalid_argument, String.t()}
 
   @doc """
   Returns the OpenAPI spec for the tool as an elixir map.
@@ -25,7 +77,7 @@ defmodule AI.Tools do
   Calls the tool with the provided arguments and returns the response as an :ok
   tuple.
   """
-  @callback call(agent :: struct, args :: map) ::
+  @callback call(completion :: AI.Completion.t(), args :: map) ::
               :ok
               | {:ok, any}
               | {:error, any}
@@ -87,11 +139,16 @@ defmodule AI.Tools do
     "strategies_suggest_tool" => AI.Tools.Strategies.Suggest
   }
 
+  @answers_tools %{
+    "answers_tool" => AI.Tools.Answers
+  }
+
   @tools %{}
          |> Map.merge(@file_tools)
          |> Map.merge(@git_tools)
          |> Map.merge(@notes_tools)
          |> Map.merge(@strategies_tools)
+         |> Map.merge(@answers_tools)
 
   # ----------------------------------------------------------------------------
   # API Functions

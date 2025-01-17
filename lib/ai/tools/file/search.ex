@@ -41,9 +41,9 @@ defmodule AI.Tools.File.Search do
   end
 
   @impl AI.Tools
-  def call(agent, args) do
+  def call(completion, args) do
     with {:ok, query} <- Map.fetch(args, "query"),
-         {:ok, matches} <- search(query, agent.opts) do
+         {:ok, matches} <- search(query, completion.opts) do
       matches
       |> Enum.map(fn {file, score, data} ->
         """

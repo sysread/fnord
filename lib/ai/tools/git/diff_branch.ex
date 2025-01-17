@@ -52,7 +52,7 @@ defmodule AI.Tools.Git.DiffBranch do
   end
 
   @impl AI.Tools
-  def call(_agent, args) do
+  def call(_completion, args) do
     with {:ok, topic} <- Map.fetch(args, "topic") do
       base = Map.get(args, "base", "origin/main")
 

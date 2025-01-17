@@ -39,7 +39,7 @@ defmodule AI.Tools.File.Contents do
   end
 
   @impl AI.Tools
-  def call(_agent, args) do
+  def call(_completion, args) do
     with {:ok, file} <- Map.fetch(args, "file"),
          {:ok, content} <- get_file_contents(file) do
       {:ok,

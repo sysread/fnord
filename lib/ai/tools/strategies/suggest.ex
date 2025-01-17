@@ -73,10 +73,10 @@ defmodule AI.Tools.Strategies.Suggest do
   end
 
   @impl AI.Tools
-  def call(agent, args) do
+  def call(completion, args) do
     with {:ok, title} <- Map.fetch(args, "title"),
          {:ok, plan} <- Map.fetch(args, "plan") do
-      AI.Agent.Strategizer.get_response(agent.ai, %{
+      AI.Agent.Strategizer.get_response(completion.ai, %{
         title: title,
         plan: plan
       })

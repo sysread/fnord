@@ -59,7 +59,7 @@ defmodule AI.Tools.Notes.Save do
   end
 
   @impl AI.Tools
-  def call(_agent, args) do
+  def call(_completion, args) do
     with {:ok, topic} <- Map.fetch(args, "topic"),
          {:ok, facts} <- Map.fetch(args, "facts") do
       note = format_note(topic, facts)

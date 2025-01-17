@@ -111,7 +111,7 @@ defmodule AI.Tools.Strategies.Save do
   end
 
   @impl AI.Tools
-  def call(_agent, args) do
+  def call(_completion, args) do
     with {:ok, title} <- Map.fetch(args, "title"),
          {:ok, prompt_text} <- Map.fetch(args, "prompt"),
          {:ok, questions} <- Map.fetch(args, "questions") do

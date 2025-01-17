@@ -13,6 +13,7 @@ defmodule AI.Completion do
     :log_msgs,
     :log_tool_calls,
     :log_tool_call_results,
+    :replay_conversation,
     :messages,
     :tool_call_requests,
     :response
@@ -28,6 +29,7 @@ defmodule AI.Completion do
           log_msgs: boolean(),
           log_tool_calls: boolean(),
           log_tool_call_results: boolean(),
+          replay_conversation: boolean(),
           messages: list(),
           tool_call_requests: list(),
           response: String.t() | nil
@@ -45,6 +47,7 @@ defmodule AI.Completion do
       tools = Keyword.get(opts, :tools, nil)
       use_planner = Keyword.get(opts, :use_planner, false)
       log_msgs = Keyword.get(opts, :log_msgs, false)
+      replay = Keyword.get(opts, :replay_conversation, true)
 
       quiet? = Application.get_env(:fnord, :quiet)
       log_tool_calls = Keyword.get(opts, :log_tool_calls, !quiet?)
@@ -60,6 +63,7 @@ defmodule AI.Completion do
         log_msgs: log_msgs,
         log_tool_calls: log_tool_calls,
         log_tool_call_results: log_tool_call_results,
+        replay_conversation: replay,
         messages: messages,
         tool_call_requests: [],
         response: nil
@@ -408,6 +412,8 @@ defmodule AI.Completion do
   # ----------------------------------------------------------------------------
   # Continuing a conversation
   # ----------------------------------------------------------------------------
+  defp replay_conversation(%{replay_conversation: false} = state), do: state
+
   defp replay_conversation(state) do
     messages = Util.string_keys_to_atoms(state.messages)
 

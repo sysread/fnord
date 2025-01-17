@@ -27,7 +27,7 @@ defmodule AI.Tools.Git.ListBranches do
   end
 
   @impl AI.Tools
-  def call(_agent, _args) do
+  def call(_completion, _args) do
     with {:ok, output} <- Git.list_branches() do
       {:ok, "[git_list_branches]\n#{output}"}
     end

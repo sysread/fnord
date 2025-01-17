@@ -64,18 +64,8 @@ defmodule AI.Agent.Planner do
   If the research is complete, proceed to the Completion Instructions.
 
   # Completion Instructions
-  If the research is complete, instruct the Coordinating Agent to proceed with responding to the user.
-  - Consider the user's query and the appropriate response format.
-  - Ensure that the Coordinating Agent is requesting the details necessary for the intended format.
-  - Select the appropriate response format based on the user's query:
-    - **Diagnose a bug**: provide background information and a clear solution, with examples and references to related file paths
-    - **Explain or document a concept**: provide a top-down walkthrough of the concept, including definitions, examples, and references to files
-    - **Generate code**: provide a complete code snippet, including imports, function definitions, and usage examples (and tests, of course)
-    - For example:
-      - Query: "How does the X job work? What triggers it?"
-        - The user wants a walkthrough of the job. Instruct the Coordinating Agent to retrieve the relevant sections of code to include in its response.
-        - The user wants to know what triggers the job. Instruct the Coordinating Agent to find the triggers, extract the relevant code, and include it in its response.
-        - Instruct the Coordinating Agent to respond in a narrative style, showing a line or section of code, followed by an explanation of what it does, jumping from function to function to lead the user through the execution path as a linear process.
+  When you determine that the research is complete, instruct the Coordinating Agent to proceed with responding to the user.
+  Instruct the Coordinating Agent to select the Agent most appropriate to respond to the user's query, and then to use the `answers_tool` to do so.
 
   Allow the Coordinating Agent to formulate their own response based on the research. It is your job to tell it *when* to do so.
   Note that YOU don't respond directly to the user; the Coordinating Agent will handle that part when you instruct it to do so.

@@ -27,13 +27,6 @@ defmodule AI.Agent.Answers do
   Pay attention to whether the user is asking you for **instructions** or for **you to perform a task**.
   NEVER ask the user to perform tasks that you are capable of executing using your tools.
 
-  # Responding to the User
-  Your tone is informal, but polite.
-  Wording should be concise and favor brevity over "fluff".
-  Explain concepts in terms of Components, Dependencies, and Contracts.
-  Go into depth as needed, building the user's knowledge up from abstract concepts to concrete examples.
-  Use the specificity of the user's question to guide the depth of your response.
-
   # The Planner Agent
   Follow the directives of the Planner Agent, who will guide your research and suggest appropriate research strategies and tools to use.
   Once your research is complete, the Planner Agent will instruct you to respond to the user.
@@ -49,37 +42,36 @@ defmodule AI.Agent.Answers do
   # MOTD
   > [
     Finish up with a humorous quote as the MOTD.
-    - Select a real quotation from a historical/mythological/modern figure or fictional character.
-    - Attribute the quotation to a humorous or ironic context relevant to the query or research being performed.
-    - Play it with a straight face; no "imaginary so-and-so" - play it like it's a real.
+    - Create a new, context-appropriate quotation inspired by the research or query topic.
+    - Attribute the quotation to a real historical, mythological, modern figure, or fictional character, but tie it humorously to the topic being researched.
+    - Avoid reusing examples from this prompt; always invent your own fresh take.
+    - Match the tone of the context (e.g., technical, troubleshooting, exploratory), but aim to be witty and engaging.
+    - Play it with a straight face; do not mention it's fabricated.
+    - Ensure attribution and quotation formatting as shown below.
 
     For example:
-    - _It's not what happens to you, but how you react to it that matters._ - Epictetus, troubleshooting a merge conflict
-    - _Why 100? If I were wrong, one would have been enough._ - Albert Einstein, on the importance of unit tests
-    - _Appear at points which the enemy must hasten to defend; march swiftly to places where you are not expected._ - Sun Tzu, in a Slack thread about an improved test suite
-    - _Just be yourself, there is no one better._ - Taylor Swift, during her keynote at ElixirConf on the strict separation of concerns
-    - _There are no mistakes, just happy little accidents._ - Bob Ross, after force-pushing `main`
+    - _Simplicity is the ultimate sophistication._ - Leonardo da Vinci, upon reviewing your tangled `.gitignore`
+    - _The only way to deal with an unfree world is to become so absolutely free that your very existence is an act of rebellion._ - Albert Camus, configuring a local dev environment without Docker
+    - _To infinity and beyond!_ - Buzz Lightyear, before running the infinite recursion bug in production
+    - _The journey of a thousand miles begins with one step._ - Lao Tzu, after `npm install` downloaded 4,700 dependencies
+    - _Give me six hours to chop down a tree and I will spend the first four sharpening the axe._ - Abraham Lincoln, during code review on refactoring your regex
 
-    (those are just examples; **come up with your own!**)
+    (always invent a new one relevant to the context of the query)
     (put the attribution on a separate line to make it easier to read)
-    (also note the leading `>` to make this a blockquote and the `# MOTD` header)
+    (use a leading `>` for the blockquote and include the `# MOTD` header)
   ]
   """
 
   @template_prompt """
-  Re-assimilate the information from the conversation.
-  Organize the findings into sections that guide the user through understanding the AI's response.
-  Build the user's understanding up from high level, abstract concepts to more detailed, specific information.
+  1. Select from one of the following AI Agents to build a response for the user's query:
+  #{AI.Tools.Answers.agent_description_list()}
+  2. Use the `answers_tool` to generate a response document for the user.
+  - All of your research will be passed to the selected Agent.
+  3. Insert the response document into the following template:
 
   # [Restate the user's *original* query as the document title, correcting grammar and spelling]
 
-  [
-    - Provide a structured response in a format optimized to facilitate easy reading and understanding
-    - Use headings, bullet points, and numbered lists to organize the information
-    - Organize the information logically, building up from abstract concepts to concrete examples
-    - Include code examples, links to examples in the code base, and links to documentation as appropriate
-    - Walk the user through the information, explaining concepts in terms of Components, Dependencies, and Contracts
-  ]
+  [response document from the `answers_tool`]
 
   # SEE ALSO
   [ List files referenced in your response ]
@@ -132,9 +124,9 @@ defmodule AI.Agent.Answers do
 
   @tools @non_git_tools ++ @git_tools
 
-  # -----------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   # Behaviour implementation
-  # -----------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   @behaviour AI.Agent
 
   @impl AI.Agent
@@ -196,6 +188,8 @@ defmodule AI.Agent.Answers do
       log_msgs: false,
       log_tool_calls: false,
       log_tool_call_results: false,
+      replay_conversation: false,
+      tools: [AI.Tools.tool_spec!("answers_tool")],
       messages: messages ++ [AI.Util.system_msg(@template_prompt)]
     )
   end
