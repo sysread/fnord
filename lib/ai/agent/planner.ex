@@ -1,9 +1,16 @@
 defmodule AI.Agent.Planner do
+  @steps_warning_level_1 5
+  @steps_warning_level_2 8
+  @planner_msg_preamble "From the Planner Agent:"
+
   @model "gpt-4o"
   @max_tokens 128_000
 
   @initial_prompt """
   You are the Planner Agent, an expert researcher for analyzing software projects and documentation.
+
+  #{AI.Util.agent_to_agent_prompt()}
+
   Your initial role is to select and adapt research strategies to guide the Coordinating Agent in its research process.
 
   1. **Analyze Research Context**:
@@ -36,12 +43,13 @@ defmodule AI.Agent.Planner do
     ## Prior research
     [relevant prior research you found in step 2]
     ```
-
-  #{AI.Util.agent_to_agent_prompt()}
   """
 
   @checkin_prompt """
   You are the Planner Agent, an expert researcher for analyzing software projects and documentation.
+
+  #{AI.Util.agent_to_agent_prompt()}
+
   Your assistance is requested for the Coordinating Agent to determine the next steps in the research process.
 
   Read the user's original query.
@@ -64,17 +72,17 @@ defmodule AI.Agent.Planner do
   If the research is complete, proceed to the Completion Instructions.
 
   # Completion Instructions
-  When you determine that the research is complete, instruct the Coordinating Agent to proceed with responding to the user.
-  Instruct the Coordinating Agent to select the Agent most appropriate to respond to the user's query, and then to use the `answers_tool` to do so.
-
-  Allow the Coordinating Agent to formulate their own response based on the research. It is your job to tell it *when* to do so.
-  Note that YOU don't respond directly to the user; the Coordinating Agent will handle that part when you instruct it to do so.
-
-  #{AI.Util.agent_to_agent_prompt()}
+  YOU don't respond directly to the user; the Coordinating Agent will handle that part when you instruct it to do so.
+  It is your job to tell it *when* to do so.
+  **When you determine that the research is complete**, it is your responsibility to instruct the Coordinating Agent to respond to the user.
+  Tell it to select the most appropriate Agent to respond to the user's query using the `answers_tool`.
   """
 
   @finish_prompt """
   You are the Planner Agent, an expert researcher for analyzing software projects and documentation.
+
+  #{AI.Util.agent_to_agent_prompt()}
+
   The Coordinating Agent has completed the research process and has responded to the user.
   Your role now is to save all relevant insights and findings for future use and to suggest improvements to the research strategy library if warranted.
   Actively manage prior research notes to ensure robust future support for the Coordinating Agent.
@@ -84,8 +92,6 @@ defmodule AI.Agent.Planner do
   The Coordinating Agent does NOT have access to the notes_save_tool - ONLY YOU DO, so YOU must save the notes.
   If the user requested investigation or documentation, this is an excellent opportunity to save a lot of notes for future use!
   Avoid saving dated, time-sensitive, or irrelevant information (like the specifics on an individual commit or the details of a bug that has been fixed).
-
-  #{AI.Util.agent_to_agent_prompt()}
   """
 
   @initial_tools [
@@ -112,23 +118,24 @@ defmodule AI.Agent.Planner do
   def get_response(ai, opts) do
     with {:ok, msgs} <- Map.fetch(opts, :msgs),
          {:ok, tools} <- Map.fetch(opts, :tools),
-         {:ok, convo} <- build_conversation(msgs, tools),
-         {:ok, %{response: response}} <- get_completion(ai, opts, convo) do
-      {:ok, response}
+         {:ok, stage} <- Map.fetch(opts, :stage),
+         {:ok, convo} <- build_conversation(stage, msgs, tools),
+         {:ok, %{response: response}} <- get_completion(ai, stage, convo) do
+      {:ok, "#{@planner_msg_preamble} #{response}"}
     else
       :error -> {:error, :invalid_input}
     end
   end
 
-  defp get_completion(ai, %{stage: :initial}, convo) do
+  defp get_completion(ai, :initial, convo) do
     do_get_completion(ai, convo, @initial_prompt, @initial_tools)
   end
 
-  defp get_completion(ai, %{stage: :checkin}, convo) do
+  defp get_completion(ai, :checkin, convo) do
     do_get_completion(ai, convo, @checkin_prompt, @checkin_tools)
   end
 
-  defp get_completion(ai, %{stage: :finish}, convo) do
+  defp get_completion(ai, :finish, convo) do
     do_get_completion(ai, convo, @finish_prompt, @finish_tools)
   end
 
@@ -144,12 +151,16 @@ defmodule AI.Agent.Planner do
     )
   end
 
-  defp build_conversation(msgs, tools) do
+  defp build_conversation(stage, msgs, tools) do
+    # Count the number of steps in the conversation. If the research is taking
+    # too long, give the planner a nudge to wrap it up.
+    steps = count_steps(msgs)
+    UI.debug("Research steps", to_string(steps))
+    warning = warn_at(stage, steps)
+
     # Build a list of all messages except for system messages.
-    msgs =
-      msgs
-      |> Enum.reject(fn %{role: role} -> role == "system" end)
-      |> Jason.encode!(pretty: true)
+    msgs = Enum.reject(msgs, fn %{role: role} -> role == "system" end)
+    transcript = Jason.encode!(msgs, pretty: true)
 
     # Reduce the tools list to the names and descriptions to save tokens.
     tools =
@@ -159,16 +170,70 @@ defmodule AI.Agent.Planner do
       end)
       |> Enum.join("\n")
 
-    {:ok,
-     """
-     # Tools available to the Coordinating Agent:
-     ```
-     #{tools}
-     ```
-     # Conversation and research transcript:
-     ```
-     #{msgs}
-     ```
-     """}
+    conversation =
+      """
+      # Tools available to the Coordinating Agent:
+      ```
+      #{tools}
+
+      ```
+      # Conversation and research transcript:
+      ```
+      #{transcript}
+      ```
+
+      #{warning}
+      """
+
+    {:ok, conversation}
   end
+
+  defp count_steps(msgs) do
+    # msgs is the entire conversation transcript. We're only interested in the
+    # most recent steps following the last user message. For example, if the
+    # user replied to the original response, we only want to count the steps
+    # that followed that reply.
+    msgs
+    # Start from the end of the conversation.
+    |> Enum.reverse()
+    # Extract all of the messages up to the last user message. That leaves us
+    # with all of the messages that are part of the current research process.
+    |> Enum.take_while(fn msg -> !is_user_msg?(msg) end)
+    # The planner is called at each step in the process, so we can use that as
+    # our canary to identify research "steps".
+    |> Enum.filter(&is_step_msg?/1)
+    |> Enum.count()
+  end
+
+  defp is_step_msg?(%{role: "user", content: content}) when is_binary(content) do
+    String.starts_with?(content, @planner_msg_preamble)
+  end
+
+  defp is_step_msg?(_), do: false
+
+  defp is_user_msg?(%{role: "user", content: content}) when is_binary(content) do
+    !String.starts_with?(content, @planner_msg_preamble)
+  end
+
+  defp is_user_msg?(_), do: false
+
+  defp warn_at(:checkin, @steps_warning_level_1) do
+    UI.warn("This is taking longer than we expected :/", "trying to wrap things up...")
+
+    """
+    **Warning**: This research is taking rather longer than we expected, isn't it?
+    Perhaps it's time to either change tactics or admit defeat and respond to the user with what you have.
+    """
+  end
+
+  defp warn_at(:checkin, @steps_warning_level_2) do
+    UI.warn("This is taking way to long!", "*insisting* on wrapping things up...")
+
+    """
+    **Warning**: This research is taking quite a bit longer than we expected.
+    It's time to wrap things up and respond to the user with what you have.
+    """
+  end
+
+  defp warn_at(_, _), do: ""
 end

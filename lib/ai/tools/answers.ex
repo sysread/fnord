@@ -120,6 +120,9 @@ defmodule AI.Tools.Answers do
         messages: [
           AI.Util.system_msg(prompt),
           AI.Util.user_msg("""
+          Never refer to the "transcript".
+          Call it the "research" instead.
+
           The following is a transcript of the research performed:
           ```json
           #{transcript}
