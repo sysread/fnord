@@ -85,7 +85,7 @@ defmodule AI.Tools.File.Info do
       {:error, :enoent} ->
         {:error,
          """
-         The requested file does not exist.
+         The requested file (#{args["file"]}) does not exist.
          - If the file name is correct, verify the path using the search or the file listing tool.
          - It may have been added since the most recent reindexing of the project.
          - If the file is only present in a topic branch that has not yet been merged, it may not be visible to this tool.

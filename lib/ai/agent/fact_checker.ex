@@ -15,9 +15,6 @@ defmodule AI.Agent.FactChecker do
 
   Note that facts may have been learned by examining multiple files.
   Use your tool calls to perform a complete investigation and determine the accuracy of the information.
-  Note that the notes_search_tool is available for your use, with some caveats:
-  - It may be useful to cross-reference the notes you are investigating against other similar notes from other research sessions, particularly when dealing with information from multiple files.
-  - The notes database is where the facts being investigated came from, so treat it as an **unconfirmed source**.
 
   **IT IS ESSENTIAL THAT NO FACTUAL INFORMATION IS LOST.**
 
@@ -43,8 +40,7 @@ defmodule AI.Agent.FactChecker do
     AI.Tools.tool_spec!("file_info_tool"),
     AI.Tools.tool_spec!("file_list_tool"),
     AI.Tools.tool_spec!("file_search_tool"),
-    AI.Tools.tool_spec!("file_spelunker_tool"),
-    AI.Tools.tool_spec!("notes_search_tool")
+    AI.Tools.tool_spec!("file_spelunker_tool")
   ]
 
   @git_tools [
