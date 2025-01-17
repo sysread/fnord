@@ -36,6 +36,7 @@ defmodule Cmd.Search do
             long: "--limit",
             short: "-l",
             help: "Limit the number of results",
+            parser: :integer,
             default: @default_search_limit
           ],
           workers: [
