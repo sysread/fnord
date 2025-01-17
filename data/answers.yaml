@@ -75,7 +75,7 @@
 
 
 - name: "Implementation of an Existing Interface"
-  description: "Builds a step by step tutorial to implement a software component."
+  description: "Builds a step by step tutorial to implement a software component or repeat an existing pattern from the code base."
   prompt: |
     You are an expert software engineer.
     Your role is to teach the user how to implement software components within the code base and to document the process.
