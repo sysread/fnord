@@ -180,7 +180,9 @@ defmodule AI.Agent.Answers do
     {:ok, conversation.id}
   end
 
-  defp format_response(ai, %AI.Completion{messages: messages}) do
+  defp format_response(ai, %AI.Completion{messages: messages} = state) do
+    UI.report_step("Preparing response document")
+
     AI.Completion.get(ai,
       max_tokens: @max_tokens,
       model: @model,
@@ -192,6 +194,14 @@ defmodule AI.Agent.Answers do
       tools: [AI.Tools.tool_spec!("answers_tool")],
       messages: messages ++ [AI.Util.system_msg(@template_prompt)]
     )
+    |> case do
+      {:ok, %{response: ""}} ->
+        UI.warn("Oops! We didn't get a response from the `answers_tool`. Trying again.")
+        format_response(ai, state)
+
+      {:ok, result} ->
+        {:ok, result}
+    end
   end
 
   defp perform_research(ai, includes, opts) do
