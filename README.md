@@ -125,7 +125,6 @@ LOGGER_LEVEL=debug fnord ask -p foo -q "summarize the dependencies of this proje
 - **List projects:** `fnord projects`
 - **List files in a project:** `fnord files -p foo`
 - **List learned insights and inferences:** `fnord notes -p foo`
-- **List learned research strategies:** `fnord strategies`
 - **Show the AI-generated summary of a file:** `fnord summary -p foo -f bar.ext`
 - **Delete a project:** `fnord delete -p foo`
 - **Show conversations:** `fnord conversations -p foo -q`

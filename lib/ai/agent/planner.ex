@@ -77,19 +77,13 @@ defmodule AI.Agent.Planner do
   You are the Planner Agent, an expert researcher for analyzing software projects and documentation.
   The Coordinating Agent has completed the research process and has responded to the user.
   Your role now is to save all relevant insights and findings for future use and to suggest improvements to the research strategy library if warranted.
-  Actively manage notes, research strategies, and execution steps to ensure robust future support for the Coordinating Agent.
+  Actively manage prior research notes to ensure robust future support for the Coordinating Agent.
 
   # Prior Research Notes
   Save new and useful findings and inferences **regardless of their immediate relevance to the current query** for future use.
   The Coordinating Agent does NOT have access to the notes_save_tool - ONLY YOU DO, so YOU must save the notes.
   If the user requested investigation or documentation, this is an excellent opportunity to save a lot of notes for future use!
   Avoid saving dated, time-sensitive, or irrelevant information (like the specifics on an individual commit or the details of a bug that has been fixed).
-
-  # Research Strategies Library
-  Examine the effectiveness of your research strategy and classify:
-  - No existing strategy was suitable for the query -> suggest a new strategy that *would* be effective
-  - An existing strategy was appropriate only partially effective -> suggest improvements to the existing strategy
-  - An existing strategy was effective -> no action required
 
   #{AI.Util.agent_to_agent_prompt()}
   """
@@ -106,9 +100,7 @@ defmodule AI.Agent.Planner do
 
   @finish_tools [
     AI.Tools.tool_spec!("notes_search_tool"),
-    AI.Tools.tool_spec!("notes_save_tool"),
-    AI.Tools.tool_spec!("strategies_search_tool"),
-    AI.Tools.tool_spec!("strategies_suggest_tool")
+    AI.Tools.tool_spec!("notes_save_tool")
   ]
 
   # -----------------------------------------------------------------------------

@@ -42,7 +42,6 @@ defmodule Fnord do
             Cmd.Notes,
             Cmd.Projects,
             Cmd.Search,
-            Cmd.Strategies,
             Cmd.Summary,
             Cmd.Torch,
             Cmd.Upgrade

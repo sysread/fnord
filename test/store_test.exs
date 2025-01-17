@@ -9,28 +9,28 @@ defmodule StoreTest do
     assert fnord_home == Store.store_home()
   end
 
-  describe "prompts" do
-    test "prompts_dir/0", %{home_dir: home} do
-      prompts_dir = Path.join(home, ".fnord/prompts")
-      assert prompts_dir == Store.prompts_dir()
+  describe "strategies" do
+    test "strategies_dir/0", %{home_dir: home} do
+      strategies_dir = Path.join(home, ".fnord/strategies")
+      assert strategies_dir == Store.strategies_dir()
     end
 
-    test "list_prompts/0" do
-      assert [] == Store.list_prompts()
+    test "list_strategies/0" do
+      assert [] == Store.list_strategies()
 
-      {:ok, prompt} =
-        Store.Prompt.new()
-        |> Store.Prompt.write("Title", "Body", ["Question 1", "Question 2"])
+      {:ok, strategy} =
+        Store.Strategy.new()
+        |> Store.Strategy.write("Title", "Body", ["Question 1", "Question 2"])
 
-      assert [^prompt] = Store.list_prompts()
+      assert [^strategy] = Store.list_strategies()
     end
 
-    test "search_prompts/2" do
+    test "search_strategies/2" do
       title = "Semantic Search and High-Level Summaries"
       id = "semantic-search-and-high-level-summaries"
 
-      # Mock the Indexer to return well-known embeddings for the title prompt
-      # to ensure it is the first result. All other prompts will return all
+      # Mock the Indexer to return well-known embeddings for the title strategy
+      # to ensure it is the first result. All other strategies will return all
       # zeros.
       Mox.stub(MockIndexer, :get_embeddings, fn _, query ->
         if String.contains?(query, title) do
@@ -40,12 +40,12 @@ defmodule StoreTest do
         end
       end)
 
-      Store.Prompt.install_initial_strategies()
+      Store.Strategy.install_initial_strategies()
 
-      prompt = Store.Prompt.new(id)
-      assert Store.Prompt.exists?(prompt)
+      strategy = Store.Strategy.new(id)
+      assert Store.Strategy.exists?(strategy)
 
-      results = Store.search_prompts(title, 5)
+      results = Store.search_strategies(title, 5)
 
       assert 5 == length(results)
       assert [{_, %{id: ^id}} | _] = results

@@ -1,8 +1,8 @@
 defmodule Store do
   require Logger
 
-  @prompts_dir "prompts"
-  @non_project_paths MapSet.new([@prompts_dir])
+  @strategies_dir "strategies"
+  @non_project_paths MapSet.new([@strategies_dir])
 
   def store_home() do
     home = Settings.home()
@@ -39,37 +39,36 @@ defmodule Store do
   end
 
   # -----------------------------------------------------------------------------
-  # Prompts
+  # Strategies
   # -----------------------------------------------------------------------------
-  def prompts_dir() do
-    Path.join(store_home(), @prompts_dir)
+  def strategies_dir() do
+    Path.join(store_home(), @strategies_dir)
   end
 
-  def list_prompts() do
-    prompts_dir()
+  def list_strategies() do
+    strategies_dir()
     |> File.ls()
     |> case do
       {:ok, dirs} ->
         dirs
         |> Enum.sort()
-        |> Enum.map(&Store.Prompt.new(&1))
+        |> Enum.map(&Store.Strategy.new(&1))
 
       _ ->
         []
     end
   end
 
-  def search_prompts(query, max_results \\ 3) do
-    Store.Prompt.install_initial_strategies()
+  def search_strategies(query, max_results \\ 3) do
+    Store.Strategy.install_initial_strategies()
 
     {:ok, needle} =
       Indexer.impl().new()
       |> Indexer.impl().get_embeddings(query)
 
-    list_prompts()
+    list_strategies()
     |> Enum.reduce([], fn prompt, acc ->
-      with {:ok, version} = Store.Prompt.version(prompt),
-           {:ok, embeddings} <- Store.Prompt.read_embeddings(prompt, version) do
+      with {:ok, embeddings} <- Store.Strategy.read_embeddings(prompt) do
         score = AI.Util.cosine_similarity(needle, embeddings)
         [{score, prompt} | acc]
       else

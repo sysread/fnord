@@ -11,7 +11,7 @@ defmodule AI.Tools.Strategies.Search do
     titles =
       result
       |> Jason.decode!()
-      |> Enum.map(fn %{"title" => title, "id" => id} -> "- #{title} (id: #{id})" end)
+      |> Enum.map(fn %{"title" => title} -> "- #{title}" end)
       |> Enum.join("\n")
 
     {"Identified possible research strategies", "\n#{titles}"}
@@ -28,18 +28,17 @@ defmodule AI.Tools.Strategies.Search do
       function: %{
         name: "strategies_search_tool",
         description: """
-        "Research Strategies" are previously saved research plans that can be
-        used to guide the research strategy of the orchestrating AI agent.
-        Research Strategies are agnostic to the project and the context of the
-        user's query, instead focusing on the process to follow when
-        researching specific classes of problems.
+        "Research Strategies" are research plans that can be used to guide the
+        research strategy of the orchestrating AI agent. Research Strategies
+        are agnostic to the project and the context of the user's query,
+        instead focusing on the process to follow when researching specific
+        classes of problems.
 
         This tool performs a semantic search of your saved research strategies.
-        Returns up to 10 matching strategies' title, ID, and prompt. The ID may
-        be used to update or refine the strategy later.
+        Returns up to 10 matching strategies' title and prompt.
 
         It is up to **YOU** to decide which strategy is most appropriate for
-        the user's query and to adapt it for the user's current query.
+        the user's query and to adapt it for the specific context.
 
         After providing the strategy to the orchestrating AI agent, you may
         elect to use the `save_strategy_tool` to refine the strategy by
@@ -72,11 +71,10 @@ defmodule AI.Tools.Strategies.Search do
   def call(_completion, args) do
     with {:ok, query} <- Map.fetch(args, "query") do
       query
-      |> Store.search_prompts()
+      |> Store.search_strategies()
       |> Enum.reduce([], fn {score, prompt}, acc ->
-        with {:ok, info} <- Store.Prompt.read(prompt) do
+        with {:ok, info} <- Store.Strategy.read(prompt) do
           data = %{
-            id: prompt.id,
             title: info.title,
             prompt: info.prompt,
             match_score: score

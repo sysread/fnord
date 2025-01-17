@@ -134,9 +134,7 @@ defmodule AI.Tools do
   }
 
   @strategies_tools %{
-    "strategies_save_tool" => AI.Tools.Strategies.Save,
-    "strategies_search_tool" => AI.Tools.Strategies.Search,
-    "strategies_suggest_tool" => AI.Tools.Strategies.Suggest
+    "strategies_search_tool" => AI.Tools.Strategies.Search
   }
 
   @answers_tools %{

@@ -1,4 +1,4 @@
-defmodule Store.Prompt do
+defmodule Store.Strategy do
   @moduledoc """
   The `ask` subcommand saves useful prompts to the store. Saved prompts are
   accompanied by a title and a list of example questions for which the prompt
@@ -7,10 +7,7 @@ defmodule Store.Prompt do
   When a prompt is saved, an embedding is generated from it to make the prompt
   (and the questions to which it applies) searchable.
 
-  Whenever a prompt is modified or refined, the previous version is archived
-  to the prompt's store dir with a version number:
-
-    `<$STORE>/prompts/<$PROMPT_ID>./v<$VERSION>/`
+    `<$STORE>/prompts/<$PROMPT_ID>./
 
   File structure:
 
@@ -19,24 +16,16 @@ defmodule Store.Prompt do
     -> .fnord/
       -> prompts/
         -> <$PROMPT_ID>/
-          -> v1
-            -> title.md
-            -> prompt.md
-            -> questions.md
-            -> embeddings.json
-          -> v2
-            -> title.md
-            -> prompt.md
-            -> questions.md
-            -> embeddings.json
+          -> title.md
+          -> prompt.md
+          -> questions.md
+          -> embeddings.json
   ```
 
   There are a number of initial prompts that are installed the first time the
   prompt store is searched. These prompts are defined in `data/prompts.yaml`.
   When a new version of fnord is installed, the next time the prompt store is
-  searched, the prompts will be updated to the latest versions. "Default"
-  prompts can be distinguished by using a title slug for its id, rather than a
-  UUID.
+  searched, the prompts will be updated to the latest versions. 
   """
 
   defstruct [
@@ -44,7 +33,7 @@ defmodule Store.Prompt do
     :store_path
   ]
 
-  @store_dir "prompts"
+  @store_dir "strategies"
 
   # ----------------------------------------------------------------------------
   # These are installed the first time the prompt store is searched.
@@ -73,28 +62,19 @@ defmodule Store.Prompt do
   end
 
   @doc """
-  Returns the current version of the prompt. Prompts are automatically
-  versioned with incremental numbers for tracking.
-  """
-  def version(prompt) do
-    get_current_version_number(prompt)
-  end
-
-  @doc """
   Saves the prompt to the store. If the prompt already exists but thew `title`,
-  `prompt_text`, or `questions` have changed, it will be given an incremented
-  version number. If they have not changed, an error will be returned
-  (`{:error, {:prompt_exists, id}}`).
+  `prompt_text`, or `questions` have changed, it will be replaced by the new
+  version. If they have not changed, an error will be returned:
+    `{:error, {:strategy_exists, id}}`
   """
   def write(prompt, title, prompt_text, questions) do
     qstr = format_questions(questions)
 
-    Store.list_prompts()
+    Store.list_strategies()
     |> Enum.find(fn p ->
-      with {:ok, version} <- get_current_version_number(p),
-           {:ok, old_title} when old_title == title <- read_title(p, version),
-           {:ok, old_prompt} when old_prompt == prompt_text <- read_prompt(p, version),
-           {:ok, old_questions} when old_questions == qstr <- read_questions(p, version) do
+      with {:ok, old_title} when old_title == title <- read_title(p),
+           {:ok, old_prompt} when old_prompt == prompt_text <- read_prompt(p),
+           {:ok, old_questions} when old_questions == qstr <- read_questions(p) do
         true
       else
         _ -> false
@@ -102,32 +82,33 @@ defmodule Store.Prompt do
     end)
     |> case do
       nil -> do_write(prompt, title, prompt_text, questions)
-      p -> {:error, {:prompt_exists, p.id}}
+      p -> {:error, {:strategy_exists, p.id}}
     end
   end
 
   defp do_write(prompt, title, prompt_text, questions) do
     # --------------------------------------------------------------------------
-    # Determine the versioned path for the new prompt.
+    # We only reach this point if we want to *overwrite* the prompt, so we
+    # remove the existing prompt files.
     # --------------------------------------------------------------------------
-    prompt_path = get_next_version_path(prompt)
+    File.rm_rf!(prompt.store_path)
 
     # --------------------------------------------------------------------------
     # Create the prompt's store path if it does not yet exist.
     # --------------------------------------------------------------------------
-    File.mkdir_p!(prompt_path)
+    File.mkdir_p!(prompt.store_path)
 
     # --------------------------------------------------------------------------
     # Write the title to the prompt's store path.
     # --------------------------------------------------------------------------
-    prompt_path
+    prompt.store_path
     |> Path.join("title.md")
     |> File.write!(title)
 
     # --------------------------------------------------------------------------
     # Write the prompt's text to the prompt's store path.
     # --------------------------------------------------------------------------
-    prompt_path
+    prompt.store_path
     |> Path.join("prompt.md")
     |> File.write!(prompt_text)
 
@@ -136,7 +117,7 @@ defmodule Store.Prompt do
     # --------------------------------------------------------------------------
     questions = format_questions(questions)
 
-    prompt_path
+    prompt.store_path
     |> Path.join("questions.md")
     |> File.write!(questions)
 
@@ -147,7 +128,7 @@ defmodule Store.Prompt do
 
     with {:ok, embeddings} <- get_embeddings(embeddings_text),
          {:ok, json} <- Jason.encode(embeddings),
-         :ok <- prompt_path |> Path.join("embeddings.json") |> File.write(json) do
+         :ok <- prompt.store_path |> Path.join("embeddings.json") |> File.write(json) do
       {:ok, prompt}
     end
   end
@@ -163,98 +144,49 @@ defmodule Store.Prompt do
      prompt: prompt_text,
      questions: questions,
      embeddings: embeddings,
-     version: version
    }}
   ```
   """
   def read(prompt) do
-    with {:ok, version} <- get_current_version_number(prompt) do
-      read(prompt, version)
-    end
-  end
-
-  @doc """
-  Reads the prompt from the store at the given version. Returns the same
-  information as `read/1`.
-  """
-  def read(prompt, version) do
-    with {:ok, title} <- read_title(prompt, version),
-         {:ok, prompt_text} <- read_prompt(prompt, version),
-         {:ok, questions} <- read_questions(prompt, version),
-         {:ok, embeddings} <- read_embeddings(prompt, version) do
+    with {:ok, title} <- read_title(prompt),
+         {:ok, prompt_text} <- read_prompt(prompt),
+         {:ok, questions} <- read_questions(prompt),
+         {:ok, embeddings} <- read_embeddings(prompt) do
       {:ok,
        %{
          title: title,
          prompt: prompt_text,
          questions: questions,
-         embeddings: embeddings,
-         version: version
+         embeddings: embeddings
        }}
     end
   end
 
   def read_title(prompt) do
-    with {:ok, version} <- get_current_version_number(prompt) do
-      read_title(prompt, version)
-    end
-  end
-
-  def read_title(prompt, version) do
     prompt.store_path
-    |> Path.join("v#{version}")
     |> Path.join("title.md")
     |> File.read()
   end
 
   def read_prompt(prompt) do
-    with {:ok, version} <- get_current_version_number(prompt) do
-      read_prompt(prompt, version)
-    end
-  end
-
-  def read_prompt(prompt, version) do
     prompt.store_path
-    |> Path.join("v#{version}")
     |> Path.join("prompt.md")
     |> File.read()
   end
 
   def read_questions(prompt) do
-    with {:ok, version} <- get_current_version_number(prompt) do
-      read_questions(prompt, version)
-    end
-  end
-
-  def read_questions(prompt, version) do
     prompt.store_path
-    |> Path.join("v#{version}")
     |> Path.join("questions.md")
     |> File.read()
   end
 
   def read_embeddings(prompt) do
-    with {:ok, version} <- get_current_version_number(prompt) do
-      read_embeddings(prompt, version)
-    end
-  end
-
-  def read_embeddings(prompt, version) do
     prompt.store_path
-    |> Path.join("v#{version}")
     |> Path.join("embeddings.json")
     |> File.read()
     |> case do
       {:ok, json} -> Jason.decode(json)
       error -> error
-    end
-  end
-
-  def list_versions(prompt) do
-    prompt.store_path
-    |> File.ls()
-    |> case do
-      {:ok, dirs} -> Enum.sort(dirs)
-      _ -> []
     end
   end
 
@@ -272,46 +204,6 @@ defmodule Store.Prompt do
     |> Enum.join("\n")
   end
 
-  defp get_current_version_path(prompt) do
-    prompt
-    |> list_versions()
-    |> List.last()
-    |> case do
-      nil -> {:error, :not_found}
-      path -> {:ok, path}
-    end
-  end
-
-  defp get_current_version_number(prompt) do
-    prompt
-    |> get_current_version_path()
-    |> case do
-      {:ok, path} ->
-        path
-        |> Path.basename()
-        |> String.replace("v", "")
-        |> String.to_integer()
-        |> then(&{:ok, &1})
-
-      {:error, :not_found} ->
-        {:error, :not_found}
-    end
-  end
-
-  defp get_next_version_number(prompt) do
-    prompt
-    |> get_current_version_number()
-    |> case do
-      {:ok, version} -> version + 1
-      {:error, :not_found} -> 0
-    end
-  end
-
-  defp get_next_version_path(prompt) do
-    version = get_next_version_number(prompt)
-    Path.join(prompt.store_path, "v#{version}")
-  end
-
   defp build_store_dir(id) do
     Store.store_home()
     |> Path.join(@store_dir)
@@ -322,6 +214,8 @@ defmodule Store.Prompt do
   # Initial strategies
   # ----------------------------------------------------------------------------
   def install_initial_strategies() do
+    delete_old_prompts_dir()
+
     @initial_strategies
     |> Enum.each(fn %{
                       "id" => id,
@@ -340,9 +234,8 @@ defmodule Store.Prompt do
 
   defp differs?(prompt, prompt_str, questions) do
     if exists?(prompt) do
-      with {:ok, version} <- get_current_version_number(prompt),
-           {:ok, old_questions} <- read_questions(prompt, version),
-           {:ok, old_prompt} <- read_prompt(prompt, version) do
+      with {:ok, old_questions} <- read_questions(prompt),
+           {:ok, old_prompt} <- read_prompt(prompt) do
         cond do
           old_questions != format_questions(questions) -> true
           old_prompt != prompt_str -> true
@@ -353,6 +246,23 @@ defmodule Store.Prompt do
       end
     else
       true
+    end
+  end
+
+  # ----------------------------------------------------------------------------
+  # We used to store versioned strategies that could be updated, but we no
+  # longer do so because they were not very valuable. So we check for the
+  # existence of the old style of directory and delete all of those versioned
+  # entries. They can be identified because they had a different store dir
+  # (prompts, rather than strategies).
+  # ----------------------------------------------------------------------------
+  defp delete_old_prompts_dir do
+    old_prompts_dir =
+      Store.store_home()
+      |> Path.join("prompts")
+
+    if File.exists?(old_prompts_dir) do
+      File.rm_rf!(old_prompts_dir)
     end
   end
 end
