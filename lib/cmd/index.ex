@@ -47,12 +47,6 @@ defmodule Cmd.Index do
           ]
         ],
         flags: [
-          defrag_notes: [
-            long: "--defrag-notes",
-            short: "-D",
-            help: "Consolidate saved notes",
-            default: false
-          ],
           reindex: [
             long: "--reindex",
             short: "-r",
@@ -92,13 +86,11 @@ defmodule Cmd.Index do
     )
 
     Cmd.Index.Embeddings.index_project(idx)
-    Cmd.Index.Notes.defrag(idx)
   end
 
   def new(opts) do
-    with {:ok, project_name} <- Map.fetch(opts, :project) do
-      Application.put_env(:fnord, :project, project_name)
-    end
+    project_name = Map.get(opts, :project)
+    Application.put_env(:fnord, :project, project_name)
 
     project =
       Store.get_project()

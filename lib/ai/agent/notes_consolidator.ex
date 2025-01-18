@@ -1,5 +1,5 @@
 defmodule AI.Agent.NotesConsolidator do
-  @model "gpt-4o"
+  @model "gpt-4o-mini"
 
   @max_tokens 128_000
 

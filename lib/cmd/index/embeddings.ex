@@ -28,15 +28,15 @@ defmodule Cmd.Index.Embeddings do
     else
       {:ok, queue} = Queue.start_link(&process_entry(idx, &1))
 
-      Cmd.Index.UI.spin("Indexing #{count} / #{total} files", fn ->
+      UI.spin("Indexing #{count} / #{total} files", fn ->
         # files * 3 for each step in indexing a file (summary, outline, embeddings)
-        Cmd.Index.UI.progress_bar_start(:indexing, "Tasks", count * 3)
+        UI.progress_bar_start(:indexing, "Tasks", count * 3)
 
         # queue files
         Enum.each(stale_files, &Queue.queue(queue, &1))
 
         # start a monitor that displays in-progress files
-        monitor = Cmd.Index.UI.start_in_progress_jobs_monitor(queue)
+        monitor = UI.start_in_progress_jobs_monitor(queue, "Indexing complete")
 
         # wait on queue to complete
         Queue.shutdown(queue)
@@ -80,13 +80,13 @@ defmodule Cmd.Index.Embeddings do
 
   defp get_outline(idx, file, file_contents) do
     res = Indexer.impl().get_outline(idx.indexer, file, file_contents)
-    Cmd.Index.UI.progress_bar_update(:indexing)
+    UI.progress_bar_update(:indexing)
     res
   end
 
   defp get_summary(idx, file, file_contents) do
     res = Indexer.impl().get_summary(idx.indexer, file, file_contents)
-    Cmd.Index.UI.progress_bar_update(:indexing)
+    UI.progress_bar_update(:indexing)
     res
   end
 
@@ -108,7 +108,7 @@ defmodule Cmd.Index.Embeddings do
     """
 
     result = Indexer.impl().get_embeddings(idx.indexer, to_embed)
-    Cmd.Index.UI.progress_bar_update(:indexing)
+    UI.progress_bar_update(:indexing)
 
     case result do
       {:error, reason} -> IO.inspect(reason)

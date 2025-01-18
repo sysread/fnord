@@ -37,6 +37,7 @@ defmodule Fnord do
           [
             Cmd.Ask,
             Cmd.Conversations,
+            Cmd.Defrag,
             Cmd.Files,
             Cmd.Index,
             Cmd.Notes,

@@ -15,14 +15,15 @@ defmodule AI.Agent.FactChecker do
 
   Note that facts may have been learned by examining multiple files.
   Use your tool calls to perform a complete investigation and determine the accuracy of the information.
+  If a note mentions a file that does not exist, you should assume that the fact is invalid.
 
   **IT IS ESSENTIAL THAT NO FACTUAL INFORMATION IS LOST.**
 
   # Response
   Your response template varies based on your findings:
-  - CORRECT: respond with `OK:<original note>`
-  - CORRECTABLE WITH THE INFORMATION YOU FOUND: respond with `OK:<corrected note>`
-  - INCORRECT: respond with `ERROR:<original note>`
+  - CORRECT: respond with `CONFIRMED:<original note>`
+  - CORRECTABLE WITH THE INFORMATION YOU FOUND: respond with `CONFIRMED:<corrected note>`
+  - INCORRECT: respond with `REFUTED:<original note>`
   """
 
   @invalid_format_prompt """
@@ -30,9 +31,9 @@ defmodule AI.Agent.FactChecker do
   Please correct the format. Respond ONLY with the expected note format.
 
   The correct format is ALWAYS one of:
-  - `OK:<original note>`
-  - `OK:<corrected note>`
-  - `ERROR:<original note>`
+  - `CONFIRMED:<original note>`
+  - `CONFIRMED:<corrected note>`
+  - `REFUTED:<original note>`
   """
 
   @non_git_tools [
@@ -72,24 +73,28 @@ defmodule AI.Agent.FactChecker do
     end
   end
 
+  # -----------------------------------------------------------------------------
+  # Private functions
+  # -----------------------------------------------------------------------------
   defp fact_check_note(note, ai) do
     1..3
     |> Enum.reduce_while(nil, fn _attempt, acc ->
-      {confirmed, refuted} = note |> get_completion(ai, acc) |> process_response()
-
-      case validate_result(confirmed) do
-        {:ok, notes} -> {:halt, {Enum.join(notes, "\n"), refuted}}
+      note
+      |> get_completion(ai, acc)
+      |> process_response()
+      |> validate()
+      |> case do
+        {:ok, {confirmed, refuted}} -> {:halt, {confirmed, refuted}}
         {:error, :invalid_format} -> {:cont, :invalid_format}
       end
     end)
   end
 
-  defp validate_result(note) do
-    AI.Util.validate_notes_string(note)
-  end
-
   defp get_completion(note, ai, prior_failure) do
-    messages = [AI.Util.system_msg(@prompt), AI.Util.user_msg(note)]
+    messages = [
+      AI.Util.system_msg(@prompt),
+      AI.Util.user_msg(note)
+    ]
 
     messages =
       case prior_failure do
@@ -107,33 +112,50 @@ defmodule AI.Agent.FactChecker do
       tools: available_tools(),
       messages: messages
     )
-    |> then(fn {:ok, %{response: response}} ->
-      response
-    end)
   end
 
-  defp process_response(response) do
+  defp process_response({:ok, %{response: response}}) do
     response
     |> String.split("\n")
-    |> Enum.reduce({[], []}, fn line, {confirmed, refuted} ->
+    |> Enum.reduce_while({[], []}, fn line, {confirmed, refuted} ->
       line
-      |> String.trim()
-      |> String.trim_leading("-")
-      |> String.trim()
-      |> String.split(":", parts: 2)
+      |> parse_line
       |> case do
-        ["OK", note] -> {[note | confirmed], refuted}
-        ["ERROR", _] -> {confirmed, [line | refuted]}
-        other -> raise "Unexpected response: #{inspect(other)}"
+        {:confirmed, note} -> {:cont, {[note | confirmed], refuted}}
+        {:refuted, note} -> {:cont, {confirmed, [note | refuted]}}
+        {:error, :invalid_format} -> {:halt, {:error, :invalid_format}}
       end
     end)
-    |> then(fn {confirmed, refuted} ->
-      {
-        Enum.join(confirmed, "\n"),
-        Enum.join(refuted, "\n")
-      }
-    end)
+    |> case do
+      {:error, :invalid_format} -> {:error, :invalid_format}
+      {confirmed, refuted} -> {:ok, {join(confirmed), join(refuted)}}
+    end
   end
+
+  defp parse_line(line) do
+    line
+    |> String.trim()
+    |> String.trim_leading("-")
+    |> String.trim()
+    |> String.split(":", parts: 2)
+    |> case do
+      ["CONFIRMED", note] -> {:confirmed, note}
+      ["REFUTED", note] -> {:refuted, note}
+      _ -> {:error, :invalid_format}
+    end
+  end
+
+  defp validate({:error, error}), do: {:error, error}
+
+  defp validate({:ok, {confirmed, refuted}}) do
+    case AI.Util.validate_notes_string(confirmed) do
+      {:ok, _} -> {:ok, {confirmed, refuted}}
+      {:error, :invalid_format} -> {:error, :invalid_format}
+    end
+  end
+
+  defp join({a, b}), do: {join(a), join(b)}
+  defp join(notes), do: notes |> Enum.join("\n")
 
   defp available_tools() do
     if Git.is_git_repo?() do
