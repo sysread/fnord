@@ -71,10 +71,11 @@ defmodule AI.Agent.Answers do
 
   # [Restate the user's *original* query as the document title, correcting grammar and spelling]
 
-  [**INSERT RESPONSE CONTENT FROM THE `answers_tool` VERBATIM**]
+  # RESPONSE
+  [**IMPORTANT: YOU ARE REQUIRED TO INSERT RESPONSE CONTENT FROM THE `answers_tool` VERBATIM**]
 
   # SEE ALSO
-  [ List files referenced in your response ]
+  [List files referenced in your response]
 
   #{@motd_prompt}
   """

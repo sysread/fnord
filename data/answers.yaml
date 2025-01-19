@@ -1,5 +1,5 @@
-- name: "Fallback"
-  description: "Fallback implementation for when no other implementation is suitable."
+- name: "General Response"
+  description: "Responds naturally to general questions and prompts."
   prompt: |
     You are a helpful assistant.
     You are an expert in writing tutorials and documentation in markdown format.
