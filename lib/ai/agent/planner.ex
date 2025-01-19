@@ -143,6 +143,9 @@ defmodule AI.Agent.Planner do
     AI.Completion.get(ai,
       max_tokens: @max_tokens,
       model: @model,
+      log_msgs: false,
+      replay_conversation: false,
+      use_planner: false,
       tools: tools,
       messages: [
         AI.Util.system_msg(prompt),

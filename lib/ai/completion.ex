@@ -250,10 +250,6 @@ defmodule AI.Completion do
   def handle_tool_call(state, %{id: id, function: %{name: func, arguments: args_json}}) do
     request = AI.Util.assistant_tool_msg(id, func, args_json)
 
-    if state.log_tool_calls do
-      UI.debug("TOOL CALL", "#{func} -> #{args_json}")
-    end
-
     with {:ok, output} <- perform_tool_call(state, func, args_json) do
       response = AI.Util.tool_msg(id, func, output)
       {:ok, [request, response]}

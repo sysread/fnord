@@ -71,7 +71,7 @@ defmodule AI.Agent.Answers do
 
   # [Restate the user's *original* query as the document title, correcting grammar and spelling]
 
-  [response document from the `answers_tool`]
+  [**INSERT RESPONSE CONTENT FROM THE `answers_tool` VERBATIM**]
 
   # SEE ALSO
   [ List files referenced in your response ]
@@ -191,9 +191,7 @@ defmodule AI.Agent.Answers do
         max_tokens: @max_tokens,
         model: @model,
         use_planner: false,
-        log_msgs: false,
-        log_tool_calls: false,
-        log_tool_call_results: false,
+        log_msgs: true,
         replay_conversation: false,
         tools: [AI.Tools.tool_spec!("answers_tool")],
         messages: research.messages ++ [AI.Util.system_msg(@template_prompt)]
