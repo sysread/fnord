@@ -38,9 +38,9 @@ defmodule Store.Strategy do
   # ----------------------------------------------------------------------------
   # These are installed the first time the prompt store is searched.
   # ----------------------------------------------------------------------------
-  @prompts_file "data/prompts.yaml"
-  @external_resource @prompts_file
-  @initial_strategies YamlElixir.read_from_file!(@prompts_file)
+  @strategies_file "data/strategies.yaml"
+  @external_resource @strategies_file
+  @initial_strategies YamlElixir.read_from_file!(@strategies_file)
 
   @doc """
   Create a new prompt with a random UUID.
