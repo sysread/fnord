@@ -47,6 +47,7 @@ defmodule AI.Agent.FactChecker do
   @git_tools [
     AI.Tools.tool_spec!("git_diff_branch_tool"),
     AI.Tools.tool_spec!("git_list_branches_tool"),
+    AI.Tools.tool_spec!("git_grep_tool"),
     AI.Tools.tool_spec!("git_log_tool"),
     AI.Tools.tool_spec!("git_pickaxe_tool"),
     AI.Tools.tool_spec!("git_show_tool")

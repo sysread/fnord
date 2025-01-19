@@ -41,7 +41,7 @@ defmodule AI.Tools.File.Contents do
   @impl AI.Tools
   def call(_completion, args) do
     with {:ok, file} <- Map.fetch(args, "file"),
-         {:ok, content} <- get_file_contents(file) do
+         {:ok, content} <- AI.Tools.get_file_contents(file) do
       {:ok,
        """
        [file_contents_tool] Contents of #{file}:
@@ -64,17 +64,6 @@ defmodule AI.Tools.File.Contents do
 
       error ->
         error
-    end
-  end
-
-  defp get_file_contents(file) do
-    project = Store.get_project()
-    entry = Store.Project.Entry.new_from_file_path(project, file)
-
-    if Store.Project.Entry.source_file_exists?(entry) do
-      Store.Project.Entry.read_source_file(entry)
-    else
-      {:error, :enoent}
     end
   end
 end

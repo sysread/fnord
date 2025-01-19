@@ -11,6 +11,8 @@ defmodule Store.Project.Entry do
     :embeddings
   ]
 
+  @type t :: %__MODULE__{}
+
   def new_from_file_path(project, file) do
     abs_path = Store.Project.expand_path(file, project)
     rel_path = Store.Project.relative_path(abs_path, project)

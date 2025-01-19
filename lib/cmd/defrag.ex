@@ -80,93 +80,35 @@ defmodule Cmd.Defrag do
   # ----------------------------------------------------------------------------
   # Consolidating saved notes
   # ----------------------------------------------------------------------------
-  @consolidation_batch_size 2
-
   @type note :: String.t()
-  @type batch :: [note]
 
+  @spec consolidate_saved_notes([note]) :: {:ok, [note]} | {:error, :invalid_format}
   defp consolidate_saved_notes([]) do
     UI.info("Consolidating prior research", "Nothing to do")
     {:ok, []}
   end
 
   defp consolidate_saved_notes(original_notes) do
+    ai = AI.new()
     count = Enum.count(original_notes)
-    batch_count = count_batches(count)
+    UI.progress_bar_start(:consolidation, "Consolidating prior research", 1)
 
-    UI.report_step("Consolidating prior research")
-    UI.progress_bar_start(:consolidation, "Tasks", batch_count)
-
-    with {:ok, result} <- original_notes |> consolidate_notes |> AI.Util.validate_notes_string() do
-      UI.report_step(
-        "Consolidated notes",
-        "Consolidated #{count} notes into #{Enum.count(result)}"
-      )
-
+    with {:ok, note} <- AI.Agent.NotesConsolidator.get_response(ai, %{notes: original_notes}),
+         {:ok, result} <- AI.Util.validate_notes_string(note) do
+      new_count = Enum.count(result)
+      UI.progress_bar_update(:consolidation)
+      UI.report_step("Consolidated", "from #{count} to #{new_count}")
       {:ok, result}
     end
-  end
-
-  defp consolidate_notes([note]) when is_binary(note), do: note
-
-  defp consolidate_notes(notes) do
-    notes
-    |> Enum.chunk_every(@consolidation_batch_size)
-    |> consolidate_notes_batches()
-    |> consolidate_notes()
-  end
-
-  defp consolidate_notes_batches(notes_batches) do
-    ai = AI.new()
-
-    {:ok, queue} =
-      Queue.start_link(fn batch ->
-        result =
-          with {:ok, note} <- AI.Agent.NotesConsolidator.get_response(ai, %{notes: batch}) do
-            note
-          else
-            # Return the original notes unchanged in case of an error
-            error ->
-              UI.error("Error consolidating notes", inspect(error))
-              Enum.join(batch, "\n")
-          end
-
-        UI.progress_bar_update(:consolidation)
-
-        result
-      end)
-
-    notes_batches
-    |> Queue.map(queue)
-    |> then(fn notes ->
-      Queue.shutdown(queue)
-      Queue.join(queue)
-      notes
-    end)
-  end
-
-  defp count_batches(notes_count), do: count_batches(notes_count, 0)
-
-  defp count_batches(1, acc), do: acc
-
-  defp count_batches(notes_count, acc) do
-    batches =
-      1..notes_count
-      |> Enum.chunk_every(@consolidation_batch_size)
-      |> Enum.count()
-
-    count_batches(batches, acc + batches)
   end
 
   # ----------------------------------------------------------------------------
   # Fact-checking
   # ----------------------------------------------------------------------------
-  @spec fact_check_saved_notes([note]) ::
-          {:ok, [note], [note]}
-
+  @spec fact_check_saved_notes([note]) :: {:ok, [note], [note]}
   defp fact_check_saved_notes([]) do
     UI.info("Fact-checking prior research", "Nothing to do")
-    {:ok, []}
+    {:ok, [], []}
   end
 
   defp fact_check_saved_notes(notes) do
@@ -226,11 +168,15 @@ defmodule Cmd.Defrag do
   # -----------------------------------------------------------------------------
   # Confirmation and validation
   # -----------------------------------------------------------------------------
+  @spec confirm_updated_notes([note], [note], non_neg_integer) ::
+          :ok
+          | :aborted
+          | :no_change
   defp confirm_updated_notes([], [], 0), do: :no_change
 
   defp confirm_updated_notes(confirmed, refuted, original_count) do
     new_count = Enum.count(confirmed)
-    change = abs(new_count - original_count)
+    change = abs(original_count - new_count)
 
     difference =
       case change do
@@ -238,7 +184,7 @@ defmodule Cmd.Defrag do
           0
 
         _ ->
-          (new_count / original_count * 100)
+          (change / original_count * 100)
           |> Float.round(0)
           |> trunc()
       end
@@ -297,6 +243,7 @@ defmodule Cmd.Defrag do
   # -----------------------------------------------------------------------------
   # Retrieval and saving
   # -----------------------------------------------------------------------------
+  @spec get_notes(Store.Project.t()) :: [note]
   defp get_notes(project) do
     project
     |> Store.Project.notes()
@@ -310,6 +257,7 @@ defmodule Cmd.Defrag do
     |> Enum.reverse()
   end
 
+  @spec save_updated_notes(Store.Project.t(), [note]) :: :ok
   defp save_updated_notes(project, notes) do
     count = Enum.count(notes)
 
@@ -338,6 +286,7 @@ defmodule Cmd.Defrag do
     :ok
   end
 
+  @spec note_to_string(note) :: String.t()
   defp note_to_string(note) do
     with {:ok, {topic, facts}} <- Store.Project.Note.parse_string(note) do
       facts

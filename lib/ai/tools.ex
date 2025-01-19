@@ -122,6 +122,7 @@ defmodule AI.Tools do
 
   @git_tools %{
     "git_diff_branch_tool" => AI.Tools.Git.DiffBranch,
+    "git_grep_tool" => AI.Tools.Git.Grep,
     "git_list_branches_tool" => AI.Tools.Git.ListBranches,
     "git_log_tool" => AI.Tools.Git.Log,
     "git_pickaxe_tool" => AI.Tools.Git.Pickaxe,
@@ -244,6 +245,42 @@ defmodule AI.Tools do
          {:ok, args} <- module.read_args(args) do
       fun.(args)
     end
+  end
+
+  # ----------------------------------------------------------------------------
+  # Common Utility Functions
+  # ----------------------------------------------------------------------------
+  def get_project() do
+    project = Store.get_project()
+
+    if Store.Project.exists_in_store?(project) do
+      {:ok, project}
+    else
+      {:error, :project_not_found}
+    end
+  end
+
+  def get_file_contents(file) do
+    with {:ok, project} <- get_project() do
+      get_file_contents(project, file)
+    end
+  end
+
+  def get_file_contents(project, file) do
+    case get_entry(project, file) do
+      {:ok, entry} -> Store.Project.Entry.read_source_file(entry)
+      {:error, :not_found} -> {:error, :enoent}
+    end
+  end
+
+  def get_entry(file) do
+    with {:ok, project} <- get_project() do
+      get_entry(project, file)
+    end
+  end
+
+  def get_entry(project, file) do
+    Store.Project.find_entry(project, file)
   end
 
   # ----------------------------------------------------------------------------

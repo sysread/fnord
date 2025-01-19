@@ -117,6 +117,7 @@ defmodule AI.Agent.Answers do
   @git_tools [
     AI.Tools.tool_spec!("git_diff_branch_tool"),
     AI.Tools.tool_spec!("git_list_branches_tool"),
+    AI.Tools.tool_spec!("git_grep_tool"),
     AI.Tools.tool_spec!("git_log_tool"),
     AI.Tools.tool_spec!("git_pickaxe_tool"),
     AI.Tools.tool_spec!("git_show_tool")
@@ -133,7 +134,7 @@ defmodule AI.Agent.Answers do
   def get_response(ai, opts) do
     with includes = opts |> Map.get(:include, []) |> get_included_files(),
          {:ok, research} <- perform_research(ai, includes, opts),
-         {:ok, %{response: msg} = response} <- format_response(ai, research),
+         {:ok, %{response: msg} = response} <- format_response(ai, research, opts),
          {label, usage} <- AI.Completion.context_window_usage(response) do
       UI.report_step(label, usage)
       UI.flush()
@@ -173,34 +174,30 @@ defmodule AI.Agent.Answers do
     |> String.starts_with?("testing:")
   end
 
-  defp save_conversation(%AI.Completion{messages: messages}, %{conversation: conversation}) do
-    Store.Project.Conversation.write(conversation, messages)
+  defp save_conversation(state, %{conversation: conversation}) do
+    Store.Project.Conversation.write(conversation, state.messages)
     UI.debug("Conversation saved to file", conversation.store_path)
     UI.report_step("Conversation saved", conversation.id)
     {:ok, conversation.id}
   end
 
-  defp format_response(ai, %AI.Completion{messages: messages} = state) do
-    UI.report_step("Preparing response document")
+  defp format_response(ai, research, opts) do
+    if is_testing?(opts.question) do
+      {:ok, research}
+    else
+      UI.report_step("Preparing response document")
 
-    AI.Completion.get(ai,
-      max_tokens: @max_tokens,
-      model: @model,
-      use_planner: false,
-      log_msgs: false,
-      log_tool_calls: false,
-      log_tool_call_results: false,
-      replay_conversation: false,
-      tools: [AI.Tools.tool_spec!("answers_tool")],
-      messages: messages ++ [AI.Util.system_msg(@template_prompt)]
-    )
-    |> case do
-      {:ok, %{response: ""}} ->
-        UI.warn("Oops! We didn't get a response from the `answers_tool`. Trying again.")
-        format_response(ai, state)
-
-      {:ok, result} ->
-        {:ok, result}
+      AI.Completion.get(ai,
+        max_tokens: @max_tokens,
+        model: @model,
+        use_planner: false,
+        log_msgs: false,
+        log_tool_calls: false,
+        log_tool_call_results: false,
+        replay_conversation: false,
+        tools: [AI.Tools.tool_spec!("answers_tool")],
+        messages: research.messages ++ [AI.Util.system_msg(@template_prompt)]
+      )
     end
   end
 

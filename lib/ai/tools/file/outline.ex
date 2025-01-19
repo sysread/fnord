@@ -42,8 +42,7 @@ defmodule AI.Tools.File.Outline do
   @impl AI.Tools
   def call(_completion, args) do
     with {:ok, file} <- Map.fetch(args, "file"),
-         {:ok, project} <- get_project(),
-         {:ok, entry} <- get_entry(project, file) do
+         {:ok, entry} <- AI.Tools.get_entry(file) do
       Store.Project.Entry.read_outline(entry)
     else
       :error ->
@@ -52,28 +51,8 @@ defmodule AI.Tools.File.Outline do
       {:error, :project_not_found} ->
         {:error, "This project has not yet been created by the user."}
 
-      {:error, :entry_not_found} ->
+      {:error, :not_found} ->
         {:error, "File path not found. Please verify the correct path."}
-    end
-  end
-
-  defp get_project() do
-    project = Store.get_project()
-
-    if Store.Project.exists_in_store?(project) do
-      {:ok, project}
-    else
-      {:error, :project_not_found}
-    end
-  end
-
-  defp get_entry(project, file) do
-    entry = Store.Project.Entry.new_from_file_path(project, file)
-
-    if Store.Project.Entry.exists_in_store?(entry) do
-      {:ok, entry}
-    else
-      {:error, :entry_not_found}
     end
   end
 end

@@ -8,6 +8,8 @@ defmodule Store.Project do
     :notes_dir
   ]
 
+  @type t :: %__MODULE__{}
+
   @conversation_dir "conversations"
   @notes_dir "notes"
 
@@ -78,10 +80,76 @@ defmodule Store.Project do
     Settings.new() |> Settings.delete(project.name)
   end
 
+  # ----------------------------------------------------------------------------
+  # Entries
+  # ----------------------------------------------------------------------------
+  @spec find_entry(Store.Project.t(), String.t()) ::
+          {:ok, Store.Project.Entry.t()}
+          | {:error, atom()}
+  def find_entry(project, path) do
+    with {:ok, resolved} <- find_file(project, path) do
+      {:ok, Store.Project.Entry.new_from_file_path(project, resolved)}
+    end
+  end
+
+  @spec find_file(Store.Project.t(), String.t()) ::
+          {:ok, String.t()}
+          | {:error, atom()}
+  def find_file(project, path) do
+    [
+      &find_abs_file_root/2,
+      &find_abs_file_project/2,
+      &find_file_project/2
+    ]
+    |> Enum.find_value(fn f ->
+      with {:ok, path} <- f.(project, path) do
+        {:ok, path}
+      else
+        _ -> false
+      end
+    end)
+    |> case do
+      {:ok, path} -> {:ok, path}
+      _ -> {:error, :not_found}
+    end
+  end
+
+  defp find_abs_file_root(_project, path) do
+    if String.starts_with?(path, "/") && File.exists?(path) do
+      {:ok, path}
+    else
+      {:error, :not_found}
+    end
+  end
+
+  defp find_abs_file_project(project, path) do
+    if String.starts_with?(path, "/") do
+      path =
+        Path.join(project.source_root, path)
+        |> Path.expand(project.source_root)
+
+      if File.exists?(path) do
+        {:ok, path}
+      else
+        {:error, :not_found}
+      end
+    else
+      {:error, :not_found}
+    end
+  end
+
+  defp find_file_project(project, path) do
+    project
+    |> stored_files()
+    |> Enum.find(&String.ends_with?(&1.file, path))
+    |> case do
+      nil -> {:error, :not_found}
+      entry -> {:ok, entry.file}
+    end
+  end
+
   def expand_path(path, project) do
-    path
-    |> Path.absname(project.source_root)
-    |> Path.expand()
+    Path.expand(path, project.source_root)
   end
 
   def relative_path(path, project) do

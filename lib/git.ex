@@ -49,6 +49,15 @@ defmodule Git do
     end
   end
 
+  def grep(regex, ignore_case?) do
+    if ignore_case? do
+      ["grep", "-m", "1", "-i", regex]
+    else
+      ["grep", "-m", "1", "-e", regex]
+    end
+    |> git()
+  end
+
   def pickaxe_regex(regex) do
     git(["log", "-G", regex])
   end
