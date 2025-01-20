@@ -4,10 +4,10 @@ defmodule Store.Strategy do
   accompanied by a title and a list of example questions for which the prompt
   is appropriate.
 
-  When a prompt is saved, an embedding is generated from it to make the prompt
-  (and the questions to which it applies) searchable.
+  When a research strategy prompt is saved, an embedding is generated from it
+  to make the prompt (and the questions to which it applies) searchable.
 
-    `<$STORE>/prompts/<$PROMPT_ID>./
+  `<$STORE>/prompts/<$PROMPT_ID>./`
 
   File structure:
 
