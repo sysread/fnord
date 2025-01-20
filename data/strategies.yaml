@@ -137,6 +137,8 @@
     - "What environment variables are required?"
     - "How is $SERVICE configured to run in this project?"
   prompt: |
+    You will make inferences about how to perform specific tasks based on the codebase and available documentation.
+    This will require you to identify entry points, configuration files, and setup instructions, and use those to logically infer the steps needed to complete the task described by the user's query.
     1. Use `file_list_tool` to locate setup-related files (`README.md`, `.env`, `docker-compose.yml`, etc.).
     2. Search for mentions of "setup," "installation," or `$SERVICE` using `file_search_tool`.
     3. Use `file_info_tool` to summarize key configuration files and settings.

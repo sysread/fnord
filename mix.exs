@@ -4,7 +4,7 @@ defmodule Fnord.MixProject do
   def project do
     [
       app: :fnord,
-      version: "0.5.5",
+      version: "0.5.6",
       elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
       description: "An AI powered, conversational interface for your project that learns",

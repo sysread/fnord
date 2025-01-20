@@ -2,22 +2,45 @@
 
 [![Tests | Dialyzer](https://github.com/sysread/fnord/actions/workflows/run-tests.yml/badge.svg)](https://github.com/sysread/fnord/actions/workflows/run-tests.yml)
 
-Fnord is a command line tool that uses multiple AI-powered agents and tools to
-provide a conversational interface to your codebase, notes, and other
-(non-binary) files.
+- [Description](#description)
+- [Features](#features)
+- [Installation](#installation)
+- [Getting Started](#getting-started)
+- [Tool usage](#tool-usage)
+- [Copyright and License](#copyright-and-license)
+
+
+## Description
+
+`fnord` is a command line tool that uses multiple LLM-powered agents and tools to provide a conversational interface to your codebase, notes, and other (non-binary) files.
+
+It can be used to generate on-demand tutorials, playbooks, and documentation for your project, as well as to search for examples, explanations, and solutions to problems in your codebase.
+
+## Why `fnord`?
+
+AI-powered tools are limited by to the data built into their training data. **RAG (Retrieval-Augmented Generation)** using tool calls can supplement the training data with information, such as your code base, to provide more accurate and relevant answers to your questions.
+
+But even with RAG, the AI still runs up against the **context window**. This is the conversational "memory" of the AI, often making use of an "attention mechanism" to keep it focused on the current instructions, but causing it to lose track of details earlier in the conversation.
+
+If you've ever pasted multiple files into ChatGPT or worked with it iteratively on a piece of coce, you've probably seen this in action. It may forget constraints you defined earlier in the conversation or hallucinate entities and functions that don't exist in any of the files you've shown it.
+
+`fnord` attempts to mitigate this will cleverly designed tool calls that allow the LLM to ask _other_ agents to perform tasks on its behalf. For example, it can generate a prompt to ask another agent to read through a file and retrieve specific details it needs, like a single function definition, the declaration of an interface, or whether a specific functions behaves in a certain way. This keeps the entire file out of the "coordinating" agent's context window while still allowing it to use the information in the file to generate a response. This allows `fnord` to conduct more complex research across many files and directories without losing track of the details it needs to provide accurate answers.
+
 
 ## Features
-- Code base search
-- Graph search and pathfinding
-- On-demand playbooks assembled from documentation and code
-- Troubleshooting and debugging
+
+- Semantic search
+- On-demand explanations, documentation, and tutorials
 - Git archaeology
 - Learns about your project(s) over time
 - Improves its research capabilities with each interaction
 
+
 ## Installation
 
-1. Install `elixir` if necessary:
+Fnord is written in [Elixir](https://elixir-lang.org/) and is distributed as an `escript`.
+
+- **Install [elixir](https://elixir-lang.org/)**
 ```bash
 # MacOS
 brew install elixir
@@ -26,122 +49,158 @@ brew install elixir
 sudo apt-get install elixir
 ```
 
-2. Add the mix escript path to your shell's PATH:
+- **Add the `escript` path to your shell's PATH**
 ```bash
 echo 'export PATH="$HOME/.mix/escripts:$PATH"' >> ~/.bashrc
 source ~/.bashrc
 ```
 
-3. Install the script:
+- **Install `fnord`**
 ```bash
 mix escript.install github sysread/fnord
 ```
 
-Use the same command to reinstall. It will offer to overwrite the existing
-installation.
+- **Set `OPENAI_API_KEY` in your shell environment**
 
-4. Set `OPENAI_API_KEY`
+Set this in your shell environment to the OpenAI project key you wish to use for this tool.
+You can create a new project and get a key [here](https://platform.openai.com/api-keys).
 
-Set this in your shell environment to the OpenAI project key you wish to use
-for this tool. You can create a new project and get a key
-[here](https://platform.openai.com/api-keys).
 
-## Usage
+- **Optional: Install a markdown viewer**
 
-### Index
+Markdown seems to be the language of choice for LLMs, so installing something like `glow` to pipe output to will make the output more readable.
 
-The first step is to index your project. This will scan all files in the
-project directory and create a searchable database.
 
-The initial index, especially on a large codebase, can will take a while.
-Subsequent runs will be faster, re-indexing only those files which have changed
-since they were last indexed.
+## Getting Started
 
-The `--dir` option is required only for the initial indexing. Subsequent
-indexing will use the directory specified in the initial index.
+For the purposes of this guide, we will assume that `fnord` is installed and we are using it to interact with your project, `blarg`, which is located at `$HOME/dev/blarg`.
 
-```bash
-fnord index --project foo --dir /path/to/foo
-```
 
-You can **reindex** the project, forcing it to reindex all files.
+### Index your project
+
+The first step is to index your project to make it searchable with `fnord`'s semantic search capabilities.
+The first time you index your project may take a while, especially if there are a lot of files.
+`fnord` respects `.gitignore`, but you may also wish to exclude certain paths or globs from indexing (e.g., `-x 'node_modules'`).
 
 ```bash
-fnord index -p foo -d /path/to/foo --reindex
+fnord index --project blarg --dir $HOME/dev/blarg --exclude 'node_modules'
 ```
 
-`fnord` learns about your project over time, so every now and then it's a good
-idea to **consolidate** the notes it has taken.
+If you cancel partway-through (for example, with `Ctrl-C`), you can resume indexing by running the same command again.
+
+You must re-index your project to reflect changes in the code base, new files, deleted files, or to change the directory or exclusions. This is done by running the same command again.
+
+`fnord` stores its index in `$HOME/.fnord/$project`.
+
+
+### Search your project
+
+`fnord`'s semantic search is powered by embeddings generated by OpenAI's `text-embedding-3-large` model. The indexing process does a lot more than simply generated embeddigs for the contents of your files. It also generates summary documentation for each file as well as an index of all functions, entities, and symbols in each file to enhance semantic matches for common questions and symbols.
 
 ```bash
-fnord index -p foo --defrag-notes
+fnord search --project blarg --query "callers of some_function"
+fnord search --project blarg --query "some_function definition"
+fnord search --project blarg --query "unit tests for some_function"
 ```
 
-You can also watch the project for changes and reindex them as they happen
-using [watchman](https://github.com/facebook/watchman). Just be sure to use
-`--quiet` to suppress interactive output.
+The summaries generated by the indexing process can also be included in the search results with the `--detail` flag.
 
 ```bash
-watchman-make -p '**/*' --settle 5 --run "fnord index --project $project --dir $project_root --quiet"
+fnord search --project blarg --query "some_function declaration" --detail | glow
 ```
 
-...or use the `fnord-watch` script in the [tools directory on
-GitHub](https://github.com/sysread/fnord/blob/main/tools/fnord-watch).
+If you would like to see more information about a single file, you can use the `summary` command.
 
 ```bash
-fnord-watch -p foo -d /path/to/foo
+fnord summary --project blarg --file "path/to/some_module.ext" | glow
 ```
 
-### Search
 
-Search for files in the project that match a query.
+### Generate answers on-demand
+
+`fnord` uses a combination of LLM-powered agents and tool calls to research your question within your project, including access to semantic search and git tools (read only!).
+
+As it conducts its investigation, you will see some of the research steps reported back to you in real-time. These are printed to `STDERR` so they will not interfere with redirected output. If you wish to see more of this, set `LOGGER_LEVEL=debug` in your shell.
 
 ```bash
-fnord search -p foo -q "some search query"
+fnord ask --project blarg --question "Where is the unit test for some_function?"
+fnord ask --project blarg --question "Find all callers of some_function"
+fnord ask --project blarg --question "Is there a function or method that does X?"
+fnord ask --project blarg --question "How do I add a new X implementation?"
 ```
 
-If you want more detail about each file matched:
+Conversations (the transcript of messages between the LLM and the application) are saved for future reference and continuation. After each response, you will see a message like:
+```
+Conversation saved with ID: c81928aa-6ab2-4346-9b2a-0edce6a639f0
+```
+
+If desired, you can use that ID to continue the conversation with `--follow`.
 
 ```bash
-fnord search -p foo -q "some search query" --detail
+fnord ask --project blarg --follow c81928aa-6ab2-4346-9b2a-0edce6a639f0 --question "Is some_function still used?"
 ```
 
-### Ask
-
-Ask the AI assistant to answer questions about your project.
+List conversations with the `conversations` command. Adding `--file` will point to the file where the conversation is saved. `--question` will include the question that prompted the conversation.
 
 ```bash
-fnord ask -p foo -q "how do you run the tests for this project?"
-
-# Pipe output to `glow` to render markdown
-fnord ask -p foo -q "summarize the dependencies of this project" | glow
-
-# Reveal tool calls and research steps
-LOGGER_LEVEL=debug fnord ask -p foo -q "summarize the dependencies of this project" | glow
+fnord conversations --project blarg --question --file
 ```
 
-### Miscellaneous
+As it learns more about your project, `fnord` will be able to answer more complex questions with less research.
 
+
+### Learning over time
+
+`fnord` learns about your project over time by saving facts and inferences it makes about the project while researching your questions. These facts and inferences are saved and made
+searchable in the project's data in the `$HOME/.fnord` directory.
+
+You can view the facts learned thus far, organized by topic, with the `notes` command.
+
+```bash
+fnord notes --project blarg | glow
+```
+
+Over time, these can become quite extensive, redundant, and stale over time as your code base evolves.
+
+Consolidate and fact-check the notes for your project with the `defrag` command.
+
+```bash
+fnord defrag --project blarg
+```
+
+`fnord` knows how to "prime the pump" for its learning process with an initial set of learnings.
+
+```bash
+fnord ask --project blarg --question "Prime your research notes and report your findings"
+```
+
+
+### Upgrades
+
+`fnord` is under active development and new features are added regularly. To upgrade to the latest version, simply run:
+
+```bash
+fnord upgrade
+```
+
+Note that this is just a shortcut for:
+
+```bash
+mix escript.install github sysread/fnord
+```
+
+
+### Other commands
 - **List projects:** `fnord projects`
-- **List files in a project:** `fnord files -p foo`
-- **List learned insights and inferences:** `fnord notes -p foo`
-- **Show the AI-generated summary of a file:** `fnord summary -p foo -f bar.ext`
-- **Delete a project:** `fnord delete -p foo`
-- **Show conversations:** `fnord conversations -p foo -q`
+- **List files in a project:** `fnord files --project foo`
+- **Delete a project:** `fnord torch --project foo`
 
-Note that deleting a project only deletes from the index, not the actual files.
 
 ## Tool usage
 
-Internally, the `ask` command uses the OpenAI chat completions API to generate
-a response, implementing a function tool to allow the assistant to query the
-database for information.
+Internally, the `ask` command uses the OpenAI chat completions API to generate a response, implementing a function tool to allow the assistant to query the database for information. `fnord` can be used to implement a similar tool for your own projects.
 
-`fnord` can be used to implement a similar tool for your own projects. While
-the `ask` command severely limits the parameters that the assistant may utilize
-(`query` only, with `project` being provided by the user's invocation of the
-command), the following syntax includes the full set of parameters available
-for the `search` command.
+While the `ask` command severely limits the parameters that the assistant may utilize (`query` only, with `project` being provided by the user's invocation of the command), the following syntax includes the full set of parameters available for the `search` command.
 
 ```json
 {
@@ -175,3 +234,9 @@ for the `search` command.
   }
 }
 ```
+
+## Copyright and License
+
+This software is copyright (c) 2025 by Jeff Ober.
+
+This is free software; you can redistribute it and/or modify it under the MIT License.
