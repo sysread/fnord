@@ -62,7 +62,7 @@ defmodule Cmd.Search do
         IO.puts("""
         -----
         # File: #{entry.file} | Score: #{score}
-        #{data.summary}
+        #{data["summary"]}
         """)
       else
         IO.puts("#{score}\t#{entry.file}")

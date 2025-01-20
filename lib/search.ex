@@ -32,7 +32,7 @@ defmodule Search do
 
     results =
       Store.get_project()
-      |> Store.Project.source_files()
+      |> Store.Project.stored_files()
       |> Queue.map(queue)
       |> Enum.reject(&is_nil/1)
       |> Enum.sort(fn {_, score1, _}, {_, score2, _} -> score1 >= score2 end)

@@ -24,4 +24,6 @@ defmodule Util do
     end)
     |> Enum.into(%{})
   end
+
+  def string_keys_to_atoms(value), do: value
 end
