@@ -23,7 +23,7 @@ defmodule AI.Agent.FileSummary do
   - Implementation Details: THOROUGHLY document the internal implementation, highlighting connections between components within the file
   - Business Logic and Behaviors: Summarize the the behavior of the code from a product/feature perspective
   - Note any oddball configuration or unexpected aspects of the code or how it is organized.
-  - List questions that can be answered by the content of the file.
+  - Create an enumerated list of distince questions that can be answered by the content of the file.
 
   ## For Documentation Files (e.g., README, Wiki Pages, General Documentation):
   - Synopsis: Summarize the document's primary purpose.
@@ -31,7 +31,7 @@ defmodule AI.Agent.FileSummary do
   - Definitions and Key Terms: Note specialized terms and definitions.
   - Links and References: Include any links or references, especially to related files, modules, or external resources.
   - Key Points and Highlights: Summarize main points, noting insights that would aid semantic search.
-  - List questions that can be answered by the content of the file.
+  - Create an enumerated list of distince questions that can be answered by the content of the file.
 
   Only use information from the file itself to ensure accurate summaries without false positives from external sources.
   Keep your response as brief as possible without omitting any relevant information.

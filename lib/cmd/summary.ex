@@ -45,7 +45,9 @@ defmodule Cmd.Summary do
 
       IO.puts("----------")
       IO.puts("# Outline")
+      IO.puts("```")
       IO.puts(outline)
+      IO.puts("```")
     end
   end
 
