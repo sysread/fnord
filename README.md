@@ -134,6 +134,8 @@ Conversations (the transcript of messages between the LLM and the application) a
 Conversation saved with ID: c81928aa-6ab2-4346-9b2a-0edce6a639f0
 ```
 
+#### Continuing a conversation
+
 If desired, you can use that ID to continue the conversation with `--follow`.
 
 ```bash
@@ -145,6 +147,8 @@ List conversations with the `conversations` command. Adding `--file` will point 
 ```bash
 fnord conversations --project blarg --question --file
 ```
+
+#### Replaying a conversation
 
 You can also `replay` a conversation, replicating the output of the original question, research steps, and response.
 
