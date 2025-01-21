@@ -75,7 +75,7 @@ defmodule AI.Agent.Answers do
   [**IMPORTANT: YOU ARE REQUIRED TO INSERT RESPONSE CONTENT FROM THE `answers_tool` VERBATIM**]
 
   # SEE ALSO
-  [List files referenced in your response]
+  [itemized list of relevant files and any explicitly mentioned in the response]
 
   #{@motd_prompt}
   """
