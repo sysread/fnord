@@ -67,11 +67,11 @@ defmodule AI.Agent.Answers do
   #{AI.Tools.Answers.agent_description_list()}
   2. Use the `answers_tool` to generate a response document for the user.
   - All of your research will be passed to the selected Agent.
-  3. Insert the response document into the following template:
+  3. Remove any unnecessary "Ok, here you go" or "Based on the provided research, here is a document that..." crap from the `answers_tool` response. You'll JUST insert the formatted document into the response template below.
+  4. Insert the response document into the following repsonse template:
 
   # [Restate the user's *original* query as the document title, correcting grammar and spelling]
 
-  # RESPONSE
   [**IMPORTANT: YOU ARE REQUIRED TO INSERT RESPONSE CONTENT FROM THE `answers_tool` VERBATIM**]
 
   # SEE ALSO
