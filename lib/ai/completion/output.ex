@@ -127,6 +127,8 @@ defmodule AI.Completion.Output do
     |> Enum.drop(1)
     |> Enum.each(fn msg -> replay_msg(state, msg, tool_call_args) end)
 
+    UI.flush()
+
     IO.puts(response.content)
 
     state
