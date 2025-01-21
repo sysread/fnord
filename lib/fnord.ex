@@ -42,6 +42,7 @@ defmodule Fnord do
             Cmd.Index,
             Cmd.Notes,
             Cmd.Projects,
+            Cmd.Replay,
             Cmd.Search,
             Cmd.Summary,
             Cmd.Torch,
@@ -91,17 +92,10 @@ defmodule Fnord do
   defp set_globals(args) do
     args
     |> Enum.each(fn
-      {:workers, workers} ->
-        Application.put_env(:fnord, :workers, workers)
-
-      {:project, project} ->
-        Application.put_env(:fnord, :project, project)
-
-      {:quiet, quiet} ->
-        Application.put_env(:fnord, :quiet, quiet)
-
-      _ ->
-        :ok
+      {:workers, workers} -> Application.put_env(:fnord, :workers, workers)
+      {:project, project} -> Application.put_env(:fnord, :project, project)
+      {:quiet, quiet} -> Application.put_env(:fnord, :quiet, quiet)
+      _ -> :ok
     end)
 
     # --------------------------------------------------------------------------

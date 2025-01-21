@@ -41,6 +41,17 @@ defmodule AI.Completion do
 
   @spec get(AI.t(), Keyword.t()) :: response
   def get(ai, opts) do
+    with {:ok, state} <- new(ai, opts) do
+      state
+      |> AI.Completion.Output.replay_conversation()
+      |> maybe_start_planner()
+      |> send_request()
+      |> maybe_finish_planner()
+      |> then(&{:ok, &1})
+    end
+  end
+
+  def new(ai, opts) do
     with {:ok, max_tokens} <- Keyword.fetch(opts, :max_tokens),
          {:ok, model} <- Keyword.fetch(opts, :model),
          {:ok, messages} <- Keyword.fetch(opts, :messages) do
@@ -69,12 +80,16 @@ defmodule AI.Completion do
         response: nil
       }
 
-      state
-      |> AI.Completion.Output.replay_conversation()
-      |> maybe_start_planner()
-      |> send_request()
-      |> maybe_finish_planner()
-      |> then(&{:ok, &1})
+      {:ok, state}
+    end
+  end
+
+  def new_from_conversation(conversation, ai, opts) do
+    if Store.Project.Conversation.exists?(conversation) do
+      {:ok, _ts, msgs} = Store.Project.Conversation.read(conversation)
+      new(ai, Keyword.put(opts, :messages, msgs))
+    else
+      {:error, :conversation_not_found}
     end
   end
 

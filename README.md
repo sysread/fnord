@@ -146,6 +146,12 @@ List conversations with the `conversations` command. Adding `--file` will point 
 fnord conversations --project blarg --question --file
 ```
 
+You can also `replay` a conversation, replicating the output of the original question, research steps, and response.
+
+```bash
+fnord replay --project blarg --conversation c81928aa-6ab2-4346-9b2a-0edce6a639f0 | glow
+```
+
 As it learns more about your project, `fnord` will be able to answer more complex questions with less research.
 
 

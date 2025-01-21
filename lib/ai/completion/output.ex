@@ -83,30 +83,57 @@ defmodule AI.Completion.Output do
   # ----------------------------------------------------------------------------
   # Continuing a conversation
   # ----------------------------------------------------------------------------
+  @doc """
+  Replays an earlier conversation identically to the original interaction,
+  except that the final response is logged as a typical assistant message, so
+  that the conversation may be continued.
+  """
   def replay_conversation(%{replay_conversation: false} = state), do: state
 
   def replay_conversation(state) do
     messages = Util.string_keys_to_atoms(state.messages)
 
     # Make a lookup for tool call args by id
-    tool_call_args =
-      messages
-      |> Enum.reduce(%{}, fn msg, acc ->
-        case msg do
-          %{role: "assistant", content: nil, tool_calls: tool_calls} ->
-            tool_calls
-            |> Enum.map(fn %{id: id, function: %{arguments: args}} -> {id, args} end)
-            |> Enum.into(acc)
-
-          _ ->
-            acc
-        end
-      end)
+    tool_call_args = build_tool_call_args(messages)
 
     messages
     # Skip the first message, which is the system prompt for the agent
     |> Enum.drop(1)
-    |> Enum.each(fn
+    |> Enum.each(fn msg -> replay_msg(state, msg, tool_call_args) end)
+
+    state
+  end
+
+  @doc """
+  Replaces the entire conversation, similarly to `replay_conversation/1`, but
+  prints the final message to STDOUT, identically to the original interaction.
+  This is intended to be used when replaying the entire conversation to
+  replicate the original interaction, rather than for the sake of continuing
+  the conversation to refine output.
+  """
+  def replay_conversation_as_output(state) do
+    # Retrieve messages and convert to an atom-keyed map, extracting the final
+    # message, which is the final response from the assistant.
+    {messages, [response]} =
+      state.messages
+      |> Util.string_keys_to_atoms()
+      |> Enum.split(-1)
+
+    # Make a lookup for tool call args by id
+    tool_call_args = build_tool_call_args(messages)
+
+    messages
+    # Skip the first message, which is the system prompt for the agent
+    |> Enum.drop(1)
+    |> Enum.each(fn msg -> replay_msg(state, msg, tool_call_args) end)
+
+    IO.puts(response.content)
+
+    state
+  end
+
+  defp replay_msg(state, message, tool_call_args) do
+    case message do
       %{role: "assistant", content: nil, tool_calls: tool_calls} ->
         tool_calls
         |> Enum.each(fn %{function: %{name: func, arguments: args_json}} ->
@@ -126,8 +153,21 @@ defmodule AI.Completion.Output do
 
       %{role: "user", content: content} ->
         log_user_msg(state, content)
-    end)
+    end
+  end
 
-    state
+  defp build_tool_call_args(messages) do
+    messages
+    |> Enum.reduce(%{}, fn msg, acc ->
+      case msg do
+        %{role: "assistant", content: nil, tool_calls: tool_calls} ->
+          tool_calls
+          |> Enum.map(fn %{id: id, function: %{arguments: args}} -> {id, args} end)
+          |> Enum.into(acc)
+
+        _ ->
+          acc
+      end
+    end)
   end
 end
