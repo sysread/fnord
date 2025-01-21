@@ -87,6 +87,10 @@ defmodule UI do
 
   defp colorize? do
     :prim_tty.isatty(:stderr)
+    |> case do
+      true -> true
+      _ -> false
+    end
   end
 
   # ----------------------------------------------------------------------------
