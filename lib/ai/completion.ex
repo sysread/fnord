@@ -70,7 +70,7 @@ defmodule AI.Completion do
       }
 
       state
-      |> replay_conversation()
+      |> AI.Completion.Output.replay_conversation()
       |> maybe_start_planner()
       |> send_request()
       |> maybe_finish_planner()
@@ -179,16 +179,16 @@ defmodule AI.Completion do
   defp maybe_start_planner(%{use_planner: false} = state), do: state
 
   defp maybe_start_planner(%{ai: ai, use_planner: true, messages: msgs, tools: tools} = state) do
-    log_tool_call(state, "Building a research plan")
+    AI.Completion.Output.log_tool_call(state, "Building a research plan")
 
     case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools, stage: :initial}) do
       {:ok, response} ->
-        log_tool_call_result(state, "Research plan", response)
+        AI.Completion.Output.log_tool_call_result(state, "Research plan", response)
         planner_msg = AI.Util.user_msg(response)
         %__MODULE__{state | messages: state.messages ++ [planner_msg]}
 
       {:error, reason} ->
-        log_tool_call_error(state, "planner", reason)
+        AI.Completion.Output.log_tool_call_error(state, "planner", reason)
         state
     end
   end
@@ -196,16 +196,16 @@ defmodule AI.Completion do
   defp maybe_use_planner(%{use_planner: false} = state), do: state
 
   defp maybe_use_planner(%{ai: ai, use_planner: true, messages: msgs, tools: tools} = state) do
-    log_tool_call(state, "Evaluating research and planning next steps")
+    AI.Completion.Output.log_tool_call(state, "Evaluating research and planning next steps")
 
     case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools, stage: :checkin}) do
       {:ok, response} ->
-        log_tool_call_result(state, "Refining research plan", response)
+        AI.Completion.Output.log_tool_call_result(state, "Refining research plan", response)
         planner_msg = AI.Util.user_msg(response)
         %__MODULE__{state | messages: state.messages ++ [planner_msg]}
 
       {:error, reason} ->
-        log_tool_call_error(state, "planner", reason)
+        AI.Completion.Output.log_tool_call_error(state, "planner", reason)
         state
     end
   end
@@ -213,7 +213,7 @@ defmodule AI.Completion do
   defp maybe_finish_planner(%{use_planner: false} = state), do: state
 
   defp maybe_finish_planner(%{ai: ai, use_planner: true, messages: msgs, tools: tools} = state) do
-    log_tool_call(state, "Consolidating lessons learned from the research")
+    AI.Completion.Output.log_tool_call(state, "Consolidating lessons learned from the research")
 
     case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools, stage: :finish}) do
       {:ok, response} ->
@@ -221,7 +221,7 @@ defmodule AI.Completion do
         %__MODULE__{state | messages: state.messages ++ [planner_msg]}
 
       {:error, reason} ->
-        log_tool_call_error(state, "planner", reason)
+        AI.Completion.Output.log_tool_call_error(state, "planner", reason)
         state
     end
   end
@@ -255,18 +255,27 @@ defmodule AI.Completion do
       {:ok, [request, response]}
     else
       :error ->
-        on_event(state, :tool_call_error, {func, args_json, :error})
+        AI.Completion.Output.on_event(state, :tool_call_error, {func, args_json, :error})
         msg = "An error occurred (most likely incorrect arguments)"
         response = AI.Util.tool_msg(id, func, msg)
         {:ok, [request, response]}
 
       {:error, reason} ->
-        on_event(state, :tool_call_error, {func, args_json, {:error, reason}})
+        AI.Completion.Output.on_event(
+          state,
+          :tool_call_error,
+          {func, args_json, {:error, reason}}
+        )
+
         response = AI.Util.tool_msg(id, func, reason)
         {:ok, [request, response]}
 
       {:error, :unknown_tool, tool} ->
-        on_event(state, :tool_call_error, {func, args_json, {:error, "Unknown tool: #{tool}"}})
+        AI.Completion.Output.on_event(
+          state,
+          :tool_call_error,
+          {func, args_json, {:error, "Unknown tool: #{tool}"}}
+        )
 
         error = """
         Your attempt to call #{func} failed because the tool '#{tool}' is unknown.
@@ -278,7 +287,7 @@ defmodule AI.Completion do
         {:ok, [request, response]}
 
       {:error, :missing_argument, key} ->
-        on_event(
+        AI.Completion.Output.on_event(
           state,
           :tool_call_error,
           {func, args_json, {:error, "Missing required argument: #{key}"}}
@@ -307,7 +316,7 @@ defmodule AI.Completion do
   defp perform_tool_call(state, func, args_json) when is_binary(args_json) do
     with {:ok, args} <- Jason.decode(args_json) do
       AI.Tools.with_args(func, args, fn args ->
-        on_event(state, :tool_call, {func, args})
+        AI.Completion.Output.on_event(state, :tool_call, {func, args})
 
         result =
           AI.Tools.perform_tool_call(state, func, args)
@@ -318,141 +327,9 @@ defmodule AI.Completion do
             other -> other
           end
 
-        on_event(state, :tool_call_result, {func, args, result})
+        AI.Completion.Output.on_event(state, :tool_call_result, {func, args, result})
         result
       end)
     end
-  end
-
-  # -----------------------------------------------------------------------------
-  # Tool call UI integration
-  # -----------------------------------------------------------------------------
-  defp log_user_msg(state, msg) do
-    if state.log_msgs do
-      UI.info("You", msg)
-    end
-  end
-
-  defp log_assistant_msg(state, msg) do
-    if state.log_msgs do
-      UI.info("Assistant", msg)
-    end
-  end
-
-  defp log_tool_call(state, step) do
-    if state.log_tool_calls do
-      UI.info(step)
-    end
-  end
-
-  defp log_tool_call(state, step, msg) do
-    if state.log_tool_calls do
-      UI.info(step, msg)
-    end
-  end
-
-  defp log_tool_call_result(state, step) do
-    if state.log_tool_call_results do
-      UI.debug(step)
-    end
-  end
-
-  defp log_tool_call_result(state, step, msg) do
-    if state.log_tool_call_results do
-      UI.debug(step, msg)
-    end
-  end
-
-  defp log_tool_call_error(_state, tool, reason) do
-    UI.error("Error calling #{tool}", reason)
-  end
-
-  # -----------------------------------------------------------------------------
-  # Tool call logging
-  # -----------------------------------------------------------------------------
-  defp on_event(state, :tool_call, {tool, args}) do
-    AI.Tools.with_args(tool, args, fn args ->
-      AI.Tools.on_tool_request(tool, args)
-      |> case do
-        nil -> state
-        {step, msg} -> log_tool_call(state, step, msg)
-        step -> log_tool_call(state, step)
-      end
-    end)
-  end
-
-  defp on_event(state, :tool_call_result, {tool, args, {:ok, result}}) do
-    AI.Tools.with_args(tool, args, fn args ->
-      AI.Tools.on_tool_result(tool, args, result)
-      |> case do
-        nil -> state
-        {step, msg} -> log_tool_call_result(state, step, msg)
-        step -> log_tool_call_result(state, step)
-      end
-    end)
-  end
-
-  defp on_event(state, :tool_call_error, {tool, _args_json, {:error, reason}}) do
-    reason =
-      if is_binary(reason) do
-        reason
-      else
-        inspect(reason, pretty: true)
-      end
-
-    log_tool_call_error(state, tool, reason)
-  end
-
-  defp on_event(_state, _, _), do: :ok
-
-  # ----------------------------------------------------------------------------
-  # Continuing a conversation
-  # ----------------------------------------------------------------------------
-  defp replay_conversation(%{replay_conversation: false} = state), do: state
-
-  defp replay_conversation(state) do
-    messages = Util.string_keys_to_atoms(state.messages)
-
-    # Make a lookup for tool call args by id
-    tool_call_args =
-      messages
-      |> Enum.reduce(%{}, fn msg, acc ->
-        case msg do
-          %{role: "assistant", content: nil, tool_calls: tool_calls} ->
-            tool_calls
-            |> Enum.map(fn %{id: id, function: %{arguments: args}} -> {id, args} end)
-            |> Enum.into(acc)
-
-          _ ->
-            acc
-        end
-      end)
-
-    messages
-    # Skip the first message, which is the system prompt for the agent
-    |> Enum.drop(1)
-    |> Enum.each(fn
-      %{role: "assistant", content: nil, tool_calls: tool_calls} ->
-        tool_calls
-        |> Enum.each(fn %{function: %{name: func, arguments: args_json}} ->
-          with {:ok, args} <- Jason.decode(args_json) do
-            on_event(state, :tool_call, {func, args})
-          end
-        end)
-
-      %{role: "tool", name: func, tool_call_id: id, content: content} ->
-        on_event(state, :tool_call_result, {func, tool_call_args[id], content})
-
-      %{role: "system", content: content} ->
-        on_event(state, :tool_call_result, {"planner", %{}, content})
-
-      %{role: "assistant", content: content} ->
-        log_assistant_msg(state, content)
-
-      %{role: "user", content: content} ->
-        log_user_msg(state, content)
-    end)
-
-    state
   end
 end
