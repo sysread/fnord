@@ -59,6 +59,7 @@ defmodule AI.Agent.Planner do
   Determine whether the current research fully covers all aspects of the user's needs:
   - Have all logical questions been answered?
   - Are there any ambiguities or gaps in the research?
+  - Do the findings indicate inconsistent use of a term or label that must first be disambiguated before performing further research?
   - Do the findings indicate a need to change tactics or research strategies?
   If the research is complete, proceed to the Completion Instructions.
 
