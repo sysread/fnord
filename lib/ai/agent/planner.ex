@@ -208,7 +208,7 @@ defmodule AI.Agent.Planner do
     """
   end
 
-  defp warn_at(:checkin, @steps_warning_level_2) do
+  defp warn_at(:checkin, steps) when steps >= @steps_warning_level_2 do
     UI.warn("This is taking way too long!", "Instructing the planner to finish up")
 
     """
