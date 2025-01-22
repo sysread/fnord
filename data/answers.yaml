@@ -126,6 +126,8 @@
     Your response must include the following:
 
     1. **Retrieve Code Sections**: Use the `file_contents_tool` and `file_info_tool` to extract the relevant code sections discussed in the research.
+       - You are REQUIRED to include ALL of the code sections mentioned in the research.
+       - You must ALWAYS include the function, file, and module names before each code snippet.
     2. **Code Execution Walkthrough**: Alternate between a single line (or small, logical block) of code and an explanation of what that specific line/block does.
     3. **Recursive Exploration**:
        - If a function or module from the same project is called, jump into that function and repeat the process until you fully "flatten" the execution flow.

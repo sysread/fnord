@@ -222,7 +222,7 @@ defmodule AI.Agent.Planner do
   defp is_user_msg?(_), do: false
 
   defp warn_at(:checkin, @steps_warning_level_1) do
-    UI.warn("This is taking longer than we expected :/", "trying to wrap things up...")
+    UI.warn("This is taking longer than expected.", "Trying to wrap things up")
 
     """
     **Warning**: This research is taking rather longer than we expected, isn't it?
@@ -231,7 +231,7 @@ defmodule AI.Agent.Planner do
   end
 
   defp warn_at(:checkin, @steps_warning_level_2) do
-    UI.warn("This is taking way to long!", "*insisting* on wrapping things up...")
+    UI.warn("This is taking way too long!", "Instructing the planner to finish up")
 
     """
     **Warning**: This research is taking quite a bit longer than we expected.
