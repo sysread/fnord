@@ -4,9 +4,9 @@ defmodule AI.Tokenizer.Tokens_o200k_base do
   `gpt-4o` models.
   """
 
-  @merges :erlang.binary_to_term(File.read!("data/o200k_base.merges"))
-  @vocab :erlang.binary_to_term(File.read!("data/o200k_base.vocab"))
-  @reverse_vocab :erlang.binary_to_term(File.read!("data/o200k_base.reverse_vocab"))
+  @merges :erlang.binary_to_term(File.read!("data/tokens/o200k_base.merges"))
+  @vocab :erlang.binary_to_term(File.read!("data/tokens/o200k_base.vocab"))
+  @reverse_vocab :erlang.binary_to_term(File.read!("data/tokens/o200k_base.reverse_vocab"))
 
   @special_tokens %{
     "<|endoftext|>" => 199_999,

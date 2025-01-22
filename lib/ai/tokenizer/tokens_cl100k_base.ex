@@ -4,9 +4,9 @@ defmodule AI.Tokenizer.Tokens_cl100k_base do
   `text-embedding-3-large` model.
   """
 
-  @merges :erlang.binary_to_term(File.read!("data/cl100k_base.merges"))
-  @vocab :erlang.binary_to_term(File.read!("data/cl100k_base.vocab"))
-  @reverse_vocab :erlang.binary_to_term(File.read!("data/cl100k_base.reverse_vocab"))
+  @merges :erlang.binary_to_term(File.read!("data/tokens/cl100k_base.merges"))
+  @vocab :erlang.binary_to_term(File.read!("data/tokens/cl100k_base.vocab"))
+  @reverse_vocab :erlang.binary_to_term(File.read!("data/tokens/cl100k_base.reverse_vocab"))
 
   @special_tokens %{
     "<|endoftext|>" => 100_257,
