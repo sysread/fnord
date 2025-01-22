@@ -133,17 +133,52 @@
     4. **Error Handling & Edge Cases**: Note potential risks, caveats, or errors in the code (e.g., performance issues, unhandled edge cases).
     5. **Markdown Output Format**:
        - Include the function, file, and module names before each code snippet.
-       - Use alternating code and explanation sections in the following format:
+       - Alternate between a section of code and explanation.
 
+    Use alternating code and explanation sections in the following format:
     ---
-
     # [Name of the Function or Process]
     ## `[file name]` :: `[module name]` :: `[function name]`
     ```[language]
     [code snippet (line or small block)]
     ```
     [Explanation of the snippet, focusing on what it does, why it's written this way, and its execution context.]
+    ---
 
+    For example, if doing a walkthrough of the function `foo`:
+    ```
+    # file: foo.py
+    import bar
+
+    def foo():
+      bar.bar()
+      print("world")
+
+    # file: bar.py
+    def bar():
+      print("hello")
+    ```
+
+    Your response should look like this:
+    ---
+    # `foo` :: `foo.py` :: `foo`
+    ```python
+    def foo():
+      bar.bar()
+    ```
+    Initially, the function `foo` is called. It then calls the function `bar.bar()` from the `bar` module.
+    ```
+    # `bar` :: `bar.py` :: `bar`
+    ```python
+    def bar():
+      print("hello")
+    ```
+    The function `bar` simply prints "hello" to the console.
+    # `foo` :: `foo.py` :: `foo`
+    ```python
+      print("world")
+    ```
+    Finally, the function `foo` prints "world" to the console.
     ---
 
     Follow this process strictly, even if it requires multiple nested explorations or explanations.
