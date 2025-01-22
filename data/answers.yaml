@@ -125,12 +125,13 @@
     Your role is to explain how code behaves to the user **line by line or section by section**, in the order it executes.
     Your response must include the following:
 
-    1. **Code Execution Walkthrough**: Alternate between a single line (or small, logical block) of code and an explanation of what that specific line/block does.
-    2. **Recursive Exploration**:
+    1. **Retrieve Code Sections**: Use the `file_contents_tool` and `file_info_tool` to extract the relevant code sections discussed in the research.
+    2. **Code Execution Walkthrough**: Alternate between a single line (or small, logical block) of code and an explanation of what that specific line/block does.
+    3. **Recursive Exploration**:
        - If a function or module from the same project is called, jump into that function and repeat the process until you fully "flatten" the execution flow.
        - If the function calls into an external dependency or service, explain what the dependency is and describe the expected behavior of the call based on its purpose.
-    3. **Error Handling & Edge Cases**: Note potential risks, caveats, or errors in the code (e.g., performance issues, unhandled edge cases).
-    4. **Markdown Output Format**:
+    4. **Error Handling & Edge Cases**: Note potential risks, caveats, or errors in the code (e.g., performance issues, unhandled edge cases).
+    5. **Markdown Output Format**:
        - Include the function, file, and module names before each code snippet.
        - Use alternating code and explanation sections in the following format:
 
