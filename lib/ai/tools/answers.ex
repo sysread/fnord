@@ -1,4 +1,20 @@
 defmodule AI.Tools.Answers do
+  @moduledoc """
+  This tool generates a response to the user using a template that is
+  appropriate for the user's query.
+
+  This module is configuration-based. `data/answers.yaml` defines a number of
+  prompts with response templates geared toward different kinds of responses.
+  For example, a code walk-through versus a operational playbook.
+
+  The orchestrating agent selects the appropriate response template based on
+  the user's query and the research and then calls this tool to generate the
+  response using that template.
+
+  Note that `data/answers.yaml` is read at *compile time* and is not itself a
+  part of the release binary.
+  """
+
   @agents_file "data/answers.yaml"
   @external_resource @agents_file
   @agent_defs YamlElixir.read_from_file!(@agents_file)
