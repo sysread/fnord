@@ -23,9 +23,13 @@ defmodule Store.Strategy do
   ```
 
   There are a number of initial prompts that are installed the first time the
-  prompt store is searched. These prompts are defined in `data/prompts.yaml`.
-  When a new version of fnord is installed, the next time the prompt store is
-  searched, the prompts will be updated to the latest versions. 
+  prompt store is searched. These prompts are defined in
+  `data/strategies.yaml`. When a new version of fnord is installed, the next
+  time the prompt store is searched, the prompts will be updated to the latest
+  versions. 
+
+  Note that `data/strategies.yaml` is read at *compile time* and is not itself
+  a part of the release binary.
   """
 
   defstruct [

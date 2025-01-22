@@ -1,4 +1,10 @@
 defmodule AI.Tools.Strategies.Search do
+  @moduledoc """
+  This tool performs a semantic search of the strategies saved in the store.
+  Those strategies come from `data/strategies.yaml`, which is read at compile
+  in `Store.Strategy` and installed into `$HOME/.fnord/strategies`.
+  """
+
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -39,10 +45,6 @@ defmodule AI.Tools.Strategies.Search do
 
         It is up to **YOU** to decide which strategy is most appropriate for
         the user's query and to adapt it for the specific context.
-
-        After providing the strategy to the orchestrating AI agent, you may
-        elect to use the `save_strategy_tool` to refine the strategy by
-        improving the prompt, title, or example questions.
         """,
         strict: true,
         parameters: %{
