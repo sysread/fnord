@@ -108,6 +108,119 @@ defmodule AI.Util do
   end
 
   # -----------------------------------------------------------------------------
+  # Building transcripts
+  # -----------------------------------------------------------------------------
+  @doc """
+  Builds a "transcript" of the research process by converting the messages into
+  text. This is most commonly used to generate a transcript of the research
+  performed in a conversation for various agents and tool calls.
+  """
+  def research_transcript(msgs) do
+    # Make a lookup for tool call args by id
+    tool_call_args = build_tool_call_args(msgs)
+
+    msgs
+    # Remove the first message, which is the orchestrating agent's system prompt
+    |> Enum.drop(1)
+    # Convert messages into text
+    |> Enum.reduce([], fn
+      %{role: "user", content: content}, acc ->
+        ["User Query: #{content}" | acc]
+
+      %{role: "assistant", content: content}, acc when is_binary(content) ->
+        [content | acc]
+
+      %{role: "system", content: content}, acc ->
+        if String.starts_with?(content, AI.Agent.Planner.preamble()) do
+          [content | acc]
+        else
+          acc
+        end
+
+      %{role: "tool", tool_call_id: id, name: name, content: content}, acc ->
+        args = tool_call_args[id] |> Jason.encode!()
+
+        text = """
+        Performed research using the tool, `#{name}`, with the following arguments:
+        `#{args}`
+
+        Result:
+        #{content}
+        """
+
+        [text | acc]
+
+      _msg, acc ->
+        acc
+    end)
+    |> Enum.reverse()
+    |> Enum.join("\n\n")
+  end
+
+  defp build_tool_call_args(msgs) do
+    msgs
+    |> Enum.reduce(%{}, fn msg, acc ->
+      case msg do
+        %{role: "assistant", content: nil, tool_calls: tool_calls} ->
+          tool_calls
+          |> Enum.map(fn %{id: id, function: %{arguments: args}} -> {id, args} end)
+          |> Enum.into(acc)
+
+        _ ->
+          acc
+      end
+    end)
+  end
+
+  @doc """
+  Extracts the user's *most recent* query from the conversation messages.
+  """
+  def user_query(messages) do
+    messages
+    |> Enum.filter(&(&1.role == "user"))
+    |> List.first()
+    |> then(& &1.content)
+  end
+
+  # -----------------------------------------------------------------------------
+  # Research step counting
+  # -----------------------------------------------------------------------------
+  @doc """
+  Counts the number of steps in the research process. A step is identified
+  using planner messages as a proxy for each iteration in the research process.
+  This function only counts the steps in the most recent iteration of the
+  overall conversation by starting its count from the most recent user message.
+  """
+  def count_steps(msgs) do
+    # msgs is the entire conversation transcript. We're only interested in the
+    # most recent steps following the last user message. For example, if the
+    # user replied to the original response, we only want to count the steps
+    # that followed that reply.
+    msgs
+    # Start from the end of the conversation.
+    |> Enum.reverse()
+    # Extract all of the messages up to the last user message. That leaves us
+    # with all of the messages that are part of the current research process.
+    |> Enum.take_while(fn msg -> !is_user_msg?(msg) end)
+    # The planner is called at each step in the process, so we can use that as
+    # our canary to identify research "steps".
+    |> Enum.filter(&is_step_msg?/1)
+    |> Enum.count()
+  end
+
+  defp is_step_msg?(%{role: "user", content: content}) when is_binary(content) do
+    String.starts_with?(content, AI.Agent.Planner.preamble())
+  end
+
+  defp is_step_msg?(_), do: false
+
+  defp is_user_msg?(%{role: "user", content: content}) when is_binary(content) do
+    !String.starts_with?(content, AI.Agent.Planner.preamble())
+  end
+
+  defp is_user_msg?(_), do: false
+
+  # -----------------------------------------------------------------------------
   # Messages
   # -----------------------------------------------------------------------------
 

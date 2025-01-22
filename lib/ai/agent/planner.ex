@@ -128,6 +128,14 @@ defmodule AI.Agent.Planner do
     end
   end
 
+  # -----------------------------------------------------------------------------
+  # API functions
+  # -----------------------------------------------------------------------------
+  def preamble(), do: @planner_msg_preamble
+
+  # -----------------------------------------------------------------------------
+  # Private functions
+  # -----------------------------------------------------------------------------
   defp get_completion(ai, :initial, convo) do
     do_get_completion(ai, convo, @initial_prompt, @initial_tools)
   end
@@ -158,13 +166,12 @@ defmodule AI.Agent.Planner do
   defp build_conversation(stage, msgs, tools) do
     # Count the number of steps in the conversation. If the research is taking
     # too long, give the planner a nudge to wrap it up.
-    steps = count_steps(msgs)
+    steps = AI.Util.count_steps(msgs)
     UI.debug("Research steps", to_string(steps))
     warning = warn_at(stage, steps)
 
-    # Build a list of all messages except for system messages.
-    msgs = Enum.reject(msgs, fn %{role: role} -> role == "system" end)
-    transcript = Jason.encode!(msgs, pretty: true)
+    # Build a transcript of the conversation for the planner to review.
+    transcript = AI.Util.research_transcript(msgs)
 
     # Reduce the tools list to the names and descriptions to save tokens.
     tools =
@@ -191,35 +198,6 @@ defmodule AI.Agent.Planner do
 
     {:ok, conversation}
   end
-
-  defp count_steps(msgs) do
-    # msgs is the entire conversation transcript. We're only interested in the
-    # most recent steps following the last user message. For example, if the
-    # user replied to the original response, we only want to count the steps
-    # that followed that reply.
-    msgs
-    # Start from the end of the conversation.
-    |> Enum.reverse()
-    # Extract all of the messages up to the last user message. That leaves us
-    # with all of the messages that are part of the current research process.
-    |> Enum.take_while(fn msg -> !is_user_msg?(msg) end)
-    # The planner is called at each step in the process, so we can use that as
-    # our canary to identify research "steps".
-    |> Enum.filter(&is_step_msg?/1)
-    |> Enum.count()
-  end
-
-  defp is_step_msg?(%{role: "user", content: content}) when is_binary(content) do
-    String.starts_with?(content, @planner_msg_preamble)
-  end
-
-  defp is_step_msg?(_), do: false
-
-  defp is_user_msg?(%{role: "user", content: content}) when is_binary(content) do
-    !String.starts_with?(content, @planner_msg_preamble)
-  end
-
-  defp is_user_msg?(_), do: false
 
   defp warn_at(:checkin, @steps_warning_level_1) do
     UI.warn("This is taking longer than expected.", "Trying to wrap things up")

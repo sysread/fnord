@@ -122,9 +122,10 @@ defmodule AI.Tools.Answers do
   # ----------------------------------------------------------------------------
   defp get_response(agent, messages) do
     with {:ok, agent} <- Map.fetch(@agent, agent),
-         {:ok, prompt} <- Map.fetch(agent, "prompt"),
-         {:ok, {question, non_system_msgs}} <- get_transcript(messages),
-         {:ok, transcript} <- Jason.encode(non_system_msgs) do
+         {:ok, prompt} <- Map.fetch(agent, "prompt") do
+      transcript = AI.Util.research_transcript(messages)
+      question = AI.Util.user_query(messages)
+
       AI.Completion.get(AI.new(),
         max_tokens: @max_tokens,
         model: @model,
@@ -140,33 +141,16 @@ defmodule AI.Tools.Answers do
           Call it the "research" instead.
 
           The following is a transcript of the research performed:
-          ```json
+          -----
           #{transcript}
-          ```
+          -----
 
-          The user's question is:
+          The user asked:
           > #{question}
           """)
         ]
       )
     end
-  end
-
-  defp get_transcript(messages) do
-    with {:ok, question} <- get_user_query(messages),
-         non_system_msgs <- Enum.reject(messages, &is_system_msg?/1) do
-      {:ok, {question, non_system_msgs}}
-    end
-  end
-
-  defp is_system_msg?(%{role: "system"}), do: true
-  defp is_system_msg?(_), do: false
-
-  defp get_user_query(messages) do
-    messages
-    |> Enum.filter(&(&1.role == "user"))
-    |> List.first()
-    |> then(fn msg -> {:ok, msg.content} end)
   end
 
   defp available_tools() do
