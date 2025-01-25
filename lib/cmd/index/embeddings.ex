@@ -26,24 +26,13 @@ defmodule Cmd.Index.Embeddings do
     if count == 0 do
       UI.warn("No files to index in #{idx.project.name}")
     else
-      {:ok, queue} = Queue.start_link(&process_entry(idx, &1))
-
       UI.spin("Indexing #{count} / #{total} files", fn ->
         # files * 3 for each step in indexing a file (summary, outline, embeddings)
         UI.progress_bar_start(:indexing, "Tasks", count * 3)
 
-        # queue files
-        Enum.each(stale_files, &Queue.queue(queue, &1))
-
-        # start a monitor that displays in-progress files
-        monitor = UI.start_in_progress_jobs_monitor(queue, "Indexing complete")
-
-        # wait on queue to complete
-        Queue.shutdown(queue)
-        Queue.join(queue)
-
-        # wait on monitor to terminate
-        Task.await(monitor)
+        stale_files
+        |> Util.async_stream(&process_entry(idx, &1))
+        |> Enum.to_list()
 
         {"All file indexing tasks complete", :ok}
       end)
