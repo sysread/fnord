@@ -245,20 +245,23 @@ defmodule AI.Completion do
   # Tool calls
   # -----------------------------------------------------------------------------
   defp handle_tool_calls(%{tool_call_requests: tool_calls} = state) do
-    {:ok, queue} = Queue.start_link(&handle_tool_call(state, &1))
+    workers = Application.get_env(:fnord, :workers)
 
-    outputs =
+    messages =
       tool_calls
-      |> Queue.map(queue)
-      |> Enum.flat_map(fn {:ok, msgs} -> msgs end)
-
-    Queue.shutdown(queue)
-    Queue.join(queue)
+      |> Task.async_stream(&handle_tool_call(state, &1),
+        max_concurrency: workers,
+        timeout: :infinity
+      )
+      |> Enum.reduce(state.messages, fn
+        {:ok, {:ok, msgs}}, acc -> acc ++ msgs
+        _, acc -> acc
+      end)
 
     %__MODULE__{
       state
       | tool_call_requests: [],
-        messages: state.messages ++ outputs
+        messages: messages
     }
   end
 
