@@ -117,15 +117,11 @@ defmodule Cmd.Defrag do
     UI.progress_bar_start(:fact_checking, "Verifying prior research", count)
 
     notes
-    |> Task.async_stream(
-      fn note ->
-        result = fact_check_saved_note(note)
-        UI.progress_bar_update(:fact_checking)
-        result
-      end,
-      max_concurrency: Application.get_env(:fnord, :workers),
-      timeout: :infinity
-    )
+    |> Util.async_stream(fn note ->
+      result = fact_check_saved_note(note)
+      UI.progress_bar_update(:fact_checking)
+      result
+    end)
     |> Enum.reduce({[], []}, fn
       {:ok, {:ok, confirmed, refuted}}, {acc_confirmed, acc_refuted} ->
         {
@@ -257,25 +253,20 @@ defmodule Cmd.Defrag do
 
     UI.report_step("Saving updated notes")
 
-    {:ok, queue} =
-      Queue.start_link(fn text ->
-        project
-        |> Store.Project.Note.new()
-        |> Store.Project.Note.write(text)
-      end)
-
-    UI.report_step("Clearing old notes")
+    UI.report_step("  - Clearing old notes")
     Store.Project.reset_notes(project)
 
-    # queue files
-    UI.report_step("Saving consolidated notes")
-    Enum.each(notes, &Queue.queue(queue, &1))
+    UI.report_step("  - Saving consolidated notes")
 
-    # wait on queue to complete
-    Queue.shutdown(queue)
-    Queue.join(queue)
+    notes
+    |> Util.async_stream(fn text ->
+      project
+      |> Store.Project.Note.new()
+      |> Store.Project.Note.write(text)
+    end)
+    |> Enum.to_list()
 
-    UI.info("#{count} notes saved")
+    UI.info("  - #{count} notes saved")
 
     :ok
   end
