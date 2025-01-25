@@ -66,14 +66,33 @@ defmodule Store do
       Indexer.impl().new()
       |> Indexer.impl().get_embeddings(query)
 
-    list_strategies()
-    |> Enum.reduce([], fn prompt, acc ->
-      with {:ok, embeddings} <- Store.Strategy.read_embeddings(prompt) do
-        score = AI.Util.cosine_similarity(needle, embeddings)
-        [{score, prompt} | acc]
-      else
-        _ -> acc
-      end
+    strategies = list_strategies()
+    workers = Enum.count(strategies)
+
+    strategies
+    |> Util.async_stream(
+      fn strategy ->
+        with {:ok, embeddings} <- Store.Strategy.read_embeddings(strategy) do
+          {:ok, {strategy, embeddings}}
+        end
+      end,
+      max_concurrency: workers
+    )
+    |> Util.async_stream(
+      fn
+        {:ok, {:ok, {strategy, embeddings}}} ->
+          score = AI.Util.cosine_similarity(needle, embeddings)
+          {score, strategy}
+
+        _ ->
+          nil
+      end,
+      max_concurrency: workers
+    )
+    # Collect the results
+    |> Enum.reduce([], fn
+      {:ok, {score, strategy}}, acc -> [{score, strategy} | acc]
+      _, acc -> acc
     end)
     |> Enum.sort(fn {a, _}, {b, _} -> a >= b end)
     |> Enum.take(max_results)
