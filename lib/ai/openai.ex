@@ -3,15 +3,14 @@ defmodule AI.OpenAI do
   This module provides functions to interact with the OpenAI API, including
   getting embeddings and completions.
   """
+  @api_key_error "Missing OpenAI API key. Please set the OPENAI_API_KEY environment variable."
+  @embedding_endpoint "https://api.openai.com/v1/embeddings"
+  @completion_endpoint "https://api.openai.com/v1/chat/completions"
 
   defstruct [
     :api_key,
     :http_options
   ]
-
-  @api_key_error "Missing OpenAI API key. Please set the OPENAI_API_KEY environment variable."
-  @embedding_endpoint "https://api.openai.com/v1/embeddings"
-  @completion_endpoint "https://api.openai.com/v1/chat/completions"
 
   def new(http_options) do
     workers = Application.get_env(:fnord, :workers, Cmd.default_workers())

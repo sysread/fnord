@@ -1,6 +1,5 @@
 defmodule AI.Agent.Answers do
   @model "gpt-4o"
-
   @max_tokens 128_000
 
   @prompt """

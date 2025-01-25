@@ -6,7 +6,8 @@ defmodule AI.Tokenizer.Default do
   @tokenizer %{
     "gpt-4o" => AI.Tokenizer.Tokens_o200k_base,
     "gpt-4o-mini" => AI.Tokenizer.Tokens_o200k_base,
-    "text-embedding-3-large" => AI.Tokenizer.Tokens_cl100k_base
+    "text-embedding-3-large" => AI.Tokenizer.Tokens_cl100k_base,
+    "default" => AI.Tokenizer.Tokens_cl100k_base
   }
 
   # A special fallback token ID for unknown tokens
@@ -85,13 +86,7 @@ defmodule AI.Tokenizer.Default do
   # Private functions
   # -----------------------------------------------------------------------------
   defp get_tokenizer!(model) do
-    tokenizer = @tokenizer[model]
-
-    if is_nil(tokenizer) do
-      raise ArgumentError, "Unknown model: #{model}"
-    end
-
-    tokenizer
+    @tokenizer[model] || @tokenizer["default"]
   end
 
   defp apply_bpe(token, model) do
