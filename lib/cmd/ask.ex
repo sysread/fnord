@@ -28,7 +28,7 @@ defmodule Cmd.Ask do
             value_name: "WORKERS",
             long: "--workers",
             short: "-w",
-            help: "Number of concurrent workers to use",
+            help: "Limits the number of concurrent OpenAI requests",
             parser: :integer,
             default: Cmd.default_workers()
           ],

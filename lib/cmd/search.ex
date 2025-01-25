@@ -43,7 +43,7 @@ defmodule Cmd.Search do
             value_name: "WORKERS",
             long: "--workers",
             short: "-w",
-            help: "Number of workers threads to use",
+            help: "Limits the number of concurrent OpenAI requests",
             parser: :integer,
             default: Cmd.default_workers()
           ]

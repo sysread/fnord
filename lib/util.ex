@@ -6,10 +6,7 @@ defmodule Util do
   """
   def async_stream(enumerable, fun, options \\ []) do
     opts =
-      [
-        max_concurrency: Application.get_env(:fnord, :workers),
-        timeout: :infinity
-      ]
+      [timeout: :infinity]
       |> Keyword.merge(options)
 
     Task.async_stream(enumerable, fun, opts)
