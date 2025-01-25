@@ -14,9 +14,13 @@ defmodule AI.OpenAI do
   @completion_endpoint "https://api.openai.com/v1/chat/completions"
 
   def new(http_options) do
+    workers = Application.get_env(:fnord, :workers, Cmd.default_workers())
+
     %__MODULE__{
       api_key: get_api_key(),
-      http_options: http_options
+      http_options:
+        [hackney_options: [pool: :openai, max_connections: workers]]
+        |> Keyword.merge(http_options)
     }
   end
 
