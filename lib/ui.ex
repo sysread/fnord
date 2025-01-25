@@ -128,4 +128,18 @@ defmodule UI do
       Owl.LiveScreen.await_render()
     end
   end
+
+  def async_stream(enumerable, fun, label \\ "Working", options \\ []) do
+    progress_bar_start(:async_stream, label, Enum.count(enumerable))
+
+    enumerable
+    |> Util.async_stream(
+      fn item ->
+        result = fun.(item)
+        progress_bar_update(:async_stream)
+        result
+      end,
+      options
+    )
+  end
 end

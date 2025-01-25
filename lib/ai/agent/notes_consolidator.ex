@@ -1,5 +1,5 @@
 defmodule AI.Agent.NotesConsolidator do
-  @model "gpt-4o-mini"
+  @model "gpt-4o"
 
   @max_tokens 128_000
 
@@ -10,7 +10,8 @@ defmodule AI.Agent.NotesConsolidator do
   You will be presented with a mess of individual facts and documents.
   Input may include mixed formats. It is your job to organize them into a coherent structure.
   Break down all the information into discrete facts, then reorganize them by topic.
-  - DO *combine* ALL of the facts from similar topics under a single topic.
+  Your goal is to reorgnaize facts under a small number of broad topics.
+  - DO *combine* ALL of the facts from similar topics under a SINGLE topic.
   - DO *merge* IDENTICAL facts.
   - DO NOT *merge* facts that are similar but not identical.
   **It is ESSENTIAL that no information is lost.**

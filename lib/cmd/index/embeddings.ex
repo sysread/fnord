@@ -27,11 +27,8 @@ defmodule Cmd.Index.Embeddings do
       UI.warn("No files to index in #{idx.project.name}")
     else
       UI.spin("Indexing #{count} / #{total} files", fn ->
-        # files * 3 for each step in indexing a file (summary, outline, embeddings)
-        UI.progress_bar_start(:indexing, "Tasks", count * 3)
-
         stale_files
-        |> Util.async_stream(&process_entry(idx, &1))
+        |> UI.async_stream(&process_entry(idx, &1), "Indexing")
         |> Enum.to_list()
 
         {"All file indexing tasks complete", :ok}
@@ -68,15 +65,11 @@ defmodule Cmd.Index.Embeddings do
   end
 
   defp get_outline(idx, file, file_contents) do
-    res = Indexer.impl().get_outline(idx.indexer, file, file_contents)
-    UI.progress_bar_update(:indexing)
-    res
+    Indexer.impl().get_outline(idx.indexer, file, file_contents)
   end
 
   defp get_summary(idx, file, file_contents) do
-    res = Indexer.impl().get_summary(idx.indexer, file, file_contents)
-    UI.progress_bar_update(:indexing)
-    res
+    Indexer.impl().get_summary(idx.indexer, file, file_contents)
   end
 
   defp get_embeddings(idx, file, summary, outline, file_contents) do
@@ -96,14 +89,10 @@ defmodule Cmd.Index.Embeddings do
       ```
     """
 
-    result = Indexer.impl().get_embeddings(idx.indexer, to_embed)
-    UI.progress_bar_update(:indexing)
-
-    case result do
-      {:error, reason} -> IO.inspect(reason)
-      _ -> nil
+    Indexer.impl().get_embeddings(idx.indexer, to_embed)
+    |> case do
+      {:error, reason} -> reason |> IO.inspect()
+      other -> other
     end
-
-    result
   end
 end

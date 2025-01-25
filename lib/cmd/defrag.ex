@@ -61,10 +61,10 @@ defmodule Cmd.Defrag do
     UI.info("Workers", Application.get_env(:fnord, :workers) |> to_string())
     UI.info(" Topics", to_string(count))
 
-    with {:ok, consolidated} <- consolidate_saved_notes(notes),
-         {:ok, confirmed, refuted} <- fact_check_saved_notes(consolidated),
-         :ok <- confirm_updated_notes(confirmed, refuted, count) do
-      save_updated_notes(project, confirmed)
+    with {:ok, confirmed, refuted} <- fact_check_saved_notes(notes),
+         {:ok, consolidated} <- consolidate_saved_notes(confirmed),
+         :ok <- confirm_updated_notes(consolidated, refuted, count) do
+      save_updated_notes(project, consolidated)
     else
       {:error, :invalid_format} ->
         UI.error("Error defragmenting notes", "Invalid note format")
@@ -91,7 +91,7 @@ defmodule Cmd.Defrag do
   defp consolidate_saved_notes(original_notes) do
     ai = AI.new()
     count = Enum.count(original_notes)
-    UI.progress_bar_start(:consolidation, "Consolidating prior research", 1)
+    UI.progress_bar_start(:consolidation, "Consolidating #{count} notes", 1)
 
     with {:ok, note} <- AI.Agent.NotesConsolidator.get_response(ai, %{notes: original_notes}),
          {:ok, result} <- AI.Util.validate_notes_string(note) do
@@ -112,16 +112,8 @@ defmodule Cmd.Defrag do
   end
 
   defp fact_check_saved_notes(notes) do
-    count = Enum.count(notes)
-
-    UI.progress_bar_start(:fact_checking, "Verifying prior research", count)
-
     notes
-    |> Util.async_stream(fn note ->
-      result = fact_check_saved_note(note)
-      UI.progress_bar_update(:fact_checking)
-      result
-    end)
+    |> UI.async_stream(&fact_check_saved_note/1, "Fact-checking notes")
     |> Enum.reduce({[], []}, fn
       {:ok, {:ok, confirmed, refuted}}, {acc_confirmed, acc_refuted} ->
         {
@@ -259,11 +251,14 @@ defmodule Cmd.Defrag do
     UI.report_step("  - Saving consolidated notes")
 
     notes
-    |> Util.async_stream(fn text ->
-      project
-      |> Store.Project.Note.new()
-      |> Store.Project.Note.write(text)
-    end)
+    |> UI.async_stream(
+      fn text ->
+        project
+        |> Store.Project.Note.new()
+        |> Store.Project.Note.write(text)
+      end,
+      "Saving notes"
+    )
     |> Enum.to_list()
 
     UI.info("  - #{count} notes saved")
