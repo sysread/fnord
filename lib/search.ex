@@ -18,31 +18,23 @@ defmodule Search do
 
   def get_results(search) do
     needle = get_query_embeddings(search.query)
-    workers = Application.get_env(:fnord, :workers)
 
     Store.get_project()
     |> Store.Project.stored_files()
-    |> Task.async_stream(
-      fn entry ->
-        with {:ok, data} <- get_file_data(search, entry) do
-          needle
-          |> get_score(data)
-          |> then(&{entry, &1, data})
-        else
-          _ -> nil
-        end
-      end,
-      max_concurrency: workers,
-      timeout: :infinity
-    )
-    |> Enum.reduce([], fn {:ok, result}, acc ->
-      if is_nil(result) do
-        acc
+    |> Util.async_stream(fn entry ->
+      with {:ok, data} <- get_file_data(search, entry) do
+        needle
+        |> get_score(data)
+        |> then(&{entry, &1, data})
       else
-        [result | acc]
+        _ -> nil
       end
     end)
-    |> Enum.sort(fn {_, score1, _}, {_, score2, _} -> score1 >= score2 end)
+    |> Enum.reduce([], fn
+      {:ok, nil}, acc -> acc
+      {:ok, result}, acc -> [result | acc]
+    end)
+    |> Enum.sort(fn {_, a, _}, {_, b, _} -> a >= b end)
     |> Enum.take(search.limit)
   end
 

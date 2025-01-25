@@ -1,4 +1,23 @@
 defmodule Util do
+  @doc """
+  Convenience wrapper for `Task.async_stream/3` with the default optiosn for
+  concurrency and timeout set to `Application.get_env(:fnord, :workers)` and
+  `:infinity`, respectively.
+  """
+  def async_stream(enumerable, fun, options \\ []) do
+    opts =
+      [
+        max_concurrency: Application.get_env(:fnord, :workers),
+        timeout: :infinity
+      ]
+      |> Keyword.merge(options)
+
+    Task.async_stream(enumerable, fun, opts)
+  end
+
+  @doc """
+  Converts all string keys in a map to atoms, recursively.
+  """
   def string_keys_to_atoms(list) when is_list(list) do
     list |> Enum.map(&string_keys_to_atoms/1)
   end

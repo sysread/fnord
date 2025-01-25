@@ -268,18 +268,39 @@ defmodule Store.Project do
 
   def search_notes(project, query, max_results \\ 10) do
     needle = AI.get_embeddings!(AI.new(), query)
+    notes = notes(project)
+    workers = Enum.count(notes)
 
-    project
-    |> notes()
-    |> Enum.reduce([], fn note, acc ->
-      with {:ok, embeddings} <- Store.Project.Note.read_embeddings(note) do
-        score = AI.Util.cosine_similarity(needle, embeddings)
-        [{score, note} | acc]
-      else
-        _ -> acc
-      end
+    notes
+    # Retrieve embeddings for each note
+    |> Util.async_stream(
+      fn note ->
+        with {:ok, embeddings} <- Store.Project.Note.read_embeddings(note) do
+          {:ok, {note, embeddings}}
+        end
+      end,
+      max_concurrency: workers
+    )
+    # Calculate the similarity between the query and each note
+    |> Util.async_stream(
+      fn
+        {:ok, {:ok, {note, embeddings}}} ->
+          score = AI.Util.cosine_similarity(needle, embeddings)
+          {score, note}
+
+        _ ->
+          nil
+      end,
+      max_concurrency: workers
+    )
+    # Collect the results
+    |> Enum.reduce([], fn
+      {:ok, {score, note}}, acc -> [{score, note} | acc]
+      _, acc -> acc
     end)
+    # Sort by similarity
     |> Enum.sort(fn {a, _}, {b, _} -> a >= b end)
+    # Take the top N results
     |> Enum.take(max_results)
   end
 
