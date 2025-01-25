@@ -114,37 +114,31 @@ defmodule Cmd.Defrag do
   defp fact_check_saved_notes(notes) do
     count = Enum.count(notes)
 
-    {:ok, queue} =
-      Queue.start_link(fn note ->
+    UI.progress_bar_start(:fact_checking, "Verifying prior research", count)
+
+    notes
+    |> Task.async_stream(
+      fn note ->
         result = fact_check_saved_note(note)
         UI.progress_bar_update(:fact_checking)
         result
-      end)
+      end,
+      max_concurrency: Application.get_env(:fnord, :workers),
+      timeout: :infinity
+    )
+    |> Enum.reduce({[], []}, fn
+      {:ok, {:ok, confirmed, refuted}}, {acc_confirmed, acc_refuted} ->
+        {
+          confirmed ++ acc_confirmed,
+          [refuted | acc_refuted]
+        }
 
-    UI.progress_bar_start(:fact_checking, "Verifying prior research", count)
-
-    tasks = notes |> Enum.map(&Queue.queue(queue, &1))
-
-    # queue files
-    {confirmed, refuted} =
-      tasks
-      |> Task.await_many(5 * 60 * 1000)
-      |> Enum.reduce({[], []}, fn
-        {:ok, confirmed, refuted}, {acc_confirmed, acc_refuted} ->
-          {
-            confirmed ++ acc_confirmed,
-            [refuted | acc_refuted]
-          }
-
-        _, acc ->
-          acc
-      end)
-
-    # wait on queue to complete
-    Queue.shutdown(queue)
-    Queue.join(queue)
-
-    {:ok, confirmed, refuted}
+      _, acc ->
+        acc
+    end)
+    |> then(fn {confirmed, refuted} ->
+      {:ok, confirmed, refuted}
+    end)
   end
 
   @spec fact_check_saved_note(note) ::
