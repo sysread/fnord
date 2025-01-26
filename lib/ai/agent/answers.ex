@@ -224,8 +224,15 @@ defmodule AI.Agent.Answers do
     user_msg = user_prompt(opts.question, includes)
 
     case restore_conversation(opts) do
-      [] -> [asst_prompt(opts), user_msg]
-      msgs -> msgs ++ [user_msg]
+      [] ->
+        [
+          asst_prompt(opts),
+          AI.Util.system_msg("The currently selected project is #{opts.project}."),
+          user_msg
+        ]
+
+      msgs ->
+        msgs ++ [user_msg]
     end
   end
 
