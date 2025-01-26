@@ -15,12 +15,12 @@ defmodule Fnord do
 
     configure_logger()
 
-    with {:ok, subcommand, opts} <- parse_options(args) do
+    with {:ok, subcommand, opts, unknown} <- parse_options(args) do
       opts = set_globals(opts)
 
       subcommand
       |> to_module_name()
-      |> apply(:run, [opts])
+      |> apply(:run, [opts, unknown])
     else
       {:error, reason} -> IO.puts("Error: #{reason}")
     end
@@ -45,6 +45,7 @@ defmodule Fnord do
             Cmd.Replay,
             Cmd.Search,
             Cmd.Summary,
+            Cmd.Tool,
             Cmd.Torch,
             Cmd.Upgrade
           ]
@@ -57,7 +58,7 @@ defmodule Fnord do
         |> Map.merge(result.options)
         |> Map.merge(result.flags)
 
-      {:ok, subcommand, options}
+      {:ok, subcommand, options, result.unknown}
     else
       _ -> {:error, "missing or unknown subcommand"}
     end

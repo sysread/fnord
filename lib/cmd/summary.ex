@@ -28,7 +28,7 @@ defmodule Cmd.Summary do
   end
 
   @impl Cmd
-  def run(opts) do
+  def run(opts, _unknown) do
     # Make sure that the file path is an absolute path
     file_path = Path.absname(opts.file)
     project = Store.get_project(opts.project)

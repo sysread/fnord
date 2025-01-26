@@ -13,7 +13,7 @@ defmodule Cmd.Projects do
   end
 
   @impl Cmd
-  def run(_opts) do
+  def run(_opts, _unkown) do
     Store.list_projects()
     |> Enum.each(&IO.puts(&1.name))
   end

@@ -41,7 +41,7 @@ defmodule Cmd.Defrag do
   end
 
   @impl Cmd
-  def run(opts) do
+  def run(opts, _unknown) do
     project_name = Map.get(opts, :project)
     Application.put_env(:fnord, :project, project_name)
 

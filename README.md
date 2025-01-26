@@ -208,41 +208,18 @@ mix escript.install github sysread/fnord
 
 ## Tool usage
 
-Internally, the `ask` command uses the OpenAI chat completions API to generate a response, implementing a function tool to allow the assistant to query the database for information. `fnord` can be used to implement a similar tool for your own projects.
+All of the tool calls available to `fnord` are available for external use via the `tool` subcommand.
 
-While the `ask` command severely limits the parameters that the assistant may utilize (`query` only, with `project` being provided by the user's invocation of the command), the following syntax includes the full set of parameters available for the `search` command.
+```bash
+# List available tools
+fnord help tool
 
-```json
-{
-  "name": "search_tool",
-  "description": "Searches for matching files and their contents in a project.",
-  "parameters": {
-    "type": "object",
-    "properties": {
-      "project": {
-        "type": "string",
-        "description": "Project name for the search."
-      },
-      "query": {
-        "type": "string",
-        "description": "The search query string."
-      },
-      "detail": {
-        "type": "boolean",
-        "description": "Include AI-generated file summary if set to true."
-      },
-      "limit": {
-        "type": "integer",
-        "description": "Limit the number of results (default: 10)."
-      },
-      "workers": {
-        "type": "integer",
-        "description": "Number of concurrent workers to use for the search."
-      }
-    },
-    "required": ["project", "query"]
-  }
-}
+# Get help for a specific tool
+fnord tool --tool file_search_tool --help
+
+# Call the tool
+fnord tool --tool file_search_tool --project blarg --query "some_function definition"
+fnord tool --tool file_info_tool --project blarg --file "path/to/some_module.ext" --question "What public functions are defined in this file?"
 ```
 
 ## Copyright and License

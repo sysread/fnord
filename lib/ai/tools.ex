@@ -152,6 +152,8 @@ defmodule AI.Tools do
   # ----------------------------------------------------------------------------
   # API Functions
   # ----------------------------------------------------------------------------
+  def tools, do: @tools
+
   def tool_module(tool, tools \\ @tools) do
     case Map.get(tools, tool) do
       nil -> {:error, :unknown_tool, tool}

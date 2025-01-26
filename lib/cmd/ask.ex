@@ -62,7 +62,7 @@ defmodule Cmd.Ask do
   end
 
   @impl Cmd
-  def run(opts) do
+  def run(opts, _unkown) do
     with :ok <- validate(opts) do
       conversation = get_conversation(opts)
       opts = Map.put(opts, :conversation, conversation)
