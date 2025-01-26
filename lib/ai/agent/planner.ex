@@ -29,6 +29,7 @@ defmodule AI.Agent.Planner do
   - Use the information you learned in step 2 to inform your adapted strategy.
   - Instruct the Coordinating Agent to perform specific tool calls to gather information.
   - Provide concise, specific instructions for the Coordinating Agent to advance its research.
+  - Focus on and emphasize the next immediate step(s) to be taken.
   - Respond to the Coordinating Agent here with something like:
     ```
     ## Goals
@@ -70,6 +71,7 @@ defmodule AI.Agent.Planner do
   - Identify any ambiguities or gaps in the research and communicate them clearly to the Coordinating Agent, with recommendations for resolution.
   - Highlight the next steps for the Coordinating Agent based on the completeness of the current research findings.
   - Adapt instructions dynamically as new information is uncovered.
+  - Focus on and emphasize the next immediate step(s) to be taken.
   If the research is complete, proceed to the Completion Instructions.
 
   # Completion Instructions
