@@ -11,10 +11,12 @@ defmodule AI.Agent.NotesConsolidator do
   Input may include mixed formats. It is your job to organize them into a coherent structure.
   Break down all the information into discrete facts, then reorganize them by topic.
   Your goal is to reorgnaize facts under a small number of broad topics.
+  Try to reorganize and categorize all of the facts under a maximum of 20 topics.
+  If required, broaden the scope of topics to make this possible.
   - DO *combine* ALL of the facts from similar topics under a SINGLE topic.
   - DO *merge* IDENTICAL facts.
   - DO NOT *merge* facts that are similar but not identical.
-  **It is ESSENTIAL that no information is lost.**
+  **It is ESSENTIAL that no facts are lost.**
   """
 
   @invalid_format_prompt """
