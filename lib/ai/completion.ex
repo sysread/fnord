@@ -35,9 +35,7 @@ defmodule AI.Completion do
           response: String.t() | nil
         }
 
-  @type success :: {:ok, t}
-  @type error :: {:error, String.t()}
-  @type response :: success | error
+  @type response :: {:ok, t}
 
   @spec get(AI.t(), Keyword.t()) :: response
   def get(ai, opts) do
@@ -47,7 +45,7 @@ defmodule AI.Completion do
       |> maybe_analyze_prompt()
       |> maybe_plan_research()
       |> send_request()
-      |> maybe_finish_planner()
+      |> maybe_evaluate_response()
       |> then(&{:ok, &1})
     end
   end
@@ -243,7 +241,24 @@ defmodule AI.Completion do
     end
   end
 
-  defp maybe_finish_planner(%{use_planner: false} = state), do: state
+  defp maybe_evaluate_response(%{use_planner: false} = state), do: state
+
+  defp maybe_evaluate_response(%{ai: ai, use_planner: true, messages: msgs, tools: tools} = state) do
+    AI.Completion.Output.log_tool_call(state, "Double-checking the response")
+
+    case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools, stage: :evaluate}) do
+      {:ok, "From the Planner Agent: VERIFIED"} ->
+        maybe_finish_planner(state)
+
+      {:ok, response} ->
+        planner_msg = AI.Util.assistant_msg(response)
+        %__MODULE__{state | messages: state.messages ++ [planner_msg]}
+
+      {:error, reason} ->
+        AI.Completion.Output.log_tool_call_error(state, "planner", reason)
+        state
+    end
+  end
 
   defp maybe_finish_planner(%{ai: ai, use_planner: true, messages: msgs, tools: tools} = state) do
     AI.Completion.Output.log_tool_call(state, "Consolidating lessons learned from the research")

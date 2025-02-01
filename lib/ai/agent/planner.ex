@@ -6,9 +6,10 @@ defmodule AI.Agent.Planner do
   @model "gpt-4o"
   @max_tokens 128_000
 
-  @prompt_prompt """
-  You are the Planner Agent, an expert researcher for analyzing software projects and documentation.
+  @role "You are the Planner Agent, an expert researcher for analyzing software projects and documentation."
 
+  @prompt_prompt """
+  #{@role}
   #{AI.Util.agent_to_agent_prompt()}
 
   Your first task is to analyze the user's question or prompt.
@@ -22,8 +23,7 @@ defmodule AI.Agent.Planner do
   """
 
   @initial_prompt """
-  You are the Planner Agent, an expert researcher for analyzing software projects and documentation.
-
+  #{@role}
   #{AI.Util.agent_to_agent_prompt()}
 
   Your initial role is to select and adapt research strategies to guide the Coordinating Agent in its research process.
@@ -62,8 +62,7 @@ defmodule AI.Agent.Planner do
   """
 
   @checkin_prompt """
-  You are the Planner Agent, an expert researcher for analyzing software projects and documentation.
-
+  #{@role}
   #{AI.Util.agent_to_agent_prompt()}
 
   Your assistance is requested for the Coordinating Agent to determine the next steps in the research process.
@@ -96,9 +95,22 @@ defmodule AI.Agent.Planner do
   Tell it to select the most appropriate Agent to respond to the user's query using the `answers_tool`.
   """
 
-  @finish_prompt """
-  You are the Planner Agent, an expert researcher for analyzing software projects and documentation.
+  @eval_prompt """
+  #{@role}
 
+  The Coordinating Agent has completed the research process and has generated a response to provide to the user.
+  Your role now is to double-check the validity of the response to ensure that everything it claims is factually accurate.
+  You have access to a single tool for this task, the `file_info_tool`.
+
+  # Response Format
+  Your response MUST be formatted in JSON.
+  **Responding in any other format will result in an error.**
+  - The response was factual:     `{"factual": true}`
+  - The response was not factual: `{"factual": false, "reason": "[reason for inaccuracy]"}`
+  """
+
+  @finish_prompt """
+  #{@role}
   #{AI.Util.agent_to_agent_prompt()}
 
   The Coordinating Agent has completed the research process and has responded to the user.
@@ -112,6 +124,8 @@ defmodule AI.Agent.Planner do
   Avoid saving dated, time-sensitive, or irrelevant information (like the specifics on an individual commit or the details of a bug that has been fixed).
   """
 
+  @prompt_tools []
+
   @initial_tools [
     AI.Tools.tool_spec!("notes_search_tool"),
     AI.Tools.tool_spec!("strategies_search_tool")
@@ -120,6 +134,10 @@ defmodule AI.Agent.Planner do
   @checkin_tools [
     AI.Tools.tool_spec!("notes_search_tool"),
     AI.Tools.tool_spec!("strategies_search_tool")
+  ]
+
+  @eval_tools [
+    AI.Tools.tool_spec!("file_info_tool")
   ]
 
   @finish_tools [
@@ -154,7 +172,7 @@ defmodule AI.Agent.Planner do
   # Private functions
   # -----------------------------------------------------------------------------
   defp get_completion(ai, :prompt, convo) do
-    do_get_completion(ai, convo, @prompt_prompt, @initial_tools)
+    do_get_completion(ai, convo, @prompt_prompt, @prompt_tools)
   end
 
   defp get_completion(ai, :initial, convo) do
@@ -167,6 +185,47 @@ defmodule AI.Agent.Planner do
 
   defp get_completion(ai, :finish, convo) do
     do_get_completion(ai, convo, @finish_prompt, @finish_tools)
+  end
+
+  defp get_completion(ai, :evaluate, convo) do
+    get_completion(ai, :evaluate, convo, 1)
+  end
+
+  defp get_completion(_ai, :evaluate, _convo, attempt) when attempt == 3 do
+    msg = """
+    After 3 attempts, the planner did not respond in the correct format.
+    As a result, the accuracy of the response cannot be verified.
+    """
+
+    {:ok, %{response: msg}}
+  end
+
+  defp get_completion(ai, :evaluate, convo, attempt) do
+    UI.debug("Fact-checking response", "Attempt #{attempt}")
+
+    with {:ok, %{response: json}} <- do_get_completion(ai, convo, @eval_prompt, @eval_tools),
+         {:ok, response} <- Jason.decode(json) do
+      case response do
+        %{"factual" => true} -> {:ok, %{response: "VERIFIED"}}
+        %{"factual" => false, "reason" => reason} -> {:ok, %{response: reason}}
+      end
+    else
+      {:error, %Jason.DecodeError{}} -> get_completion(ai, :evaluate, convo, attempt + 1)
+    end
+  end
+
+  defp do_get_completion(ai, convo, prompt, []) do
+    AI.Completion.get(ai,
+      max_tokens: @max_tokens,
+      model: @model,
+      log_msgs: false,
+      replay_conversation: false,
+      use_planner: false,
+      messages: [
+        AI.Util.system_msg(prompt),
+        AI.Util.user_msg(convo)
+      ]
+    )
   end
 
   defp do_get_completion(ai, convo, prompt, tools) do
