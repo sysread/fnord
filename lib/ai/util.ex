@@ -125,7 +125,11 @@ defmodule AI.Util do
     # Convert messages into text
     |> Enum.reduce([], fn
       %{role: "user", content: content}, acc ->
-        ["User Query: #{content}" | acc]
+        if String.starts_with?(content, AI.Agent.Planner.preamble()) do
+          [content | acc]
+        else
+          ["User Query: #{content}" | acc]
+        end
 
       %{role: "assistant", content: content}, acc when is_binary(content) ->
         [content | acc]
@@ -154,7 +158,7 @@ defmodule AI.Util do
         acc
     end)
     |> Enum.reverse()
-    |> Enum.join("\n\n")
+    |> Enum.join("\n-----\n")
   end
 
   defp build_tool_call_args(msgs) do

@@ -6,6 +6,21 @@ defmodule AI.Agent.Planner do
   @model "gpt-4o"
   @max_tokens 128_000
 
+  @prompt_prompt """
+  You are the Planner Agent, an expert researcher for analyzing software projects and documentation.
+
+  #{AI.Util.agent_to_agent_prompt()}
+
+  Your first task is to analyze the user's question or prompt.
+  Break down and expand the user's query into logical parts.
+
+  What is the user's goal?
+  What are the components of the user's query?
+  What areas of ambiguity will need to be resolved during the research process to answer the user's question?
+
+  Clarify the user's needs and provide a list of logical questions that must be answered in order to provide a complete response.
+  """
+
   @initial_prompt """
   You are the Planner Agent, an expert researcher for analyzing software projects and documentation.
 
@@ -138,6 +153,10 @@ defmodule AI.Agent.Planner do
   # -----------------------------------------------------------------------------
   # Private functions
   # -----------------------------------------------------------------------------
+  defp get_completion(ai, :prompt, convo) do
+    do_get_completion(ai, convo, @prompt_prompt, @initial_tools)
+  end
+
   defp get_completion(ai, :initial, convo) do
     do_get_completion(ai, convo, @initial_prompt, @initial_tools)
   end
