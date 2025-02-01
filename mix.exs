@@ -4,8 +4,8 @@ defmodule Fnord.MixProject do
   def project do
     [
       app: :fnord,
-      version: "0.5.8",
-      elixir: "~> 1.17",
+      version: "0.5.9",
+      elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       description: "An AI powered, conversational interface for your project that learns",
       package: package(),
@@ -50,7 +50,7 @@ defmodule Fnord.MixProject do
   defp deps do
     [
       {:briefly, "~> 0.5.1"},
-      {:dialyxir, "~> 1.4.4", only: [:dev], runtime: false},
+      {:dialyxir, "~> 1.4.5", only: [:dev], runtime: false},
       {:elixir_uuid, "~> 1.6", hex: :uuid_utils},
       {:ex_doc, ">= 0.0.0", only: [:dev], runtime: false},
       {:httpoison, "~> 2.2.1"},
