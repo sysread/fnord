@@ -26,31 +26,35 @@ defmodule Fnord do
     end
   end
 
+  def spec() do
+    [
+      name: "fnord",
+      description: @desc,
+      allow_unknown_args: false,
+      version: get_version(),
+      subcommands:
+        [
+          Cmd.Ask,
+          Cmd.Conversations,
+          Cmd.Defrag,
+          Cmd.Files,
+          Cmd.Index,
+          Cmd.Notes,
+          Cmd.Projects,
+          Cmd.Replay,
+          Cmd.Search,
+          Cmd.ShellCompletion,
+          Cmd.Summary,
+          Cmd.Tool,
+          Cmd.Torch,
+          Cmd.Upgrade
+        ]
+        |> Enum.flat_map(& &1.spec())
+    ]
+  end
+
   defp parse_options(args) do
-    parser =
-      Optimus.new!(
-        name: "fnord",
-        description: @desc,
-        allow_unknown_args: false,
-        version: get_version(),
-        subcommands:
-          [
-            Cmd.Ask,
-            Cmd.Conversations,
-            Cmd.Defrag,
-            Cmd.Files,
-            Cmd.Index,
-            Cmd.Notes,
-            Cmd.Projects,
-            Cmd.Replay,
-            Cmd.Search,
-            Cmd.Summary,
-            Cmd.Tool,
-            Cmd.Torch,
-            Cmd.Upgrade
-          ]
-          |> Enum.flat_map(& &1.spec())
-      )
+    parser = spec() |> Optimus.new!()
 
     with {[subcommand], result} <- Optimus.parse!(parser, args) do
       options =
