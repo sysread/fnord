@@ -1,6 +1,5 @@
 defmodule AI.Agent.Answers do
   @model "gpt-4o"
-  @max_tokens 128_000
 
   @prompt """
   # Role
@@ -136,11 +135,8 @@ defmodule AI.Agent.Answers do
   def get_response(ai, opts) do
     with includes = opts |> Map.get(:include, []) |> get_included_files(),
          {:ok, research} <- perform_research(ai, includes, opts),
-         {:ok, %{response: msg} = response} <- format_response(ai, research, opts),
-         {label, usage} <- AI.Completion.context_window_usage(response) do
-      UI.report_step(label, usage)
+         {:ok, %{response: msg} = response} <- format_response(ai, research, opts) do
       UI.flush()
-
       IO.puts(msg)
 
       if is_testing?(opts.question) do
@@ -190,7 +186,6 @@ defmodule AI.Agent.Answers do
       UI.report_step("Preparing response document")
 
       AI.Completion.get(ai,
-        max_tokens: @max_tokens,
         model: @model,
         use_planner: false,
         log_msgs: true,
@@ -203,7 +198,6 @@ defmodule AI.Agent.Answers do
 
   defp perform_research(ai, includes, opts) do
     AI.Completion.get(ai,
-      max_tokens: @max_tokens,
       model: @model,
       tools: available_tools(),
       messages: build_messages(opts, includes),

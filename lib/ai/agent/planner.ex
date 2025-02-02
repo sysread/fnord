@@ -54,7 +54,6 @@ defmodule AI.Agent.Planner do
   @planner_msg_preamble "From the Planner Agent:"
 
   @model "gpt-4o"
-  @max_tokens 128_000
 
   @role "You are the Planner Agent, an expert researcher for analyzing software projects and documentation."
 
@@ -271,7 +270,6 @@ defmodule AI.Agent.Planner do
 
   defp do_get_completion(ai, convo, prompt, []) do
     AI.Completion.get(ai,
-      max_tokens: @max_tokens,
       model: @model,
       log_msgs: false,
       replay_conversation: false,
@@ -285,7 +283,6 @@ defmodule AI.Agent.Planner do
 
   defp do_get_completion(ai, convo, prompt, tools) do
     AI.Completion.get(ai,
-      max_tokens: @max_tokens,
       model: @model,
       log_msgs: false,
       replay_conversation: false,

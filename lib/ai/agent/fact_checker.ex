@@ -1,6 +1,5 @@
 defmodule AI.Agent.FactChecker do
   @model "gpt-4o"
-  @max_tokens 60_000
 
   @prompt """
   #{AI.Util.note_format_prompt()}
@@ -107,7 +106,6 @@ defmodule AI.Agent.FactChecker do
       log_msgs: false,
       log_tool_calls: false,
       use_planner: false,
-      max_tokens: @max_tokens,
       model: @model,
       tools: available_tools(),
       messages: messages

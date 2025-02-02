@@ -15,7 +15,6 @@ defmodule AI.Completion do
   defstruct [
     :ai,
     :opts,
-    :max_tokens,
     :model,
     :use_planner,
     :tools,
@@ -30,7 +29,6 @@ defmodule AI.Completion do
   @type t :: %__MODULE__{
           ai: AI.t(),
           opts: Keyword.t(),
-          max_tokens: non_neg_integer(),
           model: String.t(),
           use_planner: boolean(),
           tools: list(),
@@ -58,8 +56,7 @@ defmodule AI.Completion do
   end
 
   def new(ai, opts) do
-    with {:ok, max_tokens} <- Keyword.fetch(opts, :max_tokens),
-         {:ok, model} <- Keyword.fetch(opts, :model),
+    with {:ok, model} <- Keyword.fetch(opts, :model),
          {:ok, messages} <- Keyword.fetch(opts, :messages) do
       tools = Keyword.get(opts, :tools, nil)
       use_planner = Keyword.get(opts, :use_planner, false)
@@ -72,7 +69,6 @@ defmodule AI.Completion do
       state = %__MODULE__{
         ai: ai,
         opts: Enum.into(opts, %{}),
-        max_tokens: max_tokens,
         model: model,
         use_planner: use_planner,
         tools: tools,
@@ -95,15 +91,6 @@ defmodule AI.Completion do
     else
       {:error, :conversation_not_found}
     end
-  end
-
-  def context_window_usage(%{model: model, messages: msgs, max_tokens: max_tokens}) do
-    tokens = msgs |> inspect() |> AI.Tokenizer.encode(model) |> length()
-    pct = tokens / max_tokens * 100.0
-    pct_str = Number.Percentage.number_to_percentage(pct, precision: 2)
-    tokens_str = Number.Delimit.number_to_delimited(tokens, precision: 0)
-    max_tokens_str = Number.Delimit.number_to_delimited(max_tokens, precision: 0)
-    {"Context window usage", "#{pct_str} | #{tokens_str} / #{max_tokens_str}"}
   end
 
   def tools_used(%{messages: messages}) do

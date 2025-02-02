@@ -12,8 +12,6 @@ defmodule AI.Agent.Spelunker do
 
   @model "gpt-4o"
 
-  @max_tokens 128_000
-
   @prompt """
   You are the Spelunker Agent. Your job is to *thoroughly* work through maps of code symbols and function calls to *completely* trace paths through the code base.
   You are a code explorer and a graph search, digging through "outlines" (representations of code files as symbols and their relationships) to trace paths through the code base on behalf of the Answers Agent, who interacts with the user.
@@ -53,7 +51,6 @@ defmodule AI.Agent.Spelunker do
   # -----------------------------------------------------------------------------
   defp build_response(ai, opts) do
     AI.Completion.get(ai,
-      max_tokens: @max_tokens,
       model: @model,
       tools: @tools,
       messages: [

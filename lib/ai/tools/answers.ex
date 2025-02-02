@@ -23,7 +23,6 @@ defmodule AI.Tools.Answers do
   @agent @agent_defs |> Enum.map(&{&1["name"], &1}) |> Map.new()
 
   @model "gpt-4o"
-  @max_tokens 128_000
 
   def agent_names(), do: @agents
 
@@ -127,7 +126,6 @@ defmodule AI.Tools.Answers do
       question = AI.Util.user_query(messages)
 
       AI.Completion.get(AI.new(),
-        max_tokens: @max_tokens,
         model: @model,
         use_planner: false,
         log_msgs: false,

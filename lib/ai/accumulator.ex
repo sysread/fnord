@@ -104,7 +104,6 @@ defmodule AI.Accumulator do
     """
 
     AI.Completion.get(acc.ai,
-      max_tokens: acc.max_tokens,
       model: acc.model,
       messages: [
         AI.Util.system_msg(system_prompt),

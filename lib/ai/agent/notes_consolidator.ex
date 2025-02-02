@@ -1,8 +1,6 @@
 defmodule AI.Agent.NotesConsolidator do
   @model "gpt-4o"
 
-  @max_tokens 128_000
-
   @prompt """
   #{AI.Util.note_format_prompt()}
 
@@ -80,7 +78,6 @@ defmodule AI.Agent.NotesConsolidator do
       log_msgs: false,
       log_tool_calls: false,
       use_planner: false,
-      max_tokens: @max_tokens,
       model: @model,
       messages: messages
     )

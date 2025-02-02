@@ -49,7 +49,6 @@ defmodule Cmd.Replay do
   defp get_completion(conversation) do
     AI.Completion.new_from_conversation(conversation, AI.new(),
       model: "n/a",
-      max_tokens: 128_000,
       log_msgs: true,
       log_tool_calls: true,
       planner: false,
