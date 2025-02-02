@@ -32,13 +32,6 @@ defmodule Cmd.Ask do
             parser: :integer,
             default: Cmd.default_workers()
           ],
-          include: [
-            value_name: "FILE",
-            long: "--include",
-            short: "-i",
-            help: "Include a file in your prompt",
-            multiple: true
-          ],
           follow: [
             long: "--follow",
             short: "-f",

@@ -133,8 +133,7 @@ defmodule AI.Agent.Answers do
 
   @impl AI.Agent
   def get_response(ai, opts) do
-    with includes = opts |> Map.get(:include, []) |> get_included_files(),
-         {:ok, research} <- perform_research(ai, includes, opts),
+    with {:ok, research} <- perform_research(ai, opts),
          {:ok, %{response: msg} = response} <- format_response(ai, research, opts) do
       UI.flush()
       IO.puts(msg)
@@ -196,11 +195,11 @@ defmodule AI.Agent.Answers do
     end
   end
 
-  defp perform_research(ai, includes, opts) do
+  defp perform_research(ai, opts) do
     AI.Completion.get(ai,
       model: @model,
       tools: available_tools(),
-      messages: build_messages(opts, includes),
+      messages: build_messages(opts),
       use_planner: !is_testing?(opts.question),
       log_msgs: true
     )
@@ -214,19 +213,17 @@ defmodule AI.Agent.Answers do
     end
   end
 
-  defp build_messages(opts, includes) do
-    user_msg = user_prompt(opts.question, includes)
-
+  defp build_messages(opts) do
     case restore_conversation(opts) do
       [] ->
         [
           asst_prompt(opts),
           AI.Util.system_msg("The currently selected project is #{opts.project}."),
-          user_msg
+          AI.Util.user_msg(opts.question)
         ]
 
       msgs ->
-        msgs ++ [user_msg]
+        msgs ++ [AI.Util.user_msg(opts.question)]
     end
   end
 
@@ -246,24 +243,5 @@ defmodule AI.Agent.Answers do
       @prompt
     end
     |> AI.Util.system_msg()
-  end
-
-  defp user_prompt(question, ""), do: AI.Util.user_msg(question)
-  defp user_prompt(question, includes), do: AI.Util.user_msg("#{question}\n#{includes}")
-
-  defp get_included_files(files) do
-    preamble = "The user has included the following file for context"
-
-    files
-    |> Enum.reduce_while([], fn file, acc ->
-      file
-      |> Path.expand()
-      |> File.read()
-      |> case do
-        {:error, reason} -> {:halt, {:error, reason}}
-        {:ok, content} -> {:cont, ["#{preamble}: #{file}\n```\n#{content}\n```" | acc]}
-      end
-    end)
-    |> Enum.join("\n\n")
   end
 end
