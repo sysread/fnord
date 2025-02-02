@@ -2,6 +2,15 @@ defmodule AI.Completion do
   @moduledoc """
   This module sends a request to the model and handles the response. It is able
   to handle tool calls and responses.
+
+  ## Output options
+
+  Output is controlled by the following mechanisms.
+
+  1. `log_msgs` - log messages from the user and assistant as `info`
+  2. `log_tool_calls` - log tool calls as `info` and tool call results as `debug`
+
+  `LOGGER_LEVEL` must be set to `debug` to see the output of tool call results.
   """
   defstruct [
     :ai,
@@ -12,7 +21,6 @@ defmodule AI.Completion do
     :tools,
     :log_msgs,
     :log_tool_calls,
-    :log_tool_call_results,
     :replay_conversation,
     :messages,
     :tool_call_requests,
@@ -28,7 +36,6 @@ defmodule AI.Completion do
           tools: list(),
           log_msgs: boolean(),
           log_tool_calls: boolean(),
-          log_tool_call_results: boolean(),
           replay_conversation: boolean(),
           messages: list(),
           tool_call_requests: list(),
@@ -61,7 +68,6 @@ defmodule AI.Completion do
 
       quiet? = Application.get_env(:fnord, :quiet)
       log_tool_calls = Keyword.get(opts, :log_tool_calls, !quiet?)
-      log_tool_call_results = Keyword.get(opts, :log_tool_call_results, !quiet?)
 
       state = %__MODULE__{
         ai: ai,
@@ -72,7 +78,6 @@ defmodule AI.Completion do
         tools: tools,
         log_msgs: log_msgs,
         log_tool_calls: log_tool_calls,
-        log_tool_call_results: log_tool_call_results,
         replay_conversation: replay,
         messages: messages,
         tool_call_requests: [],

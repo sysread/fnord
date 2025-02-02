@@ -52,7 +52,6 @@ defmodule Cmd.Replay do
       max_tokens: 128_000,
       log_msgs: true,
       log_tool_calls: true,
-      log_tool_call_results: true,
       planner: false,
       replay_conversation: true
     )

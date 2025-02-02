@@ -132,7 +132,6 @@ defmodule AI.Tools.Answers do
         use_planner: false,
         log_msgs: false,
         log_tool_calls: false,
-        log_tool_call_results: false,
         tools: available_tools(),
         messages: [
           AI.Util.system_msg(prompt),

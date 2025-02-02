@@ -27,13 +27,13 @@ defmodule AI.Completion.Output do
   end
 
   def log_tool_call_result(state, step) do
-    if state.log_tool_call_results do
+    if state.log_tool_calls do
       UI.debug(step)
     end
   end
 
   def log_tool_call_result(state, step, msg) do
-    if state.log_tool_call_results do
+    if state.log_tool_calls do
       UI.debug(step, msg)
     end
   end
