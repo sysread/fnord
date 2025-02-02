@@ -3,11 +3,17 @@ defmodule Shell.Completion do
   Public API for generating shell completion scripts.
 
   This module defines the DSL types and provides a single function to
-  generate a completion script for a given shell type. Currently only
-  Bash is supported.
+  generate a completion script for a given shell type.
+
+  ## Example
+
+      Shell.Completion.generate(spec, shell: :bash)
   """
 
-  @typedoc "A source for completions: static choices, command output, files, directories, or a custom function (not supported)."
+  @typedoc """
+  A source for completions: static choices, command output, files, directories,
+  or a custom function (not supported).
+  """
   @type completion_source ::
           {:choices, [String.t()]}
           | {:command, String.t()}
@@ -51,7 +57,7 @@ defmodule Shell.Completion do
 
   ## Options
 
-    * `:shell` - The type of shell to generate completions for (currently only `:bash` is supported).
+    * `:shell` - The type of shell to generate completions for (currently only `:bash` and `:zsh` are supported).
 
   ## Example
 
@@ -60,11 +66,9 @@ defmodule Shell.Completion do
   @spec generate(command_spec(), keyword()) :: String.t()
   def generate(spec, shell: shell_type) do
     case shell_type do
-      :bash ->
-        Shell.BashCompletion.generate_bash_script(spec)
-
-      other ->
-        raise ArgumentError, "Unsupported shell type: #{inspect(other)}"
+      :bash -> Shell.Completion.Bash.generate_bash_script(spec)
+      :zsh -> Shell.Completion.Zsh.generate_zsh_script(spec)
+      other -> raise ArgumentError, "Unsupported shell type: #{inspect(other)}"
     end
   end
 end

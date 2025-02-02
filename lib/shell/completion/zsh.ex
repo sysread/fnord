@@ -1,13 +1,13 @@
-defmodule Shell.BashCompletion do
+defmodule Shell.Completion.Zsh do
   @moduledoc """
-  Bash completion script generator. This module should not be used directly.
+  Zsh completion script generator. This module should not be used directly.
   Instead, use the `Shell.Completion` module to generate completion scripts.
   """
 
   alias Shell.Completion, as: API
 
-  @spec generate_bash_script(API.command_spec()) :: String.t()
-  def generate_bash_script(spec) when is_map(spec) do
+  @spec generate_zsh_script(API.command_spec()) :: String.t()
+  def generate_zsh_script(spec) when is_map(spec) do
     case validate_command_spec(spec) do
       :ok ->
         tables =
@@ -17,7 +17,7 @@ defmodule Shell.BashCompletion do
             %{subcommands: %{}, options: %{}, option_args: %{}, argument: %{}}
           )
 
-        generate_bash_script_from_tables(spec.name, tables)
+        generate_zsh_script_from_tables(spec.name, tables)
 
       error ->
         error
@@ -26,18 +26,9 @@ defmodule Shell.BashCompletion do
 
   @spec validate_command_spec(API.command_spec()) :: :ok | {:error, String.t()}
   def validate_command_spec(spec) when is_map(spec) do
-    if Map.has_key?(spec, :name) do
-      :ok
-    else
-      {:error, "Command spec must have a :name key"}
-    end
+    if Map.has_key?(spec, :name), do: :ok, else: {:error, "Command spec must have a :name key"}
   end
 
-  # build_tables/3 traverses the spec and builds four tables:
-  #   - subcommands: mapping from "path" to a list of subcommand names.
-  #   - options: mapping from "path" to a list of option names.
-  #   - option_args: mapping from "path:option" to a completion spec string.
-  #   - argument: mapping from "path" to a (positional) argument completion spec.
   @spec build_tables(map(), String.t(), map()) :: map()
   defp build_tables(spec, current_path, tables) do
     tables =
@@ -52,7 +43,6 @@ defmodule Shell.BashCompletion do
 
     tables = put_in(tables, [:argument, current_path], nil)
 
-    # Process options at this node.
     tables =
       Enum.reduce(Map.get(spec, :options, []), tables, fn opt, acc ->
         acc =
@@ -65,7 +55,7 @@ defmodule Shell.BashCompletion do
             put_in(
               acc,
               [:option_args, "#{current_path}:#{opt[:name]}"],
-              completion_source_to_bash(opt[:from])
+              completion_source_to_zsh(opt[:from])
             )
           else
             acc
@@ -75,25 +65,21 @@ defmodule Shell.BashCompletion do
         end
       end)
 
-    # Process argument at this node (we use only the first argument for completion).
     args = Map.get(spec, :arguments, [])
 
     tables =
       case args do
         [arg | _] ->
-          put_in(tables, [:argument, current_path], completion_source_to_bash(arg[:from]))
+          put_in(tables, [:argument, current_path], completion_source_to_zsh(arg[:from]))
 
         _ ->
           tables
       end
 
-    # Process subcommands recursively.
     tables =
       Enum.reduce(Map.get(spec, :subcommands, []), tables, fn sub, acc ->
         acc =
-          update_in(acc, [:subcommands, current_path], fn list ->
-            (list || []) ++ [sub[:name]]
-          end)
+          update_in(acc, [:subcommands, current_path], fn list -> (list || []) ++ [sub[:name]] end)
 
         new_path = current_path <> ":" <> sub[:name]
         acc = put_in(acc, [:subcommands, new_path], [])
@@ -105,31 +91,31 @@ defmodule Shell.BashCompletion do
     tables
   end
 
-  @spec completion_source_to_bash(API.completion_source()) :: String.t()
-  defp completion_source_to_bash({:choices, choices}) when is_list(choices) do
+  @spec completion_source_to_zsh(API.completion_source()) :: String.t()
+  defp completion_source_to_zsh({:choices, choices}) when is_list(choices) do
     "choices:" <> Enum.join(choices, " ")
   end
 
-  defp completion_source_to_bash({:command, cmd}) when is_binary(cmd) do
+  defp completion_source_to_zsh({:command, cmd}) when is_binary(cmd) do
     "cmd:" <> cmd
   end
 
-  defp completion_source_to_bash(:files), do: "files"
-  defp completion_source_to_bash(:directories), do: "directories"
+  defp completion_source_to_zsh(:files), do: "files"
+  defp completion_source_to_zsh(:directories), do: "directories"
 
-  defp completion_source_to_bash(fun) when is_function(fun, 1) do
-    raise "Custom function completions are not supported in bash"
+  defp completion_source_to_zsh(fun) when is_function(fun, 1) do
+    raise "Custom function completions are not supported in zsh"
   end
 
-  @spec generate_bash_script_from_tables(String.t(), map()) :: String.t()
-  defp generate_bash_script_from_tables(command_name, tables) do
+  @spec generate_zsh_script_from_tables(String.t(), map()) :: String.t()
+  defp generate_zsh_script_from_tables(command_name, tables) do
     header =
-      "#!/usr/bin/env bash\n" <>
-        "# Bash completion script for #{command_name}\n" <>
-        "declare -A _sc_subcommands\n" <>
-        "declare -A _sc_options\n" <>
-        "declare -A _sc_option_args\n" <>
-        "declare -A _sc_argument\n\n"
+      "#compdef #{command_name}\n" <>
+        "# Zsh completion script for #{command_name}\n" <>
+        "typeset -A _sc_subcommands\n" <>
+        "typeset -A _sc_options\n" <>
+        "typeset -A _sc_option_args\n" <>
+        "typeset -A _sc_argument\n\n"
 
     subcommands_lines =
       tables.subcommands
@@ -162,98 +148,88 @@ defmodule Shell.BashCompletion do
 
     function_body = """
     _#{command_name}_completion() {
-      local cur prev words cword path
-      if type _get_comp_words_by_ref >/dev/null 2>&1; then
-          _get_comp_words_by_ref -n : cur prev words cword
-      else
-          cur="${COMP_WORDS[COMP_CWORD]}"
-          prev="${COMP_WORDS[COMP_CWORD-1]}"
-          words=("${COMP_WORDS[@]}")
-          cword="${COMP_CWORD}"
-      fi
+      local cur prev path
+      cur=${words[$CURRENT]}
+      prev=${words[$CURRENT-1]}
+      path=${words[1]}
 
-      # Determine current path
-      path="${words[0]}"
-      for ((i=1; i < cword; i++)); do
-        token="${words[i]}"
+      local i token
+      for (( i=2; i<=$CURRENT; i++ )); do
+        token=${words[i]}
         if [[ "$token" == -* ]]; then
           continue
         fi
-        local subs="${_sc_subcommands[$path]}"
+        local subs=${_sc_subcommands[$path]}
         if [[ -n "$subs" ]]; then
           for sub in $subs; do
-             if [[ "$token" == "$sub" ]]; then
-               path="${path}:$token"
-               break
-             fi
+            if [[ "$token" == "$sub" ]]; then
+              path="$path:$token"
+              break
+            fi
           done
         fi
       done
 
-      # Check if previous token is an option expecting an argument.
       if [[ "$prev" == -* ]]; then
         local key="${path}:${prev}"
         if [[ -n "${_sc_option_args[$key]}" ]]; then
-          local spec="${_sc_option_args[$key]}"
+          local spec=${_sc_option_args[$key]}
           if [[ "$spec" == choices:* ]]; then
-             local choices="${spec#choices:}"
-             COMPREPLY=( $(compgen -W "$choices" -- "$cur") )
+             local choices=${spec#choices:}
+             compadd -- $=choices
              return 0
           elif [[ "$spec" == "files" ]]; then
-             COMPREPLY=( $(compgen -f -- "$cur") )
+             _files
              return 0
           elif [[ "$spec" == "directories" ]]; then
-             COMPREPLY=( $(compgen -d -- "$cur") )
+             _directories
              return 0
           elif [[ "$spec" == cmd:* ]]; then
-             local cmd="${spec#cmd:}"
+             local cmd=${spec#cmd:}
              local choices
-             choices=$(eval "$cmd")
-             COMPREPLY=( $(compgen -W "$choices" -- "$cur") )
+             choices=$(eval $cmd)
+             compadd -- $=choices
              return 0
           fi
         fi
       fi
 
-      # If current token starts with '-', complete options.
       if [[ "$cur" == -* ]]; then
-        local opts="${_sc_options[$path]}"
-        COMPREPLY=( $(compgen -W "$opts" -- "$cur") )
+        local opts=${_sc_options[$path]}
+        compadd -- $=opts
         return 0
       fi
 
-      # Otherwise, complete subcommands if any.
-      local subs="${_sc_subcommands[$path]}"
+      local subs=${_sc_subcommands[$path]}
       if [[ -n "$subs" ]]; then
-        COMPREPLY=( $(compgen -W "$subs" -- "$cur") )
+        compadd -- $=subs
         return 0
       fi
 
-      # Otherwise, complete argument if defined.
-      local arg="${_sc_argument[$path]}"
+      local arg=${_sc_argument[$path]}
       if [[ -n "$arg" ]]; then
         if [[ "$arg" == choices:* ]]; then
-           local choices="${arg#choices:}"
-           COMPREPLY=( $(compgen -W "$choices" -- "$cur") )
+           local choices=${arg#choices:}
+           compadd -- $=choices
            return 0
         elif [[ "$arg" == "files" ]]; then
-           COMPREPLY=( $(compgen -f -- "$cur") )
+           _files
            return 0
         elif [[ "$arg" == "directories" ]]; then
-           COMPREPLY=( $(compgen -d -- "$cur") )
+           _directories
            return 0
         elif [[ "$arg" == cmd:* ]]; then
-           local cmd="${arg#cmd:}"
+           local cmd=${arg#cmd:}
            local choices
-           choices=$(eval "$cmd")
-           COMPREPLY=( $(compgen -W "$choices" -- "$cur") )
+           choices=$(eval $cmd)
+           compadd -- $=choices
            return 0
         fi
       fi
 
       return 0
     }
-    complete -F _#{command_name}_completion #{command_name}
+    compdef _#{command_name}_completion #{command_name}
     """
 
     [

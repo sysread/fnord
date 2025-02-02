@@ -1,16 +1,16 @@
-defmodule Shell.BashCompletionTest do
+defmodule Shell.Completion.BashTest do
   use ExUnit.Case
 
   describe "validate_command_spec/1" do
     test "returns :ok when spec has a :name key" do
       spec = %{name: "test"}
-      assert Shell.BashCompletion.validate_command_spec(spec) == :ok
+      assert Shell.Completion.Bash.validate_command_spec(spec) == :ok
     end
 
     test "returns error when spec is missing :name" do
       spec = %{foo: "bar"}
 
-      assert Shell.BashCompletion.validate_command_spec(spec) ==
+      assert Shell.Completion.Bash.validate_command_spec(spec) ==
                {:error, "Command spec must have a :name key"}
     end
   end
@@ -18,7 +18,7 @@ defmodule Shell.BashCompletionTest do
   describe "generate_bash_script/1" do
     test "generates a script for a minimal valid spec" do
       spec = %{name: "test"}
-      script = Shell.BashCompletion.generate_bash_script(spec)
+      script = Shell.Completion.Bash.generate_bash_script(spec)
       assert is_binary(script)
       assert script =~ "#!/usr/bin/env bash"
       assert script =~ "complete -F _test_completion test"
@@ -41,7 +41,7 @@ defmodule Shell.BashCompletionTest do
         ]
       }
 
-      script = Shell.BashCompletion.generate_bash_script(spec)
+      script = Shell.Completion.Bash.generate_bash_script(spec)
 
       # Check that the top-level command registers the subcommand "foo"
       assert script =~ ~s(_sc_subcommands["scratch"]="foo")
@@ -63,7 +63,7 @@ defmodule Shell.BashCompletionTest do
         ]
       }
 
-      script = Shell.BashCompletion.generate_bash_script(spec)
+      script = Shell.Completion.Bash.generate_bash_script(spec)
       assert script =~ ~s(_sc_argument["cmd"]="files")
     end
 
@@ -76,7 +76,7 @@ defmodule Shell.BashCompletionTest do
       }
 
       assert_raise RuntimeError, "Custom function completions are not supported in bash", fn ->
-        Shell.BashCompletion.generate_bash_script(spec)
+        Shell.Completion.Bash.generate_bash_script(spec)
       end
     end
   end
@@ -98,7 +98,7 @@ defmodule Shell.BashCompletionTest do
         ]
       }
 
-      script = Shell.BashCompletion.generate_bash_script(spec)
+      script = Shell.Completion.Bash.generate_bash_script(spec)
       # Check top-level option for "parent"
       assert script =~ ~s(_sc_options["parent"]="--global")
       # Check that child subcommand is registered

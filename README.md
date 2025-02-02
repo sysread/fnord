@@ -200,6 +200,26 @@ mix escript.install github sysread/fnord
 ```
 
 
+### Shell completions (experimental)
+
+You can generate shell completions for `fnord`. `bash` and `zsh` are supported.
+
+```bash
+$ fnord shell-completion --shell bash
+$ fnord shell-completion --shell zsh
+```
+
+Eval the output in your shell env to enable completions:
+
+```bash
+# $HOME/.bashrc
+eval "$(fnord shell-completion --shell bash)"
+```
+
+Note that I _just_ wrote this feature and it's not well-tested.
+**Please report any issues you encounter!**
+
+
 ### Other commands
 - **List projects:** `fnord projects`
 - **List files in a project:** `fnord files --project foo`

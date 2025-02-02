@@ -8,12 +8,20 @@ defmodule Cmd.ShellCompletion do
       shell_completion: [
         name: "shell-completion",
         about: "Generate shell completion scripts",
+        description: """
+        """,
         options: [
           shell: [
             short: "-s",
             long: "--shell",
-            help: "Shell type (#{Enum.join(@supported_shells, "/")})",
-            default: "bash"
+            default: "bash",
+            help: """
+            Shell type (#{Enum.join(@supported_shells, "/")})
+
+            Add to your shell config:
+              eval "$(cmd shell-completion -s bash)"
+
+            """
           ]
         ]
       ]
@@ -27,9 +35,12 @@ defmodule Cmd.ShellCompletion do
       |> Shell.FromOptimus.convert()
       |> Shell.Completion.generate(shell: shell)
       |> IO.puts()
+    else
+      {:error, reason} -> IO.puts(:stderr, reason)
     end
   end
 
   defp get_shell(%{shell: "bash"}), do: {:ok, :bash}
-  defp get_shell(_), do: {:error, "Unsupported shell type"}
+  defp get_shell(%{shell: "zsh"}), do: {:ok, :zsh}
+  defp get_shell(%{shell: other}), do: {:error, "Unsupported shell type: #{other}"}
 end
