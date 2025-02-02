@@ -1,4 +1,54 @@
 defmodule AI.Agent.Planner do
+  @moduledoc """
+  The Planner Agent is a multi-modal agent that assists the Coordinating Agent
+  in managing the research process.
+
+  All responses from this agent are prefixed with this preamble:
+  > "From the Planner Agent: "
+
+  ## Modes
+
+  ### Prompt (`:prompt`)
+
+  The Planner Agent analyzes the user's question or prompt, breaks it down into
+  logical parts, and expands it into a list of logical questions that must be
+  answered to provide a complete response.
+
+  ### Initial (`:initial`)
+
+  The Planner Agent selects and adapts an initial research strategy to guide
+  the Coordinating Agent in its research process.
+
+  ### Check-in (`:checkin`)
+
+  The Planner Agent evaluates the current research, refines the research
+  strategy, and instructs the Coordinating Agent on the next steps in the
+  research process, including identifying when the research should be
+  considered complete and the Coordinating Agent should respond to the user.
+
+  ### Evaluate (`:evaluate`)
+
+  The Planner Agent double-checks the validity of the Coordinating Agent's
+  response to ensure that everything it claims is factually accurate.
+
+  In this mode, the `response` will be either the string `"VERIFIED"` or an
+  explanation of how the response was not factual.
+
+  Due to the realities of requiring an AI to respond with valid JSON, the
+  Planner Agent will make up to 3 attempts to verify the response. If the
+  response is not in the correct format after 3 attempts, `get_response` will
+  return the normal response map and an appropriate error message.
+
+  A "false" response indicates that the Coordinating Agent's response was not
+  factual and should be discarded.
+
+  ### Finish (`:finish`)
+
+  The Planner Agent saves all relevant insights and findings for future use. In
+  this step, the response member of the return map should be ignored, as it is
+  not intended for the user or the Coordinating Agent.
+  """
+
   @steps_warning_level_1 5
   @steps_warning_level_2 8
   @planner_msg_preamble "From the Planner Agent:"
@@ -114,14 +164,18 @@ defmodule AI.Agent.Planner do
   #{AI.Util.agent_to_agent_prompt()}
 
   The Coordinating Agent has completed the research process and has responded to the user.
-  Your role now is to save all relevant insights and findings for future use and to suggest improvements to the research strategy library if warranted.
-  Actively manage prior research notes to ensure robust future support for the Coordinating Agent.
+  During the process of researching the user's query, the Coordinating Agent discovered valuable insights and findings.
+  Some are related to the user's query, others were discovered incidentally during the research process.
 
-  # Prior Research Notes
-  Save new and useful findings and inferences **regardless of their immediate relevance to the current query** for future use.
-  The Coordinating Agent does NOT have access to the notes_save_tool - ONLY YOU DO, so YOU must save the notes.
+  Your current task:
+  1. Read the research transcript and identify facts, insights, and findings about the user's project, **regardless of their immediate relevance to the current query**.
+  2. Determine which learnings have already been saved using the `notes_search_tool` (or from your prior messages in the transcript).
+  3. Save new and useful findings and inferences for future use using the `notes_save_tool`. This will make your future research more efficient and effective!
+
+  **The Coordinating Agent does NOT have access to the notes_save_tool - ONLY YOU DO, so YOU must save the notes.**
   If the user requested investigation or documentation, this is an excellent opportunity to save a lot of notes for future use!
-  Avoid saving dated, time-sensitive, or irrelevant information (like the specifics on an individual commit or the details of a bug that has been fixed).
+  Save new and useful findings and inferences **regardless of their immediate relevance to the current query** for future use.
+  **Do not save dated, time-sensitive, or irrelevant information** (such as the specifics on an individual commit or assumptions about the user's activities).
   """
 
   @prompt_tools []
@@ -210,7 +264,8 @@ defmodule AI.Agent.Planner do
         %{"factual" => false, "reason" => reason} -> {:ok, %{response: reason}}
       end
     else
-      {:error, %Jason.DecodeError{}} -> get_completion(ai, :evaluate, convo, attempt + 1)
+      {:error, %Jason.DecodeError{}} ->
+        get_completion(ai, :evaluate, convo, attempt + 1)
     end
   end
 
