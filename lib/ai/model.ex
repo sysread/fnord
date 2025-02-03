@@ -59,22 +59,4 @@ defmodule AI.Model do
       context: 6500
     }
   end
-
-  @spec legacy_smart() :: t
-  def legacy_smart() do
-    %AI.Model{
-      model: "gpt-4o",
-      reasoning: nil,
-      context: 128_000
-    }
-  end
-
-  @spec legacy_fast() :: t
-  def legacy_fast() do
-    %AI.Model{
-      model: "gpt-4o-mini",
-      reasoning: nil,
-      context: 128_000
-    }
-  end
 end

@@ -1,11 +1,5 @@
-- id: "priming-research-notes"
-  title: "Priming Research Notes"
-  questions:
-    - "Prime your research notes for this project."
-    - "What is this project about?"
-    - "What are the key components or features of this project?"
-    - "What is the purpose of this project?"
-  prompt: |
+- title: "Priming Research Notes"
+  steps: |
     1. Use the `notes_search_tool` to assimilate what you currently know about the project.
     2. Use the `list_files_tool` to retrieve all files in the project.
     3. Use the `file_info_tool` to summarize the contents of any `README.md` files.
@@ -16,15 +10,8 @@
     8. **Planner: categorize and organize all of the research and use the `notes_save_tool` to save your findings.**
     9. Respond with a detailed outline of your findings.
 
-- id: "code-exploration-and-understanding"
-  title: "Codebase Exploration and Understanding"
-  questions:
-    - "How do I add a new $X?"
-    - "What functions or modules relate to $TOPIC?"
-    - "What is the purpose of $MODULE or $FILE?"
-    - "How does $FEATURE work in this project?"
-    - "What does $VARIABLE or $STRUCT represent?"
-  prompt: |
+- title: "Codebase Exploration and Understanding"
+  steps: |
     1. Use the `file_search_tool` to perform a semantic search for `$X` or `$TOPIC` across the project files.
     2. If the user specifies a module or file, use the `file_info_tool` to summarize its purpose.
     3. If no specific file is mentioned, list relevant files using `file_list_tool` and identify candidates based on their names or summaries.
@@ -33,14 +20,8 @@
     6. If git tools are available, consider using `git_log_tool` to explore the history of relevant files or functions.
     7. Synthesize a concise and actionable response summarizing findings and next steps.
 
-- id: "debugging-and-troubleshooting"
-  title: "Debugging and Troubleshooting"
-  questions:
-    - "What's the root cause of this error? $STACKTRACE"
-    - "What changes recently introduced $BUG or $ERROR?"
-    - "A user reported a bug. Please diagnose it."
-    - "Under what conditions can $BUG occur?"
-  prompt: |
+- title: "Debugging and Troubleshooting"
+  steps: |
     1. Analyze the Error Context:
        - If `$STACKTRACE` or `$ERROR` is provided, use `file_search_tool` to locate the associated line numbers, modules, or functions in the codebase. Focus on identifying the source of the issue.
        - Take note of any assumptions that can safely be made based on the query or programming language (e.g. immutability, type safety).
@@ -74,13 +55,8 @@
            - Write a test case to reproduce the error
            - Cite locations in the code to insert printf-debugging or logging
 
-- id: "code-flow-and-relationships"
-  title: "Code Flow and Relationships"
-  questions:
-    - "What is the logical flow from function $X to function $Y?"
-    - "What modules or functions call $X?"
-    - "Where is $Y used in the project?"
-  prompt: |
+- title: "Code Flow and Relationships"
+  steps: |
     1. Use the `file_spelunker_tool` to map the logical flow and identify callers or callees of `$X` and `$Y`.
     2. Use `file_search_tool` to locate semantic matches for `$X` and `$Y` in project files to identify references.
     3. If detailed analysis is needed, fetch the full contents of relevant files using `file_contents_tool`.
@@ -88,14 +64,8 @@
     5. Use git tools (e.g., `git_log_tool`) ONLY if explicitly available, to trace historical changes or commits associated with `$X` or `$Y`.
     6. Compile a step-by-step logical flow or dependency graph between `$X` and `$Y`.
 
-- id: "test-and-build-information"
-  title: "Test and Build Information"
-  questions:
-    - "How do I run the tests?"
-    - "What tests exist for $FEATURE?"
-    - "Where is the CI configuration defined, and how does it work?"
-    - "What dependencies are required to build this project?"
-  prompt: |
+- title: "Test and Build Information"
+  steps: |
     1. Use `file_search_tool` to locate references to "tests," "CI," or "dependencies" in files and directories.
     2. If a specific `$FEATURE` is mentioned, search for test files or test-related comments.
     3. Use `file_list_tool` to identify `README`, configuration files (e.g., `docker-compose.yml`, `.env`, `Makefile`), or CI scripts.
@@ -103,26 +73,16 @@
     5. If git tools are available, inspect commit history (`git_log_tool`) to identify recent CI or test changes.
     6. Summarize testing or build instructions, linking dependencies or configurations to their usage.
 
-- id: "version-history-and-changes"
-  title: "Version History and Changes"
-  questions:
-    - "When was $FUNCTION or $MODULE added or modified?"
-    - "What does the commit history for $FILE look like?"
-    - "Who wrote $CODE_SNIPPET, and why was it added?"
-  prompt: |
+- title: "Version History and Changes"
+  steps: |
     1. If git tools are available, use `git_log_tool` to identify when `$FUNCTION` or `$MODULE` was added or modified. DO NOT use git tools if not listed in the available tools.
     2. Use `git_pickaxe_tool` to search commit diffs for `$CODE_SNIPPET` or `$FUNCTION`.
     3. Use `file_info_tool` to cross-reference definitions or modifications in relevant files.
     4. If the project is not a git repository, rely on `file_search_tool` and `file_list_tool` to approximate relevant files.
     5. Summarize findings with commit details, authors, and reasons (if documented).
 
-- id: "semantic-search-and-high-level-summaries"
-  title: "Semantic Search and High-Level Summaries"
-  questions:
-    - "Where in the project is $TOPIC discussed?"
-    - "Summarize the implementation of $FEATURE."
-    - "What patterns or libraries are used in $FEATURE?"
-  prompt: |
+- title: "Semantic Search and High-Level Summaries"
+  steps: |
     1. Use `file_search_tool` to perform a semantic search for `$TOPIC` or `$FEATURE` in the project.
     2. Summarize findings using AI-generated summaries of matched files, fetched via `file_info_tool`.
     3. Identify patterns, libraries, or dependencies from related files or their comments.
@@ -130,13 +90,8 @@
     5. If git tools are available, use them for historical context (e.g., `git_log_tool`).
     6. Compile a clear, high-level summary for the user, referencing specific files or patterns.
 
-- id: "operational-and-setup-tasks"
-  title: "Operational and Setup Tasks"
-  questions:
-    - "How do I set up this project locally?"
-    - "What environment variables are required?"
-    - "How is $SERVICE configured to run in this project?"
-  prompt: |
+- title: "Operational and Setup Tasks"
+  steps: |
     You will make inferences about how to perform specific tasks based on the codebase and available documentation.
     This will require you to identify entry points, configuration files, and setup instructions, and use those to logically infer the steps needed to complete the task described by the user's query.
     1. Use `file_list_tool` to locate setup-related files (`README.md`, `.env`, `docker-compose.yml`, etc.).
@@ -146,29 +101,16 @@
     5. If git tools are available, examine setup-related commits for historical context.
     6. Provide a step-by-step setup guide based on extracted information.
 
-- id: "documentation-and-metadata"
-  title: "Documentation and Metadata"
-  questions:
-    - "What does the documentation say about $FEATURE or $MODULE?"
-    - "What README or guide exists for $TOPIC?"
-    - "What file contains instructions for $SETUP?"
-  prompt: |
+- title: "Documentation and Metadata"
+  steps: |
     1. Use `file_list_tool` to identify documentation files such as `README.md`, `CONTRIBUTING.md`, or guides.
     2. Perform a semantic search using `file_search_tool` for mentions of `$FEATURE`, `$MODULE`, or `$SETUP`.
     3. Use `file_info_tool` to summarize documentation sections or metadata relevant to the query.
     4. If detailed content is needed, use `file_contents_tool` to extract specific sections or guides.
     5. Synthesize an answer by compiling key documentation references.
 
-- id: "code-review-and-analysis"
-  title: "Code Review and Analysis"
-  questions:
-    - "What changes were introduced in $TOPIC_BRANCH?"
-    - "Are there any potential issues with the recent commits?"
-    - "How do the changes in $TOPIC_BRANCH impact the rest of the project?"
-    - "What files or functions were most affected by these changes?"
-    - "Please explain changes to business logic in $TOPIC_BRANCH."
-    - "Please conduct a code review of $TOPIC_BRANCH."
-  prompt: |
+- title: "Code Review and Analysis"
+  steps: |
     1. Use `git_diff_branch_tool` to retrieve a diff between `$TOPIC_BRANCH` and `$BASE_BRANCH` (default to `origin/main` unless specified by the user).
     2. Summarize the changes by extracting key additions, deletions, and modifications. Highlight files and functions with significant changes.
     3. Use `git_show_tool`, `file_contents_tool`, `file_info_tool`, and `file_search_tool` to cross-reference affected files or functions for their context and purpose within the project.
@@ -191,13 +133,8 @@
       - Suggestions for additional testing, refactoring, or documentation.
     7. NOTE that your other git tools may refer to local or remote versions of files depending on their arguments, so be cautious when using them for code review purposes.
 
-- id: documenting-code
-  title: Documenting Code
-  questions:
-    - "How do I document $MODULE or $FILE?"
-    - "What should a README include for $FEATURE or $COMPONENT?"
-    - "What related files or namespaces should I include in the documentation for $ENTITY?"
-  prompt: |
+- title: Documenting Code
+  steps: |
     1. Set Context:
        - Use `file_list_tool` to identify all files in the same directory or namespace as `$MODULE`, `$FEATURE`, or `$FILE`
        - Use `file_search_tool` to query the namespace for comprehensive background information, which can help determine next steps

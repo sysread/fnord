@@ -55,14 +55,27 @@ defmodule AI.Agent.Planner do
 
   @model AI.Model.balanced()
 
-  @role "You are the Planner Agent, an expert researcher for analyzing software projects and documentation."
+  @role """
+  You are the Planner Agent, an expert researcher for analyzing software projects and documentation.
+  Your role is to act as a "side car" AI Agent to the Coordinating Agent, supervising the research process.
+  Based on the transcript of the coversation between the User and the Coordinating Agent below, use the following instructions to guide the Coordinating Agent through the current stage of its research.
+  """
 
+  # ----------------------------------------------------------------------------
+  # Prompt Stage (analyze user's query)
+  # ----------------------------------------------------------------------------
   @prompt_prompt """
   #{@role}
   #{AI.Util.agent_to_agent_prompt()}
 
   Your first task is to analyze the user's question or prompt.
   Break down and expand the user's query into logical parts.
+
+  You have access to a few tools to interact with the project in order to perform this task.
+  Use them cleverly to make inferences about the user's needs.
+  For example:
+  - `file_list_tool`: lists the files in the project; this can help you infer the programming language, project structure, frameworks used, etc.
+  - `notes_search_tool`: searches for notes saved during previous interactions with the project; this can help you understand the context of the user's query or disambiguate terms.
 
   What is the user's goal?
   What are the components of the user's query?
@@ -71,11 +84,21 @@ defmodule AI.Agent.Planner do
   Clarify the user's needs and provide a list of logical questions that must be answered in order to provide a complete response.
   """
 
+  @prompt_tools [
+    AI.Tools.tool_spec!("file_list_tool"),
+    AI.Tools.tool_spec!("notes_search_tool")
+  ]
+
+  # ----------------------------------------------------------------------------
+  # Initial Stage (select and adapt research strategies)
+  # ----------------------------------------------------------------------------
   @initial_prompt """
   #{@role}
   #{AI.Util.agent_to_agent_prompt()}
 
-  Your initial role is to select and adapt research strategies to guide the Coordinating Agent in its research process.
+  Now that you have broken down the user's query, your role is to select and adapt research strategies to guide the Coordinating Agent in its research process.
+  You ensure that the Coordinating Agent is focused on the answering the user's request or query based on the code and documentation in the current project.
+  You and the Coordinating Agent will use tool calls to interact with the user's project for research purposes.
 
   1. **Analyze Research Context**:
   - Break down the query into logical parts.
@@ -88,7 +111,8 @@ defmodule AI.Agent.Planner do
   - Prior research may be outdated or based on incomplete information, so instruct the Coordinating Agent to confirm with the file_info_tool before relying on it.
 
   3. **Select and Adapt Research Strategies**:
-  - Use the strategies_search_tool to identify useful research strategies.
+  - Use the `strategies_list_tool` to identify useful research strategies.
+  - Retrieve the details of a specific strategy using the `strategies_get_tool`.
   - Select and adapt an existing strategy to fit the query context and specific user needs.
   - Use the information you learned in step 2 to inform your adapted strategy.
   - Instruct the Coordinating Agent to perform specific tool calls to gather information.
@@ -110,6 +134,16 @@ defmodule AI.Agent.Planner do
     ```
   """
 
+  @initial_tools [
+    AI.Tools.tool_spec!("file_list_tool"),
+    AI.Tools.tool_spec!("notes_search_tool"),
+    AI.Tools.tool_spec!("strategies_list_tool"),
+    AI.Tools.tool_spec!("strategies_get_tool")
+  ]
+
+  # ----------------------------------------------------------------------------
+  # Check-in Stage (research evaluation and refinement)
+  # ----------------------------------------------------------------------------
   @checkin_prompt """
   #{@role}
   #{AI.Util.agent_to_agent_prompt()}
@@ -125,6 +159,7 @@ defmodule AI.Agent.Planner do
   - Are there any ambiguities or gaps in the research?
   - Do the findings indicate inconsistent use of a term or label that must first be disambiguated before performing further research?
   - Do the findings indicate a need to change tactics or research strategies?
+    - Use the `strategies_list_tool` and `strategies_get_tool` to identify and adapt your research strategy based on new insights.
   If the research is complete, proceed to the Completion Instructions.
 
   # Refine Research Strategy
@@ -144,6 +179,16 @@ defmodule AI.Agent.Planner do
   Tell it to select the most appropriate Agent to respond to the user's query using the `answers_tool`.
   """
 
+  @checkin_tools [
+    AI.Tools.tool_spec!("file_list_tool"),
+    AI.Tools.tool_spec!("notes_search_tool"),
+    AI.Tools.tool_spec!("strategies_list_tool"),
+    AI.Tools.tool_spec!("strategies_get_tool")
+  ]
+
+  # ----------------------------------------------------------------------------
+  # Evaluate Stage (fact-checking)
+  # ----------------------------------------------------------------------------
   @eval_prompt """
   #{@role}
 
@@ -158,6 +203,14 @@ defmodule AI.Agent.Planner do
   - The response was not factual: `{"factual": false, "reason": "[reason for inaccuracy]"}`
   """
 
+  @eval_tools [
+    AI.Tools.tool_spec!("file_list_tool"),
+    AI.Tools.tool_spec!("file_info_tool")
+  ]
+
+  # ----------------------------------------------------------------------------
+  # Finish Stage (save insights and findings)
+  # ----------------------------------------------------------------------------
   @finish_prompt """
   #{@role}
   #{AI.Util.agent_to_agent_prompt()}
@@ -177,23 +230,8 @@ defmodule AI.Agent.Planner do
   **Do not save dated, time-sensitive, or irrelevant information** (such as the specifics on an individual commit or assumptions about the user's activities).
   """
 
-  @prompt_tools []
-
-  @initial_tools [
-    AI.Tools.tool_spec!("notes_search_tool"),
-    AI.Tools.tool_spec!("strategies_search_tool")
-  ]
-
-  @checkin_tools [
-    AI.Tools.tool_spec!("notes_search_tool"),
-    AI.Tools.tool_spec!("strategies_search_tool")
-  ]
-
-  @eval_tools [
-    AI.Tools.tool_spec!("file_info_tool")
-  ]
-
   @finish_tools [
+    AI.Tools.tool_spec!("file_list_tool"),
     AI.Tools.tool_spec!("notes_search_tool"),
     AI.Tools.tool_spec!("notes_save_tool")
   ]
@@ -268,25 +306,13 @@ defmodule AI.Agent.Planner do
     end
   end
 
-  defp do_get_completion(ai, convo, prompt, []) do
-    AI.Completion.get(ai,
-      model: @model,
-      log_msgs: false,
-      replay_conversation: false,
-      use_planner: false,
-      messages: [
-        AI.Util.system_msg(prompt),
-        AI.Util.user_msg(convo)
-      ]
-    )
-  end
-
   defp do_get_completion(ai, convo, prompt, tools) do
     AI.Completion.get(ai,
       model: @model,
       log_msgs: false,
-      replay_conversation: false,
+      log_tool_calls: false,
       use_planner: false,
+      replay_conversation: false,
       tools: tools,
       messages: [
         AI.Util.system_msg(prompt),
@@ -296,11 +322,16 @@ defmodule AI.Agent.Planner do
   end
 
   defp build_conversation(stage, msgs, tools) do
-    # Count the number of steps in the conversation. If the research is taking
-    # too long, give the planner a nudge to wrap it up.
-    steps = AI.Util.count_steps(msgs)
-    UI.debug("Research steps", to_string(steps))
-    warning = warn_at(stage, steps)
+    warning =
+      if stage == :prompt do
+        ""
+      else
+        # Count the number of steps in the conversation. If the research is
+        # taking too long, give the planner a nudge to wrap it up.
+        steps = AI.Util.count_steps(msgs)
+        UI.debug("Research steps", to_string(steps))
+        warn_at(stage, steps)
+      end
 
     # Build a transcript of the conversation for the planner to review.
     transcript = AI.Util.research_transcript(msgs)
@@ -337,6 +368,7 @@ defmodule AI.Agent.Planner do
     """
     **Warning**: This research is taking rather longer than we expected, isn't it?
     Perhaps it's time to either change tactics or admit defeat and respond to the user with what you have.
+    (but not at the expense of accuracy, of course)
     """
   end
 
@@ -346,6 +378,7 @@ defmodule AI.Agent.Planner do
     """
     **Warning**: This research is taking quite a bit longer than we expected.
     It's time to wrap things up and respond to the user with what you have.
+    Be sure to instruct the Coordinating Agent to warn the user that the research was incomplete, explicitly noting areas of ambiguity or gaps in the research.
     """
   end
 

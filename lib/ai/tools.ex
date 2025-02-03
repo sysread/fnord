@@ -135,7 +135,8 @@ defmodule AI.Tools do
   }
 
   @strategies_tools %{
-    "strategies_search_tool" => AI.Tools.Strategies.Search
+    "strategies_list_tool" => AI.Tools.Strategies.List,
+    "strategies_get_tool" => AI.Tools.Strategies.Get
   }
 
   @answers_tools %{

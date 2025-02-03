@@ -1,12 +1,12 @@
 defmodule Store do
   require Logger
 
-  @strategies_dir "strategies"
-  @non_project_paths MapSet.new([@strategies_dir])
-
   def store_home() do
+    clean_old_strategies_dirs()
+
     home = Settings.home()
     File.mkdir_p!(home)
+
     home
   end
 
@@ -34,67 +34,29 @@ defmodule Store do
     |> Path.wildcard()
     |> Enum.filter(&File.dir?/1)
     |> Enum.map(&Path.basename/1)
-    |> Enum.reject(&MapSet.member?(@non_project_paths, &1))
     |> Enum.map(&Store.Project.new(&1, home))
   end
 
   # -----------------------------------------------------------------------------
-  # Strategies
+  # Clean ups for legacy data
   # -----------------------------------------------------------------------------
-  def strategies_dir() do
-    Path.join(store_home(), @strategies_dir)
-  end
 
-  def list_strategies() do
-    strategies_dir()
-    |> File.ls()
-    |> case do
-      {:ok, dirs} ->
-        dirs
-        |> Enum.sort()
-        |> Enum.map(&Store.Strategy.new(&1))
+  # Strategies used to be persisted in the Store under either
+  # `$HOME/.fnord/strategies` or `$HOME/.fnord/prompts`. This function removes
+  # those deprecated directories.
+  defp clean_old_strategies_dirs() do
+    prompts_dir = Settings.home() |> Path.join("prompts")
 
-      _ ->
-        []
+    if File.dir?(prompts_dir) do
+      UI.debug("Removing deprecated store dir: #{prompts_dir}")
+      File.rm_rf!(prompts_dir)
     end
-  end
 
-  def search_strategies(query, max_results \\ 3) do
-    Store.Strategy.install_initial_strategies()
+    strategies_dir = Settings.home() |> Path.join("strategies")
 
-    {:ok, needle} =
-      Indexer.impl().new()
-      |> Indexer.impl().get_embeddings(query)
-
-    strategies = list_strategies()
-    workers = Enum.count(strategies)
-
-    strategies
-    |> Util.async_stream(
-      fn strategy ->
-        with {:ok, embeddings} <- Store.Strategy.read_embeddings(strategy) do
-          {:ok, {strategy, embeddings}}
-        end
-      end,
-      max_concurrency: workers
-    )
-    |> Util.async_stream(
-      fn
-        {:ok, {:ok, {strategy, embeddings}}} ->
-          score = AI.Util.cosine_similarity(needle, embeddings)
-          {score, strategy}
-
-        _ ->
-          nil
-      end,
-      max_concurrency: workers
-    )
-    # Collect the results
-    |> Enum.reduce([], fn
-      {:ok, {score, strategy}}, acc -> [{score, strategy} | acc]
-      _, acc -> acc
-    end)
-    |> Enum.sort(fn {a, _}, {b, _} -> a >= b end)
-    |> Enum.take(max_results)
+    if File.dir?(strategies_dir) do
+      UI.debug("Removing deprecated store dir: #{strategies_dir}")
+      File.rm_rf!(strategies_dir)
+    end
   end
 end

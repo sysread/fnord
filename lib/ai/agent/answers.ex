@@ -1,5 +1,5 @@
 defmodule AI.Agent.Answers do
-  @model AI.Model.smart()
+  @model AI.Model.balanced()
 
   @prompt """
   # Role
@@ -91,6 +91,10 @@ defmodule AI.Agent.Answers do
 
   If the user is requesting a (*literal*) `smoke test`, test **ALL** of your available tools in turn
     - **TEST EVERY SINGLE TOOL YOU HAVE ONCE**
+    - **DO NOT SKIP ANY TOOL**
+    - **COMBINE AS MANY TOOL CALLS AS POSSIBLE INTO THE SAME RESPONSE** to take advantage of concurrent tool execution
+      - Pay attention to logical dependencies between tools to get real values for arguments
+      - For example, you must call `file_list_tool` before other file tool calls to ensure you have valid file names to use as arguments
     - Consider the logical dependencies between tools in order to get real values for arguments
       - For example:
         - The file_contents_tool requires a file name, which can be obtained from the file_list_tool
@@ -133,24 +137,74 @@ defmodule AI.Agent.Answers do
 
   @impl AI.Agent
   def get_response(ai, opts) do
-    with {:ok, research} <- perform_research(ai, opts),
-         {:ok, %{response: msg} = response} <- format_response(ai, research, opts) do
+    if is_testing?(opts.question) do
+      get_test_response(ai, opts)
+    else
+      get_real_response(ai, opts)
+    end
+  end
+
+  # -----------------------------------------------------------------------------
+  # Testing
+  # -----------------------------------------------------------------------------
+  defp is_testing?(question) do
+    question
+    |> String.downcase()
+    |> String.starts_with?("testing:")
+  end
+
+  defp get_test_response(ai, opts) do
+    tools =
+      AI.Tools.tools()
+      |> Map.keys()
+      |> Enum.map(&AI.Tools.tool_spec!(&1))
+
+    AI.Completion.get(ai,
+      log_msgs: true,
+      log_tool_calls: true,
+      use_planner: false,
+      model: AI.Model.fast(),
+      tools: tools,
+      messages: [
+        AI.Util.system_msg(@test_prompt),
+        AI.Util.user_msg(opts.question)
+      ]
+    )
+    |> then(fn {:ok, %{response: msg} = response} ->
       UI.flush()
       IO.puts(msg)
 
-      if is_testing?(opts.question) do
-        response
-        |> AI.Completion.tools_used()
-        |> Enum.each(fn {tool, count} ->
-          UI.report_step(tool, "called #{count} time(s)")
-        end)
-      else
-        with {:ok, conversation_id} <- save_conversation(response, opts) do
-          IO.puts("""
-          -----
-          **Conversation saved with ID:** `#{conversation_id}`
-          """)
-        end
+      response
+      |> AI.Completion.tools_used()
+      |> Enum.each(fn {tool, count} ->
+        UI.report_step(tool, "called #{count} time(s)")
+      end)
+    end)
+  end
+
+  # -----------------------------------------------------------------------------
+  # Real response
+  # -----------------------------------------------------------------------------
+  defp get_real_response(ai, opts) do
+    start_time = System.monotonic_time()
+
+    with {:ok, research} <- perform_research(ai, opts),
+         {:ok, %{response: msg} = response} <- format_response(ai, research, opts) do
+      elapsed_time = System.monotonic_time() - start_time
+      elapsed_seconds = System.convert_time_unit(elapsed_time, :native, :microsecond)
+      steps = AI.Util.count_steps(research.messages)
+
+      UI.flush()
+      IO.puts(msg)
+
+      IO.puts("Research concluded in #{elapsed_seconds} seconds")
+      IO.puts("Research concluded in #{steps} steps")
+
+      with {:ok, conversation_id} <- save_conversation(response, opts) do
+        IO.puts("""
+        -----
+        **Conversation saved with ID:** `#{conversation_id}`
+        """)
       end
 
       UI.flush()
@@ -162,22 +216,6 @@ defmodule AI.Agent.Answers do
     end
   end
 
-  # -----------------------------------------------------------------------------
-  # Private functions
-  # -----------------------------------------------------------------------------
-  defp is_testing?(question) do
-    question
-    |> String.downcase()
-    |> String.starts_with?("testing:")
-  end
-
-  defp save_conversation(state, %{conversation: conversation}) do
-    Store.Project.Conversation.write(conversation, state.messages)
-    UI.debug("Conversation saved to file", conversation.store_path)
-    UI.report_step("Conversation saved", conversation.id)
-    {:ok, conversation.id}
-  end
-
   defp format_response(ai, research, opts) do
     if is_testing?(opts.question) do
       {:ok, research}
@@ -185,10 +223,11 @@ defmodule AI.Agent.Answers do
       UI.report_step("Preparing response document")
 
       AI.Completion.get(ai,
-        model: @model,
-        use_planner: false,
         log_msgs: true,
+        log_tool_calls: true,
+        use_planner: false,
         replay_conversation: false,
+        model: @model,
         tools: [AI.Tools.tool_spec!("answers_tool")],
         messages: research.messages ++ [AI.Util.system_msg(@template_prompt)]
       )
@@ -196,37 +235,40 @@ defmodule AI.Agent.Answers do
   end
 
   defp perform_research(ai, opts) do
+    tools =
+      if Git.is_git_repo?() do
+        @tools
+      else
+        @non_git_tools
+      end
+
+    msgs =
+      restore_conversation(opts)
+      |> case do
+        [] ->
+          [
+            AI.Util.system_msg(@prompt),
+            AI.Util.system_msg("The currently selected project is #{opts.project}."),
+            AI.Util.user_msg(opts.question)
+          ]
+
+        msgs ->
+          msgs ++ [AI.Util.user_msg(opts.question)]
+      end
+
     AI.Completion.get(ai,
+      log_msgs: true,
+      log_tool_calls: true,
+      use_planner: true,
       model: @model,
-      tools: available_tools(),
-      messages: build_messages(opts),
-      use_planner: !is_testing?(opts.question),
-      log_msgs: true
+      tools: tools,
+      messages: msgs
     )
   end
 
-  defp available_tools() do
-    if Git.is_git_repo?() do
-      @tools
-    else
-      @non_git_tools
-    end
-  end
-
-  defp build_messages(opts) do
-    case restore_conversation(opts) do
-      [] ->
-        [
-          asst_prompt(opts),
-          AI.Util.system_msg("The currently selected project is #{opts.project}."),
-          AI.Util.user_msg(opts.question)
-        ]
-
-      msgs ->
-        msgs ++ [AI.Util.user_msg(opts.question)]
-    end
-  end
-
+  # -----------------------------------------------------------------------------
+  # Conversation management
+  # -----------------------------------------------------------------------------
   defp restore_conversation(%{conversation: conversation}) do
     if Store.Project.Conversation.exists?(conversation) do
       {:ok, _ts, messages} = Store.Project.Conversation.read(conversation)
@@ -236,12 +278,10 @@ defmodule AI.Agent.Answers do
     end
   end
 
-  defp asst_prompt(opts) do
-    if is_testing?(opts.question) do
-      @test_prompt
-    else
-      @prompt
-    end
-    |> AI.Util.system_msg()
+  defp save_conversation(state, %{conversation: conversation}) do
+    Store.Project.Conversation.write(conversation, state.messages)
+    UI.debug("Conversation saved to file", conversation.store_path)
+    UI.report_step("Conversation saved", conversation.id)
+    {:ok, conversation.id}
   end
 end

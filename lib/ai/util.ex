@@ -1,5 +1,5 @@
 defmodule AI.Util do
-  @role_system "system"
+  @role_system "developer"
   @role_user "user"
   @role_assistant "assistant"
   @role_tool "tool"

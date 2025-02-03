@@ -22,8 +22,6 @@ defmodule AI.Tools.Answers do
   @agents @agent_defs |> Enum.map(& &1["name"])
   @agent @agent_defs |> Enum.map(&{&1["name"], &1}) |> Map.new()
 
-  @model AI.Model.smart()
-
   def agent_names(), do: @agents
 
   def agent_description(%{"name" => name, "description" => description}) do
@@ -35,6 +33,13 @@ defmodule AI.Tools.Answers do
     |> Enum.map(&agent_description/1)
     |> Enum.join("\n")
   end
+
+  # -----------------------------------------------------------------------------
+  # Behaviour implementation
+  # -----------------------------------------------------------------------------
+  @behaviour AI.Tools
+
+  @model AI.Model.smart()
 
   @non_git_tools [
     AI.Tools.tool_spec!("file_contents_tool"),
@@ -54,11 +59,6 @@ defmodule AI.Tools.Answers do
   ]
 
   @tools @non_git_tools ++ @git_tools
-
-  # -----------------------------------------------------------------------------
-  # Behaviour implementation
-  # -----------------------------------------------------------------------------
-  @behaviour AI.Tools
 
   @impl AI.Tools
   def ui_note_on_request(%{"agent" => agent}) do
