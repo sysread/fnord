@@ -124,16 +124,18 @@ defmodule AI.Util do
     |> Enum.drop(1)
     # Convert messages into text
     |> Enum.reduce([], fn
-      %{role: "user", content: content}, acc ->
+      %{role: @role_user, content: content}, acc ->
         if String.starts_with?(content, AI.Agent.Planner.preamble()) do
           [content | acc]
         else
           ["User Query: #{content}" | acc]
         end
 
-      %{role: "assistant", content: content}, acc when is_binary(content) ->
+      %{role: @role_assistant, content: content}, acc when is_binary(content) ->
         [content | acc]
 
+      # Not supported in reasoning models, but still may be present in older
+      # conversations.
       %{role: "system", content: content}, acc ->
         if String.starts_with?(content, AI.Agent.Planner.preamble()) do
           [content | acc]
@@ -141,7 +143,14 @@ defmodule AI.Util do
           acc
         end
 
-      %{role: "tool", tool_call_id: id, name: name, content: content}, acc ->
+      %{role: @role_system, content: content}, acc ->
+        if String.starts_with?(content, AI.Agent.Planner.preamble()) do
+          [content | acc]
+        else
+          acc
+        end
+
+      %{role: @role_tool, tool_call_id: id, name: name, content: content}, acc ->
         args = tool_call_args[id] |> Jason.encode!()
 
         text = """
@@ -165,7 +174,7 @@ defmodule AI.Util do
     msgs
     |> Enum.reduce(%{}, fn msg, acc ->
       case msg do
-        %{role: "assistant", content: nil, tool_calls: tool_calls} ->
+        %{role: @role_assistant, content: nil, tool_calls: tool_calls} ->
           tool_calls
           |> Enum.map(fn %{id: id, function: %{arguments: args}} -> {id, args} end)
           |> Enum.into(acc)
@@ -181,7 +190,7 @@ defmodule AI.Util do
   """
   def user_query(messages) do
     messages
-    |> Enum.filter(&(&1.role == "user"))
+    |> Enum.filter(&(&1.role == @role_user))
     |> List.first()
     |> then(& &1.content)
   end
@@ -212,13 +221,13 @@ defmodule AI.Util do
     |> Enum.count()
   end
 
-  defp is_step_msg?(%{role: "user", content: content}) when is_binary(content) do
+  defp is_step_msg?(%{role: @role_user, content: content}) when is_binary(content) do
     String.starts_with?(content, AI.Agent.Planner.preamble())
   end
 
   defp is_step_msg?(_), do: false
 
-  defp is_user_msg?(%{role: "user", content: content}) when is_binary(content) do
+  defp is_user_msg?(%{role: @role_user, content: content}) when is_binary(content) do
     !String.starts_with?(content, AI.Agent.Planner.preamble())
   end
 
