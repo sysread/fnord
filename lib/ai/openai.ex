@@ -100,6 +100,7 @@ defmodule AI.OpenAI do
   end
 
   defp get_error_response(:closed), do: {:error, "Connection closed"}
+  defp get_error_response(:timeout), do: {:error, "Connection timed out"}
 
   defp get_error_response({http_status, json_error_string}) do
     json_error_string
