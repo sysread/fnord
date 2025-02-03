@@ -1,7 +1,5 @@
 defmodule AI.Agent.Archivist do
-  @model "gpt-4o"
-
-  @max_tokens 128_000
+  @model AI.Model.balanced()
 
   @prompt """
   You are the Archivist Agent.
@@ -25,7 +23,6 @@ defmodule AI.Agent.Archivist do
 
   defp build_response(ai, query) do
     AI.Accumulator.get_response(ai,
-      max_tokens: @max_tokens,
       model: @model,
       prompt: @prompt,
       question: query,

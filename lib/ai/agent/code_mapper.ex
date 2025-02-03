@@ -1,8 +1,5 @@
 defmodule AI.Agent.CodeMapper do
-  @model "gpt-4o-mini"
-
-  # It's actually 128k for this model, but "context window" != "attention span"
-  @max_tokens 50_000
+  @model AI.Model.balanced()
 
   @prompt """
   You are the Code Mapper Agent. You will receive the contents of a code file.
@@ -44,7 +41,6 @@ defmodule AI.Agent.CodeMapper do
     with {:ok, file} <- Map.fetch(opts, :file),
          {:ok, content} <- Map.fetch(opts, :content) do
       AI.Accumulator.get_response(ai,
-        max_tokens: @max_tokens,
         model: @model,
         prompt: @prompt,
         input: content,

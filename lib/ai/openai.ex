@@ -25,7 +25,10 @@ defmodule AI.OpenAI do
 
   def get_embedding(openai, model, input) do
     headers = [get_auth_header(openai)]
-    payload = %{model: model, encoding_format: "float", input: input}
+
+    payload =
+      %{encoding_format: "float", input: input}
+      |> Map.merge(get_model_params(model))
 
     Http.post_json(@embedding_endpoint, headers, payload, openai.http_options)
     |> case do
@@ -38,10 +41,14 @@ defmodule AI.OpenAI do
     headers = [get_auth_header(openai)]
 
     payload =
-      case tools do
-        nil -> %{model: model, messages: msgs}
-        tools -> %{model: model, messages: msgs, tools: tools}
-      end
+      %{messages: msgs}
+      |> Map.merge(get_model_params(model))
+      |> Map.merge(
+        case tools do
+          nil -> %{}
+          tools -> %{tools: tools}
+        end
+      )
 
     Http.post_json(@completion_endpoint, headers, payload, openai.http_options)
     |> case do
@@ -62,6 +69,18 @@ defmodule AI.OpenAI do
 
   defp get_auth_header(openai) do
     {"Authorization", "Bearer #{openai.api_key}"}
+  end
+
+  defp get_model_params(model) when is_binary(model) do
+    %{model: model}
+  end
+
+  defp get_model_params(%AI.Model{reasoning: reasoning} = model) when is_nil(reasoning) do
+    %{model: model.model}
+  end
+
+  defp get_model_params(%AI.Model{reasoning: reasoning} = model) do
+    %{model: model.model, reasoning_effort: reasoning}
   end
 
   defp get_completion_response(%{"choices" => [%{"message" => response}]}) do

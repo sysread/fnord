@@ -4,6 +4,7 @@ defmodule AI.Tokenizer.Default do
   """
 
   @tokenizer %{
+    "o3-mini" => AI.Tokenizer.Tokens_o200k_base,
     "gpt-4o" => AI.Tokenizer.Tokens_o200k_base,
     "gpt-4o-mini" => AI.Tokenizer.Tokens_o200k_base,
     "text-embedding-3-large" => AI.Tokenizer.Tokens_cl100k_base,

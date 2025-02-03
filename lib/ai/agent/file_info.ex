@@ -1,8 +1,5 @@
 defmodule AI.Agent.FileInfo do
-  @model "gpt-4o"
-
-  # It's actually 128k for this model, but "context window" != "attention span"
-  @max_tokens 60_000
+  @model AI.Model.balanced()
 
   @prompt """
   You are an AI agent who is responsible for answering questions about a file's contents.
@@ -98,7 +95,6 @@ defmodule AI.Agent.FileInfo do
         end
 
       AI.Accumulator.get_response(ai,
-        max_tokens: @max_tokens,
         model: @model,
         tools: tools,
         prompt: @prompt,

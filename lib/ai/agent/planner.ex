@@ -53,7 +53,7 @@ defmodule AI.Agent.Planner do
   @steps_warning_level_2 8
   @planner_msg_preamble "From the Planner Agent:"
 
-  @model "gpt-4o"
+  @model AI.Model.balanced()
 
   @role "You are the Planner Agent, an expert researcher for analyzing software projects and documentation."
 

@@ -10,7 +10,7 @@ defmodule AI.Agent.Spelunker do
     :requested_tool_calls
   ]
 
-  @model "gpt-4o"
+  @model AI.Model.balanced()
 
   @prompt """
   You are the Spelunker Agent. Your job is to *thoroughly* work through maps of code symbols and function calls to *completely* trace paths through the code base.

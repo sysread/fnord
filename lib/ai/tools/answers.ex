@@ -22,7 +22,7 @@ defmodule AI.Tools.Answers do
   @agents @agent_defs |> Enum.map(& &1["name"])
   @agent @agent_defs |> Enum.map(&{&1["name"], &1}) |> Map.new()
 
-  @model "gpt-4o"
+  @model AI.Model.smart()
 
   def agent_names(), do: @agents
 

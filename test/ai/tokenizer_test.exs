@@ -33,17 +33,19 @@ defmodule AI.TokenizerTest do
         13
       ]
 
-      {:ok, tokens: tokens, model: "text-embedding-3-large"}
+      {:ok, tokens: tokens}
     end
 
-    test "encode/1 <=> decode/1", %{tokens: tokens, model: model} do
+    test "encode/1 <=> decode/1", %{tokens: tokens} do
+      model = AI.Model.embeddings()
       encoded = AI.Tokenizer.encode(@input, model)
       assert encoded == tokens
       assert AI.Tokenizer.decode(encoded, model) == @input
     end
 
-    test "chunk/2", %{model: model} do
-      chunks = AI.Tokenizer.chunk(@input, 10, model)
+    test "chunk/2", _ctx do
+      model = AI.Model.new("mst-3k", nil, 10)
+      chunks = AI.Tokenizer.chunk(@input, model)
 
       assert [
                "Now is the time for all good men to come",
@@ -74,17 +76,19 @@ defmodule AI.TokenizerTest do
         13
       ]
 
-      {:ok, tokens: tokens, model: "gpt-4o"}
+      {:ok, tokens: tokens}
     end
 
-    test "encode/1 <=> decode/1", %{tokens: tokens, model: model} do
+    test "encode/1 <=> decode/1", %{tokens: tokens} do
+      model = AI.Model.new("gpt-4o", nil, 128_000)
       encoded = AI.Tokenizer.encode(@input, model)
       assert encoded == tokens
       assert AI.Tokenizer.decode(encoded, model) == @input
     end
 
-    test "chunk/2", %{model: model} do
-      chunks = AI.Tokenizer.chunk(@input, 10, model)
+    test "chunk/2", _ctx do
+      model = AI.Model.new("mst-3k", nil, 10)
+      chunks = AI.Tokenizer.chunk(@input, model)
 
       assert [
                "Now is the time for all good men to come",

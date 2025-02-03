@@ -40,22 +40,24 @@ defmodule AI.Tokenizer do
   Encodes a text string into a list of token IDs using the algorithm defined
   for the specified model.
   """
-  def encode(text, model), do: impl().encode(text, model)
+  def encode(text, model) when is_binary(model), do: impl().encode(text, model)
+  def encode(text, model), do: impl().encode(text, model.model)
 
   @doc """
   Decodes a list of token IDs into a text string using the algorithm defined
   for the specified model.
   """
-  def decode(token_ids, model), do: impl().decode(token_ids, model)
+  def decode(token_ids, model) when is_binary(model), do: impl().decode(token_ids, model)
+  def decode(token_ids, model), do: impl().decode(token_ids, model.model)
 
   @doc """
-  Splits a string into chunks of `max_tokens` tokens using the algorithm
+  Splits a string into chunks of `model.context` tokens using the algorithm
   defined for the specified model.
   """
-  def chunk(input, max_tokens, model) do
+  def chunk(input, model) do
     input
     |> encode(model)
-    |> Enum.chunk_every(max_tokens)
+    |> Enum.chunk_every(model.context)
     |> Enum.map(&decode(&1, model))
   end
 end

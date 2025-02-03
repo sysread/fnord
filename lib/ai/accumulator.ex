@@ -3,8 +3,8 @@ defmodule AI.Accumulator do
   When file or other input to too large for the model's context window, this
   module may be used to process the file in chunks. It automatically modifies
   the supplied agent prompt to include instructions for accumulating a response
-  across multiple chunks based on the `max_tokens` parameter supplied to the
-  `get_response` function.
+  across multiple chunks based on the `context` (max context window tokens)
+  parameter supplied by the `model` parameter.
 
   Note that while this makes use of the `AI.Completion` module, it does NOT
   have the same interface and cannot be used for long-running conversations, as
@@ -15,7 +15,6 @@ defmodule AI.Accumulator do
     :ai,
     :splitter,
     :buffer,
-    :max_tokens,
     :model,
     :tools,
     :prompt,
@@ -68,8 +67,7 @@ defmodule AI.Accumulator do
 
   @spec get_response(AI.t(), Keyword.t()) :: response
   def get_response(ai, opts \\ []) do
-    with {:ok, max_tokens} <- Keyword.fetch(opts, :max_tokens),
-         {:ok, model} <- Keyword.fetch(opts, :model),
+    with {:ok, model} <- Keyword.fetch(opts, :model),
          {:ok, prompt} <- Keyword.fetch(opts, :prompt),
          {:ok, input} <- Keyword.fetch(opts, :input),
          {:ok, question} <- Keyword.fetch(opts, :question) do
@@ -77,9 +75,8 @@ defmodule AI.Accumulator do
 
       %__MODULE__{
         ai: ai,
-        splitter: AI.Splitter.new(input, max_tokens, model),
+        splitter: AI.Splitter.new(input, model),
         buffer: "",
-        max_tokens: max_tokens,
         model: model,
         tools: tools,
         prompt: prompt,
@@ -148,7 +145,6 @@ defmodule AI.Accumulator do
     """
 
     AI.Completion.get(acc.ai,
-      max_tokens: acc.max_tokens,
       model: acc.model,
       tools: acc.tools,
       messages: [

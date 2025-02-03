@@ -9,8 +9,8 @@ defmodule AI.SplitterTest do
     |> Mox.stub(:decode, fn tokens, _model -> Enum.join(tokens, " ") end)
 
     input = "the quick brown fox jumps over the lazy dog"
-
-    splitter = AI.Splitter.new(input, 5, "mst-3k")
+    model = AI.Model.new("mst-3k", nil, 5)
+    splitter = AI.Splitter.new(input, model)
 
     assert {"the quick brown", %{offset: 3} = splitter} =
              AI.Splitter.next_chunk(splitter, "how now")

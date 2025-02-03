@@ -52,11 +52,7 @@ defmodule AI do
   # -----------------------------------------------------------------------------
   # Embeddings
   # -----------------------------------------------------------------------------
-  @embeddings_model "text-embedding-3-large"
-
-  # It's actually 8192 for this model, but this gives us a little bit of
-  # wiggle room in case the tokenizer we are using falls behind.
-  @embeddings_token_limit 6000
+  @embeddings_model AI.Model.embeddings()
 
   @doc """
   Identical to `get_embeddings/2`, but raises an error if the request fails.
@@ -76,7 +72,7 @@ defmodule AI do
   """
   def get_embeddings(ai, text) do
     text
-    |> AI.Tokenizer.chunk(@embeddings_token_limit, @embeddings_model)
+    |> AI.Tokenizer.chunk(@embeddings_model)
     |> Enum.map(&[ai.client, @embeddings_model, &1])
     |> Enum.reduce_while([], fn request, acc ->
       ai

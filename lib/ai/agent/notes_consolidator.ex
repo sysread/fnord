@@ -1,5 +1,5 @@
 defmodule AI.Agent.NotesConsolidator do
-  @model "gpt-4o"
+  @model AI.Model.fast()
 
   @prompt """
   #{AI.Util.note_format_prompt()}

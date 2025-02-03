@@ -14,7 +14,6 @@ defmodule AI.Splitter do
   """
 
   defstruct [
-    :max_tokens,
     :model,
     :input,
     :input_tokens,
@@ -22,9 +21,8 @@ defmodule AI.Splitter do
     :done
   ]
 
-  def new(input, max_tokens, model) do
+  def new(input, model) do
     %AI.Splitter{
-      max_tokens: max_tokens,
       model: model,
       input: input,
       input_tokens: AI.Tokenizer.encode(input, model),
@@ -39,7 +37,7 @@ defmodule AI.Splitter do
 
   def next_chunk(tok, bespoke_input) do
     bespoke_tokens = AI.Tokenizer.encode(bespoke_input, tok.model) |> length()
-    remaining_tokens = tok.max_tokens - bespoke_tokens
+    remaining_tokens = tok.model.context - bespoke_tokens
     {slice, tok} = get_slice(tok, remaining_tokens)
 
     tok =

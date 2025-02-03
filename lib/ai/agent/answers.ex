@@ -1,5 +1,5 @@
 defmodule AI.Agent.Answers do
-  @model "gpt-4o"
+  @model AI.Model.smart()
 
   @prompt """
   # Role
