@@ -197,8 +197,12 @@ defmodule AI.Agent.Answers do
       UI.flush()
       IO.puts(msg)
 
-      IO.puts("Research concluded in #{elapsed_seconds} seconds")
-      IO.puts("Research concluded in #{steps} steps")
+      IO.puts("""
+      -----
+      #### Research Summary
+      - Steps: #{steps}
+      - Time: #{elapsed_seconds} seconds
+      """)
 
       with {:ok, conversation_id} <- save_conversation(response, opts) do
         IO.puts("""
