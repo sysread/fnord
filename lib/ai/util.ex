@@ -228,7 +228,7 @@ defmodule AI.Util do
 
   defp is_step_msg?(%{role: @role_system, name: "Planner", content: content})
        when is_binary(content) do
-    String.starts_with?(content, AI.Agent.Planner.preamble())
+    true
   end
 
   defp is_step_msg?(_), do: false
