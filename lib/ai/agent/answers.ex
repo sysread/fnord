@@ -148,12 +148,11 @@ defmodule AI.Agent.Answers do
   # Real response
   # -----------------------------------------------------------------------------
   defp get_real_response(ai, opts) do
-    start_time = System.monotonic_time()
+    start_time = System.monotonic_time(:second)
 
     with {:ok, research} <- perform_research(ai, opts),
          {:ok, %{response: msg} = response} <- format_response(ai, research, opts) do
-      elapsed_time = System.monotonic_time() - start_time
-      elapsed_seconds = System.convert_time_unit(elapsed_time, :native, :microsecond)
+      elapsed = System.monotonic_time(:second) - start_time
       steps = AI.Util.count_steps(research.messages)
 
       UI.flush()
@@ -163,7 +162,7 @@ defmodule AI.Agent.Answers do
       -----
       #### Research Summary
       - Steps: #{steps}
-      - Time: #{elapsed_seconds} seconds
+      - Time: #{elapsed} seconds
       """)
 
       with {:ok, conversation_id} <- save_conversation(response, opts) do
