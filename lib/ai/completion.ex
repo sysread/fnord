@@ -224,7 +224,7 @@ defmodule AI.Completion do
     case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools, stage: :checkin}) do
       {:ok, response} ->
         AI.Completion.Output.log_tool_call_result(state, "Refining research plan", response)
-        planner_msg = AI.Util.user_msg(response)
+        planner_msg = AI.Util.planner_msg(response)
         %__MODULE__{state | messages: state.messages ++ [planner_msg]}
 
       {:error, reason} ->
