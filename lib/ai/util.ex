@@ -209,19 +209,25 @@ defmodule AI.Util do
     # most recent steps following the last user message. For example, if the
     # user replied to the original response, we only want to count the steps
     # that followed that reply.
-    msgs
-    # Start from the end of the conversation.
-    |> Enum.reverse()
-    # Extract all of the messages up to the last user message. That leaves us
-    # with all of the messages that are part of the current research process.
-    |> Enum.take_while(fn msg -> !is_user_msg?(msg) end)
-    # The planner is called at each step in the process, so we can use that as
-    # our canary to identify research "steps".
-    |> Enum.filter(&is_step_msg?/1)
-    |> Enum.count()
+    planner_msgs =
+      msgs
+      # Start from the end of the conversation.
+      |> Enum.reverse()
+      # Extract all of the messages up to the last user message. That leaves us
+      # with all of the messages that are part of the current research process.
+      |> Enum.take_while(fn msg -> !is_user_msg?(msg) end)
+      # The planner is called at each step in the process, so we can use that as
+      # our canary to identify research "steps".
+      |> Enum.filter(&is_step_msg?/1)
+      |> Enum.count()
+
+    # -1 for the initial planner message that analyzes the user's query. That
+    # msg is immediately followed by the first analysis step we want to count.
+    planner_msgs - 1
   end
 
-  defp is_step_msg?(%{role: @role_user, content: content}) when is_binary(content) do
+  defp is_step_msg?(%{role: @role_system, name: "Planner", content: content})
+       when is_binary(content) do
     String.starts_with?(content, AI.Agent.Planner.preamble())
   end
 
@@ -245,6 +251,14 @@ defmodule AI.Util do
     %{
       role: @role_system,
       content: msg
+    }
+  end
+
+  def planner_msg(msg) do
+    %{
+      role: @role_system,
+      content: msg,
+      name: "Planner"
     }
   end
 

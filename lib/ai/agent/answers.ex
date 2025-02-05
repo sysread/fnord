@@ -145,44 +145,6 @@ defmodule AI.Agent.Answers do
   end
 
   # -----------------------------------------------------------------------------
-  # Testing
-  # -----------------------------------------------------------------------------
-  defp is_testing?(question) do
-    question
-    |> String.downcase()
-    |> String.starts_with?("testing:")
-  end
-
-  defp get_test_response(ai, opts) do
-    tools =
-      AI.Tools.tools()
-      |> Map.keys()
-      |> Enum.map(&AI.Tools.tool_spec!(&1))
-
-    AI.Completion.get(ai,
-      log_msgs: true,
-      log_tool_calls: true,
-      use_planner: false,
-      model: AI.Model.fast(),
-      tools: tools,
-      messages: [
-        AI.Util.system_msg(@test_prompt),
-        AI.Util.user_msg(opts.question)
-      ]
-    )
-    |> then(fn {:ok, %{response: msg} = response} ->
-      UI.flush()
-      IO.puts(msg)
-
-      response
-      |> AI.Completion.tools_used()
-      |> Enum.each(fn {tool, count} ->
-        UI.report_step(tool, "called #{count} time(s)")
-      end)
-    end)
-  end
-
-  # -----------------------------------------------------------------------------
   # Real response
   # -----------------------------------------------------------------------------
   defp get_real_response(ai, opts) do
@@ -220,24 +182,6 @@ defmodule AI.Agent.Answers do
     end
   end
 
-  defp format_response(ai, research, opts) do
-    if is_testing?(opts.question) do
-      {:ok, research}
-    else
-      UI.report_step("Preparing response document")
-
-      AI.Completion.get(ai,
-        log_msgs: true,
-        log_tool_calls: true,
-        use_planner: false,
-        replay_conversation: false,
-        model: @model,
-        tools: [AI.Tools.tool_spec!("answers_tool")],
-        messages: research.messages ++ [AI.Util.system_msg(@template_prompt)]
-      )
-    end
-  end
-
   defp perform_research(ai, opts) do
     tools =
       if Git.is_git_repo?() do
@@ -268,6 +212,62 @@ defmodule AI.Agent.Answers do
       tools: tools,
       messages: msgs
     )
+  end
+
+  defp format_response(ai, research, opts) do
+    if is_testing?(opts.question) do
+      {:ok, research}
+    else
+      UI.report_step("Preparing response document")
+
+      AI.Completion.get(ai,
+        log_msgs: true,
+        log_tool_calls: true,
+        use_planner: false,
+        replay_conversation: false,
+        model: @model,
+        tools: [AI.Tools.tool_spec!("answers_tool")],
+        messages: research.messages ++ [AI.Util.system_msg(@template_prompt)]
+      )
+    end
+  end
+
+  # -----------------------------------------------------------------------------
+  # Testing response
+  # -----------------------------------------------------------------------------
+  defp is_testing?(question) do
+    question
+    |> String.downcase()
+    |> String.starts_with?("testing:")
+  end
+
+  defp get_test_response(ai, opts) do
+    tools =
+      AI.Tools.tools()
+      |> Map.keys()
+      |> Enum.map(&AI.Tools.tool_spec!(&1))
+
+    AI.Completion.get(ai,
+      log_msgs: true,
+      log_tool_calls: true,
+      use_planner: false,
+      model: AI.Model.fast(),
+      tools: tools,
+      messages: [
+        AI.Util.system_msg(@test_prompt),
+        AI.Util.user_msg(opts.question)
+      ]
+    )
+    |> then(fn {:ok, %{response: msg} = response} ->
+      UI.flush()
+      IO.puts(msg)
+
+      response
+      |> AI.Completion.tools_used()
+      |> Enum.each(fn {tool, count} ->
+        UI.report_step(tool, "called #{count} time(s)")
+      end)
+    end)
   end
 
   # -----------------------------------------------------------------------------

@@ -190,7 +190,7 @@ defmodule AI.Completion do
     case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools, stage: :prompt}) do
       {:ok, response} ->
         AI.Completion.Output.log_tool_call_result(state, "Research planner", response)
-        planner_msg = AI.Util.user_msg(response)
+        planner_msg = AI.Util.planner_msg(response)
         %__MODULE__{state | messages: state.messages ++ [planner_msg]}
 
       {:error, reason} ->
@@ -207,7 +207,7 @@ defmodule AI.Completion do
     case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools, stage: :initial}) do
       {:ok, response} ->
         AI.Completion.Output.log_tool_call_result(state, "Research plan", response)
-        planner_msg = AI.Util.user_msg(response)
+        planner_msg = AI.Util.planner_msg(response)
         %__MODULE__{state | messages: state.messages ++ [planner_msg]}
 
       {:error, reason} ->
@@ -243,7 +243,7 @@ defmodule AI.Completion do
         maybe_finish_planner(state)
 
       {:ok, response} ->
-        planner_msg = AI.Util.assistant_msg(response)
+        planner_msg = AI.Util.planner_msg(response)
         %__MODULE__{state | messages: state.messages ++ [planner_msg]}
 
       {:error, reason} ->
@@ -257,7 +257,7 @@ defmodule AI.Completion do
 
     case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools, stage: :finish}) do
       {:ok, response} ->
-        planner_msg = AI.Util.system_msg(response)
+        planner_msg = AI.Util.planner_msg(response)
         %__MODULE__{state | messages: state.messages ++ [planner_msg]}
 
       {:error, reason} ->
