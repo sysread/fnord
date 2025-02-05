@@ -67,12 +67,12 @@ defmodule AI.Agent.Answers do
   2. Use the `answers_tool` to generate a response document for the user.
   - All of your research will be passed to the selected Agent.
   3. Remove any unnecessary "Ok, here you go" or "Based on the provided research, here is a document that..." crap from the `answers_tool` response. You'll JUST insert the formatted document into the response template below.
-  4. Correct any incorrect markdown formatting (e.g. unescaped double markdown fences)
+  4. The response must be formatted in markdown. If you notice any formatting issues, correct them.
   5. Insert the response document into the following repsonse template:
 
   # [Restate the user's *original* query as the document title, correcting grammar and spelling]
 
-  [**IMPORTANT: YOU ARE REQUIRED TO INSERT RESPONSE CONTENT FROM THE `answers_tool` VERBATIM**]
+  [**IMPORTANT: YOU ARE REQUIRED TO INSERT THE COMPLETE RESPONSE CONTENT FROM THE `answers_tool`**]
 
   # SEE ALSO
   [itemized list of relevant files and any explicitly mentioned in the response]
