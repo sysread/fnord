@@ -43,8 +43,8 @@ defmodule UI do
     end
   end
 
-  def inspect(item, label) do
-    Logger.debug(label, Kernel.inspect(item, pretty: true, binaries: :as_strings))
+  def printf_debug(item) do
+    Logger.debug(inspect(item, pretty: true))
     Logger.flush()
     item
   end
