@@ -28,8 +28,13 @@ defmodule AI.Agent.Reason do
     }
   end
 
-  defp initial_messages(%{msgs: msgs} = opts), do: msgs ++ [user_msg(opts)]
-  defp initial_messages(opts), do: [initial_msg(), project_msg(opts), user_msg(opts)]
+  defp initial_messages(%{msgs: msgs} = opts) do
+    msgs ++ [initial_msg(), project_msg(opts), user_msg(opts)]
+  end
+
+  defp initial_messages(opts) do
+    [initial_msg(), project_msg(opts), user_msg(opts)]
+  end
 
   defp consider(state) do
     if is_testing?(state) do
@@ -90,30 +95,23 @@ defmodule AI.Agent.Reason do
   # Tools
   # -----------------------------------------------------------------------------
   @non_git_tools [
-    AI.Tools.tool_spec!("file_contents_tool"),
+    AI.Tools.tool_spec!("notes_search_tool"),
     AI.Tools.tool_spec!("file_info_tool"),
     AI.Tools.tool_spec!("file_list_tool"),
     AI.Tools.tool_spec!("file_search_tool"),
+    AI.Tools.tool_spec!("file_contents_tool"),
     AI.Tools.tool_spec!("file_spelunker_tool"),
-    AI.Tools.tool_spec!("notes_search_tool")
-  ]
-
-  @git_tools [
-    AI.Tools.tool_spec!("git_diff_branch_tool"),
-    AI.Tools.tool_spec!("git_list_branches_tool"),
-    AI.Tools.tool_spec!("git_grep_tool"),
-    AI.Tools.tool_spec!("git_log_tool"),
-    AI.Tools.tool_spec!("git_pickaxe_tool"),
-    AI.Tools.tool_spec!("git_show_tool")
-  ]
-
-  @finalize_tools [
-    AI.Tools.tool_spec!("file_list_tool"),
-    AI.Tools.tool_spec!("notes_search_tool"),
     AI.Tools.tool_spec!("notes_save_tool")
   ]
 
-  defp available_tools(%{round: :finalize}), do: @finalize_tools
+  @git_tools [
+    AI.Tools.tool_spec!("git_log_tool"),
+    AI.Tools.tool_spec!("git_pickaxe_tool"),
+    AI.Tools.tool_spec!("git_grep_tool"),
+    AI.Tools.tool_spec!("git_show_tool"),
+    AI.Tools.tool_spec!("git_list_branches_tool"),
+    AI.Tools.tool_spec!("git_diff_branch_tool")
+  ]
 
   defp available_tools(_state) do
     if Git.is_git_repo?() do
@@ -127,9 +125,9 @@ defmodule AI.Agent.Reason do
   # Message shortcuts
   # -----------------------------------------------------------------------------
   @initial """
-  You are an AI assistant that reasons through problems step by step.
-  Proactively use your tools to research the problem.
-  Prospectively combine tool calls to take advantage of concurrent execution.
+  You are an AI assistant that researches the user's code base to answer their qustions.
+  Begin by searching for prior research notes that might clarify the user's needs.
+  You reason through problems step by step.
 
   Before answering, **you must think inside <think>...</think> tags.**
   Do not finalize your response until explicitly instructed.
@@ -138,10 +136,7 @@ defmodule AI.Agent.Reason do
   @continue """
   Consider your previous thoughts and refine your thinking.
   Proactively use your tools to refine your research.
-  Prospectively combine tool calls to take advantage of concurrent execution.
-
-  Even if you believe you have the answer, continue your research to be certain
-  you've covered all facets of the problem.
+  Consider whether there are other aspects of the topic you could consider to more thoroughly flesh out your knowledge.
 
   Do not finalize your response.
   **Continue thinking.**
@@ -150,27 +145,29 @@ defmodule AI.Agent.Reason do
   @finalize """
   **Do not think any further.**
 
-  **Before answering, save all insights, inferrences, and facts for future
-  use** using the `notes_save_tool`, even if not relevant to *this* query.
+  **Save all insights, inferrences, and facts for future use** using the `notes_save_tool`, even if not relevant to *this* topic.
+  Include tips, hints, and warnings to yourself that might help you avoid pitfalls in the future.
 
-  If the user requested investigation or documentation, this is an excellent
-  opportunity to save a lot of notes for future use.
-
-  Format the response as a plain markdown document (no code fences/```) that
-  walks the user through the answer. Use instructional design principles to
-  guide the user through the answer.
+  Format the response as a plain markdown document (no code fences/```) that walks the user through the answer.
+  Use instructional design principles to guide the user through the answer.
 
   Follow these rules:
-    - Start immediately with the highest-level header (#), without introductions, disclaimers, or phrases like "Below is...".
-    - Use headers (##, ###) for sections, lists for key points, and bold/italics for emphasis.
-    - Structure content like a technical manual or man page: concise, hierarchical, and self-contained.
-    - Avoid conversational language, commentary, or markdown-rendering hints (e.g., "```markdown").
+    - You are talking to a programmer: **NEVER use smart quotes or apostrophes.**
+    - Start immediately with the highest-level header (#), without
+      introductions, disclaimers, or phrases like "Below is...".
+    - Use headers (##, ###) for sections, lists for key points, and
+      bold/italics for emphasis.
+    - Structure content like a technical manual or man page: concise,
+      hierarchical, and self-contained.
+    - Include a tl;dr section toward the end.
+    - Include a list of relevant files if appropriate.
+    - Avoid commentary or markdown-rendering hints (e.g., "```markdown").
 
-  Just for fun, finish off your response with a humorous MOTD. Select a quote
-  by a historical figure or well-known fictional character that is relevant to
-  the user's question. Then invent a modern software-related context for the
-  quote, humorously juxtaposing a real quote with a fictional context. It must
-  be delivered with perfect deadpan. Format: `### MOTD\n> <quote> - <source>`
+  Just for fun, finish off your response with a humorous MOTD.
+  Select a quote from a historical figure or well-known fictional character.
+  **Invent a brief, completely fictional and humorous scenario** related to software development or programming where the quote would be relevant.
+  The scenario should be a made-up situation involving coding, debugging, or technology.
+  Format: `### MOTD\n> <quote> - <source>, <briefly state the made-up scenario>`
 
   Finalize your response.
   """
@@ -178,7 +175,7 @@ defmodule AI.Agent.Reason do
   defp initial_msg(), do: AI.Util.system_msg(@initial)
   defp continue_msg(), do: AI.Util.system_msg(@continue)
   defp finalize_msg(), do: AI.Util.system_msg(@finalize)
-  defp user_msg(%{question: question}), do: AI.Util.system_msg(question)
+  defp user_msg(%{question: question}), do: AI.Util.user_msg(question)
 
   defp project_msg(%{project: project}) do
     """
@@ -209,7 +206,7 @@ defmodule AI.Agent.Reason do
   end
 
   defp log_response(%{last_response: thought} = state) do
-    thought = String.replace(thought, ~r/<perform_step>(.*)<\/think>/, "\\1")
+    thought = String.replace(thought, ~r/<think>(.*)<\/think>/, "\\1")
     UI.debug("Considering", thought)
     state
   end

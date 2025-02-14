@@ -21,7 +21,11 @@ defmodule AI.Tools.Notes.Search do
       type: "function",
       function: %{
         name: "notes_search_tool",
-        description: "",
+        description: """
+        Every time you perform research, you have saved notes and hints to
+        yourself. Use this tool to search your prior notes to see if you've
+        already gained some past insight into the user's question.
+        """,
         strict: true,
         parameters: %{
           additionalProperties: false,
