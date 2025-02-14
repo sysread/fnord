@@ -42,12 +42,13 @@ defmodule AI.Tools.File.Info do
         name: "file_info_tool",
         description: """
         Requests information about a file. An LLM will use your question to
-        extract relevant information from the file. Specify exactly how you
-        want the response formatted (e.g. exact code sections, interfaces,
-        explanations, yes/no, etc.). The file path must match the one provided
-        by the file_list_tool or file_search_tool to avoid enoent errors. This
-        tool can use git to provide context about its history and differences
-        from earlier version.
+        extract relevant information from the file, preserving your own context
+        window so you can focus on answering the user's questions. Specify
+        exactly how you want the response formatted (e.g. exact code sections,
+        interfaces, explanations, yes/no, etc.). The file path must match the
+        one provided by the file_list_tool or file_search_tool to avoid enoent
+        errors. This tool can use git to provide context about its history and
+        differences from earlier version.
         """,
         strict: true,
         parameters: %{
