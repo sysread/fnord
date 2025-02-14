@@ -1,5 +1,6 @@
 defmodule Cmd.Ask do
   @project_not_found_error "Project not found; verify that the project has been indexed."
+  @template_not_found_error "Template file not found; verify that the output template file exists."
   @default_rounds 3
 
   @behaviour Cmd
@@ -46,6 +47,16 @@ defmodule Cmd.Ask do
             long: "--follow",
             short: "-f",
             help: "Follow up the conversation with another question/prompt"
+          ],
+          template: [
+            value_name: "TEMPLATE",
+            long: "--template",
+            short: "-t",
+            help: """
+            The path to a file containing an output template for the AI to
+            follow when generating a response. Include '$$MOTD$$' in the
+            template to include the message of the day in the response.
+            """
           ]
         ],
         flags: [
@@ -61,11 +72,14 @@ defmodule Cmd.Ask do
 
   @impl Cmd
   def run(opts, _unknown) do
+    ai = AI.new()
+    start_time = System.monotonic_time(:second)
+
     with :ok <- validate(opts),
+         {:ok, template} <- read_template(opts),
          {:ok, msgs, conversation} <- restore_conversation(opts),
-         opts <- Map.put(opts, :msgs, msgs),
-         start_time <- System.monotonic_time(:second),
-         {:ok, %{msgs: msgs}} <- AI.Agent.Reason.get_response(AI.new(), opts),
+         opts <- opts |> Map.put(:template, template) |> Map.put(:msgs, msgs),
+         %{msgs: msgs} <- AI.Agent.Reason.get_response(ai, opts),
          {:ok, conversation_id} <- save_conversation(conversation, msgs) do
       end_time = System.monotonic_time(:second)
       time_taken = end_time - start_time
@@ -79,11 +93,19 @@ defmodule Cmd.Ask do
       """)
     else
       {:error, :project_not_found} -> UI.error(@project_not_found_error)
+      {:error, :template_not_found} -> UI.error(@template_not_found_error)
       {:ok, :testing} -> :ok
     end
   end
 
-  defp validate(_opts) do
+  defp validate(opts) do
+    with :ok <- validate_project(opts),
+         :ok <- validate_template(opts) do
+      :ok
+    end
+  end
+
+  defp validate_project(_opts) do
     Store.get_project()
     |> Store.Project.exists_in_store?()
     |> case do
@@ -91,6 +113,19 @@ defmodule Cmd.Ask do
       false -> {:error, :project_not_found}
     end
   end
+
+  defp validate_template(%{template: nil}), do: :ok
+
+  defp validate_template(%{template: template}) do
+    if File.exists?(template) do
+      :ok
+    else
+      {:error, :template_not_found}
+    end
+  end
+
+  defp read_template(%{template: nil}), do: {:ok, nil}
+  defp read_template(%{template: template}), do: File.read(template)
 
   defp get_conversation(%{follow: conversation_id}) when is_binary(conversation_id) do
     Store.Project.Conversation.new(conversation_id)

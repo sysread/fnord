@@ -20,20 +20,14 @@ defmodule AI.Agent.Reason do
   defp new(ai, opts) do
     %{
       ai: ai,
+      project: opts.project,
       question: opts.question,
+      template: opts.template,
       rounds: opts.rounds,
-      msgs: initial_messages(opts),
+      msgs: opts.msgs,
       last_response: nil,
       round: 1
     }
-  end
-
-  defp initial_messages(%{msgs: msgs} = opts) do
-    msgs ++ [initial_msg(), project_msg(opts), user_msg(opts)]
-  end
-
-  defp initial_messages(opts) do
-    [initial_msg(), project_msg(opts), user_msg(opts)]
   end
 
   defp consider(state) do
@@ -47,48 +41,139 @@ defmodule AI.Agent.Reason do
   # -----------------------------------------------------------------------------
   # Research steps
   # -----------------------------------------------------------------------------
-  defp perform_step(%{rounds: rounds, round: round} = state) when round < rounds do
-    with {:ok, state} <- get_completion(state) do
-      state
-      |> Map.put(:msgs, state.msgs ++ [continue_msg()])
-      |> Map.put(:round, round + 1)
-      |> perform_step()
-    end
+  defp perform_step(%{round: a, rounds: b} = state) when a < b do
+    state
+    # Prior conversations do not include the "thinking" prompts.
+    |> Map.put(:msgs, state.msgs ++ [initial_msg(state), user_msg(state)])
+    |> get_completion()
+    |> perform_step()
   end
 
-  defp perform_step(%{rounds: rounds, round: round} = state) when round == rounds do
-    with {:ok, state} <- get_completion(state) do
-      state
-      |> Map.put(:msgs, state.msgs ++ [finalize_msg()])
-      |> Map.put(:round, :finalize)
-      |> perform_step()
-    end
+  defp perform_step(%{round: a, rounds: b} = state) when a == b do
+    state
+    |> Map.put(:msgs, state.msgs ++ [continue_msg(state)])
+    |> get_completion()
+    |> perform_step()
   end
 
   defp perform_step(%{round: :finalize} = state) do
-    with {:ok, state} <- get_completion(state) do
-      {:ok, state}
-    end
+    state
+    |> Map.put(:msgs, state.msgs ++ [finalize_msg(state)])
+    |> get_completion()
   end
 
   defp get_completion(%{ai: ai, msgs: msgs} = state) do
     log_step(state)
 
-    with {:ok, %{response: response, messages: messages}} <-
-           AI.Completion.get(ai,
-             log_msgs: true,
-             log_tool_calls: true,
-             replay_conversation: false,
-             model: @model,
-             tools: available_tools(state),
-             messages: msgs
-           ) do
-      state
-      |> Map.put(:msgs, messages)
-      |> Map.put(:last_response, response)
+    AI.Completion.get(ai,
+      log_msgs: true,
+      log_tool_calls: true,
+      replay_conversation: false,
+      model: @model,
+      tools: available_tools(state),
+      messages: msgs
+    )
+    |> then(fn {:ok, %{response: response, messages: new_msgs}} ->
+      %{state | msgs: new_msgs, last_response: response}
       |> log_response()
-      |> then(&{:ok, &1})
-    end
+      |> next_round()
+    end)
+  end
+
+  defp next_round(%{round: a, rounds: b} = state) when a < b, do: %{state | round: a + 1}
+  defp next_round(state), do: %{state | round: :finalize}
+
+  # -----------------------------------------------------------------------------
+  # Message shortcuts
+  # -----------------------------------------------------------------------------
+  @initial """
+  You are an AI assistant that researches the user's code base to answer their qustions.
+  You are assisting the user by researching their question about the project, $$PROJECT$$.
+  Begin by searching for prior research notes that might clarify the user's needs.
+  Confirm whether any prior research you found is still relevant and factual.
+  Proactively use your tools to research the user's question.
+  You reason through problems step by step.
+
+  Before answering, **you must think inside <think>...</think> tags.**
+  Do not finalize your response until explicitly instructed.
+  """
+
+  @continue """
+  Consider your previous thoughts and refine your thinking.
+  Proactively use your tools to refine your research.
+  Consider whether there are other aspects of the topic you could consider to more thoroughly flesh out your knowledge.
+
+  Do not finalize your response.
+  **Continue thinking.**
+  """
+
+  @default_template """
+  Format the response in markdown.
+
+  Follow these rules:
+    - You are talking to a programmer: **NEVER use smart quotes or apostrophes**
+    - Start immediately with the highest-level header (#), without introductions, disclaimers, or phrases like "Below is...".
+    - Use headers (##, ###) for sections, lists for key points, and bold/italics for emphasis.
+    - Structure content like a technical manual or man page: concise, hierarchical, and self-contained.
+    - Include a tl;dr section toward the end.
+    - Include a list of relevant files if appropriate.
+    - Avoid commentary or markdown-rendering hints (e.g., "```markdown").
+    - Code examples are always useful and should be functional and complete, surrounded by markdown code fences.
+
+  $$MOTD$$
+  """
+
+  @finalize """
+  **Do not think any further.**
+
+  **Save all insights, inferrences, and facts for future use** using the `notes_save_tool`, even if not relevant to *this* topic.
+  Include tips, hints, and warnings to yourself that might help you avoid pitfalls in the future.
+
+  Walk the user through the answer, step by step.
+  Use solid prinicples of instructional design when writing your response.
+  Ensure that your response is well-formatted and easy to read.
+
+  $$TEMPLATE$$
+
+  Finalize your response.
+  """
+
+  @motd """
+  Just for fun, finish off your response with a humorous MOTD.
+  Select a **real** quote from a **real** historical figure.
+  **Invent a brief, fictional and humorous scenario** related to software development or programming where the quote would be relevant.
+  The scenario should be a made-up situation involving coding, debugging, or technology.
+  Attribute the quote to the real person speaking from the made-up scenario.
+  Example: "I have not failed. I've just found 10,000 ways that won't work." - Thomas Edison, on the importance of negative path testing."
+  Don't just use my example. Be creative. Sheesh.
+  Format: `### MOTD\n> <quote> - <source>, <briefly state the made-up scenario>`
+  """
+
+  defp user_msg(%{question: question}) do
+    AI.Util.user_msg(question)
+  end
+
+  defp initial_msg(%{project: project}) do
+    @initial
+    |> String.replace("$$PROJECT$$", project)
+    |> AI.Util.system_msg()
+  end
+
+  defp continue_msg(_state) do
+    AI.Util.system_msg(@continue)
+  end
+
+  defp finalize_msg(%{template: nil} = state) do
+    state
+    |> Map.put(:template, @default_template)
+    |> finalize_msg()
+  end
+
+  defp finalize_msg(%{template: template}) do
+    @finalize
+    |> String.replace("$$TEMPLATE$$", template)
+    |> String.replace("$$MOTD$$", @motd)
+    |> AI.Util.system_msg()
   end
 
   # -----------------------------------------------------------------------------
@@ -119,71 +204,6 @@ defmodule AI.Agent.Reason do
     else
       @non_git_tools
     end
-  end
-
-  # -----------------------------------------------------------------------------
-  # Message shortcuts
-  # -----------------------------------------------------------------------------
-  @initial """
-  You are an AI assistant that researches the user's code base to answer their qustions.
-  Begin by searching for prior research notes that might clarify the user's needs.
-  You reason through problems step by step.
-
-  Before answering, **you must think inside <think>...</think> tags.**
-  Do not finalize your response until explicitly instructed.
-  """
-
-  @continue """
-  Consider your previous thoughts and refine your thinking.
-  Proactively use your tools to refine your research.
-  Consider whether there are other aspects of the topic you could consider to more thoroughly flesh out your knowledge.
-
-  Do not finalize your response.
-  **Continue thinking.**
-  """
-
-  @finalize """
-  **Do not think any further.**
-
-  **Save all insights, inferrences, and facts for future use** using the `notes_save_tool`, even if not relevant to *this* topic.
-  Include tips, hints, and warnings to yourself that might help you avoid pitfalls in the future.
-
-  Format the response as a plain markdown document (no code fences/```) that walks the user through the answer.
-  Use instructional design principles to guide the user through the answer.
-
-  Follow these rules:
-    - You are talking to a programmer: **NEVER use smart quotes or apostrophes.**
-    - Start immediately with the highest-level header (#), without
-      introductions, disclaimers, or phrases like "Below is...".
-    - Use headers (##, ###) for sections, lists for key points, and
-      bold/italics for emphasis.
-    - Structure content like a technical manual or man page: concise,
-      hierarchical, and self-contained.
-    - Include a tl;dr section toward the end.
-    - Include a list of relevant files if appropriate.
-    - Avoid commentary or markdown-rendering hints (e.g., "```markdown").
-
-  Just for fun, finish off your response with a humorous MOTD.
-  Select a quote from a historical figure or well-known fictional character.
-  **Invent a brief, completely fictional and humorous scenario** related to software development or programming where the quote would be relevant.
-  The scenario should be a made-up situation involving coding, debugging, or technology.
-  Format: `### MOTD\n> <quote> - <source>, <briefly state the made-up scenario>`
-
-  Finalize your response.
-  """
-
-  defp initial_msg(), do: AI.Util.system_msg(@initial)
-  defp continue_msg(), do: AI.Util.system_msg(@continue)
-  defp finalize_msg(), do: AI.Util.system_msg(@finalize)
-  defp user_msg(%{question: question}), do: AI.Util.user_msg(question)
-
-  defp project_msg(%{project: project}) do
-    """
-    You are assisting the user by researching their question about the project,
-    #{project}. Use your tools to investigate and answer the user's
-    question as accurately and completely as possible.
-    """
-    |> AI.Util.system_msg()
   end
 
   # -----------------------------------------------------------------------------
