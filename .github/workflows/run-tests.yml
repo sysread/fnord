@@ -22,23 +22,24 @@ jobs:
 
     - name: Setup elixir
       uses: erlef/setup-beam@v1
+      id: setup-elixir
       with:
-        elixir-version: 'latest'
-        otp-version: 'latest'
+        elixir-version: '1.x'  # Allow any 1.x version
+        otp-version: 'latest'  # Use latest available OTP version
 
     - name: Restore dependencies cache
       id: deps-cache-restore
       uses: actions/cache@v4
       with:
         path: deps
-        key: deps-cache-${{ runner.os }}-${{ hashFiles('mix.lock') }}
+        key: deps-cache-${{ runner.os }}-${{ hashFiles('mix.lock') }}-${{ steps.setup-elixir.outputs.elixir-version }}-${{ steps.setup-elixir.outputs.otp-version }}
 
     - name: Restore build cache
       id: build-cache-restore
       uses: actions/cache@v4
       with:
         path: _build
-        key: build-cache-${{ runner.os }}-${{ hashFiles('mix.lock') }}
+        key: build-cache-${{ runner.os }}-${{ hashFiles('mix.lock') }}-${{ steps.setup-elixir.outputs.elixir-version }}-${{ steps.setup-elixir.outputs.otp-version }}
 
     - name: Install dependencies
       run: |
@@ -60,11 +61,11 @@ jobs:
       uses: actions/cache@v4
       with:
         path: deps
-        key: deps-cache-${{ runner.os }}-${{ hashFiles('mix.lock') }}
+        key: deps-cache-${{ runner.os }}-${{ hashFiles('mix.lock') }}-${{ steps.setup-elixir.outputs.elixir-version }}-${{ steps.setup-elixir.outputs.otp-version }}
 
     - name: Save build cache
       if: steps.build-cache-restore.outputs.cache-hit != 'true'
       uses: actions/cache@v4
       with:
         path: _build
-        key: build-cache-${{ runner.os }}-${{ hashFiles('mix.lock') }}
+        key: build-cache-${{ runner.os }}-${{ hashFiles('mix.lock') }}-${{ steps.setup-elixir.outputs.elixir-version }}-${{ steps.setup-elixir.outputs.otp-version }}
