@@ -24,8 +24,8 @@ jobs:
       uses: erlef/setup-beam@v1
       id: setup-elixir
       with:
-        elixir-version: '1.x'  # Allow any 1.x version
-        otp-version: 'latest'  # Use latest available OTP version
+        elixir-version: '1.18'
+        otp-version: '27.2.2'  # latest OTP supported by Elixir 1.18
 
     - name: Restore dependencies cache
       id: deps-cache-restore
