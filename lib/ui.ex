@@ -9,7 +9,7 @@ defmodule UI do
   def confirm(_msg, true), do: true
 
   def confirm(msg, _default) do
-    IO.write("#{msg} (y/n) ")
+    IO.write("#{msg} (y/N) ")
 
     case IO.gets("") do
       "y\n" -> true
@@ -18,9 +18,7 @@ defmodule UI do
     end
   end
 
-  def flush do
-    Logger.flush()
-  end
+  def flush, do: Logger.flush()
 
   def report_step(msg), do: info(msg)
   def report_step(msg, detail), do: info(msg, detail)

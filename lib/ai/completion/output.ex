@@ -125,11 +125,19 @@ defmodule AI.Completion.Output do
     messages
     # Skip the first message, which is the system prompt for the agent
     |> Enum.drop(1)
-    |> Enum.each(fn msg -> replay_msg(state, msg, tool_call_args) end)
+    |> Enum.each(fn msg ->
+      replay_msg(state, msg, tool_call_args)
+    end)
 
     UI.flush()
 
-    IO.puts(response.content)
+    # UI outputs to STDERR and the next message is going to STDOUT, so we need
+    # to pause to allow the terminal to catch up before printing the final
+    # message. This is a shitty, shitty hack, but I haven't found a way to
+    # coordinate the two streams.
+    Process.sleep(100)
+
+    IO.puts("\n#{response.content}")
 
     state
   end
