@@ -49,11 +49,6 @@ defmodule Cmd.Ask do
           ]
         ],
         flags: [
-          continue: [
-            long: "--continue",
-            short: "-c",
-            help: "Continue the most recent conversation (ignored when --follow is set)"
-          ],
           replay: [
             long: "--replay",
             short: "-r",
@@ -99,12 +94,6 @@ defmodule Cmd.Ask do
 
   defp get_conversation(%{follow: conversation_id}) when is_binary(conversation_id) do
     Store.Project.Conversation.new(conversation_id)
-  end
-
-  defp get_conversation(%{continue: true}) do
-    Store.get_project()
-    |> Store.Project.conversations()
-    |> Enum.at(0)
   end
 
   defp get_conversation(_opts) do
