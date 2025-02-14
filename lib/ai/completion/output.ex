@@ -152,6 +152,9 @@ defmodule AI.Completion.Output do
 
       %{role: "user", content: content} ->
         log_user_msg(state, content)
+
+      _ ->
+        :ok
     end
   end
 
