@@ -9,14 +9,3 @@ The files in `./data/tokens` directory are used by `AI.Tokenizer`. They are avai
 To regenerate tokenizer files, run `data/tokens/build_tokenizer_files.exs`.
 
 Use https://platform.openai.com/tokenizer to generate test data.
-
-# `answers.yaml`
-
-This yaml file defines the response templates used by the `AI.Tools.Answers` to generate a response appropriate to the user's query.
-They are read in at compile time.
-
-# `strategies.yaml`
-
-This yaml file defines the research strategies stored in `$HOME/.fnord/strategies`.
-They are made semantically searchable by `Store.Strategy`.
-They are read in at compile time.

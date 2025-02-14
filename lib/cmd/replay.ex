@@ -51,7 +51,6 @@ defmodule Cmd.Replay do
       model: "n/a",
       log_msgs: true,
       log_tool_calls: true,
-      planner: false,
       replay_conversation: true
     )
   end

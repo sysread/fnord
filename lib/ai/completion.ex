@@ -16,7 +16,6 @@ defmodule AI.Completion do
     :ai,
     :opts,
     :model,
-    :use_planner,
     :tools,
     :log_msgs,
     :log_tool_calls,
@@ -30,7 +29,6 @@ defmodule AI.Completion do
           ai: AI.t(),
           opts: Keyword.t(),
           model: String.t(),
-          use_planner: boolean(),
           tools: list(),
           log_msgs: boolean(),
           log_tool_calls: boolean(),
@@ -47,10 +45,7 @@ defmodule AI.Completion do
     with {:ok, state} <- new(ai, opts) do
       state
       |> AI.Completion.Output.replay_conversation()
-      |> maybe_analyze_prompt()
-      |> maybe_plan_research()
       |> send_request()
-      |> maybe_evaluate_response()
       |> then(&{:ok, &1})
     end
   end
@@ -59,7 +54,6 @@ defmodule AI.Completion do
     with {:ok, model} <- Keyword.fetch(opts, :model),
          {:ok, messages} <- Keyword.fetch(opts, :messages) do
       tools = Keyword.get(opts, :tools, nil)
-      use_planner = Keyword.get(opts, :use_planner, false)
       log_msgs = Keyword.get(opts, :log_msgs, false)
       replay = Keyword.get(opts, :replay_conversation, true)
 
@@ -70,7 +64,6 @@ defmodule AI.Completion do
         ai: ai,
         opts: Enum.into(opts, %{}),
         model: model,
-        use_planner: use_planner,
         tools: tools,
         log_msgs: log_msgs,
         log_tool_calls: log_tool_calls,
@@ -113,7 +106,6 @@ defmodule AI.Completion do
   # -----------------------------------------------------------------------------
   defp send_request(state) do
     state
-    |> maybe_refine_research()
     |> get_completion()
     |> handle_response()
   end
@@ -177,93 +169,6 @@ defmodule AI.Completion do
     """
 
     %{state | response: error_msg}
-  end
-
-  # -----------------------------------------------------------------------------
-  # Planner
-  # -----------------------------------------------------------------------------
-  defp maybe_analyze_prompt(%{use_planner: false} = state), do: state
-
-  defp maybe_analyze_prompt(%{ai: ai, use_planner: true, messages: msgs, tools: tools} = state) do
-    AI.Completion.Output.log_tool_call(state, "Analyzing the user's query")
-
-    case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools, stage: :prompt}) do
-      {:ok, response} ->
-        AI.Completion.Output.log_tool_call_result(state, "Research planner", response)
-        planner_msg = AI.Util.planner_msg(response)
-        %__MODULE__{state | messages: state.messages ++ [planner_msg]}
-
-      {:error, reason} ->
-        AI.Completion.Output.log_tool_call_error(state, "planner", reason)
-        state
-    end
-  end
-
-  defp maybe_plan_research(%{use_planner: false} = state), do: state
-
-  defp maybe_plan_research(%{ai: ai, use_planner: true, messages: msgs, tools: tools} = state) do
-    AI.Completion.Output.log_tool_call(state, "Building a research plan")
-
-    case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools, stage: :initial}) do
-      {:ok, response} ->
-        AI.Completion.Output.log_tool_call_result(state, "Research plan", response)
-        planner_msg = AI.Util.planner_msg(response)
-        %__MODULE__{state | messages: state.messages ++ [planner_msg]}
-
-      {:error, reason} ->
-        AI.Completion.Output.log_tool_call_error(state, "planner", reason)
-        state
-    end
-  end
-
-  defp maybe_refine_research(%{use_planner: false} = state), do: state
-
-  defp maybe_refine_research(%{ai: ai, use_planner: true, messages: msgs, tools: tools} = state) do
-    AI.Completion.Output.log_tool_call(state, "Evaluating research and planning next steps")
-
-    case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools, stage: :checkin}) do
-      {:ok, response} ->
-        AI.Completion.Output.log_tool_call_result(state, "Refining research plan", response)
-        planner_msg = AI.Util.planner_msg(response)
-        %__MODULE__{state | messages: state.messages ++ [planner_msg]}
-
-      {:error, reason} ->
-        AI.Completion.Output.log_tool_call_error(state, "planner", reason)
-        state
-    end
-  end
-
-  defp maybe_evaluate_response(%{use_planner: false} = state), do: state
-
-  defp maybe_evaluate_response(%{ai: ai, use_planner: true, messages: msgs, tools: tools} = state) do
-    AI.Completion.Output.log_tool_call(state, "Double-checking the response")
-
-    case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools, stage: :evaluate}) do
-      {:ok, "From the Planner Agent: VERIFIED"} ->
-        maybe_finish_planner(state)
-
-      {:ok, response} ->
-        planner_msg = AI.Util.planner_msg(response)
-        %__MODULE__{state | messages: state.messages ++ [planner_msg]}
-
-      {:error, reason} ->
-        AI.Completion.Output.log_tool_call_error(state, "planner", reason)
-        state
-    end
-  end
-
-  defp maybe_finish_planner(%{ai: ai, use_planner: true, messages: msgs, tools: tools} = state) do
-    AI.Completion.Output.log_tool_call(state, "Consolidating lessons learned from the research")
-
-    case AI.Agent.Planner.get_response(ai, %{msgs: msgs, tools: tools, stage: :finish}) do
-      {:ok, response} ->
-        planner_msg = AI.Util.planner_msg(response)
-        %__MODULE__{state | messages: state.messages ++ [planner_msg]}
-
-      {:error, reason} ->
-        AI.Completion.Output.log_tool_call_error(state, "planner", reason)
-        state
-    end
   end
 
   # -----------------------------------------------------------------------------

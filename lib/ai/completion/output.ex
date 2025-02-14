@@ -147,14 +147,6 @@ defmodule AI.Completion.Output do
       %{role: "tool", name: func, tool_call_id: id, content: content} ->
         on_event(state, :tool_call_result, {func, tool_call_args[id], content})
 
-      # Not supported in reasoning models, but still may be present in older
-      # conversations.
-      %{role: "system", content: content} ->
-        on_event(state, :tool_call_result, {"planner", %{}, content})
-
-      %{role: "developer", content: content} ->
-        on_event(state, :tool_call_result, {"planner", %{}, content})
-
       %{role: "assistant", content: content} ->
         log_assistant_msg(state, content)
 

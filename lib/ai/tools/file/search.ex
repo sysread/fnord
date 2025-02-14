@@ -19,10 +19,10 @@ defmodule AI.Tools.File.Search do
       function: %{
         name: "file_search_tool",
         description: """
-        The search tool uses a semantic search to find project files matching
-        your query input. This tool does NOT have access to historical data or
-        commit messages. It only searches the most recently indexed version of
-        the project.
+        The search tool implements a robust semantic search to find project
+        files matching your query input. This tool does NOT have access to
+        historical data or commit messages. It only searches the most recently
+        indexed version of the project.
         """,
         strict: true,
         parameters: %{

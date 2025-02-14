@@ -105,7 +105,6 @@ defmodule AI.Agent.FactChecker do
     AI.Completion.get(ai,
       log_msgs: false,
       log_tool_calls: false,
-      use_planner: false,
       model: @model,
       tools: available_tools(),
       messages: messages

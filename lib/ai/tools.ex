@@ -134,21 +134,10 @@ defmodule AI.Tools do
     "notes_save_tool" => AI.Tools.Notes.Save
   }
 
-  @strategies_tools %{
-    "strategies_list_tool" => AI.Tools.Strategies.List,
-    "strategies_get_tool" => AI.Tools.Strategies.Get
-  }
-
-  @answers_tools %{
-    "answers_tool" => AI.Tools.Answers
-  }
-
   @tools %{}
          |> Map.merge(@file_tools)
          |> Map.merge(@git_tools)
          |> Map.merge(@notes_tools)
-         |> Map.merge(@strategies_tools)
-         |> Map.merge(@answers_tools)
 
   # ----------------------------------------------------------------------------
   # API Functions

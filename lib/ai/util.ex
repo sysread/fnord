@@ -4,8 +4,6 @@ defmodule AI.Util do
   @role_assistant "assistant"
   @role_tool "tool"
 
-  @planner "Planner"
-
   def note_format_prompt do
     """
     Your audience is another AI LLM agent.
@@ -65,29 +63,6 @@ defmodule AI.Util do
     |> Enum.map(&String.trim/1)
   end
 
-  def agent_to_agent_prompt do
-    """
-    You are communicating with another AI agent.
-
-    Optimize token usage and efficiency using the following guidelines:
-    - Avoid human-specific language conventions like articles, connecting phrases, or redundant words.
-    - Use a structured, non-linear format with concise key-value pairs, hierarchical lists, or markup-like tags.
-    - Prioritize key information first, followed by secondary details as needed.
-    - Use shorthand or domain-specific terms wherever possible.
-    - Ensure the output is unambiguous but not necessarily human-readable.
-
-    For example:
-    - "The database query returned an error because the schema was not updated."
-      - Agent-Optimized: {event db error, cause outdated schema}
-    - "Use the file_search_tool to identify examples of existing implementations of X that the user can reference."
-      - Agent-Optimized: {search_tool, query X implementation}
-    - "The user requested information about 'X', which appears to have multiple meanings in the context of the project."
-      - Agent-Optimized: {disambiguate X, respond multiple meaning}
-    - "I performed the following tasks: X, Y, and Z
-      - Agent-Optimized: {done {task X} {task Y} {task Z}}
-    """
-  end
-
   # Computes the cosine similarity between two vectors
   def cosine_similarity(vec1, vec2) do
     if length(vec1) != length(vec2) do
@@ -136,9 +111,6 @@ defmodule AI.Util do
       # conversations.
       %{role: "system", content: _}, acc ->
         acc
-
-      %{role: @role_system, name: @planner, content: content}, acc ->
-        [content | acc]
 
       %{role: @role_system, content: _content}, acc ->
         acc
@@ -189,51 +161,6 @@ defmodule AI.Util do
   end
 
   # -----------------------------------------------------------------------------
-  # Research step counting
-  # -----------------------------------------------------------------------------
-  @doc """
-  Counts the number of steps in the research process. A step is identified
-  using planner messages as a proxy for each iteration in the research process.
-  This function only counts the steps in the most recent iteration of the
-  overall conversation by starting its count from the most recent user message.
-  """
-  def count_steps(msgs) do
-    # msgs is the entire conversation transcript. We're only interested in the
-    # most recent steps following the last user message. For example, if the
-    # user replied to the original response, we only want to count the steps
-    # that followed that reply.
-    msgs
-    # Start from the end of the conversation.
-    |> Enum.reverse()
-    # Extract all of the messages up to the last user message. That leaves us
-    # with all of the messages that are part of the current research process.
-    |> Enum.take_while(fn msg -> !is_user_msg?(msg) end)
-    # The planner is called at each step in the process, so we can use that as
-    # our canary to identify research "steps".
-    |> Enum.filter(&is_step_msg?/1)
-    |> Enum.count()
-    # -1 for the initial planner message that analyzes the user's query. That
-    # msg is immediately followed by the first analysis step we want to count.
-    |> case do
-      0 -> 0
-      count -> count - 1
-    end
-  end
-
-  defp is_step_msg?(%{role: @role_system, name: @planner, content: content})
-       when is_binary(content) do
-    true
-  end
-
-  defp is_step_msg?(_), do: false
-
-  defp is_user_msg?(%{role: @role_user, content: content}) when is_binary(content) do
-    !String.starts_with?(content, AI.Agent.Planner.preamble())
-  end
-
-  defp is_user_msg?(_), do: false
-
-  # -----------------------------------------------------------------------------
   # Messages
   # -----------------------------------------------------------------------------
 
@@ -245,14 +172,6 @@ defmodule AI.Util do
     %{
       role: @role_system,
       content: msg
-    }
-  end
-
-  def planner_msg(msg) do
-    %{
-      role: @role_system,
-      content: msg,
-      name: @planner
     }
   end
 

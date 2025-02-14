@@ -77,7 +77,6 @@ defmodule AI.Agent.NotesConsolidator do
     AI.Completion.get(ai,
       log_msgs: false,
       log_tool_calls: false,
-      use_planner: false,
       model: @model,
       messages: messages
     )

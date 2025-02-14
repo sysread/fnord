@@ -60,8 +60,6 @@ defmodule AI.Agent.FileInfo do
   If you encounter errors, include the full text of the error in your response to ensure that it is visible to the user so that it can be corrected.
 
   Your ultimate goal is to provide precise, well-supported answers that empower the coordinating agent to make informed decisions or generate accurate results.
-
-  #{AI.Util.agent_to_agent_prompt()}
   """
 
   @tools [
