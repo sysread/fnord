@@ -43,7 +43,6 @@ defmodule Fnord do
           Cmd.Projects,
           Cmd.Replay,
           Cmd.Search,
-          Cmd.ShellCompletion,
           Cmd.Summary,
           Cmd.Tool,
           Cmd.Torch,
