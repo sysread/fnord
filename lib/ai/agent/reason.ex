@@ -41,7 +41,7 @@ defmodule AI.Agent.Reason do
   # -----------------------------------------------------------------------------
   # Research steps
   # -----------------------------------------------------------------------------
-  defp perform_step(%{round: a, rounds: b} = state) when a < b do
+  defp perform_step(%{round: 1} = state) do
     state
     # Prior conversations do not include the "thinking" prompts.
     |> Map.put(:msgs, state.msgs ++ [initial_msg(state), user_msg(state)])
@@ -49,7 +49,21 @@ defmodule AI.Agent.Reason do
     |> perform_step()
   end
 
-  defp perform_step(%{round: a, rounds: b} = state) when a == b do
+  defp perform_step(%{round: 2 = a, rounds: b} = state) when a <= b do
+    state
+    |> Map.put(:msgs, state.msgs ++ [clarify_msg(state)])
+    |> get_completion()
+    |> perform_step()
+  end
+
+  defp perform_step(%{round: 3 = a, rounds: b} = state) when a <= b do
+    state
+    |> Map.put(:msgs, state.msgs ++ [refine_msg(state)])
+    |> get_completion()
+    |> perform_step()
+  end
+
+  defp perform_step(%{round: a, rounds: b} = state) when a <= b do
     state
     |> Map.put(:msgs, state.msgs ++ [continue_msg(state)])
     |> get_completion()
@@ -94,17 +108,37 @@ defmodule AI.Agent.Reason do
   Proactively use your tools to research the user's question.
   You reason through problems step by step.
 
-  Before answering, **you must think inside <think>...</think> tags.**
   Do not finalize your response until explicitly instructed.
   """
 
-  @continue """
+  @clarify """
   Consider your previous thoughts and refine your thinking.
-  Proactively use your tools to refine your research.
-  Consider whether there are other aspects of the topic you could consider to more thoroughly flesh out your knowledge.
+  Use your tools to improve your understanding of the application of the context within this project.
+  Expand your thinking and investigation to consider other aspects of the topic.
+  Identify potential ambiguities around how the context is applied within this project.
 
   Do not finalize your response.
-  **Continue thinking.**
+  **Continue researching.**
+  """
+
+  @refine """
+  Consider your previous thoughts and refine your thinking.
+  Use your tools to improve your understanding of the application of the context within this project.
+  Now that you have identified and eliminated any red herrings, focus on the most relevant information.
+  Consider the context of the user's question. What is the most effective format for your response?
+  Are there any other unresolved questions that you must research in order to provide an effective response?
+
+  Do not finalize your response.
+  **Continue researching.**
+  """
+
+  @continue """
+  The user has requested that you spend additional time investigating their question.
+  Perform additional research steps to more fully flesh out your knowledge of the topic.
+  Use your tools to improve your understanding of the domain and its context within this project.
+
+  Do not finalize your response.
+  **Continue researching.**
   """
 
   @default_template """
@@ -124,7 +158,7 @@ defmodule AI.Agent.Reason do
   """
 
   @finalize """
-  **Do not think any further.**
+  **Do not research any further.**
 
   **Save all insights, inferrences, and facts for future use** using the `notes_save_tool`, even if not relevant to *this* topic.
   Include tips, hints, and warnings to yourself that might help you avoid pitfalls in the future.
@@ -157,6 +191,14 @@ defmodule AI.Agent.Reason do
     @initial
     |> String.replace("$$PROJECT$$", project)
     |> AI.Util.system_msg()
+  end
+
+  defp clarify_msg(_state) do
+    AI.Util.system_msg(@clarify)
+  end
+
+  defp refine_msg(_state) do
+    AI.Util.system_msg(@refine)
   end
 
   defp continue_msg(_state) do
@@ -226,6 +268,7 @@ defmodule AI.Agent.Reason do
   end
 
   defp log_response(%{last_response: thought} = state) do
+    # "Reasoning" models often leave the <think> tags in the response.
     thought = String.replace(thought, ~r/<think>(.*)<\/think>/, "\\1")
     UI.debug("Considering", thought)
     state

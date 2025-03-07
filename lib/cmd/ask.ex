@@ -1,7 +1,7 @@
 defmodule Cmd.Ask do
   @project_not_found_error "Project not found; verify that the project has been indexed."
   @template_not_found_error "Template file not found; verify that the output template file exists."
-  @default_rounds 3
+  @min_rounds 3
 
   @behaviour Cmd
 
@@ -32,7 +32,7 @@ defmodule Cmd.Ask do
             short: "-R",
             help: "The number of research rounds to perform",
             parser: :integer,
-            default: @default_rounds,
+            default: @min_rounds,
             required: false
           ],
           workers: [
@@ -92,18 +92,30 @@ defmodule Cmd.Ask do
       - Conversation saved with ID #{conversation_id}
       """)
     else
-      {:error, :project_not_found} -> UI.error(@project_not_found_error)
-      {:error, :template_not_found} -> UI.error(@template_not_found_error)
-      {:ok, :testing} -> :ok
+      {:error, :project_not_found} ->
+        UI.error(@project_not_found_error)
+
+      {:error, :template_not_found} ->
+        UI.error(@template_not_found_error)
+
+      {:error, :invalid_rounds} ->
+        UI.error("Invalid number of rounds; must be greater than or equal to #{@min_rounds}")
+
+      {:ok, :testing} ->
+        :ok
     end
   end
 
   defp validate(opts) do
     with :ok <- validate_project(opts),
-         :ok <- validate_template(opts) do
+         :ok <- validate_template(opts),
+         :ok <- validate_rounds(opts) do
       :ok
     end
   end
+
+  defp validate_rounds(%{rounds: rounds}) when rounds >= @min_rounds, do: :ok
+  defp validate_rounds(_opts), do: {:error, :invalid_rounds}
 
   defp validate_project(_opts) do
     Store.get_project()
