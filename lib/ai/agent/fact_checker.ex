@@ -1,5 +1,5 @@
 defmodule AI.Agent.FactChecker do
-  @model AI.Model.fast()
+  @model AI.Model.balanced()
 
   @prompt """
   #{AI.Util.note_format_prompt()}
