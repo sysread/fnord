@@ -42,4 +42,29 @@ defmodule Util do
   end
 
   def string_keys_to_atoms(value), do: value
+
+  def get_running_version do
+    {:ok, vsn} = :application.get_key(:fnord, :vsn)
+    to_string(vsn)
+  end
+
+  def get_latest_version do
+    case HTTPoison.get("https://hex.pm/api/packages/fnord", [], follow_redirect: true) do
+      {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
+        body
+        |> Jason.decode()
+        |> case do
+          {:ok, %{"latest_version" => version}} -> {:ok, version}
+          _ -> :error
+        end
+
+      {:ok, %HTTPoison.Response{status_code: code}} ->
+        IO.warn("Hex API request failed with status #{code}")
+        {:error, :api_request_failed}
+
+      {:error, %HTTPoison.Error{reason: reason}} ->
+        IO.warn("Hex API request error: #{inspect(reason)}")
+        {:error, reason}
+    end
+  end
 end

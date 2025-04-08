@@ -18,9 +18,24 @@ defmodule Fnord do
     with {:ok, subcommand, opts, unknown} <- parse_options(args) do
       opts = set_globals(opts)
 
+      version_check_task = Task.async(fn -> Util.get_latest_version() end)
+
       subcommand
       |> to_module_name()
       |> apply(:run, [opts, unknown])
+
+      with {:ok, {:ok, latest}} <- Task.yield(version_check_task, 1000) do
+        current = Util.get_running_version()
+
+        if Version.compare(current, latest) == :lt do
+          IO.puts(:stderr, """
+
+          A new version of fnord is available! To upgrade to v#{latest}:
+
+              fnord upgrade
+          """)
+        end
+      end
     else
       {:error, reason} -> IO.puts("Error: #{reason}")
     end
@@ -31,7 +46,7 @@ defmodule Fnord do
       name: "fnord",
       description: @desc,
       allow_unknown_args: false,
-      version: get_version(),
+      version: Util.get_running_version(),
       subcommands:
         [
           Cmd.Ask,
@@ -65,11 +80,6 @@ defmodule Fnord do
     else
       _ -> {:error, "missing or unknown subcommand"}
     end
-  end
-
-  defp get_version do
-    {:ok, vsn} = :application.get_key(:fnord, :vsn)
-    to_string(vsn)
   end
 
   def configure_logger do
