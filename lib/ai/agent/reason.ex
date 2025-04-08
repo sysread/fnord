@@ -49,14 +49,14 @@ defmodule AI.Agent.Reason do
     |> perform_step()
   end
 
-  defp perform_step(%{round: 2 = a, rounds: b} = state) when a <= b do
+  defp perform_step(%{round: 2} = state) do
     state
     |> Map.put(:msgs, state.msgs ++ [clarify_msg(state)])
     |> get_completion()
     |> perform_step()
   end
 
-  defp perform_step(%{round: 3 = a, rounds: b} = state) when a <= b do
+  defp perform_step(%{round: 3} = state) do
     state
     |> Map.put(:msgs, state.msgs ++ [refine_msg(state)])
     |> get_completion()
