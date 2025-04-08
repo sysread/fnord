@@ -130,7 +130,6 @@ defmodule AI.Tools do
   }
 
   @notes_tools %{
-    "notes_search_tool" => AI.Tools.Notes.Search,
     "notes_save_tool" => AI.Tools.Notes.Save
   }
 

@@ -266,7 +266,7 @@ defmodule Store.Project do
     end
   end
 
-  def search_notes(project, query, max_results \\ 10) do
+  def search_notes(project, query, max_results \\ 10, min_similarity \\ 0.4) do
     needle = AI.get_embeddings!(AI.new(), query)
     notes = notes(project)
     workers = Enum.count(notes)
@@ -298,8 +298,11 @@ defmodule Store.Project do
       )
       # Collect the results
       |> Enum.reduce([], fn
-        {:ok, {score, note}}, acc -> [{score, note} | acc]
-        _, acc -> acc
+        {:ok, {score, note}}, acc when score >= min_similarity ->
+          [{score, note} | acc]
+
+        _, acc ->
+          acc
       end)
       # Sort by similarity
       |> Enum.sort(fn {a, _}, {b, _} -> a >= b end)

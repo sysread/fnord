@@ -23,10 +23,10 @@ defmodule AI.Agent.Reason do
       project: opts.project,
       question: opts.question,
       template: opts.template,
-      rounds: opts.rounds,
       msgs: opts.msgs,
       last_response: nil,
-      round: 1
+      research_seen: MapSet.new(),
+      steps: steps(opts.rounds)
     }
   end
 
@@ -41,44 +41,74 @@ defmodule AI.Agent.Reason do
   # -----------------------------------------------------------------------------
   # Research steps
   # -----------------------------------------------------------------------------
-  defp perform_step(%{round: 1} = state) do
+  @first_steps [:initial, :clarify, :refine]
+  @last_steps [:save_notes, :finalize]
+
+  defp steps(3), do: @first_steps ++ @last_steps
+  defp steps(n), do: @first_steps ++ Enum.map(1..n, fn _ -> :continue end) ++ @last_steps
+
+  defp perform_step(%{steps: [:initial | steps]} = state) do
+    UI.debug("Researching")
+
     state
     # Prior conversations do not include the "thinking" prompts.
     |> Map.put(:msgs, state.msgs ++ [initial_msg(state), user_msg(state)])
+    |> Map.put(:steps, steps)
+    |> get_notes()
     |> get_completion()
     |> perform_step()
   end
 
-  defp perform_step(%{round: 2} = state) do
+  defp perform_step(%{steps: [:clarify | steps]} = state) do
+    UI.debug("Clarifying")
+
     state
     |> Map.put(:msgs, state.msgs ++ [clarify_msg(state)])
+    |> Map.put(:steps, steps)
     |> get_completion()
     |> perform_step()
   end
 
-  defp perform_step(%{round: 3} = state) do
+  defp perform_step(%{steps: [:refine | steps]} = state) do
+    UI.debug("Refining")
+
     state
     |> Map.put(:msgs, state.msgs ++ [refine_msg(state)])
+    |> Map.put(:steps, steps)
     |> get_completion()
     |> perform_step()
   end
 
-  defp perform_step(%{round: a, rounds: b} = state) when a <= b do
+  defp perform_step(%{steps: [:continue | steps]} = state) do
+    UI.debug("Continuing research")
+
     state
     |> Map.put(:msgs, state.msgs ++ [continue_msg(state)])
+    |> Map.put(:steps, steps)
     |> get_completion()
     |> perform_step()
   end
 
-  defp perform_step(%{round: :finalize} = state) do
+  defp perform_step(%{steps: [:save_notes | steps]} = state) do
+    UI.debug("Saving findings for future use")
+
+    state
+    |> Map.put(:msgs, state.msgs ++ [save_notes_msg(state)])
+    |> Map.put(:steps, steps)
+    |> get_completion()
+    |> perform_step()
+  end
+
+  defp perform_step(%{steps: [:finalize]} = state) do
+    UI.debug("Generating response")
+
     state
     |> Map.put(:msgs, state.msgs ++ [finalize_msg(state)])
+    |> Map.put(:steps, [])
     |> get_completion()
   end
 
   defp get_completion(%{ai: ai, msgs: msgs} = state) do
-    log_step(state)
-
     AI.Completion.get(ai,
       log_msgs: true,
       log_tool_calls: true,
@@ -90,12 +120,8 @@ defmodule AI.Agent.Reason do
     |> then(fn {:ok, %{response: response, messages: new_msgs}} ->
       %{state | msgs: new_msgs, last_response: response}
       |> log_response()
-      |> next_round()
     end)
   end
-
-  defp next_round(%{round: a, rounds: b} = state) when a < b, do: %{state | round: a + 1}
-  defp next_round(state), do: %{state | round: :finalize}
 
   # -----------------------------------------------------------------------------
   # Message shortcuts
@@ -103,7 +129,6 @@ defmodule AI.Agent.Reason do
   @initial """
   You are an AI assistant that researches the user's code base to answer their qustions.
   You are assisting the user by researching their question about the project, $$PROJECT$$.
-  Begin by searching for prior research notes that might clarify the user's needs.
   Confirm whether any prior research you found is still relevant and factual.
   Proactively use your tools to research the user's question.
   You reason through problems step by step.
@@ -141,6 +166,17 @@ defmodule AI.Agent.Reason do
   **Continue researching.**
   """
 
+  @save_notes """
+  **Do not research any further.**
+  Your research is complete.
+
+  Your current task is to save your research notes for future use.
+  ALL facts are important, even if they are not relevant to the current topic.
+  They will improve your responses in the future.
+  Save all insights, inferrences, and facts for future use using the `notes_save_tool`.
+  Include tips, hints, and warnings to yourself that might help you avoid pitfalls in the future.
+  """
+
   @default_template """
   Format the response in markdown.
 
@@ -149,6 +185,7 @@ defmodule AI.Agent.Reason do
     - Start immediately with the highest-level header (#), without introductions, disclaimers, or phrases like "Below is...".
     - Use headers (##, ###) for sections, lists for key points, and bold/italics for emphasis.
     - Structure content like a technical manual or man page: concise, hierarchical, and self-contained.
+    - Use a polite but informal tone; friendly humor and commiseration is encouraged.
     - Include a tl;dr section toward the end.
     - Include a list of relevant files if appropriate.
     - Avoid commentary or markdown-rendering hints (e.g., "```markdown").
@@ -159,9 +196,7 @@ defmodule AI.Agent.Reason do
 
   @finalize """
   **Do not research any further.**
-
-  **Save all insights, inferrences, and facts for future use** using the `notes_save_tool`, even if not relevant to *this* topic.
-  Include tips, hints, and warnings to yourself that might help you avoid pitfalls in the future.
+  Your research is complete.
 
   Walk the user through the answer, step by step.
   Use solid prinicples of instructional design when writing your response.
@@ -205,6 +240,10 @@ defmodule AI.Agent.Reason do
     AI.Util.system_msg(@continue)
   end
 
+  defp save_notes_msg(_state) do
+    AI.Util.system_msg(@save_notes)
+  end
+
   defp finalize_msg(%{template: nil} = state) do
     state
     |> Map.put(:template, @default_template)
@@ -219,10 +258,54 @@ defmodule AI.Agent.Reason do
   end
 
   # -----------------------------------------------------------------------------
+  # Automatic research retrieval
+  # -----------------------------------------------------------------------------
+  defp get_notes(state) do
+    transcript = AI.Util.research_transcript(state.msgs)
+
+    Store.get_project()
+    |> Store.Project.search_notes(transcript)
+    |> Enum.map(fn {_score, note} -> note end)
+    |> Enum.reject(&MapSet.member?(state.research_seen, &1.id))
+    |> case do
+      [] ->
+        state
+
+      notes ->
+        notes_text =
+          notes
+          |> Enum.map(&Store.Project.Note.read_note(&1))
+          |> Enum.map(fn {:ok, text} -> "#{text}" end)
+          |> Enum.join("\n")
+
+        UI.debug("Found prior research notes", notes_text)
+
+        notes_msg =
+          AI.Util.system_msg("""
+          A semantic search of prior research notes turned up the following
+          results. Keep in mind that the project is under active development
+          and the notes may be out of date, so it is a good idea to confirm
+          this information.
+
+          #{notes_text}
+          """)
+
+        seen =
+          notes
+          |> Enum.map(& &1.id)
+          |> Enum.into(MapSet.new())
+          |> MapSet.union(state.research_seen)
+
+        %{state | msgs: state.msgs ++ [notes_msg], research_seen: seen}
+    end
+
+    state
+  end
+
+  # -----------------------------------------------------------------------------
   # Tools
   # -----------------------------------------------------------------------------
   @non_git_tools [
-    AI.Tools.tool_spec!("notes_search_tool"),
     AI.Tools.tool_spec!("file_info_tool"),
     AI.Tools.tool_spec!("file_list_tool"),
     AI.Tools.tool_spec!("file_search_tool"),
@@ -251,17 +334,7 @@ defmodule AI.Agent.Reason do
   # -----------------------------------------------------------------------------
   # Output
   # -----------------------------------------------------------------------------
-  defp log_step(%{round: :finalize} = state) do
-    UI.debug("Generating response")
-    state
-  end
-
-  defp log_step(%{round: round, rounds: rounds} = state) do
-    UI.debug("Round", "#{round}/#{rounds}")
-    state
-  end
-
-  defp log_response(%{round: :finalize, last_response: answer} = state) do
+  defp log_response(%{steps: [], last_response: answer} = state) do
     UI.flush()
     IO.puts(answer)
     state
