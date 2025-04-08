@@ -152,6 +152,7 @@ defmodule AI.Agent.Reason do
   Now that you have identified and eliminated any red herrings, focus on the most relevant information.
   Consider the context of the user's question. What is the most effective format for your response?
   Are there any other unresolved questions that you must research in order to provide an effective response?
+  Attempt to find examples of existing code that demonstrates the topic; this is always helpful for the user.
 
   Do not finalize your response.
   **Continue researching.**
