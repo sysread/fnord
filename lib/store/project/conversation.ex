@@ -108,8 +108,10 @@ defmodule Store.Project.Conversation do
     with {:ok, _, msgs} <- read(conversation) do
       msgs
       |> Enum.find(&(Map.get(&1, :role) == "user"))
-      |> Map.get(:content)
-      |> then(&{:ok, &1})
+      |> case do
+        nil -> {:error, :no_question}
+        msg -> Map.fetch(msg, :content)
+      end
     end
   end
 

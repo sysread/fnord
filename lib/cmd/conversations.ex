@@ -68,8 +68,11 @@ defmodule Cmd.Conversations do
                   taken
                 end
 
-              {:ok, question} = Store.Project.Conversation.question(conversation)
-              [IO.ANSI.format([:cyan, ellipsis(question, cols - taken), :reset]) | out]
+              with {:ok, question} <- Store.Project.Conversation.question(conversation) do
+                [IO.ANSI.format([:cyan, ellipsis(question, cols - taken), :reset]) | out]
+              else
+                _ -> out
+              end
             else
               out
             end
