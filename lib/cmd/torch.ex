@@ -24,7 +24,7 @@ defmodule Cmd.Torch do
   @doc """
   Permanently deletes the project from the store.
   """
-  def run(_opts, _unknown) do
+  def run(_opts, _subcommands, _unknown) do
     Store.get_project()
     |> Store.Project.torch()
   end

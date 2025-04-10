@@ -28,7 +28,7 @@ defmodule Cmd.Notes do
   end
 
   @impl Cmd
-  def run(opts, _unknown) do
+  def run(opts, _subcommands, _unknown) do
     project = Store.get_project() |> validate_project()
 
     opts

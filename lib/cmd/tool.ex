@@ -36,7 +36,7 @@ defmodule Cmd.Tool do
   end
 
   @impl Cmd
-  def run(opts, unknown) do
+  def run(opts, _subcommands, unknown) do
     with {:ok, tool} <- Map.fetch(opts, :tool),
          {:ok, tool_args} <- parse_tool_args(tool, unknown),
          _ <- Store.get_project() do

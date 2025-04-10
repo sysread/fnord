@@ -71,7 +71,7 @@ defmodule Cmd.Ask do
   end
 
   @impl Cmd
-  def run(opts, _unknown) do
+  def run(opts, _subcommands, _unknown) do
     ai = AI.new()
     start_time = System.monotonic_time(:second)
 

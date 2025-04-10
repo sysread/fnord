@@ -20,7 +20,7 @@ defmodule Cmd.Upgrade do
   end
 
   @impl Cmd
-  def run(opts, _unknown) do
+  def run(opts, _subcommands, _unknown) do
     if UI.confirm("Do you want to upgrade to the latest version of fnord?", opts.yes) do
       System.cmd("mix", ["escript.install", "--force", "github", "sysread/fnord"],
         stderr_to_stdout: true,

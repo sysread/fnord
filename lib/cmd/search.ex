@@ -53,7 +53,7 @@ defmodule Cmd.Search do
   end
 
   @impl Cmd
-  def run(opts, _unknown) do
+  def run(opts, _subcommands, _unknown) do
     opts
     |> Search.new()
     |> Search.get_results()

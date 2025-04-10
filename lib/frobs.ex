@@ -147,14 +147,22 @@ defmodule Frobs do
     init()
 
     home = Path.join(get_home(), name)
-    home |> File.mkdir_p!()
 
-    Path.join(home, @registry) |> File.write!(@default_registry)
-    Path.join(home, @json_spec) |> File.write!(String.replace(@default_spec, "%FROB_NAME%", name))
-    Path.join(home, @main) |> File.write!(@default_main)
-    Path.join(home, @main) |> File.chmod!(0o755)
+    if File.exists?(home) do
+      {:error, :frob_exists}
+    else
+      home |> File.mkdir_p!()
 
-    load(name)
+      Path.join(home, @registry) |> File.write!(@default_registry)
+
+      Path.join(home, @json_spec)
+      |> File.write!(String.replace(@default_spec, "%FROB_NAME%", name))
+
+      Path.join(home, @main) |> File.write!(@default_main)
+      Path.join(home, @main) |> File.chmod!(0o755)
+
+      load(name)
+    end
   end
 
   def perform_tool_call(name, args_json) do

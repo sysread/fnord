@@ -15,14 +15,14 @@ defmodule Fnord do
 
     configure_logger()
 
-    with {:ok, subcommand, opts, unknown} <- parse_options(args) do
+    with {:ok, [command | subcommands], opts, unknown} <- parse_options(args) do
       opts = set_globals(opts)
 
       version_check_task = Task.async(fn -> Util.get_latest_version() end)
 
-      subcommand
+      command
       |> to_module_name()
-      |> apply(:run, [opts, unknown])
+      |> apply(:run, [opts, subcommands, unknown])
 
       with {:ok, {:ok, latest}} <- Task.yield(version_check_task, 1000) do
         current = Util.get_running_version()
@@ -71,7 +71,7 @@ defmodule Fnord do
   defp parse_options(args) do
     parser = spec() |> Optimus.new!()
 
-    with {[subcommand], result} <- Optimus.parse!(parser, args) do
+    with {:ok, subcommand, result} <- Optimus.parse(parser, args) do
       options =
         result.args
         |> Map.merge(result.options)
