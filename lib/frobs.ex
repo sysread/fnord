@@ -44,7 +44,6 @@ defmodule Frobs do
     :main
   ]
 
-  @home Path.join(System.user_home!(), ["fnord", "tools"])
   @registry "registry.json"
   @json_spec "spec.json"
   @main "main"
@@ -147,7 +146,7 @@ defmodule Frobs do
   def create(name) do
     init()
 
-    home = Path.join(@home, name)
+    home = Path.join(get_home(), name)
     home |> File.mkdir_p!()
 
     Path.join(home, @registry) |> File.write!(@default_registry)
@@ -167,12 +166,17 @@ defmodule Frobs do
   # -----------------------------------------------------------------------------
   # Private functions
   # -----------------------------------------------------------------------------
+  defp get_home do
+    home = System.get_env("HOME") || System.user_home!()
+    Path.join([home, "fnord", "tools"])
+  end
+
   defp init do
-    File.mkdir_p!(@home)
+    File.mkdir_p!(get_home())
   end
 
   defp validate_frob(name) do
-    home = Path.join(@home, name)
+    home = Path.join(get_home(), name)
 
     with :ok <- validate_home(home),
          :ok <- validate_registry(home),
@@ -202,7 +206,9 @@ defmodule Frobs do
   end
 
   defp validate_spec_json(name, path) do
-    with {:ok, json} <- File.read(path),
+    spec_path = Path.join(path, @json_spec)
+
+    with {:ok, json} <- File.read(spec_path),
          {:ok, spec} <- Jason.decode(json),
          %{
            "name" => tool_name,
@@ -296,15 +302,11 @@ defmodule Frobs do
 
   defp validate_executable(path) do
     case File.stat(path) do
-      {:ok, %File.Stat{type: :regular, mode: mode, uid: uid, gid: gid}} ->
-        user_uid = :erlang.system_info(:uid)
-        user_gid = :erlang.system_info(:gid)
-
-        cond do
-          uid == user_uid and (mode &&& 0o100) != 0 -> :ok
-          gid == user_gid and (mode &&& 0o010) != 0 -> :ok
-          (mode &&& 0o001) != 0 -> :ok
-          true -> {:error, :not_executable_by_user}
+      {:ok, %File.Stat{type: :regular, mode: mode}} ->
+        if (mode &&& 0o111) != 0 do
+          :ok
+        else
+          {:error, :not_executable}
         end
 
       {:ok, %File.Stat{type: type}} ->
