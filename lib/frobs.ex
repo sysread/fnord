@@ -165,6 +165,27 @@ defmodule Frobs do
     end
   end
 
+  def list() do
+    get_home()
+    |> Path.join("**/main")
+    |> Path.wildcard()
+    |> Enum.map(fn path ->
+      path
+      |> Path.dirname()
+      |> Path.basename()
+    end)
+    |> Enum.reduce([], fn name, acc ->
+      with {:ok, frob} <- load(name) do
+        [frob | acc]
+      else
+        {:error, _} -> acc
+      end
+    end)
+    |> Enum.sort(fn a, b ->
+      String.downcase(a.name) <= String.downcase(b.name)
+    end)
+  end
+
   def perform_tool_call(name, args_json) do
     with {:ok, frob} <- load(name) do
       execute_main(frob, args_json)
