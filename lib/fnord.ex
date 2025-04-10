@@ -71,7 +71,7 @@ defmodule Fnord do
   defp parse_options(args) do
     parser = spec() |> Optimus.new!()
 
-    with {:ok, subcommand, result} <- Optimus.parse(parser, args) do
+    with {subcommand, result} <- Optimus.parse!(parser, args) do
       options =
         result.args
         |> Map.merge(result.options)
