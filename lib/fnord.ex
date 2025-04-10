@@ -53,6 +53,7 @@ defmodule Fnord do
           Cmd.Conversations,
           Cmd.Defrag,
           Cmd.Files,
+          Cmd.Frobs,
           Cmd.Index,
           Cmd.Notes,
           Cmd.Projects,
