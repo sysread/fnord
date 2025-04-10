@@ -1,42 +1,347 @@
 defmodule Frobs do
+  @moduledoc """
+  Frobs are external tool call integrations. They allow users to define
+  external actions that can be executed by the LLM while researching the user's
+  query.
+
+  Frobs are stored in `$HOME/.fnord/tools/$frob_name` and are composed of:
+  - `registry.json`:  A JSON file that registers the frob for the user's projects
+  - `spec.json`:      A JSON file that defines the tool call's calling semantics
+  - `main`:           A script or binary that performs the action
+
+  The `registry.json` file contains the following fields:
+  ```json
+  {
+    // When true, the frob is available to all projects and the "projects"
+    // field is ignored.
+    "global": true,
+
+    // An array of project names for which fnord should make the frob
+    // available. Superceded by the "global" field when set to true.
+    "projects": ["my_project", "other_project"]
+  }
+  ```
+
+  The "name" field in `spec.json` is used to register the frob with the LLM.
+  This name must match the frob's directory name.
+
+  If desired, the user can add a lib/util/etc directory to hold any utility or
+  helper code to be used by `main`.
+
+  Fnord communicates run-time information to the frob via environment variables:
+  - FNORD_PROJECT     # The name of the currently selected project
+  - FNORD_CONFIG      # JSON object of project config
+  - FNORD_ARGS_JSON   # JSON object of LLM-provided arguments
+  """
+
+  import Bitwise
+
   defstruct [
     :name,
-    :path
+    :home,
+    :registry,
+    :spec,
+    :main
   ]
 
   @home Path.join(System.user_home!(), ["fnord", "tools"])
+  @registry "registry.json"
+  @json_spec "spec.json"
+  @main "main"
 
-  def init_frobs do
+  @default_registry """
+  {
+    "global": false,
+    "projects": []
+  }
+  """
+
+  @default_spec """
+  {
+    "name": "%FROB_NAME%",
+    "description": "Says hello to the user",
+    "parameters": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the person to greet"
+        }
+      }
+    }
+  }
+  """
+
+  @default_main """
+  #!/usr/bin/env bash
+
+  set -eu -o pipefail
+
+  #-----------------------------------------------------------------------------
+  # Check dependencies
+  #-----------------------------------------------------------------------------
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "Error: 'jq' is required but not installed." >&2
+    exit 1
+  fi
+
+  #-----------------------------------------------------------------------------
+  # Validate required env vars
+  #-----------------------------------------------------------------------------
+  : "${FNORD_PROJECT:?FNORD_PROJECT is not set.}"
+  : "${FNORD_CONFIG:?FNORD_CONFIG is not set.}"
+  : "${FNORD_ARGS_JSON:?FNORD_ARGS_JSON is not set.}"
+
+  #-----------------------------------------------------------------------------
+  # Read input arguments from FNORD_ARGS_JSON
+  #-----------------------------------------------------------------------------
+  name=$(echo "$FNORD_ARGS_JSON" | jq -r '.name // empty')
+
+  if [[ -z "$name" ]]; then
+    echo "Error: Missing required parameter 'name'." >&2
+    exit 1
+  fi
+
+  #-----------------------------------------------------------------------------
+  # Echo project info and greeting
+  #-----------------------------------------------------------------------------
+  echo "Frob invoked from project: $FNORD_PROJECT"
+
+  echo "Project config:"
+  echo "$FNORD_CONFIG" | jq
+
+  echo "---"
+  echo "Hello, $name!"
+  """
+
+  @allowed_param_types ~w(
+    boolean
+    integer
+    number
+    string
+    array
+    object
+  )
+
+  # -----------------------------------------------------------------------------
+  # Public API
+  # -----------------------------------------------------------------------------
+  def load(name) do
+    init()
+
+    with {:ok, home} <- validate_frob(name),
+         {:ok, registry} <- read_registry(home),
+         {:ok, spec} <- read_spec(home) do
+      {:ok,
+       %__MODULE__{
+         name: name,
+         home: home,
+         registry: registry,
+         spec: spec,
+         main: Path.join(home, @main)
+       }}
+    end
+  end
+
+  def create(name) do
+    init()
+
+    home = Path.join(@home, name)
+    home |> File.mkdir_p!()
+
+    Path.join(home, @registry) |> File.write!(@default_registry)
+    Path.join(home, @json_spec) |> File.write!(String.replace(@default_spec, "%FROB_NAME%", name))
+    Path.join(home, @main) |> File.write!(@default_main)
+    Path.join(home, @main) |> File.chmod!(0o755)
+
+    load(name)
+  end
+
+  def perform_tool_call(name, args_json) do
+    with {:ok, frob} <- load(name) do
+      execute_main(frob, args_json)
+    end
+  end
+
+  # -----------------------------------------------------------------------------
+  # Private functions
+  # -----------------------------------------------------------------------------
+  defp init do
     File.mkdir_p!(@home)
   end
 
-  def new(name) do
-    init_frobs()
+  defp validate_frob(name) do
+    home = Path.join(@home, name)
 
-    with {:ok, path} <- find(name) do
-      {:ok, %__MODULE__{name: name, path: path}}
+    with :ok <- validate_home(home),
+         :ok <- validate_registry(home),
+         :ok <- validate_main(home),
+         :ok <- validate_spec(home),
+         :ok <- validate_spec_json(name, home) do
+      {:ok, home}
     end
   end
 
-  def init(name) do
-    path = Path.join(@home, name)
-
+  defp validate_home(path) do
     if File.exists?(path) do
-      {:error, :exists}
+      :ok
     else
-      # TODO init skeleton
-      File.mkdir_p!(path)
-      {:ok, %__MODULE__{name: name, path: path}}
+      {:error, :frob_not_found}
     end
   end
 
-  def find(name) do
-    path = Path.join(@home, name)
+  defp validate_spec(home) do
+    path = Path.join(home, @json_spec)
 
     if File.exists?(path) do
-      {:ok, path}
+      :ok
     else
-      {:error, :not_found}
+      {:error, :spec_not_found}
+    end
+  end
+
+  defp validate_spec_json(name, path) do
+    with {:ok, json} <- File.read(path),
+         {:ok, spec} <- Jason.decode(json),
+         %{
+           "name" => tool_name,
+           "description" => description,
+           "parameters" =>
+             %{
+               "type" => "object",
+               "properties" => props
+             } = params
+         } <- spec do
+      cond do
+        tool_name != name ->
+          {:error, :name_mismatch,
+           "Tool name '#{tool_name}' does not match frob directory '#{name}'"}
+
+        String.trim(description) == "" ->
+          {:error, :empty_description, "Tool description must not be empty"}
+
+        !is_map(props) or map_size(props) == 0 ->
+          {:error, :empty_properties, "Tool parameters.properties must be a non-empty object"}
+
+        error = missing_or_invalid_property(props) ->
+          error
+
+        Map.has_key?(params, "required") and not is_list(params["required"]) ->
+          {:error, :invalid_required_type, "'required' must be an array of strings"}
+
+        Map.has_key?(params, "required") and
+            not Enum.all?(params["required"], &is_binary/1) ->
+          {:error, :invalid_required_entries, "'required' must only contain strings"}
+
+        Map.has_key?(params, "required") and
+            not Enum.all?(params["required"], &Map.has_key?(props, &1)) ->
+          {:error, :missing_required_keys, "Some 'required' keys are not in 'properties'"}
+
+        true ->
+          :ok
+      end
+    else
+      {:error, decode_error} ->
+        {:error, :invalid_json, "Could not parse spec.json: #{inspect(decode_error)}"}
+
+      _ ->
+        {:error, :invalid_structure,
+         "spec.json is missing required fields or has incorrect structure"}
+    end
+  end
+
+  defp missing_or_invalid_property(props) do
+    Enum.find_value(props, fn {key, val} ->
+      cond do
+        !is_map(val) ->
+          {:error, :invalid_property, "Property '#{key}' must be a JSON object"}
+
+        !Map.has_key?(val, "type") ->
+          {:error, :missing_type, "Property '#{key}' must include a 'type'"}
+
+        !Map.has_key?(val, "description") or String.trim(val["description"]) == "" ->
+          {:error, :missing_description,
+           "Property '#{key}' must include a non-empty 'description'"}
+
+        val["type"] not in @allowed_param_types ->
+          {:error, :invalid_type,
+           "Property '#{key}' has invalid type '#{val["type"]}'. Allowed types: #{@allowed_param_types |> Enum.join(", ")}"}
+
+        true ->
+          false
+      end
+    end)
+  end
+
+  defp validate_registry(home) do
+    path = Path.join(home, @registry)
+
+    if File.exists?(path) do
+      :ok
+    else
+      {:error, :registry_not_found}
+    end
+  end
+
+  defp validate_main(home) do
+    path = Path.join(home, @main)
+
+    if File.exists?(path) do
+      validate_executable(path)
+    else
+      {:error, :main_not_found}
+    end
+  end
+
+  defp validate_executable(path) do
+    case File.stat(path) do
+      {:ok, %File.Stat{type: :regular, mode: mode, uid: uid, gid: gid}} ->
+        user_uid = :erlang.system_info(:uid)
+        user_gid = :erlang.system_info(:gid)
+
+        cond do
+          uid == user_uid and (mode &&& 0o100) != 0 -> :ok
+          gid == user_gid and (mode &&& 0o010) != 0 -> :ok
+          (mode &&& 0o001) != 0 -> :ok
+          true -> {:error, :not_executable_by_user}
+        end
+
+      {:ok, %File.Stat{type: type}} ->
+        {:error, {:not_a_regular_file, type}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp read_registry(home) do
+    with {:ok, content} <- Path.join(home, @registry) |> File.read() do
+      Jason.decode(content)
+    end
+  end
+
+  defp read_spec(home) do
+    with {:ok, content} <- Path.join(home, @json_spec) |> File.read() do
+      Jason.decode(content)
+    end
+  end
+
+  defp execute_main(frob, args_json) do
+    project = Settings.get_selected_project!()
+    settings_json = Settings.new() |> Settings.get(project, %{}) |> Jason.encode!()
+
+    env = [
+      {"FNORD_PROJECT", project},
+      {"FNORD_CONFIG", settings_json},
+      {"FNORD_ARGS_JSON", args_json}
+    ]
+
+    frob.main
+    |> System.cmd([], env: env, stderr_to_stdout: true)
+    |> case do
+      {output, 0} -> {:ok, output}
+      {output, exit_code} -> {:error, exit_code, output}
     end
   end
 end
