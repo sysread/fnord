@@ -39,4 +39,67 @@ defmodule FrobsTest do
     assert output =~ "Frob invoked from project:"
     assert output =~ "Hello, Alice!"
   end
+
+  describe "validation" do
+    test "fails to load frob with invalid JSON spec", %{temp_home: home} do
+      path = Path.join([home, "fnord", "tools", "bad_frob"])
+      File.mkdir_p!(path)
+      File.write!(Path.join(path, "spec.json"), "{ not valid json ")
+      File.write!(Path.join(path, "registry.json"), ~s|{"global": true}|)
+
+      File.write!(Path.join(path, "main"), "#!/bin/bash\necho ok")
+      File.chmod!(Path.join(path, "main"), 0o755)
+
+      assert {:error, :invalid_json, _} = Frobs.load("bad_frob")
+    end
+
+    test "fails when spec is missing name", %{temp_home: home} do
+      path = Path.join([home, "fnord", "tools", "broken_frob"])
+      File.mkdir_p!(path)
+
+      File.write!(Path.join(path, "spec.json"), ~s|{
+        "description": "oops",
+        "parameters": { "type": "object", "properties": {} }
+      }|)
+
+      File.write!(Path.join(path, "registry.json"), ~s|{"global": true}|)
+      File.write!(Path.join(path, "main"), "#!/bin/bash\necho ok")
+      File.chmod!(Path.join(path, "main"), 0o755)
+
+      assert {:error, :invalid_structure, _} = Frobs.load("broken_frob")
+    end
+
+    test "fails to load frob with non-executable main", %{temp_home: home} do
+      assert {:ok, _frob} = Frobs.create("no_exec")
+      File.chmod!(Path.join([home, "fnord", "tools", "no_exec", "main"]), 0o644)
+
+      assert {:error, :not_executable} = Frobs.load("no_exec")
+    end
+
+    test "fails if required field is not in properties", %{temp_home: home} do
+      path = Path.join([home, "fnord", "tools", "field_mismatch"])
+      File.mkdir_p!(path)
+
+      File.write!(Path.join(path, "spec.json"), ~s|{
+        "name": "field_mismatch",
+        "description": "Invalid frob",
+        "parameters": {
+          "type": "object",
+          "required": ["oops"],
+          "properties": {
+            "foo": {
+              "type": "string",
+              "description": "Something"
+            }
+          }
+        }
+      }|)
+
+      File.write!(Path.join(path, "registry.json"), ~s|{"global": true}|)
+      File.write!(Path.join(path, "main"), "#!/bin/bash\necho ok")
+      File.chmod!(Path.join(path, "main"), 0o755)
+
+      assert {:error, :missing_required_keys, _} = Frobs.load("field_mismatch")
+    end
+  end
 end
