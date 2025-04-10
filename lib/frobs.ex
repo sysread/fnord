@@ -192,6 +192,40 @@ defmodule Frobs do
     end
   end
 
+  def create_tool_module(%__MODULE__{name: name} = frob) do
+    tool_name = sanitize_module_name(name)
+    mod_name = Module.concat([AI.Tools.Frob.Dynamic, tool_name])
+
+    unless Code.ensure_loaded?(mod_name) do
+      quoted =
+        quote do
+          @behaviour AI.Tools
+          @frob unquote(Macro.escape(frob))
+
+          @impl AI.Tools
+          def spec, do: %{"type" => "function", "function" => @frob.spec}
+
+          @impl AI.Tools
+          def read_args(args), do: {:ok, args}
+
+          @impl AI.Tools
+          def call(_completion, args),
+            do: Frobs.perform_tool_call(@frob.name, Jason.encode!(args))
+
+          @impl AI.Tools
+          def ui_note_on_request(args), do: {"Calling frob `#{@frob.name}`", inspect(args)}
+
+          @impl AI.Tools
+          def ui_note_on_result(_args, result),
+            do: {"Frob `#{@frob.name}` returned", inspect(result)}
+        end
+
+      Module.create(mod_name, quoted, Macro.Env.location(__ENV__))
+    end
+
+    mod_name
+  end
+
   # -----------------------------------------------------------------------------
   # Private functions
   # -----------------------------------------------------------------------------
@@ -356,6 +390,15 @@ defmodule Frobs do
     with {:ok, content} <- Path.join(home, @json_spec) |> File.read() do
       Jason.decode(content)
     end
+  end
+
+  defp sanitize_module_name(name) do
+    hash = :crypto.hash(:md5, name) |> Base.encode16() |> binary_part(0, 6)
+
+    name
+    |> String.replace(~r/[^a-zA-Z0-9]/, "_")
+    |> Macro.camelize()
+    |> then(&"#{&1}_#{hash}")
   end
 
   defp execute_main(frob, args_json) do
