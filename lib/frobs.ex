@@ -165,7 +165,7 @@ defmodule Frobs do
     end
   end
 
-  def list() do
+  def list(project \\ nil) do
     get_home()
     |> Path.join("**/main")
     |> Path.wildcard()
@@ -183,6 +183,13 @@ defmodule Frobs do
     end)
     |> Enum.sort(fn a, b ->
       String.downcase(a.name) <= String.downcase(b.name)
+    end)
+    |> Enum.filter(fn frob ->
+      if project do
+        frob.registry["global"] || Enum.member?(frob.registry["projects"], project)
+      else
+        true
+      end
     end)
   end
 

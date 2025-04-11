@@ -325,7 +325,7 @@ defmodule AI.Agent.Reason do
     AI.Tools.tool_spec!("git_diff_branch_tool")
   ]
 
-  defp available_tools(_state) do
+  defp available_tools(state) do
     tools =
       if Git.is_git_repo?() do
         @non_git_tools ++ @git_tools
@@ -333,7 +333,7 @@ defmodule AI.Agent.Reason do
         @non_git_tools
       end
 
-    frobs = AI.Tools.frobs()
+    frobs = AI.Tools.frobs(state.project)
 
     frob_specs =
       frobs

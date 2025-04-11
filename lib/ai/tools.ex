@@ -143,15 +143,15 @@ defmodule AI.Tools do
   # ----------------------------------------------------------------------------
   def tools, do: @tools
 
-  def frobs do
-    Frobs.list()
+  def frobs(project \\ nil) do
+    Frobs.list(project)
     |> Enum.map(&{&1.name, Frobs.create_tool_module(&1)})
     |> Map.new()
   end
 
-  def all_tools do
+  def all_tools(project \\ nil) do
     @tools
-    |> Map.merge(frobs())
+    |> Map.merge(frobs(project))
   end
 
   def tool_module(tool, tools \\ @tools) do

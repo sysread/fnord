@@ -36,7 +36,16 @@ defmodule Cmd.Frobs do
           ],
           list: [
             name: "list",
-            about: "Lists all available frobs"
+            about: "Lists all available frobs",
+            options: [
+              project: [
+                value_name: "PROJECT",
+                long: "--project",
+                short: "-p",
+                help: "Optionally filter by frobs available to a specific project",
+                required: false
+              ]
+            ]
           ]
         ]
       ]
@@ -98,13 +107,41 @@ defmodule Cmd.Frobs do
     end
   end
 
-  defp list(_) do
-    {:ok,
-     Frobs.list()
-     |> Enum.map(fn frob ->
-       desc = Map.get(frob.spec, "description", "No description provided")
-       "#{frob.name} - #{desc}"
-     end)
-     |> Enum.join("\n")}
+  defp list(opts) do
+    project = Map.get(opts, :project, nil)
+
+    frobs =
+      Frobs.list(project)
+      |> Enum.map(fn frob ->
+        desc = Map.get(frob.spec, "description", "No description provided")
+        is_global = frob.registry["global"] || false
+        projects = frob.registry["projects"] || []
+
+        """
+        - Name:         #{frob.name}
+        - Description:  #{desc}
+        - Location:     #{frob.home}
+        - Global:       #{is_global}
+        - Projects:     #{inspect(projects)}
+        """
+      end)
+      |> Enum.join("\n\n")
+
+    cond do
+      frobs == "" && project ->
+        {:ok, "No frobs found for project #{project}"}
+
+      frobs == "" ->
+        {:ok, "No frobs found"}
+
+      true ->
+        {:ok,
+         """
+         --------------------------------------------------------------------------------
+         > Frobs
+         --------------------------------------------------------------------------------
+         #{frobs}
+         """}
+    end
   end
 end
