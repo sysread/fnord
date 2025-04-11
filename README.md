@@ -7,6 +7,7 @@
 - [Installation](#installation)
 - [Getting Started](#getting-started)
 - [Tool usage](#tool-usage)
+- [User integrations](#user-integrations)
 - [Copyright and License](#copyright-and-license)
 
 
