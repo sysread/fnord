@@ -42,16 +42,20 @@ defmodule Cmd.Tool do
          _ <- Store.get_project() do
       state = %{ai: AI.new()}
 
-      AI.Tools.perform_tool_call(state, tool, tool_args)
+      AI.Tools.perform_tool_call(state, tool, tool_args, AI.Tools.all_tools())
       |> case do
         {:ok, response} -> IO.puts(response)
         {:error, error} -> IO.puts(:stderr, "Error: #{error}")
       end
+    else
+      error ->
+        IO.puts(:stderr, "Error: #{inspect(error)}")
+        System.halt(1)
     end
   end
 
   defp parse_tool_args(tool, args) do
-    with {:ok, spec} <- AI.Tools.tool_spec(tool) do
+    with {:ok, spec} <- AI.Tools.tool_spec(tool, AI.Tools.all_tools()) do
       build_optimus(tool, spec)
       |> Optimus.parse!(args)
       |> case do
