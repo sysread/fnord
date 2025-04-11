@@ -48,6 +48,10 @@ defmodule Cmd.Tool do
         {:error, error} -> IO.puts(:stderr, "Error: #{error}")
       end
     else
+      {:error, :unknown_tool, tool} ->
+        IO.puts(:stderr, "Error: Unknown tool '#{tool}'")
+        System.halt(1)
+
       error ->
         IO.puts(:stderr, "Error: #{inspect(error)}")
         System.halt(1)
