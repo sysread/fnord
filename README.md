@@ -255,7 +255,7 @@ Frobs are stored in `$HOME/fnord/tools` and are comprised of the following files
   // When true, the frob is available to all projects and the "projects" field is ignored.
   "global": true,
 
-  // An array of project names for which fnord should make the frob available. Superceded by the "global" field when set to true.
+  // An array of project names for which fnord should make the frob available. Superseded by the "global" field when set to true.
   "projects": ["blarg", "some_other_project"]
 }
 ```
