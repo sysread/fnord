@@ -237,7 +237,7 @@ defmodule AI.Completion do
         )
 
         spec =
-          with {:ok, spec} <- AI.Tools.tool_spec(func),
+          with {:ok, spec} <- AI.Tools.tool_spec(func, AI.Tools.all_tools()),
                {:ok, json} <- Jason.encode(spec) do
             json
           else
@@ -258,21 +258,26 @@ defmodule AI.Completion do
 
   defp perform_tool_call(state, func, args_json) when is_binary(args_json) do
     with {:ok, args} <- Jason.decode(args_json) do
-      AI.Tools.with_args(func, args, fn args ->
-        AI.Completion.Output.on_event(state, :tool_call, {func, args})
+      AI.Tools.with_args(
+        func,
+        args,
+        fn args ->
+          AI.Completion.Output.on_event(state, :tool_call, {func, args})
 
-        result =
-          AI.Tools.perform_tool_call(state, func, args)
-          |> case do
-            {:ok, response} when is_binary(response) -> {:ok, response}
-            {:ok, response} -> Jason.encode(response)
-            :ok -> {:ok, "#{func} completed successfully"}
-            other -> other
-          end
+          result =
+            AI.Tools.perform_tool_call(state, func, args, AI.Tools.all_tools())
+            |> case do
+              {:ok, response} when is_binary(response) -> {:ok, response}
+              {:ok, response} -> Jason.encode(response)
+              :ok -> {:ok, "#{func} completed successfully"}
+              other -> other
+            end
 
-        AI.Completion.Output.on_event(state, :tool_call_result, {func, args, result})
-        result
-      end)
+          AI.Completion.Output.on_event(state, :tool_call_result, {func, args, result})
+          result
+        end,
+        AI.Tools.all_tools()
+      )
     end
   end
 end

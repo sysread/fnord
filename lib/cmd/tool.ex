@@ -36,22 +36,30 @@ defmodule Cmd.Tool do
   end
 
   @impl Cmd
-  def run(opts, unknown) do
+  def run(opts, _subcommands, unknown) do
     with {:ok, tool} <- Map.fetch(opts, :tool),
          {:ok, tool_args} <- parse_tool_args(tool, unknown),
          _ <- Store.get_project() do
       state = %{ai: AI.new()}
 
-      AI.Tools.perform_tool_call(state, tool, tool_args)
+      AI.Tools.perform_tool_call(state, tool, tool_args, AI.Tools.all_tools())
       |> case do
         {:ok, response} -> IO.puts(response)
         {:error, error} -> IO.puts(:stderr, "Error: #{error}")
       end
+    else
+      {:error, :unknown_tool, tool} ->
+        IO.puts(:stderr, "Error: Unknown tool '#{tool}'")
+        System.halt(1)
+
+      error ->
+        IO.puts(:stderr, "Error: #{inspect(error)}")
+        System.halt(1)
     end
   end
 
   defp parse_tool_args(tool, args) do
-    with {:ok, spec} <- AI.Tools.tool_spec(tool) do
+    with {:ok, spec} <- AI.Tools.tool_spec(tool, AI.Tools.all_tools()) do
       build_optimus(tool, spec)
       |> Optimus.parse!(args)
       |> case do
@@ -102,9 +110,11 @@ defmodule Cmd.Tool do
   end
 
   defp get_subcommands() do
-    AI.Tools.tools()
+    tools = AI.Tools.all_tools()
+
+    tools
     |> Enum.map(fn {tool, _module} ->
-      spec = AI.Tools.tool_spec!(tool)
+      spec = AI.Tools.tool_spec!(tool, tools)
 
       desc =
         spec.function.description

@@ -66,7 +66,7 @@ defmodule Cmd.Index do
   end
 
   @impl Cmd
-  def run(opts, _unknown) do
+  def run(opts, _subcommands, _unknown) do
     opts
     |> new()
     |> perform_task()

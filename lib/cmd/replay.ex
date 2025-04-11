@@ -28,7 +28,7 @@ defmodule Cmd.Replay do
   end
 
   @impl Cmd
-  def run(opts, _unknown) do
+  def run(opts, _subcommands, _unknown) do
     with {:ok, conversation_id} <- Map.fetch(opts, :conversation),
          {:ok, conversation} <- get_conversation(conversation_id),
          {:ok, completion} <- get_completion(conversation) do

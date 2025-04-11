@@ -32,7 +32,8 @@ defmodule AI.Agent.Reason do
 
   defp consider(state) do
     if is_testing?(state) do
-      get_test_response(state.ai, state)
+      UI.debug("Testing mode enabled")
+      get_test_response(state)
     else
       perform_step(state)
     end
@@ -324,12 +325,23 @@ defmodule AI.Agent.Reason do
     AI.Tools.tool_spec!("git_diff_branch_tool")
   ]
 
-  defp available_tools(_state) do
-    if Git.is_git_repo?() do
-      @non_git_tools ++ @git_tools
-    else
-      @non_git_tools
-    end
+  defp available_tools(state) do
+    tools =
+      if Git.is_git_repo?() do
+        @non_git_tools ++ @git_tools
+      else
+        @non_git_tools
+      end
+
+    frobs = AI.Tools.frobs(state.project)
+
+    frob_specs =
+      frobs
+      |> Enum.map(fn {name, _module} ->
+        AI.Tools.tool_spec!(name, frobs)
+      end)
+
+    tools ++ frob_specs
   end
 
   # -----------------------------------------------------------------------------
@@ -388,20 +400,17 @@ defmodule AI.Agent.Reason do
     |> String.starts_with?("testing:")
   end
 
-  defp get_test_response(ai, opts) do
-    tools =
-      AI.Tools.tools()
-      |> Map.keys()
-      |> Enum.map(&AI.Tools.tool_spec!(&1))
+  defp get_test_response(state) do
+    tools = available_tools(state)
 
-    AI.Completion.get(ai,
+    AI.Completion.get(state.ai,
       log_msgs: true,
       log_tool_calls: true,
       model: AI.Model.fast(),
       tools: tools,
       messages: [
         AI.Util.system_msg(@test_prompt),
-        AI.Util.user_msg(opts.question)
+        AI.Util.user_msg(state.question)
       ]
     )
     |> then(fn {:ok, %{response: msg} = response} ->

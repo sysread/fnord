@@ -143,6 +143,17 @@ defmodule AI.Tools do
   # ----------------------------------------------------------------------------
   def tools, do: @tools
 
+  def frobs(project \\ nil) do
+    Frobs.list(project)
+    |> Enum.map(&{&1.name, Frobs.create_tool_module(&1)})
+    |> Map.new()
+  end
+
+  def all_tools(project \\ nil) do
+    @tools
+    |> Map.merge(frobs(project))
+  end
+
   def tool_module(tool, tools \\ @tools) do
     case Map.get(tools, tool) do
       nil -> {:error, :unknown_tool, tool}
@@ -154,7 +165,7 @@ defmodule AI.Tools do
     with {:ok, module} <- tool_module(tool, tools) do
       module.spec()
     else
-      {:error, :unknown_tool, _tool} ->
+      {:error, :unknown_tool, tool} ->
         raise ArgumentError, "Unknown tool: #{tool}"
     end
   end
@@ -231,8 +242,8 @@ defmodule AI.Tools do
     {:error, :missing_argument, key}
   end
 
-  def with_args(tool, args, fun) do
-    with {:ok, module} <- tool_module(tool),
+  def with_args(tool, args, fun, tools \\ @tools) do
+    with {:ok, module} <- tool_module(tool, tools),
          {:ok, args} <- module.read_args(args) do
       fun.(args)
     end
