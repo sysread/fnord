@@ -34,6 +34,7 @@ If you've ever pasted multiple files into ChatGPT or worked with it iteratively 
 - Git archaeology
 - Learns about your project(s) over time
 - Improves its research capabilities with each interaction
+- User integrations
 
 
 ## Installation
@@ -221,6 +222,57 @@ fnord tool --tool file_search_tool --help
 fnord tool --tool file_search_tool --project blarg --query "some_function definition"
 fnord tool --tool file_info_tool --project blarg --file "path/to/some_module.ext" --question "What public functions are defined in this file?"
 ```
+
+
+## User integrations
+
+Users can create their own integrations, called **frobs**, that `fnord` can use as a tool call while researching.
+Just like built-in tools, these are usable through the `fnord tool` subcommand.
+
+```bash
+# Create a new integration
+fnord frobs create --name my_frob
+
+# Validate the frob
+fnord frobs check --name my_frob
+
+# List frobs
+fnord frobs list
+
+# List frobs that are registered for a project
+fnord frobs list --project blarg
+```
+
+Frobs are stored in `$HOME/fnord/tools` and are comprised of the following files:
+- `my_frob/registry.json` - a JSON file that identifies the projects for which the frob is available
+- `my_frob/spec.json` - a JSON file describing the frob's calling semantics in [OpenAI's function spec format](https://platform.openai.com/docs/guides/function-calling?api-mode=responses#defining-functions)
+- `my_frob/main` - a script or binary that performs the requested task
+
+**Make your tool available to your projects:** edit the `registry.json` file created when you ran `fnord frobs create` to include the project name(s) for which you want the frob to be available.
+
+```json
+{
+  // When true, the frob is available to all projects and the "projects" field is ignored.
+  "global": true,
+
+  // An array of project names for which fnord should make the frob available. Superceded by the "global" field when set to true.
+  "projects": ["blarg", "some_other_project"]
+}
+```
+
+**Implementing the frob:** the `main` file is a script or binary that implements the frob. `fnord` passes information to the frob via shell environment variables:
+
+- `FNORD_PROJECT`: The name of the currently selected project
+- `FNORD_CONFIG`: The project configuration from `$HOME/.fnord/settings.json` as a single JSON object
+- `FNORD_ARGS_JSON`: JSON object of LLM-provided arguments
+
+**Testing your frob:** if you prefix your `fnord ask` query with `testing:`, you can ask the LLM to test your frob to confirm it is working as expected.
+
+```bash
+fnord ask -p blarg -q "testing: please confirm that the 'my_frob' tool is available to you"
+fnord ask -p blarg -q "testing: please make a call to 'my_frob' with the arguments 'foo' and 'bar' and report the results"
+```
+
 
 ## Copyright and License
 
