@@ -17,7 +17,7 @@ defmodule Frobs do
     "global": true,
 
     // An array of project names for which fnord should make the frob
-    // available. Superceded by the "global" field when set to true.
+    // available. Superseded by the "global" field when set to true.
     "projects": ["my_project", "other_project"]
   }
   ```
