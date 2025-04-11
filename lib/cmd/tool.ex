@@ -28,7 +28,8 @@ defmodule Cmd.Tool do
             value_name: "TOOL",
             long: "--tool",
             short: "-t",
-            help: "The name of the tool to call; use --help to list options."
+            help: "The name of the tool to call; use --help to list options.",
+            required: true
           ]
         ]
       ]
