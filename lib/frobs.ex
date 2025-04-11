@@ -216,15 +216,19 @@ defmodule Frobs do
           def read_args(args), do: {:ok, args}
 
           @impl AI.Tools
-          def call(_completion, args),
-            do: Frobs.perform_tool_call(@frob.name, Jason.encode!(args))
+          def call(_completion, args) do
+            Frobs.perform_tool_call(@frob.name, Jason.encode!(args))
+          end
 
           @impl AI.Tools
-          def ui_note_on_request(args), do: {"Calling frob `#{@frob.name}`", inspect(args)}
+          def ui_note_on_request(args) do
+            {"Calling frob `#{@frob.name}`", inspect(args)}
+          end
 
           @impl AI.Tools
-          def ui_note_on_result(_args, result),
-            do: {"Frob `#{@frob.name}` returned", inspect(result)}
+          def ui_note_on_result(_args, result) do
+            {"Frob `#{@frob.name}` result", inspect(result)}
+          end
         end
 
       Module.create(mod_name, quoted, Macro.Env.location(__ENV__))
