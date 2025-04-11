@@ -178,7 +178,9 @@ defmodule Frobs do
       with {:ok, frob} <- load(name) do
         [frob | acc]
       else
-        {:error, _} -> acc
+        error ->
+          UI.warn("Frob '#{name}' could not be loaded: #{inspect(error)}")
+          acc
       end
     end)
     |> Enum.sort(fn a, b ->
