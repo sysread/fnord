@@ -203,7 +203,7 @@ defmodule Frobs do
           @frob unquote(Macro.escape(frob))
 
           @impl AI.Tools
-          def spec, do: %{"type" => "function", "function" => @frob.spec}
+          def spec, do: %{type: "function", function: @frob.spec}
 
           @impl AI.Tools
           def read_args(args), do: {:ok, args}
@@ -388,7 +388,7 @@ defmodule Frobs do
 
   defp read_spec(home) do
     with {:ok, content} <- Path.join(home, @json_spec) |> File.read() do
-      Jason.decode(content)
+      Jason.decode(content, keys: :atoms)
     end
   end
 

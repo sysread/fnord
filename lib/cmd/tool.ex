@@ -102,9 +102,11 @@ defmodule Cmd.Tool do
   end
 
   defp get_subcommands() do
-    AI.Tools.tools()
+    tools = AI.Tools.all_tools()
+
+    tools
     |> Enum.map(fn {tool, _module} ->
-      spec = AI.Tools.tool_spec!(tool)
+      spec = AI.Tools.tool_spec!(tool, tools)
 
       desc =
         spec.function.description

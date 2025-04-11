@@ -29,7 +29,7 @@ defmodule FrobsTest do
 
     # Should return spec + registry parsed, path set
     assert frob.home == Path.join([home, "fnord", "tools", "say_hi"])
-    assert frob.spec["name"] == "say_hi"
+    assert frob.spec.name == "say_hi"
     assert is_map(frob.registry)
 
     # Run it

@@ -325,11 +325,14 @@ defmodule AI.Agent.Reason do
   ]
 
   defp available_tools(_state) do
-    if Git.is_git_repo?() do
-      @non_git_tools ++ @git_tools
-    else
-      @non_git_tools
-    end
+    tools =
+      if Git.is_git_repo?() do
+        @non_git_tools ++ @git_tools
+      else
+        @non_git_tools
+      end
+
+    tools ++ AI.Tools.frobs()
   end
 
   # -----------------------------------------------------------------------------
