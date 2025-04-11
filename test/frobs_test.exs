@@ -36,7 +36,8 @@ defmodule FrobsTest do
     args_json = ~s|{"name":"Alice"}|
     assert {:ok, output} = Frobs.perform_tool_call("say_hi", args_json)
 
-    assert output =~ "Frob invoked from project:"
+    assert output =~ "Frob invoked from project: blarg"
+    assert output =~ "Project config:"
     assert output =~ "Hello, Alice!"
   end
 
