@@ -18,22 +18,29 @@ defmodule Fnord do
     with {:ok, [command | subcommands], opts, unknown} <- parse_options(args) do
       opts = set_globals(opts)
 
-      version_check_task = Task.async(fn -> Util.get_latest_version() end)
+      version_check_task =
+        if command == "upgrade" do
+          nil
+        else
+          Task.async(fn -> Util.get_latest_version() end)
+        end
 
       command
       |> to_module_name()
       |> apply(:run, [opts, subcommands, unknown])
 
-      with {:ok, {:ok, latest}} <- Task.yield(version_check_task, 1000) do
-        current = Util.get_running_version()
+      if !is_nil(version_check_task) do
+        with {:ok, {:ok, latest}} <- Task.yield(version_check_task, 1000) do
+          current = Util.get_running_version()
 
-        if Version.compare(current, latest) == :lt do
-          IO.puts(:stderr, """
+          if Version.compare(current, latest) == :lt do
+            IO.puts(:stderr, """
 
-          A new version of fnord is available! To upgrade to v#{latest}:
+            A new version of fnord is available! To upgrade to v#{latest}:
 
-              fnord upgrade
-          """)
+                fnord upgrade
+            """)
+          end
         end
       end
     else
