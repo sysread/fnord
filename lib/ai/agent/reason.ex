@@ -32,7 +32,8 @@ defmodule AI.Agent.Reason do
 
   defp consider(state) do
     if is_testing?(state) do
-      get_test_response(state.ai, state)
+      UI.debug("Testing mode enabled")
+      get_test_response(state)
     else
       perform_step(state)
     end
@@ -332,7 +333,15 @@ defmodule AI.Agent.Reason do
         @non_git_tools
       end
 
-    tools ++ AI.Tools.frobs()
+    frobs = AI.Tools.frobs()
+
+    frob_specs =
+      frobs
+      |> Enum.map(fn {name, _module} ->
+        AI.Tools.tool_spec!(name, frobs)
+      end)
+
+    tools ++ frob_specs
   end
 
   # -----------------------------------------------------------------------------
@@ -391,20 +400,17 @@ defmodule AI.Agent.Reason do
     |> String.starts_with?("testing:")
   end
 
-  defp get_test_response(ai, opts) do
-    tools =
-      AI.Tools.tools()
-      |> Map.keys()
-      |> Enum.map(&AI.Tools.tool_spec!(&1))
+  defp get_test_response(state) do
+    tools = available_tools(state)
 
-    AI.Completion.get(ai,
+    AI.Completion.get(state.ai,
       log_msgs: true,
       log_tool_calls: true,
       model: AI.Model.fast(),
       tools: tools,
       messages: [
         AI.Util.system_msg(@test_prompt),
-        AI.Util.user_msg(opts.question)
+        AI.Util.user_msg(state.question)
       ]
     )
     |> then(fn {:ok, %{response: msg} = response} ->

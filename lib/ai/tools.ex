@@ -242,8 +242,8 @@ defmodule AI.Tools do
     {:error, :missing_argument, key}
   end
 
-  def with_args(tool, args, fun) do
-    with {:ok, module} <- tool_module(tool),
+  def with_args(tool, args, fun, tools \\ @tools) do
+    with {:ok, module} <- tool_module(tool, tools),
          {:ok, args} <- module.read_args(args) do
       fun.(args)
     end
