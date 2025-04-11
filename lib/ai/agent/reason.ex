@@ -335,6 +335,11 @@ defmodule AI.Agent.Reason do
 
     frobs = AI.Tools.frobs(state.project)
 
+    frobs
+    |> Enum.map(fn {name, _module} -> name end)
+    |> Enum.join(", ")
+    |> then(&UI.info("Available frobs: #{&1}"))
+
     frob_specs =
       frobs
       |> Enum.map(fn {name, _module} ->
