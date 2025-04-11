@@ -19,7 +19,7 @@ defmodule Fnord do
       opts = set_globals(opts)
 
       version_check_task =
-        if command == "upgrade" do
+        if command == :upgrade do
           nil
         else
           Task.async(fn -> Util.get_latest_version() end)
