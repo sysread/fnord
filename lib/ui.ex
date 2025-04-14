@@ -9,7 +9,8 @@ defmodule UI do
   def confirm(_msg, true), do: true
 
   def confirm(msg, _default) do
-    IO.write("#{msg} (y/N) ")
+    flush()
+    IO.write(:stderr, "#{msg} (y/N) ")
 
     case IO.gets("") do
       "y\n" -> true

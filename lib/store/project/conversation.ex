@@ -115,6 +115,19 @@ defmodule Store.Project.Conversation do
     end
   end
 
+  @doc """
+  Deletes the conversation from the store. If the conversation does not exist,
+  returns an error tuple.
+  """
+  def delete(conversation) do
+    if exists?(conversation) do
+      File.rm!(conversation.store_path)
+      :ok
+    else
+      {:error, :not_found}
+    end
+  end
+
   # -----------------------------------------------------------------------------
   # Private functions
   # -----------------------------------------------------------------------------

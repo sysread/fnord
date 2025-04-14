@@ -14,18 +14,13 @@ defmodule Cmd.Conversations do
             short: "-p",
             help: "Project name",
             required: true
-          ]
-        ],
-        flags: [
-          file: [
-            long: "--file",
-            short: "-f",
-            help: "Print the path to the conversation file"
           ],
-          question: [
-            long: "--question",
-            short: "-q",
-            help: "include the question prompting the conversation"
+          prune: [
+            value_name: "PRUNE",
+            long: "--prune",
+            short: "-P",
+            help: "Prune conversations older than this many days",
+            parser: :integer
           ]
         ]
       ]
@@ -34,11 +29,71 @@ defmodule Cmd.Conversations do
 
   @impl Cmd
   def run(opts, _subcommands, _unknown) do
-    cols = Owl.IO.columns()
+    with :ok <- prune(opts),
+         :ok <- display(opts) do
+      :ok
+    else
+      {:error, :cancelled} -> UI.error("Operation cancelled.")
+    end
+  end
 
-    question = opts[:question]
-    file = opts[:file]
+  defp prune(%{prune: days}) when is_integer(days) and days >= 0 do
+    cutoff = DateTime.utc_now() |> DateTime.add(-days, :day)
 
+    UI.info("Pruning conversations older than #{days} days")
+
+    to_delete =
+      Store.get_project()
+      |> Store.Project.conversations()
+      |> Enum.reduce([], fn conversation, acc ->
+        timestamp = Store.Project.Conversation.timestamp(conversation)
+
+        if DateTime.compare(timestamp, cutoff) == :lt do
+          [conversation | acc]
+        else
+          acc
+        end
+      end)
+
+    if to_delete == [] do
+      UI.info("No conversations to prune.")
+    else
+      UI.info("Preparing to delete the following conversations:")
+
+      to_delete
+      |> Enum.each(fn conversation ->
+        timestamp = Store.Project.Conversation.timestamp(conversation)
+        question = get_question(conversation)
+
+        [
+          [:cyan, conversation.id, :reset],
+          " [",
+          [:yellow, DateTime.to_iso8601(timestamp), :reset],
+          "]: ",
+          [:light_black, question, :reset]
+        ]
+        |> IO.ANSI.format()
+        |> UI.info()
+      end)
+
+      if UI.confirm("Confirm deletion of the listed conversations. This action cannot be undone.") do
+        to_delete |> Enum.each(&Store.Project.Conversation.delete/1)
+        count = length(to_delete)
+        UI.info("Deleted #{count} conversation(s).")
+        :ok
+      else
+        {:error, :cancelled}
+      end
+    end
+  end
+
+  defp prune(%{prune: days}) when is_integer(days) and days < 0 do
+    {:error, :invalid_prune_value}
+  end
+
+  defp prune(_opts), do: :ok
+
+  defp display(_opts) do
     Store.get_project()
     |> Store.Project.conversations()
     |> case do
@@ -47,49 +102,26 @@ defmodule Cmd.Conversations do
 
       conversations ->
         conversations
-        |> Enum.each(fn conversation ->
-          out = [IO.ANSI.format([:green, conversation.id, :reset])]
-
-          out =
-            if file do
-              [IO.ANSI.format([:cyan, conversation.store_path, :reset]) | out]
-            else
-              out
-            end
-
-          out =
-            if question do
-              taken = String.length(conversation.id) + 3
-
-              taken =
-                if file do
-                  taken + String.length(conversation.store_path) + 3
-                else
-                  taken
-                end
-
-              with {:ok, question} <- Store.Project.Conversation.question(conversation) do
-                [IO.ANSI.format([:cyan, ellipsis(question, cols - taken), :reset]) | out]
-              else
-                _ -> out
-              end
-            else
-              out
-            end
-
-          out
-          |> Enum.reverse()
-          |> Enum.join(" | ")
-          |> IO.puts()
+        |> Enum.map(fn conversation ->
+          %{
+            id: conversation.id,
+            timestamp: Store.Project.Conversation.timestamp(conversation),
+            file: conversation.store_path,
+            question: get_question(conversation)
+          }
         end)
+        |> Jason.encode!(pretty: true)
+        |> IO.puts()
     end
+
+    :ok
   end
 
-  defp ellipsis(str, limit) do
-    if String.length(str) > limit do
-      String.slice(str, 0, limit - 3) <> "..."
+  defp get_question(conversation) do
+    with {:ok, question} <- Store.Project.Conversation.question(conversation) do
+      question
     else
-      str
+      {:error, :no_question} -> "(not found)"
     end
   end
 end

@@ -144,10 +144,17 @@ If desired, you can use that ID to continue the conversation with `--follow`.
 fnord ask --project blarg --follow c81928aa-6ab2-4346-9b2a-0edce6a639f0 --question "Is some_function still used?"
 ```
 
-List conversations with the `conversations` command. Adding `--file` will point to the file where the conversation is saved. `--question` will include the question that prompted the conversation.
+List conversations with the `conversations` command.
 
 ```bash
-fnord conversations --project blarg --question --file
+fnord conversations --project blarg
+```
+
+Prune conversations older than a certain number of days with the `--prune` option.
+
+```bash
+# Prune conversations older than 30 days
+fnord conversations --project blarg --prune 30
 ```
 
 #### Replaying a conversation
