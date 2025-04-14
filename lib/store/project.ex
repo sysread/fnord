@@ -401,7 +401,7 @@ defmodule Store.Project do
     with {:ok, path} <- Path.safe_relative(path, cwd) do
       path
     else
-      {:error, reason} -> raise("Error: #{reason}")
+      :error -> raise("Error: unable to calculate relative path for #{path} from #{cwd}")
     end
   end
 end
