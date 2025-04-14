@@ -56,7 +56,7 @@ defmodule Cmd.Index do
           quiet: [
             long: "--quiet",
             short: "-Q",
-            help: "Suppress interactive output; automatically enabled when executed in a pipe",
+            help: "Suppress the progress bar, instead logging files as they are indexed",
             required: false,
             default: false
           ]

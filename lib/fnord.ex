@@ -57,6 +57,7 @@ defmodule Fnord do
       subcommands:
         [
           Cmd.Ask,
+          Cmd.Config,
           Cmd.Conversations,
           Cmd.Defrag,
           Cmd.Files,

@@ -29,31 +29,32 @@ defmodule Store.Project do
   end
 
   def save_settings(project, source_root \\ nil, exclude \\ nil) do
-    settings = %{
-      "exclude" => project.exclude,
-      "root" =>
-        case project.source_root do
-          nil -> nil
-          _ -> Path.expand(project.source_root)
-        end
-    }
-
-    settings =
-      if is_nil(source_root) do
-        settings
-      else
-        Map.put(settings, "root", Path.expand(source_root))
+    root =
+      case source_root do
+        nil -> project.source_root || raise("project root is required")
+        _ -> Path.expand(source_root)
       end
 
-    settings =
+    exclude =
       case exclude do
-        nil -> settings
-        [] -> settings
-        _ -> Map.put(settings, "exclude", exclude)
+        nil -> project.exclude || []
+        [] -> project.exclude
+        exclude -> exclude |> Enum.map(&relative_to!(&1, root))
       end
+      |> Enum.filter(fn exclude ->
+        if File.exists?(exclude) do
+          true
+        else
+          UI.warn("Removing non-existent path from project exclude list: #{exclude}")
+          false
+        end
+      end)
 
     Settings.new()
-    |> Settings.set(project.name, settings)
+    |> Settings.set(project.name, %{
+      "root" => root,
+      "exclude" => exclude
+    })
 
     new(project.name, project.store_path)
   end
@@ -393,6 +394,14 @@ defmodule Store.Project do
       |> Enum.map(&Path.absname/1)
       # Convert to a MapSet for faster lookups
       |> MapSet.new()
+    end
+  end
+
+  defp relative_to!(path, cwd) do
+    with {:ok, path} <- Path.safe_relative(path, cwd) do
+      path
+    else
+      {:error, reason} -> raise("Error: #{reason}")
     end
   end
 end
