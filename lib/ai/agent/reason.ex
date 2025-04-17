@@ -31,6 +31,12 @@ defmodule AI.Agent.Reason do
   end
 
   defp consider(state) do
+    state
+    |> available_frobs()
+    |> Enum.map(fn %{function: %{name: name}} -> name end)
+    |> Enum.join(", ")
+    |> then(&UI.info("Available frobs: #{&1}"))
+
     if is_testing?(state) do
       UI.debug("Testing mode enabled")
       get_test_response(state)
@@ -333,20 +339,14 @@ defmodule AI.Agent.Reason do
         @non_git_tools
       end
 
+    frobs = available_frobs(state)
+
+    tools ++ frobs
+  end
+
+  defp available_frobs(state) do
     frobs = AI.Tools.frobs(state.project)
-
-    frobs
-    |> Enum.map(fn {name, _module} -> name end)
-    |> Enum.join(", ")
-    |> then(&UI.info("Available frobs: #{&1}"))
-
-    frob_specs =
-      frobs
-      |> Enum.map(fn {name, _module} ->
-        AI.Tools.tool_spec!(name, frobs)
-      end)
-
-    tools ++ frob_specs
+    Enum.map(frobs, fn {name, _} -> AI.Tools.tool_spec!(name, frobs) end)
   end
 
   # -----------------------------------------------------------------------------
