@@ -25,7 +25,6 @@ defmodule AI.Agent.Reason do
       template: opts.template,
       msgs: opts.msgs,
       last_response: nil,
-      research_seen: MapSet.new(),
       steps: steps(opts.rounds)
     }
   end
@@ -51,8 +50,29 @@ defmodule AI.Agent.Reason do
   @first_steps [:initial, :clarify, :refine]
   @last_steps [:save_notes, :finalize]
 
-  defp steps(3), do: @first_steps ++ @last_steps
-  defp steps(n), do: @first_steps ++ Enum.map(1..n, fn _ -> :continue end) ++ @last_steps
+  defp steps(n) do
+    steps =
+      cond do
+        n <= 1 -> [:singleton]
+        n == 2 -> [:singleton, :refine]
+        n == 3 -> @first_steps
+        n >= 3 -> @first_steps ++ Enum.map(1..(n - 3), fn _ -> :continue end)
+      end
+
+    steps ++ @last_steps
+  end
+
+  defp perform_step(%{steps: [:singleton | steps]} = state) do
+    UI.debug("Performing abbreviated research")
+
+    state
+    # Prior conversations do not include the "thinking" prompts.
+    |> Map.put(:msgs, state.msgs ++ [singleton_msg(state), user_msg(state)])
+    |> Map.put(:steps, steps)
+    |> get_notes()
+    |> get_completion()
+    |> perform_step()
+  end
 
   defp perform_step(%{steps: [:initial | steps]} = state) do
     UI.debug("Researching")
@@ -97,12 +117,11 @@ defmodule AI.Agent.Reason do
   end
 
   defp perform_step(%{steps: [:save_notes | steps]} = state) do
-    UI.debug("Saving findings for future use")
+    UI.debug("Saving research notes")
 
     state
-    |> Map.put(:msgs, state.msgs ++ [save_notes_msg(state)])
     |> Map.put(:steps, steps)
-    |> get_completion()
+    |> save_notes()
     |> perform_step()
   end
 
@@ -133,6 +152,25 @@ defmodule AI.Agent.Reason do
   # -----------------------------------------------------------------------------
   # Message shortcuts
   # -----------------------------------------------------------------------------
+  @singleton """
+  You are an AI assistant that researches the user's code base to answer their qustions.
+  You are assisting the user by researching their question about the project, $$PROJECT$$.
+  Confirm whether any prior research you found is still relevant and factual.
+  Proactively use your tools to research the user's question.
+  You reason through problems step by step.
+
+  Your first step is to break down the user's request into individual tasks.
+  You will then execute these tasks, parallelizing as many as possible.
+
+  Before responding, consider the following:
+  - Did you search for and identify potential ambiguities and resolve them?
+  - Did you consider other interpretations of the user's question?
+  - Did you double-check your work to ensure that you are not missing any important details?
+  - Did you include citations of the files you used to answer the question?
+
+  **Do not finalize your response until explicitly instructed.**
+  """
+
   @initial """
   You are an AI assistant that researches the user's code base to answer their qustions.
   You are assisting the user by researching their question about the project, $$PROJECT$$.
@@ -177,17 +215,6 @@ defmodule AI.Agent.Reason do
 
   Do not finalize your response.
   **Continue researching.**
-  """
-
-  @save_notes """
-  **Do not research any further.**
-  Your research is complete.
-
-  Your current task is to save your research notes for future use.
-  ALL facts are important, even if they are not relevant to the current topic.
-  They will improve your responses in the future.
-  Save all insights, inferrences, and facts for future use using the `notes_save_tool`.
-  Include tips, hints, and warnings to yourself that might help you avoid pitfalls in the future.
   """
 
   @default_template """
@@ -235,6 +262,12 @@ defmodule AI.Agent.Reason do
     AI.Util.user_msg(question)
   end
 
+  defp singleton_msg(%{project: project}) do
+    @singleton
+    |> String.replace("$$PROJECT$$", project)
+    |> AI.Util.system_msg()
+  end
+
   defp initial_msg(%{project: project}) do
     @initial
     |> String.replace("$$PROJECT$$", project)
@@ -251,10 +284,6 @@ defmodule AI.Agent.Reason do
 
   defp continue_msg(_state) do
     AI.Util.system_msg(@continue)
-  end
-
-  defp save_notes_msg(_state) do
-    AI.Util.system_msg(@save_notes)
   end
 
   defp finalize_msg(%{template: nil} = state) do
@@ -279,7 +308,6 @@ defmodule AI.Agent.Reason do
     Store.get_project()
     |> Store.Project.search_notes(transcript)
     |> Enum.map(fn {_score, note} -> note end)
-    |> Enum.reject(&MapSet.member?(state.research_seen, &1.id))
     |> case do
       [] ->
         state
@@ -289,29 +317,30 @@ defmodule AI.Agent.Reason do
           notes
           |> Enum.map(&Store.Project.Note.read_note(&1))
           |> Enum.map(fn {:ok, text} -> "#{text}" end)
+          |> Enum.map(fn text ->
+            UI.debug("Prior research", text)
+            text
+          end)
           |> Enum.join("\n")
-
-        UI.debug("Found prior research notes", notes_text)
 
         notes_msg =
           AI.Util.system_msg("""
-          A semantic search of prior research notes turned up the following
-          results. Keep in mind that the project is under active development
-          and the notes may be out of date, so it is a good idea to confirm
-          this information.
+          A semantic search of prior research notes turned up the following results.
+          Keep in mind that the project is under active development and the notes may be out of date.
+          **ALWAYS** use your tools to verify the accuracy and completeness of prior research before using it!
 
           #{notes_text}
           """)
 
-        seen =
-          notes
-          |> Enum.map(& &1.id)
-          |> Enum.into(MapSet.new())
-          |> MapSet.union(state.research_seen)
-
-        %{state | msgs: state.msgs ++ [notes_msg], research_seen: seen}
+        %{state | msgs: state.msgs ++ [notes_msg]}
     end
 
+    state
+  end
+
+  defp save_notes(state) do
+    transcript = AI.Util.research_transcript(state.msgs)
+    AI.Agent.Archivist.get_response(state.ai, %{transcript: transcript})
     state
   end
 
@@ -323,8 +352,7 @@ defmodule AI.Agent.Reason do
     AI.Tools.tool_spec!("file_list_tool"),
     AI.Tools.tool_spec!("file_search_tool"),
     AI.Tools.tool_spec!("file_contents_tool"),
-    AI.Tools.tool_spec!("file_spelunker_tool"),
-    AI.Tools.tool_spec!("notes_save_tool")
+    AI.Tools.tool_spec!("file_spelunker_tool")
   ]
 
   @git_tools [

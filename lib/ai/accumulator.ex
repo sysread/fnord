@@ -18,7 +18,8 @@ defmodule AI.Accumulator do
     :model,
     :tools,
     :prompt,
-    :question
+    :question,
+    :completion_args
   ]
 
   @accumulator_prompt """
@@ -80,7 +81,8 @@ defmodule AI.Accumulator do
         model: model,
         tools: tools,
         prompt: prompt,
-        question: question
+        question: question,
+        completion_args: Keyword.get(opts, :completion_args, [])
       }
       |> reduce()
     end
@@ -100,13 +102,16 @@ defmodule AI.Accumulator do
     #{acc.buffer}
     """
 
-    AI.Completion.get(acc.ai,
-      model: acc.model,
-      messages: [
+    args =
+      acc.completion_args
+      |> Keyword.put(:model, acc.model)
+      |> Keyword.put(:tools, acc.tools)
+      |> Keyword.put(:messages, [
         AI.Util.system_msg(system_prompt),
         AI.Util.user_msg(user_prompt)
-      ]
-    )
+      ])
+
+    AI.Completion.get(acc.ai, args)
   end
 
   defp reduce(%{splitter: %{done: false}} = acc) do
@@ -144,14 +149,16 @@ defmodule AI.Accumulator do
     #{acc.prompt}
     """
 
-    AI.Completion.get(acc.ai,
-      model: acc.model,
-      tools: acc.tools,
-      messages: [
+    args =
+      acc.completion_args
+      |> Keyword.put(:model, acc.model)
+      |> Keyword.put(:tools, acc.tools)
+      |> Keyword.put(:messages, [
         AI.Util.system_msg(system_prompt),
         AI.Util.user_msg(user_prompt)
-      ]
-    )
+      ])
+
+    AI.Completion.get(acc.ai, args)
     |> then(fn {:ok, %{response: response}} ->
       {:ok, %__MODULE__{acc | splitter: splitter, buffer: response}}
     end)
