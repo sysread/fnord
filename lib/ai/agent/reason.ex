@@ -140,11 +140,16 @@ defmodule AI.Agent.Reason do
   Proactively use your tools to research the user's question.
   You reason through problems step by step.
 
-  Do not finalize your response until explicitly instructed.
+  Your first step is to break down the user's request into individual tasks.
+  You will then execute these tasks, parallelizing as many as possible.
+
+  **Do not finalize your response until explicitly instructed.**
   """
 
   @clarify """
   Consider your previous thoughts and refine your thinking.
+  Determine whether the research you have performed thus far indicates the need to change tactics and modify your planned steps.
+
   Use your tools to improve your understanding of the application of the context within this project.
   Expand your thinking and investigation to consider other aspects of the topic.
   Identify potential ambiguities around how the context is applied within this project.
@@ -219,7 +224,7 @@ defmodule AI.Agent.Reason do
   Just for fun, finish off your response with a humorous MOTD.
   Select a **real** quote from a **real** historical figure.
   **Invent a brief, fictional and humorous scenario** related to software development or programming where the quote would be relevant.
-  The scenario should be a made-up situation involving coding, debugging, or technology.
+  The scenario should be a made-up situation involving coding, debugging, or technology, and relate to the user's question.
   Attribute the quote to the real person speaking from the made-up scenario.
   Example: "I have not failed. I've just found 10,000 ways that won't work." - Thomas Edison, on the importance of negative path testing."
   Don't just use my example. Be creative. Sheesh.
