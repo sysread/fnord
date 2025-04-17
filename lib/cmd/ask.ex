@@ -1,7 +1,7 @@
 defmodule Cmd.Ask do
   @project_not_found_error "Project not found; verify that the project has been indexed."
   @template_not_found_error "Template file not found; verify that the output template file exists."
-  @min_rounds 1
+  @default_rounds 3
 
   @behaviour Cmd
 
@@ -32,7 +32,7 @@ defmodule Cmd.Ask do
             short: "-R",
             help: "The number of research rounds to perform",
             parser: :integer,
-            default: @min_rounds,
+            default: @default_rounds,
             required: false
           ],
           workers: [
@@ -99,7 +99,7 @@ defmodule Cmd.Ask do
         UI.error(@template_not_found_error)
 
       {:error, :invalid_rounds} ->
-        UI.error("Invalid number of rounds; must be greater than or equal to #{@min_rounds}")
+        UI.error("--rounds expects a positive integer")
 
       {:ok, :testing} ->
         :ok
@@ -114,7 +114,7 @@ defmodule Cmd.Ask do
     end
   end
 
-  defp validate_rounds(%{rounds: rounds}) when rounds >= @min_rounds, do: :ok
+  defp validate_rounds(%{rounds: rounds}) when rounds > 0, do: :ok
   defp validate_rounds(_opts), do: {:error, :invalid_rounds}
 
   defp validate_project(_opts) do
