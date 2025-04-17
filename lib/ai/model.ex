@@ -25,7 +25,7 @@ defmodule AI.Model do
   @spec smart() :: t
   def smart() do
     %AI.Model{
-      model: "o3-mini",
+      model: "o4-mini",
       reasoning: :high,
       context: 200_000
     }
@@ -34,7 +34,7 @@ defmodule AI.Model do
   @spec balanced() :: t
   def balanced() do
     %AI.Model{
-      model: "o3-mini",
+      model: "o4-mini",
       reasoning: :medium,
       context: 200_000
     }
@@ -43,7 +43,7 @@ defmodule AI.Model do
   @spec fast() :: t
   def fast() do
     %AI.Model{
-      model: "o3-mini",
+      model: "o4-mini",
       reasoning: :low,
       context: 200_000
     }
