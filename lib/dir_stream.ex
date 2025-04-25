@@ -15,39 +15,36 @@ defmodule DirStream do
   ## Returns:
     - A `Stream` that yields file paths.
   """
-  def new(path, continue? \\ fn _ -> true end) when is_function(continue?, 1) do
+  def new(path, continue? \\ fn _ -> true end) do
+    root = Path.expand(path)
+
     Stream.resource(
-      # Initialize with the root directory
-      fn -> [path] end,
-      # Fetch the next batch of files/directories
+      fn -> [root] end,
       &next_paths(&1, continue?),
-      # Cleanup is a no-op
       fn _ -> :ok end
     )
   end
 
   defp next_paths([], _continue?), do: {:halt, []}
 
-  defp next_paths([current_path | rest_paths], continue?) do
-    case File.ls(current_path) do
+  defp next_paths([current | rest_paths], continue?) do
+    case File.ls(current) do
       {:ok, entries} ->
-        full_paths =
-          entries
-          |> Enum.map(&Path.join(current_path, &1))
-          |> Enum.map(&Path.expand/1)
+        {files, dirs_to_traverse} =
+          Enum.reduce(entries, {[], []}, fn entry, {files_acc, dirs_acc} ->
+            full = Path.join(current, entry)
+            is_dir = File.dir?(full)
 
-        # Separate files and directories
-        {files, dirs} = Enum.split_with(full_paths, &File.regular?/1)
+            cond do
+              is_dir and continue?.(full) -> {files_acc, [full | dirs_acc]}
+              is_dir -> {files_acc, dirs_acc}
+              true -> {[full | files_acc], dirs_acc}
+            end
+          end)
 
-        # Check whether to continue traversing directories
-        dirs_to_traverse =
-          Enum.filter(dirs, continue?)
-
-        # Return files as the current chunk and add selected dirs to the queue
         {files, dirs_to_traverse ++ rest_paths}
 
       {:error, _reason} ->
-        # Skip unreadable paths
         next_paths(rest_paths, continue?)
     end
   end

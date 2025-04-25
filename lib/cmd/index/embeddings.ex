@@ -12,13 +12,23 @@ defmodule Cmd.Index.Embeddings do
       Store.Project.delete(idx.project)
       UI.report_step("Burned all of the old data to the ground to force a full reindex!")
     else
-      UI.info("Scanning project...")
-      Store.Project.delete_missing_files(idx.project)
-      UI.report_step("Deleted missing and newly excluded files")
+      UI.spin("Deleting missing and newly excluded files from index", fn ->
+        count = Store.Project.delete_missing_files(idx.project)
+        {"Deleted #{count} file(s) from the index", :ok}
+      end)
     end
 
-    all_files = Store.Project.source_files(idx.project)
-    stale_files = Store.Project.stale_source_files(idx.project)
+    all_files =
+      UI.spin("Scanning project files", fn ->
+        files = Store.Project.source_files(idx.project) |> Enum.to_list()
+        {"There are #{Enum.count(files)} indexable file(s) in project", files}
+      end)
+
+    stale_files =
+      UI.spin("Identifying stale files", fn ->
+        files = Store.Project.stale_source_files(all_files) |> Enum.to_list()
+        {"Identified #{Enum.count(files)} stale file(s) to index", files}
+      end)
 
     total = Enum.count(all_files)
     count = Enum.count(stale_files)

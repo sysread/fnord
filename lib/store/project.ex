@@ -38,15 +38,20 @@ defmodule Store.Project do
     exclude =
       case exclude do
         nil -> project.exclude || []
-        [] -> project.exclude
+        [] -> project.exclude || []
         exclude -> exclude |> Enum.map(&relative_to!(&1, root))
       end
       |> Enum.filter(fn exclude ->
-        if File.exists?(exclude) do
-          true
-        else
-          UI.warn("Removing non-existent path from project exclude list: #{exclude}")
-          false
+        exclude
+        |> Path.expand(root)
+        |> File.exists?()
+        |> case do
+          true ->
+            true
+
+          false ->
+            UI.warn("Removing non-existent path from project exclude list: #{exclude}")
+            false
         end
       end)
 
@@ -192,9 +197,9 @@ defmodule Store.Project do
     |> Path.wildcard()
     # Strip metadata.json from the each listing, leaving the directory path for
     # the individual entry.
-    |> Enum.map(&Path.dirname/1)
+    |> Stream.map(&Path.dirname/1)
     # Create an Entry for each directory.
-    |> Enum.map(&Store.Project.Entry.new_from_entry_path(project, &1))
+    |> Stream.map(&Store.Project.Entry.new_from_entry_path(project, &1))
   end
 
   def source_files(project) do
@@ -205,10 +210,20 @@ defmodule Store.Project do
     |> Stream.map(&Store.Project.Entry.new_from_file_path(project, &1))
   end
 
+  def stale_source_files(%Stream{} = files) do
+    files
+    |> Stream.filter(&Store.Project.Entry.is_stale?/1)
+  end
+
+  def stale_source_files(files) when is_list(files) do
+    files
+    |> Stream.filter(&Store.Project.Entry.is_stale?/1)
+  end
+
   def stale_source_files(project) do
     project
     |> source_files()
-    |> Stream.filter(&Store.Project.Entry.is_stale?/1)
+    |> stale_source_files()
   end
 
   def delete_missing_files(project) do
@@ -216,14 +231,29 @@ defmodule Store.Project do
 
     project
     |> stored_files()
-    |> Enum.each(fn entry ->
+    |> Util.async_stream(fn entry ->
       cond do
-        !Store.Project.Entry.source_file_exists?(entry) -> Store.Project.Entry.delete(entry)
-        Store.Project.Entry.is_git_ignored?(entry) -> Store.Project.Entry.delete(entry)
-        MapSet.member?(excluded_files, entry.file) -> Store.Project.Entry.delete(entry)
-        true -> is_text?(entry.file)
+        !Store.Project.Entry.source_file_exists?(entry) ->
+          Store.Project.Entry.delete(entry)
+          true
+
+        Store.Project.Entry.is_git_ignored?(entry) ->
+          Store.Project.Entry.delete(entry)
+          true
+
+        MapSet.member?(excluded_files, entry.file) ->
+          Store.Project.Entry.delete(entry)
+          true
+
+        true ->
+          false
       end
     end)
+    |> Stream.filter(fn
+      {:ok, true} -> true
+      _ -> false
+    end)
+    |> Enum.count()
   end
 
   # -----------------------------------------------------------------------------
@@ -398,6 +428,9 @@ defmodule Store.Project do
   end
 
   defp relative_to!(path, cwd) do
+    IO.inspect({path, cwd}, label: "RELATIVE_TO! ARGS")
+    IO.inspect(Path.safe_relative(path, cwd), label: "SAFE_RLATIVE")
+
     with {:ok, path} <- Path.safe_relative(path, cwd) do
       path
     else

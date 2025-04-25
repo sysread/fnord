@@ -101,8 +101,9 @@ defmodule UI do
 
   def spin(processing, func) do
     if quiet?() do
-      info(processing)
-      {_msg, result} = func.()
+      begin_step(processing)
+      {msg, result} = func.()
+      end_step(msg)
       result
     else
       Spinner.run(func, processing)

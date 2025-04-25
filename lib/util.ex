@@ -5,11 +5,25 @@ defmodule Util do
   `:infinity`, respectively.
   """
   def async_stream(enumerable, fun, options \\ []) do
-    opts =
-      [timeout: :infinity]
-      |> Keyword.merge(options)
-
+    opts = Keyword.merge([timeout: :infinity], options)
     Task.async_stream(enumerable, fun, opts)
+  end
+
+  def async_filter(enumerable, fun) do
+    enumerable
+    |> async_stream(fn item ->
+      if fun.(item) do
+        item
+      else
+        :skip
+      end
+    end)
+    |> Stream.filter(fn
+      {:ok, :skip} -> false
+      {:ok, _} -> true
+      _ -> false
+    end)
+    |> Stream.map(fn {:ok, item} -> item end)
   end
 
   @doc """
