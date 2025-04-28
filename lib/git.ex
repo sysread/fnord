@@ -35,15 +35,8 @@ defmodule Git do
     end
   end
 
-  def is_ignored?(file) do
-    case git(["check-ignore", file]) do
-      {:ok, _} -> true
-      _ -> false
-    end
-  end
-
-  def is_ignored?(file, git_root) do
-    case git(git_root, ["check-ignore", file]) do
+  def is_git_repo?(path) do
+    case git_cmd(["-C", path, "rev-parse", "--is-inside-work-tree"]) do
       {:ok, _} -> true
       _ -> false
     end
@@ -110,6 +103,62 @@ defmodule Git do
 
   def list_branches() do
     git(["branch", "-a", "-r", "--list"])
+  end
+
+  def is_ignored?(file) do
+    case git(["check-ignore", file]) do
+      {:ok, _} -> true
+      _ -> false
+    end
+  end
+
+  def is_ignored?(file, git_root) do
+    case git(git_root, ["check-ignore", file]) do
+      {:ok, _} -> true
+      _ -> false
+    end
+  end
+
+  def ignored_files() do
+    with {:ok, root} <- git_root() do
+      ignored_files(root)
+    end
+  end
+
+  def ignored_files(root) do
+    git(["ls-files", "--others", "--ignored", "--exclude-standard"])
+    |> case do
+      {:ok, out} ->
+        {:ok,
+         out
+         |> String.split("\n", trim: true)
+         |> Enum.map(&Path.absname(&1, root))
+         |> MapSet.new()}
+
+      {:error, error_output} ->
+        {:error, String.trim_trailing(error_output)}
+    end
+  end
+
+  def ignored_dirs() do
+    with {:ok, root} <- git_root() do
+      ignored_dirs(root)
+    end
+  end
+
+  def ignored_dirs(root) do
+    git(["ls-files", "--others", "--ignored", "--exclude-standard", "--directory"])
+    |> case do
+      {:ok, out} ->
+        {:ok,
+         out
+         |> String.split("\n", trim: true)
+         |> Enum.map(&Path.expand(&1, root))
+         |> MapSet.new()}
+
+      {:error, error_output} ->
+        {:error, String.trim_trailing(error_output)}
+    end
   end
 
   # -----------------------------------------------------------------------------

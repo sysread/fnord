@@ -24,38 +24,6 @@ defmodule Store.Project.EntryTest do
     end
   end
 
-  describe "source_file_exists?/1" do
-    test "false when source file does not exist", ctx do
-      file = "a.txt"
-      path = Path.join(ctx.project.source_root, file)
-
-      # Relative file path
-      refute ctx.project
-             |> Store.Project.Entry.new_from_file_path(file)
-             |> Store.Project.Entry.source_file_exists?()
-
-      # Absolute file path
-      refute ctx.project
-             |> Store.Project.Entry.new_from_file_path(path)
-             |> Store.Project.Entry.source_file_exists?()
-    end
-
-    test "true when source file is ignored", ctx do
-      file = "a.txt"
-      path = mock_source_file(ctx.project, file, @text)
-
-      # Relative file path
-      assert ctx.project
-             |> Store.Project.Entry.new_from_file_path(file)
-             |> Store.Project.Entry.source_file_exists?()
-
-      # Absolute file path
-      assert ctx.project
-             |> Store.Project.Entry.new_from_file_path(path)
-             |> Store.Project.Entry.source_file_exists?()
-    end
-  end
-
   describe "exists_in_store?/1" do
     test "false before indexing", ctx do
       file = "a.txt"
@@ -82,35 +50,6 @@ defmodule Store.Project.EntryTest do
       Cmd.Index.perform_task(idx)
 
       assert Store.Project.Entry.exists_in_store?(entry)
-    end
-  end
-
-  describe "is_git_ignored?/1" do
-    test "false when not a git repo", ctx do
-      path = mock_source_file(ctx.project, "a.txt", @text)
-      entry = Store.Project.Entry.new_from_file_path(ctx.project, path)
-
-      refute Store.Project.Entry.is_git_ignored?(entry)
-    end
-
-    test "false when not in .gitignore" do
-      project = mock_git_project("qwerty")
-      git_ignore(project, ["a.txt"])
-
-      path = mock_source_file(project, "b.txt", @text)
-      entry = Store.Project.Entry.new_from_file_path(project, path)
-
-      refute Store.Project.Entry.is_git_ignored?(entry)
-    end
-
-    test "true when in .gitignore" do
-      project = mock_git_project("qwerty")
-      git_ignore(project, ["a.txt"])
-
-      path = mock_source_file(project, "a.txt", @text)
-      entry = Store.Project.Entry.new_from_file_path(project, path)
-
-      assert Store.Project.Entry.is_git_ignored?(entry)
     end
   end
 

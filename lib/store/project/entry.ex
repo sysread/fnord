@@ -48,20 +48,8 @@ defmodule Store.Project.Entry do
     new_from_file_path(project, file_path)
   end
 
-  def source_file_exists?(entry) do
-    cond do
-      !File.exists?(entry.file) -> false
-      Git.is_ignored?(entry.file) -> false
-      true -> true
-    end
-  end
-
   def exists_in_store?(entry) do
     File.dir?(entry.store_path)
-  end
-
-  def is_git_ignored?(entry) do
-    Git.is_ignored?(entry.file)
   end
 
   def create(entry), do: File.mkdir_p!(entry.store_path)

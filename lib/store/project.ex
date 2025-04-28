@@ -5,7 +5,8 @@ defmodule Store.Project do
     :source_root,
     :exclude,
     :conversation_dir,
-    :notes_dir
+    :notes_dir,
+    :exclude_cache
   ]
 
   @type t :: %__MODULE__{}
@@ -154,7 +155,7 @@ defmodule Store.Project do
     end
   end
 
-  def expand_path(path, project) do
+  def expand_path(path, %Store.Project{} = project) do
     Path.expand(path, project.source_root)
   end
 
@@ -165,7 +166,7 @@ defmodule Store.Project do
   end
 
   def find_path_in_source_root(project, path) do
-    path = expand_path(project, path)
+    path = expand_path(path, project)
 
     cond do
       File.dir?(path) -> {:ok, :dir, path}
@@ -203,10 +204,13 @@ defmodule Store.Project do
   end
 
   def source_files(project) do
-    excluded = excluded_paths(project)
+    {project, excluded_paths} = excluded_paths(project)
 
-    DirStream.new(project.source_root, &want_dir?(&1, excluded, project.source_root))
-    |> Stream.filter(&want_file?(&1, excluded, project.source_root))
+    project
+    |> list_all_files()
+    |> Stream.filter(&(!is_hidden?(&1)))
+    |> Stream.filter(&(!MapSet.member?(excluded_paths, &1)))
+    |> Stream.filter(&is_text?(&1, project))
     |> Stream.map(&Store.Project.Entry.new_from_file_path(project, &1))
   end
 
@@ -227,33 +231,15 @@ defmodule Store.Project do
   end
 
   def delete_missing_files(project) do
-    excluded_files = excluded_paths(project)
+    {project, excluded_paths} = excluded_paths(project)
 
     project
     |> stored_files()
-    |> Util.async_stream(fn entry ->
-      cond do
-        !Store.Project.Entry.source_file_exists?(entry) ->
-          Store.Project.Entry.delete(entry)
-          true
-
-        Store.Project.Entry.is_git_ignored?(entry) ->
-          Store.Project.Entry.delete(entry)
-          true
-
-        MapSet.member?(excluded_files, entry.file) ->
-          Store.Project.Entry.delete(entry)
-          true
-
-        true ->
-          false
-      end
+    |> Stream.filter(&MapSet.member?(excluded_paths, &1.file))
+    |> Stream.map(fn entry ->
+      Store.Project.Entry.delete(entry)
+      entry
     end)
-    |> Stream.filter(fn
-      {:ok, true} -> true
-      _ -> false
-    end)
-    |> Enum.count()
   end
 
   # -----------------------------------------------------------------------------
@@ -349,45 +335,34 @@ defmodule Store.Project do
   # -----------------------------------------------------------------------------
   # Private functions
   # -----------------------------------------------------------------------------
-  defp want_dir?(path, excluded, source_root) do
-    cond do
-      # hidden
-      is_hidden?(path) -> false
-      # explicitly excluded
-      MapSet.member?(excluded, path) -> false
-      # git-ignored
-      Git.is_ignored?(path, source_root) -> false
-      # keeper
-      true -> true
-    end
-  end
+  defp list_all_files(project) do
+    args = ["-c", "(find #{project.source_root} -type f || true) | sort"]
 
-  defp want_file?(path, excluded, source_root) do
-    cond do
-      # hidden
-      is_hidden?(path) -> false
-      # explicitly excluded
-      MapSet.member?(excluded, path) -> false
-      # git-ignored
-      Git.is_ignored?(path, source_root) -> false
-      # text only
-      true -> is_text?(path)
+    case System.cmd("sh", args, stderr_to_stdout: true) do
+      {output, 0} ->
+        output
+        |> String.split("\n", trim: true)
+        |> Stream.filter(&(!String.ends_with?(&1, ": Permission denied")))
+        |> Stream.map(&Path.absname(&1, project.source_root))
+
+      {error_output, _} ->
+        raise "find command failed: #{error_output}"
     end
   end
 
   defp is_hidden?(path) do
-    base = Path.basename(path)
-
     cond do
-      base == ".github" -> false
-      String.starts_with?(base, ".") -> true
+      String.ends_with?(path, ".github") -> false
+      String.starts_with?(path, ".") -> true
+      String.contains?(path, "/.") -> true
       true -> false
     end
   end
 
-  defp is_text?(file_path) do
+  defp is_text?(file_path, project) do
     try do
       file_path
+      |> Path.expand(project.source_root)
       |> File.stream!(1024)
       |> Enum.reduce_while(true, fn chunk, _acc ->
         if String.valid?(chunk) do
@@ -401,36 +376,45 @@ defmodule Store.Project do
     end
   end
 
-  defp excluded_paths(project) do
-    if is_nil(project.exclude) do
-      MapSet.new()
-    else
-      project.exclude
-      |> Enum.flat_map(fn exclude ->
-        exclude
-        |> find_path_in_source_root(project)
-        |> case do
-          # If it's a directory, exclude all files in that directory
-          {:ok, :dir, path} -> Path.wildcard(Path.join(path, "**/*"), match_dot: true)
-          # If it's a single file, exclude just that file
-          {:ok, :file, path} -> [path]
-          # Otherwise, treat it as a glob
-          _ -> Path.wildcard(exclude, match_dot: true)
-        end
-      end)
-      # Filter out directories and non-existent files
-      |> Enum.filter(&File.regular?/1)
-      # Convert everything to absolute paths
-      |> Enum.map(&Path.absname/1)
-      # Convert to a MapSet for faster lookups
-      |> MapSet.new()
-    end
+  defp excluded_paths(%{exclude_cache: nil} = project) do
+    user_excluded =
+      if is_nil(project.exclude) do
+        MapSet.new()
+      else
+        project.exclude
+        |> Enum.flat_map(fn exclude ->
+          case find_path_in_source_root(project, exclude) do
+            # If it's a directory, exclude all files in that directory
+            {:ok, :dir, path} -> Path.wildcard(Path.join(path, "**/*"), match_dot: true)
+            # If it's a single file, exclude just that file
+            {:ok, :file, path} -> [path]
+            # Otherwise, treat it as a glob
+            _ -> Path.wildcard(exclude, match_dot: true)
+          end
+        end)
+        # Filter out directories and non-existent files
+        |> Enum.filter(&File.regular?/1)
+        # Convert everything to absolute paths
+        |> Enum.map(&Path.absname/1)
+        # Convert to a MapSet for faster lookups
+        |> MapSet.new()
+      end
+
+    excluded =
+      with {:ok, git_ignored_files} <- Git.ignored_files(project.source_root) do
+        MapSet.union(user_excluded, git_ignored_files)
+      else
+        {:error, _} -> user_excluded
+      end
+
+    {%{project | exclude_cache: excluded}, excluded}
+  end
+
+  defp excluded_paths(%{exclude_cache: excluded} = project) do
+    {project, excluded}
   end
 
   defp relative_to!(path, cwd) do
-    IO.inspect({path, cwd}, label: "RELATIVE_TO! ARGS")
-    IO.inspect(Path.safe_relative(path, cwd), label: "SAFE_RLATIVE")
-
     with {:ok, path} <- Path.safe_relative(path, cwd) do
       path
     else

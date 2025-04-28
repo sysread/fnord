@@ -13,7 +13,7 @@ defmodule Cmd.Index.Embeddings do
       UI.report_step("Burned all of the old data to the ground to force a full reindex!")
     else
       UI.spin("Deleting missing and newly excluded files from index", fn ->
-        count = Store.Project.delete_missing_files(idx.project)
+        count = Store.Project.delete_missing_files(idx.project) |> Enum.count()
         {"Deleted #{count} file(s) from the index", :ok}
       end)
     end
