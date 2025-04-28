@@ -12,6 +12,7 @@ defmodule Fnord do
   """
   def main(args) do
     {:ok, _} = Application.ensure_all_started(:briefly)
+    Once.start_link([])
 
     configure_logger()
 

@@ -179,7 +179,7 @@ defmodule Frobs do
         [frob | acc]
       else
         error ->
-          UI.warn("Frob '#{name}' could not be loaded: #{inspect(error)}")
+          Once.warn("Frob '#{name}' could not be loaded: #{inspect(error)}")
           acc
       end
     end)
@@ -308,6 +308,10 @@ defmodule Frobs do
 
         error = missing_or_invalid_property(props) ->
           error
+
+        !Map.has_key?(params, "required") ->
+          {:error, :missing_required,
+           "Tool parameters must include a 'required' field (array of strings)"}
 
         Map.has_key?(params, "required") and not is_list(params["required"]) ->
           {:error, :invalid_required_type, "'required' must be an array of strings"}
