@@ -182,29 +182,35 @@ defmodule Store.Project do
     |> Stream.map(&Store.Project.Entry.new_from_entry_path(project, &1))
   end
 
-  @spec source_files(t()) :: Enumerable.t()
+  @spec source_files(t()) :: {t, Enumerable.t()}
   def source_files(project) do
     {project, excluded_paths} = excluded_paths(project)
 
-    project
-    |> list_all_files()
-    |> Stream.filter(&(!is_hidden?(&1)))
-    |> Stream.filter(&(!MapSet.member?(excluded_paths, &1)))
-    |> Stream.filter(&is_text?(&1, project))
-    |> Stream.map(&Store.Project.Entry.new_from_file_path(project, &1))
+    files =
+      project
+      |> list_all_files()
+      |> Stream.filter(&(!is_hidden?(&1)))
+      |> Stream.filter(&(!MapSet.member?(excluded_paths, &1)))
+      |> Stream.filter(&is_text?(&1, project))
+      |> Stream.map(&Store.Project.Entry.new_from_file_path(project, &1))
+
+    {project, files}
   end
 
-  @spec delete_missing_files(t()) :: Enumerable.t()
+  @spec delete_missing_files(t()) :: {t, Enumerable.t()}
   def delete_missing_files(project) do
     {project, excluded_paths} = excluded_paths(project)
 
-    project
-    |> stored_files()
-    |> Stream.filter(&MapSet.member?(excluded_paths, &1.file))
-    |> Stream.map(fn entry ->
-      Store.Project.Entry.delete(entry)
-      entry
-    end)
+    entries =
+      project
+      |> stored_files()
+      |> Stream.filter(&MapSet.member?(excluded_paths, &1.file))
+      |> Stream.map(fn entry ->
+        Store.Project.Entry.delete(entry)
+        entry
+      end)
+
+    {project, entries}
   end
 
   # -----------------------------------------------------------------------------

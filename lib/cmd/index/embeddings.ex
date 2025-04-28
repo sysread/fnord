@@ -7,21 +7,25 @@ defmodule Cmd.Index.Embeddings do
   # ----------------------------------------------------------------------------
   # Indexing process
   # ----------------------------------------------------------------------------
-  def index_project(idx) do
-    if reindex?(idx) do
-      Store.Project.delete(idx.project)
-      UI.report_step("Burned all of the old data to the ground to force a full reindex!")
-    else
-      UI.spin("Deleting missing and newly excluded files from index", fn ->
-        count = Store.Project.delete_missing_files(idx.project) |> Enum.count()
-        {"Deleted #{count} file(s) from the index", :ok}
-      end)
-    end
+  def index_project(%{project: project} = idx) do
+    project =
+      if reindex?(idx) do
+        Store.Project.delete(project)
+        UI.report_step("Burned all of the old data to the ground to force a full reindex!")
+        project
+      else
+        UI.spin("Deleting missing and newly excluded files from index", fn ->
+          {project, deleted} = Store.Project.delete_missing_files(project)
+          count = Enum.count(deleted)
+          {"Deleted #{count} file(s) from the index", project}
+        end)
+      end
 
-    all_files =
+    {project, all_files} =
       UI.spin("Scanning project files", fn ->
-        files = Store.Project.source_files(idx.project) |> Enum.to_list()
-        {"There are #{Enum.count(files)} indexable file(s) in project", files}
+        {project, files} = Store.Project.source_files(project)
+        count = files |> Enum.to_list() |> Enum.count()
+        {"There are #{count} indexable file(s) in project", {project, files}}
       end)
 
     stale_files =
@@ -38,7 +42,7 @@ defmodule Cmd.Index.Embeddings do
     count = Enum.count(stale_files)
 
     if count == 0 do
-      UI.warn("No files to index in #{idx.project.name}")
+      UI.warn("No files to index in #{project.name}")
     else
       UI.spin("Indexing #{count} / #{total} files", fn ->
         stale_files

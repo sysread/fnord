@@ -1,7 +1,7 @@
 defmodule Store do
   require Logger
 
-  @spec get_project() :: binary
+  @spec store_home() :: binary
   def store_home() do
     clean_old_strategies_dirs()
 
