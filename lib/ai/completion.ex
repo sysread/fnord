@@ -253,6 +253,21 @@ defmodule AI.Completion do
 
         response = AI.Util.tool_msg(id, func, error)
         {:ok, [request, response]}
+
+      {:error, exit_code, msg} when is_integer(exit_code) ->
+        AI.Completion.Output.on_event(
+          state,
+          :tool_call_error,
+          {func, args_json, {:error, "Exit code: #{exit_code}, Message: #{msg}"}}
+        )
+
+        error = """
+        The external process returned an error code of #{exit_code} with the message:
+        #{msg}
+        """
+
+        response = AI.Util.tool_msg(id, func, error)
+        {:ok, [request, response]}
     end
   end
 
