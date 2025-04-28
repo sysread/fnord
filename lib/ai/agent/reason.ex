@@ -224,7 +224,8 @@ defmodule AI.Agent.Reason do
     - You are talking to a programmer: **NEVER use smart quotes or apostrophes**
     - Start immediately with the highest-level header (#), without introductions, disclaimers, or phrases like "Below is...".
     - Use headers (##, ###) for sections, lists for key points, and bold/italics for emphasis.
-    - Structure content like a technical manual or man page: concise, hierarchical, and self-contained.
+    - By default, structure content like a technical manual or man page: concise, hierarchical, and self-contained.
+    - If not appropriate, structure in the most appropriate format based on the user's implied needs.
     - Use a polite but informal tone; friendly humor and commiseration is encouraged.
     - Include a tl;dr section toward the end.
     - Include a list of relevant files if appropriate.
