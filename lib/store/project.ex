@@ -14,6 +14,7 @@ defmodule Store.Project do
   @conversation_dir "conversations"
   @notes_dir "notes"
 
+  @spec new(String.t(), String.t()) :: t()
   def new(project_name, store_path) do
     settings = Settings.new() |> Settings.get(project_name, %{})
     exclude = Map.get(settings, "exclude", [])
@@ -29,6 +30,7 @@ defmodule Store.Project do
     }
   end
 
+  @spec save_settings(t(), String.t() | nil, String.t() | nil) :: t()
   def save_settings(project, source_root \\ nil, exclude \\ nil) do
     root =
       case source_root do
@@ -65,11 +67,13 @@ defmodule Store.Project do
     new(project.name, project.store_path)
   end
 
+  @spec create(t()) :: :ok
   def create(project) do
     project.store_path |> File.mkdir_p!()
     project.store_path |> Path.join("conversations") |> File.mkdir_p!()
   end
 
+  @spec delete(t()) :: :ok
   def delete(project) do
     # Delete indexed files
     project.store_path
@@ -79,18 +83,21 @@ defmodule Store.Project do
     |> Enum.each(fn path -> File.rm_rf!(path) end)
   end
 
+  @spec torch(t()) :: :ok
   def torch(project) do
     # Delete entire directory
     File.rm_rf!(project.store_path)
 
     # Remove from settings
     Settings.new() |> Settings.delete(project.name)
+
+    :ok
   end
 
   # ----------------------------------------------------------------------------
   # Entries
   # ----------------------------------------------------------------------------
-  @spec find_entry(Store.Project.t(), String.t()) ::
+  @spec find_entry(t(), String.t()) ::
           {:ok, Store.Project.Entry.t()}
           | {:error, atom()}
   def find_entry(project, path) do
@@ -99,7 +106,7 @@ defmodule Store.Project do
     end
   end
 
-  @spec find_file(Store.Project.t(), String.t()) ::
+  @spec find_file(t(), String.t()) ::
           {:ok, String.t()}
           | {:error, atom()}
   def find_file(project, path) do
@@ -121,50 +128,20 @@ defmodule Store.Project do
     end
   end
 
-  defp find_abs_file_root(_project, path) do
-    if String.starts_with?(path, "/") && File.exists?(path) do
-      {:ok, path}
-    else
-      {:error, :not_found}
-    end
-  end
-
-  defp find_abs_file_project(project, path) do
-    if String.starts_with?(path, "/") do
-      path =
-        Path.join(project.source_root, path)
-        |> Path.expand(project.source_root)
-
-      if File.exists?(path) do
-        {:ok, path}
-      else
-        {:error, :not_found}
-      end
-    else
-      {:error, :not_found}
-    end
-  end
-
-  defp find_file_project(project, path) do
-    project
-    |> stored_files()
-    |> Enum.find(&String.ends_with?(&1.file, path))
-    |> case do
-      nil -> {:error, :not_found}
-      entry -> {:ok, entry.file}
-    end
-  end
-
+  @spec expand_path(String.t(), t()) :: String.t()
   def expand_path(path, %Store.Project{} = project) do
     Path.expand(path, project.source_root)
   end
 
+  @spec relative_path(String.t(), t()) :: String.t()
   def relative_path(path, project) do
     path
     |> expand_path(project)
     |> Path.relative_to(project.source_root)
   end
 
+  @spec find_path_in_source_root(Store.Project.t(), String.t()) ::
+          {:ok, :dir | :file | :not_found, String.t()}
   def find_path_in_source_root(project, path) do
     path = expand_path(path, project)
 
@@ -175,6 +152,7 @@ defmodule Store.Project do
     end
   end
 
+  @spec exists_in_store?(t()) :: boolean()
   def exists_in_store?(project) do
     path = project.store_path
     files = Path.wildcard(Path.join(path, "*"))
@@ -188,6 +166,7 @@ defmodule Store.Project do
     end
   end
 
+  @spec stored_files(t()) :: Enumerable.t()
   def stored_files(project) do
     # Start with the path to the project in the store
     project.store_path
@@ -203,6 +182,7 @@ defmodule Store.Project do
     |> Stream.map(&Store.Project.Entry.new_from_entry_path(project, &1))
   end
 
+  @spec source_files(t()) :: Enumerable.t()
   def source_files(project) do
     {project, excluded_paths} = excluded_paths(project)
 
@@ -214,22 +194,7 @@ defmodule Store.Project do
     |> Stream.map(&Store.Project.Entry.new_from_file_path(project, &1))
   end
 
-  def stale_source_files(%Stream{} = files) do
-    files
-    |> Stream.filter(&Store.Project.Entry.is_stale?/1)
-  end
-
-  def stale_source_files(files) when is_list(files) do
-    files
-    |> Stream.filter(&Store.Project.Entry.is_stale?/1)
-  end
-
-  def stale_source_files(project) do
-    project
-    |> source_files()
-    |> stale_source_files()
-  end
-
+  @spec delete_missing_files(t()) :: Enumerable.t()
   def delete_missing_files(project) do
     {project, excluded_paths} = excluded_paths(project)
 
@@ -245,6 +210,7 @@ defmodule Store.Project do
   # -----------------------------------------------------------------------------
   # Conversations
   # -----------------------------------------------------------------------------
+  @spec conversations(t()) :: [Store.Project.Conversation.t()]
   def conversations(project) do
     conversations =
       project.store_path
@@ -261,14 +227,13 @@ defmodule Store.Project do
       end)
 
     conversations
-    |> Enum.sort(fn a, b ->
-      timestamps[a.id] > timestamps[b.id]
-    end)
+    |> Enum.sort(fn a, b -> timestamps[a.id] > timestamps[b.id] end)
   end
 
   # -----------------------------------------------------------------------------
   # Notes
   # -----------------------------------------------------------------------------
+  @spec notes(t()) :: [Store.Project.Note.t()]
   def notes(project) do
     project.notes_dir
     |> File.ls()
@@ -283,6 +248,7 @@ defmodule Store.Project do
     end
   end
 
+  @spec search_notes(t(), String.t(), integer(), float()) :: [{float(), Store.Project.Note.t()}]
   def search_notes(project, query, max_results \\ 10, min_similarity \\ 0.4) do
     needle = AI.get_embeddings!(AI.new(), query)
     notes = notes(project)
@@ -328,6 +294,7 @@ defmodule Store.Project do
     end
   end
 
+  @spec reset_notes(t()) :: {:ok, [binary()]} | {:error, File.posix(), binary()}
   def reset_notes(project) do
     File.rm_rf(project.notes_dir)
   end
@@ -419,6 +386,40 @@ defmodule Store.Project do
       path
     else
       :error -> raise("Error: unable to calculate relative path for #{path} from #{cwd}")
+    end
+  end
+
+  defp find_abs_file_root(_project, path) do
+    if String.starts_with?(path, "/") && File.exists?(path) do
+      {:ok, path}
+    else
+      {:error, :not_found}
+    end
+  end
+
+  defp find_abs_file_project(project, path) do
+    if String.starts_with?(path, "/") do
+      path =
+        Path.join(project.source_root, path)
+        |> Path.expand(project.source_root)
+
+      if File.exists?(path) do
+        {:ok, path}
+      else
+        {:error, :not_found}
+      end
+    else
+      {:error, :not_found}
+    end
+  end
+
+  defp find_file_project(project, path) do
+    project
+    |> stored_files()
+    |> Enum.find(&String.ends_with?(&1.file, path))
+    |> case do
+      nil -> {:error, :not_found}
+      entry -> {:ok, entry.file}
     end
   end
 end

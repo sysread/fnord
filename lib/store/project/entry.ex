@@ -13,6 +13,7 @@ defmodule Store.Project.Entry do
 
   @type t :: %__MODULE__{}
 
+  @spec new_from_file_path(Store.Project.t(), String.t()) :: t()
   def new_from_file_path(project, file) do
     abs_path = Store.Project.expand_path(file, project)
     rel_path = Store.Project.relative_path(abs_path, project)
@@ -37,6 +38,7 @@ defmodule Store.Project.Entry do
     }
   end
 
+  @spec new_from_entry_path(Store.Project.t(), String.t()) :: t()
   def new_from_entry_path(project, entry_path) do
     file_path =
       entry_path
@@ -48,13 +50,18 @@ defmodule Store.Project.Entry do
     new_from_file_path(project, file_path)
   end
 
+  @spec exists_in_store?(t()) :: boolean()
   def exists_in_store?(entry) do
     File.dir?(entry.store_path)
   end
 
+  @spec create(t()) :: :ok
   def create(entry), do: File.mkdir_p!(entry.store_path)
+
+  @spec delete(t()) :: [binary()]
   def delete(entry), do: File.rm_rf!(entry.store_path)
 
+  @spec is_incomplete?(t()) :: boolean()
   def is_incomplete?(entry) do
     cond do
       !has_metadata?(entry) -> true
@@ -65,6 +72,7 @@ defmodule Store.Project.Entry do
     end
   end
 
+  @spec hash_is_current?(t()) :: boolean()
   def hash_is_current?(entry) do
     with {:ok, hash} <- get_last_hash(entry) do
       hash == file_sha256(entry.file)
@@ -73,6 +81,7 @@ defmodule Store.Project.Entry do
     end
   end
 
+  @spec is_stale?(t()) :: boolean()
   def is_stale?(entry) do
     cond do
       # Never indexed
@@ -85,8 +94,10 @@ defmodule Store.Project.Entry do
     end
   end
 
+  @spec read_source_file(t()) :: {:ok, String.t()} | {:error, any()}
   def read_source_file(entry), do: File.read(entry.file)
 
+  @spec read(t()) :: {:ok, map()} | {:error, any()}
   def read(entry) do
     with {:ok, metadata} <- read_metadata(entry),
          {:ok, summary} <- read_summary(entry),
@@ -102,6 +113,7 @@ defmodule Store.Project.Entry do
     end
   end
 
+  @spec save(t(), String.t(), String.t(), [float]) :: :ok | {:error, any()}
   def save(entry, summary, outline, embeddings) do
     delete(entry)
     create(entry)
@@ -141,14 +153,16 @@ defmodule Store.Project.Entry do
   # -----------------------------------------------------------------------------
   # embeddings
   # -----------------------------------------------------------------------------
-  def embeddings_file_paths(entry),
-    do: Store.Project.Entry.Embeddings.store_path(entry.embeddings)
+  def embeddings_file_paths(entry) do
+    Store.Project.Entry.Embeddings.store_path(entry.embeddings)
+  end
 
   def has_embeddings?(entry), do: Store.Project.Entry.Embeddings.exists?(entry.embeddings)
   def read_embeddings(entry), do: Store.Project.Entry.Embeddings.read(entry.embeddings)
 
-  def save_embeddings(entry, embeddings),
-    do: Store.Project.Entry.Embeddings.write(entry.embeddings, embeddings)
+  def save_embeddings(entry, embeddings) do
+    Store.Project.Entry.Embeddings.write(entry.embeddings, embeddings)
+  end
 
   # -----------------------------------------------------------------------------
   # Private functions

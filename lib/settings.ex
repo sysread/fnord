@@ -1,6 +1,9 @@
 defmodule Settings do
   defstruct [:path, :data]
 
+  @type t :: %__MODULE__{}
+
+  @spec new() :: t()
   def new() do
     %Settings{path: settings_file()}
     |> slurp()
@@ -9,6 +12,7 @@ defmodule Settings do
   @doc """
   Get the path to the store root directory.
   """
+  @spec home() :: String.t()
   def home() do
     path = "#{System.get_env("HOME")}/.fnord"
     File.mkdir_p!(path)
@@ -16,8 +20,10 @@ defmodule Settings do
   end
 
   @doc """
-  Get the path to the settings file.
+  Get the path to the settings file. If the file does not exist, it will be
+  created.
   """
+  @spec settings_file() :: String.t()
   def settings_file() do
     path = "#{home()}/settings.json"
 
@@ -31,6 +37,7 @@ defmodule Settings do
   @doc """
   Get a value from the settings store.
   """
+  @spec get(t(), String.t(), any()) :: any()
   def get(settings, key, default \\ nil) do
     key = make_key(key)
     Map.get(settings.data, key, default)
@@ -39,6 +46,7 @@ defmodule Settings do
   @doc """
   Set a value in the settings store.
   """
+  @spec set(t(), String.t(), any()) :: t()
   def set(settings, key, value) do
     key = make_key(key)
 
@@ -49,6 +57,7 @@ defmodule Settings do
   @doc """
   Delete a value from the settings store.
   """
+  @spec delete(t(), String.t()) :: t()
   def delete(settings, key) do
     key = make_key(key)
 
@@ -60,6 +69,7 @@ defmodule Settings do
   Get the project specified with --project. If the project name is not set, an
   error will be raised.
   """
+  @spec get_selected_project!() :: String.t()
   def get_selected_project!() do
     Application.get_env(:fnord, :project)
     |> case do
@@ -68,6 +78,7 @@ defmodule Settings do
     end
   end
 
+  @spec get_project(t()) :: {:ok, map()} | {:error, :not_found}
   def get_project(settings) do
     project = get_selected_project!()
 
@@ -77,12 +88,14 @@ defmodule Settings do
     end
   end
 
+  @spec set_project(t(), map()) :: map()
   def set_project(settings, data) do
     project = get_selected_project!()
     set(settings, project, data)
     data
   end
 
+  @spec get_root(t()) :: {:ok, String.t()} | {:error, :not_found}
   def get_root(settings) do
     settings
     |> get_project()

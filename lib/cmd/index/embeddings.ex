@@ -26,7 +26,11 @@ defmodule Cmd.Index.Embeddings do
 
     stale_files =
       UI.spin("Identifying stale files", fn ->
-        files = Store.Project.stale_source_files(all_files) |> Enum.to_list()
+        files =
+          all_files
+          |> Stream.filter(&Store.Project.Entry.is_stale?/1)
+          |> Enum.to_list()
+
         {"Identified #{Enum.count(files)} stale file(s) to index", files}
       end)
 

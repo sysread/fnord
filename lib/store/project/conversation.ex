@@ -15,6 +15,8 @@ defmodule Store.Project.Conversation do
     :id
   ]
 
+  @type t :: %__MODULE__{}
+
   @store_dir "conversations"
 
   @doc """
@@ -27,12 +29,14 @@ defmodule Store.Project.Conversation do
   Create a new conversation from an existing UUID identifier and the globally
   selected project.
   """
+  @spec new(String.t()) :: t()
   def(new(id), do: new(id, Store.get_project()))
 
   @doc """
   Create a new conversation from an existing UUID identifier and an explicitly
   specified project.
   """
+  @spec new(String.t(), Store.Project.t()) :: t()
   def new(id, project) do
     %__MODULE__{
       project: project,
@@ -44,6 +48,7 @@ defmodule Store.Project.Conversation do
   @doc """
   Returns true if the conversation exists on disk, false otherwise.
   """
+  @spec exists?(t()) :: boolean()
   def exists?(conversation) do
     File.exists?(conversation.store_path)
   end
@@ -52,6 +57,7 @@ defmodule Store.Project.Conversation do
   Saves the conversation in the store. The conversation's timestamp is updated
   to the current time.
   """
+  @spec write(t(), list()) :: {:ok, t()} | {:error, any()}
   def write(conversation, messages) do
     conversation.project
     |> build_store_dir()
@@ -73,6 +79,7 @@ defmodule Store.Project.Conversation do
   Reads the conversation from the store. Returns a tuple with the timestamp and
   the messages in the conversation.
   """
+  @spec read(t()) :: {:ok, DateTime.t(), list()} | {:error, any()}
   def read(conversation) do
     with {:ok, contents} <- File.read(conversation.store_path),
          [timestamp, json] <- String.split(contents, ":", parts: 2),
@@ -86,6 +93,7 @@ defmodule Store.Project.Conversation do
   Returns the timestamp of the conversation. If the conversation has not yet
   been saved to the store, returns 0.
   """
+  @spec timestamp(t()) :: DateTime.t() | 0
   def timestamp(conversation) do
     if exists?(conversation) do
       with {:ok, contents} <- File.read(conversation.store_path),
@@ -104,6 +112,7 @@ defmodule Store.Project.Conversation do
   Returns the user's prompting message in the conversation. This is considered
   to be the first "user" role message in the conversation.
   """
+  @spec question(t()) :: {:ok, String.t()} | {:error, :no_question}
   def question(conversation) do
     with {:ok, _, msgs} <- read(conversation) do
       msgs
@@ -119,6 +128,7 @@ defmodule Store.Project.Conversation do
   Deletes the conversation from the store. If the conversation does not exist,
   returns an error tuple.
   """
+  @spec delete(t()) :: :ok | {:error, :not_found}
   def delete(conversation) do
     if exists?(conversation) do
       File.rm!(conversation.store_path)

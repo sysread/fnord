@@ -5,6 +5,8 @@ defmodule Store.Project.Note do
     :id
   ]
 
+  @type t :: %__MODULE__{}
+
   def new(project), do: new(project, Uniq.UUID.uuid4())
   def new(project, nil), do: new(project, Uniq.UUID.uuid4())
 

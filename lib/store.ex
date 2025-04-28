@@ -1,6 +1,7 @@
 defmodule Store do
   require Logger
 
+  @spec get_project() :: binary
   def store_home() do
     clean_old_strategies_dirs()
 
@@ -13,6 +14,7 @@ defmodule Store do
   # -----------------------------------------------------------------------------
   # Projects
   # -----------------------------------------------------------------------------
+  @spec get_project(nil | binary) :: Store.Project.t()
   def get_project(nil), do: get_project()
 
   def get_project(project_name) do
@@ -21,11 +23,13 @@ defmodule Store do
     Store.Project.new(project_name, store_path)
   end
 
+  @spec get_project() :: Store.Project.t()
   def get_project() do
     project = Settings.get_selected_project!()
     get_project(project)
   end
 
+  @spec list_projects :: [Store.Project.t()]
   def list_projects() do
     home = Settings.home()
 
