@@ -21,7 +21,7 @@ defmodule Store.Project.Conversation do
   Create a new conversation with a new UUID identifier and the globally
   selected project.
   """
-  def new(), do: new(UUID.uuid4(), Store.get_project())
+  def new(), do: new(Uniq.UUID.uuid4(), Store.get_project())
 
   @doc """
   Create a new conversation from an existing UUID identifier and the globally

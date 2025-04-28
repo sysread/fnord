@@ -5,8 +5,8 @@ defmodule Store.Project.Note do
     :id
   ]
 
-  def new(project), do: new(project, UUID.uuid4())
-  def new(project, nil), do: new(project, UUID.uuid4())
+  def new(project), do: new(project, Uniq.UUID.uuid4())
+  def new(project, nil), do: new(project, Uniq.UUID.uuid4())
 
   def new(project, id) do
     %__MODULE__{
