@@ -305,7 +305,7 @@ defmodule AI.Agent.Reason do
   # -----------------------------------------------------------------------------
   defp get_notes(state) do
     with {:ok, notes} <- Store.Project.Notes.read() do
-      UI.report_step("Prior research", notes)
+      UI.debug("Prior research", notes)
 
       msg =
         AI.Util.system_msg("""
