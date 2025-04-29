@@ -129,14 +129,9 @@ defmodule AI.Tools do
     "git_show_tool" => AI.Tools.Git.Show
   }
 
-  @notes_tools %{
-    "notes_save_tool" => AI.Tools.Notes.Save
-  }
-
   @tools %{}
          |> Map.merge(@file_tools)
          |> Map.merge(@git_tools)
-         |> Map.merge(@notes_tools)
 
   # ----------------------------------------------------------------------------
   # API Functions

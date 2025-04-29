@@ -1,4 +1,9 @@
 defmodule Store.Project.Note do
+  @moduledoc """
+  This module is deprecated in favor of `Store.Project.Notes`.
+  It remains for the purpose of managing legacy notes.
+  """
+
   defstruct [
     :project,
     :store_path,
