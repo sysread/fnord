@@ -60,7 +60,6 @@ defmodule Fnord do
           Cmd.Ask,
           Cmd.Config,
           Cmd.Conversations,
-          Cmd.Defrag,
           Cmd.Files,
           Cmd.Frobs,
           Cmd.Index,

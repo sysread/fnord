@@ -17,10 +17,14 @@ defmodule Store do
   @spec get_project(nil | binary) :: Store.Project.t()
   def get_project(nil), do: get_project()
 
-  def get_project(project_name) do
+  def get_project(project) when is_binary(project) do
     home = store_home()
-    store_path = Path.join(home, project_name)
-    Store.Project.new(project_name, store_path)
+    store_path = Path.join(home, project)
+    Store.Project.new(project, store_path)
+  end
+
+  def get_project(%Store.Project{} = project) do
+    project
   end
 
   @spec get_project() :: Store.Project.t()

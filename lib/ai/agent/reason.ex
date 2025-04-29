@@ -304,44 +304,38 @@ defmodule AI.Agent.Reason do
   # Automatic research retrieval
   # -----------------------------------------------------------------------------
   defp get_notes(state) do
-    transcript = AI.Util.research_transcript(state.msgs)
+    with {:ok, notes} <- Store.Project.Notes.read() do
+      UI.report_step("Prior research", notes)
 
-    Store.get_project()
-    |> Store.Project.search_notes(transcript)
-    |> Enum.map(fn {_score, note} -> note end)
-    |> case do
-      [] ->
-        state
+      msg =
+        AI.Util.system_msg("""
+        # Prior Research
+        You have conducted the following prior research on this project.
+        When possible, use this information to inform your research strategies, tool usage, and responses.
 
-      notes ->
-        notes_text =
-          notes
-          |> Enum.map(&Store.Project.Note.read_note(&1))
-          |> Enum.map(fn {:ok, text} -> "#{text}" end)
-          |> Enum.map(fn text ->
-            UI.debug("Prior research", text)
-            text
-          end)
-          |> Enum.join("\n")
+        ## Notes
+        #{notes}
 
-        notes_msg =
-          AI.Util.system_msg("""
-          A semantic search of prior research notes turned up the following results.
-          Keep in mind that the project is under active development and the notes may be out of date.
-          **ALWAYS** use your tools to verify the accuracy and completeness of prior research before using it!
+        ## Caveats
+        - Keep in mind that the project is under active development and the notes may be out of date.
+        - **ALWAYS** use your tools to verify the accuracy and completeness of prior research before using it!
+        """)
 
-          #{notes_text}
-          """)
-
-        %{state | msgs: state.msgs ++ [notes_msg]}
+      %{state | msgs: state.msgs ++ [msg]}
+    else
+      {:error, :no_notes} -> state
     end
-
-    state
   end
 
   defp save_notes(state) do
-    transcript = AI.Util.research_transcript(state.msgs)
-    AI.Agent.Archivist.get_response(state.ai, %{transcript: transcript})
+    args = %{transcript: AI.Util.research_transcript(state.msgs)}
+
+    with {:ok, response} <- AI.Agent.Archivist.get_response(state.ai, args) do
+      UI.report_step("Updated persistent research notes", response)
+    else
+      {:error, reason} -> UI.error("Failed to save research notes: #{reason}")
+    end
+
     state
   end
 

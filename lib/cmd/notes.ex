@@ -48,23 +48,11 @@ defmodule Cmd.Notes do
   end
 
   defp show_notes(project) do
-    project
-    |> Store.Project.notes()
+    project.name
+    |> Store.Project.Notes.read()
     |> case do
-      [] ->
-        IO.puts(:stderr, "No notes found")
-
-      notes ->
-        notes
-        |> Enum.each(fn note ->
-          with {:ok, {topic, facts}} <- Store.Project.Note.parse(note) do
-            IO.puts("\n# #{topic}")
-
-            facts
-            |> Enum.map(&"- #{&1}")
-            |> Enum.each(&IO.puts/1)
-          end
-        end)
+      {:ok, notes} -> IO.puts(notes)
+      {:error, :no_notes} -> IO.puts(:stderr, "No notes found")
     end
   end
 
@@ -74,7 +62,7 @@ defmodule Cmd.Notes do
          false
        ) do
       IO.puts("Resetting notes for `#{project.name}`:")
-      Store.Project.reset_notes(project)
+      Store.Project.Notes.reset(project.name)
       IO.puts("✓ Notes reset")
     else
       IO.puts("Aborted")

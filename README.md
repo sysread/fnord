@@ -181,12 +181,6 @@ fnord notes --project blarg | glow
 
 Over time, these can become quite extensive, redundant, and stale over time as your code base evolves.
 
-Consolidate and fact-check the notes for your project with the `defrag` command.
-
-```bash
-fnord defrag --project blarg
-```
-
 `fnord` knows how to "prime the pump" for its learning process with an initial set of learnings.
 
 ```bash
