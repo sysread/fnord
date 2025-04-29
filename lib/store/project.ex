@@ -204,7 +204,7 @@ defmodule Store.Project do
     entries =
       project
       |> stored_files()
-      |> Stream.filter(&MapSet.member?(excluded_paths, &1.file))
+      |> Stream.filter(&(MapSet.member?(excluded_paths, &1.file) || !File.exists?(&1.file)))
       |> Stream.map(fn entry ->
         Store.Project.Entry.delete(entry)
         entry
