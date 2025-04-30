@@ -30,8 +30,9 @@ defmodule Store.Project.Notes do
     |> File.write(content)
     |> case do
       :ok ->
-        # UI.info("Upgrading notes to new format")
-        # File.rm_rf!(project.notes_dir)
+        UI.info("Upgraded notes to new format")
+        UI.info("Deleting old notes directory")
+        File.rm_rf!(project.notes_dir)
         :ok
 
       {:error, reason} ->
