@@ -111,13 +111,14 @@ defmodule AI.Tools do
   # ----------------------------------------------------------------------------
   # Tool Registry
   # ----------------------------------------------------------------------------
-  @file_tools %{
+  @default_tools %{
     "file_contents_tool" => AI.Tools.File.Contents,
     "file_info_tool" => AI.Tools.File.Info,
     "file_list_tool" => AI.Tools.File.List,
     "file_outline_tool" => AI.Tools.File.Outline,
     "file_search_tool" => AI.Tools.File.Search,
-    "file_spelunker_tool" => AI.Tools.File.Spelunker
+    "file_spelunker_tool" => AI.Tools.File.Spelunker,
+    "ripgrep_search" => AI.Tools.Ripgrep
   }
 
   @git_tools %{
@@ -130,7 +131,7 @@ defmodule AI.Tools do
   }
 
   @tools %{}
-         |> Map.merge(@file_tools)
+         |> Map.merge(@default_tools)
          |> Map.merge(@git_tools)
 
   # ----------------------------------------------------------------------------

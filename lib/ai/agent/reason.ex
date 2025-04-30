@@ -269,6 +269,7 @@ defmodule AI.Agent.Reason do
   Walk the user through the answer, step by step.
   Use solid prinicples of instructional design when writing your response.
   Ensure that your response is well-formatted and easy to read.
+  Never use smart quotes!
 
   $$TEMPLATE$$
 
@@ -283,6 +284,7 @@ defmodule AI.Agent.Reason do
   Attribute the quote to the real person speaking from the made-up scenario.
   Example: "I have not failed. I've just found 10,000 ways that won't work." - Thomas Edison, on the importance of negative path testing."
   Don't just use my example. Be creative. Sheesh.
+  Never use smart quotes!
   Format: `### MOTD\n> <quote> - <source>, <briefly state the made-up scenario>`
   """
 
@@ -375,7 +377,8 @@ defmodule AI.Agent.Reason do
     AI.Tools.tool_spec!("file_list_tool"),
     AI.Tools.tool_spec!("file_search_tool"),
     AI.Tools.tool_spec!("file_contents_tool"),
-    AI.Tools.tool_spec!("file_spelunker_tool")
+    AI.Tools.tool_spec!("file_spelunker_tool"),
+    AI.Tools.tool_spec!("ripgrep_search")
   ]
 
   @git_tools [
