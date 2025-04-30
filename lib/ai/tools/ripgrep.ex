@@ -57,14 +57,6 @@ defmodule AI.Tools.Ripgrep do
               description:
                 "Include or exclude files using glob patterns (e.g., '*.rs', '!Cargo.lock')."
             },
-            file_type: %{
-              type: "string",
-              description: "Restrict search to a specific file type (e.g., 'py', 'go', 'js')."
-            },
-            file_type_not: %{
-              type: "string",
-              description: "Exclude a specific file type (e.g., 'lock', 'min.js')."
-            },
             hidden: %{
               type: "boolean",
               description: "Search hidden files and directories.",
@@ -128,16 +120,11 @@ defmodule AI.Tools.Ripgrep do
     |> append_flag(args[:hidden], "--hidden")
     |> append_flag(args[:no_ignore], "--no-ignore")
     |> append_list("--glob", args[:glob])
-    |> append_value("--type", args[:file_type])
-    |> append_value("--type-not", args[:file_type_not])
     |> Kernel.++([pattern])
   end
 
   defp append_flag(cmd, true, flag), do: cmd ++ [flag]
   defp append_flag(cmd, _, _), do: cmd
-
-  defp append_value(cmd, _flag, nil), do: cmd
-  defp append_value(cmd, flag, val), do: cmd ++ [flag, val]
 
   defp append_list(cmd, _flag, nil), do: cmd
 
