@@ -21,8 +21,11 @@ defmodule AI.Tools.File.Contents do
         description: """
         Display the contents of a file in the project. Note that this retrieves
         the ENTIRE file. If the file is large, this may fail due to limits on
-        the size of messages. If you only need to learn a specific fact about
-        the file, use the file_info_tool to preserve your context window.
+        the size of messages, or it may pull so much content into your context
+        window that you forget the user's prompt or begin hallucinating
+        responses. If you only need to learn specific facts or extract a
+        section of code, use the file_info_tool to preserve your context
+        window.
         """,
         parameters: %{
           type: "object",

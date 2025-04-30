@@ -20,9 +20,13 @@ defmodule AI.Tools.File.Search do
         name: "file_search_tool",
         description: """
         The search tool implements a robust semantic search to find project
-        files matching your query input. This tool does NOT have access to
-        historical data or commit messages. It only searches the most recently
-        indexed version of the project.
+        files matching your query input. Each file in the search index was
+        primed for semantic search using an LLM to generate contextual content
+        related to the file contents, allowing for improved fuzzy searches.
+
+        Note that this tool does not have access to historical data or commit
+        messages. It only searches the most recently indexed version of the
+        project.
         """,
         strict: true,
         parameters: %{
