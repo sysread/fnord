@@ -83,16 +83,21 @@ defmodule AI.OpenAI do
     %{model: model.model, reasoning_effort: reasoning}
   end
 
-  defp get_completion_response(%{"choices" => [%{"message" => response}]}) do
-    get_completion_response(response)
+  defp get_completion_response(%{
+         "choices" => [%{"message" => response}],
+         "usage" => %{"total_tokens" => usage}
+       }) do
+    response
+    |> Map.put("usage", usage)
+    |> get_completion_response()
   end
 
   defp get_completion_response(%{"tool_calls" => tool_calls}) do
     {:ok, :tool, Enum.map(tool_calls, &get_tool_call/1)}
   end
 
-  defp get_completion_response(%{"content" => response}) do
-    {:ok, :msg, response}
+  defp get_completion_response(%{"content" => response, "usage" => usage}) do
+    {:ok, :msg, response, usage}
   end
 
   defp get_tool_call(%{"id" => id, "function" => %{"name" => name, "arguments" => args}}) do

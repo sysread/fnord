@@ -112,6 +112,10 @@ defmodule AI.Tools.Ripgrep do
     end
   end
 
+  def is_available?() do
+    System.find_executable("rg") |> is_nil() |> Kernel.not()
+  end
+
   defp atomize_keys(map) when is_map(map) do
     Map.new(map, fn {k, v} -> {String.to_atom(k), v} end)
   end

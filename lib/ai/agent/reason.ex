@@ -29,7 +29,8 @@ defmodule AI.Agent.Reason do
       last_response: nil,
       steps: research_steps,
       current_step: 0,
-      total_steps: Enum.count(research_steps)
+      total_steps: Enum.count(research_steps),
+      usage: 0
     }
   end
 
@@ -170,8 +171,15 @@ defmodule AI.Agent.Reason do
       tools: available_tools(state),
       messages: msgs
     )
-    |> then(fn {:ok, %{response: response, messages: new_msgs}} ->
-      %{state | current_step: current_step, msgs: new_msgs, last_response: response}
+    |> then(fn {:ok, %{response: response, messages: new_msgs, usage: usage}} ->
+      %{
+        state
+        | usage: usage,
+          current_step: current_step,
+          last_response: response,
+          msgs: new_msgs
+      }
+      |> log_usage()
       |> log_response()
     end)
   end
@@ -377,8 +385,7 @@ defmodule AI.Agent.Reason do
     AI.Tools.tool_spec!("file_list_tool"),
     AI.Tools.tool_spec!("file_search_tool"),
     AI.Tools.tool_spec!("file_contents_tool"),
-    AI.Tools.tool_spec!("file_spelunker_tool"),
-    AI.Tools.tool_spec!("ripgrep_search")
+    AI.Tools.tool_spec!("file_spelunker_tool")
   ]
 
   @git_tools [
@@ -391,16 +398,23 @@ defmodule AI.Agent.Reason do
   ]
 
   defp available_tools(state) do
+    tools = @non_git_tools
+
     tools =
-      if Git.is_git_repo?() do
-        @non_git_tools ++ @git_tools
+      if AI.Tools.Ripgrep.is_available?() do
+        tools ++ [AI.Tools.tool_spec!("ripgrep_search")]
       else
-        @non_git_tools
+        tools
       end
 
-    frobs = available_frobs(state)
+    tools =
+      if Git.is_git_repo?() do
+        tools ++ @git_tools
+      else
+        tools
+      end
 
-    tools ++ frobs
+    tools ++ available_frobs(state)
   end
 
   defp available_frobs(state) do
@@ -422,6 +436,26 @@ defmodule AI.Agent.Reason do
     thought = String.replace(thought, ~r/<think>(.*)<\/think>/, "\\1")
     UI.debug("Considering", thought)
     state
+  end
+
+  defp log_usage(usage) when is_integer(usage) do
+    percentage = Float.round(usage / @model.context * 100, 2)
+    str_usage = format_number(usage)
+    str_context = format_number(@model.context)
+    UI.info("Context window usage", "#{percentage}% (#{str_usage} / #{str_context} tokens)")
+  end
+
+  defp log_usage(%{usage: usage} = state) do
+    log_usage(usage)
+    state
+  end
+
+  defp format_number(int) when is_integer(int) do
+    int
+    |> Integer.to_string()
+    |> String.reverse()
+    |> String.replace(~r/\d{3}(?=\d)/, "\\0,")
+    |> String.reverse()
   end
 
   # -----------------------------------------------------------------------------
@@ -477,7 +511,7 @@ defmodule AI.Agent.Reason do
         AI.Util.user_msg(state.question)
       ]
     )
-    |> then(fn {:ok, %{response: msg} = response} ->
+    |> then(fn {:ok, %{response: msg, usage: usage} = response} ->
       UI.flush()
       IO.puts(msg)
 
@@ -486,6 +520,8 @@ defmodule AI.Agent.Reason do
       |> Enum.each(fn {tool, count} ->
         UI.report_step(tool, "called #{count} time(s)")
       end)
+
+      log_usage(usage)
     end)
 
     {:ok, :testing}

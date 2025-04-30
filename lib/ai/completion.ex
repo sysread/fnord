@@ -20,6 +20,7 @@ defmodule AI.Completion do
     :log_msgs,
     :log_tool_calls,
     :replay_conversation,
+    :usage,
     :messages,
     :tool_call_requests,
     :response
@@ -33,6 +34,7 @@ defmodule AI.Completion do
           log_msgs: boolean(),
           log_tool_calls: boolean(),
           replay_conversation: boolean(),
+          usage: integer(),
           messages: list(),
           tool_call_requests: list(),
           response: String.t() | nil
@@ -68,6 +70,7 @@ defmodule AI.Completion do
         log_msgs: log_msgs,
         log_tool_calls: log_tool_calls,
         replay_conversation: replay,
+        usage: 0,
         messages: messages,
         tool_call_requests: [],
         response: nil
@@ -115,11 +118,12 @@ defmodule AI.Completion do
     {response, state}
   end
 
-  defp handle_response({{:ok, :msg, response}, state}) do
+  defp handle_response({{:ok, :msg, response, usage}, state}) do
     %{
       state
       | messages: state.messages ++ [AI.Util.assistant_msg(response)],
-        response: response
+        response: response,
+        usage: usage
     }
   end
 
