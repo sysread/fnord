@@ -30,7 +30,8 @@ defmodule AI.Agent.Reason do
       steps: research_steps,
       current_step: 0,
       total_steps: Enum.count(research_steps),
-      usage: 0
+      usage: 0,
+      context: @model.context
     }
   end
 
@@ -53,7 +54,7 @@ defmodule AI.Agent.Reason do
   # Research steps
   # -----------------------------------------------------------------------------
   @first_steps [:initial, :clarify, :refine]
-  @last_steps [:save_notes, :finalize]
+  @last_steps [:finalize]
 
   defp steps(n) do
     steps =
@@ -121,16 +122,7 @@ defmodule AI.Agent.Reason do
     |> perform_step()
   end
 
-  # defp perform_step(%{steps: [:save_notes | steps]} = state) do
-  #  UI.debug("Saving research notes")
-  #
-  #  state
-  #  |> Map.put(:steps, steps)
-  #  |> save_notes()
-  #  |> perform_step()
-  # end
-
-  defp perform_step(%{steps: [:save_notes, :finalize]} = state) do
+  defp perform_step(%{steps: [:finalize]} = state) do
     save_notes =
       Task.async(fn ->
         UI.debug("Saving research notes")
@@ -142,13 +134,21 @@ defmodule AI.Agent.Reason do
         UI.debug("Generating response")
 
         state
+        |> Map.put(:current_step, state.current_step + 1)
         |> Map.put(:msgs, state.msgs ++ [finalize_msg(state)])
         |> Map.put(:steps, [])
         |> get_completion()
       end)
 
     # Wait for tasks and return the result of finalize
+
+    # We don't need to retain the output of the save_notes task for anything.
+    # But we do need to ensure it is completed before we emit the response to
+    # the user.
     Task.await(save_notes, :infinity)
+
+    # Retain the state of the finalize task, since it affects the output,
+    # including usage and messages.
     Task.await(finalize, :infinity)
   end
 
@@ -440,22 +440,14 @@ defmodule AI.Agent.Reason do
 
   defp log_usage(usage) when is_integer(usage) do
     percentage = Float.round(usage / @model.context * 100, 2)
-    str_usage = format_number(usage)
-    str_context = format_number(@model.context)
+    str_usage = Util.format_number(usage)
+    str_context = Util.format_number(@model.context)
     UI.info("Context window usage", "#{percentage}% (#{str_usage} / #{str_context} tokens)")
   end
 
   defp log_usage(%{usage: usage} = state) do
     log_usage(usage)
     state
-  end
-
-  defp format_number(int) when is_integer(int) do
-    int
-    |> Integer.to_string()
-    |> String.reverse()
-    |> String.replace(~r/\d{3}(?=\d)/, "\\0,")
-    |> String.reverse()
   end
 
   # -----------------------------------------------------------------------------

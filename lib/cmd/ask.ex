@@ -79,16 +79,21 @@ defmodule Cmd.Ask do
          {:ok, template} <- read_template(opts),
          {:ok, msgs, conversation} <- restore_conversation(opts),
          opts <- opts |> Map.put(:template, template) |> Map.put(:msgs, msgs),
-         %{msgs: msgs} <- AI.Agent.Reason.get_response(ai, opts),
+         %{msgs: msgs, usage: usage, context: context} <- AI.Agent.Reason.get_response(ai, opts),
          {:ok, conversation_id} <- save_conversation(conversation, msgs) do
       end_time = System.monotonic_time(:second)
       time_taken = end_time - start_time
+      pct_context_used = Float.round(usage / context * 100, 2)
 
       UI.flush()
+
+      usage_str = Util.format_number(usage)
+      context_str = Util.format_number(context)
 
       IO.puts("""
       -----
       - Response generated in #{time_taken} seconds
+      - Tokens used: #{usage_str} | #{pct_context_used}% of context window (#{context_str})
       - Conversation saved with ID #{conversation_id}
       """)
     else

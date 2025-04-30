@@ -81,4 +81,12 @@ defmodule Util do
         {:error, reason}
     end
   end
+
+  def format_number(int) when is_integer(int) do
+    int
+    |> Integer.to_string()
+    |> String.reverse()
+    |> String.replace(~r/\d{3}(?=\d)/, "\\0,")
+    |> String.reverse()
+  end
 end
