@@ -1,4 +1,8 @@
 defmodule Store.Project.NoteParser do
+  @moduledoc """
+  This module is deprecated. It remains to support `Store.Project.Note`.
+  """
+
   @re_topic ~r/
     ^
     \s*

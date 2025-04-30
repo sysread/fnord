@@ -18,6 +18,8 @@ defmodule AI.Agent.Reason do
   end
 
   defp new(ai, opts) do
+    research_steps = steps(opts.rounds)
+
     %{
       ai: ai,
       project: opts.project,
@@ -25,7 +27,9 @@ defmodule AI.Agent.Reason do
       template: opts.template,
       msgs: opts.msgs,
       last_response: nil,
-      steps: steps(opts.rounds)
+      steps: research_steps,
+      current_step: 0,
+      total_steps: Enum.count(research_steps)
     }
   end
 
@@ -116,25 +120,48 @@ defmodule AI.Agent.Reason do
     |> perform_step()
   end
 
-  defp perform_step(%{steps: [:save_notes | steps]} = state) do
-    UI.debug("Saving research notes")
+  # defp perform_step(%{steps: [:save_notes | steps]} = state) do
+  #  UI.debug("Saving research notes")
+  #
+  #  state
+  #  |> Map.put(:steps, steps)
+  #  |> save_notes()
+  #  |> perform_step()
+  # end
 
-    state
-    |> Map.put(:steps, steps)
-    |> save_notes()
-    |> perform_step()
-  end
+  defp perform_step(%{steps: [:save_notes, :finalize]} = state) do
+    save_notes =
+      Task.async(fn ->
+        UI.debug("Saving research notes")
+        save_notes(state)
+      end)
 
-  defp perform_step(%{steps: [:finalize]} = state) do
-    UI.debug("Generating response")
+    finalize =
+      Task.async(fn ->
+        UI.debug("Generating response")
 
-    state
-    |> Map.put(:msgs, state.msgs ++ [finalize_msg(state)])
-    |> Map.put(:steps, [])
-    |> get_completion()
+        state
+        |> Map.put(:msgs, state.msgs ++ [finalize_msg(state)])
+        |> Map.put(:steps, [])
+        |> get_completion()
+      end)
+
+    # Wait for tasks and return the result of finalize
+    Task.await(save_notes, :infinity)
+    Task.await(finalize, :infinity)
   end
 
   defp get_completion(%{ai: ai, msgs: msgs} = state) do
+    current_step = state.current_step + 1
+    total_steps = state.total_steps
+
+    UI.debug("""
+
+    # ------------------------------------------------------------------------------
+    # Step #{current_step} of #{total_steps}
+    # ------------------------------------------------------------------------------
+    """)
+
     AI.Completion.get(ai,
       log_msgs: true,
       log_tool_calls: true,
@@ -144,7 +171,7 @@ defmodule AI.Agent.Reason do
       messages: msgs
     )
     |> then(fn {:ok, %{response: response, messages: new_msgs}} ->
-      %{state | msgs: new_msgs, last_response: response}
+      %{state | current_step: current_step, msgs: new_msgs, last_response: response}
       |> log_response()
     end)
   end
@@ -306,6 +333,7 @@ defmodule AI.Agent.Reason do
   defp get_notes(state) do
     with {:ok, notes} <- Store.Project.Notes.read() do
       UI.debug("Prior research", notes)
+      UI.debug("To view research notes", "`fnord notes -p #{state.project}`")
 
       msg =
         AI.Util.system_msg("""
