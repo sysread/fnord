@@ -54,19 +54,22 @@ defmodule Cmd.Search do
 
   @impl Cmd
   def run(opts, _subcommands, _unknown) do
-    opts
-    |> Search.new()
-    |> Search.get_results()
-    |> Enum.each(fn {entry, score, data} ->
-      if opts.detail do
-        IO.puts("""
-        -----
-        # File: #{entry.file} | Score: #{score}
-        #{data["summary"]}
-        """)
-      else
-        IO.puts("#{score}\t#{entry.file}")
-      end
-    end)
+    with {:ok, results} <- opts |> Search.new() |> Search.get_results() do
+      results
+      |> Enum.each(fn {entry, score, data} ->
+        if opts.detail do
+          IO.puts("""
+          -----
+          # File: #{entry.file} | Score: #{score}
+          #{data["summary"]}
+          """)
+        else
+          IO.puts("#{score}\t#{entry.file}")
+        end
+      end)
+    else
+      {:error, reason} ->
+        IO.puts("Error: #{reason}")
+    end
   end
 end

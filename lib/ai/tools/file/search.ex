@@ -69,9 +69,16 @@ defmodule AI.Tools.File.Search do
     |> Map.put(:query, query)
     |> Search.new()
     |> Search.get_results()
-    |> Enum.map(fn {entry, score, data} ->
-      {entry.rel_path, score, data}
-    end)
-    |> then(&{:ok, &1})
+    |> case do
+      {:ok, results} ->
+        results
+        |> Enum.map(fn {entry, score, data} ->
+          {entry.rel_path, score, data}
+        end)
+        |> then(&{:ok, &1})
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 end
