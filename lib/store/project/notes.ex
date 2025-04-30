@@ -2,7 +2,7 @@ defmodule Store.Project.Notes do
   @filename "notes.md"
 
   @typep project :: nil | binary() | Store.Project.t()
-  @typep no_notes :: {:error, :no_notes}
+  @typep no_notes :: {:error, any()}
 
   @spec reset(project()) :: :ok
   def reset(project \\ nil) do
@@ -35,8 +35,8 @@ defmodule Store.Project.Notes do
         File.rm_rf!(project.notes_dir)
         :ok
 
-      {:error, reason} ->
-        {:error, reason}
+      other ->
+        other
     end
   end
 

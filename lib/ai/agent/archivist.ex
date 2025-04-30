@@ -72,10 +72,54 @@ defmodule AI.Agent.Archivist do
   @impl AI.Agent
   def get_response(ai, opts) do
     with {:ok, transcript} <- Map.fetch(opts, :transcript),
-         {:ok, old_notes} <- get_notes(),
-         {:ok, %{response: response}} <- build_response(ai, transcript, old_notes),
-         :ok <- Store.Project.Notes.write(response) do
-      {:ok, response}
+         {:ok, max_tokens} <- Map.fetch(opts, :max_tokens),
+         {:ok, old_notes} <- fetch_notes(),
+         {:ok, compressed} <- compress_notes(ai, old_notes, max_tokens),
+         {:ok, organized} <- build_response(ai, transcript, compressed),
+         :ok = Store.Project.Notes.write(organized) do
+      {:ok, organized}
+    end
+  end
+
+  # Recursively compress notes until under max_tokens
+  defp compress_notes(ai, notes, max_tokens) do
+    count = AI.Tokenizer.encode(notes, @model) |> length()
+    count_str = Util.format_number(count)
+    max_tokens_str = Util.format_number(max_tokens)
+
+    if count <= max_tokens do
+      UI.report_step(
+        "Prior research",
+        "Notes are within the max token limit (#{count_str} ≤ #{max_tokens_str})"
+      )
+
+      {:ok, notes}
+    else
+      UI.report_step(
+        "Prior research",
+        "Attempting to compress to within #{max_tokens_str} tokens (currently at #{count_str})"
+      )
+
+      prompt = """
+      # Your Role
+      You are the Archivist AI Agent.
+      The existing research notes exceed the allowed token limit.
+      Compress and reorganize to retain all facts and remove redundancies.
+      DO NOT LOSE ANY FACTS.
+
+      # Notes
+      #{notes}
+      """
+
+      {:ok, %{response: compressed}} =
+        AI.Accumulator.get_response(ai,
+          model: @model,
+          prompt: prompt,
+          input: notes,
+          question: "Compress research notes to ≤ #{max_tokens_str} tokens."
+        )
+
+      compress_notes(ai, compressed, max_tokens)
     end
   end
 
@@ -88,18 +132,21 @@ defmodule AI.Agent.Archivist do
     #{old_notes}
     """
 
-    AI.Accumulator.get_response(ai,
-      model: @model,
-      prompt: @prompt,
-      input: input,
-      question: "Organize and file the facts discovered during the research for future reference."
-    )
+    {:ok, %{response: organized}} =
+      AI.Accumulator.get_response(ai,
+        model: @model,
+        prompt: @prompt,
+        input: input,
+        question: "Organize, integrate, and file new facts into your existing research notes."
+      )
+
+    {:ok, organized}
   end
 
-  defp get_notes() do
+  defp fetch_notes() do
     case Store.Project.Notes.read() do
       {:ok, notes} -> {:ok, notes}
-      {:error, :no_notes} -> {:ok, "<no research has been conducted yet>"}
+      {:error, :no_notes} -> {:ok, "No research has been conducted yet"}
     end
   end
 end

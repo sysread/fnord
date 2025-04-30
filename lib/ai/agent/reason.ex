@@ -366,12 +366,15 @@ defmodule AI.Agent.Reason do
   end
 
   defp save_notes(state) do
-    args = %{transcript: AI.Util.research_transcript(state.msgs)}
+    args = %{
+      transcript: AI.Util.research_transcript(state.msgs),
+      max_tokens: (@model.context * 0.10) |> Float.round(0) |> round()
+    }
 
     with {:ok, response} <- AI.Agent.Archivist.get_response(state.ai, args) do
       UI.report_step("Updated persistent research notes", response)
     else
-      {:error, reason} -> UI.error("Failed to save research notes: #{reason}")
+      other -> UI.error("Failed to save research notes: #{inspect(other)}")
     end
 
     state

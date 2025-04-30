@@ -128,6 +128,10 @@ defmodule AI.Tools.Ripgrep do
 
   defp append_list(cmd, _flag, nil), do: cmd
 
+  defp append_list(cmd, flag, list) when is_binary(list) do
+    cmd ++ [flag, list]
+  end
+
   defp append_list(cmd, flag, list) when is_list(list) do
     Enum.reduce(list, cmd, fn item, acc -> acc ++ [flag, item] end)
   end
