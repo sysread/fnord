@@ -134,7 +134,6 @@ defmodule AI.Agent.Reason do
         UI.debug("Generating response")
 
         state
-        |> Map.put(:current_step, state.current_step + 1)
         |> Map.put(:msgs, state.msgs ++ [finalize_msg(state)])
         |> Map.put(:steps, [])
         |> get_completion()
@@ -312,16 +311,16 @@ defmodule AI.Agent.Reason do
     |> AI.Util.system_msg()
   end
 
-  defp clarify_msg(_state) do
-    AI.Util.system_msg(@clarify)
+  defp clarify_msg(state) do
+    AI.Util.system_msg("#{@clarify}\n\nRecall the user's original prompt: #{state.question}")
   end
 
-  defp refine_msg(_state) do
-    AI.Util.system_msg(@refine)
+  defp refine_msg(state) do
+    AI.Util.system_msg("#{@refine}\n\nRecall the user's original prompt: #{state.question}")
   end
 
-  defp continue_msg(_state) do
-    AI.Util.system_msg(@continue)
+  defp continue_msg(state) do
+    AI.Util.system_msg("#{@continue}\n\nRecall the user's original prompt: #{state.question}")
   end
 
   defp finalize_msg(%{template: nil} = state) do
@@ -330,8 +329,8 @@ defmodule AI.Agent.Reason do
     |> finalize_msg()
   end
 
-  defp finalize_msg(%{template: template}) do
-    @finalize
+  defp finalize_msg(%{template: template} = state) do
+    "#{@finalize}\n\nRecall the user's original prompt: #{state.question}"
     |> String.replace("$$TEMPLATE$$", template)
     |> String.replace("$$MOTD$$", @motd)
     |> AI.Util.system_msg()

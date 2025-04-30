@@ -30,9 +30,14 @@ defmodule Store.Project.Notes do
     |> File.write(content)
     |> case do
       :ok ->
-        UI.info("Upgraded notes to new format")
-        UI.info("Deleting old notes directory")
-        File.rm_rf!(project.notes_dir)
+        if File.exists?(project.notes_dir) do
+          UI.info("Prior research notes have been upgraded to a new format")
+          File.rm_rf!(project.notes_dir)
+          UI.info("Deleted old (deprecated) prior research notes directory")
+        else
+          UI.info("Prior research notes saved")
+        end
+
         :ok
 
       other ->
