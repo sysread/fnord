@@ -141,12 +141,22 @@ fnord ask --project blarg --question "Is there a function or method that does X?
 fnord ask --project blarg --question "How do I add a new X implementation?"
 ```
 
+#### Improve research quality
+
+By default, `ask` performs a single round of research (multiple tool calls per round notwithstanding).
+You can increase the number of rounds with the `--rounds` option.
+Increasing the number of rounds will increase the time it takes to generate a response, but can drastically improve the quality and thoroughness of the response, especially in large code bases or code bases containing multiple apps.
+
+```bash
+fnord ask --project blarg --question "Please confirm that all information in the README is up-to-date and correct. Identify user-facing functionality that is not well-documented." --rounds 3
+```
+
+#### Continuing a conversation
+
 Conversations (the transcript of messages between the LLM and the application) are saved for future reference and continuation. After each response, you will see a message like:
 ```
 Conversation saved with ID: c81928aa-6ab2-4346-9b2a-0edce6a639f0
 ```
-
-#### Continuing a conversation
 
 If desired, you can use that ID to continue the conversation with `--follow`.
 
