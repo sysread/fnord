@@ -1,7 +1,7 @@
 defmodule Cmd.Ask do
   @project_not_found_error "Project not found; verify that the project has been indexed."
   @template_not_found_error "Template file not found; verify that the output template file exists."
-  @default_rounds 3
+  @default_rounds 1
 
   @behaviour Cmd
 
