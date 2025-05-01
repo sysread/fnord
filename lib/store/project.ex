@@ -113,6 +113,7 @@ defmodule Store.Project do
     [
       &find_abs_file_root/2,
       &find_abs_file_project/2,
+      &find_rel_file_project/2,
       &find_file_project/2
     ]
     |> Enum.find_value(fn f ->
@@ -345,6 +346,14 @@ defmodule Store.Project do
       else
         {:error, :not_found}
       end
+    else
+      {:error, :not_found}
+    end
+  end
+
+  defp find_rel_file_project(project, path) do
+    if path |> expand_path(project) |> File.exists?() do
+      {:ok, path}
     else
       {:error, :not_found}
     end

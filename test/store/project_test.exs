@@ -45,11 +45,6 @@ defmodule ProjectTest do
       assert found == file
     end
 
-    test "does not find by relative name", %{project: project} do
-      _ = mock_source_file(project, "exists2.txt", "ok")
-      assert {:error, :not_found} = Project.find_file(project, "exists2.txt")
-    end
-
     test "returns :not_found for missing absolute path", %{project: project} do
       ghost = Path.join(project.source_root, "ghost.txt")
       assert {:error, :not_found} = Project.find_file(project, ghost)
