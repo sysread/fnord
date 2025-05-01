@@ -25,9 +25,9 @@ defmodule AI.Model do
   @spec smart() :: t
   def smart() do
     %AI.Model{
-      model: "o4-mini",
-      reasoning: :medium,
-      context: 200_000
+      model: "gpt-4.1-mini",
+      reasoning: nil,
+      context: 1_000_000
     }
   end
 
