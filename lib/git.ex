@@ -42,6 +42,14 @@ defmodule Git do
     end
   end
 
+  def current_branch() do
+    git(["rev-parse", "--abbrev-ref", "HEAD"])
+    |> case do
+      {:ok, branch} -> {:ok, branch}
+      _ -> {:error, :not_a_git_repo}
+    end
+  end
+
   def grep(regex, ignore_case?) do
     if ignore_case? do
       ["grep", "-m", "1", "-i", regex]

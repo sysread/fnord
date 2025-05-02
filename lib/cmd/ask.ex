@@ -19,6 +19,14 @@ defmodule Cmd.Ask do
             help: "Project name",
             required: true
           ],
+          directory: [
+            value_name: "DIRECTORY",
+            long: "--directory",
+            short: "-d",
+            help:
+              "If the project has not yet been created in fnord, the project root directory is required.",
+            required: false
+          ],
           question: [
             value_name: "QUESTION",
             long: "--question",
@@ -30,7 +38,8 @@ defmodule Cmd.Ask do
             value_name: "ROUNDS",
             long: "--rounds",
             short: "-R",
-            help: "The number of research rounds to perform",
+            help:
+              "The number of research rounds to perform. Additional rounds generally result in more thorough research.",
             parser: :integer,
             default: @default_rounds,
             required: false
@@ -75,7 +84,7 @@ defmodule Cmd.Ask do
     ai = AI.new()
     start_time = System.monotonic_time(:second)
 
-    with :ok <- validate(opts),
+    with {:ok, opts} <- validate(opts),
          {:ok, template} <- read_template(opts),
          {:ok, msgs, conversation} <- restore_conversation(opts),
          opts <- opts |> Map.put(:template, template) |> Map.put(:msgs, msgs),
@@ -100,6 +109,14 @@ defmodule Cmd.Ask do
       {:error, :project_not_found} ->
         UI.error(@project_not_found_error)
 
+      {:error, :directory_not_found} ->
+        UI.error("""
+        The selected project has not been created in fnord and you did not provide a --directory option.
+        You can either:
+        - Create the project in fnord by running `fnord index --project <project> --directory <directory>`
+        - Provide a valid root --directory for the project.
+        """)
+
       {:error, :template_not_found} ->
         UI.error(@template_not_found_error)
 
@@ -112,22 +129,47 @@ defmodule Cmd.Ask do
   end
 
   defp validate(opts) do
-    with :ok <- validate_project(opts),
+    with {:ok, opts} <- validate_project(opts),
          :ok <- validate_template(opts),
          :ok <- validate_rounds(opts) do
-      :ok
+      {:ok, opts}
     end
   end
 
   defp validate_rounds(%{rounds: rounds}) when rounds > 0, do: :ok
   defp validate_rounds(_opts), do: {:error, :invalid_rounds}
 
-  defp validate_project(_opts) do
-    Store.get_project()
-    |> Store.Project.exists_in_store?()
-    |> case do
-      true -> :ok
-      false -> {:error, :project_not_found}
+  defp validate_project(opts) do
+    project = Store.get_project(opts[:project])
+    exists? = Store.Project.exists_in_store?(project)
+    indexed? = exists? and Store.Project.has_index?(project)
+    directory = opts[:directory]
+
+    cond do
+      # Selected project is indexed - all good.
+      indexed? ->
+        {:ok, opts}
+
+      # Selected project exists, but is not indexed; we can use the directory
+      # from the project config.
+      exists? ->
+        {:ok, %{opts | directory: project.source_root}}
+
+      # Selected project has not been created, but a directory arg was provided
+      # that does exist. We can use that.
+      !is_nil(directory) and File.exists?(directory) ->
+        opts[:project]
+        |> Store.get_project()
+        |> Store.Project.save_settings(directory)
+        |> Store.Project.create()
+        |> Store.Project.make_default_for_session()
+
+        {:ok, %{opts | directory: directory}}
+
+      # Selected project has not been created, and no directory arg was provided.
+      # We can't do anything.
+      true ->
+        {:error, :directory_not_found}
     end
   end
 

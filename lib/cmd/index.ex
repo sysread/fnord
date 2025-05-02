@@ -90,14 +90,15 @@ defmodule Cmd.Index do
 
   def new(opts) do
     project_name = Map.get(opts, :project)
-    Application.put_env(:fnord, :project, project_name)
 
     project =
-      Store.get_project()
+      project_name
+      |> Store.get_project()
       |> Store.Project.save_settings(
         Map.get(opts, :directory),
         Map.get(opts, :exclude)
       )
+      |> Store.Project.make_default_for_session()
 
     if is_nil(project.source_root) do
       raise """

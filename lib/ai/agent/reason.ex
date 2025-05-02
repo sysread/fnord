@@ -188,7 +188,8 @@ defmodule AI.Agent.Reason do
   # -----------------------------------------------------------------------------
   @singleton """
   You are an AI assistant that researches the user's code base to answer their qustions.
-  You are assisting the user by researching their question about the project, $$PROJECT$$.
+  You are assisting the user by researching their question about the project, "$$PROJECT$$".
+  $$GIT_INFO$$
   Confirm whether any prior research you found is still relevant and factual.
   Proactively use your tools to research the user's question.
   You reason through problems step by step.
@@ -207,7 +208,8 @@ defmodule AI.Agent.Reason do
 
   @initial """
   You are an AI assistant that researches the user's code base to answer their qustions.
-  You are assisting the user by researching their question about the project, $$PROJECT$$.
+  You are assisting the user by researching their question about the project, "$$PROJECT$$".
+  $$GIT_INFO$$
   Confirm whether any prior research you found is still relevant and factual.
   Proactively use your tools to research the user's question.
   You reason through problems step by step.
@@ -299,15 +301,30 @@ defmodule AI.Agent.Reason do
     AI.Util.user_msg(question)
   end
 
+  defp git_info() do
+    with {:ok, root} <- Git.git_root(),
+         {:ok, branch} <- Git.current_branch() do
+      """
+      You are working in a git repository.
+      The current branch is `#{branch}`.
+      The git root is `#{root}`.
+      """
+    else
+      {:error, :not_a_git_repo} -> "Note: this project is not under git version control."
+    end
+  end
+
   defp singleton_msg(%{project: project}) do
     @singleton
     |> String.replace("$$PROJECT$$", project)
+    |> String.replace("$$GIT_INFO$$", git_info())
     |> AI.Util.system_msg()
   end
 
   defp initial_msg(%{project: project}) do
     @initial
     |> String.replace("$$PROJECT$$", project)
+    |> String.replace("$$GIT_INFO$$", git_info())
     |> AI.Util.system_msg()
   end
 
@@ -341,8 +358,8 @@ defmodule AI.Agent.Reason do
   # -----------------------------------------------------------------------------
   defp get_notes(state) do
     with {:ok, notes} <- Store.Project.Notes.read() do
-      UI.debug("Prior research", notes)
-      UI.debug("To view research notes", "`fnord notes -p #{state.project}`")
+      UI.debug("Retrieving prior research")
+      UI.debug("To view prior research", "`fnord notes -p #{state.project}`")
 
       msg =
         AI.Util.system_msg("""
@@ -385,7 +402,6 @@ defmodule AI.Agent.Reason do
   @non_git_tools [
     AI.Tools.tool_spec!("file_info_tool"),
     AI.Tools.tool_spec!("file_list_tool"),
-    AI.Tools.tool_spec!("file_search_tool"),
     AI.Tools.tool_spec!("file_contents_tool"),
     AI.Tools.tool_spec!("file_spelunker_tool")
   ]
@@ -402,10 +418,32 @@ defmodule AI.Agent.Reason do
   defp available_tools(state) do
     tools = @non_git_tools
 
+    search_available? = AI.Tools.File.Search.is_available?()
+    ripgrep_available? = AI.Tools.Ripgrep.is_available?()
+
+    if !search_available? and !ripgrep_available? do
+      UI.fatal("No search tools available. Please index your project, install ripgrep, or both.")
+    end
+
+    # If the selected project has an index, add the file search tool.
     tools =
-      if AI.Tools.Ripgrep.is_available?() do
+      if search_available? do
+        tools ++ [AI.Tools.tool_spec!("file_search_tool")]
+      else
+        UI.warn("project is not indexed; semantic search unavailable")
+        tools
+      end
+
+    # If ripgrep is available, add the ripgrep search tool.
+    tools =
+      if ripgrep_available? do
+        unless search_available? do
+          UI.warn("falling back on ripgrep for file search")
+        end
+
         tools ++ [AI.Tools.tool_spec!("ripgrep_search")]
       else
+        UI.warn("ripgrep not found in PATH; file search unavailable")
         tools
       end
 
@@ -458,6 +496,11 @@ defmodule AI.Agent.Reason do
   @test_prompt """
   Perform the requested test exactly as instructed by the user.
 
+  If this were not a test, the following information would be provided.
+  Include it in your response to the user if it is relevant to the test:
+  You are assisting the user by researching their question about the project, "$$PROJECT$$."
+  $$GIT_INFO$$
+
   If the user explicitly requests a (*literal*) `mic check`:
     - Respond with an intelligently humorous message to indicate that the request was received
     - Examples:
@@ -492,7 +535,7 @@ defmodule AI.Agent.Reason do
     |> String.starts_with?("testing:")
   end
 
-  defp get_test_response(state) do
+  defp get_test_response(%{project: project} = state) do
     tools = available_tools(state)
 
     AI.Completion.get(state.ai,
@@ -501,7 +544,10 @@ defmodule AI.Agent.Reason do
       model: AI.Model.fast(),
       tools: tools,
       messages: [
-        AI.Util.system_msg(@test_prompt),
+        @test_prompt
+        |> String.replace("$$PROJECT$$", project)
+        |> String.replace("$$GIT_INFO$$", git_info())
+        |> AI.Util.system_msg(),
         AI.Util.user_msg(state.question)
       ]
     )

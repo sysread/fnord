@@ -1,4 +1,11 @@
 defmodule AI.Tools.Ripgrep do
+  @doc """
+  This tool requires that ripgrep (rg) is installed and available in the PATH.
+  """
+  def is_available?() do
+    System.find_executable("rg") |> is_nil() |> Kernel.not()
+  end
+
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -102,10 +109,6 @@ defmodule AI.Tools.Ripgrep do
             {:error, "ripgrep execution error: #{inspect(other)}"}
         end
     end
-  end
-
-  def is_available?() do
-    System.find_executable("rg") |> is_nil() |> Kernel.not()
   end
 
   defp atomize_keys(map) when is_map(map) do

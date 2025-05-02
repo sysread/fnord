@@ -1,6 +1,14 @@
 defmodule AI.Tools.File.Search do
   @max_search_results 5
 
+  @doc """
+  This tool requires that the project has been indexed to use. If the project
+  has not been indexed, the tool should not be made available.
+  """
+  def is_available?() do
+    Store.get_project() |> Store.Project.has_index?()
+  end
+
   @behaviour AI.Tools
 
   @impl AI.Tools

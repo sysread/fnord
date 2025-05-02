@@ -84,6 +84,20 @@ defmodule UI do
     Logger.error(IO.ANSI.format([:red, msg, :reset, ": ", :cyan, detail, :reset], colorize?()))
   end
 
+  @spec fatal(binary) :: no_return()
+  def fatal(msg) do
+    Logger.error(IO.ANSI.format([:red, msg, :reset], colorize?()))
+    Logger.flush()
+    System.halt(1)
+  end
+
+  @spec fatal(binary, binary) :: no_return()
+  def fatal(msg, detail) do
+    Logger.error(IO.ANSI.format([:red, msg, :reset, ": ", :cyan, detail, :reset], colorize?()))
+    Logger.flush()
+    System.halt(1)
+  end
+
   defp colorize? do
     :prim_tty.isatty(:stderr)
     |> case do

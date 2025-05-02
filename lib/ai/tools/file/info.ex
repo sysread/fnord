@@ -3,7 +3,7 @@ defmodule AI.Tools.File.Info do
 
   @impl AI.Tools
   def ui_note_on_request(%{"file" => file, "question" => question}) do
-    {"Considering #{file}", question}
+    {"Considering [#{file}]", question}
   end
 
   def ui_note_on_request(args) do
@@ -12,7 +12,7 @@ defmodule AI.Tools.File.Info do
 
   @impl AI.Tools
   def ui_note_on_result(%{"file" => file, "question" => question}, result) do
-    {"Considered #{file}", "#{question}\n\n#{result}"}
+    {"Answered [#{file}]: #{question}", result}
   end
 
   def ui_note_on_result(_args, _result) do

@@ -258,19 +258,6 @@ defmodule AI.Tools do
     end
   end
 
-  def get_file_contents(file) do
-    with {:ok, project} <- get_project() do
-      get_file_contents(project, file)
-    end
-  end
-
-  def get_file_contents(project, file) do
-    case get_entry(project, file) do
-      {:ok, entry} -> Store.Project.Entry.read_source_file(entry)
-      {:error, :not_found} -> {:error, :enoent}
-    end
-  end
-
   def get_entry(file) do
     with {:ok, project} <- get_project() do
       get_entry(project, file)
@@ -279,6 +266,15 @@ defmodule AI.Tools do
 
   def get_entry(project, file) do
     Store.Project.find_entry(project, file)
+  end
+
+  def get_file_contents(file) do
+    Store.get_project()
+    |> Store.Project.find_file(file)
+    |> case do
+      {:ok, path} -> File.read(path)
+      {:error, :not_found} -> {:error, :enoent}
+    end
   end
 
   # ----------------------------------------------------------------------------

@@ -67,10 +67,12 @@ defmodule Store.Project do
     new(project.name, project.store_path)
   end
 
-  @spec create(t()) :: :ok
+  @spec create(t()) :: t()
   def create(project) do
     project.store_path |> File.mkdir_p!()
     project.store_path |> Path.join("conversations") |> File.mkdir_p!()
+    File.touch!(project.store_path |> Path.join("notes.md"))
+    project
   end
 
   @spec delete(t()) :: :ok
@@ -94,21 +96,34 @@ defmodule Store.Project do
     :ok
   end
 
+  @spec make_default_for_session(t()) :: t
+  def make_default_for_session(project) do
+    Application.put_env(:fnord, :project, project.name)
+    project
+  end
+
   # ----------------------------------------------------------------------------
   # Entries
   # ----------------------------------------------------------------------------
-  @spec find_entry(t(), String.t()) ::
-          {:ok, Store.Project.Entry.t()}
-          | {:error, atom()}
+  @spec has_index?(t()) :: boolean()
+  def has_index?(project) do
+    glob = Path.join(project.store_path, "**/embeddings.json")
+
+    System.cmd("bash", ["-c", ~s[compgen -G "$1" > /dev/null], "--", glob])
+    |> case do
+      {_, 0} -> true
+      _ -> false
+    end
+  end
+
+  @spec find_entry(t(), String.t()) :: {:ok, Store.Project.Entry.t()} | {:error, atom()}
   def find_entry(project, path) do
     with {:ok, resolved} <- find_file(project, path) do
       {:ok, Store.Project.Entry.new_from_file_path(project, resolved)}
     end
   end
 
-  @spec find_file(t(), String.t()) ::
-          {:ok, String.t()}
-          | {:error, atom()}
+  @spec find_file(t(), String.t()) :: {:ok, String.t()} | {:error, atom()}
   def find_file(project, path) do
     [
       &find_abs_file_root/2,
@@ -352,7 +367,9 @@ defmodule Store.Project do
   end
 
   defp find_rel_file_project(project, path) do
-    if path |> expand_path(project) |> File.exists?() do
+    path = expand_path(path, project)
+
+    if File.exists?(path) do
       {:ok, path}
     else
       {:error, :not_found}
