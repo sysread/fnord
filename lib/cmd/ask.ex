@@ -123,6 +123,9 @@ defmodule Cmd.Ask do
       {:error, :invalid_rounds} ->
         UI.error("--rounds expects a positive integer")
 
+      {:error, :conversation_not_found} ->
+        UI.error("Conversation ID #{opts[:follow]} not found")
+
       {:ok, :testing} ->
         :ok
     end
@@ -130,6 +133,7 @@ defmodule Cmd.Ask do
 
   defp validate(opts) do
     with {:ok, opts} <- validate_project(opts),
+         :ok <- validate_conversation(opts),
          :ok <- validate_template(opts),
          :ok <- validate_rounds(opts) do
       {:ok, opts}
@@ -138,6 +142,18 @@ defmodule Cmd.Ask do
 
   defp validate_rounds(%{rounds: rounds}) when rounds > 0, do: :ok
   defp validate_rounds(_opts), do: {:error, :invalid_rounds}
+
+  defp validate_conversation(%{follow: conversation_id}) when is_binary(conversation_id) do
+    conversation_id
+    |> Store.Project.Conversation.new()
+    |> Store.Project.Conversation.exists?()
+    |> case do
+      true -> :ok
+      false -> {:error, :conversation_not_found}
+    end
+  end
+
+  defp validate_conversation(_opts), do: :ok
 
   defp validate_project(opts) do
     project = Store.get_project(opts[:project])
