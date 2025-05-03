@@ -58,7 +58,23 @@ defmodule AI.Agent.Archivist do
   - Organize the facts by topic
   - Use markdown headers for each topic, followed by a list of facts
 
-  IMPORTANT:
+  # Structure
+  Use the following template (between the dashed lines, but not including them):
+  -----
+  # SYNOPSIS
+  [summary of the purpose of the project]
+
+  # LAYOUT
+  [explain the layout of the repo; is it a monorepo? how do the apps interact? how are they organized?]
+
+  # APPLICATIONS & COMPONENTS
+  [for each app or primary/top-level component, provide a brief description, location, and dependencies]
+
+  # NOTES
+  [organize notes by topic, with a subheading for each topic, and a list of facts]
+  -----
+
+  # IMPORTANT:
   - **Do not lose existing facts that were NOT disproven by the new research transcript**
   - **If you do not include all of the prior research notes, they will be gone forever, until the next time we re-disover them.**
   - **SERIOUSLY, ++PLEASE++ DO NOT LOSE ANY FACTS THAT WERE NOT DISPROVEN**
