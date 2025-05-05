@@ -68,6 +68,17 @@ defmodule AI.Agent.Reason do
     steps ++ @last_steps
   end
 
+  defp perform_step({:error, reason}) do
+    {:error,
+     """
+     An error occurred while processing your request.
+
+     ```
+     #{inspect(reason, pretty: true)}
+     ```
+     """}
+  end
+
   defp perform_step(%{steps: [:singleton | steps]} = state) do
     UI.debug("Performing abbreviated research")
 
@@ -123,11 +134,7 @@ defmodule AI.Agent.Reason do
   end
 
   defp perform_step(%{steps: [:finalize]} = state) do
-    save_notes =
-      Task.async(fn ->
-        UI.debug("Saving research notes")
-        save_notes(state)
-      end)
+    save_notes = Task.async(fn -> save_notes(state) end)
 
     finalize =
       Task.async(fn ->
@@ -143,8 +150,12 @@ defmodule AI.Agent.Reason do
 
     # We don't need to retain the output of the save_notes task for anything.
     # But we do need to ensure it is completed before we emit the response to
-    # the user.
+    # the user, and report on its outcome.
     Task.await(save_notes, :infinity)
+    |> case do
+      {:ok, _} -> UI.debug("Research notes saved")
+      {:error, reason} -> UI.error("Failed to save research notes:\n\n#{reason}")
+    end
 
     # Retain the state of the finalize task, since it affects the output,
     # including usage and messages.
@@ -170,17 +181,21 @@ defmodule AI.Agent.Reason do
       tools: available_tools(state),
       messages: msgs
     )
-    |> then(fn {:ok, %{response: response, messages: new_msgs, usage: usage}} ->
-      %{
-        state
-        | usage: usage,
-          current_step: current_step,
-          last_response: response,
-          msgs: new_msgs
-      }
-      |> log_usage()
-      |> log_response()
-    end)
+    |> case do
+      {:ok, %{response: response, messages: new_msgs, usage: usage}} ->
+        %{
+          state
+          | usage: usage,
+            current_step: current_step,
+            last_response: response,
+            msgs: new_msgs
+        }
+        |> log_usage()
+        |> log_response()
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   # -----------------------------------------------------------------------------
@@ -203,7 +218,7 @@ defmodule AI.Agent.Reason do
   - Did you double-check your work to ensure that you are not missing any important details?
   - Did you include citations of the files you used to answer the question?
 
-  **Do not finalize your response until explicitly instructed.**
+  **DO NOT FINALIZE YOUR RESPONSE UNTIL EXPLICITLY INSTRUCTED.**
   """
 
   @initial """
@@ -217,7 +232,7 @@ defmodule AI.Agent.Reason do
   Your first step is to break down the user's request into individual tasks.
   You will then execute these tasks, parallelizing as many as possible.
 
-  **Do not finalize your response until explicitly instructed.**
+  **DO NOT FINALIZE YOUR RESPONSE UNTIL EXPLICITLY INSTRUCTED.**
   """
 
   @clarify """
@@ -228,8 +243,8 @@ defmodule AI.Agent.Reason do
   Expand your thinking and investigation to consider other aspects of the topic.
   Identify potential ambiguities around how the context is applied within this project.
 
-  Do not finalize your response.
-  **Continue researching.**
+  DO NOT FINALIZE YOUR RESPONSE.
+  **CONTINUE RESEARCHING.**
   """
 
   @refine """
@@ -240,8 +255,8 @@ defmodule AI.Agent.Reason do
   Are there any other unresolved questions that you must research in order to provide an effective response?
   Attempt to find examples of existing code that demonstrates the topic; this is always helpful for the user.
 
-  Do not finalize your response.
-  **Continue researching.**
+  DO NOT FINALIZE YOUR RESPONSE.
+  **CONTINUE RESEARCHING.**
   """
 
   @continue """
@@ -249,8 +264,8 @@ defmodule AI.Agent.Reason do
   Perform additional research steps to more fully flesh out your knowledge of the topic.
   Use your tools to improve your understanding of the domain and its context within this project.
 
-  Do not finalize your response.
-  **Continue researching.**
+  DO NOT FINALIZE YOUR RESPONSE.
+  **CONTINUE RESEARCHING.**
   """
 
   @default_template """
@@ -282,7 +297,7 @@ defmodule AI.Agent.Reason do
 
   $$TEMPLATE$$
 
-  Finalize your response.
+  FINALIZE YOUR RESPONSE.
   """
 
   @motd """

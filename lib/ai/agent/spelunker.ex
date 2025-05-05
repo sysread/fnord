@@ -41,6 +41,8 @@ defmodule AI.Agent.Spelunker do
   def get_response(ai, opts) do
     with {:ok, %{response: response}} <- build_response(ai, opts) do
       {:ok, response}
+    else
+      {:error, %{response: response}} -> {:error, response}
     end
   end
 

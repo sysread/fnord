@@ -126,6 +126,9 @@ defmodule Cmd.Ask do
       {:error, :conversation_not_found} ->
         UI.error("Conversation ID #{opts[:follow]} not found")
 
+      {:error, other} ->
+        UI.error("An error occurred while generating the response:\n\n#{other}")
+
       {:ok, :testing} ->
         :ok
     end

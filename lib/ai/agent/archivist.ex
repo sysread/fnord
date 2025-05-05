@@ -91,9 +91,12 @@ defmodule AI.Agent.Archivist do
          {:ok, max_tokens} <- Map.fetch(opts, :max_tokens),
          {:ok, old_notes} <- fetch_notes(),
          {:ok, compressed} <- compress_notes(ai, old_notes, max_tokens),
-         {:ok, organized} <- build_response(ai, transcript, compressed),
+         {:ok, organized} <- organize_notes(ai, transcript, compressed),
          :ok = Store.Project.Notes.write(organized) do
       {:ok, organized}
+    else
+      {:compress_error, reason} -> {:error, "failed to compress notes: #{reason}"}
+      {:organize_error, reason} -> {:error, "failed to organize notes: #{reason}"}
     end
   end
 
@@ -104,15 +107,11 @@ defmodule AI.Agent.Archivist do
     max_tokens_str = Util.format_number(max_tokens)
 
     if count <= max_tokens do
-      UI.report_step(
-        "Prior research",
-        "Notes are within the max token limit (#{count_str} ≤ #{max_tokens_str})"
-      )
-
+      UI.report_step("Compressing prior research", "Nothing to do")
       {:ok, notes}
     else
       UI.report_step(
-        "Prior research",
+        "Compressing prior research",
         "Attempting to compress to within #{max_tokens_str} tokens (currently at #{count_str})"
       )
 
@@ -127,19 +126,22 @@ defmodule AI.Agent.Archivist do
       #{notes}
       """
 
-      {:ok, %{response: compressed}} =
-        AI.Accumulator.get_response(ai,
-          model: @model,
-          prompt: prompt,
-          input: notes,
-          question: "Compress research notes to ≤ #{max_tokens_str} tokens."
-        )
-
-      compress_notes(ai, compressed, max_tokens)
+      AI.Accumulator.get_response(ai,
+        model: @model,
+        prompt: prompt,
+        input: notes,
+        question: "Compress research notes to ≤ #{max_tokens_str} tokens."
+      )
+      |> case do
+        {:ok, %{response: compressed}} -> compress_notes(ai, compressed, max_tokens)
+        {:error, reason} -> {:compress_error, reason}
+      end
     end
   end
 
-  defp build_response(ai, transcript, old_notes) do
+  defp organize_notes(ai, transcript, old_notes) do
+    UI.report_step("Updating prior research", "Assimilating new research into existing notes")
+
     input = """
     # NEW RESEARCH TRANSCRIPT
     #{transcript}
@@ -148,15 +150,16 @@ defmodule AI.Agent.Archivist do
     #{old_notes}
     """
 
-    {:ok, %{response: organized}} =
-      AI.Accumulator.get_response(ai,
-        model: @model,
-        prompt: @prompt,
-        input: input,
-        question: "Organize, integrate, and file new facts into your existing research notes."
-      )
-
-    {:ok, organized}
+    AI.Accumulator.get_response(ai,
+      model: @model,
+      prompt: @prompt,
+      input: input,
+      question: "Organize, integrate, and file new facts into your existing research notes."
+    )
+    |> case do
+      {:ok, %{response: organized}} -> {:ok, organized}
+      {:error, reason} -> {:organize_error, reason}
+    end
   end
 
   defp fetch_notes() do

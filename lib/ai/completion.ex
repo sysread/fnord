@@ -40,7 +40,7 @@ defmodule AI.Completion do
           response: String.t() | nil
         }
 
-  @type response :: {:ok, t}
+  @type response :: {:ok, t} | {:error, t}
 
   @spec get(AI.t(), Keyword.t()) :: response
   def get(ai, opts) do
@@ -48,7 +48,6 @@ defmodule AI.Completion do
       state
       |> AI.Completion.Output.replay_conversation()
       |> send_request()
-      |> then(&{:ok, &1})
     end
   end
 
@@ -108,32 +107,32 @@ defmodule AI.Completion do
   # Completion handling
   # -----------------------------------------------------------------------------
   defp send_request(state) do
-    state
-    |> get_completion()
-    |> handle_response()
+    AI.get_completion(
+      state.ai,
+      state.model,
+      state.messages,
+      state.tools
+    )
+    |> handle_response(state)
   end
 
-  def get_completion(state) do
-    response = AI.get_completion(state.ai, state.model, state.messages, state.tools)
-    {response, state}
+  defp handle_response({:ok, :msg, response, usage}, state) do
+    {:ok,
+     %{
+       state
+       | messages: state.messages ++ [AI.Util.assistant_msg(response)],
+         response: response,
+         usage: usage
+     }}
   end
 
-  defp handle_response({{:ok, :msg, response, usage}, state}) do
-    %{
-      state
-      | messages: state.messages ++ [AI.Util.assistant_msg(response)],
-        response: response,
-        usage: usage
-    }
-  end
-
-  defp handle_response({{:ok, :tool, tool_calls}, state}) do
+  defp handle_response({:ok, :tool, tool_calls}, state) do
     %{state | tool_call_requests: tool_calls}
     |> handle_tool_calls()
     |> send_request()
   end
 
-  defp handle_response({{:error, %{http_status: http_status, code: code, message: msg}}, state}) do
+  defp handle_response({:error, %{http_status: http_status, code: code, message: msg}}, state) do
     error_msg = """
     I encountered an error while processing your request.
 
@@ -142,10 +141,10 @@ defmodule AI.Completion do
     - Message: #{msg}
     """
 
-    %{state | response: error_msg}
+    {:error, %{state | response: error_msg}}
   end
 
-  defp handle_response({{:error, %{http_status: http_status, message: msg}}, state}) do
+  defp handle_response({:error, %{http_status: http_status, message: msg}}, state) do
     error_msg = """
     I encountered an error while processing your request.
 
@@ -153,10 +152,10 @@ defmodule AI.Completion do
     - Message: #{msg}
     """
 
-    %{state | response: error_msg}
+    {:error, %{state | response: error_msg}}
   end
 
-  defp handle_response({{:error, reason}, state}) do
+  defp handle_response({:error, reason}, state) do
     reason =
       if is_binary(reason) do
         reason
@@ -172,7 +171,7 @@ defmodule AI.Completion do
     #{reason}
     """
 
-    %{state | response: error_msg}
+    {:error, %{state | response: error_msg}}
   end
 
   # -----------------------------------------------------------------------------
@@ -187,11 +186,7 @@ defmodule AI.Completion do
         _, acc -> acc
       end)
 
-    %__MODULE__{
-      state
-      | tool_call_requests: [],
-        messages: messages
-    }
+    %{state | tool_call_requests: [], messages: messages}
   end
 
   def handle_tool_call(state, %{id: id, function: %{name: func, arguments: args_json}}) do

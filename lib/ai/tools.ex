@@ -127,7 +127,8 @@ defmodule AI.Tools do
     "git_list_branches_tool" => AI.Tools.Git.ListBranches,
     "git_log_tool" => AI.Tools.Git.Log,
     "git_pickaxe_tool" => AI.Tools.Git.Pickaxe,
-    "git_show_tool" => AI.Tools.Git.Show
+    "git_show_tool" => AI.Tools.Git.Show,
+    "git_unstaged_changes_tool" => AI.Tools.Git.UnstagedChanges
   }
 
   @tools %{}

@@ -159,8 +159,12 @@ defmodule AI.Accumulator do
       ])
 
     AI.Completion.get(acc.ai, args)
-    |> then(fn {:ok, %{response: response}} ->
-      {:ok, %__MODULE__{acc | splitter: splitter, buffer: response}}
-    end)
+    |> case do
+      {:ok, %{response: response}} ->
+        {:ok, %{acc | splitter: splitter, buffer: response}}
+
+      {:error, %{response: response}} ->
+        {:error, response}
+    end
   end
 end
