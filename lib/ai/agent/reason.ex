@@ -412,7 +412,8 @@ defmodule AI.Agent.Reason do
     AI.Tools.tool_spec!("git_grep_tool"),
     AI.Tools.tool_spec!("git_show_tool"),
     AI.Tools.tool_spec!("git_list_branches_tool"),
-    AI.Tools.tool_spec!("git_diff_branch_tool")
+    AI.Tools.tool_spec!("git_diff_branch_tool"),
+    AI.Tools.tool_spec!("git_unstaged_changes_tool")
   ]
 
   defp available_tools(state) do
