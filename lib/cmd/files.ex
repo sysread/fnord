@@ -29,7 +29,7 @@ defmodule Cmd.Files do
   end
 
   @impl Cmd
-  def run(_opts, _subcommands, _unkown) do
+  def run(_opts, _subcommands, _unknown) do
     Store.get_project()
     |> Store.Project.stored_files()
     |> Stream.map(& &1.rel_path)
