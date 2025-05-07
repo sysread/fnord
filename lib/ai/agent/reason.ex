@@ -153,8 +153,8 @@ defmodule AI.Agent.Reason do
     # the user, and report on its outcome.
     Task.await(save_notes, :infinity)
     |> case do
-      {:ok, _} -> UI.debug("Research notes saved")
       {:error, reason} -> UI.error("Failed to save research notes:\n\n#{reason}")
+      _ -> UI.debug("Research notes saved")
     end
 
     # Retain the state of the finalize task, since it affects the output,
