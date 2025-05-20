@@ -69,4 +69,8 @@ defmodule Cmd.Config do
     Store.Project.save_settings(project, opts[:root], opts[:exclude])
     run(opts, [:list], [])
   end
+
+  def run(_opts, [], _unknown) do
+    UI.error("No subcommand specified. Use 'fnord help config' for help.")
+  end
 end
