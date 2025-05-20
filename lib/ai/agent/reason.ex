@@ -403,7 +403,8 @@ defmodule AI.Agent.Reason do
     }
 
     with {:ok, response} <- AI.Agent.Archivist.get_response(state.ai, args) do
-      UI.report_step("Updated persistent research notes", response)
+      UI.report_step("Updated persistent research notes")
+      UI.debug("Research notes updated and reorganized", "#{response}")
     else
       other -> UI.error("Failed to save research notes: #{inspect(other)}")
     end
