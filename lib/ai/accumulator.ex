@@ -39,7 +39,7 @@ defmodule AI.Accumulator do
   1. Add Relevant Content: Update the accumulator with your response to the current chunk
   2. Continuity: Build on the existing response, preserving its structure
   3. Handle Incompletes: If a chunk is incomplete, mark it (e.g., `<partial>`) to complete later
-  4. Consistent Format: Append new content under "Accumulated Outline"
+  4. Consistent Format: Append new content under "Accumulated Response"
 
   Respond ONLY with the `Accumulated Response` section, including your updates from the current chunk, using the guidelines below.
   -----
