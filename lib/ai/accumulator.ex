@@ -138,7 +138,7 @@ defmodule AI.Accumulator do
 
     user_prompt = """
     #{user_prompt}
-
+    -----
     #{chunk}
     """
 
