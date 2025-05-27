@@ -46,7 +46,10 @@ defmodule AI.Agent.CodeMapper do
         input: content,
         question: "Generate an outline of the code in the file: #{file}"
       )
-      |> then(fn {:ok, %{response: response}} -> {:ok, response} end)
+      |> then(fn
+        {:ok, %{response: response}} -> {:ok, response}
+        {:error, reason} -> {:error, reason}
+      end)
     end
   end
 end
