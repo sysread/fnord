@@ -4,11 +4,12 @@ defmodule AI.Tokenizer.Default do
   """
 
   @tokenizer %{
+    "default" => AI.Tokenizer.Tokens_cl100k_base,
     "o3-mini" => AI.Tokenizer.Tokens_o200k_base,
     "gpt-4o" => AI.Tokenizer.Tokens_o200k_base,
     "gpt-4o-mini" => AI.Tokenizer.Tokens_o200k_base,
     "text-embedding-3-large" => AI.Tokenizer.Tokens_cl100k_base,
-    "default" => AI.Tokenizer.Tokens_cl100k_base
+    "text-embedding-3-small" => AI.Tokenizer.Tokens_cl100k_base
   }
 
   # A special fallback token ID for unknown tokens
@@ -20,21 +21,88 @@ defmodule AI.Tokenizer.Default do
   @behaviour AI.Tokenizer
 
   @impl AI.Tokenizer
+  def encode(text, model) do
+    tokenizer = get_tokenizer!(model)
+    pattern = tokenizer.get_pattern()
+    vocab = tokenizer.get_vocab()
+    special = tokenizer.get_special_tokens()
+
+    pattern
+    |> Regex.scan(text)
+    |> List.flatten()
+    |> Enum.flat_map(fn piece ->
+      apply_bpe(piece, tokenizer)
+    end)
+    |> Enum.map(fn token ->
+      case Map.get(vocab, token) do
+        nil ->
+          case special[token] do
+            nil -> {@fallback_token, token}
+            special_id -> special_id
+          end
+
+        id ->
+          id
+      end
+    end)
+  end
+
+  defp apply_bpe(piece, tokenizer) do
+    merge_ranks = tokenizer.get_merge_ranks()
+    # split into one-byte binaries
+    tokens = piece |> :binary.bin_to_list() |> Enum.map(&<<&1>>)
+    loop_merge(tokens, merge_ranks)
+  end
+
+  defp loop_merge(tokens, merge_ranks) do
+    pairs = Enum.zip(tokens, tl(tokens))
+
+    # build list of {rank, merged_bytes, index, a, b}
+    candidates =
+      pairs
+      |> Enum.with_index()
+      |> Enum.reduce([], fn {{a, b}, idx}, acc ->
+        merged = a <> b
+
+        case Map.fetch(merge_ranks, merged) do
+          {:ok, rank} ->
+            [{rank, merged, idx, a, b} | acc]
+
+          :error ->
+            acc
+        end
+      end)
+
+    case candidates do
+      [] ->
+        tokens
+
+      # pick the candidate with the lowest rank
+      _ ->
+        {_, merged, idx, _a, _b} =
+          Enum.min_by(candidates, fn {rank, _m, _i, _a, _b} -> rank end)
+
+        {left, rest} = Enum.split(tokens, idx)
+        # drop the two tokens we just merged
+        [_a, _b | right] = rest
+        # recurse on the new token list
+        loop_merge(left ++ [merged] ++ right, merge_ranks)
+    end
+  end
+
+  @impl AI.Tokenizer
   def decode(token_ids, model) do
     tokenizer = get_tokenizer!(model)
-    reverse_vocab = tokenizer.get_reverse_vocab()
+    rv = tokenizer.get_reverse_vocab()
 
     token_ids
     |> Enum.map(fn
-      {@fallback_token, raw_token} ->
-        # Return the original token text for fallback entries
-        raw_token
+      {@fallback_token, raw} ->
+        raw
 
-      token_id when is_integer(token_id) ->
-        # Lookup in reverse_vocab, or empty string if not found
-        Map.get(reverse_vocab, token_id, "")
+      id when is_integer(id) ->
+        Map.get(rv, id, "")
 
-      # In case something unexpected slips through
       other ->
         IO.warn("Unexpected token in decode: #{inspect(other)}")
         ""
@@ -42,91 +110,7 @@ defmodule AI.Tokenizer.Default do
     |> Enum.join("")
   end
 
-  @impl AI.Tokenizer
-  def encode(text, model) do
-    tokenizer = get_tokenizer!(model)
-    pattern = tokenizer.get_pattern()
-    vocab = tokenizer.get_vocab()
-    special_tokens = tokenizer.get_special_tokens()
-
-    try do
-      # Step 1: Split text using the tokenizer-specific pattern
-      pattern
-      |> Regex.scan(text)
-      |> List.flatten()
-      # Step 2: Apply BPE merging for each token
-      |> Enum.map(&apply_bpe(&1, model))
-      # Step 3: Convert to token IDs, falling back to special fallback tokens for unknowns
-      |> Enum.map(fn token ->
-        case Map.get(vocab, token) do
-          nil ->
-            # Check if it's a special token
-            case special_tokens[token] do
-              nil ->
-                # **FALLBACK**: if not in vocab or special_tokens, return tuple
-                {@fallback_token, token}
-
-              special_id ->
-                # Known special token
-                special_id
-            end
-
-          id ->
-            # Known vocab token
-            id
-        end
-      end)
-    rescue
-      e in ArgumentError ->
-        IO.inspect(text, label: "Input text (raw)", limit: :infinity)
-        {:error, e}
-    end
-  end
-
-  # -----------------------------------------------------------------------------
-  # Private functions
-  # -----------------------------------------------------------------------------
   defp get_tokenizer!(model) do
-    @tokenizer[model] || @tokenizer["default"]
-  end
-
-  defp apply_bpe(token, model) do
-    token
-    |> String.graphemes()
-    |> loop_merge(model)
-  end
-
-  # Merge adjacent pairs based on BPE rules
-  defp loop_merge(tokens, model) do
-    tokenizer = get_tokenizer!(model)
-
-    tokens
-    # Create pairs of adjacent tokens
-    |> Enum.zip(Enum.drop(tokens, 1))
-    # Find the first pair that exists in the merge rules
-    |> Enum.find(&MapSet.member?(tokenizer.get_merges(), &1))
-    |> case do
-      # No more pairs to merge, return the tokens as a single string
-      nil ->
-        Enum.join(tokens, "")
-
-      # Merge the pair and continue
-      pair ->
-        tokens
-        |> Enum.reduce([], fn token, acc ->
-          case acc do
-            # Merge the pair into one token
-            [last | rest] when {last, token} == pair ->
-              [Enum.join(Tuple.to_list(pair), "") | rest]
-
-            # Add the token to the accumulator as-is
-            _ ->
-              [token | acc]
-          end
-        end)
-        |> Enum.reverse()
-        # Recursive call to handle further merges
-        |> loop_merge(model)
-    end
+    Map.get(@tokenizer, model, @tokenizer["default"])
   end
 end

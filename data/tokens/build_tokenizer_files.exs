@@ -1,71 +1,63 @@
 #!/usr/bin/env elixir
 
-# -------------------------------------------------------------------------------
-# o200k_base: for gpt-4o, gpt-4o-mini
-# -------------------------------------------------------------------------------
-"data/tokens/o200k_base.tiktoken"
-|> File.stream!([], :line)
-|> Enum.reduce({%{}, []}, fn line, {vocab_acc, merges_acc} ->
-  line = String.trim(line)
-  [token, id_or_rank] = String.split(line, " ")
+defmodule BuildTokenizerFiles do
+  @moduledoc false
 
-  case Integer.parse(id_or_rank) do
-    # If it's an integer, it's a vocab entry
-    {id, ""} ->
-      token_decoded = Base.decode64!(token)
-      {Map.put(vocab_acc, token_decoded, id), merges_acc}
+  def main(encoding) do
+    path = "data/tokens/#{encoding}.tiktoken"
 
-    # If it's not, treat it as a merge pair
-    _ ->
-      merge_pair = String.split(token, ",") |> List.to_tuple()
-      {vocab_acc, [{merge_pair, String.to_integer(id_or_rank)} | merges_acc]}
+    # Load every line as a merge (BASE64 bytes + rank)
+    merges_with_rank =
+      File.stream!(path, [], :line)
+      |> Enum.map(fn line ->
+        [b64, rank_str] = String.split(String.trim(line), " ")
+        {Base.decode64!(b64), String.to_integer(rank_str)}
+      end)
+
+    # Sort by rank ascending, assign IDs from 256 upward
+    merges =
+      merges_with_rank
+      |> Enum.sort_by(fn {_bytes, rank} -> rank end)
+      |> Enum.with_index(256)
+      |> Enum.map(fn {{bytes, _rank}, id} -> {bytes, id} end)
+
+    # Build initial vocab for single-byte tokens
+    initial_vocab =
+      for i <- 0..255, into: %{} do
+        {<<i>>, i}
+      end
+
+    # Add merged byte-sequences to vocab
+    vocab =
+      Enum.reduce(merges, initial_vocab, fn {bytes, id}, acc ->
+        Map.put(acc, bytes, id)
+      end)
+
+    # Add special tokens at fixed IDs
+    special_tokens = %{
+      "<|endoftext|>" => 100_257,
+      "<|fim_prefix|>" => 100_258,
+      "<|fim_middle|>" => 100_259,
+      "<|fim_suffix|>" => 100_260,
+      "<|endofprompt|>" => 100_276
+    }
+
+    vocab = Map.merge(vocab, special_tokens)
+
+    # Build reverse vocab
+    reverse_vocab =
+      for {token, id} <- vocab, into: %{} do
+        {id, token}
+      end
+
+    # Persist to disk
+    merges_list = Enum.map(merges, &elem(&1, 0))
+    File.write!("data/tokens/#{encoding}.merges", :erlang.term_to_binary(merges_list))
+    File.write!("data/tokens/#{encoding}.vocab", :erlang.term_to_binary(vocab))
+    File.write!("data/tokens/#{encoding}.reverse_vocab", :erlang.term_to_binary(reverse_vocab))
   end
-end)
-|> then(fn {vocab, merges} ->
-  merges =
-    merges
-    |> Enum.sort_by(&elem(&1, 1))
-    |> Enum.map(&elem(&1, 0))
-    |> MapSet.new()
+end
 
-  reverse_vocab = Map.new(vocab, fn {key, value} -> {value, key} end)
-
-  File.write!("data/tokens/o200k_base.merges", :erlang.term_to_binary(merges))
-  File.write!("data/tokens/o200k_base.vocab", :erlang.term_to_binary(vocab))
-  File.write!("data/tokens/o200k_base.reverse_vocab", :erlang.term_to_binary(reverse_vocab))
-end)
-
-# -------------------------------------------------------------------------------
-# cl100k_base: for text-embedding-3-large
-# -------------------------------------------------------------------------------
-"data/tokens/cl100k_base.tiktoken"
-|> File.stream!([], :line)
-|> Enum.reduce({%{}, []}, fn line, {vocab_acc, merges_acc} ->
-  line = String.trim(line)
-  [token, id_or_rank] = String.split(line, " ")
-
-  case Integer.parse(id_or_rank) do
-    # If it's an integer, it's a vocab entry
-    {id, ""} ->
-      token_decoded = Base.decode64!(token)
-      {Map.put(vocab_acc, token_decoded, id), merges_acc}
-
-    # If it's not, treat it as a merge pair
-    _ ->
-      merge_pair = String.split(token, ",") |> List.to_tuple()
-      {vocab_acc, [{merge_pair, String.to_integer(id_or_rank)} | merges_acc]}
-  end
-end)
-|> then(fn {vocab, merges} ->
-  merges =
-    merges
-    |> Enum.sort_by(&elem(&1, 1))
-    |> Enum.map(&elem(&1, 0))
-    |> MapSet.new()
-
-  reverse_vocab = Map.new(vocab, fn {key, value} -> {value, key} end)
-
-  File.write!("data/tokens/cl100k_base.merges", :erlang.term_to_binary(merges))
-  File.write!("data/tokens/cl100k_base.vocab", :erlang.term_to_binary(vocab))
-  File.write!("data/tokens/cl100k_base.reverse_vocab", :erlang.term_to_binary(reverse_vocab))
-end)
+# Generate files for supported encodings
+BuildTokenizerFiles.main("o200k_base")
+BuildTokenizerFiles.main("cl100k_base")

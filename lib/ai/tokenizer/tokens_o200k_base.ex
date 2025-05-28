@@ -4,9 +4,10 @@ defmodule AI.Tokenizer.Tokens_o200k_base do
   `gpt-4o` models.
   """
 
-  @merges :erlang.binary_to_term(File.read!("data/tokens/o200k_base.merges"))
+  @merges_list :erlang.binary_to_term(File.read!("data/tokens/o200k_base.merges"))
   @vocab :erlang.binary_to_term(File.read!("data/tokens/o200k_base.vocab"))
   @reverse_vocab :erlang.binary_to_term(File.read!("data/tokens/o200k_base.reverse_vocab"))
+  @merge_ranks Enum.with_index(@merges_list) |> Map.new(fn {bytes, idx} -> {bytes, idx} end)
 
   @special_tokens %{
     "<|endoftext|>" => 199_999,
@@ -18,13 +19,14 @@ defmodule AI.Tokenizer.Tokens_o200k_base do
     [^\r\n\p{L}\p{N}]?[\p{Lu}\p{Lt}\p{Lm}\p{Lo}\p{M}]*[\p{Ll}\p{Lm}\p{Lo}\p{M}]+(?i:'s|'t|'re|'ve|'m|'ll|'d)?
   | [^\r\n\p{L}\p{N}]?[\p{Lu}\p{Lt}\p{Lm}\p{Lo}\p{M}]+[\p{Ll}\p{Lm}\p{Lo}\p{M}]*(?i:'s|'t|'re|'ve|'m|'ll|'d)?
   | \p{N}{1,3}
-  | \s?[^\s\p{L}\p{N}]+[\r\n/]*
-  | \s*[\r\n]+
-  | \s+(?!\S)
-  | \s+
-  >x
+  | [ ]?[^\s\p{L}\p{N}]+[\r\n/]*  
+  | \s*[\r\n]+                
+  | \s+(?!\S)                  
+  | \s+                       
+  >xu
 
-  def get_merges(), do: @merges
+  def get_merges(), do: @merges_list
+  def get_merge_ranks(), do: @merge_ranks
   def get_vocab(), do: @vocab
   def get_reverse_vocab(), do: @reverse_vocab
   def get_special_tokens(), do: @special_tokens
