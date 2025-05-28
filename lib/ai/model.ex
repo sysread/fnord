@@ -56,7 +56,7 @@ defmodule AI.Model do
       reasoning: nil,
       # It's actually 8192 for this model, but this gives us a little bit of
       # wiggle room in case the tokenizer we are using falls behind.
-      context: 3500
+      context: 7_500
     }
   end
 end
