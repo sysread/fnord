@@ -18,8 +18,6 @@ defmodule BuildTokenizerFiles do
     merges =
       merges_with_rank
       |> Enum.sort_by(fn {_bytes, rank} -> rank end)
-      |> Enum.with_index(256)
-      |> Enum.map(fn {{bytes, _rank}, id} -> {bytes, id} end)
 
     # Build initial vocab for single-byte tokens
     initial_vocab =
@@ -51,8 +49,7 @@ defmodule BuildTokenizerFiles do
       end
 
     # Persist to disk
-    merges_list = Enum.map(merges, &elem(&1, 0))
-    File.write!("data/tokens/#{encoding}.merges", :erlang.term_to_binary(merges_list))
+    File.write!("data/tokens/#{encoding}.merges", :erlang.term_to_binary(merges))
     File.write!("data/tokens/#{encoding}.vocab", :erlang.term_to_binary(vocab))
     File.write!("data/tokens/#{encoding}.reverse_vocab", :erlang.term_to_binary(reverse_vocab))
   end

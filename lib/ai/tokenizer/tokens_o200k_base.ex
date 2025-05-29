@@ -2,6 +2,17 @@ defmodule AI.Tokenizer.Tokens_o200k_base do
   @moduledoc """
   This module implements the o200k-base tokenizer model used by OpenAI's
   `gpt-4o` models.
+
+  Original regex from the python tiktoken library:
+  ```
+    [^\r\n\p{L}\p{N}]?[\p{Lu}\p{Lt}\p{Lm}\p{Lo}\p{M}]*[\p{Ll}\p{Lm}\p{Lo}\p{M}]+(?i:'s|'t|'re|'ve|'m|'ll|'d)?
+  | [^\r\n\p{L}\p{N}]?[\p{Lu}\p{Lt}\p{Lm}\p{Lo}\p{M}]+[\p{Ll}\p{Lm}\p{Lo}\p{M}]*(?i:'s|'t|'re|'ve|'m|'ll|'d)?
+  | \p{N}{1,3}
+  |  ?[^\s\p{L}\p{N}]+[\r\n/]*
+  | \s*[\r\n]+
+  | \s+(?!\S)
+  | \s+
+  ```
   """
 
   @merges_list :erlang.binary_to_term(File.read!("data/tokens/o200k_base.merges"))

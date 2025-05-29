@@ -51,11 +51,12 @@ defmodule AI.Tokenizer.Default do
     merge_ranks = tokenizer.get_merge_ranks()
     # split into one-byte binaries
     tokens = piece |> :binary.bin_to_list() |> Enum.map(&<<&1>>)
+
     loop_merge(tokens, merge_ranks)
   end
 
   defp loop_merge(tokens, merge_ranks) do
-    pairs = Enum.zip(tokens, tl(tokens))
+    pairs = Enum.zip(tokens, Enum.drop(tokens, 1))
 
     # build list of {rank, merged_bytes, index, a, b}
     candidates =
@@ -77,8 +78,8 @@ defmodule AI.Tokenizer.Default do
       [] ->
         tokens
 
-      # pick the candidate with the lowest rank
       _ ->
+        # pick the candidate with the lowest rank
         {_, merged, idx, _a, _b} =
           Enum.min_by(candidates, fn {rank, _m, _i, _a, _b} -> rank end)
 
