@@ -102,7 +102,7 @@ defmodule AI.Agent.Archivist do
 
   # Recursively compress notes until under max_tokens
   defp compress_notes(ai, notes, max_tokens) do
-    count = AI.Tokenizer.encode(notes, @model) |> length()
+    count = AI.PretendTokenizer.guesstimate_tokens(notes)
     count_str = Util.format_number(count)
     max_tokens_str = Util.format_number(max_tokens)
 

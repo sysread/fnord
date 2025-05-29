@@ -16,8 +16,6 @@ defmodule AI.Splitter do
   defstruct [
     :model,
     :input,
-    :input_tokens,
-    :offset,
     :done
   ]
 
@@ -25,8 +23,6 @@ defmodule AI.Splitter do
     %AI.Splitter{
       model: model,
       input: input,
-      input_tokens: AI.Tokenizer.encode(input, model),
-      offset: 0,
       done: false
     }
   end
@@ -36,28 +32,11 @@ defmodule AI.Splitter do
   end
 
   def next_chunk(tok, bespoke_input) do
-    bespoke_tokens = AI.Tokenizer.encode(bespoke_input, tok.model) |> length()
+    bespoke_tokens = AI.PretendTokenizer.guesstimate_tokens(bespoke_input)
     remaining_tokens = tok.model.context - bespoke_tokens
-    {slice, tok} = get_slice(tok, remaining_tokens)
-
-    tok =
-      if tok.offset >= length(tok.input_tokens) do
-        %AI.Splitter{tok | done: true}
-      else
-        tok
-      end
-
-    {slice, tok}
-  end
-
-  defp get_slice(%AI.Splitter{done: true} = tok, _num_tokens) do
-    {"", tok}
-  end
-
-  defp get_slice(tok, num_tokens) do
-    slice = Enum.slice(tok.input_tokens, tok.offset, num_tokens)
-    tokens = length(slice)
-    output = AI.Tokenizer.decode(slice, tok.model)
-    {output, %AI.Splitter{tok | offset: tok.offset + tokens}}
+    remaining_chars = remaining_tokens * 4
+    {slice, remaining} = String.split_at(tok.input, remaining_chars)
+    is_done? = remaining == ""
+    {slice, %{tok | done: is_done?, input: remaining}}
   end
 end

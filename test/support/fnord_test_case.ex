@@ -18,7 +18,6 @@ defmodule Fnord.TestCase do
   #    globally in a setup block below
   # ----------------------------------------------------------------------------
   Mox.defmock(MockIndexer, for: Indexer)
-  Mox.defmock(MockTokenizer, for: AI.Tokenizer)
 
   using do
     quote do
@@ -51,9 +50,6 @@ defmodule Fnord.TestCase do
         # AI-generated summaries and so whatnot.
         set_config(:indexer, MockIndexer)
         Mox.stub_with(MockIndexer, StubIndexer)
-
-        # The Tokenizer doesn't reach out on to an external service, so it can
-        # use the default implementation unless a test needs to override it.
 
         :ok
       end

@@ -32,7 +32,7 @@ defmodule AI.OpenAI do
 
     Http.post_json(@embedding_endpoint, headers, payload, openai.http_options)
     |> case do
-      {:ok, %{"data" => [%{"embedding" => embedding}]}} -> {:ok, embedding}
+      {:ok, %{"data" => embeddings}} -> {:ok, embeddings |> Enum.map(&Map.get(&1, "embedding"))}
       {:error, error} -> {:error, error}
     end
   end

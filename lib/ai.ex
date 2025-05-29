@@ -69,50 +69,54 @@ defmodule AI do
   Get embeddings for the given text. The text is split into chunks of 8192
   tokens to avoid exceeding the model's input limit. Returns a list of
   embeddings for each chunk.
+
+  This function will retry the request up to `@default_max_attempts` times.
+  Each time it makes a new attempt, it dials back the number of tokens
+  processed by 10% to avoid hitting the model's input limit.
   """
-  def get_embeddings(ai, text) do
-    text
-    |> AI.Tokenizer.chunk(@embeddings_model)
-    |> Enum.map(&[ai.client, @embeddings_model, &1])
-    |> Enum.reduce_while([], fn request, acc ->
-      ai
-      |> get_embedding(request, @default_max_attempts, 1)
+  def get_embeddings(ai, text, attempt \\ 1)
+
+  def get_embeddings(_ai, _text, attempt) when attempt > @default_max_attempts do
+    {:error, :max_attempts_reached}
+  end
+
+  def get_embeddings(ai, text, attempt) do
+    if AI.PretendTokenizer.over_max_for_openai_embeddings?(text) do
+      {:error, :input_too_large}
+    else
+      # Since we only guesstimate token counts, we dial back the context window
+      # by an increasingly larger factor with each attempt.
+      reduction_factor =
+        case attempt do
+          1 -> 0.75
+          2 -> 0.50
+          _ -> 0.25
+        end
+
+      chunks = AI.PretendTokenizer.chunk(text, @embeddings_model, reduction_factor)
+
+      AI.OpenAI.get_embedding(ai.client, @embeddings_model, chunks)
       |> case do
-        {:ok, embedding} ->
-          if acc == [] do
-            {:cont, embedding}
-          else
-            # For each dimension, find the maximum value across all embeddings.
-            # This isn't necessarily the _most_ accurate, but it selects the
-            # highest rating for each dimension found in the file, which should
-            # be reasonable for semantic searching.
-            {:cont, Enum.zip_with(acc, embedding, fn a, b -> max(a, b) end)}
-          end
+        {:ok, embeddings} ->
+          # For each dimension, find the maximum value across all embeddings.
+          # This isn't necessarily the _most_ accurate, but it selects the
+          # highest rating for each dimension found in the file, which should be
+          # reasonable for semantic searching.
+          embeddings
+          |> Enum.reduce_while([], fn
+            embedding, [] -> {:cont, embedding}
+            embedding, acc -> {:cont, Enum.zip_with(acc, embedding, fn a, b -> max(a, b) end)}
+          end)
+          |> then(&{:ok, &1})
 
         {:error, reason} ->
-          {:halt, {:error, reason}}
+          if attempt < @default_max_attempts do
+            Process.sleep(@retry_interval)
+            get_embeddings(ai, text, attempt + 1)
+          else
+            {:error, reason}
+          end
       end
-    end)
-    |> case do
-      {:error, reason} -> {:error, inspect(reason)}
-      embeddings -> {:ok, embeddings}
-    end
-  end
-
-  defp get_embedding(_ai, _request, max, attempt) when attempt > max do
-    {:error, "Request timed out after #{attempt} attempts."}
-  end
-
-  defp get_embedding(ai, request, max, attempt) do
-    if attempt > 1 do
-      Process.sleep(@retry_interval)
-    end
-
-    AI.OpenAI
-    |> apply(:get_embedding, request)
-    |> case do
-      {:error, :timeout} -> get_embedding(ai, request, max, attempt + 1)
-      etc -> etc
     end
   end
 end

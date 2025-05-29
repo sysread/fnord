@@ -1,29 +1,28 @@
 defmodule AI.SplitterTest do
   use Fnord.TestCase
 
-  setup do: set_config(:tokenizer, MockTokenizer)
-
   test "next_chunk/1" do
-    MockTokenizer
-    |> Mox.stub(:encode, fn text, _model -> String.split(text) end)
-    |> Mox.stub(:decode, fn tokens, _model -> Enum.join(tokens, " ") end)
+    input = "aaaabbbbccccddddeeeeffff"
 
-    input = "the quick brown fox jumps over the lazy dog"
-    model = AI.Model.new("mst-3k", nil, 5)
+    # model with 2 token context, which means we can process 8 characters
+    model = AI.Model.new("mst-3k", nil, 2)
+
     splitter = AI.Splitter.new(input, model)
 
-    assert {"the quick brown", %{offset: 3} = splitter} =
-             AI.Splitter.next_chunk(splitter, "how now")
+    # 2 tokens = 8 characters, w/o any bespoke input
+    assert {"aaaabbbb", %{input: "ccccddddeeeeffff", done: false} = splitter} =
+             AI.Splitter.next_chunk(splitter, "")
 
-    assert {"fox jumps over", %{offset: 6} = splitter} =
-             AI.Splitter.next_chunk(splitter, "brown bureaucrat")
+    # bespoke input of 4 characters means we can only process 4 more characters
+    assert {"cccc", %{input: "ddddeeeeffff", done: false} = splitter} =
+             AI.Splitter.next_chunk(splitter, "1234")
 
-    assert {"the lazy", %{offset: 8} = splitter} =
-             AI.Splitter.next_chunk(splitter, "foo bar baz")
+    # fractional tokens are rounded up
+    assert {"dddd", %{input: "eeeeffff", done: false} = splitter} =
+             AI.Splitter.next_chunk(splitter, "12")
 
-    assert {"dog", %{offset: 9} = splitter} =
-             AI.Splitter.next_chunk(splitter, "slack")
-
-    assert %{done: true} = splitter
+    # Final chunk, no bespoke input, done is true
+    assert {"eeeeffff", %{input: "", done: true}} =
+             AI.Splitter.next_chunk(splitter, "")
   end
 end

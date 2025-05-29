@@ -1,5 +1,5 @@
 defmodule AI.Agent.CodeMapper do
-  @model AI.Model.balanced()
+  @model AI.Model.fast()
 
   @prompt """
   You are the Code Mapper Agent. You will receive the contents of a code file.

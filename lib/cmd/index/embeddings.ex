@@ -68,7 +68,8 @@ defmodule Cmd.Index.Embeddings do
 
       :ok
     else
-      {:error, reason} -> UI.warn("Error processing #{entry.file}", inspect(reason))
+      {:error, reason} ->
+        UI.warn("Error processing #{entry.file}", inspect(reason))
     end
   end
 
@@ -108,9 +109,5 @@ defmodule Cmd.Index.Embeddings do
     """
 
     Indexer.impl().get_embeddings(idx.indexer, to_embed)
-    |> case do
-      {:error, reason} -> reason |> IO.inspect()
-      other -> other
-    end
   end
 end
