@@ -1,4 +1,4 @@
-defmodule AI.Agent.Reason do
+defmodule AI.Agent.Researcher do
   @moduledoc """
   This agent uses a combination of the reasoning features of the OpenAI o3-mini
   model as well as its own reasoning process to research and answer the input
