@@ -12,7 +12,7 @@ defmodule AI.Tools.File.Search do
   @behaviour AI.Tools
 
   @impl AI.Tools
-  def ui_note_on_request(args), do: {"Searching", args["query"]}
+  def ui_note_on_request(args), do: {"Searching the index", args["query"]}
 
   @impl AI.Tools
   def ui_note_on_result(_args, _result), do: nil

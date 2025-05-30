@@ -89,7 +89,7 @@ defmodule Cmd.Ask do
          {:ok, msgs, conversation} <- restore_conversation(opts),
          opts <- opts |> Map.put(:template, template) |> Map.put(:msgs, msgs),
          %{msgs: msgs, usage: usage, context: context} <-
-           AI.Agent.Researcher.get_response(ai, opts),
+           AI.Agent.Coordinator.get_response(ai, opts),
          {:ok, conversation_id} <- save_conversation(conversation, msgs) do
       end_time = System.monotonic_time(:second)
       time_taken = end_time - start_time

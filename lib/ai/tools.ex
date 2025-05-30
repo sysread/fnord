@@ -118,6 +118,7 @@ defmodule AI.Tools do
     "file_outline_tool" => AI.Tools.File.Outline,
     "file_search_tool" => AI.Tools.File.Search,
     "file_spelunker_tool" => AI.Tools.File.Spelunker,
+    "research_tool" => AI.Tools.Research,
     "ripgrep_search" => AI.Tools.Ripgrep
   }
 
@@ -149,6 +150,51 @@ defmodule AI.Tools do
   def all_tools(project \\ nil) do
     @tools
     |> Map.merge(frobs(project))
+  end
+
+  def all_tools_for_project(project) do
+    tools = @default_tools |> Map.keys() |> Enum.map(&AI.Tools.tool_spec!(&1, @tools))
+
+    search_available? = AI.Tools.File.Search.is_available?()
+    ripgrep_available? = AI.Tools.Ripgrep.is_available?()
+
+    if !search_available? and !ripgrep_available? do
+      UI.fatal("No search tools available. Please index your project, install ripgrep, or both.")
+    end
+
+    # If the selected project has an index, add the file search tool.
+    tools =
+      if search_available? do
+        tools ++ [AI.Tools.tool_spec!("file_search_tool")]
+      else
+        UI.warn("project is not indexed; semantic search unavailable")
+        tools
+      end
+
+    # If ripgrep is available, add the ripgrep search tool.
+    tools =
+      if ripgrep_available? do
+        unless search_available? do
+          UI.warn("falling back on ripgrep for file search")
+        end
+
+        tools ++ [AI.Tools.tool_spec!("ripgrep_search")]
+      else
+        UI.warn("ripgrep not found in PATH; file search unavailable")
+        tools
+      end
+
+    tools =
+      if Git.is_git_repo?() do
+        tools ++ (@git_tools |> Map.keys() |> Enum.map(&AI.Tools.tool_spec!(&1, @tools)))
+      else
+        tools
+      end
+
+    frobs = AI.Tools.frobs(project)
+    frobs = Enum.map(frobs, fn {name, _} -> AI.Tools.tool_spec!(name, frobs) end)
+
+    tools ++ frobs
   end
 
   def tool_module(tool, tools \\ @tools) do

@@ -1,0 +1,557 @@
+defmodule AI.Agent.Coordinator do
+  @moduledoc """
+  This agent uses a combination of the reasoning features of the OpenAI o3-mini
+  model as well as its own reasoning process to research and answer the input
+  question.
+
+  It is able to use most of the tools available and will save notes for future
+  use before finalizing its response.
+  """
+
+  @model AI.Model.smart()
+
+  @behaviour AI.Agent
+
+  @impl AI.Agent
+  def get_response(ai, opts) do
+    ai |> new(opts) |> consider()
+  end
+
+  defp new(ai, opts) do
+    research_steps = steps(opts.rounds)
+
+    %{
+      ai: ai,
+      project: opts.project,
+      question: opts.question,
+      template: opts.template,
+      msgs: opts.msgs,
+      last_response: nil,
+      steps: research_steps,
+      current_step: 0,
+      total_steps: Enum.count(research_steps),
+      usage: 0,
+      context: @model.context
+    }
+  end
+
+  defp consider(state) do
+    state.project
+    |> AI.Tools.frobs()
+    |> Map.keys()
+    |> Enum.join(", ")
+    |> then(&UI.info("Available frobs: #{&1}"))
+
+    if is_testing?(state) do
+      UI.debug("Testing mode enabled")
+      get_test_response(state)
+    else
+      perform_step(state)
+    end
+  end
+
+  # -----------------------------------------------------------------------------
+  # Research steps
+  # -----------------------------------------------------------------------------
+  @first_steps [:initial, :clarify, :refine]
+  @last_steps [:finalize]
+
+  defp steps(n) do
+    steps =
+      cond do
+        n <= 1 -> [:singleton]
+        n == 2 -> [:singleton, :refine]
+        n == 3 -> @first_steps
+        n >= 3 -> @first_steps ++ Enum.map(1..(n - 3), fn _ -> :continue end)
+      end
+
+    steps ++ @last_steps
+  end
+
+  defp perform_step({:error, reason}) do
+    {:error,
+     """
+     An error occurred while processing your request.
+
+     ```
+     #{inspect(reason, pretty: true)}
+     ```
+     """}
+  end
+
+  defp perform_step(%{steps: [:singleton | steps]} = state) do
+    UI.debug("Performing abbreviated research")
+
+    state
+    |> Map.put(:steps, steps)
+    |> singleton_msg()
+    |> user_msg()
+    |> get_notes()
+    |> begin_msg()
+    |> get_completion()
+    |> perform_step()
+  end
+
+  defp perform_step(%{steps: [:initial | steps]} = state) do
+    UI.debug("Researching")
+
+    state
+    |> Map.put(:steps, steps)
+    |> initial_msg()
+    |> user_msg()
+    |> get_notes()
+    |> begin_msg()
+    |> get_completion()
+    |> perform_step()
+  end
+
+  defp perform_step(%{steps: [:clarify | steps]} = state) do
+    UI.debug("Clarifying")
+
+    state
+    |> Map.put(:steps, steps)
+    |> reminder_msg()
+    |> clarify_msg()
+    |> get_completion()
+    |> perform_step()
+  end
+
+  defp perform_step(%{steps: [:refine | steps]} = state) do
+    UI.debug("Refining")
+
+    state
+    |> Map.put(:steps, steps)
+    |> reminder_msg()
+    |> refine_msg()
+    |> get_completion()
+    |> perform_step()
+  end
+
+  defp perform_step(%{steps: [:continue | steps]} = state) do
+    UI.debug("Continuing research")
+
+    state
+    |> Map.put(:steps, steps)
+    |> reminder_msg()
+    |> continue_msg()
+    |> get_completion()
+    |> perform_step()
+  end
+
+  defp perform_step(%{steps: [:finalize]} = state) do
+    save_notes = Task.async(fn -> save_notes(state) end)
+
+    finalize =
+      Task.async(fn ->
+        UI.debug("Generating response")
+
+        state
+        |> Map.put(:steps, [])
+        |> reminder_msg()
+        |> finalize_msg()
+        |> template_msg()
+        |> get_completion()
+      end)
+
+    # Wait for tasks and return the result of finalize
+
+    # We don't need to retain the output of the save_notes task for anything.
+    # But we do need to ensure it is completed before we emit the response to
+    # the user, and report on its outcome.
+    Task.await(save_notes, :infinity)
+    |> case do
+      {:error, reason} -> UI.error("Failed to save research notes:\n\n#{reason}")
+      _ -> UI.debug("Research notes saved")
+    end
+
+    # Retain the state of the finalize task, since it affects the output,
+    # including usage and messages.
+    Task.await(finalize, :infinity)
+  end
+
+  defp get_completion(%{ai: ai, msgs: msgs} = state) do
+    current_step = state.current_step + 1
+
+    AI.Completion.get(ai,
+      log_msgs: true,
+      log_tool_calls: true,
+      replay_conversation: false,
+      model: @model,
+      tools: AI.Tools.all_tools_for_project(state.project),
+      messages: msgs
+    )
+    |> case do
+      {:ok, %{response: response, messages: new_msgs, usage: usage}} ->
+        %{
+          state
+          | usage: usage,
+            current_step: current_step,
+            last_response: response,
+            msgs: new_msgs
+        }
+        |> log_usage()
+        |> log_response()
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  # -----------------------------------------------------------------------------
+  # Message shortcuts
+  # -----------------------------------------------------------------------------
+  @singleton """
+  You are an AI assistant that researches the user's code base to answer their qustions.
+  You are assisting the user by researching their question about the project, "$$PROJECT$$".
+  $$GIT_INFO$$
+
+  Confirm whether any prior research you found is still relevant and factual.
+  Proactively use your tools to research the user's question.
+  You reason through problems step by step.
+
+  Your first step is to break down the user's request into individual lines of research.
+  You will then execute these tasks, parallelizing as many as possible.
+
+  Before responding, consider the following:
+  - Did you consider other interpretations of the user's question?
+  - Did you search for and identify potential ambiguities and resolve them?
+  - Did you identify gotchas or pitfalls that the user should be aware of?
+  - Did you double-check your work to ensure that you are not missing any important details?
+  - Did you include citations of the files you used to answer the question?
+
+  **DO NOT FINALIZE YOUR RESPONSE UNTIL EXPLICITLY INSTRUCTED.**
+  """
+
+  @initial """
+  You are an AI assistant that researches the user's code base to answer their qustions.
+  You are assisting the user by researching their question about the project, "$$PROJECT$$".
+  $$GIT_INFO$$
+
+  Confirm whether any prior research you found is still relevant and factual.
+  Proactively use your research tools to research the user's question.
+  You reason through problems step by step.
+
+  Your first step is to break down the user's request into individual lines of research.
+  You will then execute these tasks, parallelizing as many as possible.
+
+  **DO NOT FINALIZE YOUR RESPONSE UNTIL EXPLICITLY INSTRUCTED.**
+  """
+
+  @begin """
+  Let's begin by considering the user's question.
+  There are probably a few ways it could be interpreted in the context of the project.
+  I can start by doing a quick initial round of research to get a better understanding of the context of the user's question.
+  I'll use the *research_tool* to pursue a few initial lines of research in parallel and see what I can find.
+  That will provide enough context to break down the user's question into smaller, more manageable pieces, that I can farm out to my tools.
+  """
+
+  @clarify """
+  Wait, does my research so far match my initial assumptions?
+  Let me think about this.
+  Does my research strategy still make sense based on my initial findings?
+  I'm going to take a moment to clarify my understanding of the user's question in light of the information I've found so far.
+  Many projects evolve over time, and terminology can change as a product matures.
+  It's not yet time to finalize my response.
+  I am going to do a bit more research with my tools to make sure I don't get tripped up by any concepts or terminology that might be ambiguously labeled in the project.
+  """
+
+  @refine """
+  I think I've got a better handle on the context of the user's question now.
+  Now I want to focus on identifying the most relevant information in the project.
+  Are there any unresolved questions that I need to research further to ensure I'm not hallucinating details?
+  Let me think through the user's question again. _Why_ did they ask or this? What does that imply about their needs?
+  That will affect how I structure my response, because I want to make sure I present the information in a manner that is easy to follow.
+  Considering the user's needs will help me understand their motivations and perhaps the context in which *they* are working.
+  Would it be helpful if I found some examples in the project that demonstrate the topic? User's love it when they can copy and paste.
+  It's not yet time to finalize my response; I need to resolve some of these questions first.
+  """
+
+  @continue """
+  The user wants me to spend a little extra time researching, so I'm going to dig deeper into the project.
+  Maybe I can find some other useful details or gotchas to look out for.
+  The user will be very happy if I can provide warnings about common pitfalls around this topic.
+  After all, they wouldn't ask me if they already knew all of this stuff.
+  """
+
+  @default_template """
+  Format the response in markdown.
+
+  Follow these rules:
+    - You are talking to a programmer: **NEVER use smart quotes or apostrophes**
+    - Start immediately with the highest-level header (#), without introductions, disclaimers, or phrases like "Below is...".
+    - Use headers (##, ###) for sections, lists for key points, and bold/italics for emphasis.
+    - By default, structure content like a technical manual or man page: concise, hierarchical, and self-contained.
+    - If not appropriate, structure in the most appropriate format based on the user's implied needs.
+    - Use a polite but informal tone; friendly humor and commiseration is encouraged.
+    - Include a tl;dr section toward the end.
+    - Include a list of relevant files if appropriate.
+    - Avoid commentary or markdown-rendering hints (e.g., "```markdown").
+    - Code examples are always useful and should be functional and complete, surrounded by markdown code fences.
+
+  $$MOTD$$
+  """
+
+  @finalize """
+  I believe that I have identified all of the information I need to answer the user's question.
+  What is the best way to present this information to the user?
+  I know a lot about instructional design, technical writing, and learning.
+  I can use this knowledge to structure my response in a way that is easy to follow and understand.
+  The user is probably a programmer or engineer. I had beter avoid using smart quotes or apostrophes - programmers hate those!
+  """
+
+  @motd """
+  Just for fun, finish off your response with a humorous MOTD.
+  Select a **real** quote from a **real** historical figure.
+  **Invent a brief, fictional and humorous scenario** related to software development or programming where the quote would be relevant.
+  The scenario should be a made-up situation involving coding, debugging, or technology, and relate to the user's question.
+  Attribute the quote to the real person speaking from the made-up scenario.
+  Example: "I have not failed. I've just found 10,000 ways that won't work." - Thomas Edison, on the importance of negative path testing."
+  Don't just use my example. Be creative. Sheesh.
+  Never use smart quotes!
+  Format: `### MOTD\n> <quote> - <source>, <briefly state the made-up scenario>`
+  """
+
+  defp git_info() do
+    with {:ok, root} <- Git.git_root(),
+         {:ok, branch} <- Git.current_branch() do
+      """
+      You are working in a git repository.
+      The current branch is `#{branch}`.
+      The git root is `#{root}`.
+      """
+    else
+      {:error, :not_a_git_repo} -> "Note: this project is not under git version control."
+    end
+  end
+
+  defp singleton_msg(%{project: project} = state) do
+    state
+    |> Map.put(
+      :msgs,
+      state.msgs ++
+        [
+          @singleton
+          |> String.replace("$$PROJECT$$", project)
+          |> String.replace("$$GIT_INFO$$", git_info())
+          |> AI.Util.system_msg()
+        ]
+    )
+  end
+
+  defp initial_msg(%{project: project} = state) do
+    state
+    |> Map.put(
+      :msgs,
+      state.msgs ++
+        [
+          @initial
+          |> String.replace("$$PROJECT$$", project)
+          |> String.replace("$$GIT_INFO$$", git_info())
+          |> AI.Util.system_msg()
+        ]
+    )
+  end
+
+  defp user_msg(%{question: question} = state) do
+    state
+    |> Map.put(:msgs, state.msgs ++ [AI.Util.user_msg(question)])
+  end
+
+  defp reminder_msg(%{question: question} = state) do
+    state
+    |> Map.put(
+      :msgs,
+      state.msgs ++ [AI.Util.system_msg("Remember the user's original question: #{question}")]
+    )
+  end
+
+  defp begin_msg(state) do
+    state
+    |> Map.put(:msgs, state.msgs ++ [AI.Util.assistant_msg(@begin)])
+  end
+
+  defp clarify_msg(state) do
+    state
+    |> Map.put(:msgs, state.msgs ++ [AI.Util.assistant_msg(@clarify)])
+  end
+
+  defp refine_msg(state) do
+    state
+    |> Map.put(:msgs, state.msgs ++ [AI.Util.assistant_msg(@refine)])
+  end
+
+  defp continue_msg(state) do
+    state
+    |> Map.put(:msgs, state.msgs ++ [AI.Util.assistant_msg(@continue)])
+  end
+
+  defp finalize_msg(state) do
+    state
+    |> Map.put(:msgs, state.msgs ++ [AI.Util.assistant_msg(@finalize)])
+  end
+
+  defp template_msg(%{template: nil} = state) do
+    state
+    |> Map.put(:template, @default_template)
+    |> template_msg()
+  end
+
+  defp template_msg(%{template: template} = state) do
+    msg =
+      "#{@finalize}\n\nRecall the user's original prompt: #{state.question}"
+      |> String.replace("$$TEMPLATE$$", template)
+      |> String.replace("$$MOTD$$", @motd)
+      |> AI.Util.system_msg()
+
+    %{state | msgs: state.msgs ++ [msg]}
+  end
+
+  # -----------------------------------------------------------------------------
+  # Automatic research retrieval
+  # -----------------------------------------------------------------------------
+  defp get_notes(state) do
+    with {:ok, notes} <- Store.Project.Notes.read() do
+      UI.debug("Retrieving prior research")
+      UI.debug("To view prior research", "`fnord notes -p #{state.project}`")
+
+      msg =
+        AI.Util.system_msg("""
+        # Prior Research
+        You have conducted the following prior research on this project.
+        When possible, use this information to inform your research strategies, tool usage, and responses.
+
+        ## Notes
+        #{notes}
+
+        ## Caveats
+        - Keep in mind that the project is under active development and the notes may be out of date.
+        - **ALWAYS** use your tools to verify the accuracy and completeness of prior research before using it!
+        """)
+
+      %{state | msgs: state.msgs ++ [msg]}
+    else
+      {:error, :no_notes} -> state
+    end
+  end
+
+  defp save_notes(state) do
+    args = %{
+      transcript: AI.Util.research_transcript(state.msgs),
+      max_tokens: (@model.context * 0.10) |> Float.round(0) |> round()
+    }
+
+    with {:ok, response} <- AI.Agent.Archivist.get_response(state.ai, args) do
+      UI.report_step("Updated persistent research notes")
+      UI.debug("Research notes updated and reorganized", "#{response}")
+    else
+      other -> UI.error("Failed to save research notes: #{inspect(other)}")
+    end
+
+    state
+  end
+
+  # -----------------------------------------------------------------------------
+  # Output
+  # -----------------------------------------------------------------------------
+  defp log_response(%{steps: [], last_response: answer} = state) do
+    UI.flush()
+    IO.puts(answer)
+    state
+  end
+
+  defp log_response(%{last_response: thought} = state) do
+    # "Reasoning" models often leave the <think> tags in the response.
+    thought = String.replace(thought, ~r/<think>(.*)<\/think>/, "\\1")
+    UI.debug("Considering", thought)
+    state
+  end
+
+  defp log_usage(usage) when is_integer(usage) do
+    percentage = Float.round(usage / @model.context * 100, 2)
+    str_usage = Util.format_number(usage)
+    str_context = Util.format_number(@model.context)
+    UI.info("Context window usage", "#{percentage}% (#{str_usage} / #{str_context} tokens)")
+  end
+
+  defp log_usage(%{usage: usage} = state) do
+    log_usage(usage)
+    state
+  end
+
+  # -----------------------------------------------------------------------------
+  # Testing response
+  # -----------------------------------------------------------------------------
+  @test_prompt """
+  Perform the requested test exactly as instructed by the user.
+
+  If this were not a test, the following information would be provided.
+  Include it in your response to the user if it is relevant to the test:
+  You are assisting the user by researching their question about the project, "$$PROJECT$$."
+  $$GIT_INFO$$
+
+  If the user explicitly requests a (*literal*) `mic check`:
+    - Respond with an intelligently humorous message to indicate that the request was received
+    - Examples:
+      - "Welcome, my son... welcome to the machine."
+      - "I'm sorry, Dave. I'm afraid I can't do that."
+
+  If the user is requesting a (*literal*) `smoke test`, test **ALL** of your available tools in turn
+    - **TEST EVERY SINGLE TOOL YOU HAVE ONCE**
+    - **DO NOT SKIP ANY TOOL**
+    - **COMBINE AS MANY TOOL CALLS AS POSSIBLE INTO THE SAME RESPONSE** to take advantage of concurrent tool execution
+      - Pay attention to logical dependencies between tools to get real values for arguments
+      - For example, you must call `file_list_tool` before other file tool calls to ensure you have valid file names to use as arguments
+    - Consider the logical dependencies between tools in order to get real values for arguments
+      - For example:
+        - The file_contents_tool requires a file name, which can be obtained from the file_list_tool
+        - The git_diff_branch_tool requires a branch name, which can be obtained from the git_list_branches_tool
+    - The user will verify that you called EVERY tool using the debug logs
+    - Start with the file_list_tool so you have real file names for your other tests
+    - Respond with a section for each tool:
+      - In the header, prefix the tool name with a `✓` or `✗` to indicate success or failure
+      - Note which arguments you used for the tool
+      - Report success, errors, and anomalies encountered while executing the tool
+
+  Otherwise, perform the actions requested by the user and report the results.
+  Keep in mind that the user cannot see the rest of the conversation - only your final response.
+  Report any anomalies or errors encountered during the process and provide a summary of the outcomes.
+  """
+
+  defp is_testing?(%{question: question}) do
+    question
+    |> String.downcase()
+    |> String.starts_with?("testing:")
+  end
+
+  defp get_test_response(%{project: project} = state) do
+    tools = AI.Tools.all_tools_for_project(project)
+
+    AI.Completion.get(state.ai,
+      log_msgs: true,
+      log_tool_calls: true,
+      model: AI.Model.fast(),
+      tools: tools,
+      messages: [
+        @test_prompt
+        |> String.replace("$$PROJECT$$", project)
+        |> String.replace("$$GIT_INFO$$", git_info())
+        |> AI.Util.system_msg(),
+        AI.Util.user_msg(state.question)
+      ]
+    )
+    |> then(fn {:ok, %{response: msg, usage: usage} = response} ->
+      UI.flush()
+      IO.puts(msg)
+
+      response
+      |> AI.Completion.tools_used()
+      |> Enum.each(fn {tool, count} ->
+        UI.report_step(tool, "called #{count} time(s)")
+      end)
+
+      log_usage(usage)
+    end)
+
+    {:ok, :testing}
+  end
+end
