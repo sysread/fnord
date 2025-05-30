@@ -7,6 +7,8 @@ defmodule AI.Agent.Researcher do
   You are to use your tools to gather information about the code base.
   Remember that many code bases are complex and contain legacy code, so you will need to make clever use of your tools to gather the information you need.
   Take special care to identify ambiguities in terminology, unexpected dependencies, oddities of code structure, and other potential pitfalls, and identify them to the Coordinating Agent.
+  Include any files that you find that are relevant to the research task in your response.
+  You are responding to another LLM; your response should be concise to save tokens, using abbreviations that another LLM will understand.
   """
   # -----------------------------------------------------------------------------
   # Behaviour implementation

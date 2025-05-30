@@ -32,6 +32,11 @@ defmodule AI.Tools.File.Search do
         primed for semantic search using an LLM to generate contextual content
         related to the file contents, allowing for improved fuzzy searches.
 
+        This tool is ideal when you need to find files related to a topic but
+        do not have an exact string to match. For example, you can search for
+        "user authentication" to find files related to user login, regardless
+        of whether they contain that exact phrase.
+
         Note that this tool does not have access to historical data or commit
         messages. It only searches the most recently indexed version of the
         project.

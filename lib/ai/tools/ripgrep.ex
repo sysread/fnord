@@ -32,7 +32,8 @@ defmodule AI.Tools.Ripgrep do
       type: "function",
       function: %{
         name: "ripgrep_search",
-        description: "Searches the project directory using ripgrep.",
+        description:
+          "Searches the project directory using ripgrep. This tool is ideal when you need to find an exact match.",
         parameters: %{
           type: "object",
           required: ["pattern"],

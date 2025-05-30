@@ -28,6 +28,8 @@ defmodule AI.Tools.Research do
       function: %{
         name: "research_tool",
         description: """
+        **This is your research assistant.**
+
         Spin off a focused sub-research process to perform multiple lines of
         research in parallel, allowing you to gather information from multiple
         sources and synthesize findings into a hollistic view of the code base.

@@ -24,7 +24,6 @@ defmodule AI.Agent.Coordinator do
       ai: ai,
       project: opts.project,
       question: opts.question,
-      template: opts.template,
       msgs: opts.msgs,
       last_response: nil,
       steps: research_steps,
@@ -39,7 +38,7 @@ defmodule AI.Agent.Coordinator do
     state.project
     |> AI.Tools.frobs()
     |> Map.keys()
-    |> Enum.join(", ")
+    |> Enum.join(" | ")
     |> then(&UI.info("Available frobs: #{&1}"))
 
     if is_testing?(state) do
@@ -209,8 +208,11 @@ defmodule AI.Agent.Coordinator do
   Proactively use your tools to research the user's question.
   You reason through problems step by step.
 
-  Your first step is to break down the user's request into individual lines of research.
-  You will then execute these tasks, parallelizing as many as possible.
+  Instructions:
+  - Examine the user's question and identify multiple lines of research that cover all aspects of the question.
+  - Delegate these lines of research to the research_tool in parallel to gather the information you need.
+  - Once all results are available, compare, synthesize, and integrate their findings.
+  - Perform additional rounds of research as necessary to fill in gaps in your understanding or find examples for the user.
 
   Before responding, consider the following:
   - Did you consider other interpretations of the user's question?
@@ -234,15 +236,21 @@ defmodule AI.Agent.Coordinator do
   Your first step is to break down the user's request into individual lines of research.
   You will then execute these tasks, parallelizing as many as possible.
 
+  Instructions:
+  - Examine the user's question and identify multiple lines of research that cover all aspects of the question.
+  - Examine the user's question and identify multiple lines of research that cover all aspects of the question.
+  - Delegate these lines of research to the research_tool in parallel to gather the information you need.
+  - Once all results are available, compare, synthesize, and integrate their findings.
+  - Perform additional rounds of research as necessary to fill in gaps in your understanding or find examples for the user.
+
   **DO NOT FINALIZE YOUR RESPONSE UNTIL EXPLICITLY INSTRUCTED.**
   """
 
   @begin """
-  Let's begin by considering the user's question.
-  There are probably a few ways it could be interpreted in the context of the project.
-  I can start by doing a quick initial round of research to get a better understanding of the context of the user's question.
-  I'll use the *research_tool* to pursue a few initial lines of research in parallel and see what I can find.
-  That will provide enough context to break down the user's question into smaller, more manageable pieces, that I can farm out to my tools.
+  I'm going to start by considering the user's question.
+  There are a number of ways to look at this.
+  I'll spawn a few research tasks to explore different aspects of the question in parallel.
+  That will address some of the unknowns and help guide my next steps.
   """
 
   @clarify """
@@ -273,7 +281,16 @@ defmodule AI.Agent.Coordinator do
   After all, they wouldn't ask me if they already knew all of this stuff.
   """
 
-  @default_template """
+  @finalize """
+  I believe that I have identified all of the information I need to answer the user's question.
+  What is the best way to present this information to the user?
+  I know a lot about instructional design, technical writing, and learning.
+  I can use this knowledge to structure my response in a way that is easy to follow and understand.
+  The user is probably a programmer or engineer.
+  I had beter avoid using smart quotes, apostrophes, and em dashes. Programmers hate those!
+  """
+
+  @template """
   Format the response in markdown.
 
   Follow these rules:
@@ -288,18 +305,6 @@ defmodule AI.Agent.Coordinator do
     - Avoid commentary or markdown-rendering hints (e.g., "```markdown").
     - Code examples are always useful and should be functional and complete, surrounded by markdown code fences.
 
-  $$MOTD$$
-  """
-
-  @finalize """
-  I believe that I have identified all of the information I need to answer the user's question.
-  What is the best way to present this information to the user?
-  I know a lot about instructional design, technical writing, and learning.
-  I can use this knowledge to structure my response in a way that is easy to follow and understand.
-  The user is probably a programmer or engineer. I had beter avoid using smart quotes or apostrophes - programmers hate those!
-  """
-
-  @motd """
   Just for fun, finish off your response with a humorous MOTD.
   Select a **real** quote from a **real** historical figure.
   **Invent a brief, fictional and humorous scenario** related to software development or programming where the quote would be relevant.
@@ -309,6 +314,10 @@ defmodule AI.Agent.Coordinator do
   Don't just use my example. Be creative. Sheesh.
   Never use smart quotes!
   Format: `### MOTD\n> <quote> - <source>, <briefly state the made-up scenario>`
+
+  THS IS IT.
+  Your research is complete!
+  Respond NOW with your findings in the format specified in the template.
   """
 
   defp git_info() do
@@ -390,20 +399,9 @@ defmodule AI.Agent.Coordinator do
     |> Map.put(:msgs, state.msgs ++ [AI.Util.assistant_msg(@finalize)])
   end
 
-  defp template_msg(%{template: nil} = state) do
+  defp template_msg(state) do
     state
-    |> Map.put(:template, @default_template)
-    |> template_msg()
-  end
-
-  defp template_msg(%{template: template} = state) do
-    msg =
-      "#{@finalize}\n\nRecall the user's original prompt: #{state.question}"
-      |> String.replace("$$TEMPLATE$$", template)
-      |> String.replace("$$MOTD$$", @motd)
-      |> AI.Util.system_msg()
-
-    %{state | msgs: state.msgs ++ [msg]}
+    |> Map.put(:msgs, state.msgs ++ [AI.Util.assistant_msg(@template)])
   end
 
   # -----------------------------------------------------------------------------
