@@ -13,15 +13,14 @@ defmodule AI.Agent.Coordinator do
   @behaviour AI.Agent
 
   @impl AI.Agent
-  def get_response(ai, opts) do
-    ai |> new(opts) |> consider()
+  def get_response(opts) do
+    opts |> new() |> consider()
   end
 
-  defp new(ai, opts) do
+  defp new(opts) do
     research_steps = steps(opts.rounds)
 
     %{
-      ai: ai,
       project: opts.project,
       question: opts.question,
       msgs: opts.msgs,
@@ -168,10 +167,10 @@ defmodule AI.Agent.Coordinator do
     Task.await(finalize, :infinity)
   end
 
-  defp get_completion(%{ai: ai, msgs: msgs} = state) do
+  defp get_completion(%{msgs: msgs} = state) do
     current_step = state.current_step + 1
 
-    AI.Completion.get(ai,
+    AI.Completion.get(
       log_msgs: true,
       log_tool_calls: true,
       replay_conversation: false,
@@ -438,7 +437,7 @@ defmodule AI.Agent.Coordinator do
       max_tokens: (@model.context * 0.10) |> Float.round(0) |> round()
     }
 
-    with {:ok, response} <- AI.Agent.Archivist.get_response(state.ai, args) do
+    with {:ok, response} <- AI.Agent.Archivist.get_response(args) do
       UI.report_step("Updated persistent research notes")
       UI.debug("Research notes updated and reorganized", "#{response}")
     else
@@ -524,7 +523,7 @@ defmodule AI.Agent.Coordinator do
   defp get_test_response(%{project: project} = state) do
     tools = AI.Tools.all_tools_for_project(project)
 
-    AI.Completion.get(state.ai,
+    AI.Completion.get(
       log_msgs: true,
       log_tool_calls: true,
       model: AI.Model.fast(),

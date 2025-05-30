@@ -7,7 +7,7 @@ defmodule Indexer do
   # -----------------------------------------------------------------------------
   # Input Types
   # -----------------------------------------------------------------------------
-  @type indexer :: struct
+  @type indexer :: module()
   @type file_path :: String.t()
   @type file_content :: String.t()
 
@@ -21,36 +21,28 @@ defmodule Indexer do
   # -----------------------------------------------------------------------------
   # Behaviour Definition
   # -----------------------------------------------------------------------------
-  @callback new() :: indexer
-  @callback get_embeddings(indexer, file_content) :: embeddings | error
-  @callback get_summary(indexer, file_path, file_content) :: completion | error
-  @callback get_outline(indexer, file_path, file_content) :: completion | error
+  @callback get_embeddings(file_content) :: embeddings | error
+  @callback get_summary(file_path, file_content) :: completion | error
+  @callback get_outline(file_path, file_content) :: completion | error
 
   # -----------------------------------------------------------------------------
   # Behaviour Implementation
   # -----------------------------------------------------------------------------
   @behaviour Indexer
 
-  defstruct [:ai]
-
   @impl Indexer
-  def new() do
-    %__MODULE__{ai: AI.new()}
-  end
-
-  @impl Indexer
-  def get_embeddings(_indexer, content) do
+  def get_embeddings(content) do
     AI.Embeddings.get(content)
   end
 
   @impl Indexer
-  def get_summary(indexer, file, content) do
-    AI.Agent.FileSummary.get_response(indexer.ai, %{file: file, content: content})
+  def get_summary(file, content) do
+    AI.Agent.FileSummary.get_response(%{file: file, content: content})
   end
 
   @impl Indexer
-  def get_outline(indexer, file, content) do
-    AI.Agent.CodeMapper.get_response(indexer.ai, %{file: file, content: content})
+  def get_outline(file, content) do
+    AI.Agent.CodeMapper.get_response(%{file: file, content: content})
   end
 
   # -----------------------------------------------------------------------------

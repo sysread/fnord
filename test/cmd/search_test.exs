@@ -7,7 +7,7 @@ defmodule Cmd.SearchTest do
 
   test "search returns files ranked by similarity to query", %{project: project} do
     MockIndexer
-    |> Mox.stub(:get_embeddings, fn _, text ->
+    |> Mox.stub(:get_embeddings, fn text ->
       base = List.duplicate(0.0, 3072)
 
       embedding =

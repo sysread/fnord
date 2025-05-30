@@ -13,7 +13,6 @@ defmodule AI.Completion do
   `LOGGER_LEVEL` must be set to `debug` to see the output of tool call results.
   """
   defstruct [
-    :ai,
     :opts,
     :model,
     :tools,
@@ -27,7 +26,6 @@ defmodule AI.Completion do
   ]
 
   @type t :: %__MODULE__{
-          ai: AI.t(),
           opts: Keyword.t(),
           model: String.t(),
           tools: list(),
@@ -42,16 +40,16 @@ defmodule AI.Completion do
 
   @type response :: {:ok, t} | {:error, t}
 
-  @spec get(AI.t(), Keyword.t()) :: response
-  def get(ai, opts) do
-    with {:ok, state} <- new(ai, opts) do
+  @spec get(Keyword.t()) :: response
+  def get(opts) do
+    with {:ok, state} <- new(opts) do
       state
       |> AI.Completion.Output.replay_conversation()
       |> send_request()
     end
   end
 
-  def new(ai, opts) do
+  def new(opts) do
     with {:ok, model} <- Keyword.fetch(opts, :model),
          {:ok, messages} <- Keyword.fetch(opts, :messages) do
       tools = Keyword.get(opts, :tools, nil)
@@ -62,7 +60,6 @@ defmodule AI.Completion do
       log_tool_calls = Keyword.get(opts, :log_tool_calls, !quiet?)
 
       state = %__MODULE__{
-        ai: ai,
         opts: Enum.into(opts, %{}),
         model: model,
         tools: tools,
@@ -79,10 +76,10 @@ defmodule AI.Completion do
     end
   end
 
-  def new_from_conversation(conversation, ai, opts) do
+  def new_from_conversation(conversation, opts) do
     if Store.Project.Conversation.exists?(conversation) do
       {:ok, _ts, msgs} = Store.Project.Conversation.read(conversation)
-      new(ai, Keyword.put(opts, :messages, msgs))
+      new(Keyword.put(opts, :messages, msgs))
     else
       {:error, :conversation_not_found}
     end
@@ -107,8 +104,7 @@ defmodule AI.Completion do
   # Completion handling
   # -----------------------------------------------------------------------------
   defp send_request(state) do
-    AI.get_completion(
-      state.ai,
+    AI.ChatCompletion.get(
       state.model,
       state.messages,
       state.tools

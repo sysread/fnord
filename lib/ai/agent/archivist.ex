@@ -86,12 +86,12 @@ defmodule AI.Agent.Archivist do
   @behaviour AI.Agent
 
   @impl AI.Agent
-  def get_response(ai, opts) do
+  def get_response(opts) do
     with {:ok, transcript} <- Map.fetch(opts, :transcript),
          {:ok, max_tokens} <- Map.fetch(opts, :max_tokens),
          {:ok, old_notes} <- fetch_notes(),
-         {:ok, compressed} <- compress_notes(ai, old_notes, max_tokens),
-         {:ok, organized} <- organize_notes(ai, transcript, compressed),
+         {:ok, compressed} <- compress_notes(old_notes, max_tokens),
+         {:ok, organized} <- organize_notes(transcript, compressed),
          :ok = Store.Project.Notes.write(organized) do
       {:ok, organized}
     else
@@ -101,7 +101,7 @@ defmodule AI.Agent.Archivist do
   end
 
   # Recursively compress notes until under max_tokens
-  defp compress_notes(ai, notes, max_tokens) do
+  defp compress_notes(notes, max_tokens) do
     count = AI.PretendTokenizer.guesstimate_tokens(notes)
     count_str = Util.format_number(count)
     max_tokens_str = Util.format_number(max_tokens)
@@ -126,20 +126,20 @@ defmodule AI.Agent.Archivist do
       #{notes}
       """
 
-      AI.Accumulator.get_response(ai,
+      AI.Accumulator.get_response(
         model: @model,
         prompt: prompt,
         input: notes,
         question: "Compress research notes to ≤ #{max_tokens_str} tokens."
       )
       |> case do
-        {:ok, %{response: compressed}} -> compress_notes(ai, compressed, max_tokens)
+        {:ok, %{response: compressed}} -> compress_notes(compressed, max_tokens)
         {:error, reason} -> {:compress_error, reason}
       end
     end
   end
 
-  defp organize_notes(ai, transcript, old_notes) do
+  defp organize_notes(transcript, old_notes) do
     UI.report_step("Updating prior research", "Assimilating new research into existing notes")
 
     input = """
@@ -150,7 +150,7 @@ defmodule AI.Agent.Archivist do
     #{old_notes}
     """
 
-    AI.Accumulator.get_response(ai,
+    AI.Accumulator.get_response(
       model: @model,
       prompt: @prompt,
       input: input,

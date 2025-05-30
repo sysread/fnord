@@ -78,12 +78,12 @@ defmodule AI.Tools.File.Spelunker do
   end
 
   @impl AI.Tools
-  def call(completion, args) do
+  def call(_completion, args) do
     with true <- Store.get_project() |> Store.Project.has_index?(),
          {:ok, symbol} <- Map.fetch(args, "symbol"),
          {:ok, start_file} <- Map.fetch(args, "start_file"),
          {:ok, question} <- Map.fetch(args, "question") do
-      AI.Agent.Spelunker.get_response(completion.ai, %{
+      AI.Agent.Spelunker.get_response(%{
         symbol: symbol,
         start_file: start_file,
         question: question

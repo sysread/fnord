@@ -113,7 +113,7 @@ defmodule Cmd.Index do
 
     %__MODULE__{
       opts: opts,
-      indexer: Indexer.impl().new(),
+      indexer: Indexer.impl(),
       project: project
     }
   end

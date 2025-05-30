@@ -14,7 +14,7 @@ defmodule Search do
   end
 
   def get_results(search) do
-    with {:ok, needle} <- get_query_embeddings(search.query) do
+    with {:ok, needle} <- Indexer.impl().get_embeddings(search.query) do
       Store.get_project()
       |> Store.Project.stored_files()
       |> Util.async_stream(fn entry ->
@@ -36,11 +36,6 @@ defmodule Search do
     else
       {:error, reason} -> {:error, reason}
     end
-  end
-
-  defp get_query_embeddings(query) do
-    idx = Indexer.impl()
-    idx.get_embeddings(idx.new(), query)
   end
 
   defp get_file_data(search, entry) do

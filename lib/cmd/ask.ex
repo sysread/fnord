@@ -70,14 +70,13 @@ defmodule Cmd.Ask do
 
   @impl Cmd
   def run(opts, _subcommands, _unknown) do
-    ai = AI.new()
     start_time = System.monotonic_time(:second)
 
     with {:ok, opts} <- validate(opts),
          {:ok, msgs, conversation} <- restore_conversation(opts),
          opts <- Map.put(opts, :msgs, msgs),
          %{msgs: msgs, usage: usage, context: context} <-
-           AI.Agent.Coordinator.get_response(ai, opts),
+           AI.Agent.Coordinator.get_response(opts),
          {:ok, conversation_id} <- save_conversation(conversation, msgs) do
       end_time = System.monotonic_time(:second)
       time_taken = end_time - start_time

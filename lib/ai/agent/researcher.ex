@@ -16,10 +16,10 @@ defmodule AI.Agent.Researcher do
   @behaviour AI.Agent
 
   @impl AI.Agent
-  def get_response(ai, opts) do
+  def get_response(opts) do
     with %{name: project} <- Store.get_project(),
          {:ok, prompt} <- Map.fetch(opts, :prompt) do
-      AI.Completion.get(ai,
+      AI.Completion.get(
         model: @model,
         tools: AI.Tools.all_tools_for_project(project),
         messages: [

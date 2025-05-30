@@ -12,7 +12,6 @@ defmodule AI.Accumulator do
   """
 
   defstruct [
-    :ai,
     :splitter,
     :buffer,
     :model,
@@ -66,8 +65,8 @@ defmodule AI.Accumulator do
   @type error :: {:error, String.t()}
   @type response :: success | error
 
-  @spec get_response(AI.t(), Keyword.t()) :: response
-  def get_response(ai, opts \\ []) do
+  @spec get_response(Keyword.t()) :: response
+  def get_response(opts \\ []) do
     with {:ok, model} <- Keyword.fetch(opts, :model),
          {:ok, prompt} <- Keyword.fetch(opts, :prompt),
          {:ok, input} <- Keyword.fetch(opts, :input),
@@ -75,7 +74,6 @@ defmodule AI.Accumulator do
       tools = Keyword.get(opts, :tools, nil)
 
       %__MODULE__{
-        ai: ai,
         splitter: AI.Splitter.new(input, model),
         buffer: "",
         model: model,
@@ -111,7 +109,7 @@ defmodule AI.Accumulator do
         AI.Util.user_msg(user_prompt)
       ])
 
-    AI.Completion.get(acc.ai, args)
+    AI.Completion.get(args)
   end
 
   defp reduce(%{splitter: %{done: false}} = acc) do
@@ -158,7 +156,7 @@ defmodule AI.Accumulator do
         AI.Util.user_msg(user_prompt)
       ])
 
-    AI.Completion.get(acc.ai, args)
+    AI.Completion.get(args)
     |> case do
       {:ok, %{response: response}} ->
         {:ok, %{acc | splitter: splitter, buffer: response}}

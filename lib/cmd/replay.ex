@@ -47,7 +47,7 @@ defmodule Cmd.Replay do
   end
 
   defp get_completion(conversation) do
-    AI.Completion.new_from_conversation(conversation, AI.new(),
+    AI.Completion.new_from_conversation(conversation,
       model: "n/a",
       log_msgs: true,
       log_tool_calls: true,

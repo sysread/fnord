@@ -5,5 +5,5 @@ defmodule AI.Agent do
   # -----------------------------------------------------------------------------
   # Behaviour definition
   # -----------------------------------------------------------------------------
-  @callback get_response(ai :: AI.t(), opts :: map()) :: response | error
+  @callback get_response(opts :: map()) :: response | error
 end

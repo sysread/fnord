@@ -71,12 +71,12 @@ defmodule AI.Tools.File.Info do
   end
 
   @impl AI.Tools
-  def call(completion, args) do
+  def call(_completion, args) do
     with {:ok, question} <- Map.fetch(args, "question"),
          {:ok, file} <- Map.fetch(args, "file"),
          {:ok, content} <- AI.Tools.get_file_contents(file),
          {:ok, response} <-
-           AI.Agent.FileInfo.get_response(completion.ai, %{
+           AI.Agent.FileInfo.get_response(%{
              file: file,
              question: question,
              content: content

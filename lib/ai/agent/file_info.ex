@@ -77,7 +77,7 @@ defmodule AI.Agent.FileInfo do
   @behaviour AI.Agent
 
   @impl AI.Agent
-  def get_response(ai, opts) do
+  def get_response(opts) do
     with {:ok, file} <- Map.fetch(opts, :file),
          {:ok, question} <- Map.fetch(opts, :question),
          {:ok, content} <- Map.fetch(opts, :content) do
@@ -93,7 +93,7 @@ defmodule AI.Agent.FileInfo do
           []
         end
 
-      AI.Accumulator.get_response(ai,
+      AI.Accumulator.get_response(
         model: @model,
         tools: tools,
         prompt: @prompt,

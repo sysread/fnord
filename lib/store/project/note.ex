@@ -40,8 +40,7 @@ defmodule Store.Project.Note do
         |> File.write!(text)
 
         # Generate and save embeddings for the note.
-        with idx <- Indexer.impl().new(),
-             {:ok, embeddings} <- Indexer.impl().get_embeddings(idx, text),
+        with {:ok, embeddings} <- Indexer.impl().get_embeddings(text),
              {:ok, json} <- Jason.encode(embeddings),
              :ok <- note.store_path |> Path.join("embeddings.json") |> File.write(json) do
           {:ok, note}

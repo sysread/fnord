@@ -1,6 +1,5 @@
 defmodule AI.Agent.Spelunker do
   defstruct [
-    :ai,
     :opts,
     :symbol,
     :start_file,
@@ -38,8 +37,8 @@ defmodule AI.Agent.Spelunker do
   @behaviour AI.Agent
 
   @impl AI.Agent
-  def get_response(ai, opts) do
-    with {:ok, %{response: response}} <- build_response(ai, opts) do
+  def get_response(opts) do
+    with {:ok, %{response: response}} <- build_response(opts) do
       {:ok, response}
     else
       {:error, %{response: response}} -> {:error, response}
@@ -49,8 +48,8 @@ defmodule AI.Agent.Spelunker do
   # -----------------------------------------------------------------------------
   # Private functions
   # -----------------------------------------------------------------------------
-  defp build_response(ai, opts) do
-    AI.Completion.get(ai,
+  defp build_response(opts) do
+    AI.Completion.get(
       model: @model,
       tools: @tools,
       messages: [

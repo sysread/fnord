@@ -41,7 +41,7 @@ defmodule Cmd.Tool do
     with {:ok, tool} <- Map.fetch(opts, :tool),
          {:ok, tool_args} <- parse_tool_args(tool, unknown),
          _ <- Store.get_project() do
-      state = %{ai: AI.new()}
+      state = %{}
 
       AI.Tools.perform_tool_call(state, tool, tool_args, AI.Tools.all_tools())
       |> case do

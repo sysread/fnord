@@ -5,7 +5,7 @@ defmodule AI.SplitterTest do
     input = "aaaabbbbccccddddeeeeffff"
 
     # model with 2 token context, which means we can process 8 characters
-    model = AI.Model.new("mst-3k", nil, 2)
+    model = AI.Model.new("mst-3k", 2)
 
     splitter = AI.Splitter.new(input, model)
 

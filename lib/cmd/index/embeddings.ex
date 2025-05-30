@@ -46,7 +46,7 @@ defmodule Cmd.Index.Embeddings do
     else
       UI.spin("Indexing #{count} / #{total} files", fn ->
         stale_files
-        |> UI.async_stream(&process_entry(idx, &1), "Indexing")
+        |> UI.async_stream(&process_entry(&1), "Indexing")
         |> Enum.to_list()
 
         {"All file indexing tasks complete", :ok}
@@ -54,10 +54,10 @@ defmodule Cmd.Index.Embeddings do
     end
   end
 
-  defp process_entry(idx, entry) do
+  defp process_entry(entry) do
     with {:ok, contents} <- Store.Project.Entry.read_source_file(entry),
-         {:ok, summary, outline} <- get_derivatives(idx, entry.file, contents),
-         {:ok, embeddings} <- get_embeddings(idx, entry.file, summary, outline, contents),
+         {:ok, summary, outline} <- get_derivatives(entry.file, contents),
+         {:ok, embeddings} <- get_embeddings(entry.file, summary, outline, contents),
          :ok <- Store.Project.Entry.save(entry, summary, outline, embeddings) do
       # If :quiet is true, the progress bar will be absent, so instead, we'll
       # emit debug logs to stderr. The user can control whether those are
@@ -73,9 +73,9 @@ defmodule Cmd.Index.Embeddings do
     end
   end
 
-  defp get_derivatives(idx, file, file_contents) do
-    summary_task = Task.async(fn -> get_summary(idx, file, file_contents) end)
-    outline_task = Task.async(fn -> get_outline(idx, file, file_contents) end)
+  defp get_derivatives(file, file_contents) do
+    summary_task = Task.async(fn -> get_summary(file, file_contents) end)
+    outline_task = Task.async(fn -> get_outline(file, file_contents) end)
 
     with {:ok, summary} <- Task.await(summary_task, :infinity),
          {:ok, outline} <- Task.await(outline_task, :infinity) do
@@ -83,15 +83,15 @@ defmodule Cmd.Index.Embeddings do
     end
   end
 
-  defp get_outline(idx, file, file_contents) do
-    Indexer.impl().get_outline(idx.indexer, file, file_contents)
+  defp get_outline(file, file_contents) do
+    Indexer.impl().get_outline(file, file_contents)
   end
 
-  defp get_summary(idx, file, file_contents) do
-    Indexer.impl().get_summary(idx.indexer, file, file_contents)
+  defp get_summary(file, file_contents) do
+    Indexer.impl().get_summary(file, file_contents)
   end
 
-  defp get_embeddings(idx, file, summary, outline, file_contents) do
+  defp get_embeddings(file, summary, outline, file_contents) do
     to_embed = """
       # File
       `#{file}`
@@ -108,6 +108,6 @@ defmodule Cmd.Index.Embeddings do
       ```
     """
 
-    Indexer.impl().get_embeddings(idx.indexer, to_embed)
+    Indexer.impl().get_embeddings(to_embed)
   end
 end

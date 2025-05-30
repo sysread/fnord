@@ -8,14 +8,11 @@ defmodule StubIndexer do
   @behaviour Indexer
 
   @impl Indexer
-  def new, do: %StubIndexer{}
+  def get_embeddings(_content), do: {:ok, [1, 2, 3]}
 
   @impl Indexer
-  def get_embeddings(_indexer, _content), do: {:ok, [1, 2, 3]}
+  def get_summary(_file, _content), do: {:ok, "summary"}
 
   @impl Indexer
-  def get_summary(_indexer, _file, _content), do: {:ok, "summary"}
-
-  @impl Indexer
-  def get_outline(_indexer, _file, _content), do: {:ok, "outline"}
+  def get_outline(_file, _content), do: {:ok, "outline"}
 end

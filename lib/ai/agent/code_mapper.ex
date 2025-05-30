@@ -37,10 +37,10 @@ defmodule AI.Agent.CodeMapper do
   @behaviour AI.Agent
 
   @impl AI.Agent
-  def get_response(ai, opts) do
+  def get_response(opts) do
     with {:ok, file} <- Map.fetch(opts, :file),
          {:ok, content} <- Map.fetch(opts, :content) do
-      AI.Accumulator.get_response(ai,
+      AI.Accumulator.get_response(
         model: @model,
         prompt: @prompt,
         input: content,
