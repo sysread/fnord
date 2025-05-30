@@ -17,7 +17,7 @@ defmodule AI.ToolsTest do
     def read_args(_args), do: AI.Tools.required_arg_error("required_arg")
 
     @impl AI.Tools
-    def call(_agent, _args), do: {:ok, "Huzzah!"}
+    def call(_args), do: {:ok, "Huzzah!"}
 
     @impl AI.Tools
     def spec() do
@@ -79,19 +79,19 @@ defmodule AI.ToolsTest do
     end
   end
 
-  describe "perform_tool_call/4" do
+  describe "perform_tool_call/3" do
     test "fails when tool is not registered" do
       assert {:error, :unknown_tool, "mock_tool"} =
-               AI.Tools.perform_tool_call(nil, "mock_tool", @req_args)
+               AI.Tools.perform_tool_call("mock_tool", @req_args)
     end
 
     test "fails when missing required args" do
       assert {:error, :missing_argument, "required_arg"} =
-               AI.Tools.perform_tool_call(nil, "mock_tool", @empty_args, @tools)
+               AI.Tools.perform_tool_call("mock_tool", @empty_args, @tools)
     end
 
     test "succeeds when tool is registered and args are valid" do
-      assert {:ok, "Huzzah!"} = AI.Tools.perform_tool_call(nil, "mock_tool", @req_args, @tools)
+      assert {:ok, "Huzzah!"} = AI.Tools.perform_tool_call("mock_tool", @req_args, @tools)
     end
   end
 

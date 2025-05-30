@@ -82,7 +82,7 @@ defmodule AI.Tools.Ripgrep do
   end
 
   @impl AI.Tools
-  def call(_completion, args) do
+  def call(args) do
     root = Store.get_project() |> Map.get(:source_root)
     args = atomize_keys(args)
     cmd = build_ripgrep_cmd(args)

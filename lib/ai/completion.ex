@@ -275,7 +275,7 @@ defmodule AI.Completion do
           AI.Completion.Output.on_event(state, :tool_call, {func, args})
 
           result =
-            AI.Tools.perform_tool_call(state, func, args, AI.Tools.all_tools())
+            AI.Tools.perform_tool_call(func, args, AI.Tools.all_tools())
             |> case do
               {:ok, response} when is_binary(response) -> {:ok, response}
               {:ok, response} -> Jason.encode(response)

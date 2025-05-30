@@ -40,7 +40,7 @@ defmodule AI.Tools.File.Outline do
   end
 
   @impl AI.Tools
-  def call(_completion, args) do
+  def call(args) do
     with {:ok, file} <- Map.fetch(args, "file"),
          {:ok, entry} <- AI.Tools.get_entry(file) do
       Store.Project.Entry.read_outline(entry)

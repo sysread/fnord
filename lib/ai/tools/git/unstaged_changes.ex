@@ -30,5 +30,5 @@ defmodule AI.Tools.Git.UnstagedChanges do
   end
 
   @impl AI.Tools
-  def call(_completion, _args), do: Git.git_diff([])
+  def call(_args), do: Git.git_diff([])
 end

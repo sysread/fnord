@@ -59,7 +59,7 @@ defmodule AI.Tools.Git.Show do
   end
 
   @impl AI.Tools
-  def call(_completion, args) do
+  def call(args) do
     with {:ok, sha} <- Map.fetch(args, "sha") do
       file = Map.get(args, "file", nil)
 

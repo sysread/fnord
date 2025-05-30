@@ -57,7 +57,7 @@ defmodule AI.Tools do
     end
 
     @impl AI.Tools
-    def call(_completion, args) do
+    def call(args) do
       {:ok, "IMPLEMENT ME"}
     end
   end
@@ -77,7 +77,7 @@ defmodule AI.Tools do
   Calls the tool with the provided arguments and returns the response as an :ok
   tuple.
   """
-  @callback call(completion :: AI.Completion.t(), args :: map) ::
+  @callback call(args :: map) ::
               :ok
               | {:ok, any}
               | {:error, any}
@@ -219,11 +219,11 @@ defmodule AI.Tools do
     end
   end
 
-  def perform_tool_call(state, tool, args, tools \\ @tools) do
+  def perform_tool_call(tool, args, tools \\ @tools) do
     with {:ok, module} <- tool_module(tool, tools),
          {:ok, args} <- module.read_args(args),
          :ok <- validate_required_args(tool, args, tools) do
-      module.call(state, args)
+      module.call(args)
     end
   end
 

@@ -71,7 +71,7 @@ defmodule AI.Tools.File.Info do
   end
 
   @impl AI.Tools
-  def call(_completion, args) do
+  def call(args) do
     with {:ok, question} <- Map.fetch(args, "question"),
          {:ok, file} <- Map.fetch(args, "file"),
          {:ok, content} <- AI.Tools.get_file_contents(file),

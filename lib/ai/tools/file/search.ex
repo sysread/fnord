@@ -58,11 +58,9 @@ defmodule AI.Tools.File.Search do
   end
 
   @impl AI.Tools
-  def call(completion, args) do
-    opts = Map.get(completion, :opts, %{})
-
+  def call(args) do
     with {:ok, query} <- Map.fetch(args, "query"),
-         {:ok, matches} <- search(query, opts) do
+         {:ok, matches} <- search(query) do
       matches
       |> Enum.map(fn {file, score, data} ->
         """
@@ -79,11 +77,12 @@ defmodule AI.Tools.File.Search do
   # Searches the database for matches to the search query. Returns a list of
   # `{file, score, data}` tuples.
   # -----------------------------------------------------------------------------
-  defp search(query, opts) do
-    opts
-    |> Map.put(:detail, true)
-    |> Map.put(:limit, @max_search_results)
-    |> Map.put(:query, query)
+  defp search(query) do
+    %{
+      detail: true,
+      limit: @max_search_results,
+      query: query
+    }
     |> Search.new()
     |> Search.get_results()
     |> case do

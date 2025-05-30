@@ -41,7 +41,7 @@ defmodule AI.Tools.Git.Grep do
   end
 
   @impl AI.Tools
-  def call(_completion, args) do
+  def call(args) do
     with {:ok, pattern} <- Map.fetch(args, "pattern") do
       ignore_case = Map.get(args, "ignore_case", false)
 

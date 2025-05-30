@@ -46,7 +46,7 @@ defmodule AI.Tools.File.Contents do
 
   # TODO truncate file contents if above some threshold
   @impl AI.Tools
-  def call(_completion, args) do
+  def call(args) do
     with {:ok, file} <- Map.fetch(args, "file"),
          {:ok, content} <- AI.Tools.get_file_contents(file) do
       {:ok,

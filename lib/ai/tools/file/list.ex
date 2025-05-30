@@ -36,7 +36,7 @@ defmodule AI.Tools.File.List do
   end
 
   @impl AI.Tools
-  def call(_completion, _args) do
+  def call(_args) do
     with project <- Store.get_project(),
          {_project, file_stream} <- Store.Project.source_files(project) do
       file_stream

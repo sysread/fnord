@@ -78,7 +78,7 @@ defmodule AI.Tools.File.Spelunker do
   end
 
   @impl AI.Tools
-  def call(_completion, args) do
+  def call(args) do
     with true <- Store.get_project() |> Store.Project.has_index?(),
          {:ok, symbol} <- Map.fetch(args, "symbol"),
          {:ok, start_file} <- Map.fetch(args, "start_file"),

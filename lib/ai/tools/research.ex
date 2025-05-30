@@ -60,7 +60,7 @@ defmodule AI.Tools.Research do
   end
 
   @impl AI.Tools
-  def call(_completion, args) do
+  def call(args) do
     case Map.fetch(args, "prompt") do
       {:ok, prompt} -> AI.Agent.Researcher.get_response(%{prompt: prompt})
       :error -> {:error, "Missing required argument: prompt"}
