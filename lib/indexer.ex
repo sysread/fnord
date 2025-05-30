@@ -39,8 +39,8 @@ defmodule Indexer do
   end
 
   @impl Indexer
-  def get_embeddings(indexer, content) do
-    AI.get_embeddings(indexer.ai, content)
+  def get_embeddings(_indexer, content) do
+    AI.Embeddings.get(content)
   end
 
   @impl Indexer

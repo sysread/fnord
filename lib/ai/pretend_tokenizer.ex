@@ -11,9 +11,18 @@ defmodule AI.PretendTokenizer do
   including some amount of buffer to account for the inaccuracy of this
   approximation.
   """
+  @type input :: String.t()
+  @type chunk_size :: non_neg_integer() | AI.Model.t()
+  @type reduction_factor :: float()
+  @type chunked_input :: [String.t()]
 
-  def chunk(input, model, reduction_factor) do
-    target = trunc(model.context * 4 * reduction_factor)
+  @spec chunk(input, chunk_size, reduction_factor) :: chunked_input
+  def chunk(input, %AI.Model{context: tokens}, reduction_factor) do
+    chunk(input, tokens, reduction_factor)
+  end
+
+  def chunk(input, chunk_size, reduction_factor) do
+    target = trunc(chunk_size * 4 * reduction_factor)
     size = target - rem(target, 4)
 
     input

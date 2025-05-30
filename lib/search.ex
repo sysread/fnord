@@ -5,9 +5,6 @@ defmodule Search do
     :detail
   ]
 
-  @doc """
-  Creates a new `Search` struct with the given options.
-  """
   def new(opts) do
     %__MODULE__{
       query: opts[:query],

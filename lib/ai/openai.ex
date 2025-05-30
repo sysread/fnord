@@ -4,41 +4,23 @@ defmodule AI.OpenAI do
   getting embeddings and completions.
   """
   @api_key_error "Missing OpenAI API key. Please set the OPENAI_API_KEY environment variable."
-  @embedding_endpoint "https://api.openai.com/v1/embeddings"
   @completion_endpoint "https://api.openai.com/v1/chat/completions"
 
   defstruct [
-    :api_key,
-    :http_options
+    :api_key
   ]
 
-  def new(http_options) do
-    workers = Application.get_env(:fnord, :workers, Cmd.default_workers())
-
+  def new() do
     %__MODULE__{
-      api_key: get_api_key(),
-      http_options:
-        [hackney_options: [pool: :openai, max_connections: workers]]
-        |> Keyword.merge(http_options)
+      api_key: get_api_key()
     }
   end
 
-  def get_embedding(openai, model, input) do
-    headers = [get_auth_header(openai)]
-
-    payload =
-      %{encoding_format: "float", input: input}
-      |> Map.merge(get_model_params(model))
-
-    Http.post_json(@embedding_endpoint, headers, payload, openai.http_options)
-    |> case do
-      {:ok, %{"data" => embeddings}} -> {:ok, embeddings |> Enum.map(&Map.get(&1, "embedding"))}
-      {:error, error} -> {:error, error}
-    end
-  end
-
   def get_completion(openai, model, msgs, tools \\ nil) do
-    headers = [get_auth_header(openai)]
+    headers = [
+      {"Authorization", "Bearer #{openai.api_key}"},
+      {"Content-Type", "application/json"}
+    ]
 
     payload =
       %{messages: msgs}
@@ -50,10 +32,11 @@ defmodule AI.OpenAI do
         end
       )
 
-    Http.post_json(@completion_endpoint, headers, payload, openai.http_options)
+    Http.post_json(@completion_endpoint, headers, payload)
     |> case do
       {:ok, response} -> get_completion_response(response)
-      {:error, error} -> get_error_response(error)
+      {:http_error, error} -> get_error_response(error)
+      {:transport_error, error} -> get_error_response(error)
     end
   end
 
@@ -65,10 +48,6 @@ defmodule AI.OpenAI do
       nil -> raise @api_key_error
       api_key -> api_key
     end
-  end
-
-  defp get_auth_header(openai) do
-    {"Authorization", "Bearer #{openai.api_key}"}
   end
 
   defp get_model_params(model) when is_binary(model) do
