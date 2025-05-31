@@ -4,65 +4,6 @@ defmodule AI.Util do
   @role_assistant "assistant"
   @role_tool "tool"
 
-  def note_format_prompt do
-    """
-    Your audience is another AI LLM agent.
-    Optimize token usage and efficiency using the following guidelines:
-    - Avoid human-specific language conventions like articles, connecting phrases, or redundant words.
-    - Use a structured, non-linear format with concise key-value pairs, hierarchical lists, or markup-like tags.
-    - Prioritize key information first, followed by secondary details as needed.
-    - Use shorthand or domain-specific terms wherever possible.
-    - Ensure the output is unambiguous but not necessarily human-readable.
-
-    Respond STRICTLY in the `topic` format below. **Do not deviate.**
-
-    **Required format:**
-    - Use this structure: `{topic <topic> {fact <fact>} {fact <fact>} ...}`
-    - `<topic>` and `<fact>` are either:
-      - Bare string: a short string that does NOT contain `{` or `}`
-      - Quoted string: a string bounded by `"`s which may contain escaped `"`
-    - Place exactly ONE topic per line.
-    - Failure to adhere to the exact format will result in an invalid output.
-
-    Example output:
-
-      {topic dog {fact is mammal} {fact 4 legs} {fact strong sense smell}}
-      {topic cat {fact is mammal} {fact 4 legs} {fact assholes}}
-      {topic bird {fact is avian} {fact 2 wings} {fact some fly}}
-      {topic "sea creature" {fact is aquatic} {fact "can be delicious"} {fact "not always a \"fish\""}}
-    """
-  end
-
-  @spec validate_notes_string(String.t()) ::
-          {:ok, [String.t()]}
-          | {:error, :invalid_format}
-  def validate_notes_string(notes_string) do
-    notes_string
-    |> parse_topic_list()
-    |> Enum.reduce_while([], fn text, acc ->
-      if Store.Project.Note.is_valid_format?(text) do
-        {:cont, [text | acc]}
-      else
-        {:halt, :invalid_format}
-      end
-    end)
-    |> case do
-      :invalid_format -> {:error, :invalid_format}
-      notes -> {:ok, notes}
-    end
-  end
-
-  @spec parse_topic_list(String.t()) :: [String.t()]
-  def parse_topic_list(input_str) do
-    input_str
-    |> String.trim("```")
-    |> String.trim("'''")
-    |> String.trim("\"\"\"")
-    |> String.trim()
-    |> String.split("\n")
-    |> Enum.map(&String.trim/1)
-  end
-
   # Computes the cosine similarity between two vectors
   def cosine_similarity(vec1, vec2) do
     if length(vec1) != length(vec2) do

@@ -28,26 +28,22 @@ defmodule Store.Project.Note do
   end
 
   def write(note, text) do
-    if is_valid_format?(text) do
-      # Ensure the note's store path exists.
-      File.mkdir_p!(note.store_path)
+    # Ensure the note's store path exists.
+    File.mkdir_p!(note.store_path)
 
-      # Has the note changed since the last save?
-      if is_changed?(note, text) do
-        # Write the note's text to the note's store path.
-        note.store_path
-        |> Path.join("note.md")
-        |> File.write!(text)
+    # Has the note changed since the last save?
+    if is_changed?(note, text) do
+      # Write the note's text to the note's store path.
+      note.store_path
+      |> Path.join("note.md")
+      |> File.write!(text)
 
-        # Generate and save embeddings for the note.
-        with {:ok, embeddings} <- Indexer.impl().get_embeddings(text),
-             {:ok, json} <- Jason.encode(embeddings),
-             :ok <- note.store_path |> Path.join("embeddings.json") |> File.write(json) do
-          {:ok, note}
-        end
+      # Generate and save embeddings for the note.
+      with {:ok, embeddings} <- Indexer.impl().get_embeddings(text),
+           {:ok, json} <- Jason.encode(embeddings),
+           :ok <- note.store_path |> Path.join("embeddings.json") |> File.write(json) do
+        {:ok, note}
       end
-    else
-      {:error, :invalid_format}
     end
   end
 
@@ -77,28 +73,6 @@ defmodule Store.Project.Note do
       {:ok, json} -> Jason.decode(json)
       error -> error
     end
-  end
-
-  # -----------------------------------------------------------------------------
-  # Formatting
-  # -----------------------------------------------------------------------------
-  def is_valid_format?(note_text) do
-    note_text
-    |> parse_string()
-    |> case do
-      {:ok, _} -> true
-      {:error, :invalid_format, _} -> false
-    end
-  end
-
-  def parse(note) do
-    with {:ok, text} <- read_note(note) do
-      parse_string(text)
-    end
-  end
-
-  def parse_string(input) do
-    Store.Project.NoteParser.parse(input)
   end
 
   # -----------------------------------------------------------------------------

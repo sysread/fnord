@@ -20,21 +20,16 @@ defmodule Store.Project.Conversation do
   @store_dir "conversations"
 
   @doc """
-  Create a new conversation with a new UUID identifier and the globally
-  selected project.
-  """
-  def new(), do: new(Uniq.UUID.uuid4(), Store.get_project())
-
-  @doc """
   Lists all conversations in the given project.
   """
   @spec list(String.t()) :: [t()]
   def list(project_home) do
-    project_home
-    |> Path.join(["conversations/*.json"])
-    |> Path.wildcard()
-    |> Enum.map(&Path.basename(&1, ".json"))
-    |> Enum.map(&Store.Project.Conversation.new(&1, project))
+    conversations =
+      project_home
+      |> Path.join(["conversations/*.json"])
+      |> Path.wildcard()
+      |> Enum.map(&Path.basename(&1, ".json"))
+      |> Enum.map(&Store.Project.Conversation.new(&1, project_home))
 
     timestamps =
       conversations
@@ -48,11 +43,17 @@ defmodule Store.Project.Conversation do
   end
 
   @doc """
+  Create a new conversation with a new UUID identifier and the globally
+  selected project.
+  """
+  def new(), do: new(Uniq.UUID.uuid4(), Store.get_project().store_path)
+
+  @doc """
   Create a new conversation from an existing UUID identifier and the globally
   selected project.
   """
   @spec new(String.t()) :: t()
-  def(new(id), do: new(id, Store.get_project()))
+  def(new(id), do: new(id, Store.get_project().store_path))
 
   @doc """
   Create a new conversation from an existing UUID identifier and an explicitly
