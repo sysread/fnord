@@ -64,14 +64,35 @@ defmodule AI.Tools do
   ```
   """
 
-  @type args_error ::
-          {:error, :missing_argument, String.t()}
-          | {:error, :invalid_argument, String.t()}
+  @type tool_spec :: %{
+          :type => String.t(),
+          :function => %{
+            :name => String.t(),
+            :description => String.t(),
+            optional(:strict) => boolean,
+            :parameters => %{
+              optional(:additionalProperties) => boolean,
+              :type => String.t(),
+              :required => [String.t()],
+              :properties => %{
+                String.t() => %{
+                  :type => String.t(),
+                  :description => String.t(),
+                  optional(:default) => any
+                }
+              }
+            }
+          }
+        }
+
+  @typep missing_argument_error :: {:error, :missing_argument, String.t()}
+  @typep invalid_argument_error :: {:error, :invalid_argument, String.t()}
+  @type args_error :: missing_argument_error | invalid_argument_error
 
   @doc """
   Returns the OpenAPI spec for the tool as an elixir map.
   """
-  @callback spec() :: map
+  @callback spec() :: tool_spec
 
   @doc """
   Calls the tool with the provided arguments and returns the response as an :ok
@@ -141,17 +162,20 @@ defmodule AI.Tools do
   # ----------------------------------------------------------------------------
   def tools, do: @tools
 
+  @spec frobs(String.t() | nil) :: %{String.t() => module}
   def frobs(project \\ nil) do
     Frobs.list(project)
     |> Enum.map(&{&1.name, Frobs.create_tool_module(&1)})
     |> Map.new()
   end
 
+  @spec all_tools() :: %{String.t() => module}
   def all_tools(project \\ nil) do
     @tools
     |> Map.merge(frobs(project))
   end
 
+  @spec all_tools_for_project(String.t()) :: [tool_spec]
   def all_tools_for_project(project) do
     tools = @default_tools |> Map.keys() |> Enum.map(&AI.Tools.tool_spec!(&1, @tools))
 
@@ -197,6 +221,7 @@ defmodule AI.Tools do
     tools ++ frobs
   end
 
+  @spec tool_module(String.t(), map) :: {:ok, module} | {:error, :unknown_tool, String.t()}
   def tool_module(tool, tools \\ @tools) do
     case Map.get(tools, tool) do
       nil -> {:error, :unknown_tool, tool}
@@ -204,6 +229,7 @@ defmodule AI.Tools do
     end
   end
 
+  @spec tool_spec!(String.t(), map) :: tool_spec
   def tool_spec!(tool, tools \\ @tools) do
     with {:ok, module} <- tool_module(tool, tools) do
       module.spec()
@@ -213,6 +239,7 @@ defmodule AI.Tools do
     end
   end
 
+  @spec tool_spec(String.t(), map()) :: {:ok, tool_spec} | {:error, :unknown_tool, String.t()}
   def tool_spec(tool, tools \\ @tools) do
     with {:ok, module} <- tool_module(tool, tools) do
       {:ok, module.spec()}

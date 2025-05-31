@@ -1,6 +1,16 @@
 defmodule AI.ChatCompletion do
   @endpoint "https://api.openai.com/v1/chat/completions"
 
+  @type model :: AI.Model.t()
+  @type msgs :: [map()]
+  @type tools :: nil | [AI.Tools.tool_spec()]
+
+  @type usage :: integer()
+  @type msg_response :: {:ok, :msg, String.t(), usage}
+  @type tool_response :: {:ok, :tool, list(map())}
+  @type response :: msg_response | tool_response | {:error, map}
+
+  @spec get(model, msgs, tools) :: response
   def get(model, msgs, tools \\ nil) do
     api_key = get_api_key!()
 
