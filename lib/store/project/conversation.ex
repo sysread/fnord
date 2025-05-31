@@ -26,6 +26,28 @@ defmodule Store.Project.Conversation do
   def new(), do: new(Uniq.UUID.uuid4(), Store.get_project())
 
   @doc """
+  Lists all conversations in the given project.
+  """
+  @spec list(String.t()) :: [t()]
+  def list(project_home) do
+    project_home
+    |> Path.join(["conversations/*.json"])
+    |> Path.wildcard()
+    |> Enum.map(&Path.basename(&1, ".json"))
+    |> Enum.map(&Store.Project.Conversation.new(&1, project))
+
+    timestamps =
+      conversations
+      |> Enum.reduce(%{}, fn conversation, acc ->
+        timestamp = Store.Project.Conversation.timestamp(conversation)
+        Map.put(acc, conversation.id, timestamp)
+      end)
+
+    conversations
+    |> Enum.sort(fn a, b -> timestamps[a.id] > timestamps[b.id] end)
+  end
+
+  @doc """
   Create a new conversation from an existing UUID identifier and the globally
   selected project.
   """
