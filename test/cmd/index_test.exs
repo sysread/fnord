@@ -20,8 +20,8 @@ defmodule Cmd.IndexTest do
       Cmd.Index.perform_task(idx)
 
       # Check that the files were indexed
-      Store.list_projects()
-      |> Enum.map(& &1.name)
+      Settings.new()
+      |> Settings.list_projects()
       |> then(&assert(&1 == ["test_project"]))
 
       Store.get_project("test_project")

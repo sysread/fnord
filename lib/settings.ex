@@ -95,6 +95,13 @@ defmodule Settings do
     data
   end
 
+  @spec list_projects(t()) :: [String.t()]
+  def list_projects(settings) do
+    settings.data
+    |> Map.keys()
+    |> Enum.sort()
+  end
+
   @spec get_root(t()) :: {:ok, String.t()} | {:error, :not_found}
   def get_root(settings) do
     settings

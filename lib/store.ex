@@ -1,9 +1,11 @@
 defmodule Store do
   require Logger
 
+  @projects_dir "projects"
+
   @spec store_home() :: binary
   def store_home() do
-    clean_old_strategies_dirs()
+    move_projects_into_discrete_folder()
 
     home = Settings.home()
     File.mkdir_p!(home)
@@ -19,7 +21,7 @@ defmodule Store do
 
   def get_project(project) when is_binary(project) do
     home = store_home()
-    store_path = Path.join(home, project)
+    store_path = Path.join([home, @projects_dir, project])
     Store.Project.new(project, store_path)
   end
 
@@ -33,38 +35,34 @@ defmodule Store do
     get_project(project)
   end
 
-  @spec list_projects :: [Store.Project.t()]
-  def list_projects() do
-    home = Settings.home()
-
-    home
-    |> Path.join("*")
-    |> Path.wildcard()
-    |> Enum.filter(&File.dir?/1)
-    |> Enum.map(&Path.basename/1)
-    |> Enum.map(&Store.Project.new(&1, home))
-  end
-
   # -----------------------------------------------------------------------------
   # Clean ups for legacy data
   # -----------------------------------------------------------------------------
+  defp move_projects_into_discrete_folder() do
+    home = Settings.home()
+    new_projects_dir = Path.join(home, "projects")
 
-  # Strategies used to be persisted in the Store under either
-  # `$HOME/.fnord/strategies` or `$HOME/.fnord/prompts`. This function removes
-  # those deprecated directories.
-  defp clean_old_strategies_dirs() do
-    prompts_dir = Settings.home() |> Path.join("prompts")
+    if !File.exists?(new_projects_dir) do
+      Logger.info("Migrating projects to #{new_projects_dir}")
 
-    if File.dir?(prompts_dir) do
-      UI.debug("Removing deprecated store dir: #{prompts_dir}")
-      File.rm_rf!(prompts_dir)
-    end
+      File.mkdir_p!(new_projects_dir)
 
-    strategies_dir = Settings.home() |> Path.join("strategies")
+      Settings.new()
+      |> Settings.list_projects()
+      |> Enum.each(fn project_name ->
+        old_path = Path.join(store_home(), project_name)
+        new_path = Path.join(new_projects_dir, project_name)
 
-    if File.dir?(strategies_dir) do
-      UI.debug("Removing deprecated store dir: #{strategies_dir}")
-      File.rm_rf!(strategies_dir)
+        cond do
+          File.exists?(old_path) and File.exists?(new_path) ->
+            Logger.info("#{project_name} migrated to #{new_path}; cleaning up artifacts")
+            File.rm_rf!(new_path)
+
+          File.exists?(old_path) ->
+            File.rename(old_path, new_path)
+            Logger.info("#{project_name} migrated to #{new_path}")
+        end
+      end)
     end
   end
 end

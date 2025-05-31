@@ -14,7 +14,8 @@ defmodule Cmd.Projects do
 
   @impl Cmd
   def run(_opts, _subcommands, _unknown) do
-    Store.list_projects()
-    |> Enum.each(&IO.puts(&1.name))
+    Settings.new()
+    |> Settings.list_projects()
+    |> Enum.each(&IO.puts/1)
   end
 end
