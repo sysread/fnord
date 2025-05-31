@@ -18,7 +18,7 @@ defmodule Store.Project.ConversationTest do
 
     convo = Conversation.new(id, ctx.project)
 
-    assert convo.project == ctx.project
+    assert convo.project_home == ctx.project.store_path
     assert convo.store_path == expected_path
     assert convo.id == id
     refute Conversation.exists?(convo)
@@ -34,7 +34,7 @@ defmodule Store.Project.ConversationTest do
 
     convo = Conversation.new(id)
 
-    assert convo.project == ctx.project
+    assert convo.project_home == ctx.project.store_path
     assert convo.store_path == expected_path
     assert convo.id == id
     refute Conversation.exists?(convo)
@@ -48,7 +48,7 @@ defmodule Store.Project.ConversationTest do
       ctx.project.store_path
       |> Path.join("conversations/#{convo.id}.json")
 
-    assert convo.project == ctx.project
+    assert convo.project_home == ctx.project.store_path
     assert convo.store_path == expected_path
     refute is_nil(convo.id)
     refute Conversation.exists?(convo)

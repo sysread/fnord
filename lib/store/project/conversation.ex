@@ -10,7 +10,7 @@ defmodule Store.Project.Conversation do
   """
 
   defstruct [
-    :project,
+    :project_home,
     :store_path,
     :id
   ]
@@ -36,14 +36,16 @@ defmodule Store.Project.Conversation do
   Create a new conversation from an existing UUID identifier and an explicitly
   specified project.
   """
-  @spec new(String.t(), Store.Project.t()) :: t()
-  def new(id, project) do
+  @spec new(String.t(), String.t() | Store.Project.t()) :: t()
+  def new(id, project_home) when is_binary(project_home) do
     %__MODULE__{
-      project: project,
-      store_path: build_store_path(project, id),
+      project_home: project_home,
+      store_path: build_store_path(project_home, id),
       id: id
     }
   end
+
+  def new(id, project), do: new(id, project.store_path)
 
   @doc """
   Returns true if the conversation exists on disk, false otherwise.
@@ -59,7 +61,7 @@ defmodule Store.Project.Conversation do
   """
   @spec write(t(), list()) :: {:ok, t()} | {:error, any()}
   def write(conversation, messages) do
-    conversation.project
+    conversation.project_home
     |> build_store_dir()
     |> File.mkdir_p()
 
@@ -141,12 +143,14 @@ defmodule Store.Project.Conversation do
   # -----------------------------------------------------------------------------
   # Private functions
   # -----------------------------------------------------------------------------
-  defp build_store_dir(project) do
-    Path.join([project.store_path, @store_dir])
+  @spec build_store_dir(String.t()) :: String.t()
+  defp build_store_dir(project_home) do
+    Path.join([project_home, @store_dir])
   end
 
-  defp build_store_path(project, id) do
-    file = build_store_dir(project) |> Path.join(id)
+  @spec build_store_path(String.t(), String.t()) :: String.t()
+  defp build_store_path(project_home, id) do
+    file = build_store_dir(project_home) |> Path.join(id)
     file <> ".json"
   end
 end
