@@ -35,6 +35,9 @@ defmodule Store do
     get_project(project)
   end
 
+  def get_project_home(%{store_path: store_path}), do: store_path
+  def get_project_home(name), do: Store.get_project(name).store_path
+
   # -----------------------------------------------------------------------------
   # Clean ups for legacy data
   # -----------------------------------------------------------------------------

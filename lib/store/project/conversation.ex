@@ -52,14 +52,12 @@ defmodule Store.Project.Conversation do
   Create a new conversation from an existing UUID identifier and the globally
   selected project.
   """
-  @spec new(String.t()) :: t()
   def(new(id), do: new(id, Store.get_project().store_path))
 
   @doc """
   Create a new conversation from an existing UUID identifier and an explicitly
   specified project.
   """
-  @spec new(String.t(), String.t() | Store.Project.t()) :: t()
   def new(id, project_home) when is_binary(project_home) do
     %__MODULE__{
       project_home: project_home,
