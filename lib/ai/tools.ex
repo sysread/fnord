@@ -132,7 +132,8 @@ defmodule AI.Tools do
   # ----------------------------------------------------------------------------
   # Tool Registry
   # ----------------------------------------------------------------------------
-  @default_tools %{
+  # General tools for researching the project.
+  @general_tools %{
     "file_contents_tool" => AI.Tools.File.Contents,
     "file_info_tool" => AI.Tools.File.Info,
     "file_list_tool" => AI.Tools.File.List,
@@ -143,6 +144,7 @@ defmodule AI.Tools do
     "ripgrep_search" => AI.Tools.Ripgrep
   }
 
+  # Tools for interacting with git repositories.
   @git_tools %{
     "git_diff_branch_tool" => AI.Tools.Git.DiffBranch,
     "git_grep_tool" => AI.Tools.Git.Grep,
@@ -153,9 +155,15 @@ defmodule AI.Tools do
     "git_unstaged_changes_tool" => AI.Tools.Git.UnstagedChanges
   }
 
+  # Tools that are intended for AI.Agent.Default.
+  @default_tools %{
+    "update_prompt" => AI.Tools.Default.UpdatePrompt
+  }
+
   @tools %{}
-         |> Map.merge(@default_tools)
+         |> Map.merge(@general_tools)
          |> Map.merge(@git_tools)
+         |> Map.merge(@default_tools)
 
   # ----------------------------------------------------------------------------
   # API Functions
@@ -177,7 +185,7 @@ defmodule AI.Tools do
 
   @spec all_tools_for_project(String.t()) :: [tool_spec]
   def all_tools_for_project(project) do
-    tools = @default_tools |> Map.keys() |> Enum.map(&AI.Tools.tool_spec!(&1, @tools))
+    tools = @general_tools |> Map.keys() |> Enum.map(&AI.Tools.tool_spec!(&1, @tools))
 
     search_available? = AI.Tools.File.Search.is_available?()
     ripgrep_available? = AI.Tools.Ripgrep.is_available?()

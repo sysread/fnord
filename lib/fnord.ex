@@ -55,11 +55,21 @@ defmodule Fnord do
       description: @desc,
       allow_unknown_args: false,
       version: Util.get_running_version(),
+      options: [
+        prompt: [
+          value_name: "PROMPT",
+          long: "--prompt",
+          short: "-p",
+          help: "Shortcut to the default command",
+          required: false
+        ]
+      ],
       subcommands:
         [
           Cmd.Ask,
           Cmd.Config,
           Cmd.Conversations,
+          Cmd.Default,
           Cmd.Files,
           Cmd.Frobs,
           Cmd.Index,
@@ -77,18 +87,25 @@ defmodule Fnord do
   end
 
   defp parse_options(args) do
-    parser = spec() |> Optimus.new!()
+    spec()
+    |> Optimus.new!()
+    |> Optimus.parse!(args)
+    |> case do
+      {subcommand, %Optimus.ParseResult{} = result} ->
+        {:ok, subcommand, merge_options(result), result.unknown}
 
-    with {subcommand, result} <- Optimus.parse!(parser, args) do
-      options =
-        result.args
-        |> Map.merge(result.options)
-        |> Map.merge(result.flags)
+      %Optimus.ParseResult{} = result ->
+        {:ok, [:default], merge_options(result), result.unknown}
 
-      {:ok, subcommand, options, result.unknown}
-    else
-      _ -> {:error, "missing or unknown subcommand"}
+      _ ->
+        {:error, "missing or unknown subcommand"}
     end
+  end
+
+  defp merge_options(optimus_result) do
+    optimus_result.args
+    |> Map.merge(optimus_result.options)
+    |> Map.merge(optimus_result.flags)
   end
 
   def configure_logger do

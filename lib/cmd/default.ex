@@ -1,0 +1,41 @@
+defmodule Cmd.Default do
+  @moduledoc """
+  Converses with the default AI agent.
+
+  Conversations are a "floating window" of messages that are stored in the
+  default project. 
+  """
+
+  @behaviour Cmd
+
+  @impl Cmd
+  def spec() do
+    [
+      default: [
+        name: "default",
+        about: "does stuff",
+        options: [
+          prompt: [
+            value_name: "PROMPT",
+            long: "--prompt",
+            short: "-p",
+            help: "The prompt to ask the AI",
+            required: true
+          ]
+        ]
+      ]
+    ]
+  end
+
+  @impl Cmd
+  def run(opts, _subcommands, _unknown) do
+    with {:ok, prompt} <- Map.fetch(opts, :prompt),
+         {:ok, response} <- AI.Agent.Default.get_response(%{prompt: prompt}) do
+      IO.puts(response)
+      IO.puts("")
+    else
+      {:error, reason} -> IO.puts("Error: #{reason}")
+      :error -> IO.puts("Error: Missing required option --prompt")
+    end
+  end
+end
