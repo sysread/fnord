@@ -44,8 +44,6 @@ defmodule Fnord do
           end
         end
       end
-    else
-      {:error, reason} -> IO.puts("Error: #{reason}")
     end
   end
 
@@ -96,9 +94,6 @@ defmodule Fnord do
 
       %Optimus.ParseResult{} = result ->
         {:ok, [:default], merge_options(result), result.unknown}
-
-      _ ->
-        {:error, "missing or unknown subcommand"}
     end
   end
 

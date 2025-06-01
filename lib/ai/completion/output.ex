@@ -46,25 +46,21 @@ defmodule AI.Completion.Output do
   # Tool call logging
   # -----------------------------------------------------------------------------
   def on_event(state, :tool_call, {tool, args}) do
-    AI.Tools.with_args(tool, args, fn args ->
-      AI.Tools.on_tool_request(tool, args)
-      |> case do
-        nil -> state
-        {step, msg} -> log_tool_call(state, step, msg)
-        step -> log_tool_call(state, step)
-      end
-    end)
+    AI.Tools.on_tool_request(tool, args)
+    |> case do
+      nil -> state
+      {step, msg} -> log_tool_call(state, step, msg)
+      step -> log_tool_call(state, step)
+    end
   end
 
   def on_event(state, :tool_call_result, {tool, args, {:ok, result}}) do
-    AI.Tools.with_args(tool, args, fn args ->
-      AI.Tools.on_tool_result(tool, args, result)
-      |> case do
-        nil -> state
-        {step, msg} -> log_tool_call_result(state, step, msg)
-        step -> log_tool_call_result(state, step)
-      end
-    end)
+    AI.Tools.on_tool_result(tool, args, result)
+    |> case do
+      nil -> state
+      {step, msg} -> log_tool_call_result(state, step, msg)
+      step -> log_tool_call_result(state, step)
+    end
   end
 
   def on_event(state, :tool_call_error, {tool, _args_json, {:error, reason}}) do

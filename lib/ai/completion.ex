@@ -225,6 +225,8 @@ defmodule AI.Completion do
         {:ok, [request, response]}
 
       {:error, :missing_argument, key} ->
+        UI.warn("MISSING #{key} IN #{inspect(args_json)}")
+
         AI.Completion.Output.on_event(
           state,
           :tool_call_error,
@@ -243,6 +245,31 @@ defmodule AI.Completion do
         Your attempt to call #{func} failed because it was missing a required argument, '#{key}'.
         Your tool call request supplied the following arguments: #{args_json}.
         The parameter `#{key}` must be included and cannot be `null` or an empty string.
+        The correct specification for the tool call is: #{spec}
+        """
+
+        response = AI.Util.tool_msg(id, func, error)
+        {:ok, [request, response]}
+
+      {:error, :invalid_argument, key} ->
+        AI.Completion.Output.on_event(
+          state,
+          :tool_call_error,
+          {func, args_json, {:error, "Invalid argument: #{key}"}}
+        )
+
+        spec =
+          with {:ok, spec} <- AI.Tools.tool_spec(func, AI.Tools.all_tools()),
+               {:ok, json} <- Jason.encode(spec) do
+            json
+          else
+            error -> "Error retrieving specification: #{inspect(error)}"
+          end
+
+        error = """
+        Your attempt to call #{func} failed because it contained an invalid argument or value for '#{key}'.
+        Your tool call request supplied the following arguments: #{args_json}.
+        The parameter `#{key}` must be a valid value as specified in the tool's specification.
         The correct specification for the tool call is: #{spec}
         """
 

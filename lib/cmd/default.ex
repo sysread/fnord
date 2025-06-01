@@ -34,7 +34,6 @@ defmodule Cmd.Default do
       IO.puts(response)
       IO.puts("")
     else
-      {:error, reason} -> IO.puts("Error: #{reason}")
       :error -> IO.puts("Error: Missing required option --prompt")
     end
   end
