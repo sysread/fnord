@@ -437,9 +437,8 @@ defmodule AI.Agent.Coordinator do
       max_tokens: (@model.context * 0.10) |> Float.round(0) |> round()
     }
 
-    with {:ok, response} <- AI.Agent.Archivist.get_response(args) do
+    with {:ok, _response} <- AI.Agent.Archivist.get_response(args) do
       UI.report_step("Updated persistent research notes")
-      UI.debug("Research notes updated and reorganized", "#{response}")
     else
       other -> UI.error("Failed to save research notes: #{inspect(other)}")
     end
