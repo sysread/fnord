@@ -463,10 +463,7 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp log_usage(usage) when is_integer(usage) do
-    percentage = Float.round(usage / @model.context * 100, 2)
-    str_usage = Util.format_number(usage)
-    str_context = Util.format_number(@model.context)
-    UI.info("Context window usage", "#{percentage}% (#{str_usage} / #{str_context} tokens)")
+    UI.log_usage(@model, usage)
   end
 
   defp log_usage(%{usage: usage} = state) do

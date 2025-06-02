@@ -41,11 +41,13 @@ defmodule AI.Agent.Default do
   @impl AI.Agent
   def get_response(opts) do
     with {:ok, prompt} <- Map.fetch(opts, :prompt),
-         {:ok, response, messages} = get_completion(prompt) do
+         {:ok, response, messages, usage} = get_completion(prompt) do
       save_conversation(messages)
-      {:ok, response}
+      {:ok, %{response: response, usage: usage, num_msgs: length(messages)}}
     end
   end
+
+  def model(), do: @model
 
   defp get_completion(prompt) do
     AI.Completion.get(
@@ -60,8 +62,8 @@ defmodule AI.Agent.Default do
       replay_conversation: false
     )
     |> case do
-      {:ok, %{response: response, messages: messages}} ->
-        {:ok, response, messages}
+      {:ok, %{response: response, messages: messages, usage: usage}} ->
+        {:ok, response, messages, usage}
 
       {:error, reason} ->
         {:error, reason}

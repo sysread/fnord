@@ -33,9 +33,12 @@ defmodule Cmd.Default do
   @impl Cmd
   def run(opts, _subcommands, _unknown) do
     with {:ok, prompt} <- Map.fetch(opts, :prompt),
-         {:ok, response} <- AI.Agent.Default.get_response(%{prompt: prompt}) do
-      IO.puts(response)
+         {:ok, result} <- AI.Agent.Default.get_response(%{prompt: prompt}) do
+      IO.puts(result.response)
       IO.puts("")
+
+      UI.log_usage(AI.Agent.Default.model(), result.usage)
+      UI.info("Messages in conversation: #{result.num_msgs}")
     else
       :error -> IO.puts("Error: Missing required option --prompt")
     end

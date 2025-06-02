@@ -98,6 +98,14 @@ defmodule UI do
     System.halt(1)
   end
 
+  @spec log_usage(AI.Model.t(), non_neg_integer) :: :ok
+  def log_usage(model, usage) when is_integer(usage) do
+    percentage = Float.round(usage / model.context * 100, 2)
+    str_usage = Util.format_number(usage)
+    str_context = Util.format_number(model.context)
+    info("Context window usage", "#{percentage}% (#{str_usage} / #{str_context} tokens)")
+  end
+
   defp colorize? do
     :prim_tty.isatty(:stderr)
     |> case do
