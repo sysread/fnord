@@ -13,7 +13,10 @@ defmodule Cmd.Default do
     [
       default: [
         name: "default",
-        about: "does stuff",
+        about: """
+        Converse with the default AI agent.
+        This feature is *alpha* and not fully functional yet.
+        """,
         options: [
           prompt: [
             value_name: "PROMPT",
