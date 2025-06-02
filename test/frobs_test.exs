@@ -41,6 +41,37 @@ defmodule FrobsTest do
     assert output =~ "Hello, Alice!"
   end
 
+  describe "AI.Tools integration" do
+    test "positive path" do
+      # Create the frob and module
+      assert {:ok, frob} = Frobs.create("hello_test")
+      mod = Frobs.create_tool_module(frob)
+
+      # Confirm module implements AI.Tools behaviour
+      assert function_exported?(mod, :spec, 0)
+      assert function_exported?(mod, :read_args, 1)
+      assert function_exported?(mod, :call, 1)
+      assert function_exported?(mod, :ui_note_on_request, 1)
+      assert function_exported?(mod, :ui_note_on_result, 2)
+
+      # Confirm tool spec is accessible through AI.Tools
+      tools = %{"hello_test" => mod}
+      spec = AI.Tools.tool_spec!("hello_test", tools)
+      assert spec.function.name == "hello_test"
+      assert Map.has_key?(spec.function.parameters.properties, :name)
+
+      # Test the tool via AI.Tools.perform_tool_call/3
+      args = %{"name" => "TestUser"}
+      assert {:ok, result} = AI.Tools.perform_tool_call("hello_test", args, tools)
+      assert is_binary(result)
+      assert result =~ "Hello, TestUser"
+
+      # Test the UI helpers
+      assert {"Calling frob `hello_test`", _details} = mod.ui_note_on_request(args)
+      assert {"Frob `hello_test` result", _details} = mod.ui_note_on_result(args, result)
+    end
+  end
+
   describe "validation" do
     test "fails to load frob with invalid JSON spec", %{temp_home: home} do
       path = Path.join([home, "fnord", "tools", "bad_frob"])

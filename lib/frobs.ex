@@ -218,7 +218,7 @@ defmodule Frobs do
           def read_args(args), do: {:ok, args}
 
           @impl AI.Tools
-          def call(_completion, args) do
+          def call(args) do
             Frobs.perform_tool_call(@frob.name, Jason.encode!(args))
           end
 
