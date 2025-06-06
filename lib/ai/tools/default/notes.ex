@@ -98,13 +98,13 @@ defmodule AI.Tools.Default.Notes do
   end
 
   def call(%{"op" => "update", "id" => id, "text" => text}) do
-    with :ok <- Store.DefaultProject.Notes.update(id, text) do
+    with {:ok, id} <- Store.DefaultProject.Notes.update(id, text) do
       {:ok, "Note updated successfully (ID: #{id})"}
     end
   end
 
   def call(%{"op" => "delete", "id" => id}) do
-    with :ok <- Store.DefaultProject.Notes.delete(id) do
+    with {:ok, id} <- Store.DefaultProject.Notes.delete(id) do
       {:ok, "Note deleted successfully (ID: #{id})"}
     end
   end

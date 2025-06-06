@@ -86,13 +86,13 @@ defmodule AI.Tools.Default.Prompt do
   end
 
   def call(%{"op" => "update", "id" => id, "text" => text}) do
-    with :ok <- Store.DefaultProject.Prompt.update(id, text) do
+    with {:ok, id} <- Store.DefaultProject.Prompt.update(id, text) do
       {:ok, "Prompt entry updated successfully (ID: #{id})"}
     end
   end
 
   def call(%{"op" => "delete", "id" => id}) do
-    with :ok <- Store.DefaultProject.Prompt.delete(id) do
+    with {:ok, id} <- Store.DefaultProject.Prompt.delete(id) do
       {:ok, "Prompt entry deleted successfully (ID: #{id})"}
     end
   end

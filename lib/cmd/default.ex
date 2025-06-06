@@ -38,7 +38,7 @@ defmodule Cmd.Default do
       IO.puts("")
 
       UI.log_usage(AI.Agent.Default.model(), result.usage)
-      UI.info("Messages in conversation: #{result.num_msgs}")
+      UI.info("Conversation length: #{result.num_msgs} messages")
     else
       :error -> IO.puts("Error: Missing required option --prompt")
     end

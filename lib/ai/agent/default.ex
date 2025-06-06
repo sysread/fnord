@@ -71,19 +71,25 @@ defmodule AI.Agent.Default do
   end
 
   defp save_conversation(messages) do
-    Store.DefaultProject.write_conversation(messages)
+    Store.DefaultProject.Conversation.add_timestamp()
+
+    # We want to save all new messages, starting from the most recent user prompt.
+    messages = Enum.reverse(messages)
+    user_msg_idx = Enum.find_index(messages, fn msg -> msg["role"] == "user" end)
+    to_save = messages |> Enum.take(user_msg_idx + 1) |> Enum.reverse()
+    Store.DefaultProject.Conversation.add_messages(to_save)
   end
 
   defp build_conversation(prompt) do
+    custom_prompt = Store.DefaultProject.Prompt.build()
+
     new_msgs = [
-      AI.Util.system_msg(@prompt),
-      AI.Util.user_msg(prompt)
+      %{"role" => "developer", "content" => @prompt},
+      %{"role" => "developer", "content" => custom_prompt},
+      %{"role" => "user", "content" => prompt}
     ]
 
-    with {:ok, msgs} <- Store.DefaultProject.read_conversation() do
-      msgs ++ new_msgs
-    else
-      _ -> new_msgs
-    end
+    msgs = Store.DefaultProject.Conversation.read_messages() |> Enum.to_list()
+    msgs ++ new_msgs
   end
 end
