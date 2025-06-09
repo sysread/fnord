@@ -64,9 +64,7 @@ defmodule Store.DefaultProject.Conversation do
   def replace_messages(msgs) do
     with {:ok, file} <- File.open(file_path(), [:write]) do
       msgs
-      |> IO.inspect(label: "BEFORE")
       |> Enum.filter(&add_message?/1)
-      |> IO.inspect(label: "AFTER")
       |> Enum.each(fn msg ->
         with {:ok, json} <- Jason.encode(msg) do
           IO.write(file, json <> "\n")
