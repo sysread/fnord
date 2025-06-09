@@ -6,6 +6,12 @@ defmodule Cmd.Default do
   default project. 
   """
 
+  @rollup_prompt """
+  The conversation is beginning to fill the context window. Would you like to
+  archive older messages? Older messages will be archived as a monthly summary
+  for reference. The AI will continue to have access to those summaries.
+  """
+
   @behaviour Cmd
 
   @impl Cmd
@@ -36,11 +42,33 @@ defmodule Cmd.Default do
          {:ok, result} <- AI.Agent.Default.get_response(%{prompt: prompt}) do
       IO.puts(result.response)
       IO.puts("")
-
-      UI.log_usage(AI.Agent.Default.model(), result.usage)
-      UI.info("Conversation length: #{result.num_msgs} messages")
+      maybe_rollup(result.usage, result.num_msgs)
     else
       :error -> IO.puts("Error: Missing required option --prompt")
+    end
+  end
+
+  defp maybe_rollup(usage, num_msgs) do
+    UI.log_usage(AI.Agent.Default.model(), usage)
+    UI.info("Conversation length: #{num_msgs} messages")
+
+    if usage / AI.Agent.Default.model().context > 0.0 do
+      if UI.confirm(@rollup_prompt) do
+        last_interaction = Store.DefaultProject.Conversation.last_interaction()
+
+        AI.Agent.Default.Rollups.get_response(%{})
+        |> case do
+          {:ok, summaries} ->
+            UI.info("Summaries generated successfully.")
+            UI.info("Saving...")
+            Store.DefaultProject.Conversation.replace_messages(summaries ++ last_interaction)
+
+          {:error, reason} ->
+            UI.error("Failed to generate summaries: #{reason}")
+        end
+      else
+        UI.info("Conversation not consolidated.")
+      end
     end
   end
 end
