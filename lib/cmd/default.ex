@@ -59,9 +59,8 @@ defmodule Cmd.Default do
         AI.Agent.Default.Rollups.get_response(%{})
         |> case do
           {:ok, summaries} ->
-            UI.info("Summaries generated successfully.")
-            UI.info("Saving...")
             Store.DefaultProject.Conversation.replace_messages(summaries ++ last_interaction)
+            UI.info("Summarized and archived older messages.")
 
           {:error, reason} ->
             UI.error("Failed to generate summaries: #{reason}")
