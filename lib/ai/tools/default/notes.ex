@@ -2,10 +2,38 @@ defmodule AI.Tools.Default.Notes do
   @behaviour AI.Tools
 
   @impl AI.Tools
-  def ui_note_on_request(_), do: nil
+  def ui_note_on_request(%{"op" => "create", "text" => text}) do
+    {"Creating note", String.slice(text, 0, 50) <> "..."}
+  end
+
+  def ui_note_on_request(%{"op" => "update", "text" => text}) do
+    {"Updating note", String.slice(text, 0, 50) <> "..."}
+  end
+
+  def ui_note_on_request(%{"op" => "delete", "id" => id}) do
+    {"Deleting note", id}
+  end
+
+  def ui_note_on_request(%{"op" => "search", "needle" => needle}) do
+    {"Searching notes for", String.slice(needle, 0, 50) <> "..."}
+  end
 
   @impl AI.Tools
-  def ui_note_on_result(_args, _result), do: nil
+  def ui_note_on_result(%{"op" => "create"}, result) do
+    {"Note created", "ID: #{result}"}
+  end
+
+  def ui_note_on_result(%{"op" => "update"}, result) do
+    {"Note updated", "ID: #{result}"}
+  end
+
+  def ui_note_on_result(%{"op" => "delete"}, result) do
+    {"Note deleted", "ID: #{result}"}
+  end
+
+  def ui_note_on_result(%{"op" => "search"} = args, result) do
+    {"Search results for '#{args["needle"]}'", result}
+  end
 
   @impl AI.Tools
   def read_args(args) do

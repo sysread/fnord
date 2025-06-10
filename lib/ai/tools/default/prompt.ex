@@ -2,10 +2,12 @@ defmodule AI.Tools.Default.Prompt do
   @behaviour AI.Tools
 
   @impl AI.Tools
-  def ui_note_on_request(_), do: nil
+  def ui_note_on_request(%{"op" => "create"} = args), do: {"Creating prompt entry", args["text"]}
+  def ui_note_on_request(%{"op" => "update"} = args), do: {"Updating prompt entry", args["text"]}
+  def ui_note_on_request(%{"op" => "delete"} = args), do: {"Deleting prompt entry", args["id"]}
 
   @impl AI.Tools
-  def ui_note_on_result(_args, _result), do: nil
+  def ui_note_on_result(_args, result), do: {"Prompt modified successfully", inspect(result)}
 
   @impl AI.Tools
   def read_args(args) do
