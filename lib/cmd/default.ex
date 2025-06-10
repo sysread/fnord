@@ -12,6 +12,8 @@ defmodule Cmd.Default do
   for reference. The AI will continue to have access to those summaries.
   """
 
+  @rollup_context_threshold 0.1
+
   @behaviour Cmd
 
   @impl Cmd
@@ -52,7 +54,7 @@ defmodule Cmd.Default do
     UI.log_usage(AI.Agent.Default.model(), usage)
     UI.info("Conversation length: #{num_msgs} messages")
 
-    if usage / AI.Agent.Default.model().context > 0.0 do
+    if usage / AI.Agent.Default.model().context > @rollup_context_threshold do
       if UI.confirm(@rollup_prompt) do
         last_interaction = Store.DefaultProject.Conversation.last_interaction()
 
