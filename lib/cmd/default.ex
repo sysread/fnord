@@ -22,8 +22,11 @@ defmodule Cmd.Default do
       default: [
         name: "default",
         about: """
-        Converse with the default AI agent.
-        This feature is *alpha* and not fully functional yet.
+        Converse with the default AI agent. This feature is *alpha* and not
+        fully functional yet. It uses the current directory to determine
+        whether it is within a project context. If it's within a project, it
+        can use the research tools, but it cannot yet access the project's
+        notes or past research. Please open an issue if you notice any bugs.
         """,
         options: [
           prompt: [
