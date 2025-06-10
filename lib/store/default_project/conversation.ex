@@ -40,14 +40,14 @@ defmodule Store.DefaultProject.Conversation do
   def add_timestamp do
     ts_msg = %{"timestamp" => DateTime.utc_now() |> DateTime.to_iso8601()}
 
-    with {:ok, file} <- File.open(file_path(), [:append]),
+    with {:ok, file} <- File.open(file_path(), [:append, {:encoding, :utf8}]),
          {:ok, ts_json} = Jason.encode(ts_msg) do
       IO.write(file, ts_json <> "\n")
     end
   end
 
   def add_messages(msgs) do
-    with {:ok, file} <- File.open(file_path(), [:append]) do
+    with {:ok, file} <- File.open(file_path(), [:append, {:encoding, :utf8}]) do
       msgs
       |> Stream.filter(&(&1["role"] != "system" and &1["role"] != "developer"))
       |> Stream.each(fn msg ->
@@ -62,7 +62,7 @@ defmodule Store.DefaultProject.Conversation do
   end
 
   def replace_messages(msgs) do
-    with {:ok, file} <- File.open(file_path(), [:write]) do
+    with {:ok, file} <- File.open(file_path(), [:write, {:encoding, :utf8}]) do
       msgs
       |> Enum.filter(&add_message?/1)
       |> Enum.each(fn msg ->

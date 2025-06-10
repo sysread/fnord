@@ -40,7 +40,7 @@ defmodule Store.DefaultProject.Prompt do
       "text" => text
     }
 
-    with {:ok, file} <- file_path() |> File.open([:append]),
+    with {:ok, file} <- file_path() |> File.open([:append, {:encoding, :utf8}]),
          {:ok, json} <- Jason.encode(entry) do
       IO.write(file, json <> "\n")
       {:ok, id}
