@@ -31,3 +31,6 @@ fnord
 # Temporary prototype files
 scratch*
 tags
+
+# JetBrain's IDE local configuration files
+.idea/
