@@ -179,6 +179,7 @@ defmodule Cmd.Index do
     new_exclude =
       Map.get(opts, :exclude)
       |> case do
+        nil -> project.exclude
         [] -> project.exclude
         exclude -> Enum.map(exclude, &Path.expand/1)
       end
