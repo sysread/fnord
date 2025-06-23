@@ -59,6 +59,13 @@ defmodule Cmd.Index do
             help: "Suppress the progress bar, instead logging files as they are indexed",
             required: false,
             default: false
+          ],
+          yes: [
+            long: "--yes",
+            short: "-y",
+            help: "Assume 'yes' to all prompts",
+            required: false,
+            default: false
           ]
         ]
       ]
@@ -72,7 +79,12 @@ defmodule Cmd.Index do
     |> perform_task()
   end
 
-  def perform_task(idx) do
+  def perform_task({:error, :user_cancelled}) do
+    UI.warn("Indexing cancelled by user")
+    {:error, :user_cancelled}
+  end
+
+  def perform_task({:ok, idx}) do
     UI.info("Project", idx.project.name)
     UI.info("Workers", Application.get_env(:fnord, :workers) |> to_string())
     UI.info("   Root", idx.project.source_root)
@@ -91,36 +103,115 @@ defmodule Cmd.Index do
   def new(opts) do
     project_name = Map.get(opts, :project)
 
-    project =
-      project_name
-      |> Store.get_project()
-      |> Store.Project.save_settings(
-        Map.get(opts, :directory),
-        Map.get(opts, :exclude)
-      )
+    with project <- Store.get_project(project_name),
+         {:ok, root} <- confirm_root_changed?(project, opts),
+         {:ok, exclude} <- confirm_exclude_changed?(project, opts) do
+      project
+      |> Store.Project.save_settings(root, exclude)
       |> Store.Project.make_default_for_session()
 
-    if is_nil(project.source_root) do
-      raise """
-      Error: the project root was not found in the settings file.
+      if is_nil(project.source_root) do
+        {:error,
+         """
+         Error: the project root was not found in the settings file.
 
-      This can happen under the following circumstances:
-        - the first index of a project
-        - the first index reindexing after moving the project directory
-        - the first index after the upgrade that made --dir optional
-      """
+         This can happen under the following circumstances:
+           - the first index of a project
+           - the first index reindexing after moving the project directory
+           - the first index after the upgrade that made --dir optional
+         """}
+      else
+        {:ok,
+         %__MODULE__{
+           opts: opts,
+           indexer: Indexer.impl(),
+           project: project
+         }}
+      end
     end
-
-    %__MODULE__{
-      opts: opts,
-      indexer: Indexer.impl(),
-      project: project
-    }
   end
 
   # ----------------------------------------------------------------------------
   # Indexing process
   # ----------------------------------------------------------------------------
+  defp confirm_root_changed?(project, opts) do
+    yes = Map.get(opts, :yes, false)
+
+    new_directory =
+      Map.get(opts, :directory)
+      |> case do
+        nil -> project.source_root
+        dir -> Path.expand(dir)
+      end
+
+    cond do
+      yes ->
+        {:ok, new_directory}
+
+      is_nil(project.source_root) ->
+        {:ok, new_directory}
+
+      new_directory == project.source_root ->
+        {:ok, new_directory}
+
+      true ->
+        UI.confirm(
+          """
+          You are about to index the project in a different directory.
+
+          From: #{project.source_root}
+            To: #{new_directory}
+
+          This will overwrite the existing index. Do you want to continue?
+          """,
+          yes
+        )
+        |> case do
+          true -> {:ok, new_directory}
+          false -> {:error, :user_cancelled}
+        end
+    end
+  end
+
+  defp confirm_exclude_changed?(project, opts) do
+    yes = Map.get(opts, :yes, false)
+
+    new_exclude =
+      Map.get(opts, :exclude)
+      |> case do
+        nil -> project.exclude
+        exclude -> Enum.map(exclude, &Path.expand/1)
+      end
+
+    cond do
+      yes ->
+        {:ok, new_exclude}
+
+      project.exclude == [] ->
+        {:ok, new_exclude}
+
+      new_exclude != project.exclude ->
+        UI.confirm(
+          """
+          You are about to change the excluded paths for the project.
+
+          From: #{Enum.join(project.exclude || [], ", ")}
+            To: #{Enum.join(new_exclude, ", ")}
+
+          This will overwrite the existing exclusions. Do you want to continue?
+          """,
+          yes
+        )
+        |> case do
+          true -> {:ok, new_exclude}
+          false -> {:error, :user_cancelled}
+        end
+
+      true ->
+        {:ok, new_exclude}
+    end
+  end
+
   defp reindex?(idx), do: Map.get(idx.opts, :reindex, false)
 
   def index_project(%{project: project} = idx) do

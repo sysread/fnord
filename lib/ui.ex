@@ -8,14 +8,32 @@ defmodule UI do
 
   def confirm(_msg, true), do: true
 
-  def confirm(msg, _default) do
-    flush()
-    IO.write(:stderr, "#{msg} (y/N) ")
+  def confirm(msg, default) do
+    has_default = is_boolean(default)
 
-    case IO.gets("") do
-      "y\n" -> true
-      "Y\n" -> true
-      _ -> false
+    cond do
+      is_tty?() ->
+        yes = if default == true, do: "Y", else: "y"
+        no = if default == false, do: "N", else: "n"
+
+        flush()
+        IO.write(:stderr, "#{msg} (#{yes}/#{no}) ")
+
+        case IO.gets("") do
+          "y\n" -> true
+          "Y\n" -> true
+          _ -> default
+        end
+
+      has_default ->
+        default
+
+      true ->
+        Logger.warning(
+          "Confirmation requested without default, but session is not connected to a TTY."
+        )
+
+        false
     end
   end
 
@@ -106,13 +124,15 @@ defmodule UI do
     info("Context window usage", "#{percentage}% (#{str_usage} / #{str_context} tokens)")
   end
 
-  defp colorize? do
+  def is_tty? do
     :prim_tty.isatty(:stderr)
     |> case do
       true -> true
       _ -> false
     end
   end
+
+  defp colorize?, do: is_tty?()
 
   # ----------------------------------------------------------------------------
   # Interactive elements

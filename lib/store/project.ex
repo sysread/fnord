@@ -18,7 +18,7 @@ defmodule Store.Project do
   def new(project_name, store_path) do
     settings = Settings.new() |> Settings.get(project_name, %{})
     exclude = Map.get(settings, "exclude", [])
-    root = Map.get(settings, "root")
+    root = Map.get(settings, "root", nil)
 
     %__MODULE__{
       name: project_name,

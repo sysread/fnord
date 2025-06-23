@@ -14,10 +14,10 @@ defmodule Cmd.IndexTest do
       git_ignore(project, ["file2.txt"])
 
       # Create an indexer for the project
-      idx = Cmd.Index.new(%{project: project.name, quiet: true})
+      assert {:ok, idx} = Cmd.Index.new(%{project: project.name, quiet: true, yes: true})
 
       # Run the indexing process
-      Cmd.Index.perform_task(idx)
+      Cmd.Index.perform_task({:ok, idx})
 
       # Check that the files were indexed
       Settings.new()
