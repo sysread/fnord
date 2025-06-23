@@ -171,22 +171,17 @@ defmodule AI.Tools do
   # ----------------------------------------------------------------------------
   def tools, do: @tools
 
-  @spec frobs(String.t() | nil) :: %{String.t() => module}
-  def frobs(project \\ nil) do
-    Frobs.list(project)
-    |> Enum.map(&{&1.name, Frobs.create_tool_module(&1)})
-    |> Map.new()
-  end
-
   @spec all_tools() :: %{String.t() => module}
   def all_tools(project \\ nil) do
-    @tools
-    |> Map.merge(frobs(project))
+    Map.merge(@tools, Frobs.module_map(project))
   end
 
-  @spec all_tools_for_project(String.t()) :: [tool_spec]
-  def all_tools_for_project(project) do
-    tools = @general_tools |> Map.keys() |> Enum.map(&AI.Tools.tool_spec!(&1, @tools))
+  @spec all_tool_specs_for_project(String.t()) :: [tool_spec]
+  def all_tool_specs_for_project(project) do
+    tools =
+      @general_tools
+      |> Map.keys()
+      |> Enum.map(&AI.Tools.tool_spec!(&1, @tools))
 
     search_available? = AI.Tools.File.Search.is_available?()
     ripgrep_available? = AI.Tools.Ripgrep.is_available?()
@@ -219,27 +214,36 @@ defmodule AI.Tools do
 
     tools =
       if Git.is_git_repo?() do
-        tools ++ (@git_tools |> Map.keys() |> Enum.map(&AI.Tools.tool_spec!(&1, @tools)))
+        tools ++
+          (@git_tools
+           |> Map.keys()
+           |> Enum.map(&AI.Tools.tool_spec!(&1, @tools)))
       else
         tools
       end
 
-    frobs = AI.Tools.frobs(project)
-    frobs = Enum.map(frobs, fn {name, _} -> AI.Tools.tool_spec!(name, frobs) end)
+    frobs =
+      project
+      |> Frobs.module_map()
+      |> Enum.map(fn {_name, module} ->
+        module.spec()
+      end)
 
     tools ++ frobs
   end
 
-  @spec tool_module(String.t(), map) :: {:ok, module} | {:error, :unknown_tool, String.t()}
-  def tool_module(tool, tools \\ @tools) do
+  @spec tool_module(String.t(), map | nil) :: {:ok, module} | {:error, :unknown_tool, String.t()}
+  def tool_module(tool, tools \\ nil) do
+    tools = if is_nil(tools), do: all_tools(), else: tools
+
     case Map.get(tools, tool) do
       nil -> {:error, :unknown_tool, tool}
       module -> {:ok, module}
     end
   end
 
-  @spec tool_spec!(String.t(), map) :: tool_spec
-  def tool_spec!(tool, tools \\ @tools) do
+  @spec tool_spec!(String.t(), map | nil) :: tool_spec
+  def tool_spec!(tool, tools \\ nil) do
     with {:ok, module} <- tool_module(tool, tools) do
       module.spec()
     else
@@ -248,14 +252,14 @@ defmodule AI.Tools do
     end
   end
 
-  @spec tool_spec(String.t(), map()) :: {:ok, tool_spec} | {:error, :unknown_tool, String.t()}
-  def tool_spec(tool, tools \\ @tools) do
+  @spec tool_spec(String.t(), map | nil) :: {:ok, tool_spec} | {:error, :unknown_tool, String.t()}
+  def tool_spec(tool, tools \\ nil) do
     with {:ok, module} <- tool_module(tool, tools) do
       {:ok, module.spec()}
     end
   end
 
-  def perform_tool_call(tool, args, tools \\ @tools) do
+  def perform_tool_call(tool, args, tools \\ nil) do
     with {:ok, module} <- tool_module(tool, tools),
          {:ok, args} <- module.read_args(args),
          :ok <- validate_required_args(tool, args, tools) do
@@ -263,7 +267,7 @@ defmodule AI.Tools do
     end
   end
 
-  def on_tool_request(tool, args, tools \\ @tools) do
+  def on_tool_request(tool, args, tools \\ nil) do
     with {:ok, module} <- tool_module(tool, tools),
          :ok <- validate_required_args(tool, args, tools) do
       try do
@@ -291,7 +295,7 @@ defmodule AI.Tools do
     end
   end
 
-  def on_tool_result(tool, args, result, tools \\ @tools) do
+  def on_tool_result(tool, args, result, tools \\ nil) do
     with {:ok, module} <- tool_module(tool, tools) do
       try do
         module.ui_note_on_result(args, result)
@@ -305,7 +309,7 @@ defmodule AI.Tools do
     end
   end
 
-  def validate_required_args(tool, args, tools \\ @tools) do
+  def validate_required_args(tool, args, tools \\ nil) do
     with {:ok, module} <- tool_module(tool, tools) do
       module.spec()
       |> Map.get(:function)
@@ -319,7 +323,7 @@ defmodule AI.Tools do
     {:error, :missing_argument, key}
   end
 
-  def with_args(tool, args, fun, tools \\ @tools) do
+  def with_args(tool, args, fun, tools \\ nil) do
     with {:ok, module} <- tool_module(tool, tools),
          {:ok, args} <- module.read_args(args) do
       fun.(args)

@@ -172,7 +172,7 @@ defmodule AI.Agent.Default do
   end
 
   defp get_tools({:ok, project}) do
-    AI.Tools.all_tools_for_project(project) ++
+    AI.Tools.all_tool_specs_for_project(project) ++
       [
         AI.Tools.Default.Prompt.spec(),
         AI.Tools.Default.Notes.spec()

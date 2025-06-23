@@ -20,7 +20,7 @@ defmodule AI.Agent.Researcher do
     with %{name: project} <- Store.get_project(),
          {:ok, prompt} <- Map.fetch(opts, :prompt) do
       tools =
-        AI.Tools.all_tools_for_project(project)
+        AI.Tools.all_tool_specs_for_project(project)
         |> Enum.filter(fn tool -> tool.function.name != "research_tool" end)
 
       AI.Completion.get(

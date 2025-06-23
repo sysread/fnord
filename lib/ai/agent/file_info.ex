@@ -63,14 +63,6 @@ defmodule AI.Agent.FileInfo do
   Your ultimate goal is to provide precise, well-supported answers that empower the coordinating agent to make informed decisions or generate accurate results.
   """
 
-  @tools [
-    AI.Tools.tool_spec!("git_diff_branch_tool"),
-    AI.Tools.tool_spec!("git_grep_tool"),
-    AI.Tools.tool_spec!("git_log_tool"),
-    AI.Tools.tool_spec!("git_pickaxe_tool"),
-    AI.Tools.tool_spec!("git_show_tool")
-  ]
-
   # -----------------------------------------------------------------------------
   # Behaviour implementation
   # -----------------------------------------------------------------------------
@@ -88,7 +80,13 @@ defmodule AI.Agent.FileInfo do
 
       tools =
         if Git.is_git_repo?() do
-          @tools
+          [
+            AI.Tools.tool_spec!("git_diff_branch_tool"),
+            AI.Tools.tool_spec!("git_grep_tool"),
+            AI.Tools.tool_spec!("git_log_tool"),
+            AI.Tools.tool_spec!("git_pickaxe_tool"),
+            AI.Tools.tool_spec!("git_show_tool")
+          ]
         else
           []
         end

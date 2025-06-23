@@ -41,8 +41,11 @@ defmodule Frobs do
     :home,
     :registry,
     :spec,
-    :main
+    :main,
+    :module
   ]
+
+  @type t :: %__MODULE__{}
 
   @registry "registry.json"
   @json_spec "spec.json"
@@ -138,7 +141,8 @@ defmodule Frobs do
          home: home,
          registry: registry,
          spec: spec,
-         main: Path.join(home, @main)
+         main: Path.join(home, @main),
+         module: create_tool_module(name, spec)
        }}
     end
   end
@@ -165,7 +169,8 @@ defmodule Frobs do
     end
   end
 
-  def list(project \\ nil) do
+  @spec list() :: [t]
+  def list() do
     get_home()
     |> Path.join("**/main")
     |> Path.wildcard()
@@ -186,13 +191,24 @@ defmodule Frobs do
     |> Enum.sort(fn a, b ->
       String.downcase(a.name) <= String.downcase(b.name)
     end)
+  end
+
+  @spec list(String.t() | nil) :: [t]
+  def list(nil), do: list()
+
+  def list(project) do
+    list()
     |> Enum.filter(fn frob ->
-      if project do
-        frob.registry["global"] || Enum.member?(frob.registry["projects"], project)
-      else
-        true
-      end
+      frob.registry["global"] || Enum.member?(frob.registry["projects"], project)
     end)
+  end
+
+  @spec module_map(String.t() | nil) :: %{String.t() => module()}
+  def module_map(project \\ nil) do
+    project
+    |> list()
+    |> Enum.map(fn %{name: name, module: module} -> {name, module} end)
+    |> Map.new()
   end
 
   def perform_tool_call(name, args_json) do
@@ -201,7 +217,7 @@ defmodule Frobs do
     end
   end
 
-  def create_tool_module(%__MODULE__{name: name} = frob) do
+  def create_tool_module(name, spec) do
     tool_name = sanitize_module_name(name)
     mod_name = Module.concat([AI.Tools.Frob.Dynamic, tool_name])
 
@@ -209,27 +225,28 @@ defmodule Frobs do
       quoted =
         quote do
           @behaviour AI.Tools
-          @frob unquote(Macro.escape(frob))
+          @tool_name unquote(Macro.escape(name))
+          @tool_spec unquote(Macro.escape(spec))
 
           @impl AI.Tools
-          def spec, do: %{type: "function", function: @frob.spec}
+          def spec, do: %{type: "function", function: @tool_spec}
 
           @impl AI.Tools
           def read_args(args), do: {:ok, args}
 
           @impl AI.Tools
           def call(args) do
-            Frobs.perform_tool_call(@frob.name, Jason.encode!(args))
+            Frobs.perform_tool_call(@tool_name, Jason.encode!(args))
           end
 
           @impl AI.Tools
           def ui_note_on_request(args) do
-            {"Calling frob `#{@frob.name}`", inspect(args)}
+            {"Calling frob `#{@tool_name}`", inspect(args)}
           end
 
           @impl AI.Tools
           def ui_note_on_result(_args, result) do
-            {"Frob `#{@frob.name}` result", inspect(result)}
+            {"Frob `#{@tool_name}` result", inspect(result)}
           end
         end
 
@@ -237,6 +254,10 @@ defmodule Frobs do
     end
 
     mod_name
+  end
+
+  def create_tool_module(%__MODULE__{name: name, spec: spec}) do
+    create_tool_module(name, spec)
   end
 
   # -----------------------------------------------------------------------------

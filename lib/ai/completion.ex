@@ -28,7 +28,7 @@ defmodule AI.Completion do
   @type t :: %__MODULE__{
           opts: Keyword.t(),
           model: String.t(),
-          tools: list(),
+          tools: list(AI.Tools.tool_spec()),
           log_msgs: boolean(),
           log_tool_calls: boolean(),
           replay_conversation: boolean(),
