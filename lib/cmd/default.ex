@@ -3,16 +3,8 @@ defmodule Cmd.Default do
   Converses with the default AI agent.
 
   Conversations are a "floating window" of messages that are stored in the
-  default project. 
+  default project.
   """
-
-  @rollup_prompt """
-  The conversation is beginning to fill the context window. Would you like to
-  archive older messages? Older messages will be archived as a monthly summary
-  for reference. The AI will continue to have access to those summaries.
-  """
-
-  @rollup_context_threshold 0.1
 
   @behaviour Cmd
 
@@ -52,6 +44,18 @@ defmodule Cmd.Default do
       :error -> IO.puts("Error: Missing required option --prompt")
     end
   end
+
+  # ----------------------------------------------------------------------------
+  # Rollups: Archive older messages as a summary when the size of the
+  # conversation exceeds a threshold based on the model's context window.
+  # ----------------------------------------------------------------------------
+  @rollup_prompt """
+  The conversation is beginning to fill the context window. Would you like to
+  archive older messages? Older messages will be archived as a monthly summary
+  for reference. The AI will continue to have access to those summaries.
+  """
+
+  @rollup_context_threshold 0.1
 
   defp maybe_rollup(usage, num_msgs) do
     UI.log_usage(AI.Agent.Default.model(), usage)
