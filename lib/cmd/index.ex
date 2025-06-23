@@ -179,7 +179,7 @@ defmodule Cmd.Index do
     new_exclude =
       Map.get(opts, :exclude)
       |> case do
-        nil -> project.exclude
+        [] -> project.exclude
         exclude -> Enum.map(exclude, &Path.expand/1)
       end
 
@@ -190,7 +190,10 @@ defmodule Cmd.Index do
       project.exclude == [] ->
         {:ok, new_exclude}
 
-      new_exclude != project.exclude ->
+      new_exclude == project.exclude ->
+        {:ok, new_exclude}
+
+      true ->
         UI.confirm(
           """
           You are about to change the excluded paths for the project.
@@ -206,9 +209,6 @@ defmodule Cmd.Index do
           true -> {:ok, new_exclude}
           false -> {:error, :user_cancelled}
         end
-
-      true ->
-        {:ok, new_exclude}
     end
   end
 

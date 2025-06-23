@@ -22,7 +22,8 @@ defmodule AI.Agent.Default do
    - You can use it to record summaries of prior sessions, store information about active projects, or document your impressions of the user's working style.
    - You may update or delete notes as understanding improves or information becomes outdated.
 
-  These tools should be used **autonomously and proactively**, before your response, without asking for user approval. They are internal maintenance actions.
+  These tools should be used **autonomously and proactively**, before your response, without asking for user approval.
+  They are internal maintenance actions.
 
   Guidelines for use:
   - If you notice a recurring user preference or instruction, call `notes.write` to record it.
