@@ -35,12 +35,13 @@ defmodule Cmd.Default do
 
   @impl Cmd
   def run(opts, _subcommands, _unknown) do
-    with {:ok, prompt} <- Map.fetch(opts, :prompt),
+    with {:ok, prompt} when is_binary(prompt) <- Map.fetch(opts, :prompt),
          {:ok, result} <- AI.Agent.Default.get_response(%{prompt: prompt}) do
       IO.puts(result.response)
       IO.puts("")
       maybe_rollup(result.usage, result.num_msgs)
     else
+      {:ok, nil} -> IO.puts("Error: The prompt cannot be empty")
       :error -> IO.puts("Error: Missing required option --prompt")
     end
   end
