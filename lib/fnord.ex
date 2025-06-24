@@ -72,6 +72,7 @@ defmodule Fnord do
           Cmd.Frobs,
           Cmd.Index,
           Cmd.Notes,
+          Cmd.Prime,
           Cmd.Projects,
           Cmd.Replay,
           Cmd.Search,

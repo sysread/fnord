@@ -104,6 +104,15 @@ This is done by running the same command again.
 Although indexing provides full semantic search capabilities and richer results, `fnord` also supports ad-hoc querying on unindexed projects via directory metadata and `ripgrep` fallback, allowing quicker experimentation without full indexing.
 
 
+### Prime the knowledge base
+
+`fnord` can generate an initial set of learnings about your project to prime its knowledge base.
+
+```bash
+fnord prime --project blarg
+```
+
+
 ### Configuration
 
 You can view and edit the configuration for your project with the `fnord config` command.
