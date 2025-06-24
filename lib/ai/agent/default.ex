@@ -52,7 +52,10 @@ defmodule AI.Agent.Default do
         |> maybe_set_project()
         |> get_tools()
 
-      msgs = Store.DefaultProject.Conversation.read_messages() |> Enum.to_list()
+      msgs =
+        Store.DefaultProject.Conversation.read_messages()
+        |> Enum.to_list()
+
       ts = Store.DefaultProject.Conversation.latest_timestamp()
       maybe_add_timestamp(prompt, ts, msgs)
 

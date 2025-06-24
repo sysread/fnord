@@ -34,7 +34,7 @@ defmodule ProjectTest do
                {:ok, :file, abs}
 
       assert Project.find_path_in_source_root(project, "nope.txt") ==
-               {:ok, :not_found, missing}
+               {:ok, :enoent, missing}
     end
   end
 
@@ -45,9 +45,9 @@ defmodule ProjectTest do
       assert found == file
     end
 
-    test "returns :not_found for missing absolute path", %{project: project} do
+    test "returns :enoent for missing absolute path", %{project: project} do
       ghost = Path.join(project.source_root, "ghost.txt")
-      assert {:error, :not_found} = Project.find_file(project, ghost)
+      assert {:error, :enoent} = Project.find_file(project, ghost)
     end
   end
 

@@ -17,8 +17,8 @@ defmodule AI.Embeddings do
           | {:error, :transport_error}
           | {:error, String.t()}
 
-  @typep attempt :: non_neg_integer()
-  @typep inputs :: list(String.t())
+  @type attempt :: non_neg_integer()
+  @type inputs :: list(String.t())
 
   @spec get(String.t()) :: {:ok, embeddings} | error
   def get(input) do

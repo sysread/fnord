@@ -75,30 +75,34 @@ defmodule AI.Tools.File.Info do
     with {:ok, question} <- Map.fetch(args, "question"),
          {:ok, file} <- Map.fetch(args, "file"),
          {:ok, content} <- AI.Tools.get_file_contents(file),
-         {:ok, response} <-
-           AI.Agent.FileInfo.get_response(%{
-             file: file,
-             question: question,
-             content: content
-           }) do
+         {:ok, response} <- get_agent_response(file, question, content) do
       {:ok, "[file_info_tool]\n#{response}"}
     else
-      {:error, :enoent} ->
-        {:error,
-         """
-         The requested file (#{args["file"]}) does not exist.
-         - If the file name is correct, verify the path using the search or the file listing tool.
-         - It may have been added since the most recent reindexing of the project.
-         - If the file is only present in a topic branch that has not yet been merged, it may not be visible to this tool.
-
-         ARGS: #{inspect(args)}
-         """}
-
-      {:error, reason} ->
-        {:error, reason}
-
-      :error ->
-        {:error, :incorrect_argument_format}
+      :error -> {:error, :incorrect_argument_format}
+      {:error, reason} -> {:error, file_contents_error(args, reason)}
     end
+  end
+
+  @spec get_agent_response(String.t(), String.t(), String.t()) ::
+          {:ok, String.t()}
+          | {:error, any()}
+  defp get_agent_response(file, question, content) do
+    AI.Agent.FileInfo.get_response(%{
+      file: file,
+      question: question,
+      content: content
+    })
+  end
+
+  defp file_contents_error(args, reason) do
+    """
+    Unable to read the file contents for the requested file.
+    - If the file name is correct, verify the path using the search or the file listing tool.
+    - It may have been added since the most recent reindexing of the project.
+    - If the file is only present in a topic branch that has not yet been merged, it may not be visible to this tool.
+
+    ARGS: #{inspect(args)}
+    ERROR: #{reason}
+    """
   end
 end

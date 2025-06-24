@@ -116,14 +116,18 @@ defmodule Store.Project do
     end
   end
 
-  @spec find_entry(t(), String.t()) :: {:ok, Store.Project.Entry.t()} | {:error, atom()}
+  @spec find_entry(t(), String.t()) ::
+          {:ok, Store.Project.Entry.t()}
+          | {:error, :enoent}
   def find_entry(project, path) do
     with {:ok, resolved} <- find_file(project, path) do
       {:ok, Store.Project.Entry.new_from_file_path(project, resolved)}
     end
   end
 
-  @spec find_file(t(), String.t()) :: {:ok, String.t()} | {:error, atom()}
+  @spec find_file(t(), String.t()) ::
+          {:ok, String.t()}
+          | {:error, :enoent}
   def find_file(project, path) do
     [
       &find_abs_file_root/2,
@@ -140,7 +144,7 @@ defmodule Store.Project do
     end)
     |> case do
       {:ok, path} -> {:ok, path}
-      _ -> {:error, :not_found}
+      _ -> {:error, :enoent}
     end
   end
 
@@ -157,14 +161,14 @@ defmodule Store.Project do
   end
 
   @spec find_path_in_source_root(Store.Project.t(), String.t()) ::
-          {:ok, :dir | :file | :not_found, String.t()}
+          {:ok, :dir | :file | :enoent, String.t()}
   def find_path_in_source_root(project, path) do
     path = expand_path(path, project)
 
     cond do
       File.dir?(path) -> {:ok, :dir, path}
       File.regular?(path) -> {:ok, :file, path}
-      true -> {:ok, :not_found, path}
+      true -> {:ok, :enoent, path}
     end
   end
 
@@ -331,7 +335,7 @@ defmodule Store.Project do
     if String.starts_with?(path, "/") && File.exists?(path) do
       {:ok, path}
     else
-      {:error, :not_found}
+      {:error, :enoent}
     end
   end
 
@@ -344,10 +348,10 @@ defmodule Store.Project do
       if File.exists?(path) do
         {:ok, path}
       else
-        {:error, :not_found}
+        {:error, :enoent}
       end
     else
-      {:error, :not_found}
+      {:error, :enoent}
     end
   end
 
@@ -357,7 +361,7 @@ defmodule Store.Project do
     if File.exists?(path) do
       {:ok, path}
     else
-      {:error, :not_found}
+      {:error, :enoent}
     end
   end
 
@@ -366,7 +370,7 @@ defmodule Store.Project do
     |> stored_files()
     |> Enum.find(&String.ends_with?(&1.file, path))
     |> case do
-      nil -> {:error, :not_found}
+      nil -> {:error, :enoent}
       entry -> {:ok, entry.file}
     end
   end

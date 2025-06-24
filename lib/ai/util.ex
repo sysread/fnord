@@ -141,6 +141,12 @@ defmodule AI.Util do
   `assistant_tool_msg/3` message with the same `tool_call_id` (`id`).
   """
   def tool_msg(id, func, output) do
+    output = """
+    #{output}
+
+    Tool call with ID `#{id}` completed using the function `#{func}`.
+    """
+
     %{
       role: @role_tool,
       name: func,

@@ -49,9 +49,9 @@ defmodule AI.Tools.File.Outline do
         {:error, "Missing required parameter: file."}
 
       {:error, :project_not_found} ->
-        {:error, "This project has not yet been created by the user."}
+        {:error, "This project has not yet been indexed by the user."}
 
-      {:error, :not_found} ->
+      {:error, :enoent} ->
         {:error, "File path not found. Please verify the correct path."}
     end
   end

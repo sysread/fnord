@@ -85,9 +85,32 @@ defmodule AI.Tools do
           }
         }
 
-  @typep missing_argument_error :: {:error, :missing_argument, String.t()}
-  @typep invalid_argument_error :: {:error, :invalid_argument, String.t()}
-  @type args_error :: missing_argument_error | invalid_argument_error
+  @type tool_name :: String.t()
+  @type project_name :: String.t() | nil
+  @type unparsed_args :: String.t()
+  @type parsed_args :: %{String.t() => any}
+  @type toolbox :: %{String.t() => module}
+
+  @type tool_error :: {:error, String.t()}
+  @type unknown_tool_error :: {:error, :unknown_tool, String.t()}
+  @type missing_arg_error :: {:error, :missing_argument, String.t()}
+  @type invalid_arg_error :: {:error, :invalid_argument, String.t()}
+  @type args_error :: missing_arg_error | invalid_arg_error
+  @type frob_error :: {:error, non_neg_integer, String.t()}
+
+  @type tool_result ::
+          {:ok, String.t()}
+          | unknown_tool_error
+          | args_error
+          | tool_error
+          | frob_error
+
+  @type raw_tool_result ::
+          :ok
+          | {:ok, any}
+          | {:error, any}
+          | :error
+          | frob_error
 
   @doc """
   Returns the OpenAPI spec for the tool as an elixir map.
@@ -98,11 +121,7 @@ defmodule AI.Tools do
   Calls the tool with the provided arguments and returns the response as an :ok
   tuple.
   """
-  @callback call(args :: map) ::
-              :ok
-              | {:ok, any}
-              | {:error, any}
-              | :error
+  @callback call(args :: map) :: raw_tool_result
 
   @doc """
   Reads the arguments and returns a map of the arguments if they are valid.
@@ -171,13 +190,13 @@ defmodule AI.Tools do
   # ----------------------------------------------------------------------------
   def tools, do: @tools
 
-  @spec all_tools() :: %{String.t() => module}
-  def all_tools(project \\ nil) do
-    Map.merge(@tools, Frobs.module_map(project))
+  @spec all_tools(project_name) :: toolbox
+  def all_tools(project_name \\ nil) do
+    Map.merge(@tools, Frobs.module_map(project_name))
   end
 
-  @spec all_tool_specs_for_project(String.t()) :: [tool_spec]
-  def all_tool_specs_for_project(project) do
+  @spec all_tool_specs_for_project(project_name) :: [tool_spec]
+  def all_tool_specs_for_project(project_name \\ nil) do
     tools =
       @general_tools
       |> Map.keys()
@@ -223,7 +242,7 @@ defmodule AI.Tools do
       end
 
     frobs =
-      project
+      project_name
       |> Frobs.module_map()
       |> Enum.map(fn {_name, module} ->
         module.spec()
@@ -232,7 +251,9 @@ defmodule AI.Tools do
     tools ++ frobs
   end
 
-  @spec tool_module(String.t(), map | nil) :: {:ok, module} | {:error, :unknown_tool, String.t()}
+  @spec tool_module(tool_name, toolbox | nil) ::
+          {:ok, module}
+          | unknown_tool_error
   def tool_module(tool, tools \\ nil) do
     tools = if is_nil(tools), do: all_tools(), else: tools
 
@@ -242,7 +263,7 @@ defmodule AI.Tools do
     end
   end
 
-  @spec tool_spec!(String.t(), map | nil) :: tool_spec
+  @spec tool_spec!(tool_name, toolbox | nil) :: tool_spec
   def tool_spec!(tool, tools \\ nil) do
     with {:ok, module} <- tool_module(tool, tools) do
       module.spec()
@@ -252,21 +273,42 @@ defmodule AI.Tools do
     end
   end
 
-  @spec tool_spec(String.t(), map | nil) :: {:ok, tool_spec} | {:error, :unknown_tool, String.t()}
+  @spec tool_spec(tool_name, toolbox | nil) ::
+          {:ok, tool_spec}
+          | {:error, :unknown_tool, String.t()}
   def tool_spec(tool, tools \\ nil) do
     with {:ok, module} <- tool_module(tool, tools) do
       {:ok, module.spec()}
     end
   end
 
+  @spec perform_tool_call(tool_name, parsed_args, toolbox | nil) :: tool_result
   def perform_tool_call(tool, args, tools \\ nil) do
     with {:ok, module} <- tool_module(tool, tools),
          {:ok, args} <- module.read_args(args),
          :ok <- validate_required_args(tool, args, tools) do
-      module.call(args)
+      # Call the tool's function with the provided arguments
+      args
+      |> module.call()
+      # Convert results (or error) to a string for output
+      |> case do
+        # Binary responses
+        {:ok, response} when is_binary(response) -> {:ok, response}
+        {:error, reason} when is_binary(reason) -> {:error, reason}
+        # Structured responses
+        {:ok, response} -> Jason.encode(response)
+        {:error, reason} -> {:error, inspect(reason)}
+        # Empty responses
+        :ok -> {:ok, "#{tool} completed successfully"}
+        :error -> {:error, "#{tool} failed with an unknown error"}
+      end
     end
   end
 
+  @spec on_tool_request(tool_name, parsed_args, toolbox | nil) ::
+          {String.t(), String.t()}
+          | String.t()
+          | nil
   def on_tool_request(tool, args, tools \\ nil) do
     with {:ok, module} <- tool_module(tool, tools),
          :ok <- validate_required_args(tool, args, tools) do
@@ -295,6 +337,10 @@ defmodule AI.Tools do
     end
   end
 
+  @spec on_tool_result(tool_name, parsed_args, any, toolbox | nil) ::
+          {String.t(), String.t()}
+          | String.t()
+          | nil
   def on_tool_result(tool, args, result, tools \\ nil) do
     with {:ok, module} <- tool_module(tool, tools) do
       try do
@@ -309,6 +355,7 @@ defmodule AI.Tools do
     end
   end
 
+  @spec validate_required_args(tool_name, parsed_args, toolbox | nil) :: :ok | args_error
   def validate_required_args(tool, args, tools \\ nil) do
     with {:ok, module} <- tool_module(tool, tools) do
       module.spec()
@@ -319,10 +366,12 @@ defmodule AI.Tools do
     end
   end
 
+  @spec required_arg_error(String.t()) :: missing_arg_error
   def required_arg_error(key) do
     {:error, :missing_argument, key}
   end
 
+  @spec with_args(tool_name, parsed_args, (parsed_args -> any), toolbox | nil) :: any
   def with_args(tool, args, fun, tools \\ nil) do
     with {:ok, module} <- tool_module(tool, tools),
          {:ok, args} <- module.read_args(args) do
@@ -333,6 +382,13 @@ defmodule AI.Tools do
   # ----------------------------------------------------------------------------
   # Common Utility Functions
   # ----------------------------------------------------------------------------
+  @type project :: Store.Project.t()
+  @type entry :: Store.Project.Entry.t()
+  @type project_not_found :: {:error, :project_not_found}
+  @type entry_not_found :: {:error, :enoent}
+  @type something_not_found :: project_not_found | entry_not_found
+
+  @spec get_project() :: {:ok, project} | project_not_found
   def get_project() do
     project = Store.get_project()
 
@@ -343,22 +399,27 @@ defmodule AI.Tools do
     end
   end
 
+  @spec get_entry(String.t()) :: {:ok, entry} | something_not_found
   def get_entry(file) do
     with {:ok, project} <- get_project() do
       get_entry(project, file)
     end
   end
 
+  @spec get_entry(Store.Project.t(), String.t()) :: {:ok, entry} | entry_not_found
   def get_entry(project, file) do
     Store.Project.find_entry(project, file)
   end
 
+  @spec get_file_contents(String.t()) :: {:ok, String.t()} | something_not_found
   def get_file_contents(file) do
-    Store.get_project()
-    |> Store.Project.find_file(file)
-    |> case do
-      {:ok, path} -> File.read(path)
-      {:error, :not_found} -> {:error, :enoent}
+    with {:ok, project} <- get_project() do
+      project
+      |> Store.Project.find_file(file)
+      |> case do
+        {:ok, path} -> File.read(path)
+        other -> other
+      end
     end
   end
 

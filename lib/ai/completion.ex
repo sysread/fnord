@@ -192,12 +192,6 @@ defmodule AI.Completion do
       response = AI.Util.tool_msg(id, func, output)
       {:ok, [request, response]}
     else
-      :error ->
-        AI.Completion.Output.on_event(state, :tool_call_error, {func, args_json, :error})
-        msg = "An error occurred (most likely incorrect arguments)"
-        response = AI.Util.tool_msg(id, func, msg)
-        {:ok, [request, response]}
-
       {:error, reason} ->
         AI.Completion.Output.on_event(
           state,
@@ -293,6 +287,7 @@ defmodule AI.Completion do
     end
   end
 
+  @spec perform_tool_call(t, String.t(), String.t()) :: AI.Tools.tool_result()
   defp perform_tool_call(state, func, args_json) when is_binary(args_json) do
     with {:ok, args} <- Jason.decode(args_json) do
       AI.Tools.with_args(
@@ -300,16 +295,7 @@ defmodule AI.Completion do
         args,
         fn args ->
           AI.Completion.Output.on_event(state, :tool_call, {func, args})
-
-          result =
-            AI.Tools.perform_tool_call(func, args, AI.Tools.all_tools())
-            |> case do
-              {:ok, response} when is_binary(response) -> {:ok, response}
-              {:ok, response} -> Jason.encode(response)
-              :ok -> {:ok, "#{func} completed successfully"}
-              other -> other
-            end
-
+          result = AI.Tools.perform_tool_call(func, args, AI.Tools.all_tools())
           AI.Completion.Output.on_event(state, :tool_call_result, {func, args, result})
           result
         end,
