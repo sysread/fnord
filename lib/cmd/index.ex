@@ -105,10 +105,11 @@ defmodule Cmd.Index do
 
     with project <- Store.get_project(project_name),
          {:ok, root} <- confirm_root_changed?(project, opts),
-         {:ok, exclude} <- confirm_exclude_changed?(project, opts) do
-      project
-      |> Store.Project.save_settings(root, exclude)
-      |> Store.Project.make_default_for_session()
+         {:ok, exclude} <- confirm_exclude_changed?(project, opts, root) do
+      project =
+        project
+        |> Store.Project.save_settings(root, exclude)
+        |> Store.Project.make_default_for_session()
 
       if is_nil(project.source_root) do
         {:error,
@@ -173,15 +174,24 @@ defmodule Cmd.Index do
     end
   end
 
-  defp confirm_exclude_changed?(project, opts) do
+  defp confirm_exclude_changed?(project, opts, root) do
     yes = Map.get(opts, :yes, false)
 
     new_exclude =
       Map.get(opts, :exclude)
       |> case do
-        nil -> project.exclude
-        [] -> project.exclude
-        exclude -> Enum.map(exclude, &Path.expand/1)
+        nil ->
+          project.exclude
+
+        [] ->
+          project.exclude
+
+        exclude ->
+          Enum.map(exclude, fn path ->
+            path
+            |> Path.expand()
+            |> Path.relative_to(root)
+          end)
       end
 
     cond do

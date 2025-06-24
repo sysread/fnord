@@ -324,9 +324,13 @@ defmodule Store.Project do
   end
 
   defp relative_to!(path, cwd) do
-    with {:ok, path} <- Path.safe_relative(path, cwd) do
+    rel =
       path
-    else
+      |> Path.expand()
+      |> Path.relative_to(cwd)
+
+    case Path.safe_relative(rel, cwd) do
+      {:ok, clean} -> clean
       :error -> raise("Error: unable to calculate relative path for #{path} from #{cwd}")
     end
   end
