@@ -5,10 +5,12 @@ defmodule AI.Model do
     :reasoning
   ]
 
+  @type reasoning_level :: :none | :low | :medium | :high
+
   @type t :: %__MODULE__{
           model: String.t(),
           context: non_neg_integer,
-          reasoning: :none | :low | :medium | :high
+          reasoning: reasoning_level
         }
 
   @spec new(String.t(), non_neg_integer) :: t
@@ -44,6 +46,15 @@ defmodule AI.Model do
       model: "gpt-4.1-nano",
       context: 1_000_000,
       reasoning: :none
+    }
+  end
+
+  @spec reasoning(reasoning_level) :: t
+  def reasoning(level) do
+    %AI.Model{
+      model: "o4-mini",
+      context: 200_000,
+      reasoning: level
     }
   end
 end

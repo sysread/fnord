@@ -138,15 +138,6 @@ defmodule AI.Tools.Default.Notes do
   end
 
   def call(%{"op" => "search", "needle" => needle}) do
-    results = Store.DefaultProject.Notes.search(needle)
-
-    {:ok,
-     """
-     Search results for '#{needle}':
-
-     ```jsonl
-     #{results}
-     ```
-     """}
+    AI.Agent.Default.NotesSearch.get_response(%{needle: needle})
   end
 end

@@ -13,9 +13,13 @@ defmodule Store.DefaultProject.Notes do
     |> Enum.join("\n")
   end
 
-  def read do
+  def read_lines do
     file_path()
     |> File.stream!()
+  end
+
+  def read do
+    read_lines()
     |> Stream.reject(&(&1 == ""))
     |> Stream.map(fn line ->
       line
@@ -26,22 +30,6 @@ defmodule Store.DefaultProject.Notes do
       end
     end)
     |> Stream.reject(&is_nil/1)
-  end
-
-  def search(needle) do
-    needle =
-      needle
-      |> String.trim()
-      |> String.downcase()
-
-    read()
-    |> Stream.filter(fn %{"text" => text} ->
-      text
-      |> String.downcase()
-      |> String.contains?(needle)
-    end)
-    |> Stream.map(&Jason.encode!/1)
-    |> Enum.join("\n")
   end
 
   def create(text) do

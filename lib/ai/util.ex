@@ -141,6 +141,13 @@ defmodule AI.Util do
   `assistant_tool_msg/3` message with the same `tool_call_id` (`id`).
   """
   def tool_msg(id, func, output) do
+    output =
+      if is_binary(output) do
+        output
+      else
+        inspect(output, pretty: true)
+      end
+
     output = """
     #{output}
 
