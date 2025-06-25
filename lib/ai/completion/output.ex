@@ -38,8 +38,16 @@ defmodule AI.Completion.Output do
     end
   end
 
-  def log_tool_call_error(_state, tool, reason) do
-    UI.error("Error calling #{tool}", reason)
+  def log_tool_call_error(_state, tool, args_json, reason) do
+    UI.error("""
+    The agent performed an invalid tool call request.
+
+    Error: #{reason}
+
+    Details:
+    - Tool: #{tool}
+    - Args: #{args_json}
+    """)
   end
 
   # -----------------------------------------------------------------------------
@@ -63,7 +71,7 @@ defmodule AI.Completion.Output do
     end
   end
 
-  def on_event(state, :tool_call_error, {tool, _args_json, {:error, reason}}) do
+  def on_event(state, :tool_call_error, {tool, args_json, {:error, reason}}) do
     reason =
       if is_binary(reason) do
         reason
@@ -71,7 +79,7 @@ defmodule AI.Completion.Output do
         inspect(reason, pretty: true)
       end
 
-    log_tool_call_error(state, tool, reason)
+    log_tool_call_error(state, tool, args_json, reason)
   end
 
   def on_event(_state, _, _), do: :ok

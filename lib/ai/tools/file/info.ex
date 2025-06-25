@@ -2,8 +2,8 @@ defmodule AI.Tools.File.Info do
   @behaviour AI.Tools
 
   @impl AI.Tools
-  def ui_note_on_request(%{"file" => file, "question" => question}) do
-    {"Considering [#{file}]", question}
+  def ui_note_on_request(%{"files" => files, "question" => question}) do
+    {"Considering #{length(files)} file(s)", question}
   end
 
   def ui_note_on_request(args) do
@@ -11,8 +11,8 @@ defmodule AI.Tools.File.Info do
   end
 
   @impl AI.Tools
-  def ui_note_on_result(%{"file" => file, "question" => question}, result) do
-    {"Answered [#{file}]: #{question}", result}
+  def ui_note_on_result(%{"files" => files, "question" => question}, _result) do
+    {"Answered", "#{length(files)} files: #{question}"}
   end
 
   def ui_note_on_result(_args, _result) do
@@ -21,15 +21,14 @@ defmodule AI.Tools.File.Info do
 
   @impl AI.Tools
   def read_args(args) do
-    with {:ok, file} <- get_file(args),
+    with {:ok, files} <- get_files(args),
          {:ok, question} <- get_question(args) do
-      {:ok, %{"file" => file, "question" => question}}
+      {:ok, %{"files" => files, "question" => question}}
     end
   end
 
-  defp get_file(%{"file" => file}), do: {:ok, file}
-  defp get_file(%{"file_path" => file}), do: {:ok, file}
-  defp get_file(_args), do: AI.Tools.required_arg_error("file")
+  defp get_files(%{"files" => files}), do: {:ok, files}
+  defp get_files(_args), do: AI.Tools.required_arg_error("files")
 
   defp get_question(%{"question" => question}), do: {:ok, question}
   defp get_question(_args), do: AI.Tools.required_arg_error("question")
@@ -41,28 +40,36 @@ defmodule AI.Tools.File.Info do
       function: %{
         name: "file_info_tool",
         description: """
-        Requests information about a file. An LLM will use your question to
-        extract relevant information from the file, preserving your own context
-        window so you can focus on answering the user's questions. Specify
-        exactly how you want the response formatted (e.g. exact code sections,
-        interfaces, explanations, yes/no, etc.). The file path must match the
-        one provided by the file_list_tool or file_search_tool to avoid enoent
-        errors. This tool can use git to provide context about its history and
-        differences from earlier version.
+        Requests information about a file or files. An LLM will use your
+        question to extract relevant information from each of the specified
+        file, preserving your own context window so you can focus on answering
+        the user's questions. Specify exactly how you want the response
+        formatted (e.g. exact code sections, interfaces, explanations, yes/no,
+        etc.). File paths must match the ones provided by the file_list_tool or
+        file_search_tool to avoid enoent errors. This tool can use git to
+        provide context about its history and differences from earlier version.
         """,
-        strict: true,
         parameters: %{
-          additionalProperties: false,
           type: "object",
-          required: ["file", "question"],
+          required: ["question", "files"],
           properties: %{
-            file: %{
-              type: "string",
-              description: "A file path from the file_list_tool or file_search_tool."
-            },
             question: %{
               type: "string",
               description: "A complete prompt for the LLM to respond to."
+            },
+            files: %{
+              type: "array",
+              items: %{type: "string"},
+              description: """
+              A list of file paths that the LLM should process. Each file will
+              be delegated to the LLM in parallel, allowing you to perform the
+              same inquiry over many files at once.
+
+              This is extremely useful when the user has asked you to identify
+              complex patterns across multiple files, such as "find all
+              functions that call this function" or "find all methods that
+              return a value of this type".
+              """
             }
           }
         }
@@ -73,14 +80,35 @@ defmodule AI.Tools.File.Info do
   @impl AI.Tools
   def call(args) do
     with {:ok, question} <- Map.fetch(args, "question"),
-         {:ok, file} <- Map.fetch(args, "file"),
-         {:ok, content} <- AI.Tools.get_file_contents(file),
-         {:ok, response} <- get_agent_response(file, question, content) do
-      {:ok, "[file_info_tool]\n#{response}"}
-    else
-      :error -> {:error, :incorrect_argument_format}
-      {:error, reason} -> {:error, file_contents_error(args, reason)}
+         {:ok, files} <- Map.fetch(args, "files") do
+      files
+      |> Util.async_stream(&process_file(&1, question))
+      |> Stream.map(&format_response/1)
+      |> Enum.join("\n\n-----\n\n")
+      |> then(&{:ok, &1})
     end
+  end
+
+  @spec process_file(String.t(), String.t()) :: {String.t(), String.t()}
+  defp process_file(file, question) do
+    response =
+      with {:ok, content} <- AI.Tools.get_file_contents(file),
+           {:ok, response} <- get_agent_response(file, question, content) do
+        response
+      else
+        {:error, reason} ->
+          """
+          Unable to read the file contents for the requested file.
+          - If the file name is correct, verify the path using the search or the file listing tool.
+          - It may have been added since the most recent reindexing of the project.
+          - If the file is only present in a topic branch that has not yet been merged, it may not be visible to this tool.
+
+          FILE:  #{file}
+          ERROR: #{inspect(reason)}
+          """
+      end
+
+    {file, response}
   end
 
   @spec get_agent_response(String.t(), String.t(), String.t()) ::
@@ -94,15 +122,25 @@ defmodule AI.Tools.File.Info do
     })
   end
 
-  defp file_contents_error(args, reason) do
+  @spec format_response({atom, {String.t(), String.t() | atom}}) :: String.t()
+  defp format_response({:ok, {file, result}}) do
     """
-    Unable to read the file contents for the requested file.
-    - If the file name is correct, verify the path using the search or the file listing tool.
-    - It may have been added since the most recent reindexing of the project.
-    - If the file is only present in a topic branch that has not yet been merged, it may not be visible to this tool.
+    ## File
+    #{file}
 
-    ARGS: #{inspect(args)}
-    ERROR: #{reason}
+    ## Result
+    #{result}
+    """
+  end
+
+  defp format_response({:error, {file, reason}}) do
+    """
+    ## File
+    #{file}
+
+    ## Error
+    An error occurred while processing the file:
+    #{inspect(reason, pretty: true)}
     """
   end
 end

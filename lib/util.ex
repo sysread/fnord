@@ -1,11 +1,26 @@
 defmodule Util do
+  @type async_item ::
+          {:ok, any()}
+          | {:error, any()}
+          # when :zip_input_on_exit is true
+          | {:error, {any(), any()}}
+
+  @type async_cb :: (async_item -> any())
+
   @doc """
   Convenience wrapper for `Task.async_stream/3` with the default optiosn for
   concurrency and timeout set to `Application.get_env(:fnord, :workers)` and
   `:infinity`, respectively.
   """
+  @spec async_stream(Enumerable.t(), async_cb, Keyword.t()) :: Enumerable.t()
   def async_stream(enumerable, fun, options \\ []) do
-    opts = Keyword.merge([timeout: :infinity], options)
+    opts =
+      [
+        timeout: :infinity,
+        zip_input_on_exit: true
+      ]
+      |> Keyword.merge(options)
+
     Task.async_stream(enumerable, fun, opts)
   end
 

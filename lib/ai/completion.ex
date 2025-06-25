@@ -193,24 +193,15 @@ defmodule AI.Completion do
       {:ok, [request, response]}
     else
       {:error, reason} ->
-        AI.Completion.Output.on_event(
-          state,
-          :tool_call_error,
-          {func, args_json, {:error, reason}}
-        )
-
+        oopsie(state, func, args_json, reason)
         response = AI.Util.tool_msg(id, func, reason)
         {:ok, [request, response]}
 
       {:error, :unknown_tool, tool} ->
-        AI.Completion.Output.on_event(
-          state,
-          :tool_call_error,
-          {func, args_json, {:error, "Unknown tool: #{tool}"}}
-        )
+        oopsie(state, func, args_json, "Invalid tool #{tool}")
 
         error = """
-        Your attempt to call #{func} failed because the tool '#{tool}' is unknown.
+        Your attempt to call #{func} failed because the tool '#{tool}' was not found.
         Your tool call request supplied the following arguments: #{args_json}.
         Please consult the specifications for your available tools and use only the tools that are listed.
         """
@@ -219,13 +210,7 @@ defmodule AI.Completion do
         {:ok, [request, response]}
 
       {:error, :missing_argument, key} ->
-        UI.warn("MISSING #{key} IN #{inspect(args_json)}")
-
-        AI.Completion.Output.on_event(
-          state,
-          :tool_call_error,
-          {func, args_json, {:error, "Missing required argument: #{key}"}}
-        )
+        oopsie(state, func, args_json, "Missing required argument #{key}")
 
         spec =
           with {:ok, spec} <- AI.Tools.tool_spec(func, AI.Tools.all_tools()),
@@ -246,11 +231,7 @@ defmodule AI.Completion do
         {:ok, [request, response]}
 
       {:error, :invalid_argument, key} ->
-        AI.Completion.Output.on_event(
-          state,
-          :tool_call_error,
-          {func, args_json, {:error, "Invalid argument: #{key}"}}
-        )
+        oopsie(state, func, args_json, "Invalid argument #{key}")
 
         spec =
           with {:ok, spec} <- AI.Tools.tool_spec(func, AI.Tools.all_tools()),
@@ -271,15 +252,12 @@ defmodule AI.Completion do
         {:ok, [request, response]}
 
       {:error, exit_code, msg} when is_integer(exit_code) ->
-        AI.Completion.Output.on_event(
-          state,
-          :tool_call_error,
-          {func, args_json, {:error, "Exit code: #{exit_code}, Message: #{msg}"}}
-        )
+        oopsie(state, func, args_json, "External process exited with code #{exit_code}: #{msg}")
 
         error = """
-        The external process returned an error code of #{exit_code} with the message:
-        #{msg}
+        Your attempt to call #{func} failed because the external process exited with an error.
+        Exit code: #{exit_code}
+        Error message: #{msg}
         """
 
         response = AI.Util.tool_msg(id, func, error)
@@ -302,5 +280,14 @@ defmodule AI.Completion do
         AI.Tools.all_tools()
       )
     end
+  end
+
+  @spec oopsie(t, binary, binary, any) :: any
+  defp oopsie(state, tool, args_json, reason) do
+    AI.Completion.Output.on_event(
+      state,
+      :tool_call_error,
+      {tool, args_json, {:error, reason}}
+    )
   end
 end

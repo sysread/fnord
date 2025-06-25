@@ -1,5 +1,4 @@
 defmodule Cmd.Ask do
-  @project_not_found_error "Project not found; verify that the project has been indexed."
   @default_rounds 1
 
   @behaviour Cmd
@@ -75,8 +74,7 @@ defmodule Cmd.Ask do
     with {:ok, opts} <- validate(opts),
          {:ok, msgs, conversation} <- restore_conversation(opts),
          opts <- Map.put(opts, :msgs, msgs),
-         %{msgs: msgs, usage: usage, context: context} <-
-           AI.Agent.Coordinator.get_response(opts),
+         %{msgs: msgs, usage: usage, context: context} <- AI.Agent.Coordinator.get_response(opts),
          {:ok, conversation_id} <- save_conversation(conversation, msgs) do
       end_time = System.monotonic_time(:second)
       time_taken = end_time - start_time
@@ -94,9 +92,6 @@ defmodule Cmd.Ask do
       - Conversation saved with ID #{conversation_id}
       """)
     else
-      {:error, :project_not_found} ->
-        UI.error(@project_not_found_error)
-
       {:error, :directory_not_found} ->
         UI.error("""
         The selected project has not been created in fnord and you did not provide a --directory option.

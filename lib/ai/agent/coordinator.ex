@@ -137,34 +137,36 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp perform_step(%{steps: [:finalize]} = state) do
-    save_notes = Task.async(fn -> save_notes(state) end)
+    motd = Task.async(fn -> get_motd(state) end)
+    notes = Task.async(fn -> save_notes(state) end)
 
-    finalize =
-      Task.async(fn ->
-        UI.debug("Generating response")
+    UI.debug("Generating response")
 
-        state
-        |> Map.put(:steps, [])
-        |> reminder_msg()
-        |> finalize_msg()
-        |> template_msg()
-        |> get_completion()
-      end)
+    state =
+      state
+      |> Map.put(:steps, [])
+      |> reminder_msg()
+      |> finalize_msg()
+      |> template_msg()
+      |> get_completion()
 
-    # Wait for tasks and return the result of finalize
+    # Retrieve and output the MOTD
+    with {:ok, motd} <- Task.await(motd, :infinity) do
+      IO.puts(motd)
+    else
+      {:error, reason} -> UI.error("Failed to retrieve MOTD: #{inspect(reason)}")
+    end
 
-    # We don't need to retain the output of the save_notes task for anything.
-    # But we do need to ensure it is completed before we emit the response to
-    # the user, and report on its outcome.
-    Task.await(save_notes, :infinity)
+    # We don't need to retain the output of the notes task for anything. But we
+    # do need to ensure it is completed before we exit, and report on its
+    # outcome.
+    Task.await(notes, :infinity)
     |> case do
       {:error, reason} -> UI.error("Failed to save research notes:\n\n#{reason}")
       _ -> UI.debug("Research notes saved")
     end
 
-    # Retain the state of the finalize task, since it affects the output,
-    # including usage and messages.
-    Task.await(finalize, :infinity)
+    state
   end
 
   defp get_completion(%{msgs: msgs} = state) do
@@ -305,19 +307,9 @@ defmodule AI.Agent.Coordinator do
     - Avoid commentary or markdown-rendering hints (e.g., "```markdown").
     - Code examples are always useful and should be functional and complete, surrounded by markdown code fences.
 
-  Just for fun, finish off your response with a humorous MOTD.
-  Select a **real** quote from a **real** historical figure.
-  **Invent a brief, fictional and humorous scenario** related to software development or programming where the quote would be relevant.
-  The scenario should be a made-up situation involving coding, debugging, or technology, and relate to the user's question.
-  Attribute the quote to the real person speaking from the made-up scenario.
-  Example: "I have not failed. I've just found 10,000 ways that won't work." - Thomas Edison, on the importance of negative path testing."
-  Don't just use my example. Be creative. Sheesh.
-  Never use smart quotes!
-  Format: `### MOTD\n> <quote> - <source>, <briefly state the made-up scenario>`
-
   THS IS IT.
   Your research is complete!
-  Respond NOW with your findings in the format specified in the template.
+  Respond NOW with your findings in the requested format.
   """
 
   defp git_info() do
@@ -401,7 +393,7 @@ defmodule AI.Agent.Coordinator do
 
   defp template_msg(state) do
     state
-    |> Map.put(:msgs, state.msgs ++ [AI.Util.assistant_msg(@template)])
+    |> Map.put(:msgs, state.msgs ++ [AI.Util.system_msg(@template)])
   end
 
   # -----------------------------------------------------------------------------
@@ -445,6 +437,15 @@ defmodule AI.Agent.Coordinator do
     end
 
     state
+  end
+
+  # -----------------------------------------------------------------------------
+  # MOTD
+  # -----------------------------------------------------------------------------
+  defp get_motd(state) do
+    with {:ok, %{response: motd}} <- AI.Agent.MOTD.get_response(%{prompt: state.question}) do
+      {:ok, "\n\n" <> motd}
+    end
   end
 
   # -----------------------------------------------------------------------------
