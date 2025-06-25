@@ -67,13 +67,22 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp perform_step({:error, reason}) do
+    reason =
+      if is_binary(reason) do
+        reason
+      else
+        """
+        ```
+        #{inspect(reason, pretty: true)}
+        ```
+        """
+      end
+
     {:error,
      """
      An error occurred while processing your request.
 
-     ```
-     #{inspect(reason, pretty: true)}
-     ```
+     #{reason}
      """}
   end
 
@@ -192,6 +201,9 @@ defmodule AI.Agent.Coordinator do
         }
         |> log_usage()
         |> log_response()
+
+      {:error, %{response: response}} ->
+        {:error, response}
 
       {:error, reason} ->
         {:error, reason}
