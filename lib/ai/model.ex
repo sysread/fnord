@@ -1,19 +1,22 @@
 defmodule AI.Model do
   defstruct [
     :model,
-    :context
+    :context,
+    :reasoning
   ]
 
   @type t :: %__MODULE__{
           model: String.t(),
-          context: non_neg_integer
+          context: non_neg_integer,
+          reasoning: :none | :low | :medium | :high
         }
 
   @spec new(String.t(), non_neg_integer) :: t
-  def new(model, context) do
+  def new(model, context, reasoning \\ :none) do
     %AI.Model{
       model: model,
-      context: context
+      context: context,
+      reasoning: reasoning
     }
   end
 
@@ -21,7 +24,8 @@ defmodule AI.Model do
   def smart() do
     %AI.Model{
       model: "gpt-4.1",
-      context: 1_000_000
+      context: 1_000_000,
+      reasoning: :none
     }
   end
 
@@ -29,7 +33,8 @@ defmodule AI.Model do
   def balanced() do
     %AI.Model{
       model: "gpt-4.1-mini",
-      context: 1_000_000
+      context: 1_000_000,
+      reasoning: :none
     }
   end
 
@@ -37,7 +42,8 @@ defmodule AI.Model do
   def fast() do
     %AI.Model{
       model: "gpt-4.1-nano",
-      context: 1_000_000
+      context: 1_000_000,
+      reasoning: :none
     }
   end
 end

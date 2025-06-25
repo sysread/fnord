@@ -30,6 +30,14 @@ defmodule AI.ChatCompletion do
           tools -> %{tools: tools}
         end
       )
+      |> Map.merge(
+        case model.reasoning do
+          :low -> %{reasoning_effort: "low"}
+          :medium -> %{reasoning_effort: "medium"}
+          :high -> %{reasoning_effort: "high"}
+          _ -> %{}
+        end
+      )
 
     Http.post_json(@endpoint, headers, payload)
     |> case do
@@ -37,6 +45,7 @@ defmodule AI.ChatCompletion do
         get_error(error)
 
       {:http_error, error} ->
+        IO.inspect(payload.messages |> Enum.slice(-1, 1), label: "Last message sent")
         get_error(error)
 
       {:ok, response} ->
