@@ -1,6 +1,4 @@
 defmodule AI.Tools.File.Transform do
-  # TODO some way to bypass UI.confirm in unit tests
-
   @behaviour AI.Tools
 
   @impl AI.Tools
