@@ -143,8 +143,15 @@ defmodule Store.Project do
       end
     end)
     |> case do
-      {:ok, path} -> {:ok, path}
-      _ -> {:error, :enoent}
+      {:ok, path} ->
+        if target_within_project?(project, path) do
+          {:ok, path}
+        else
+          {:error, :enoent}
+        end
+
+      _ ->
+        {:error, :enoent}
     end
   end
 
@@ -376,6 +383,45 @@ defmodule Store.Project do
     |> case do
       nil -> {:error, :enoent}
       entry -> {:ok, entry.file}
+    end
+  end
+
+  defp target_within_project?(project, path) do
+    case resolve_symlink(path) do
+      {:ok, resolved_path} ->
+        separator = Path.join("a", "b") |> String.at(1)
+        base = Path.expand(project.source_root) <> separator
+        target = Path.expand(resolved_path)
+
+        String.starts_with?(target, base)
+
+      {:error, _} ->
+        false
+    end
+  end
+
+  defp resolve_symlink(path, seen \\ MapSet.new()) do
+    if MapSet.member?(seen, path) do
+      {:error, :symlink_loop}
+    else
+      case File.lstat(path) do
+        {:ok, %File.Stat{type: :symlink}} ->
+          case File.read_link(path) do
+            {:ok, target} ->
+              # target can be relative to the symlink's dir
+              target_path = Path.expand(target, Path.dirname(path))
+              resolve_symlink(target_path, MapSet.put(seen, path))
+
+            error ->
+              error
+          end
+
+        {:ok, _} ->
+          {:ok, path}
+
+        error ->
+          error
+      end
     end
   end
 end

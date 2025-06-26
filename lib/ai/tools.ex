@@ -180,10 +180,16 @@ defmodule AI.Tools do
     "notes" => AI.Tools.Default.Notes
   }
 
+  # Tools that can mutate state (editing files, making commits, etc.)
+  @rw_tools %{
+    "file_transform_tool" => AI.Tools.File.Transform
+  }
+
   @tools %{}
          |> Map.merge(@general_tools)
          |> Map.merge(@git_tools)
          |> Map.merge(@default_tools)
+         |> Map.merge(@rw_tools)
 
   # ----------------------------------------------------------------------------
   # API Functions
