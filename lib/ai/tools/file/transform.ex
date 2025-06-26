@@ -18,11 +18,9 @@ defmodule AI.Tools.File.Transform do
         Apply one or more line-oriented regex replacements to a file.
         If dry_run=true, no files are changed: a diff is returned instead.
         """,
-        strict: true,
         parameters: %{
           type: "object",
           required: ["file", "edits"],
-          additionalProperties: false,
           properties: %{
             dry_run: %{
               type: "boolean",
@@ -39,7 +37,6 @@ defmodule AI.Tools.File.Transform do
               items: %{
                 type: "object",
                 required: ["pattern", "replacement"],
-                additionalProperties: false,
                 properties: %{
                   pattern: %{
                     type: "string",
