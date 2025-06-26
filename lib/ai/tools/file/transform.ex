@@ -106,23 +106,40 @@ defmodule AI.Tools.File.Transform do
     end
   end
 
+  @confirm_changes_override :confirm_changes_override
+  def override_confirm_changes(value) do
+    Process.put(@confirm_changes_override, value)
+  end
+
   @spec apply_changes(binary, binary, boolean, binary) :: :ok | {:error, binary}
+  defp apply_changes(path, temp, dry_run?, diff)
   defp apply_changes(_path, _temp, true, _diff), do: :ok
 
   defp apply_changes(path, temp, false, diff) do
+    confirmed? =
+      if Process.get(@confirm_changes_override, false) do
+        true
+      else
+        confirm_changes?(path, diff)
+      end
+
+    if confirmed? do
+      File.cp(temp, path)
+    else
+      {:error, "User rejected patch"}
+    end
+  end
+
+  defp confirm_changes?(file, diff) do
     IO.puts(:stderr, """
-    Fnord would like to make the following changes to #{path}:
+    Fnord would like to make the following changes to #{file}:
 
     ```diff
     #{diff}
     ```
     """)
 
-    if UI.confirm("Apply these changes?") do
-      File.cp(temp, path)
-    else
-      {:error, "User rejected patch"}
-    end
+    UI.confirm("Apply these changes?")
   end
 
   @spec get_diff(binary, binary) :: {:ok, binary} | {:error, binary}

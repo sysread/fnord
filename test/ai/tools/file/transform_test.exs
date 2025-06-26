@@ -4,6 +4,11 @@ defmodule AI.Tools.File.TransformTest do
   setup do: set_config(workers: 1, quiet: true)
   setup do: {:ok, project: mock_project("blarg")}
 
+  setup do
+    AI.Tools.File.Transform.override_confirm_changes(true)
+    :ok
+  end
+
   test "basics", %{project: project} do
     _file =
       mock_source_file(project, "bar.txt", """

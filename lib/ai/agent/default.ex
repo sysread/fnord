@@ -172,6 +172,7 @@ defmodule AI.Agent.Default do
       [
         AI.Tools.Default.Prompt.spec(),
         AI.Tools.Default.Notes.spec()
+        # AI.Tools.File.Transform.spec()
       ]
   end
 end
