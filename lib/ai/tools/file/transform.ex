@@ -156,7 +156,7 @@ defmodule AI.Tools.File.Transform do
   defp perform_edits(path, edits) do
     edits
     |> Enum.reduce_while(:ok, fn edit, acc ->
-      case run_sed(path, edit) do
+      case Sed.run(path, edit) do
         :ok -> {:cont, acc}
         {:error, reason} -> {:halt, {:error, reason}}
       end
@@ -170,28 +170,6 @@ defmodule AI.Tools.File.Transform do
       {:ok, tmp}
     else
       {:error, reason} -> {:error, reason}
-    end
-  end
-
-  @spec run_sed(binary, map) :: :ok | {:error, binary}
-  defp run_sed(file, %{"pattern" => pat, "replacement" => rep} = edit) do
-    ls = Map.get(edit, "line_start", "")
-    le = Map.get(edit, "line_end", "")
-    flags = Map.get(edit, "flags", "")
-
-    range =
-      case {ls, le} do
-        {l, ""} when is_integer(l) -> "#{l},$"
-        {"", l} when is_integer(l) -> "1,#{l}"
-        {l1, l2} when is_integer(l1) and is_integer(l2) -> "#{l1},#{l2}"
-        _ -> ""
-      end
-
-    args = ["-E", "-i", "", "#{range}s/#{pat}/#{rep}/#{flags}", file]
-
-    case System.cmd("sed", args, stderr_to_stdout: true) do
-      {_, 0} -> :ok
-      {err, _} -> {:error, "sed failed: #{err}"}
     end
   end
 
