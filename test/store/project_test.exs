@@ -49,6 +49,61 @@ defmodule ProjectTest do
       ghost = Path.join(project.source_root, "ghost.txt")
       assert {:error, :enoent} = Project.find_file(project, ghost)
     end
+
+    test "resolves symlink inside project", %{project: project} do
+      target = mock_source_file(project, "real.txt", "content")
+      link = Path.join(project.source_root, "link.txt")
+      File.ln_s(target, link)
+
+      assert {:ok, found} = Project.find_file(project, "link.txt")
+      assert found == link
+
+      # Confirm resolved target is inside project root
+      assert String.starts_with?(Path.expand(found), Path.expand(project.source_root))
+    end
+
+    test "rejects symlink pointing outside project", %{project: project} do
+      {:ok, outside_dir} = tmpdir()
+      outside_file = Path.join(outside_dir, "outside.txt")
+      File.write!(outside_file, "secret")
+
+      link = Path.join(project.source_root, "outside_link.txt")
+      File.ln_s(outside_file, link)
+
+      assert {:error, :enoent} = Project.find_file(project, "outside_link.txt")
+    end
+
+    test "rejects symlink loop", %{project: project} do
+      link1 = Path.join(project.source_root, "loop1.txt")
+      link2 = Path.join(project.source_root, "loop2.txt")
+
+      # Create symlink loop
+      File.ln_s(link2, link1)
+      File.ln_s(link1, link2)
+
+      assert {:error, :enoent} = Project.find_file(project, "loop1.txt")
+      assert {:error, :enoent} = Project.find_file(project, "loop2.txt")
+    end
+
+    test "find_file rejects path traversal outside project", %{project: project} do
+      outside_path = Path.expand(Path.join(project.source_root, "../outside.txt"))
+      # Create the outside file
+      File.write!(outside_path, "bad stuff")
+
+      assert {:error, :enoent} = Project.find_file(project, "../outside.txt")
+    end
+
+    test "find_file handles complex nested symlinks inside project", %{project: project} do
+      real_file = mock_source_file(project, "deep_real.txt", "data")
+      link1 = Path.join(project.source_root, "link1.txt")
+      link2 = Path.join(project.source_root, "link2.txt")
+
+      File.ln_s(real_file, link1)
+      File.ln_s(link1, link2)
+
+      assert {:ok, found} = Project.find_file(project, "link2.txt")
+      assert found == link2
+    end
   end
 
   test "create/1 and exists_in_store?/1", %{project: project} do
