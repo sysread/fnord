@@ -1,8 +1,10 @@
 defmodule AI.Tools.File.Transform do
+  # TODO some way to bypass UI.confirm in unit tests
+
   @behaviour AI.Tools
 
   @impl AI.Tools
-  def read_args(args), do: args
+  def read_args(args), do: {:ok, args}
 
   @impl AI.Tools
   def ui_note_on_request(args) do
@@ -94,7 +96,7 @@ defmodule AI.Tools.File.Transform do
          {:ok, workfile} <- make_workfile(abs_path),
          :ok <- perform_edits(workfile, edits),
          {:ok, diff} <- get_diff(abs_path, workfile),
-         :ok <- apply_changes(abs_path, workfile, dry_run) do
+         :ok <- apply_changes(abs_path, workfile, dry_run, diff) do
       {:ok,
        %{
          "file" => rel,
@@ -104,9 +106,24 @@ defmodule AI.Tools.File.Transform do
     end
   end
 
-  @spec apply_changes(binary, binary, boolean) :: :ok | {:error, binary}
-  defp apply_changes(_path, _temp, true), do: :ok
-  defp apply_changes(path, temp, false), do: File.cp(temp, path)
+  @spec apply_changes(binary, binary, boolean, binary) :: :ok | {:error, binary}
+  defp apply_changes(_path, _temp, true, _diff), do: :ok
+
+  defp apply_changes(path, temp, false, diff) do
+    IO.puts(:stderr, """
+    Fnord would like to make the following changes to #{path}:
+
+    ```diff
+    #{diff}
+    ```
+    """)
+
+    if UI.confirm("Apply these changes?") do
+      File.cp(temp, path)
+    else
+      {:error, "User rejected patch"}
+    end
+  end
 
   @spec get_diff(binary, binary) :: {:ok, binary} | {:error, binary}
   defp get_diff(path, tmp) do
