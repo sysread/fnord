@@ -2,11 +2,27 @@ defmodule AI.Tools.File.Transform do
   @behaviour AI.Tools
 
   @impl AI.Tools
-  def ui_note_on_request(%{"file" => file}), do: {"Transforming file", file}
+  def read_args(args), do: args
 
   @impl AI.Tools
-  def ui_note_on_result(%{"file" => file, "dry_run" => true}, _), do: {"Dry run complete", file}
-  def ui_note_on_result(%{"file" => file}, _), do: {"Applied edits to", file}
+  def ui_note_on_request(args) do
+    {"Editing file", summarize_changes(args)}
+  end
+
+  @impl AI.Tools
+  def ui_note_on_result(args, result) do
+    summary = summarize_changes(args)
+
+    with {:ok, data} <- Jason.decode(result),
+         {:ok, diff} <- Map.fetch(data, "diff") do
+      {"File edited",
+       """
+       #{summary}
+       -----
+       #{diff}
+       """}
+    end
+  end
 
   @impl AI.Tools
   def spec() do
@@ -68,23 +84,12 @@ defmodule AI.Tools.File.Transform do
   end
 
   @impl AI.Tools
-  def read_args(args) do
-    # merge default dry_run = false
-    args = Map.put_new(args, "dry_run", false)
-
-    with {:ok, file} <- fetch_arg(args, "file"),
-         {:ok, edits} <- fetch_arg(args, "edits") do
-      {:ok, %{"file" => file, "edits" => edits, "dry_run" => args["dry_run"]}}
-    end
-  end
-
-  @impl AI.Tools
   def call(opts) do
     project = Store.get_project()
+    dry_run = Map.get(opts, "dry_run", false)
 
     with {:ok, rel} <- Map.fetch(opts, "file"),
          {:ok, edits} <- Map.fetch(opts, "edits"),
-         {:ok, dry_run} <- Map.fetch(opts, "dry_run"),
          {:ok, abs_path} <- Store.Project.find_file(project, rel),
          {:ok, workfile} <- make_workfile(abs_path),
          :ok <- perform_edits(workfile, edits),
@@ -96,18 +101,6 @@ defmodule AI.Tools.File.Transform do
          "dry_run" => dry_run,
          "diff" => diff
        }}
-    end
-  end
-
-  @spec fetch_arg(map, binary) ::
-          {:ok, binary}
-          | {:error, :invalid_argument, binary}
-          | {:error, :missing_argument, binary}
-  defp fetch_arg(map, key) do
-    case Map.fetch(map, key) do
-      {:ok, ""} -> {:error, :invalid_argument, key}
-      :error -> {:error, :missing_argument, key}
-      {:ok, val} -> {:ok, val}
     end
   end
 
@@ -166,5 +159,39 @@ defmodule AI.Tools.File.Transform do
       {_, 0} -> :ok
       {err, _} -> {:error, "sed failed: #{err}"}
     end
+  end
+
+  defp summarize_changes(%{"file" => file, "edits" => edits, "dry_run" => dry_run?}) do
+    edit_summary =
+      edits
+      |> Enum.map(fn %{"pattern" => p, "replacement" => r} = edit ->
+        start_line = Map.get(edit, "line_start", "")
+        end_line = Map.get(edit, "line_end", "")
+
+        start_line =
+          if start_line == "" && end_line != "" do
+            "1"
+          else
+            start_line
+          end
+
+        """
+        Pattern: #{p}
+        Replacement: #{r}
+        Line range: #{if start_line != "" do
+          "#{start_line}#{if end_line != "", do: "-#{end_line}", else: ""}"
+        else
+          "all lines"
+        end}
+        """
+      end)
+      |> Enum.join("\n-----\n")
+
+    """
+    File: #{file}
+    Dry run? #{inspect(dry_run?)}
+    Changes:
+    #{edit_summary}
+    """
   end
 end
