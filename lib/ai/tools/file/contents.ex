@@ -2,7 +2,13 @@ defmodule AI.Tools.File.Contents do
   @behaviour AI.Tools
 
   @impl AI.Tools
-  def ui_note_on_request(args), do: {"Retrieving file", args["file"]}
+  def ui_note_on_request(%{"file" => file, "line_numbers" => true}) do
+    {"Retrieving file w/ line numbers", file}
+  end
+
+  def ui_note_on_request(%{"file" => file}) do
+    {"Retrieving file w/o line numbers", file}
+  end
 
   @impl AI.Tools
   def ui_note_on_result(args, _result), do: {"Retrieved file", args["file"]}
@@ -26,6 +32,9 @@ defmodule AI.Tools.File.Contents do
         responses. If you only need to learn specific facts or extract a
         section of code, use the file_info_tool to preserve your context
         window.
+
+        You may set `line_numbers=true` to prefix each line with its 1-based
+        number, which helps the LLM reason with line offsets.
         """,
         parameters: %{
           type: "object",
@@ -37,6 +46,11 @@ defmodule AI.Tools.File.Contents do
               The file whose contents you wish to review. It must be the
               complete path provided by the file_search_tool or file_list_tool.
               """
+            },
+            line_numbers: %{
+              type: "boolean",
+              description: "If true, prefix each line with its 1-based line number.",
+              default: false
             }
           }
         }
@@ -46,16 +60,16 @@ defmodule AI.Tools.File.Contents do
 
   # TODO truncate file contents if above some threshold
   @impl AI.Tools
-  def call(args) do
-    with {:ok, file} <- Map.fetch(args, "file"),
-         {:ok, content} <- AI.Tools.get_file_contents(file) do
-      {:ok,
-       """
-       [file_contents_tool] Contents of #{file}:
-       ```
-       #{content}
-       ```
-       """}
+  def call(%{"file" => file} = args) do
+    line_numbers = Map.get(args, "line_numbers", false)
+
+    with {:ok, content} <- AI.Tools.get_file_contents(file) do
+      output =
+        content
+        |> maybe_number_lines(line_numbers)
+        |> wrap_content(file)
+
+      {:ok, output}
     else
       {:error, :enoent} ->
         {:error,
@@ -68,9 +82,26 @@ defmodule AI.Tools.File.Contents do
 
       {:error, reason} ->
         {:error, reason}
-
-      error ->
-        error
     end
   end
+
+  defp wrap_content(text, file) do
+    """
+    [file_contents_tool] Contents of #{file}:
+    ```
+    #{text}
+    ```
+    """
+  end
+
+  # prepend "linenumber<TAB>line"
+  defp maybe_number_lines(text, true) do
+    text
+    |> String.split("\n", trim: false)
+    |> Enum.with_index(1)
+    |> Enum.map(fn {line, idx} -> "#{idx}\t#{line}" end)
+    |> Enum.join("\n")
+  end
+
+  defp maybe_number_lines(text, _), do: text
 end
