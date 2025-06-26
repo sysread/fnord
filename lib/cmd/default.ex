@@ -39,6 +39,7 @@ defmodule Cmd.Default do
          {:ok, result} <- AI.Agent.Default.get_response(%{prompt: prompt}) do
       IO.puts(result.response)
       IO.puts("")
+      UI.flush()
       maybe_rollup(result.usage, result.num_msgs)
     else
       {:ok, nil} -> IO.puts("Error: The prompt cannot be empty")
@@ -56,7 +57,7 @@ defmodule Cmd.Default do
   for reference. The AI will continue to have access to those summaries.
   """
 
-  @rollup_context_threshold 0.1
+  @rollup_context_threshold 0.5
 
   defp maybe_rollup(usage, num_msgs) do
     UI.log_usage(AI.Agent.Default.model(), usage)
