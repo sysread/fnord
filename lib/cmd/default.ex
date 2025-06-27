@@ -9,6 +9,9 @@ defmodule Cmd.Default do
   @behaviour Cmd
 
   @impl Cmd
+  def requires_project?, do: false
+
+  @impl Cmd
   def spec() do
     [
       default: [
@@ -16,34 +19,28 @@ defmodule Cmd.Default do
         about: """
         Converse with the default AI agent. This feature is *alpha* and not
         fully functional yet. It uses the current directory to determine
-        whether it is within a project context. If it's within a project, it
-        can use the research tools, but it cannot yet access the project's
-        notes or past research. Please open an issue if you notice any bugs.
-        """,
-        options: [
-          prompt: [
-            value_name: "PROMPT",
-            long: "--prompt",
-            short: "-p",
-            help: "The prompt to ask the AI",
-            required: true
-          ]
-        ]
+        whether it is within a project context. If called from within a
+        previously indexed project's directory, it can use the research tools,
+        but it cannot yet access the project's notes or past research. Please
+        open an issue if you notice any bugs.
+
+        Usage: fnord "<prompt>"
+        """
       ]
     ]
   end
 
   @impl Cmd
-  def run(opts, _subcommands, _unknown) do
-    with {:ok, prompt} when is_binary(prompt) <- Map.fetch(opts, :prompt),
-         {:ok, result} <- AI.Agent.Default.get_response(%{prompt: prompt}) do
+  def run(_opts, _subcommands, []) do
+    IO.puts(:stderr, "Error: Missing required positional argument 'prompt'.")
+  end
+
+  def run(_opts, _subcommands, [prompt]) do
+    with {:ok, result} <- AI.Agent.Default.get_response(%{prompt: prompt}) do
       IO.puts(result.response)
       IO.puts("")
       UI.flush()
       maybe_rollup(result.usage, result.num_msgs)
-    else
-      {:ok, nil} -> IO.puts("Error: The prompt cannot be empty")
-      :error -> IO.puts("Error: Missing required option --prompt")
     end
   end
 

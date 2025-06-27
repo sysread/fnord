@@ -2,6 +2,9 @@ defmodule AI.Tools.Git.DiffBranch do
   @behaviour AI.Tools
 
   @impl AI.Tools
+  def is_available?, do: Git.is_available?()
+
+  @impl AI.Tools
   def ui_note_on_request(%{"topic" => topic} = args) do
     base = Map.get(args, "base", "origin/main")
     {"Diffing branches", "Diffing branches #{base}..#{topic}"}

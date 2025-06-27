@@ -34,8 +34,7 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp consider(state) do
-    state.project
-    |> Frobs.module_map()
+    Frobs.module_map()
     |> Enum.map(fn {name, module} -> "#{name} <#{module}>" end)
     |> Enum.join(" | ")
     |> then(&UI.info("Available frobs: #{&1}"))
@@ -169,7 +168,11 @@ defmodule AI.Agent.Coordinator do
 
   defp get_completion(%{msgs: msgs} = state) do
     current_step = state.current_step + 1
-    tools = AI.Tools.all_tool_specs_for_project(state.project)
+
+    tools =
+      AI.Tools.all_tools()
+      |> Map.values()
+      |> Enum.map(& &1.spec())
 
     AI.Completion.get(
       log_msgs: true,
@@ -517,7 +520,10 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp get_test_response(%{project: project} = state) do
-    tools = AI.Tools.all_tool_specs_for_project(project)
+    tools =
+      AI.Tools.all_tools()
+      |> Map.values()
+      |> Enum.map(& &1.spec())
 
     AI.Completion.get(
       log_msgs: true,

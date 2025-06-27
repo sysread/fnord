@@ -26,8 +26,8 @@ defmodule AI.Agent.Default.NotesSearch do
           #{notes}
           ```
 
-          # Search
-          Please search for notes related to the "#{needle}".
+          # Search Term
+          #{needle}
           """)
         ]
       )

@@ -12,7 +12,7 @@ defmodule Settings do
   @doc """
   Get the path to the store root directory.
   """
-  @spec home() :: String.t()
+  @spec home() :: binary
   def home() do
     path = "#{System.get_env("HOME")}/.fnord"
     File.mkdir_p!(path)
@@ -23,7 +23,7 @@ defmodule Settings do
   Get the path to the settings file. If the file does not exist, it will be
   created.
   """
-  @spec settings_file() :: String.t()
+  @spec settings_file() :: binary
   def settings_file() do
     path = "#{home()}/settings.json"
 
@@ -37,7 +37,7 @@ defmodule Settings do
   @doc """
   Get a value from the settings store.
   """
-  @spec get(t(), String.t(), any()) :: any()
+  @spec get(t, binary, any()) :: any()
   def get(settings, key, default \\ nil) do
     key = make_key(key)
     Map.get(settings.data, key, default)
@@ -46,7 +46,7 @@ defmodule Settings do
   @doc """
   Set a value in the settings store.
   """
-  @spec set(t(), String.t(), any()) :: t()
+  @spec set(t, binary, any()) :: t()
   def set(settings, key, value) do
     key = make_key(key)
 
@@ -57,7 +57,7 @@ defmodule Settings do
   @doc """
   Delete a value from the settings store.
   """
-  @spec delete(t(), String.t()) :: t()
+  @spec delete(t, binary) :: t()
   def delete(settings, key) do
     key = make_key(key)
 
@@ -74,42 +74,45 @@ defmodule Settings do
 
   @doc """
   Get the project specified with --project. If the project name is not set, an
-  error will be raised.
+  error tuple is returned.
   """
-  @spec get_selected_project!() :: String.t()
-  def get_selected_project!() do
+  @spec get_selected_project() :: {:ok, binary} | {:error, :project_not_set}
+  def get_selected_project() do
     Application.get_env(:fnord, :project)
     |> case do
-      nil -> raise "--project not set"
-      project -> project
+      nil -> {:error, :project_not_set}
+      project -> {:ok, project}
     end
   end
 
-  @spec get_project(t()) :: {:ok, map()} | {:error, :not_found}
+  @spec get_project(t) :: {:ok, map()} | {:error, :project_not_found}
   def get_project(settings) do
-    project = get_selected_project!()
-
-    case get(settings, project, nil) do
-      nil -> {:error, :not_found}
-      data -> {:ok, data}
+    with {:ok, project} <- get_selected_project() do
+      case get(settings, project, nil) do
+        nil -> {:error, :project_not_found}
+        data -> {:ok, data}
+      end
     end
   end
 
-  @spec set_project(t(), map()) :: map()
+  @spec set_project(t, map()) :: map()
   def set_project(settings, data) do
-    project = get_selected_project!()
-    set(settings, project, data)
-    data
+    with {:ok, project} <- get_selected_project() do
+      set(settings, project, data)
+      data
+    else
+      {:error, :project_not_set} -> raise "Project not set. Use --project to specify a project."
+    end
   end
 
-  @spec list_projects(t()) :: [String.t()]
+  @spec list_projects(t) :: [binary]
   def list_projects(settings) do
     settings.data
     |> Map.keys()
     |> Enum.sort()
   end
 
-  @spec get_root(t()) :: {:ok, String.t()} | {:error, :not_found}
+  @spec get_root(t) :: {:ok, binary} | {:error, :not_found}
   def get_root(settings) do
     settings
     |> get_project()

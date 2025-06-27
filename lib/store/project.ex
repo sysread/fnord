@@ -5,14 +5,12 @@ defmodule Store.Project do
     :source_root,
     :exclude,
     :conversation_dir,
-    :notes_dir,
     :exclude_cache
   ]
 
   @type t :: %__MODULE__{}
 
   @conversation_dir "conversations"
-  @notes_dir "notes"
 
   @spec new(String.t(), String.t()) :: t
   def new(project_name, store_path) do
@@ -25,8 +23,7 @@ defmodule Store.Project do
       store_path: store_path,
       source_root: root,
       exclude: exclude,
-      conversation_dir: Path.join(store_path, @conversation_dir),
-      notes_dir: Path.join(store_path, @notes_dir)
+      conversation_dir: Path.join(store_path, @conversation_dir)
     }
   end
 

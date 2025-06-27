@@ -2,6 +2,9 @@ defmodule AI.Tools.File.List do
   @behaviour AI.Tools
 
   @impl AI.Tools
+  def is_available?, do: AI.Tools.has_indexed_project()
+
+  @impl AI.Tools
   def ui_note_on_request(_args), do: "Listing files in project"
 
   @impl AI.Tools
@@ -37,7 +40,7 @@ defmodule AI.Tools.File.List do
 
   @impl AI.Tools
   def call(_args) do
-    with project <- Store.get_project(),
+    with {:ok, project} <- Store.get_project(),
          {_project, file_stream} <- Store.Project.source_files(project) do
       file_stream
       |> Stream.map(& &1.rel_path)

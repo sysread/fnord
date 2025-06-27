@@ -13,6 +13,13 @@ defmodule Git do
     ]
   ]
 
+  def is_available? do
+    case System.find_executable("git") do
+      nil -> false
+      _ -> true
+    end
+  end
+
   def git_root() do
     Settings.new()
     |> Settings.get_root()

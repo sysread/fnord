@@ -2,6 +2,9 @@ defmodule Cmd.Tool do
   @behaviour Cmd
 
   @impl Cmd
+  def requires_project?(), do: true
+
+  @impl Cmd
   def spec() do
     [
       tool: [
@@ -10,12 +13,7 @@ defmodule Cmd.Tool do
         allow_unknown_args: true,
         subcommands: get_subcommands(),
         options: [
-          project: [
-            value_name: "PROJECT",
-            long: "--project",
-            short: "-p",
-            help: "Project name"
-          ],
+          project: Cmd.project_arg(),
           workers: [
             value_name: "WORKERS",
             long: "--workers",
@@ -39,8 +37,7 @@ defmodule Cmd.Tool do
   @impl Cmd
   def run(opts, _subcommands, unknown) do
     with {:ok, tool} <- Map.fetch(opts, :tool),
-         {:ok, tool_args} <- parse_tool_args(tool, unknown),
-         _ <- Store.get_project() do
+         {:ok, tool_args} <- parse_tool_args(tool, unknown) do
       AI.Tools.perform_tool_call(tool, tool_args, AI.Tools.all_tools())
       |> case do
         {:ok, response} -> IO.puts(response)

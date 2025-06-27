@@ -24,7 +24,9 @@ defmodule Cmd.IndexTest do
       |> Settings.list_projects()
       |> then(&assert(&1 == ["test_project"]))
 
-      Store.get_project("test_project")
+      {:ok, project} = Store.get_project("test_project")
+
+      project
       |> Store.Project.stored_files()
       |> Enum.map(& &1.file)
       |> then(&assert(&1 == [file]))
@@ -32,16 +34,8 @@ defmodule Cmd.IndexTest do
   end
 
   describe "new" do
-    test "raises an exception when source :directory is not passed or present in settings" do
-      raises_error =
-        try do
-          Cmd.Index.new(%{project: "test_project"})
-          false
-        rescue
-          _ -> true
-        end
-
-      assert raises_error
+    test "returns error when source :directory is not passed or present in settings" do
+      assert {:error, :project_not_set} = Cmd.Index.new(%{project: "test_project"})
     end
 
     test "succeeds when source :directory is passed" do

@@ -1,5 +1,5 @@
 defmodule AI.Agent.Researcher do
-  @model AI.Model.fast()
+  @model AI.Model.balanced()
 
   @prompt """
   You are an AI agent who performs research on behalf of the Coordinating Agent.
@@ -17,10 +17,11 @@ defmodule AI.Agent.Researcher do
 
   @impl AI.Agent
   def get_response(opts) do
-    with %{name: project} <- Store.get_project(),
-         {:ok, prompt} <- Map.fetch(opts, :prompt) do
+    with {:ok, prompt} <- Map.fetch(opts, :prompt) do
       tools =
-        AI.Tools.all_tool_specs_for_project(project)
+        AI.Tools.all_tools()
+        |> Map.values()
+        |> Enum.map(& &1.spec())
         |> Enum.filter(fn tool -> tool.function.name != "research_tool" end)
 
       AI.Completion.get(

@@ -1,12 +1,10 @@
 defmodule AI.Tools.Ripgrep do
-  @doc """
-  This tool requires that ripgrep (rg) is installed and available in the PATH.
-  """
+  @behaviour AI.Tools
+
+  @impl AI.Tools
   def is_available?() do
     System.find_executable("rg") |> is_nil() |> Kernel.not()
   end
-
-  @behaviour AI.Tools
 
   @impl AI.Tools
   def ui_note_on_request(args) do
@@ -83,32 +81,41 @@ defmodule AI.Tools.Ripgrep do
 
   @impl AI.Tools
   def call(args) do
-    root = Store.get_project() |> Map.get(:source_root)
-    args = atomize_keys(args)
-    cmd = build_ripgrep_cmd(args)
+    with {:ok, root} <- get_root() do
+      args = atomize_keys(args)
+      cmd = build_ripgrep_cmd(args)
 
-    try do
-      System.cmd("rg", cmd ++ [root], stderr_to_stdout: true)
-      |> case do
-        {output, 0} -> {:ok, output}
-        {_output, 1} -> {:ok, "No files were matched"}
-        {output, code} -> {:error, "ripgrep failed with exit code #{code}:\n#{output}"}
-      end
-    rescue
-      e in ErlangError ->
-        case e.original do
-          :enoent ->
-            {
-              :error,
-              """
-              `rg` (ripgrep) is not installed or not in PATH.
-              In your final response, instruct the user to install it to enhance your search capabilities.
-              """
-            }
-
-          other ->
-            {:error, "ripgrep execution error: #{inspect(other)}"}
+      try do
+        System.cmd("rg", cmd ++ [root], stderr_to_stdout: true)
+        |> case do
+          {output, 0} -> {:ok, output}
+          {_output, 1} -> {:ok, "No files were matched"}
+          {output, code} -> {:error, "ripgrep failed with exit code #{code}:\n#{output}"}
         end
+      rescue
+        e in ErlangError ->
+          case e.original do
+            :enoent ->
+              {
+                :error,
+                """
+                `rg` (ripgrep) is not installed or not in PATH.
+                In your final response, instruct the user to install it to enhance your search capabilities.
+                """
+              }
+
+            other ->
+              {:error, "ripgrep execution error: #{inspect(other)}"}
+          end
+      end
+    end
+  end
+
+  defp get_root do
+    Store.get_project()
+    |> case do
+      {:ok, project} -> {:ok, project.source_root}
+      _ -> File.cwd()
     end
   end
 

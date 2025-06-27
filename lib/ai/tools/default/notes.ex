@@ -2,6 +2,9 @@ defmodule AI.Tools.Default.Notes do
   @behaviour AI.Tools
 
   @impl AI.Tools
+  def is_available?, do: true
+
+  @impl AI.Tools
   def ui_note_on_request(%{"op" => "create", "text" => text}) do
     {"Creating note", String.slice(text, 0, 50) <> "..."}
   end

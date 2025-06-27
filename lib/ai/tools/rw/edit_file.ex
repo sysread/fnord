@@ -1,5 +1,8 @@
-defmodule AI.Tools.File.Edit do
+defmodule AI.Tools.RW.EditFile do
   @behaviour AI.Tools
+
+  @impl AI.Tools
+  def is_available?, do: true
 
   @impl AI.Tools
   def read_args(args), do: {:ok, args}
@@ -29,7 +32,7 @@ defmodule AI.Tools.File.Edit do
     %{
       type: "function",
       function: %{
-        name: "file_edit_tool",
+        name: "edit_file",
         description: """
         Apply one or more line-oriented regex replacements to a file.
         If dry_run=true, no files are changed: a diff is returned instead.
@@ -111,11 +114,10 @@ defmodule AI.Tools.File.Edit do
 
   @spec get_root() :: {:ok, binary} | {:error, File.posix()}
   defp get_root do
-    if Settings.project_is_set?() do
-      project = Store.get_project()
+    with {:ok, project} <- Store.get_project() do
       {:ok, project.source_root}
     else
-      File.cwd()
+      _ -> File.cwd()
     end
   end
 

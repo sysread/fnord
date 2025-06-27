@@ -213,7 +213,7 @@ defmodule AI.Completion do
         oopsie(state, func, args_json, "Missing required argument #{key}")
 
         spec =
-          with {:ok, spec} <- AI.Tools.tool_spec(func, AI.Tools.all_tools()),
+          with {:ok, spec} <- AI.Tools.tool_spec(func),
                {:ok, json} <- Jason.encode(spec) do
             json
           else
@@ -234,7 +234,7 @@ defmodule AI.Completion do
         oopsie(state, func, args_json, "Invalid argument #{key}")
 
         spec =
-          with {:ok, spec} <- AI.Tools.tool_spec(func, AI.Tools.all_tools()),
+          with {:ok, spec} <- AI.Tools.tool_spec(func),
                {:ok, json} <- Jason.encode(spec) do
             json
           else
@@ -265,7 +265,7 @@ defmodule AI.Completion do
     end
   end
 
-  @spec perform_tool_call(t, String.t(), String.t()) :: AI.Tools.tool_result()
+  @spec perform_tool_call(t, binary, binary) :: AI.Tools.tool_result()
   defp perform_tool_call(state, func, args_json) when is_binary(args_json) do
     with {:ok, args} <- Jason.decode(args_json) do
       AI.Tools.with_args(
@@ -273,11 +273,10 @@ defmodule AI.Completion do
         args,
         fn args ->
           AI.Completion.Output.on_event(state, :tool_call, {func, args})
-          result = AI.Tools.perform_tool_call(func, args, AI.Tools.all_tools())
+          result = AI.Tools.perform_tool_call(func, args)
           AI.Completion.Output.on_event(state, :tool_call_result, {func, args, result})
           result
-        end,
-        AI.Tools.all_tools()
+        end
       )
     end
   end

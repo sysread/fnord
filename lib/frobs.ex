@@ -188,25 +188,37 @@ defmodule Frobs do
           acc
       end
     end)
+    |> Enum.filter(&is_available?/1)
     |> Enum.sort(fn a, b ->
       String.downcase(a.name) <= String.downcase(b.name)
     end)
   end
 
-  @spec list(String.t() | nil) :: [t]
-  def list(nil), do: list()
+  def is_available?(%__MODULE__{registry: %{"global" => true}}), do: true
 
-  def list(project) do
-    list()
-    |> Enum.filter(fn frob ->
-      frob.registry["global"] || Enum.member?(frob.registry["projects"], project)
-    end)
+  def is_available?(%__MODULE__{registry: registry}) do
+    with {:ok, project} <- Store.get_project() do
+      Enum.member?(registry["projects"], project)
+    else
+      _ -> false
+    end
   end
 
-  @spec module_map(String.t() | nil) :: %{String.t() => module()}
-  def module_map(project \\ nil) do
-    project
-    |> list()
+  def is_available?(frob) when is_binary(frob) do
+    with {:ok, home} <- validate_frob(frob),
+         {:ok, registry} <- read_registry(home) do
+      registry["global"] ||
+        with {:ok, project} <- Store.get_project() do
+          Enum.member?(registry["projects"], project)
+        else
+          _ -> false
+        end
+    end
+  end
+
+  @spec module_map() :: %{binary => module()}
+  def module_map() do
+    list()
     |> Enum.map(fn %{name: name, module: module} -> {name, module} end)
     |> Map.new()
   end
@@ -220,6 +232,7 @@ defmodule Frobs do
   def create_tool_module(name, spec) do
     tool_name = sanitize_module_name(name)
     mod_name = Module.concat([AI.Tools.Frob.Dynamic, tool_name])
+    is_available? = is_available?(name)
 
     unless Code.ensure_loaded?(mod_name) do
       quoted =
@@ -227,6 +240,10 @@ defmodule Frobs do
           @behaviour AI.Tools
           @tool_name unquote(Macro.escape(name))
           @tool_spec unquote(Macro.escape(spec))
+          @is_available? unquote(is_available?)
+
+          @impl AI.Tools
+          def is_available?, do: @is_available?
 
           @impl AI.Tools
           def spec, do: %{type: "function", function: @tool_spec}
@@ -440,20 +457,21 @@ defmodule Frobs do
   end
 
   defp execute_main(frob, args_json) do
-    project = Settings.get_selected_project!()
-    settings_json = Settings.new() |> Settings.get(project, %{}) |> Jason.encode!()
+    with {:ok, project_name} <- Settings.get_selected_project(),
+         {:ok, settings} <- Settings.get_project(Settings.new()),
+         {:ok, settings_json} <- Jason.encode(settings) do
+      env = [
+        {"FNORD_PROJECT", project_name},
+        {"FNORD_CONFIG", settings_json},
+        {"FNORD_ARGS_JSON", args_json}
+      ]
 
-    env = [
-      {"FNORD_PROJECT", project},
-      {"FNORD_CONFIG", settings_json},
-      {"FNORD_ARGS_JSON", args_json}
-    ]
-
-    frob.main
-    |> System.cmd([], env: env, stderr_to_stdout: true)
-    |> case do
-      {output, 0} -> {:ok, output}
-      {output, exit_code} -> {:error, exit_code, output}
+      frob.main
+      |> System.cmd([], env: env, stderr_to_stdout: true)
+      |> case do
+        {output, 0} -> {:ok, output}
+        {output, exit_code} -> {:error, exit_code, output}
+      end
     end
   end
 end

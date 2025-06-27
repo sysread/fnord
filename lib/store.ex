@@ -16,27 +16,38 @@ defmodule Store do
   # -----------------------------------------------------------------------------
   # Projects
   # -----------------------------------------------------------------------------
-  @spec get_project(nil | binary) :: Store.Project.t()
+  @doc """
+  Returns an ok tuple with a `Store.Project.t`, identified either by name or by
+  simply passing through a `Store.Project.t` instance. If passed nil, it
+  attempts to use the currently selected project (specified with `--project` or
+  via cwd).
+  """
+  @spec get_project(nil | binary | Store.Project.t()) ::
+          {:ok, Store.Project.t()}
+          | {:error, :project_not_found}
+          | {:error, :project_not_set}
   def get_project(nil), do: get_project()
+  def get_project(%Store.Project{} = project), do: {:ok, project}
 
   def get_project(project) when is_binary(project) do
     home = store_home()
     store_path = Path.join([home, @projects_dir, project])
-    Store.Project.new(project, store_path)
+    {:ok, Store.Project.new(project, store_path)}
   end
 
-  def get_project(%Store.Project{} = project) do
-    project
-  end
-
-  @spec get_project() :: Store.Project.t()
+  @doc """
+  Retrieves the currently selected project (specified with `--project` or via
+  cwd) as a `Store.Project.t`. If unset, returns `{:error, :project_not_set}`.
+  """
+  @spec get_project() ::
+          {:ok, Store.Project.t()}
+          | {:error, :project_not_found}
+          | {:error, :project_not_set}
   def get_project() do
-    project = Settings.get_selected_project!()
-    get_project(project)
+    with {:ok, name} <- Settings.get_selected_project() do
+      get_project(name)
+    end
   end
-
-  def get_project_home(%{store_path: store_path}), do: store_path
-  def get_project_home(name), do: Store.get_project(name).store_path
 
   # -----------------------------------------------------------------------------
   # Clean ups for legacy data

@@ -17,14 +17,14 @@ defmodule Store.Project.NotesTest do
       File.write!(path, "new notes content")
       assert File.exists?(path)
 
-      :ok = Notes.reset(project)
+      :ok = Notes.reset()
       refute File.exists?(path)
     end
 
-    test "ok when files do not exist", %{project: project} do
-      :ok = Notes.reset(project)
-      refute File.exists?(Path.join(project.store_path, "notes.md"))
-      refute File.exists?(project.notes_dir)
+    test "ok when files do not exist" do
+      {:ok, notes_file} = Notes.file_path()
+      :ok = Notes.reset()
+      refute File.exists?(notes_file)
     end
   end
 
@@ -37,7 +37,7 @@ defmodule Store.Project.NotesTest do
 
     test "writes content to notes.md", %{project: project} do
       content = "hello, this is some notes"
-      :ok = Notes.write(project, content)
+      :ok = Notes.write(content)
 
       path = Path.join(project.store_path, "notes.md")
       assert File.read!(path) == content
@@ -46,7 +46,7 @@ defmodule Store.Project.NotesTest do
     test "returns error tuple when File.write fails", %{project: project} do
       # make the store_path unwritable
       File.chmod!(project.store_path, 0o500)
-      assert {:error, _reason} = Notes.write(project, "will fail")
+      assert {:error, _reason} = Notes.write("will fail")
       # restore permissions so cleanup can proceed
       File.chmod!(project.store_path, 0o700)
     end
@@ -62,11 +62,11 @@ defmodule Store.Project.NotesTest do
     test "reads notes from new notes.md", %{project: project} do
       path = Path.join(project.store_path, "notes.md")
       File.write!(path, "new notes content")
-      assert {:ok, "new notes content"} = Notes.read(project)
+      assert {:ok, "new notes content"} = Notes.read()
     end
 
-    test "returns error if no notes found", %{project: project} do
-      assert {:error, :no_notes} = Notes.read(project)
+    test "returns error if no notes found" do
+      assert {:error, :no_notes} = Notes.read()
     end
   end
 end

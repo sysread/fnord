@@ -4,27 +4,16 @@ defmodule Cmd.Ask do
   @behaviour Cmd
 
   @impl Cmd
+  def requires_project?(), do: true
+
+  @impl Cmd
   def spec() do
     [
       ask: [
         name: "ask",
         about: "Ask the AI a question about the project",
         options: [
-          project: [
-            value_name: "PROJECT",
-            long: "--project",
-            short: "-p",
-            help: "Project name",
-            required: true
-          ],
-          directory: [
-            value_name: "DIRECTORY",
-            long: "--directory",
-            short: "-d",
-            help:
-              "If the project has not yet been created in fnord, the project root directory is required.",
-            required: false
-          ],
+          project: Cmd.project_arg(),
           question: [
             value_name: "QUESTION",
             long: "--question",
@@ -92,14 +81,6 @@ defmodule Cmd.Ask do
       - Conversation saved with ID #{conversation_id}
       """)
     else
-      {:error, :directory_not_found} ->
-        UI.error("""
-        The selected project has not been created in fnord and you did not provide a --directory option.
-        You can either:
-        - Create the project in fnord by running `fnord index --project <project> --directory <directory>`
-        - Provide a valid root --directory for the project.
-        """)
-
       {:error, :invalid_rounds} ->
         UI.error("--rounds expects a positive integer")
 
@@ -115,8 +96,7 @@ defmodule Cmd.Ask do
   end
 
   defp validate(opts) do
-    with {:ok, opts} <- validate_project(opts),
-         :ok <- validate_conversation(opts),
+    with :ok <- validate_conversation(opts),
          :ok <- validate_rounds(opts) do
       {:ok, opts}
     end
@@ -136,40 +116,6 @@ defmodule Cmd.Ask do
   end
 
   defp validate_conversation(_opts), do: :ok
-
-  defp validate_project(opts) do
-    project = Store.get_project(opts[:project])
-    exists? = Store.Project.exists_in_store?(project)
-    indexed? = exists? and Store.Project.has_index?(project)
-    directory = opts[:directory]
-
-    cond do
-      # Selected project is indexed - all good.
-      indexed? ->
-        {:ok, opts}
-
-      # Selected project exists, but is not indexed; we can use the directory
-      # from the project config.
-      exists? ->
-        {:ok, %{opts | directory: project.source_root}}
-
-      # Selected project has not been created, but a directory arg was provided
-      # that does exist. We can use that.
-      !is_nil(directory) and File.exists?(directory) ->
-        opts[:project]
-        |> Store.get_project()
-        |> Store.Project.save_settings(directory)
-        |> Store.Project.create()
-        |> Store.Project.make_default_for_session()
-
-        {:ok, %{opts | directory: directory}}
-
-      # Selected project has not been created, and no directory arg was provided.
-      # We can't do anything.
-      true ->
-        {:error, :directory_not_found}
-    end
-  end
 
   defp get_conversation(%{follow: conversation_id}) when is_binary(conversation_id) do
     Store.Project.Conversation.new(conversation_id)

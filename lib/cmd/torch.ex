@@ -2,19 +2,16 @@ defmodule Cmd.Torch do
   @behaviour Cmd
 
   @impl Cmd
+  def requires_project?(), do: true
+
+  @impl Cmd
   def spec do
     [
       torch: [
         name: "torch",
         about: "Deletes a previously indexed project from the database",
         options: [
-          project: [
-            value_name: "PROJECT",
-            long: "--project",
-            short: "-p",
-            help: "Project name",
-            required: true
-          ]
+          project: Cmd.project_arg()
         ]
       ]
     ]
@@ -25,7 +22,8 @@ defmodule Cmd.Torch do
   Permanently deletes the project from the store.
   """
   def run(_opts, _subcommands, _unknown) do
-    Store.get_project()
-    |> Store.Project.torch()
+    with {:ok, project} <- Store.get_project() do
+      Store.Project.torch(project)
+    end
   end
 end

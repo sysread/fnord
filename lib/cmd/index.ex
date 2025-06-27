@@ -8,12 +8,16 @@ defmodule Cmd.Index do
   ]
 
   @impl Cmd
+  def requires_project?(), do: true
+
+  @impl Cmd
   def spec do
     [
       index: [
         name: "index",
         about: "Index a project",
         options: [
+          project: Cmd.project_arg(),
           directory: [
             value_name: "DIR",
             long: "--dir",
@@ -21,13 +25,6 @@ defmodule Cmd.Index do
             help:
               "Directory to index (required for first index or reindex after moving the project)",
             required: false
-          ],
-          project: [
-            value_name: "PROJECT",
-            long: "--project",
-            short: "-p",
-            help: "Project name",
-            required: true
           ],
           workers: [
             value_name: "WORKERS",
@@ -100,10 +97,12 @@ defmodule Cmd.Index do
     index_project(idx)
   end
 
-  def new(opts) do
-    project_name = Map.get(opts, :project)
+  def perform_task(other) do
+    other
+  end
 
-    with project <- Store.get_project(project_name),
+  def new(opts) do
+    with {:ok, project} <- Store.get_project(),
          {:ok, root} <- confirm_root_changed?(project, opts),
          {:ok, exclude} <- confirm_exclude_changed?(project, opts, root) do
       project =

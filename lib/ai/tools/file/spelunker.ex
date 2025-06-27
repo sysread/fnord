@@ -2,6 +2,9 @@ defmodule AI.Tools.File.Spelunker do
   @behaviour AI.Tools
 
   @impl AI.Tools
+  def is_available?, do: AI.Tools.has_indexed_project()
+
+  @impl AI.Tools
   def ui_note_on_request(_args), do: nil
 
   @impl AI.Tools
@@ -79,8 +82,7 @@ defmodule AI.Tools.File.Spelunker do
 
   @impl AI.Tools
   def call(args) do
-    with true <- Store.get_project() |> Store.Project.has_index?(),
-         {:ok, symbol} <- Map.fetch(args, "symbol"),
+    with {:ok, symbol} <- Map.fetch(args, "symbol"),
          {:ok, start_file} <- Map.fetch(args, "start_file"),
          {:ok, question} <- Map.fetch(args, "question") do
       AI.Agent.Spelunker.get_response(%{
@@ -88,9 +90,6 @@ defmodule AI.Tools.File.Spelunker do
         start_file: start_file,
         question: question
       })
-    else
-      false -> {:error, "Spelunking the code base requires that the project be indexed."}
-      other -> other
     end
   end
 end

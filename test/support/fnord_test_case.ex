@@ -108,10 +108,9 @@ defmodule Fnord.TestCase do
 
     # Create a temp dir to be our source directory for the project
     {:ok, tmp_dir} = tmpdir()
+    {:ok, project} = Store.get_project(name)
 
-    name
-    |> Store.get_project()
-    |> Store.Project.save_settings(tmp_dir, [])
+    Store.Project.save_settings(project, tmp_dir, [])
   end
 
   @doc """

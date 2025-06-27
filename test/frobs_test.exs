@@ -2,8 +2,6 @@ defmodule FrobsTest do
   use Fnord.TestCase
 
   setup do
-    mock_project("blarg")
-
     # ---------------------------------------------------------------------------
     # Override $HOME via the HOME environment variable
     # Fnord uses `System.user_home!/0` which respects HOME
@@ -19,6 +17,9 @@ defmodule FrobsTest do
         System.delete_env("HOME")
       end
     end)
+
+    # Create a mock project
+    mock_project("blarg")
 
     %{temp_home: temp_home}
   end

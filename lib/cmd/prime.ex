@@ -17,19 +17,16 @@ defmodule Cmd.Prime do
   @behaviour Cmd
 
   @impl Cmd
+  def requires_project?(), do: true
+
+  @impl Cmd
   def spec do
     [
       prime: [
         name: "prime",
         about: "Prime fnord's research notes with basic information about the project",
         options: [
-          project: [
-            value_name: "PROJECT",
-            long: "--project",
-            short: "-p",
-            help: "Project name",
-            required: true
-          ]
+          project: Cmd.project_arg()
         ]
       ]
     ]

@@ -2,6 +2,9 @@ defmodule AI.Tools.Git.UnstagedChanges do
   @behaviour AI.Tools
 
   @impl AI.Tools
+  def is_available?, do: Git.is_available?()
+
+  @impl AI.Tools
   def ui_note_on_request(_args), do: {"Unstaged changes", "Reading the diff of unstaged changes"}
 
   @impl AI.Tools

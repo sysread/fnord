@@ -2,6 +2,9 @@ defmodule AI.Tools.File.Contents do
   @behaviour AI.Tools
 
   @impl AI.Tools
+  def is_available?, do: true
+
+  @impl AI.Tools
   def ui_note_on_request(%{"file" => file, "line_numbers" => true}) do
     {"Retrieving file w/ line numbers", file}
   end
@@ -58,7 +61,6 @@ defmodule AI.Tools.File.Contents do
     }
   end
 
-  # TODO truncate file contents if above some threshold
   @impl AI.Tools
   def call(%{"file" => file} = args) do
     line_numbers = Map.get(args, "line_numbers", false)

@@ -2,19 +2,16 @@ defmodule Cmd.Summary do
   @behaviour Cmd
 
   @impl Cmd
+  def requires_project?(), do: true
+
+  @impl Cmd
   def spec do
     [
       summary: [
         name: "summary",
         about: "Retrieve the AI-generated file summary used when indexing the file",
         options: [
-          project: [
-            value_name: "PROJECT",
-            long: "--project",
-            short: "-p",
-            help: "Project name",
-            required: true
-          ],
+          project: Cmd.project_arg(),
           file: [
             value_name: "FILE",
             long: "--file",
@@ -31,9 +28,9 @@ defmodule Cmd.Summary do
   def run(opts, _subcommands, _unknown) do
     # Make sure that the file path is an absolute path
     file_path = Path.absname(opts.file)
-    project = Store.get_project(opts.project)
 
-    with {:ok, entry} <- get_file(project, file_path),
+    with {:ok, project} <- Store.get_project(),
+         {:ok, entry} <- get_file(project, file_path),
          {:ok, summary} <- Store.Project.Entry.read_summary(entry),
          {:ok, outline} <- Store.Project.Entry.read_outline(entry) do
       IO.puts("# File: `#{file_path}`")

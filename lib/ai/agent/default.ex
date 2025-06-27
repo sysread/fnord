@@ -39,10 +39,10 @@ defmodule AI.Agent.Default do
   @impl AI.Agent
   def get_response(opts) do
     with {:ok, prompt} <- Map.fetch(opts, :prompt) do
-      tools =
-        maybe_get_project()
-        |> maybe_set_project()
-        |> get_tools()
+      notes_task =
+        Task.async(fn ->
+          AI.Agent.Default.NotesSearch.get_response(%{needle: "User prompt: #{prompt}"})
+        end)
 
       msgs =
         Store.DefaultProject.Conversation.read_messages()
@@ -51,7 +51,22 @@ defmodule AI.Agent.Default do
       ts = Store.DefaultProject.Conversation.latest_timestamp()
       maybe_add_timestamp(prompt, ts, msgs)
 
-      with {:ok, response, messages, usage} = get_completion(prompt, msgs, tools) do
+      # Wait for the notes search to complete
+      {:ok, notes} = Task.await(notes_task)
+
+      # Add the results to the conversation messages
+      msgs =
+        msgs ++
+          [
+            AI.Util.assistant_msg("""
+            <thinking>
+            I recall from my notes related to the user's newest prompt:
+            #{notes}
+            </thinking>
+            """)
+          ]
+
+      with {:ok, response, messages, usage} = get_completion(prompt, msgs) do
         save_conversation(messages)
         {:ok, %{response: response, usage: usage, num_msgs: length(messages)}}
       end
@@ -60,10 +75,10 @@ defmodule AI.Agent.Default do
 
   def model(), do: @model
 
-  defp get_completion(prompt, messages, tools) do
+  defp get_completion(prompt, messages) do
     AI.Completion.get(
       model: @model,
-      tools: tools,
+      tools: get_tools(),
       messages: build_conversation(prompt, messages),
       log_messages: true,
       log_tool_calls: true,
@@ -134,44 +149,15 @@ defmodule AI.Agent.Default do
     end
   end
 
-  defp maybe_get_project() do
-    # Map project roots to project names.
-    projects =
-      Settings.new()
-      |> Map.get(:data, %{})
-      |> Enum.map(fn {k, %{"root" => root}} -> {root, k} end)
-      |> Map.new()
+  defp get_tools() do
+    tools =
+      AI.Tools.all_tools()
+      |> Map.values()
+      |> Enum.map(& &1.spec())
 
-    with {:ok, cwd} <- File.cwd(),
-         root <- Path.expand(cwd),
-         {:ok, project} <- Map.fetch(projects, root) do
-      {:ok, project}
-    else
-      _ -> {:error, :not_in_project}
-    end
-  end
-
-  defp maybe_set_project({:error, :not_in_project}) do
-    {:error, :not_in_project}
-  end
-
-  defp maybe_set_project({:ok, project}) do
-    Application.put_env(:fnord, :project, project)
-    {:ok, project}
-  end
-
-  defp get_tools({:error, :not_in_project}) do
-    [
-      # AI.Tools.File.Edit.spec(),
-      AI.Tools.Default.Prompt.spec(),
-      AI.Tools.Default.Notes.spec()
-    ]
-  end
-
-  defp get_tools({:ok, project}) do
-    AI.Tools.all_tool_specs_for_project(project) ++
+    tools ++
       [
-        # AI.Tools.File.Edit.spec(),
+        AI.Tools.RW.EditFile.spec(),
         AI.Tools.Default.Prompt.spec(),
         AI.Tools.Default.Notes.spec()
       ]

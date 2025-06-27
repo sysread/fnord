@@ -2,6 +2,9 @@ defmodule Cmd.Frobs do
   @behaviour Cmd
 
   @impl Cmd
+  def requires_project?(), do: false
+
+  @impl Cmd
   def spec do
     [
       frobs: [
@@ -36,16 +39,7 @@ defmodule Cmd.Frobs do
           ],
           list: [
             name: "list",
-            about: "Lists all available frobs",
-            options: [
-              project: [
-                value_name: "PROJECT",
-                long: "--project",
-                short: "-p",
-                help: "Optionally filter by frobs available to a specific project",
-                required: false
-              ]
-            ]
+            about: "Lists all available frobs"
           ]
         ]
       ]
@@ -67,7 +61,7 @@ defmodule Cmd.Frobs do
     case subcommands do
       [:create] -> create(opts)
       [:check] -> check(opts)
-      [:list] -> list(opts)
+      [:list] -> list()
       _ -> {:error, :implement_me}
     end
   end
@@ -107,41 +101,41 @@ defmodule Cmd.Frobs do
     end
   end
 
-  defp list(opts) do
-    project = Map.get(opts, :project, nil)
+  defp list() do
+    with {:ok, project} <- Store.get_project() do
+      frobs =
+        Frobs.list()
+        |> Enum.map(fn frob ->
+          desc = Map.get(frob.spec, "description", "No description provided")
+          is_global = frob.registry["global"] || false
+          projects = frob.registry["projects"] || []
 
-    frobs =
-      Frobs.list(project)
-      |> Enum.map(fn frob ->
-        desc = Map.get(frob.spec, "description", "No description provided")
-        is_global = frob.registry["global"] || false
-        projects = frob.registry["projects"] || []
+          """
+          - Name:         #{frob.name}
+          - Description:  #{desc}
+          - Location:     #{frob.home}
+          - Global:       #{is_global}
+          - Projects:     #{inspect(projects)}
+          """
+        end)
+        |> Enum.join("\n\n")
 
-        """
-        - Name:         #{frob.name}
-        - Description:  #{desc}
-        - Location:     #{frob.home}
-        - Global:       #{is_global}
-        - Projects:     #{inspect(projects)}
-        """
-      end)
-      |> Enum.join("\n\n")
+      cond do
+        frobs == "" && project ->
+          {:ok, "No frobs found for project #{project}"}
 
-    cond do
-      frobs == "" && project ->
-        {:ok, "No frobs found for project #{project}"}
+        frobs == "" ->
+          {:ok, "No frobs found"}
 
-      frobs == "" ->
-        {:ok, "No frobs found"}
-
-      true ->
-        {:ok,
-         """
-         --------------------------------------------------------------------------------
-         > Frobs
-         --------------------------------------------------------------------------------
-         #{frobs}
-         """}
+        true ->
+          {:ok,
+           """
+           --------------------------------------------------------------------------------
+           > Frobs
+           --------------------------------------------------------------------------------
+           #{frobs}
+           """}
+      end
     end
   end
 end

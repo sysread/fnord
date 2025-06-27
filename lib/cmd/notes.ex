@@ -2,26 +2,23 @@ defmodule Cmd.Notes do
   @behaviour Cmd
 
   @impl Cmd
+  def requires_project?(), do: true
+
+  @impl Cmd
   def spec() do
     [
       notes: [
         name: "notes",
         about: "List facts about the project inferred from prior research",
-        options: [
-          project: [
-            value_name: "PROJECT",
-            long: "--project",
-            short: "-p",
-            help: "Project name",
-            required: true
-          ]
-        ],
         flags: [
           reset: [
             long: "--reset",
             short: "-r",
             help: "Delete all stored notes for the project. This action is irreversible."
           ]
+        ],
+        options: [
+          project: Cmd.project_arg()
         ]
       ]
     ]
@@ -29,30 +26,23 @@ defmodule Cmd.Notes do
 
   @impl Cmd
   def run(opts, _subcommands, _unknown) do
-    project = Store.get_project() |> validate_project()
-
-    opts
-    |> Map.get(:reset, false)
-    |> case do
-      true -> reset_notes(project)
-      false -> show_notes(project)
-    end
-  end
-
-  defp validate_project(project) do
-    if Store.Project.exists_in_store?(project) do
-      project
+    with {:ok, project} <- Store.get_project() do
+      opts
+      |> Map.get(:reset, false)
+      |> case do
+        true -> reset_notes(project)
+        false -> show_notes()
+      end
     else
-      fail("Project not found: `#{project.name}`")
+      {:error, reason} -> fail(reason)
     end
   end
 
-  defp show_notes(project) do
-    project.name
-    |> Store.Project.Notes.read()
+  defp show_notes() do
+    Store.Project.Notes.read()
     |> case do
       {:ok, notes} -> IO.puts(notes)
-      {:error, :no_notes} -> IO.puts(:stderr, "No notes found")
+      _ -> IO.puts(:stderr, "No notes found")
     end
   end
 
@@ -62,7 +52,7 @@ defmodule Cmd.Notes do
          false
        ) do
       IO.puts("Resetting notes for `#{project.name}`:")
-      Store.Project.Notes.reset(project.name)
+      Store.Project.Notes.reset()
       IO.puts("✓ Notes reset")
     else
       IO.puts("Aborted")

@@ -4,6 +4,9 @@ defmodule Cmd.Search do
   @behaviour Cmd
 
   @impl Cmd
+  def requires_project?(), do: true
+
+  @impl Cmd
   def spec do
     [
       search: [
@@ -17,13 +20,7 @@ defmodule Cmd.Search do
           ]
         ],
         options: [
-          project: [
-            value_name: "PROJECT",
-            long: "--project",
-            short: "-p",
-            help: "Project name",
-            required: true
-          ],
+          project: Cmd.project_arg(),
           query: [
             value_name: "QUERY",
             long: "--query",

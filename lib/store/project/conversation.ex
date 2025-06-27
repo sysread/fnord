@@ -46,13 +46,25 @@ defmodule Store.Project.Conversation do
   Create a new conversation with a new UUID identifier and the globally
   selected project.
   """
-  def new(), do: new(Uniq.UUID.uuid4(), Store.get_project().store_path)
+  def new do
+    with {:ok, project} <- Store.get_project() do
+      new(Uniq.UUID.uuid4(), project.store_path)
+    else
+      {:error, _} -> raise "No project selected"
+    end
+  end
 
   @doc """
   Create a new conversation from an existing UUID identifier and the globally
   selected project.
   """
-  def(new(id), do: new(id, Store.get_project().store_path))
+  def new(id) do
+    with {:ok, project} <- Store.get_project() do
+      new(id, project.store_path)
+    else
+      {:error, _} -> raise "No project selected"
+    end
+  end
 
   @doc """
   Create a new conversation from an existing UUID identifier and an explicitly
@@ -66,7 +78,9 @@ defmodule Store.Project.Conversation do
     }
   end
 
-  def new(id, project), do: new(id, project.store_path)
+  def new(id, %Store.Project{store_path: store_path}) do
+    new(id, store_path)
+  end
 
   @doc """
   Returns true if the conversation exists on disk, false otherwise.

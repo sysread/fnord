@@ -2,6 +2,9 @@ defmodule AI.Tools.File.Outline do
   @behaviour AI.Tools
 
   @impl AI.Tools
+  def is_available?, do: AI.Tools.has_indexed_project()
+
+  @impl AI.Tools
   def ui_note_on_request(_args), do: nil
 
   @impl AI.Tools

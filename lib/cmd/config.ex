@@ -2,6 +2,9 @@ defmodule Cmd.Config do
   @behaviour Cmd
 
   @impl Cmd
+  def requires_project?(), do: true
+
+  @impl Cmd
   def spec do
     [
       config: [
@@ -12,26 +15,14 @@ defmodule Cmd.Config do
             name: "list",
             about: "List all configuration settings for a project",
             options: [
-              project: [
-                value_name: "PROJECT",
-                long: "--project",
-                short: "-p",
-                help: "Project name",
-                required: true
-              ]
+              project: Cmd.project_arg()
             ]
           ],
           set: [
             name: "set",
             about: "Set a configuration directive for a project",
             options: [
-              project: [
-                value_name: "PROJECT",
-                long: "--project",
-                short: "-p",
-                help: "Project name",
-                required: true
-              ],
+              project: Cmd.project_arg(),
               root: [
                 value_name: "ROOT",
                 long: "--root",
@@ -55,19 +46,22 @@ defmodule Cmd.Config do
   end
 
   @impl Cmd
-  def run(%{project: project}, [:list], _unknown) do
-    Settings.new()
-    |> Settings.get(project)
-    |> case do
-      nil -> UI.error("Project not found")
-      config -> config |> Jason.encode!(pretty: true) |> IO.puts()
+  def run(_opts, [:list], _unknown) do
+    with {:ok, project} <- Store.get_project() do
+      Settings.new()
+      |> Settings.get(project.name)
+      |> case do
+        nil -> UI.error("Project not found")
+        config -> config |> Jason.encode!(pretty: true) |> IO.puts()
+      end
     end
   end
 
   def run(opts, [:set], _unknown) do
-    project = Store.get_project()
-    Store.Project.save_settings(project, opts[:root], opts[:exclude])
-    run(opts, [:list], [])
+    with {:ok, project} <- Store.get_project() do
+      Store.Project.save_settings(project, opts[:root], opts[:exclude])
+      run(opts, [:list], [])
+    end
   end
 
   def run(_opts, [], _unknown) do

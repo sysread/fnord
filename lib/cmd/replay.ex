@@ -2,19 +2,16 @@ defmodule Cmd.Replay do
   @behaviour Cmd
 
   @impl Cmd
+  def requires_project?(), do: true
+
+  @impl Cmd
   def spec() do
     [
       replay: [
         name: "replay",
         about: "Replay a conversation",
         options: [
-          project: [
-            value_name: "PROJECT",
-            long: "--project",
-            short: "-p",
-            help: "Project name",
-            required: true
-          ],
+          project: Cmd.project_arg(),
           conversation: [
             value_name: "CONVERSATION",
             long: "--conversation",

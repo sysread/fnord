@@ -2,6 +2,9 @@ defmodule Cmd.Projects do
   @behaviour Cmd
 
   @impl Cmd
+  def requires_project?(), do: false
+
+  @impl Cmd
   def spec() do
     [
       projects: [

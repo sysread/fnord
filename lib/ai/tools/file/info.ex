@@ -2,6 +2,9 @@ defmodule AI.Tools.File.Info do
   @behaviour AI.Tools
 
   @impl AI.Tools
+  def is_available?, do: true
+
+  @impl AI.Tools
   def ui_note_on_request(%{"files" => files, "question" => question}) do
     {"Considering #{length(files)} file(s)", question}
   end

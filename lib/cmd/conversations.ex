@@ -2,19 +2,16 @@ defmodule Cmd.Conversations do
   @behaviour Cmd
 
   @impl Cmd
+  def requires_project?(), do: true
+
+  @impl Cmd
   def spec do
     [
       conversations: [
         name: "conversations",
         about: "List all conversations in the project",
         options: [
-          project: [
-            value_name: "PROJECT",
-            long: "--project",
-            short: "-p",
-            help: "Project name",
-            required: true
-          ],
+          project: Cmd.project_arg(),
           prune: [
             value_name: "PRUNE",
             long: "--prune",
@@ -29,21 +26,22 @@ defmodule Cmd.Conversations do
 
   @impl Cmd
   def run(opts, _subcommands, _unknown) do
-    with :ok <- prune(opts),
-         :ok <- display(opts) do
+    with {:ok, project} <- Store.get_project(),
+         :ok <- prune(opts, project),
+         :ok <- display(opts, project) do
       :ok
     else
       {:error, :cancelled} -> UI.error("Operation cancelled.")
     end
   end
 
-  defp prune(%{prune: days}) when is_integer(days) and days >= 0 do
+  defp prune(%{prune: days}, project) when is_integer(days) and days >= 0 do
     cutoff = DateTime.utc_now() |> DateTime.add(-days, :day)
 
     UI.info("Pruning conversations older than #{days} days")
 
     to_delete =
-      Store.get_project()
+      project
       |> Store.Project.conversations()
       |> Enum.reduce([], fn conversation, acc ->
         timestamp = Store.Project.Conversation.timestamp(conversation)
@@ -87,14 +85,14 @@ defmodule Cmd.Conversations do
     end
   end
 
-  defp prune(%{prune: days}) when is_integer(days) and days < 0 do
+  defp prune(%{prune: days}, _project) when is_integer(days) and days < 0 do
     {:error, :invalid_prune_value}
   end
 
-  defp prune(_opts), do: :ok
+  defp prune(_opts, _project), do: :ok
 
-  defp display(_opts) do
-    Store.get_project()
+  defp display(_opts, project) do
+    project
     |> Store.Project.conversations()
     |> case do
       [] ->

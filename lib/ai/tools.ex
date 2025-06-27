@@ -65,19 +65,19 @@ defmodule AI.Tools do
   """
 
   @type tool_spec :: %{
-          :type => String.t(),
+          :type => binary,
           :function => %{
-            :name => String.t(),
-            :description => String.t(),
+            :name => binary,
+            :description => binary,
             optional(:strict) => boolean,
             :parameters => %{
               optional(:additionalProperties) => boolean,
-              :type => String.t(),
-              :required => [String.t()],
+              :type => binary,
+              :required => [binary],
               :properties => %{
-                String.t() => %{
-                  :type => String.t(),
-                  :description => String.t(),
+                binary => %{
+                  :type => binary,
+                  :description => binary,
                   optional(:default) => any
                 }
               }
@@ -85,21 +85,22 @@ defmodule AI.Tools do
           }
         }
 
-  @type tool_name :: String.t()
-  @type project_name :: String.t() | nil
-  @type unparsed_args :: String.t()
-  @type parsed_args :: %{String.t() => any}
-  @type toolbox :: %{String.t() => module}
+  @type tool_name :: binary
+  @type project_name :: binary | nil
+  @type unparsed_args :: binary
+  @type parsed_args :: %{binary => any}
+  @type toolbox :: %{binary => module}
 
-  @type tool_error :: {:error, String.t()}
-  @type unknown_tool_error :: {:error, :unknown_tool, String.t()}
-  @type missing_arg_error :: {:error, :missing_argument, String.t()}
-  @type invalid_arg_error :: {:error, :invalid_argument, String.t()}
+  @type tool_error :: {:error, binary}
+  @type unknown_tool_error :: {:error, :unknown_tool, binary}
+  @type missing_arg_error :: {:error, :missing_argument, binary}
+  @type invalid_arg_error :: {:error, :invalid_argument, binary}
   @type args_error :: missing_arg_error | invalid_arg_error
-  @type frob_error :: {:error, non_neg_integer, String.t()}
+  @type frob_error :: {:error, non_neg_integer, binary}
+  @type json_parse_error :: {:error, Jason.DecodeError.t()}
 
   @type tool_result ::
-          {:ok, String.t()}
+          {:ok, binary}
           | unknown_tool_error
           | args_error
           | tool_error
@@ -116,6 +117,15 @@ defmodule AI.Tools do
   Returns the OpenAPI spec for the tool as an elixir map.
   """
   @callback spec() :: tool_spec
+
+  @doc """
+  Returns true if the tool is available for use, false otherwise. This is used
+  to determine whether the tool can be used in the current context, such as
+  whether the tool is available in the current project or if it requires
+  specific conditions to be met (e.g., a project being set, availability of an
+  external tool like ripgrep, etc.).
+  """
+  @callback is_available?() :: boolean
 
   @doc """
   Calls the tool with the provided arguments and returns the response as an :ok
@@ -135,8 +145,8 @@ defmodule AI.Tools do
   displayed when the tool is called.
   """
   @callback ui_note_on_request(args :: map) ::
-              {String.t(), String.t()}
-              | String.t()
+              {binary, binary}
+              | binary
               | nil
 
   @doc """
@@ -144,127 +154,66 @@ defmodule AI.Tools do
   displayed when the tool call is successful.
   """
   @callback ui_note_on_result(args :: map, result :: any) ::
-              {String.t(), String.t()}
-              | String.t()
+              {binary, binary}
+              | binary
               | nil
 
   # ----------------------------------------------------------------------------
-  # Tool Registry
+  # General Tool Registry - only required for tools that are generally available
   # ----------------------------------------------------------------------------
-  # General tools for researching the project.
-  @general_tools %{
+  @tools %{
     "file_contents_tool" => AI.Tools.File.Contents,
     "file_info_tool" => AI.Tools.File.Info,
     "file_list_tool" => AI.Tools.File.List,
     "file_outline_tool" => AI.Tools.File.Outline,
     "file_search_tool" => AI.Tools.File.Search,
     "file_spelunker_tool" => AI.Tools.File.Spelunker,
-    "research_tool" => AI.Tools.Research,
-    "ripgrep_search" => AI.Tools.Ripgrep
-  }
-
-  # Tools for interacting with git repositories.
-  @git_tools %{
     "git_diff_branch_tool" => AI.Tools.Git.DiffBranch,
     "git_grep_tool" => AI.Tools.Git.Grep,
     "git_list_branches_tool" => AI.Tools.Git.ListBranches,
     "git_log_tool" => AI.Tools.Git.Log,
     "git_pickaxe_tool" => AI.Tools.Git.Pickaxe,
     "git_show_tool" => AI.Tools.Git.Show,
-    "git_unstaged_changes_tool" => AI.Tools.Git.UnstagedChanges
+    "git_unstaged_changes_tool" => AI.Tools.Git.UnstagedChanges,
+    "research_tool" => AI.Tools.Research,
+    "ripgrep_search" => AI.Tools.Ripgrep
   }
 
-  # Tools that are intended for AI.Agent.Default.
-  @default_tools %{
-    "prompt" => AI.Tools.Default.Prompt,
-    "notes" => AI.Tools.Default.Notes
-  }
-
-  # Tools that can mutate state (editing files, making commits, etc.)
-  @rw_tools %{
-    "file_edit_tool" => AI.Tools.File.Edit
-  }
-
-  @tools %{}
-         |> Map.merge(@general_tools)
-         |> Map.merge(@git_tools)
-         |> Map.merge(@default_tools)
-         |> Map.merge(@rw_tools)
+  # -----------------------------------------------------------------------------
+  # All Tool Registry - required for *all* tools to be available for use
+  # -----------------------------------------------------------------------------
+  @all_tools Map.merge(@tools, %{
+               "notes" => AI.Tools.Default.Notes,
+               "prompt" => AI.Tools.Default.Prompt,
+               "edit_file" => AI.Tools.RW.EditFile
+             })
 
   # ----------------------------------------------------------------------------
   # API Functions
   # ----------------------------------------------------------------------------
   def tools, do: @tools
 
-  @spec all_tools(project_name) :: toolbox
-  def all_tools(project_name \\ nil) do
-    Map.merge(@tools, Frobs.module_map(project_name))
-  end
-
-  @spec all_tool_specs_for_project(project_name) :: [tool_spec]
-  def all_tool_specs_for_project(project_name \\ nil) do
-    tools =
-      @general_tools
-      |> Map.keys()
-      |> Enum.map(&AI.Tools.tool_spec!(&1, @tools))
-
-    search_available? = AI.Tools.File.Search.is_available?()
-    ripgrep_available? = AI.Tools.Ripgrep.is_available?()
-
-    if !search_available? and !ripgrep_available? do
-      UI.fatal("No search tools available. Please index your project, install ripgrep, or both.")
-    end
-
-    # If the selected project has an index, add the file search tool.
-    tools =
-      if search_available? do
-        tools ++ [AI.Tools.tool_spec!("file_search_tool")]
-      else
-        UI.warn("project is not indexed; semantic search unavailable")
-        tools
-      end
-
-    # If ripgrep is available, add the ripgrep search tool.
-    tools =
-      if ripgrep_available? do
-        unless search_available? do
-          UI.warn("falling back on ripgrep for file search")
-        end
-
-        tools ++ [AI.Tools.tool_spec!("ripgrep_search")]
-      else
-        UI.warn("ripgrep not found in PATH; file search unavailable")
-        tools
-      end
-
-    tools =
-      if Git.is_git_repo?() do
-        tools ++
-          (@git_tools
-           |> Map.keys()
-           |> Enum.map(&AI.Tools.tool_spec!(&1, @tools)))
-      else
-        tools
-      end
-
-    frobs =
-      project_name
-      |> Frobs.module_map()
-      |> Enum.map(fn {_name, module} ->
-        module.spec()
-      end)
-
-    tools ++ frobs
+  @spec all_tools() :: toolbox
+  def all_tools() do
+    @tools
+    |> Map.merge(Frobs.module_map())
+    |> Enum.filter(fn {_name, mod} -> mod.is_available?() end)
+    |> Map.new()
   end
 
   @spec tool_module(tool_name, toolbox | nil) ::
           {:ok, module}
           | unknown_tool_error
-  def tool_module(tool, tools \\ nil) do
-    tools = if is_nil(tools), do: all_tools(), else: tools
+  def tool_module(tool_name, tools \\ nil) do
+    tools =
+      if is_nil(tools) do
+        @all_tools
+      else
+        tools
+      end
 
-    case Map.get(tools, tool) do
-      nil -> {:error, :unknown_tool, tool}
+    case Map.get(tools, tool_name) do
+      nil -> {:error, :unknown_tool, tool_name}
       module -> {:ok, module}
     end
   end
@@ -281,7 +230,7 @@ defmodule AI.Tools do
 
   @spec tool_spec(tool_name, toolbox | nil) ::
           {:ok, tool_spec}
-          | {:error, :unknown_tool, String.t()}
+          | {:error, :unknown_tool, binary}
   def tool_spec(tool, tools \\ nil) do
     with {:ok, module} <- tool_module(tool, tools) do
       {:ok, module.spec()}
@@ -307,13 +256,15 @@ defmodule AI.Tools do
         # Empty responses
         :ok -> {:ok, "#{tool} completed successfully"}
         :error -> {:error, "#{tool} failed with an unknown error"}
+        # Frob errors
+        {:error, code, msg} -> {:error, "#{tool} failed with code #{code}: #{msg}"}
       end
     end
   end
 
   @spec on_tool_request(tool_name, parsed_args, toolbox | nil) ::
-          {String.t(), String.t()}
-          | String.t()
+          {binary, binary}
+          | binary
           | nil
   def on_tool_request(tool, args, tools \\ nil) do
     with {:ok, module} <- tool_module(tool, tools),
@@ -344,8 +295,8 @@ defmodule AI.Tools do
   end
 
   @spec on_tool_result(tool_name, parsed_args, any, toolbox | nil) ::
-          {String.t(), String.t()}
-          | String.t()
+          {binary, binary}
+          | binary
           | nil
   def on_tool_result(tool, args, result, tools \\ nil) do
     with {:ok, module} <- tool_module(tool, tools) do
@@ -372,7 +323,7 @@ defmodule AI.Tools do
     end
   end
 
-  @spec required_arg_error(String.t()) :: missing_arg_error
+  @spec required_arg_error(binary) :: missing_arg_error
   def required_arg_error(key) do
     {:error, :missing_argument, key}
   end
@@ -390,34 +341,43 @@ defmodule AI.Tools do
   # ----------------------------------------------------------------------------
   @type project :: Store.Project.t()
   @type entry :: Store.Project.Entry.t()
-  @type project_not_found :: {:error, :project_not_found}
+  @type project_not_found :: {:error, :project_not_found} | {:error, :project_not_set}
   @type entry_not_found :: {:error, :enoent}
   @type something_not_found :: project_not_found | entry_not_found
 
-  @spec get_project() :: {:ok, project} | project_not_found
-  def get_project() do
-    project = Store.get_project()
-
-    if Store.Project.exists_in_store?(project) do
-      {:ok, project}
+  @spec has_indexed_project() :: boolean
+  def has_indexed_project do
+    with {:ok, project} <- Store.get_project() do
+      project |> Store.Project.has_index?()
     else
-      {:error, :project_not_found}
+      _ -> false
     end
   end
 
-  @spec get_entry(String.t()) :: {:ok, entry} | something_not_found
+  @spec get_project() :: {:ok, project} | project_not_found
+  def get_project() do
+    with {:ok, project} <- Store.get_project() do
+      if Store.Project.exists_in_store?(project) do
+        {:ok, project}
+      else
+        {:error, :project_not_found}
+      end
+    end
+  end
+
+  @spec get_entry(binary) :: {:ok, entry} | something_not_found
   def get_entry(file) do
     with {:ok, project} <- get_project() do
       get_entry(project, file)
     end
   end
 
-  @spec get_entry(Store.Project.t(), String.t()) :: {:ok, entry} | entry_not_found
+  @spec get_entry(Store.Project.t(), binary) :: {:ok, entry} | entry_not_found
   def get_entry(project, file) do
     Store.Project.find_entry(project, file)
   end
 
-  @spec get_file_contents(String.t()) :: {:ok, String.t()} | something_not_found
+  @spec get_file_contents(binary) :: {:ok, binary} | something_not_found
   def get_file_contents(file) do
     with {:ok, project} <- get_project(),
          {:ok, path} <- Util.find_file_within_root(file, project.source_root) do
