@@ -14,7 +14,7 @@ defmodule Store.Project do
   @conversation_dir "conversations"
   @notes_dir "notes"
 
-  @spec new(String.t(), String.t()) :: t()
+  @spec new(String.t(), String.t()) :: t
   def new(project_name, store_path) do
     settings = Settings.new() |> Settings.get(project_name, %{})
     exclude = Map.get(settings, "exclude", [])
@@ -30,7 +30,7 @@ defmodule Store.Project do
     }
   end
 
-  @spec save_settings(t(), String.t() | nil, String.t() | nil) :: t()
+  @spec save_settings(t, String.t() | nil, String.t() | nil) :: t
   def save_settings(project, source_root \\ nil, exclude \\ nil) do
     root =
       case source_root do
@@ -67,7 +67,7 @@ defmodule Store.Project do
     new(project.name, project.store_path)
   end
 
-  @spec create(t()) :: t()
+  @spec create(t) :: t
   def create(project) do
     project.store_path |> File.mkdir_p!()
     project.store_path |> Path.join("conversations") |> File.mkdir_p!()
@@ -75,7 +75,7 @@ defmodule Store.Project do
     project
   end
 
-  @spec delete(t()) :: :ok
+  @spec delete(t) :: :ok
   def delete(project) do
     # Delete indexed files
     project.store_path
@@ -85,7 +85,7 @@ defmodule Store.Project do
     |> Enum.each(fn path -> File.rm_rf!(path) end)
   end
 
-  @spec torch(t()) :: :ok
+  @spec torch(t) :: :ok
   def torch(project) do
     # Delete entire directory
     File.rm_rf!(project.store_path)
@@ -96,16 +96,28 @@ defmodule Store.Project do
     :ok
   end
 
-  @spec make_default_for_session(t()) :: t
+  @spec make_default_for_session(t) :: t
   def make_default_for_session(project) do
     Application.put_env(:fnord, :project, project.name)
     project
   end
 
+  @doc """
+  Resolves `path` within the project's source root. Returns `{:ok, path}` if the file exists,
+  or `{:error, :enoent}` if it does not.
+  """
+  @spec find_file(t, binary) ::
+          {:ok, binary}
+          | {:error, :enoent}
+          | {:error, File.posix()}
+  def find_file(project, path) do
+    Util.find_file_within_root(path, project.source_root)
+  end
+
   # ----------------------------------------------------------------------------
   # Entries
   # ----------------------------------------------------------------------------
-  @spec has_index?(t()) :: boolean()
+  @spec has_index?(t) :: boolean()
   def has_index?(project) do
     glob = Path.join(project.store_path, "**/embeddings.json")
 
@@ -116,51 +128,19 @@ defmodule Store.Project do
     end
   end
 
-  @spec find_entry(t(), String.t()) ::
-          {:ok, Store.Project.Entry.t()}
-          | {:error, :enoent}
+  @spec find_entry(t, String.t()) :: {:ok, Store.Project.Entry.t()} | {:error, :enoent}
   def find_entry(project, path) do
     with {:ok, resolved} <- find_file(project, path) do
       {:ok, Store.Project.Entry.new_from_file_path(project, resolved)}
     end
   end
 
-  @spec find_file(t(), String.t()) ::
-          {:ok, String.t()}
-          | {:error, :enoent}
-  def find_file(project, path) do
-    [
-      &find_abs_file_root/2,
-      &find_abs_file_project/2,
-      &find_rel_file_project/2,
-      &find_file_project/2
-    ]
-    |> Enum.find_value(fn f ->
-      with {:ok, path} <- f.(project, path) do
-        {:ok, path}
-      else
-        _ -> false
-      end
-    end)
-    |> case do
-      {:ok, path} ->
-        if target_within_project?(project, path) do
-          {:ok, path}
-        else
-          {:error, :enoent}
-        end
-
-      _ ->
-        {:error, :enoent}
-    end
-  end
-
-  @spec expand_path(String.t(), t()) :: String.t()
+  @spec expand_path(String.t(), t) :: String.t()
   def expand_path(path, %Store.Project{} = project) do
     Path.expand(path, project.source_root)
   end
 
-  @spec relative_path(String.t(), t()) :: String.t()
+  @spec relative_path(String.t(), t) :: String.t()
   def relative_path(path, project) do
     path
     |> expand_path(project)
@@ -179,7 +159,7 @@ defmodule Store.Project do
     end
   end
 
-  @spec exists_in_store?(t()) :: boolean()
+  @spec exists_in_store?(t) :: boolean()
   def exists_in_store?(project) do
     path = project.store_path
     files = Path.wildcard(Path.join(path, "*"))
@@ -193,7 +173,7 @@ defmodule Store.Project do
     end
   end
 
-  @spec stored_files(t()) :: Enumerable.t()
+  @spec stored_files(t) :: Enumerable.t()
   def stored_files(project) do
     # Start with the path to the project in the store
     project.store_path
@@ -209,7 +189,7 @@ defmodule Store.Project do
     |> Stream.map(&Store.Project.Entry.new_from_entry_path(project, &1))
   end
 
-  @spec source_files(t()) :: {t, Enumerable.t()}
+  @spec source_files(t) :: {t, Enumerable.t()}
   def source_files(project) do
     {project, excluded_paths} = excluded_paths(project)
 
@@ -224,7 +204,7 @@ defmodule Store.Project do
     {project, files}
   end
 
-  @spec delete_missing_files(t()) :: {t, Enumerable.t()}
+  @spec delete_missing_files(t) :: {t, Enumerable.t()}
   def delete_missing_files(project) do
     {project, excluded_paths} = excluded_paths(project)
 
@@ -243,7 +223,7 @@ defmodule Store.Project do
   # -----------------------------------------------------------------------------
   # Conversations
   # -----------------------------------------------------------------------------
-  @spec conversations(t()) :: [Store.Project.Conversation.t()]
+  @spec conversations(t) :: [Store.Project.Conversation.t()]
   def conversations(project) do
     Store.Project.Conversation.list(project.store_path)
   end
@@ -339,89 +319,6 @@ defmodule Store.Project do
     case Path.safe_relative(rel, cwd) do
       {:ok, clean} -> clean
       :error -> raise("Error: unable to calculate relative path for #{path} from #{cwd}")
-    end
-  end
-
-  defp find_abs_file_root(_project, path) do
-    if String.starts_with?(path, "/") && File.exists?(path) do
-      {:ok, path}
-    else
-      {:error, :enoent}
-    end
-  end
-
-  defp find_abs_file_project(project, path) do
-    if String.starts_with?(path, "/") do
-      path =
-        Path.join(project.source_root, path)
-        |> Path.expand(project.source_root)
-
-      if File.exists?(path) do
-        {:ok, path}
-      else
-        {:error, :enoent}
-      end
-    else
-      {:error, :enoent}
-    end
-  end
-
-  defp find_rel_file_project(project, path) do
-    path = expand_path(path, project)
-
-    if File.exists?(path) do
-      {:ok, path}
-    else
-      {:error, :enoent}
-    end
-  end
-
-  defp find_file_project(project, path) do
-    project
-    |> stored_files()
-    |> Enum.find(&String.ends_with?(&1.file, path))
-    |> case do
-      nil -> {:error, :enoent}
-      entry -> {:ok, entry.file}
-    end
-  end
-
-  defp target_within_project?(project, path) do
-    case resolve_symlink(path) do
-      {:ok, resolved_path} ->
-        separator = Path.join("a", "b") |> String.at(1)
-        base = Path.expand(project.source_root) <> separator
-        target = Path.expand(resolved_path)
-
-        String.starts_with?(target, base)
-
-      {:error, _} ->
-        false
-    end
-  end
-
-  defp resolve_symlink(path, seen \\ MapSet.new()) do
-    if MapSet.member?(seen, path) do
-      {:error, :symlink_loop}
-    else
-      case File.lstat(path) do
-        {:ok, %File.Stat{type: :symlink}} ->
-          case File.read_link(path) do
-            {:ok, target} ->
-              # target can be relative to the symlink's dir
-              target_path = Path.expand(target, Path.dirname(path))
-              resolve_symlink(target_path, MapSet.put(seen, path))
-
-            error ->
-              error
-          end
-
-        {:ok, _} ->
-          {:ok, path}
-
-        error ->
-          error
-      end
     end
   end
 end

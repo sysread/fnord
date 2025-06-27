@@ -85,12 +85,12 @@ defmodule AI.Tools.File.Transform do
 
   @impl AI.Tools
   def call(opts) do
-    project = Store.get_project()
     dry_run = Map.get(opts, "dry_run", false)
 
     with {:ok, rel} <- Map.fetch(opts, "file"),
          {:ok, edits} <- Map.fetch(opts, "edits"),
-         {:ok, abs_path} <- Store.Project.find_file(project, rel),
+         {:ok, root} <- get_root(),
+         {:ok, abs_path} <- Util.find_file_within_root(rel, root),
          {:ok, workfile} <- make_workfile(abs_path),
          :ok <- perform_edits(workfile, edits),
          {:ok, diff} <- get_diff(abs_path, workfile),
@@ -107,6 +107,16 @@ defmodule AI.Tools.File.Transform do
   @confirm_changes_override :confirm_changes_override
   def override_confirm_changes(value) do
     Process.put(@confirm_changes_override, value)
+  end
+
+  @spec get_root() :: {:ok, binary} | {:error, File.posix()}
+  defp get_root do
+    if Settings.project_is_set?() do
+      project = Store.get_project()
+      {:ok, project.source_root}
+    else
+      File.cwd()
+    end
   end
 
   @spec apply_changes(binary, binary, boolean, binary) :: :ok | {:error, binary}

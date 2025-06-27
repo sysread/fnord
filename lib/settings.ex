@@ -66,6 +66,13 @@ defmodule Settings do
   end
 
   @doc """
+  Check if the --project option is set.
+  """
+  def project_is_set?() do
+    !is_nil(Application.get_env(:fnord, :project))
+  end
+
+  @doc """
   Get the project specified with --project. If the project name is not set, an
   error will be raised.
   """

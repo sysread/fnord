@@ -56,10 +56,7 @@ defmodule ProjectTest do
       File.ln_s(target, link)
 
       assert {:ok, found} = Project.find_file(project, "link.txt")
-      assert found == link
-
-      # Confirm resolved target is inside project root
-      assert String.starts_with?(Path.expand(found), Path.expand(project.source_root))
+      assert found == target
     end
 
     test "rejects symlink pointing outside project", %{project: project} do
@@ -102,7 +99,7 @@ defmodule ProjectTest do
       File.ln_s(link1, link2)
 
       assert {:ok, found} = Project.find_file(project, "link2.txt")
-      assert found == link2
+      assert found == real_file
     end
   end
 

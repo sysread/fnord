@@ -419,13 +419,9 @@ defmodule AI.Tools do
 
   @spec get_file_contents(String.t()) :: {:ok, String.t()} | something_not_found
   def get_file_contents(file) do
-    with {:ok, project} <- get_project() do
-      project
-      |> Store.Project.find_file(file)
-      |> case do
-        {:ok, path} -> File.read(path)
-        other -> other
-      end
+    with {:ok, project} <- get_project(),
+         {:ok, path} <- Util.find_file_within_root(file, project.source_root) do
+      File.read(path)
     end
   end
 

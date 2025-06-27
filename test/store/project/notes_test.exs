@@ -1,5 +1,5 @@
 defmodule Store.Project.NotesTest do
-  use Fnord.TestCase, async: true
+  use Fnord.TestCase
 
   alias Store.Project.Notes
 

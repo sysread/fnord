@@ -162,6 +162,7 @@ defmodule AI.Agent.Default do
 
   defp get_tools({:error, :not_in_project}) do
     [
+      # AI.Tools.File.Transform.spec(),
       AI.Tools.Default.Prompt.spec(),
       AI.Tools.Default.Notes.spec()
     ]
@@ -170,9 +171,9 @@ defmodule AI.Agent.Default do
   defp get_tools({:ok, project}) do
     AI.Tools.all_tool_specs_for_project(project) ++
       [
+        # AI.Tools.File.Transform.spec(),
         AI.Tools.Default.Prompt.spec(),
         AI.Tools.Default.Notes.spec()
-        # AI.Tools.File.Transform.spec()
       ]
   end
 end
