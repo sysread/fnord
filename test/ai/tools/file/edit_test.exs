@@ -1,11 +1,11 @@
-defmodule AI.Tools.File.TransformTest do
+defmodule AI.Tools.File.EditTest do
   use Fnord.TestCase
 
   setup do: set_config(workers: 1, quiet: true)
   setup do: {:ok, project: mock_project("blarg")}
 
   setup do
-    AI.Tools.File.Transform.override_confirm_changes(true)
+    AI.Tools.File.Edit.override_confirm_changes(true)
     :ok
   end
 
@@ -19,7 +19,7 @@ defmodule AI.Tools.File.TransformTest do
       """)
 
     assert {:ok, %{"diff" => diff}} =
-             AI.Tools.File.Transform.call(%{
+             AI.Tools.File.Edit.call(%{
                "file" => "bar.txt",
                "dry_run" => false,
                "edits" => [
@@ -51,7 +51,7 @@ defmodule AI.Tools.File.TransformTest do
     }
 
     # we should get an error, not accidentally copy or mutate something
-    assert {:error, :enoent} = AI.Tools.File.Transform.call(args)
+    assert {:error, :enoent} = AI.Tools.File.Edit.call(args)
   end
 
   test "symlink inside project is allowed", %{project: project} do
@@ -66,7 +66,7 @@ defmodule AI.Tools.File.TransformTest do
       "dry_run" => false
     }
 
-    assert {:ok, %{"diff" => diff}} = AI.Tools.File.Transform.call(args)
+    assert {:ok, %{"diff" => diff}} = AI.Tools.File.Edit.call(args)
     assert diff =~ "-Z"
     assert diff =~ "+Q"
 
@@ -90,7 +90,7 @@ defmodule AI.Tools.File.TransformTest do
     }
 
     # again, should refuse to follow that symlink
-    assert {:error, :enoent} = AI.Tools.File.Transform.call(args)
+    assert {:error, :enoent} = AI.Tools.File.Edit.call(args)
   end
 
   test "dry run: leaves file intact and returns diff", %{project: project} do
@@ -103,7 +103,7 @@ defmodule AI.Tools.File.TransformTest do
       "dry_run" => true
     }
 
-    assert {:ok, %{"diff" => diff}} = AI.Tools.File.Transform.call(args)
+    assert {:ok, %{"diff" => diff}} = AI.Tools.File.Edit.call(args)
     assert diff =~ "-foo foo foo"
     assert diff =~ "+bar bar bar"
     # original file must be unchanged
@@ -121,7 +121,7 @@ defmodule AI.Tools.File.TransformTest do
 
     args = %{"file" => "multi.txt", "edits" => edits, "dry_run" => false}
 
-    assert {:ok, %{"diff" => diff}} = AI.Tools.File.Transform.call(args)
+    assert {:ok, %{"diff" => diff}} = AI.Tools.File.Edit.call(args)
     # Check that both edits appear
     assert diff =~ "+a B c"
     assert diff =~ "+ONE 2 3"
@@ -141,7 +141,7 @@ defmodule AI.Tools.File.TransformTest do
       "dry_run" => false
     }
 
-    assert {:ok, _} = AI.Tools.File.Transform.call(args)
+    assert {:ok, _} = AI.Tools.File.Edit.call(args)
     # All variants should be replaced
     assert File.read!(path) == "hi hi hi\n"
   end
@@ -158,7 +158,7 @@ defmodule AI.Tools.File.TransformTest do
     edits = [%{"pattern" => "change", "replacement" => "X", "line_start" => 2, "line_end" => 2}]
     args = %{"file" => "range.txt", "edits" => edits, "dry_run" => false}
 
-    assert {:ok, %{"diff" => diff}} = AI.Tools.File.Transform.call(args)
+    assert {:ok, %{"diff" => diff}} = AI.Tools.File.Edit.call(args)
 
     # Only the 2nd line should change
     updated = File.read!(path)
@@ -174,7 +174,7 @@ defmodule AI.Tools.File.TransformTest do
     path = mock_source_file(project, "none.txt", content)
 
     args = %{"file" => "none.txt", "edits" => [], "dry_run" => false}
-    assert {:ok, %{"diff" => "No changes"}} = AI.Tools.File.Transform.call(args)
+    assert {:ok, %{"diff" => "No changes"}} = AI.Tools.File.Edit.call(args)
 
     # File must still match original
     assert File.read!(path) == content
@@ -187,6 +187,6 @@ defmodule AI.Tools.File.TransformTest do
       "dry_run" => false
     }
 
-    assert {:error, _msg} = AI.Tools.File.Transform.call(args)
+    assert {:error, _msg} = AI.Tools.File.Edit.call(args)
   end
 end

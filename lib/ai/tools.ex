@@ -182,7 +182,7 @@ defmodule AI.Tools do
 
   # Tools that can mutate state (editing files, making commits, etc.)
   @rw_tools %{
-    "file_transform_tool" => AI.Tools.File.Transform
+    "file_edit_tool" => AI.Tools.File.Edit
   }
 
   @tools %{}

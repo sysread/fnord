@@ -1,4 +1,4 @@
-defmodule AI.Tools.File.Transform do
+defmodule AI.Tools.File.Edit do
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -29,7 +29,7 @@ defmodule AI.Tools.File.Transform do
     %{
       type: "function",
       function: %{
-        name: "file_transform_tool",
+        name: "file_edit_tool",
         description: """
         Apply one or more line-oriented regex replacements to a file.
         If dry_run=true, no files are changed: a diff is returned instead.
