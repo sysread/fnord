@@ -8,6 +8,9 @@ defmodule Frobs do
   - `registry.json`:  A JSON file that registers the frob for the user's projects
   - `spec.json`:      A JSON file that defines the tool call's calling semantics
   - `main`:           A script or binary that performs the action
+  - `available`:      A script or binary that exits non-zero if the frob is not
+                      available in the current context (e.g. dependencies,
+                      environment, etc.)
 
   The `registry.json` file contains the following fields:
   ```json
@@ -41,6 +44,7 @@ defmodule Frobs do
     :home,
     :registry,
     :spec,
+    :available,
     :main,
     :module
   ]
@@ -49,6 +53,7 @@ defmodule Frobs do
 
   @registry "registry.json"
   @json_spec "spec.json"
+  @available "available"
   @main "main"
 
   @default_registry """
@@ -75,10 +80,16 @@ defmodule Frobs do
   }
   """
 
-  @default_main """
+  @default_available """
   #!/usr/bin/env bash
 
   set -eu -o pipefail
+
+  #-----------------------------------------------------------------------------
+  # Validate required env vars
+  #-----------------------------------------------------------------------------
+  : "${FNORD_PROJECT:?FNORD_PROJECT is not set.}"
+  : "${FNORD_CONFIG:?FNORD_CONFIG is not set.}"
 
   #-----------------------------------------------------------------------------
   # Check dependencies
@@ -87,6 +98,23 @@ defmodule Frobs do
     echo "Error: 'jq' is required but not installed." >&2
     exit 1
   fi
+
+  #-----------------------------------------------------------------------------
+  # Confirm that this is a $language project
+  #-----------------------------------------------------------------------------
+  # root="$(jq -r '.root' <<< "$FNORD_CONFIG")"
+  # if [ ! -e "$root/spec.json" ]; then
+  #   echo "Error: invalid project type" >&2
+  #   exit 1
+  # fi
+
+  exit 0
+  """
+
+  @default_main """
+  #!/usr/bin/env bash
+
+  set -eu -o pipefail
 
   #-----------------------------------------------------------------------------
   # Validate required env vars
@@ -141,6 +169,7 @@ defmodule Frobs do
          home: home,
          registry: registry,
          spec: spec,
+         available: Path.join(home, @available),
          main: Path.join(home, @main),
          module: create_tool_module(name, spec)
        }}
@@ -161,6 +190,9 @@ defmodule Frobs do
 
       Path.join(home, @json_spec)
       |> File.write!(String.replace(@default_spec, "%FROB_NAME%", name))
+
+      Path.join(home, @available) |> File.write!(@default_available)
+      Path.join(home, @available) |> File.chmod!(0o755)
 
       Path.join(home, @main) |> File.write!(@default_main)
       Path.join(home, @main) |> File.chmod!(0o755)
@@ -194,9 +226,21 @@ defmodule Frobs do
     end)
   end
 
-  def is_available?(%__MODULE__{registry: %{"global" => true}}), do: true
+  def is_available?(name) when is_binary(name) do
+    with {:ok, frob} <- load(name) do
+      is_available?(frob)
+    else
+      _ -> false
+    end
+  end
 
-  def is_available?(%__MODULE__{registry: registry}) do
+  def is_available?(%__MODULE__{} = frob) do
+    execute_available(frob) && is_registered?(frob)
+  end
+
+  def is_registered?(%__MODULE__{registry: %{"global" => true}}), do: true
+
+  def is_registered?(%__MODULE__{registry: registry}) do
     with {:ok, project} <- Store.get_project() do
       Enum.member?(registry["projects"], project)
     else
@@ -204,7 +248,7 @@ defmodule Frobs do
     end
   end
 
-  def is_available?(frob) when is_binary(frob) do
+  def is_registered?(frob) when is_binary(frob) do
     with {:ok, home} <- validate_frob(frob),
          {:ok, registry} <- read_registry(home) do
       registry["global"] ||
@@ -232,7 +276,6 @@ defmodule Frobs do
   def create_tool_module(name, spec) do
     tool_name = sanitize_module_name(name)
     mod_name = Module.concat([AI.Tools.Frob.Dynamic, tool_name])
-    is_available? = is_available?(name)
 
     unless Code.ensure_loaded?(mod_name) do
       quoted =
@@ -240,10 +283,11 @@ defmodule Frobs do
           @behaviour AI.Tools
           @tool_name unquote(Macro.escape(name))
           @tool_spec unquote(Macro.escape(spec))
-          @is_available? unquote(is_available?)
 
           @impl AI.Tools
-          def is_available?, do: @is_available?
+          def is_available? do
+            Frobs.is_available?(@tool_name)
+          end
 
           @impl AI.Tools
           def spec, do: %{type: "function", function: @tool_spec}
@@ -295,6 +339,7 @@ defmodule Frobs do
     with :ok <- validate_home(home),
          :ok <- validate_registry(home),
          :ok <- validate_main(home),
+         :ok <- validate_available(home),
          :ok <- validate_spec(home),
          :ok <- validate_spec_json(name, home) do
       {:ok, home}
@@ -341,8 +386,8 @@ defmodule Frobs do
         String.trim(description) == "" ->
           {:error, :empty_description, "Tool description must not be empty"}
 
-        !is_map(props) or map_size(props) == 0 ->
-          {:error, :empty_properties, "Tool parameters.properties must be a non-empty object"}
+        !is_map(props) ->
+          {:error, :invalid_properties, "Tool parameters.properties must be an object"}
 
         error = missing_or_invalid_property(props) ->
           error
@@ -418,6 +463,17 @@ defmodule Frobs do
     end
   end
 
+  defp validate_available(home) do
+    path = Path.join(home, @available)
+
+    if File.exists?(path) do
+      validate_executable(path)
+    else
+      # optional
+      :ok
+    end
+  end
+
   defp validate_executable(path) do
     case File.stat(path) do
       {:ok, %File.Stat{type: :regular, mode: mode}} ->
@@ -472,6 +528,36 @@ defmodule Frobs do
         {output, 0} -> {:ok, output}
         {output, exit_code} -> {:error, exit_code, output}
       end
+    end
+  end
+
+  defp execute_available(frob) do
+    if File.exists?(frob.available) do
+      with {:ok, project_name} <- Settings.get_selected_project(),
+           {:ok, settings} <- Settings.get_project(Settings.new()),
+           {:ok, settings_json} <- Jason.encode(settings) do
+        env = [
+          {"FNORD_PROJECT", project_name},
+          {"FNORD_CONFIG", settings_json}
+        ]
+
+        frob.available
+        |> System.cmd([], env: env, stderr_to_stdout: true)
+        |> case do
+          {_, 0} ->
+            true
+
+          {output, exit_code} ->
+            UI.warn("Frob #{frob.name} is not available", """
+            #{frob.available} exited with code #{exit_code}:
+            #{output}
+            """)
+
+            false
+        end
+      end
+    else
+      true
     end
   end
 end

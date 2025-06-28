@@ -179,15 +179,6 @@ defmodule AI.Tools do
     "ripgrep_search" => AI.Tools.Ripgrep
   }
 
-  # -----------------------------------------------------------------------------
-  # All Tool Registry - required for *all* tools to be available for use
-  # -----------------------------------------------------------------------------
-  @all_tools Map.merge(@tools, %{
-               "notes" => AI.Tools.Default.Notes,
-               "prompt" => AI.Tools.Default.Prompt,
-               "edit_file" => AI.Tools.RW.EditFile
-             })
-
   # ----------------------------------------------------------------------------
   # API Functions
   # ----------------------------------------------------------------------------
@@ -207,7 +198,7 @@ defmodule AI.Tools do
   def tool_module(tool_name, tools \\ nil) do
     tools =
       if is_nil(tools) do
-        @all_tools
+        all_tools()
       else
         tools
       end

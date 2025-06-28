@@ -51,6 +51,10 @@ defmodule Cmd.Frobs do
     with {:ok, msg} <- call_subcommand(subcommands, opts) do
       IO.puts(msg)
     else
+      {:error, :invalid_subcommand} ->
+        IO.puts(:stderr, "Invalid subcommand. Use `fnord help frobs` for available commands.")
+        System.halt(1)
+
       {:error, reason} ->
         IO.puts(:stderr, "Error creating frob: #{reason}")
         System.halt(1)
@@ -62,7 +66,7 @@ defmodule Cmd.Frobs do
       [:create] -> create(opts)
       [:check] -> check(opts)
       [:list] -> list()
-      _ -> {:error, :implement_me}
+      _ -> {:error, :invalid_subcommand}
     end
   end
 
