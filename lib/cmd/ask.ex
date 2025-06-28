@@ -39,10 +39,11 @@ defmodule Cmd.Ask do
             parser: :integer,
             default: Cmd.default_workers()
           ],
-          follow: [
-            long: "--follow",
-            short: "-f",
-            help: "Follow up the conversation with another question/prompt"
+          conversation: [
+            value_name: "UUID",
+            long: "--conversation",
+            short: "-c",
+            help: "Continue an existing conversation by UUID"
           ]
         ],
         flags: [
@@ -50,6 +51,11 @@ defmodule Cmd.Ask do
             long: "--replay",
             short: "-r",
             help: "Replay a conversation (with --follow is set)"
+          ],
+          follow: [
+            long: "--follow",
+            short: "-f",
+            help: "Continue the most recent conversation (NOT IMPLEMENTED YET)"
           ]
         ]
       ]
