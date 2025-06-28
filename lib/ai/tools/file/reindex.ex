@@ -43,7 +43,6 @@ defmodule AI.Tools.File.Reindex do
   @impl AI.Tools
   def call(_args) do
     Cmd.Index.run(%{reindex: false, yes: true, quiet: true}, [], [])
-    :ok
+    {:ok, "Full reindex complete"}
   end
 end
-
