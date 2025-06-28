@@ -5,7 +5,11 @@ defmodule AI.Model do
     :reasoning
   ]
 
-  @type reasoning_level :: :none | :low | :medium | :high
+  @type reasoning_level ::
+          :none
+          | :low
+          | :medium
+          | :high
 
   @type t :: %__MODULE__{
           model: String.t(),
@@ -25,25 +29,34 @@ defmodule AI.Model do
   @spec smart() :: t
   def smart() do
     %AI.Model{
-      model: "gpt-4.1",
-      context: 1_000_000,
-      reasoning: :none
+      model: "o4-mini",
+      context: 200_000,
+      reasoning: :high
     }
   end
 
   @spec balanced() :: t
   def balanced() do
     %AI.Model{
-      model: "gpt-4.1-mini",
-      context: 1_000_000,
-      reasoning: :none
+      model: "o4-mini",
+      context: 200_000,
+      reasoning: :medium
     }
   end
 
   @spec fast() :: t
   def fast() do
     %AI.Model{
-      model: "gpt-4.1-nano",
+      model: "o4-mini",
+      context: 200_000,
+      reasoning: :low
+    }
+  end
+
+  @spec large_context() :: t
+  def large_context() do
+    %AI.Model{
+      model: "gpt-4.1-mini",
       context: 1_000_000,
       reasoning: :none
     }

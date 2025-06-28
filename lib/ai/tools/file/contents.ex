@@ -6,11 +6,11 @@ defmodule AI.Tools.File.Contents do
 
   @impl AI.Tools
   def ui_note_on_request(%{"file" => file, "line_numbers" => true}) do
-    {"Retrieving file w/ line numbers", file}
+    {"Retrieving file", file}
   end
 
   def ui_note_on_request(%{"file" => file}) do
-    {"Retrieving file w/o line numbers", file}
+    {"Retrieving file", file}
   end
 
   @impl AI.Tools

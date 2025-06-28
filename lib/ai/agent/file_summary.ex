@@ -4,7 +4,7 @@ defmodule AI.Agent.FileSummary do
   generate embeddings for the database and summaries for the user.
   """
 
-  @model AI.Model.fast()
+  @model AI.Model.large_context()
 
   @prompt """
   You are an AI agent that summarizes the content of a file, whether it is code or documentation, thoroughly documenting its internal implementation and public interface.

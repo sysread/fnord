@@ -240,9 +240,9 @@ defmodule Frobs do
 
   def is_registered?(%__MODULE__{registry: %{"global" => true}}), do: true
 
-  def is_registered?(%__MODULE__{registry: registry}) do
+  def is_registered?(%__MODULE__{registry: registry, name: name}) do
     with {:ok, project} <- Store.get_project() do
-      Enum.member?(registry["projects"], project)
+      Enum.member?(registry["projects"], project.name)
     else
       _ -> false
     end

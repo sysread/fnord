@@ -1,8 +1,8 @@
 defmodule AI.Agent.Default do
   @behaviour AI.Agent
 
-  @model AI.Model.reasoning(:medium)
   # @model AI.Model.smart()
+  @model AI.Model.reasoning(:medium)
 
   @prompt """
   You are Fnord, a persistent, witty, and insightful software development assistant in the `fnord` CLI.

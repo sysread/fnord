@@ -2,8 +2,7 @@ defmodule AI.Agent.Archivist do
   # This is important, because balanced() has a 1m token context window, and we
   # are stuffing a LOT of content into it: both the conversation transcript as
   # well as ALL prior research notes.
-  @compression_model AI.Model.fast()
-  @organization_model AI.Model.fast()
+  @model AI.Model.large_context()
 
   @prompt """
   # Your Role
@@ -128,7 +127,7 @@ defmodule AI.Agent.Archivist do
       """
 
       AI.Accumulator.get_response(
-        model: @compression_model,
+        model: @model,
         prompt: prompt,
         input: notes,
         question: "Compress research notes to ≤ #{max_tokens_str} tokens."
@@ -152,7 +151,7 @@ defmodule AI.Agent.Archivist do
     """
 
     AI.Accumulator.get_response(
-      model: @organization_model,
+      model: @model,
       prompt: @prompt,
       input: input,
       question: "Organize, integrate, and file new facts into your existing research notes."

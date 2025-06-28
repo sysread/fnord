@@ -57,7 +57,13 @@ defmodule AI.Tools.Git.DiffBranch do
   @impl AI.Tools
   def call(args) do
     with {:ok, topic} <- Map.fetch(args, "topic") do
-      base = Map.get(args, "base", "origin/main")
+      base =
+        args
+        |> Map.get("base")
+        |> case do
+          nil -> "origin/main"
+          base -> base
+        end
 
       case Git.diff_branch(topic, base) do
         {:ok, {commits, changes}} -> {:ok, "[git_diff_branch]\n#{commits}\n\n#{changes}"}

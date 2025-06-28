@@ -8,7 +8,8 @@ defmodule AI.Agent.Coordinator do
   use before finalizing its response.
   """
 
-  @model AI.Model.smart()
+  # @model AI.Model.smart()
+  @model AI.Model.reasoning(:medium)
 
   @behaviour AI.Agent
 
@@ -35,9 +36,9 @@ defmodule AI.Agent.Coordinator do
 
   defp consider(state) do
     Frobs.module_map()
-    |> Enum.map(fn {name, module} -> "#{name} <#{module}>" end)
-    |> Enum.join(" | ")
-    |> then(&UI.info("Available frobs: #{&1}"))
+    |> Enum.map(fn {name, module} -> "- #{name} <#{module}>" end)
+    |> Enum.join("\n")
+    |> then(&UI.info("Available frobs:\n#{&1}"))
 
     if is_testing?(state) do
       UI.debug("Testing mode enabled")
@@ -453,8 +454,7 @@ defmodule AI.Agent.Coordinator do
   # Output
   # -----------------------------------------------------------------------------
   defp log_response(%{steps: [], last_response: answer} = state) do
-    UI.flush()
-    IO.puts(answer)
+    UI.say(answer)
     state
   end
 
