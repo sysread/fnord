@@ -37,9 +37,12 @@ defmodule Cmd.Default do
 
   def run(_opts, _subcommands, [prompt]) do
     with {:ok, result} <- AI.Agent.Default.get_response(%{prompt: prompt}) do
-      IO.puts(result.response)
-      IO.puts("")
-      UI.flush()
+      UI.say(result.response)
+
+      # Allow time for the response to be displayed before rolling up to avoid
+      # the confirmation prompt being shown before beam flushes stdout.
+      Process.sleep(100)
+
       maybe_rollup(result.usage, result.num_msgs)
     end
   end

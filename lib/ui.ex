@@ -4,6 +4,14 @@ defmodule UI do
   # ----------------------------------------------------------------------------
   # Messaging
   # ----------------------------------------------------------------------------
+  def say(msg) do
+    UI.flush()
+
+    msg
+    |> UI.Formatter.format_output()
+    |> IO.puts()
+  end
+
   def confirm(msg), do: confirm(msg, false)
 
   def confirm(_msg, true), do: true
