@@ -10,7 +10,7 @@ defmodule UI.FormatterTest do
 
   setup do
     original = System.get_env("FNORD_FORMATTER")
-    on_exit(fn -> System.put_env("FNORD_FORMATTER", original) end)
+    on_exit(fn -> System.put_env("FNORD_FORMATTER", original || "") end)
     :ok
   end
 
@@ -65,4 +65,3 @@ defmodule UI.FormatterTest do
     end
   end
 end
-
