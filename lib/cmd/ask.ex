@@ -50,7 +50,7 @@ defmodule Cmd.Ask do
           replay: [
             long: "--replay",
             short: "-r",
-            help: "Replay a conversation (with --follow is set)"
+            help: "Replay a conversation (with --conversation or --follow set)"
           ],
           follow: [
             long: "--follow",
@@ -91,7 +91,7 @@ defmodule Cmd.Ask do
         UI.error("--rounds expects a positive integer")
 
       {:error, :conversation_not_found} ->
-        UI.error("Conversation ID #{opts[:follow]} not found")
+        UI.error("Conversation ID #{opts[:conversation]} not found")
 
       {:error, other} ->
         UI.error("An error occurred while generating the response:\n\n#{other}")
@@ -111,7 +111,7 @@ defmodule Cmd.Ask do
   defp validate_rounds(%{rounds: rounds}) when rounds > 0, do: :ok
   defp validate_rounds(_opts), do: {:error, :invalid_rounds}
 
-  defp validate_conversation(%{follow: conversation_id}) when is_binary(conversation_id) do
+  defp validate_conversation(%{conversation: conversation_id}) when is_binary(conversation_id) do
     conversation_id
     |> Store.Project.Conversation.new()
     |> Store.Project.Conversation.exists?()
@@ -123,7 +123,8 @@ defmodule Cmd.Ask do
 
   defp validate_conversation(_opts), do: :ok
 
-  defp get_conversation(%{follow: conversation_id}) when is_binary(conversation_id) do
+  defp get_conversation(%{conversation: conversation_id})
+       when is_binary(conversation_id) do
     Store.Project.Conversation.new(conversation_id)
   end
 

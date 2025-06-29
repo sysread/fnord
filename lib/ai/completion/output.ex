@@ -109,7 +109,7 @@ defmodule AI.Completion.Output do
   end
 
   @doc """
-  Replaces the entire conversation, similarly to `replay_conversation/1`, but
+  Replays the entire conversation, similarly to `replay_conversation/1`, but
   prints the final message to STDOUT, identically to the original interaction.
   This is intended to be used when replaying the entire conversation to
   replicate the original interaction, rather than for the sake of continuing
@@ -141,7 +141,7 @@ defmodule AI.Completion.Output do
     # coordinate the two streams.
     Process.sleep(100)
 
-    IO.puts("\n#{response.content}")
+    UI.say("\n#{response.content}")
 
     state
   end

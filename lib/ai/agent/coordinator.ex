@@ -150,7 +150,7 @@ defmodule AI.Agent.Coordinator do
 
     # Retrieve and output the MOTD
     with {:ok, motd} <- Task.await(motd, :infinity) do
-      IO.puts(motd)
+      UI.say("\n\n" <> motd)
     else
       {:error, reason} -> UI.error("Failed to retrieve MOTD: #{inspect(reason)}")
     end
@@ -446,7 +446,7 @@ defmodule AI.Agent.Coordinator do
   # -----------------------------------------------------------------------------
   defp get_motd(state) do
     with {:ok, %{response: motd}} <- AI.Agent.MOTD.get_response(%{prompt: state.question}) do
-      {:ok, "\n\n" <> motd}
+      {:ok, motd}
     end
   end
 
