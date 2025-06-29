@@ -80,4 +80,23 @@ defmodule Store.Project.ConversationTest do
     assert ^ts = Conversation.timestamp(convo)
     assert {:ok, "Hello, I am User."} = Conversation.question(convo)
   end
+
+  test "list/1 returns conversations in descending timestamp order", ctx do
+    id1 = "one"
+    id2 = "two"
+
+    ts1 = 1_000
+    ts2 = 2_000
+
+    conv1 = Conversation.new(id1, ctx.project)
+    conv2 = Conversation.new(id2, ctx.project)
+
+    File.mkdir_p!(Path.dirname(conv1.store_path))
+
+    File.write!(conv1.store_path, "#{ts1}:{\"messages\":[]}")
+    File.write!(conv2.store_path, "#{ts2}:{\"messages\":[]}")
+
+    assert [%Conversation{id: ^id1}, %Conversation{id: ^id2}] =
+             Conversation.list(ctx.project.store_path)
+  end
 end

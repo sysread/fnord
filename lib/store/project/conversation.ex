@@ -20,26 +20,24 @@ defmodule Store.Project.Conversation do
   @store_dir "conversations"
 
   @doc """
-  Lists all conversations in the given project.
+  Lists all conversations in the given project in ascending order by timestamp.
   """
   @spec list(String.t()) :: [t()]
   def list(project_home) do
-    conversations =
-      project_home
-      |> Path.join(["conversations/*.json"])
-      |> Path.wildcard()
-      |> Enum.map(&Path.basename(&1, ".json"))
-      |> Enum.map(&Store.Project.Conversation.new(&1, project_home))
-
-    timestamps =
-      conversations
-      |> Enum.reduce(%{}, fn conversation, acc ->
-        timestamp = Store.Project.Conversation.timestamp(conversation)
-        Map.put(acc, conversation.id, timestamp)
-      end)
-
-    conversations
-    |> Enum.sort(fn a, b -> timestamps[a.id] > timestamps[b.id] end)
+    project_home
+    |> Path.join(["conversations/*.json"])
+    |> Path.wildcard()
+    |> Enum.map(&Path.basename(&1, ".json"))
+    |> Enum.map(&Store.Project.Conversation.new(&1, project_home))
+    |> Enum.sort_by(
+      fn conv ->
+        case Store.Project.Conversation.timestamp(conv) do
+          %DateTime{} = dt -> DateTime.to_unix(dt)
+          int when is_integer(int) -> int
+        end
+      end,
+      :asc
+    )
   end
 
   @doc """
