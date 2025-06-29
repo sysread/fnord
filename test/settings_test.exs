@@ -1,6 +1,24 @@
 defmodule SettingsTest do
   use Fnord.TestCase
 
+  describe "project" do
+    test "project_is_set?/0 returns false when project is not set and true when set" do
+      set_config(:project, nil)
+      refute Settings.project_is_set?()
+
+      set_config(:project, "my_project")
+      assert Settings.project_is_set?()
+    end
+
+    test "get_selected_project/0 returns error when project not set and ok when set" do
+      set_config(:project, nil)
+      assert Settings.get_selected_project() == {:error, :project_not_set}
+
+      set_config(:project, "my_project")
+      assert Settings.get_selected_project() == {:ok, "my_project"}
+    end
+  end
+
   test "home/0", %{home_dir: home_dir} do
     assert Settings.home() == Path.join(home_dir, ".fnord")
   end

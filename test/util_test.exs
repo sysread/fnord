@@ -1,5 +1,6 @@
 defmodule UtilTest do
   use Fnord.TestCase, async: true
+  import ExUnit.CaptureIO
 
   test "expand_path/2" do
     assert Util.expand_path("foo/bar") == Path.expand("foo/bar")
@@ -103,6 +104,56 @@ defmodule UtilTest do
       :ok = File.ln_s(external, symlink)
 
       assert Util.path_within_root?(symlink, root) == false
+    end
+  end
+
+  describe "get_latest_version" do
+    setup do
+      :meck.new(HTTPoison, [:no_link, :passthrough])
+      on_exit(fn -> :meck.unload(HTTPoison) end)
+      :ok
+    end
+
+    test "returns {:ok, version} when API returns 200 and valid JSON" do
+      :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
+        {:ok, %HTTPoison.Response{status_code: 200, body: ~s({"latest_version":"1.2.3"})}}
+      end)
+
+      assert Util.get_latest_version() == {:ok, "1.2.3"}
+    end
+
+    test "returns :error when API returns 200 but invalid JSON" do
+      :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
+        {:ok, %HTTPoison.Response{status_code: 200, body: "invalid json"}}
+      end)
+
+      assert Util.get_latest_version() == :error
+    end
+
+    test "returns {:error, :api_request_failed} and warns when non-200 status code" do
+      :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
+        {:ok, %HTTPoison.Response{status_code: 500, body: ""}}
+      end)
+
+      stderr =
+        capture_io(:stderr, fn ->
+          assert Util.get_latest_version() == {:error, :api_request_failed}
+        end)
+
+      assert stderr =~ "Hex API request failed with status 500"
+    end
+
+    test "returns {:error, reason} and warns when transport error occurs" do
+      :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
+        {:error, %HTTPoison.Error{reason: :timeout}}
+      end)
+
+      stderr =
+        capture_io(:stderr, fn ->
+          assert Util.get_latest_version() == {:error, :timeout}
+        end)
+
+      assert stderr =~ "Hex API request error: :timeout"
     end
   end
 end

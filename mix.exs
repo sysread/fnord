@@ -56,6 +56,7 @@ defmodule Fnord.MixProject do
       {:ex_doc, ">= 0.0.0", only: [:dev], runtime: false},
       {:httpoison, "~> 2.2.1"},
       {:jason, "~> 1.4"},
+      {:meck, "~> 1.0", only: [:test], runtime: false},
       {:mox, "~> 1.2", only: [:test], runtime: false},
       {:number, "~> 1.0.5"},
       {:optimus, "~> 0.2"},
