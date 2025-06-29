@@ -30,7 +30,8 @@ defmodule AI.Agent.Coordinator do
       current_step: 0,
       total_steps: Enum.count(research_steps),
       usage: 0,
-      context: @model.context
+      context: @model.context,
+      replay: Map.get(opts, :replay, false)
     }
   end
 
@@ -75,7 +76,7 @@ defmodule AI.Agent.Coordinator do
      """}
   end
 
-  defp perform_step(%{steps: [:singleton | steps]} = state) do
+  defp perform_step(%{replay: replay, steps: [:singleton | steps]} = state) do
     UI.debug("Performing abbreviated research")
 
     state
@@ -84,11 +85,11 @@ defmodule AI.Agent.Coordinator do
     |> user_msg()
     |> get_notes()
     |> begin_msg()
-    |> get_completion()
+    |> get_completion(replay)
     |> perform_step()
   end
 
-  defp perform_step(%{steps: [:initial | steps]} = state) do
+  defp perform_step(%{replay: replay, steps: [:initial | steps]} = state) do
     UI.debug("Researching")
 
     state
@@ -97,7 +98,7 @@ defmodule AI.Agent.Coordinator do
     |> user_msg()
     |> get_notes()
     |> begin_msg()
-    |> get_completion()
+    |> get_completion(replay)
     |> perform_step()
   end
 
@@ -169,7 +170,7 @@ defmodule AI.Agent.Coordinator do
     state
   end
 
-  defp get_completion(%{msgs: msgs} = state) do
+  defp get_completion(%{msgs: msgs} = state, replay \\ false) do
     current_step = state.current_step + 1
 
     tools =
@@ -180,7 +181,7 @@ defmodule AI.Agent.Coordinator do
     AI.Completion.get(
       log_msgs: true,
       log_tool_calls: true,
-      replay_conversation: false,
+      replay_conversation: replay,
       model: @model,
       tools: tools,
       messages: msgs

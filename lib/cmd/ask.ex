@@ -55,7 +55,7 @@ defmodule Cmd.Ask do
           follow: [
             long: "--follow",
             short: "-f",
-            help: "Continue the most recent conversation (NOT IMPLEMENTED YET)"
+            help: "Continue the most recent conversation"
           ]
         ]
       ]
@@ -90,6 +90,12 @@ defmodule Cmd.Ask do
       {:error, :invalid_rounds} ->
         UI.error("--rounds expects a positive integer")
 
+      {:error, :conflicting_options} ->
+        UI.error("Cannot specify both --conversation and --follow")
+
+      {:error, :no_conversations} ->
+        UI.error("No existing conversation to follow")
+
       {:error, :conversation_not_found} ->
         UI.error("Conversation ID #{opts[:conversation]} not found")
 
@@ -111,6 +117,23 @@ defmodule Cmd.Ask do
   defp validate_rounds(%{rounds: rounds}) when rounds > 0, do: :ok
   defp validate_rounds(_opts), do: {:error, :invalid_rounds}
 
+  # Error if both --conversation and --follow are passed
+  defp validate_conversation(%{follow: true, conversation: id}) when is_binary(id) do
+    {:error, :conflicting_options}
+  end
+
+  # Ensure there is at least one existing conversation for --follow
+  defp validate_conversation(%{follow: true}) do
+    {:ok, project} = Store.get_project()
+    convs = Store.Project.Conversation.list(project.store_path)
+
+    if convs == [] do
+      {:error, :no_conversations}
+    else
+      :ok
+    end
+  end
+
   defp validate_conversation(%{conversation: conversation_id}) when is_binary(conversation_id) do
     conversation_id
     |> Store.Project.Conversation.new()
@@ -123,27 +146,40 @@ defmodule Cmd.Ask do
 
   defp validate_conversation(_opts), do: :ok
 
+  # When --follow is present, select the most recent conversation
+  defp get_conversation(%{follow: true}) do
+    with {:ok, project} <- Store.get_project() do
+      project.store_path
+      |> Store.Project.Conversation.list()
+      |> List.last()
+      |> case do
+        nil -> {:error, :noent}
+        conversation -> {:ok, conversation}
+      end
+    end
+  end
+
   defp get_conversation(%{conversation: conversation_id})
        when is_binary(conversation_id) do
-    Store.Project.Conversation.new(conversation_id)
+    {:ok, Store.Project.Conversation.new(conversation_id)}
   end
 
   defp get_conversation(_opts) do
-    Store.Project.Conversation.new()
+    {:ok, Store.Project.Conversation.new()}
   end
 
   defp restore_conversation(opts) do
-    conversation = get_conversation(opts)
+    with {:ok, conversation} <- get_conversation(opts) do
+      messages =
+        if Store.Project.Conversation.exists?(conversation) do
+          {:ok, _ts, messages} = Store.Project.Conversation.read(conversation)
+          messages
+        else
+          []
+        end
 
-    messages =
-      if Store.Project.Conversation.exists?(conversation) do
-        {:ok, _ts, messages} = Store.Project.Conversation.read(conversation)
-        messages
-      else
-        []
-      end
-
-    {:ok, messages, conversation}
+      {:ok, messages, conversation}
+    end
   end
 
   defp save_conversation(conversation, messages) do

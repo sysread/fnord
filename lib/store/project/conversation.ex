@@ -84,8 +84,8 @@ defmodule Store.Project.Conversation do
   Returns true if the conversation exists on disk, false otherwise.
   """
   @spec exists?(t()) :: boolean()
-  def exists?(conversation) do
-    File.exists?(conversation.store_path)
+  def exists?(%__MODULE__{store_path: store_path}) do
+    File.exists?(store_path)
   end
 
   @doc """

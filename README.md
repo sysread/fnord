@@ -211,11 +211,18 @@ Conversations (the transcript of messages between the LLM and the application) a
 Conversation saved with ID: c81928aa-6ab2-4346-9b2a-0edce6a639f0
 ```
 
-If desired, you can use that ID to continue the conversation with `--follow`.
+If desired, you can use that ID to continue the conversation with `--conversation`.
 
 ```bash
-fnord ask --project blarg --follow c81928aa-6ab2-4346-9b2a-0edce6a639f0 --question "Is some_function still used?"
+fnord ask --project blarg --conversation c81928aa-6ab2-4346-9b2a-0edce6a639f0 --question "Is some_function still used?"
 ```
+
+...or can continue the _most recently saved conversation_ with `--follow`.
+
+```bash
+fnord ask --project blarg --follow --question "Is some_function still used?"
+```
+
 
 List conversations with the `conversations` command.
 
