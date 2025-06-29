@@ -87,19 +87,17 @@ defmodule AI.Agent.Archivist do
 
   @impl AI.Agent
   def get_response(opts) do
-    Store.Project.Notes.with_flock(:exclusive, fn ->
-      with {:ok, transcript} <- Map.fetch(opts, :transcript),
-           {:ok, max_tokens} <- Map.fetch(opts, :max_tokens),
-           {:ok, old_notes} <- fetch_notes(),
-           {:ok, compressed} <- compress_notes(old_notes, max_tokens),
-           {:ok, organized} <- organize_notes(transcript, compressed),
-           :ok = Store.Project.Notes.write(organized) do
-        {:ok, organized}
-      else
-        {:compress_error, reason} -> {:error, "failed to compress notes: #{reason}"}
-        {:organize_error, reason} -> {:error, "failed to organize notes: #{reason}"}
-      end
-    end)
+    with {:ok, transcript} <- Map.fetch(opts, :transcript),
+         {:ok, max_tokens} <- Map.fetch(opts, :max_tokens),
+         {:ok, old_notes} <- fetch_notes(),
+         {:ok, compressed} <- compress_notes(old_notes, max_tokens),
+         {:ok, organized} <- organize_notes(transcript, compressed),
+         :ok = Store.Project.Notes.write(organized) do
+      {:ok, organized}
+    else
+      {:compress_error, reason} -> {:error, "failed to compress notes: #{reason}"}
+      {:organize_error, reason} -> {:error, "failed to organize notes: #{reason}"}
+    end
   end
 
   # Recursively compress notes until under max_tokens
