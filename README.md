@@ -76,7 +76,12 @@ This enables the LLM to answer questions about your code base, even if the proje
 
 - **Optional: Install a markdown viewer**
 
-Markdown seems to be the language of choice for LLMs, so installing something like `glow` to pipe output to will make the output more readable.
+Markdown seems to be the language of choice for LLMs, so installing something like `gum` or `glow` to pipe output to will make the output more readable.
+You can make your preferred formatter persistent by setting the `FNORD_FORMATTER` environment variable in your shell.
+
+```bash
+export FNORD_FORMATTER="gum format"
+```
 
 
 ## Getting Started

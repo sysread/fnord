@@ -12,30 +12,33 @@ defmodule UI.Formatter do
 
   @spec format_output(binary) :: binary
   def format_output(input) do
-    case System.get_env("FNORD_FORMATTER") do
-      nil ->
-        input
+    if UI.quiet?() do
+      input
+    else
+      case System.get_env("FNORD_FORMATTER") do
+        nil ->
+          input
 
-      "" ->
-        input
+        "" ->
+          input
 
-      formatter ->
-        shell = System.get_env("SHELL") || "/bin/sh"
+        formatter ->
+          shell = System.get_env("SHELL") || "/bin/sh"
 
-        with {:ok, tmpfile} <- Briefly.create(),
-             :ok <- File.write(tmpfile, input) do
-          shell
-          |> System.cmd(["-c", "cat #{tmpfile} | #{formatter}"], stderr_to_stdout: true)
-          |> case do
-            {output, 0} ->
-              output
+          with {:ok, tmpfile} <- Briefly.create(),
+               :ok <- File.write(tmpfile, input) do
+            shell
+            |> System.cmd(["-c", "cat #{tmpfile} | #{formatter}"], stderr_to_stdout: true)
+            |> case do
+              {output, 0} ->
+                output
 
-            {_, exit_code} ->
-              UI.warn("Formatter command failed", "exit code #{exit_code}: #{formatter}")
-              input
+              {_, exit_code} ->
+                UI.warn("Formatter command failed", "exit code #{exit_code}: #{formatter}")
+                input
+            end
           end
-        end
+      end
     end
   end
 end
-

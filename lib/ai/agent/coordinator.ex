@@ -539,8 +539,7 @@ defmodule AI.Agent.Coordinator do
       ]
     )
     |> then(fn {:ok, %{response: msg, usage: usage} = response} ->
-      UI.flush()
-      IO.puts(msg)
+      UI.say(msg)
 
       response
       |> AI.Completion.tools_used()

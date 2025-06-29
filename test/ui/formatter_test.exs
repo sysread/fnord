@@ -4,12 +4,20 @@ defmodule UI.FormatterTest do
   import ExUnit.CaptureLog
 
   setup do
-    original = System.get_env("FNORD_FORMATTER")
-    on_exit(fn ->
-      if original, do: System.put_env("FNORD_FORMATTER", original), else: System.delete_env("FNORD_FORMATTER")
-    end)
-
     set_log_level(:warning)
+    :ok
+  end
+
+  setup do
+    original = System.get_env("FNORD_FORMATTER")
+    on_exit(fn -> System.put_env("FNORD_FORMATTER", original) end)
+    :ok
+  end
+
+  setup do
+    original = Application.get_env(:fnord, :quiet)
+    on_exit(fn -> Application.put_env(:fnord, :quiet, original) end)
+    Application.put_env(:fnord, :quiet, false)
     :ok
   end
 
@@ -35,6 +43,7 @@ defmodule UI.FormatterTest do
     test "gracefully handles invalid command by logging warning and returning input" do
       System.put_env("FNORD_FORMATTER", "nonexistent_command")
       input = "test"
+
       log =
         capture_log(fn ->
           assert UI.Formatter.format_output(input) == input
@@ -56,3 +65,4 @@ defmodule UI.FormatterTest do
     end
   end
 end
+
