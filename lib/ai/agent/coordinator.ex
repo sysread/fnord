@@ -35,8 +35,8 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp consider(state) do
-    Frobs.module_map()
-    |> Enum.map(fn {name, module} -> "- #{name} <#{module}>" end)
+    Frobs.list()
+    |> Enum.map(fn %{name: name} -> "- #{name}" end)
     |> Enum.join("\n")
     |> then(&UI.info("Available frobs:\n#{&1}"))
 
@@ -158,6 +158,8 @@ defmodule AI.Agent.Coordinator do
     # We don't need to retain the output of the notes task for anything. But we
     # do need to ensure it is completed before we exit, and report on its
     # outcome.
+    UI.info("Waiting on update to research notes...")
+
     Task.await(notes, :infinity)
     |> case do
       {:error, reason} -> UI.error("Failed to save research notes:\n\n#{reason}")
