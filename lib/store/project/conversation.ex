@@ -22,7 +22,7 @@ defmodule Store.Project.Conversation do
   @doc """
   Lists all conversations in the given project in ascending order by timestamp.
   """
-  @spec list(String.t()) :: [t()]
+  @spec list(binary) :: [t()]
   def list(project_home) do
     project_home
     |> Path.join(["conversations/*.json"])

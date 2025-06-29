@@ -252,9 +252,9 @@ defmodule AI.Agent.Coordinator do
 
   @begin """
   I'm going to start by considering the user's question.
-  There are a number of ways to look at this.
-  I'll spawn a few research tasks to explore different aspects of the question in parallel.
-  That will address some of the unknowns and help guide my next steps.
+  First, I need to be certain I understand the question, the context, the terms used, and how it relates to the project.
+  I'll spawn a few research tasks to explore different facets of the question in parallel.
+  I can assimilate that information and use it to inform my next steps.
   """
 
   @clarify """
