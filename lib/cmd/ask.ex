@@ -80,11 +80,21 @@ defmodule Cmd.Ask do
       usage_str = Util.format_number(usage)
       context_str = Util.format_number(context)
 
-      IO.puts("""
-      -----
+      {:ok, project} = Store.get_project()
+      %{new: new, stale: stale, deleted: deleted} = Store.Project.index_status(project)
+
+      UI.say("""
+      ### Response Summary:
       - Response generated in #{time_taken} seconds
       - Tokens used: #{usage_str} | #{pct_context_used}% of context window (#{context_str})
       - Conversation saved with ID #{conversation_id}
+
+      ### Project Search Index Status:
+      - Stale:   #{Enum.count(stale)}
+      - New:     #{Enum.count(new)}
+      - Deleted: #{Enum.count(deleted)}
+
+      _Run `fnord index` to update the index._
       """)
     else
       {:error, :invalid_rounds} ->
