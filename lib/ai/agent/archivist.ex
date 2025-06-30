@@ -2,7 +2,7 @@ defmodule AI.Agent.Archivist do
   # This is important, because balanced() has a 1m token context window, and we
   # are stuffing a LOT of content into it: both the conversation transcript as
   # well as ALL prior research notes.
-  @model AI.Model.large_context()
+  @model AI.Model.fast()
 
   @prompt """
   # Your Role
