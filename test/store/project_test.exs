@@ -108,4 +108,31 @@ defmodule ProjectTest do
     Project.create(project)
     assert Project.exists_in_store?(project)
   end
+
+  describe "index_status/1" do
+    test "classifies deleted, new, and stale entries", %{project: project} do
+      a = mock_source_file(project, "a.txt", "foo")
+      entry_a = Store.Project.Entry.new_from_file_path(project, a)
+      Store.Project.Entry.save(entry_a, "", "", [])
+
+      c = mock_source_file(project, "c.txt", "baz")
+      entry_c = Store.Project.Entry.new_from_file_path(project, c)
+      Store.Project.Entry.save(entry_c, "", "", [])
+
+      b = mock_source_file(project, "b.txt", "bar")
+
+      File.rm!(c)
+      File.write!(a, "changed")
+
+      status = Store.Project.index_status(project)
+
+      deleted = status.deleted |> Enum.map(& &1.file) |> MapSet.new()
+      new = status.new |> Enum.map(& &1.file) |> MapSet.new()
+      stale = status.stale |> Enum.map(& &1.file) |> MapSet.new()
+
+      assert deleted == MapSet.new([c])
+      assert new == MapSet.new([b])
+      assert stale == MapSet.new([a])
+    end
+  end
 end

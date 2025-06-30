@@ -8,7 +8,15 @@ defmodule Store.Project do
     :exclude_cache
   ]
 
+  alias Store.Project.Entry
+
   @type t :: %__MODULE__{}
+
+  @type index_status :: %{
+          new: [Entry.t()],
+          stale: [Entry.t()],
+          deleted: [Entry.t()]
+        }
 
   @conversation_dir "conversations"
 
@@ -215,6 +223,46 @@ defmodule Store.Project do
       end)
 
     {project, entries}
+  end
+
+  @doc """
+  Returns the status of the index for the given project.
+
+  It classifies entries into:
+    * `:deleted`  - entries that were indexed but the source files have been removed
+    * `:stale`    - entries whose indexed metadata is stale compared to the source file
+    * `:new`      - entries for unindexed files that exist in the source
+  """
+  @spec index_status(t) :: index_status
+  def index_status(project) do
+    {project, source_stream} = source_files(project)
+
+    source =
+      source_stream
+      |> Enum.to_list()
+
+    stored =
+      project
+      |> stored_files()
+      |> Enum.to_list()
+
+    new =
+      source
+      |> Enum.filter(fn entry -> not Entry.exists_in_store?(entry) end)
+
+    stale =
+      source
+      |> Enum.filter(fn entry -> Entry.exists_in_store?(entry) and Entry.is_stale?(entry) end)
+
+    deleted =
+      stored
+      |> Enum.filter(fn entry -> not File.exists?(entry.file) end)
+
+    %{
+      new: new,
+      stale: stale,
+      deleted: deleted
+    }
   end
 
   # -----------------------------------------------------------------------------
