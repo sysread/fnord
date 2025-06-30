@@ -8,8 +8,8 @@ defmodule AI.Agent.Coordinator do
   use before finalizing its response.
   """
 
-  # @model AI.Model.smart()
-  @model AI.Model.reasoning(:medium)
+  @model AI.Model.smart()
+  # @model AI.Model.reasoning(:medium)
 
   @behaviour AI.Agent
 

@@ -18,6 +18,10 @@ defmodule AI.Agent.Archivist do
   Your saved research notes will guide future research to avoid these pitfalls.
 
   Examples of useful information to save:
+  - User preferences
+    - Coding styles
+    - Coding conventions
+    - Commenting style
   - Ambiguities in phrasing:
     - Inconsistent phrasing
     - Components or concepts with names that are similar to other components
