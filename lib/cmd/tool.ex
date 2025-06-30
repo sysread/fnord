@@ -14,14 +14,7 @@ defmodule Cmd.Tool do
         subcommands: get_subcommands(),
         options: [
           project: Cmd.project_arg(),
-          workers: [
-            value_name: "WORKERS",
-            long: "--workers",
-            short: "-w",
-            help: "Limits the number of concurrent OpenAI requests",
-            parser: :integer,
-            default: Cmd.default_workers()
-          ],
+          workers: Cmd.workers_arg(),
           tool: [
             value_name: "TOOL",
             long: "--tool",

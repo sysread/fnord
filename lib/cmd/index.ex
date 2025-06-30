@@ -23,6 +23,7 @@ defmodule Cmd.Index do
         about: "Index a project",
         options: [
           project: Cmd.project_arg(),
+          workers: Cmd.workers_arg(),
           directory: [
             value_name: "DIR",
             long: "--dir",
@@ -30,14 +31,6 @@ defmodule Cmd.Index do
             help:
               "Directory to index (required for first index or reindex after moving the project)",
             required: false
-          ],
-          workers: [
-            value_name: "WORKERS",
-            long: "--workers",
-            short: "-w",
-            help: "Limits the number of concurrent OpenAI requests",
-            parser: :integer,
-            default: Cmd.default_workers()
           ],
           exclude: [
             value_name: "FILE",

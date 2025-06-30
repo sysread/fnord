@@ -14,6 +14,7 @@ defmodule Cmd.Ask do
         about: "Ask the AI a question about the project",
         options: [
           project: Cmd.project_arg(),
+          workers: Cmd.workers_arg(),
           question: [
             value_name: "QUESTION",
             long: "--question",
@@ -31,18 +32,10 @@ defmodule Cmd.Ask do
             default: @default_rounds,
             required: false
           ],
-          workers: [
-            value_name: "WORKERS",
-            long: "--workers",
-            short: "-w",
-            help: "Limits the number of concurrent OpenAI requests",
-            parser: :integer,
-            default: Cmd.default_workers()
-          ],
-          conversation: [
+          follow: [
             value_name: "UUID",
-            long: "--conversation",
-            short: "-c",
+            long: "--follow",
+            short: "-f",
             help: "Continue an existing conversation by UUID"
           ]
         ],
@@ -50,12 +43,7 @@ defmodule Cmd.Ask do
           replay: [
             long: "--replay",
             short: "-r",
-            help: "Replay a conversation (with --conversation or --follow set)"
-          ],
-          follow: [
-            long: "--follow",
-            short: "-f",
-            help: "Continue the most recent conversation"
+            help: "Replay a conversation (with --follow)"
           ]
         ]
       ]
@@ -100,12 +88,6 @@ defmodule Cmd.Ask do
       {:error, :invalid_rounds} ->
         UI.error("--rounds expects a positive integer")
 
-      {:error, :conflicting_options} ->
-        UI.error("Cannot specify both --conversation and --follow")
-
-      {:error, :no_conversations} ->
-        UI.error("No existing conversation to follow")
-
       {:error, :conversation_not_found} ->
         UI.error("Conversation ID #{opts[:conversation]} not found")
 
@@ -127,24 +109,7 @@ defmodule Cmd.Ask do
   defp validate_rounds(%{rounds: rounds}) when rounds > 0, do: :ok
   defp validate_rounds(_opts), do: {:error, :invalid_rounds}
 
-  # Error if both --conversation and --follow are passed
-  defp validate_conversation(%{follow: true, conversation: id}) when is_binary(id) do
-    {:error, :conflicting_options}
-  end
-
-  # Ensure there is at least one existing conversation for --follow
-  defp validate_conversation(%{follow: true}) do
-    {:ok, project} = Store.get_project()
-    convs = Store.Project.Conversation.list(project.store_path)
-
-    if convs == [] do
-      {:error, :no_conversations}
-    else
-      :ok
-    end
-  end
-
-  defp validate_conversation(%{conversation: conversation_id}) when is_binary(conversation_id) do
+  defp validate_conversation(%{follow: conversation_id}) do
     conversation_id
     |> Store.Project.Conversation.new()
     |> Store.Project.Conversation.exists?()
@@ -156,21 +121,7 @@ defmodule Cmd.Ask do
 
   defp validate_conversation(_opts), do: :ok
 
-  # When --follow is present, select the most recent conversation
-  defp get_conversation(%{follow: true}) do
-    with {:ok, project} <- Store.get_project() do
-      project.store_path
-      |> Store.Project.Conversation.list()
-      |> List.last()
-      |> case do
-        nil -> {:error, :noent}
-        conversation -> {:ok, conversation}
-      end
-    end
-  end
-
-  defp get_conversation(%{conversation: conversation_id})
-       when is_binary(conversation_id) do
+  defp get_conversation(%{follow: conversation_id}) do
     {:ok, Store.Project.Conversation.new(conversation_id)}
   end
 

@@ -20,4 +20,15 @@ defmodule Cmd do
       required: false
     ]
   end
+
+  def workers_arg do
+    [
+      value_name: "WORKERS",
+      long: "--workers",
+      short: "-w",
+      help: "Limit concurrency (affects parallel OpenAI API requests, file system ops, et al)",
+      parser: :integer,
+      default: default_workers()
+    ]
+  end
 end

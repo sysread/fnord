@@ -21,6 +21,7 @@ defmodule Cmd.Search do
         ],
         options: [
           project: Cmd.project_arg(),
+          workers: Cmd.workers_arg(),
           query: [
             value_name: "QUERY",
             long: "--query",
@@ -35,14 +36,6 @@ defmodule Cmd.Search do
             help: "Limit the number of results",
             parser: :integer,
             default: @default_search_limit
-          ],
-          workers: [
-            value_name: "WORKERS",
-            long: "--workers",
-            short: "-w",
-            help: "Limits the number of concurrent OpenAI requests",
-            parser: :integer,
-            default: Cmd.default_workers()
           ]
         ]
       ]
