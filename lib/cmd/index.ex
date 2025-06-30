@@ -1,11 +1,16 @@
 defmodule Cmd.Index do
-  @behaviour Cmd
-
   defstruct [
     :opts,
     :indexer,
     :project
   ]
+
+  @type t :: %__MODULE__{}
+
+  # -----------------------------------------------------------------------------
+  # Behaviour implementation
+  # -----------------------------------------------------------------------------
+  @behaviour Cmd
 
   @impl Cmd
   def requires_project?(), do: true
@@ -76,6 +81,9 @@ defmodule Cmd.Index do
     |> perform_task()
   end
 
+  # -----------------------------------------------------------------------------
+  # Task execution
+  # -----------------------------------------------------------------------------
   def perform_task({:error, :user_cancelled}) do
     UI.warn("Indexing cancelled by user")
     {:error, :user_cancelled}
@@ -224,51 +232,66 @@ defmodule Cmd.Index do
 
   defp reindex?(idx), do: Map.get(idx.opts, :reindex, false)
 
-  def index_project(%{project: project} = idx) do
-    project =
-      if reindex?(idx) do
-        Store.Project.delete(project)
-        UI.report_step("Burned all of the old data to the ground to force a full reindex!")
-        project
-      else
-        UI.spin("Deleting missing and newly excluded files from index", fn ->
-          {project, deleted} = Store.Project.delete_missing_files(project)
-          count = Enum.count(deleted)
-          {"Deleted #{count} file(s) from the index", project}
-        end)
-      end
+  def index_project(idx) do
+    idx
+    |> maybe_reindex()
+    |> scan_project()
+    |> delete_entries()
+    |> index_entries()
+  end
 
-    {project, all_files} =
-      UI.spin("Scanning project files", fn ->
-        {project, files} = Store.Project.source_files(project)
-        count = files |> Enum.to_list() |> Enum.count()
-        {"There are #{count} indexable file(s) in project", {project, files}}
-      end)
+  @spec scan_project(Store.Project.t()) :: Store.Project.index_status()
+  defp scan_project(project) do
+    UI.spin("Scanning the project directory", fn ->
+      status = Store.Project.index_status(project)
 
-    stale_files =
-      UI.spin("Identifying stale files", fn ->
-        files =
-          all_files
-          |> Stream.filter(&Store.Project.Entry.is_stale?/1)
-          |> Enum.to_list()
+      msg = """
+      Scan Results:
+      - Stale:   #{Enum.count(status.stale)}
+      - New:     #{Enum.count(status.new)}
+      - Deleted: #{Enum.count(status.deleted)}
+      """
 
-        {"Identified #{Enum.count(files)} stale file(s) to index", files}
-      end)
+      {msg, status}
+    end)
+  end
 
-    total = Enum.count(all_files)
-    count = Enum.count(stale_files)
+  @spec maybe_reindex(t) :: Store.Project.t()
+  defp maybe_reindex(%{project: project} = idx) do
+    if reindex?(idx) do
+      Store.Project.delete(project)
+      UI.report_step("Burned all of the old data to the ground to force a full reindex!")
+    end
+
+    project
+  end
+
+  defp delete_entries(%{deleted: deleted} = status) do
+    UI.spin("Deleting missing and newly excluded files from index", fn ->
+      Enum.each(deleted, &Store.Project.Entry.delete/1)
+      count = Enum.count(deleted)
+      {"Deleted #{count} file(s) from the index", status}
+    end)
+  end
+
+  @spec index_entries(Store.Project.index_status()) :: Store.Project.index_status()
+  defp index_entries(%{new: new, stale: stale} = status) do
+    files_to_index = new ++ stale
+    count = Enum.count(files_to_index)
 
     if count == 0 do
-      UI.warn("No files to index in #{project.name}")
+      UI.warn("No files to index")
     else
-      UI.spin("Indexing #{count} / #{total} files", fn ->
-        stale_files
+      UI.spin("Indexing #{count} file(s)", fn ->
+        files_to_index
         |> UI.async_stream(&process_entry(&1), "Indexing")
         |> Enum.to_list()
 
         {"All file indexing tasks complete", :ok}
       end)
     end
+
+    status
   end
 
   defp process_entry(entry) do

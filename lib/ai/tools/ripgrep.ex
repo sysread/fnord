@@ -2,24 +2,13 @@ defmodule AI.Tools.Ripgrep do
   @behaviour AI.Tools
 
   @impl AI.Tools
-  def is_available?() do
-    System.find_executable("rg") |> is_nil() |> Kernel.not()
-  end
+  def is_available?(), do: System.find_executable("rg") |> is_nil() |> Kernel.not()
 
   @impl AI.Tools
-  def ui_note_on_request(args) do
-    {"Searching project files", Jason.encode!(args)}
-  end
+  def ui_note_on_request(args), do: {"Searching project files", Jason.encode!(args)}
 
   @impl AI.Tools
-  def ui_note_on_result(args, result) do
-    {"Searched project files",
-     """
-     Searched with: #{Jason.encode!(args)}
-     Result:
-     #{result}
-     """}
-  end
+  def ui_note_on_result(_args, _result), do: nil
 
   @impl AI.Tools
   def read_args(args), do: {:ok, args}

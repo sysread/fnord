@@ -59,7 +59,8 @@ defmodule AI.Tools.File.Search do
   @impl AI.Tools
   def call(args) do
     with {:ok, query} <- Map.fetch(args, "query"),
-         {:ok, matches} <- search(query) do
+         {:ok, matches} <- search(query),
+         {:ok, index_state_msg} <- index_state() do
       matches
       |> Enum.map(fn {file, score, data} ->
         """
@@ -68,7 +69,41 @@ defmodule AI.Tools.File.Search do
         """
       end)
       |> Enum.join("\n-----\n")
-      |> then(fn res -> {:ok, "[search_tool]\n#{res}"} end)
+      |> then(fn res ->
+        msg =
+          """
+          [search_tool]
+          #{res}
+          -----
+          #{index_state_msg}
+          """
+
+        {:ok, msg}
+      end)
+    end
+  end
+
+  # -----------------------------------------------------------------------------
+  # Returns the current state of the project index, including new, stale, and
+  # deleted files.
+  # -----------------------------------------------------------------------------
+  defp index_state do
+    with {:ok, project} <- Store.get_project() do
+      %{new: new, stale: stale, deleted: deleted} = Store.Project.index_status(project)
+
+      msg =
+        """
+        The results of this search may be affected by the state of the project index.
+
+        The current index state is:
+        - New files (not yet indexed): #{length(new)}
+        - Stale files (outdated index): #{length(stale)}
+        - Deleted files (indexed but deleted in project): #{length(deleted)}
+
+        If you are seeing unexpected search results, try reindexing with the `file_reindex_tool` tool.
+        """
+
+      {:ok, msg}
     end
   end
 
