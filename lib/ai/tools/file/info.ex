@@ -6,7 +6,7 @@ defmodule AI.Tools.File.Info do
 
   @impl AI.Tools
   def ui_note_on_request(%{"files" => files, "question" => question}) do
-    {"Considering #{length(files)} file(s)", question}
+    {"Considering #{Enum.join(files, ", ")}", question}
   end
 
   def ui_note_on_request(args) do
@@ -15,7 +15,7 @@ defmodule AI.Tools.File.Info do
 
   @impl AI.Tools
   def ui_note_on_result(%{"files" => files, "question" => question}, _result) do
-    {"Answered", "#{length(files)} files: #{question}"}
+    {"Answered", "#{Enum.join(files, ", ")}: #{question}"}
   end
 
   def ui_note_on_result(_args, _result) do
