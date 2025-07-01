@@ -170,7 +170,7 @@ defmodule AI.Agent.Default do
   end
 
   defp get_intuition(notes, msgs) do
-    UI.begin_step("Thinking")
+    UI.begin_step("Cogitating")
 
     AI.Agent.Intuition.get_response(%{
       msgs: msgs,
@@ -182,7 +182,7 @@ defmodule AI.Agent.Default do
         {:ok, intuition}
 
       {:error, reason} ->
-        UI.error("Derp. Thinking failed.", inspect(reason))
+        UI.error("Derp. Cogitation failed.", inspect(reason))
         {:error, reason}
     end
   end

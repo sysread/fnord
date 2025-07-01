@@ -411,7 +411,7 @@ defmodule AI.Agent.Coordinator do
   # Intuition
   # -----------------------------------------------------------------------------
   defp get_intuition(%{notes: notes, msgs: msgs} = state) do
-    UI.begin_step("Thinking")
+    UI.begin_step("Cogitating")
 
     AI.Agent.Intuition.get_response(%{notes: notes, msgs: msgs})
     |> case do
@@ -420,7 +420,7 @@ defmodule AI.Agent.Coordinator do
         %{state | msgs: state.msgs ++ [AI.Util.assistant_msg(intuition)]}
 
       {:error, reason} ->
-        UI.error("Derp. Thinking failed.", inspect(reason))
+        UI.error("Derp. Cogitation failed.", inspect(reason))
         state
     end
   end

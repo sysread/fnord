@@ -41,7 +41,8 @@ defmodule AI.Agent.Intuition do
   Your goal is NOT to *answer* the user's question.
   Instead, you are providing the conscious agent's *intuition* by identifying concerns it may not consider otherwise.
   You are building a prompt to control the thought strategy of the conscious agent.
-  Respond in a short, clear paragraph that primes the conscious agent's thought process, written in the first person as if the conscious agent is speaking to itself.
+  Respond in a short, clear paragraph that primes the conscious agent's thought process.
+  Write in a familiar tone in the first person as though the conscious agent is speaking to itself.
   """
 
   @drive_base_prompt """
@@ -52,7 +53,7 @@ defmodule AI.Agent.Intuition do
 
   You are NOT responding to the user.
   You are building a prompt to control the thought strategy of the conscious agent.
-  Your response should be brief (1 paragraph max) and not self-referential.
+  Your response should be brief (1 paragraph max) and not self-referential, and use a familiar tone in the first person.
   Argue strongly for your needs and concerns.
   """
 
