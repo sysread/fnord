@@ -20,9 +20,10 @@ defmodule AI.Agent.Coordinator do
 
   defp new(opts) do
     research_steps = steps(opts.rounds)
+    {:ok, project} = Store.get_project()
 
     %{
-      project: opts.project,
+      project: project.name,
       question: opts.question,
       msgs: opts.msgs,
       last_response: nil,
