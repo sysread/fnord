@@ -5,12 +5,6 @@ defmodule AI.CompletionToolboxTest do
   alias AI.Model
 
   describe "toolbox integration" do
-    setup do
-      :meck.new(AI.ChatCompletion, [:non_strict])
-      on_exit(fn -> :meck.unload(AI.ChatCompletion) end)
-      :ok
-    end
-
     defmodule TestTool do
       @behaviour AI.Tools
 
@@ -42,6 +36,7 @@ defmodule AI.CompletionToolboxTest do
     end
 
     test "Completion.get/1 invokes local tools from toolbox" do
+      :meck.new(AI.ChatCompletion, [:non_strict])
       # Stub ChatCompletion.get to return a tool call, then a final assistant message
       :meck.expect(AI.ChatCompletion, :get, fn _model, msgs, _specs ->
         if Enum.any?(msgs, fn msg ->
@@ -77,6 +72,7 @@ defmodule AI.CompletionToolboxTest do
       # Assert the final assistant message is included
       assert List.last(state.messages).role == "assistant"
       assert List.last(state.messages).content == "final response"
+      :meck.unload(AI.ChatCompletion)
     end
   end
 end

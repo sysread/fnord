@@ -54,7 +54,7 @@ defmodule AI.Agent.Default do
   defp get_completion(prompt, messages) do
     AI.Completion.get(
       model: @model,
-      tools: get_tools(),
+      toolbox: get_toolbox(),
       messages: build_conversation(prompt, messages),
       log_messages: true,
       log_tool_calls: true,
@@ -141,17 +141,16 @@ defmodule AI.Agent.Default do
     end
   end
 
-  defp get_tools() do
-    tools =
-      AI.Tools.all_tools()
-      |> Map.values()
-      |> Enum.map(& &1.spec())
+  defp get_toolbox() do
+    base = AI.Tools.all_tools()
 
-    tools ++
-      [
-        AI.Tools.Default.Prompt.spec(),
-        AI.Tools.Default.Notes.spec()
-      ]
+    prompt_spec = AI.Tools.Default.Prompt.spec()
+    notes_spec = AI.Tools.Default.Notes.spec()
+
+    Map.merge(base, %{
+      get_in(prompt_spec, [:function, :name]) => AI.Tools.Default.Prompt,
+      get_in(notes_spec, [:function, :name]) => AI.Tools.Default.Notes
+    })
   end
 
   defp get_notes(prompt) do
@@ -160,7 +159,18 @@ defmodule AI.Agent.Default do
     AI.Agent.Default.NotesSearch.get_response(%{needle: "User prompt: #{prompt}"})
     |> case do
       {:ok, notes} ->
-        UI.report_step("Remembered", notes)
+        info =
+          notes
+          |> String.split("\n", trim: true)
+          |> Enum.filter(&(&1 != ""))
+          |> Enum.map(&Jason.decode!/1)
+          |> Enum.map(fn %{"text" => text} -> text end)
+          |> Enum.join("\n")
+
+        if info != "" do
+          UI.report_step("Remembered", info)
+        end
+
         {:ok, notes}
 
       {:error, reason} ->
@@ -178,7 +188,7 @@ defmodule AI.Agent.Default do
     })
     |> case do
       {:ok, intuition} ->
-        UI.report_step("Intuition", intuition)
+        UI.report_step("Intuition", UI.italicize(intuition))
         {:ok, intuition}
 
       {:error, reason} ->

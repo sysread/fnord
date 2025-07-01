@@ -140,7 +140,11 @@ defmodule UI do
     end
   end
 
-  defp colorize?, do: is_tty?()
+  def colorize?, do: is_tty?()
+
+  def italicize(text) do
+    IO.ANSI.format([:italic, text, :reset], colorize?())
+  end
 
   # ----------------------------------------------------------------------------
   # Interactive elements

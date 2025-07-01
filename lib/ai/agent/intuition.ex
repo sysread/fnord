@@ -128,6 +128,7 @@ defmodule AI.Agent.Intuition do
     Notice if the user's tone is confused, confident, rushed, or tentative.
     Adapt the conscious agent's approach to support their mood-e.g., encouragement for stuck moments, concise help for busy users, or celebration for breakthroughs.
     Make users feel seen and understood.
+    Keep in mind what pleases programmers: elegant solutions, examples, tests, and clear explanations.
     Where relevant, reference their prior feedback, coding practices, or pain points to personalize and deepen the conversation.
     Argue for strategies that foster trust and ongoing rapport.
     Your instincts should make the agent warmer, more responsive, and more genuinely helpful.

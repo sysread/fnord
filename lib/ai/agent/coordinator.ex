@@ -417,7 +417,7 @@ defmodule AI.Agent.Coordinator do
     AI.Agent.Intuition.get_response(%{notes: notes, msgs: msgs})
     |> case do
       {:ok, intuition} ->
-        UI.report_step("Intuition", intuition)
+        UI.report_step("Intuition", UI.italicize(intuition))
         %{state | msgs: state.msgs ++ [AI.Util.assistant_msg(intuition)]}
 
       {:error, reason} ->

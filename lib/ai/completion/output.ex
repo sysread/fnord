@@ -54,7 +54,7 @@ defmodule AI.Completion.Output do
   # Tool call logging
   # -----------------------------------------------------------------------------
   def on_event(state, :tool_call, {tool, args}) do
-    AI.Tools.on_tool_request(tool, args)
+    AI.Tools.on_tool_request(tool, args, state.toolbox)
     |> case do
       nil -> state
       {step, msg} -> log_tool_call(state, step, msg)
@@ -63,7 +63,7 @@ defmodule AI.Completion.Output do
   end
 
   def on_event(state, :tool_call_result, {tool, args, {:ok, result}}) do
-    AI.Tools.on_tool_result(tool, args, result)
+    AI.Tools.on_tool_result(tool, args, result, state.toolbox)
     |> case do
       nil -> state
       {step, msg} -> log_tool_call_result(state, step, msg)

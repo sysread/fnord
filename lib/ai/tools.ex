@@ -193,6 +193,12 @@ defmodule AI.Tools do
     |> Map.new()
   end
 
+  @doc """
+  Generate a list of tool specs from a toolbox map.
+  """
+  @spec toolbox_to_specs(toolbox) :: [tool_spec]
+  def toolbox_to_specs(toolbox), do: Enum.map(Map.values(toolbox), & &1.spec())
+
   @spec tool_module(tool_name, toolbox | nil) ::
           {:ok, module}
           | unknown_tool_error

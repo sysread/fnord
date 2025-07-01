@@ -3,6 +3,12 @@ defmodule AI.Completion do
   This module sends a request to the model and handles the response. It is able
   to handle tool calls and responses.
 
+  ## Input options
+
+  - `toolbox` - a map of tool names to modules implementing `AI.Tools`; the specs list
+    is derived automatically via `AI.Tools.toolbox_to_specs/1`.
+  - `tools` - (deprecated) a list of tool specs; used if `:toolbox` is not provided.
+
   ## Output options
 
   Output is controlled by the following mechanisms.
@@ -15,7 +21,8 @@ defmodule AI.Completion do
   defstruct [
     :opts,
     :model,
-    :tools,
+    :toolbox,
+    :specs,
     :log_msgs,
     :log_tool_calls,
     :replay_conversation,
@@ -28,7 +35,8 @@ defmodule AI.Completion do
   @type t :: %__MODULE__{
           opts: Keyword.t(),
           model: String.t(),
-          tools: list(AI.Tools.tool_spec()),
+          toolbox: AI.Tools.toolbox() | nil,
+          specs: list(AI.Tools.tool_spec()) | nil,
           log_msgs: boolean(),
           log_tool_calls: boolean(),
           replay_conversation: boolean(),
@@ -52,7 +60,15 @@ defmodule AI.Completion do
   def new(opts) do
     with {:ok, model} <- Keyword.fetch(opts, :model),
          {:ok, messages} <- Keyword.fetch(opts, :messages) do
-      tools = Keyword.get(opts, :tools, nil)
+      toolbox = Keyword.get(opts, :toolbox, nil)
+
+      specs =
+        if toolbox do
+          Enum.map(Map.values(toolbox), & &1.spec())
+        else
+          Keyword.get(opts, :tools, nil)
+        end
+
       log_msgs = Keyword.get(opts, :log_msgs, false)
       replay = Keyword.get(opts, :replay_conversation, true)
 
@@ -62,7 +78,8 @@ defmodule AI.Completion do
       state = %__MODULE__{
         opts: Enum.into(opts, %{}),
         model: model,
-        tools: tools,
+        toolbox: toolbox,
+        specs: specs,
         log_msgs: log_msgs,
         log_tool_calls: log_tool_calls,
         replay_conversation: replay,
@@ -107,7 +124,7 @@ defmodule AI.Completion do
     AI.ChatCompletion.get(
       state.model,
       state.messages,
-      state.tools
+      state.specs
     )
     |> handle_response(state)
   end
@@ -213,7 +230,7 @@ defmodule AI.Completion do
         oopsie(state, func, args_json, "Missing required argument #{key}")
 
         spec =
-          with {:ok, spec} <- AI.Tools.tool_spec(func),
+          with {:ok, spec} <- AI.Tools.tool_spec(func, state.toolbox),
                {:ok, json} <- Jason.encode(spec) do
             json
           else
@@ -234,7 +251,7 @@ defmodule AI.Completion do
         oopsie(state, func, args_json, "Invalid argument #{key}")
 
         spec =
-          with {:ok, spec} <- AI.Tools.tool_spec(func),
+          with {:ok, spec} <- AI.Tools.tool_spec(func, state.toolbox),
                {:ok, json} <- Jason.encode(spec) do
             json
           else
@@ -273,10 +290,11 @@ defmodule AI.Completion do
         args,
         fn args ->
           AI.Completion.Output.on_event(state, :tool_call, {func, args})
-          result = AI.Tools.perform_tool_call(func, args)
+          result = AI.Tools.perform_tool_call(func, args, state.toolbox)
           AI.Completion.Output.on_event(state, :tool_call_result, {func, args, result})
           result
-        end
+        end,
+        state.toolbox
       )
     end
   end

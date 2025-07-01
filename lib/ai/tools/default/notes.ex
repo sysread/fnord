@@ -35,7 +35,15 @@ defmodule AI.Tools.Default.Notes do
   end
 
   def ui_note_on_result(%{"op" => "search"} = args, result) do
-    {"Remembered (re: '#{args["needle"]}')", result}
+    notes =
+      result
+      |> String.split("\n", trim: true)
+      |> Enum.filter(&(&1 != ""))
+      |> Enum.map(&Jason.decode!/1)
+      |> Enum.map(fn %{"text" => text} -> text end)
+      |> Enum.join("\n")
+
+    {"Remembered (re: '#{args["needle"]}')", notes}
   end
 
   @impl AI.Tools
