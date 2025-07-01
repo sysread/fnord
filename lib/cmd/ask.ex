@@ -36,7 +36,8 @@ defmodule Cmd.Ask do
             value_name: "UUID",
             long: "--follow",
             short: "-f",
-            help: "Continue an existing conversation by UUID"
+            help: "Continue an existing conversation by UUID",
+            required: false
           ]
         ],
         flags: [
@@ -109,8 +110,8 @@ defmodule Cmd.Ask do
   defp validate_rounds(%{rounds: rounds}) when rounds > 0, do: :ok
   defp validate_rounds(_opts), do: {:error, :invalid_rounds}
 
-  defp validate_conversation(%{follow: conversation_id}) do
-    conversation_id
+  defp validate_conversation(%{follow: id}) when is_binary(id) do
+    id
     |> Store.Project.Conversation.new()
     |> Store.Project.Conversation.exists?()
     |> case do
@@ -121,8 +122,8 @@ defmodule Cmd.Ask do
 
   defp validate_conversation(_opts), do: :ok
 
-  defp get_conversation(%{follow: conversation_id}) do
-    {:ok, Store.Project.Conversation.new(conversation_id)}
+  defp get_conversation(%{follow: id}) when is_binary(id) do
+    {:ok, Store.Project.Conversation.new(id)}
   end
 
   defp get_conversation(_opts) do

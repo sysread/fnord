@@ -547,9 +547,9 @@ defmodule Frobs do
           {_, 0} ->
             true
 
-          {output, exit_code} ->
-            UI.warn("Frob #{frob.name} is not available", """
-            #{frob.available} exited with code #{exit_code}:
+          {output, _exit_code} ->
+            Once.warn("""
+            Frob #{frob.name} is not available:
             #{output}
             """)
 
