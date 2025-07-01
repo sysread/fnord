@@ -24,6 +24,11 @@ defmodule Util do
     Task.async_stream(enumerable, fun, opts)
   end
 
+  @doc """
+  Filters an enumerable asynchronously using the provided function. The
+  function should return `true` for items to keep and `false` for items to
+  discard. The result is a stream of items that passed the filter.
+  """
   def async_filter(enumerable, fun) do
     enumerable
     |> async_stream(fn item ->

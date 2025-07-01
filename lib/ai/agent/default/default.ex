@@ -28,32 +28,12 @@ defmodule AI.Agent.Default do
   @impl AI.Agent
   def get_response(opts) do
     with {:ok, prompt} <- Map.fetch(opts, :prompt) do
-      notes_task =
-        Task.async(fn ->
-          AI.Agent.Default.NotesSearch.get_response(%{needle: "User prompt: #{prompt}"})
-        end)
-
       msgs =
         Store.DefaultProject.Conversation.read_messages()
         |> Enum.to_list()
 
       ts = Store.DefaultProject.Conversation.latest_timestamp()
       maybe_add_timestamp(prompt, ts, msgs)
-
-      # Wait for the notes search to complete
-      {:ok, notes} = Task.await(notes_task)
-
-      # Add the results to the conversation messages
-      msgs =
-        msgs ++
-          [
-            AI.Util.assistant_msg("""
-            <thinking>
-            I recall from my notes related to the user's newest prompt:
-            #{notes}
-            </thinking>
-            """)
-          ]
 
       with {:ok, response, messages, usage} = get_completion(prompt, msgs) do
         save_conversation(messages)
@@ -97,15 +77,31 @@ defmodule AI.Agent.Default do
           """
       end
 
-    new_msgs =
-      [
-        %{"role" => "developer", "content" => @prompt},
-        %{"role" => "developer", "content" => custom_prompt},
-        %{"role" => "developer", "content" => project_prompt},
-        %{"role" => "user", "content" => prompt}
-      ]
+    messages =
+      messages ++
+        [
+          AI.Util.system_msg(@prompt),
+          AI.Util.system_msg(custom_prompt),
+          AI.Util.system_msg(project_prompt),
+          AI.Util.user_msg(prompt)
+        ]
 
-    messages ++ new_msgs
+    {:ok, notes} = get_notes(prompt)
+    {:ok, intuition} = get_intuition(notes, messages)
+
+    messages ++
+      [
+        AI.Util.assistant_msg("""
+        <thinking>
+        I recall from my notes related to the user's newest prompt:
+        #{notes}
+        </thinking>
+
+        <thinking>
+        #{intuition}
+        </thinking>
+        """)
+      ]
   end
 
   defp save_conversation(messages) do
@@ -149,5 +145,36 @@ defmodule AI.Agent.Default do
         AI.Tools.Default.Prompt.spec(),
         AI.Tools.Default.Notes.spec()
       ]
+  end
+
+  defp get_notes(prompt) do
+    AI.Agent.Default.NotesSearch.get_response(%{needle: "User prompt: #{prompt}"})
+    |> case do
+      {:ok, notes} ->
+        UI.report_step("Notes", notes)
+        {:ok, notes}
+
+      {:error, reason} ->
+        UI.error("Failed to retrieve notes", inspect(reason))
+        {:error, reason}
+    end
+  end
+
+  defp get_intuition(notes, msgs) do
+    UI.begin_step("Thinking")
+
+    AI.Agent.Intuition.get_response(%{
+      msgs: msgs,
+      notes: notes
+    })
+    |> case do
+      {:ok, intuition} ->
+        UI.report_step("Intuition", intuition)
+        {:ok, intuition}
+
+      {:error, reason} ->
+        UI.error("Derp. Thinking failed.", inspect(reason))
+        {:error, reason}
+    end
   end
 end

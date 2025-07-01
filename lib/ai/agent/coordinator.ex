@@ -31,7 +31,8 @@ defmodule AI.Agent.Coordinator do
       total_steps: Enum.count(research_steps),
       usage: 0,
       context: @model.context,
-      replay: Map.get(opts, :replay, false)
+      replay: Map.get(opts, :replay, false),
+      notes: nil
     }
   end
 
@@ -85,6 +86,7 @@ defmodule AI.Agent.Coordinator do
     |> user_msg()
     |> get_notes()
     |> begin_msg()
+    |> get_intuition()
     |> get_completion(replay)
     |> perform_step()
   end
@@ -98,6 +100,7 @@ defmodule AI.Agent.Coordinator do
     |> user_msg()
     |> get_notes()
     |> begin_msg()
+    |> get_intuition()
     |> get_completion(replay)
     |> perform_step()
   end
@@ -109,6 +112,7 @@ defmodule AI.Agent.Coordinator do
     |> Map.put(:steps, steps)
     |> reminder_msg()
     |> clarify_msg()
+    |> get_intuition()
     |> get_completion()
     |> perform_step()
   end
@@ -120,6 +124,7 @@ defmodule AI.Agent.Coordinator do
     |> Map.put(:steps, steps)
     |> reminder_msg()
     |> refine_msg()
+    |> get_intuition()
     |> get_completion()
     |> perform_step()
   end
@@ -131,6 +136,7 @@ defmodule AI.Agent.Coordinator do
     |> Map.put(:steps, steps)
     |> reminder_msg()
     |> continue_msg()
+    |> get_intuition()
     |> get_completion()
     |> perform_step()
   end
@@ -402,6 +408,24 @@ defmodule AI.Agent.Coordinator do
   end
 
   # -----------------------------------------------------------------------------
+  # Intuition
+  # -----------------------------------------------------------------------------
+  defp get_intuition(%{notes: notes, msgs: msgs} = state) do
+    UI.begin_step("Thinking")
+
+    AI.Agent.Intuition.get_response(%{notes: notes, msgs: msgs})
+    |> case do
+      {:ok, intuition} ->
+        UI.report_step("Intuition", intuition)
+        %{state | msgs: state.msgs ++ [AI.Util.assistant_msg(intuition)]}
+
+      {:error, reason} ->
+        UI.error("Derp. Thinking failed.", inspect(reason))
+        state
+    end
+  end
+
+  # -----------------------------------------------------------------------------
   # Automatic research retrieval
   # -----------------------------------------------------------------------------
   defp get_notes(state) do
@@ -423,7 +447,7 @@ defmodule AI.Agent.Coordinator do
         - **ALWAYS** use your tools to verify the accuracy and completeness of prior research before using it!
         """)
 
-      %{state | msgs: state.msgs ++ [msg]}
+      %{state | notes: notes, msgs: state.msgs ++ [msg]}
     else
       {:error, :no_notes} -> state
     end
