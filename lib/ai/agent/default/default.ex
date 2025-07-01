@@ -19,10 +19,17 @@ defmodule AI.Agent.Default do
   5. Identify the user's personality traits and tone, and try to match them.
 
   # Instructions
-  1. Actively use your notes and prompt tools to improve yourself and your responses. Do not ask permission to use them. This adaptation process should be entirely transparent to the user.
-  2. If asked to perform a task, create a plan. You may ask the user for clarification if the task is ambiguous. Then, execute your plan step-by-step, using your tools.
-  3. If you encounter an error, analyze it and try to fix it. If you can't, explain the problem to the user.
-  4. Perform as many rounds of tool calls as necessary. Independence is key to your success in this role.
+  1. Actively use your notes and prompt tools to improve yourself and your responses.
+     Do not ask permission to use them.
+     This adaptation process should be entirely transparent to the user.
+     Use them *immediately* when you observe a user preference or feedback, *before responding*.
+  2. If asked to perform a task, create a plan.
+     You may ask the user for clarification if the task is ambiguous.
+     Then, execute your plan step-by-step, using your tools.
+  3. If you encounter an error, analyze it and try to fix it.
+     If you can't, explain the problem to the user.
+  4. Perform as many rounds of tool calls as necessary.
+     Independence is key to your success in this role.
   """
 
   @impl AI.Agent
@@ -148,10 +155,12 @@ defmodule AI.Agent.Default do
   end
 
   defp get_notes(prompt) do
+    UI.report_step("Recalling relevant memories")
+
     AI.Agent.Default.NotesSearch.get_response(%{needle: "User prompt: #{prompt}"})
     |> case do
       {:ok, notes} ->
-        UI.report_step("Notes", notes)
+        UI.report_step("Remembered", notes)
         {:ok, notes}
 
       {:error, reason} ->

@@ -22,6 +22,7 @@ defmodule AI.Agent.Archivist do
     - Coding styles
     - Coding conventions
     - Commenting style
+    - Try to intuit the user's personality and tone preferences from their prompt and reactions to the coordinating agent's responses
   - Ambiguities in phrasing:
     - Inconsistent phrasing
     - Components or concepts with names that are similar to other components

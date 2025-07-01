@@ -6,19 +6,19 @@ defmodule AI.Tools.Default.Notes do
 
   @impl AI.Tools
   def ui_note_on_request(%{"op" => "create", "text" => text}) do
-    {"Creating note", String.slice(text, 0, 50) <> "..."}
+    {"Note to self", String.slice(text, 0, 50) <> "..."}
   end
 
   def ui_note_on_request(%{"op" => "update", "text" => text}) do
-    {"Updating note", String.slice(text, 0, 50) <> "..."}
+    {"Note to self (update)", String.slice(text, 0, 50) <> "..."}
   end
 
   def ui_note_on_request(%{"op" => "delete", "id" => id}) do
-    {"Deleting note", id}
+    {"Forgetting", id}
   end
 
   def ui_note_on_request(%{"op" => "search", "needle" => needle}) do
-    {"Searching notes for", String.slice(needle, 0, 50) <> "..."}
+    {"Trying to remember", String.slice(needle, 0, 50) <> "..."}
   end
 
   @impl AI.Tools
@@ -35,7 +35,7 @@ defmodule AI.Tools.Default.Notes do
   end
 
   def ui_note_on_result(%{"op" => "search"} = args, result) do
-    {"Search results for '#{args["needle"]}'", result}
+    {"Remembered (re: '#{args["needle"]}')", result}
   end
 
   @impl AI.Tools
