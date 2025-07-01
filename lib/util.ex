@@ -8,7 +8,7 @@ defmodule Util do
   @type async_cb :: (async_item -> any())
 
   @doc """
-  Convenience wrapper for `Task.async_stream/3` with the default optiosn for
+  Convenience wrapper for `Task.async_stream/3` with the default options for
   concurrency and timeout set to `Application.get_env(:fnord, :workers)` and
   `:infinity`, respectively.
   """
