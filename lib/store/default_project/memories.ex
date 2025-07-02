@@ -1,5 +1,5 @@
-defmodule Store.DefaultProject.Notes do
-  @file_path "notes.jsonl"
+defmodule Store.DefaultProject.Memories do
+  @file_path "memories.jsonl"
 
   def file_path do
     path = Store.DefaultProject.store_path() |> Path.join(@file_path)
@@ -25,7 +25,7 @@ defmodule Store.DefaultProject.Notes do
       line
       |> Jason.decode()
       |> case do
-        {:ok, note} -> note
+        {:ok, memory} -> memory
         {:error, _} -> nil
       end
     end)
@@ -55,13 +55,13 @@ defmodule Store.DefaultProject.Notes do
     updated_text =
       read()
       |> Stream.map(fn
-        %{"id" => ^id} = note ->
-          note
+        %{"id" => ^id} = memory ->
+          memory
           |> Map.put("text", String.trim(new_text))
           |> Map.put("updated", DateTime.utc_now() |> DateTime.to_iso8601())
 
-        note ->
-          note
+        memory ->
+          memory
       end)
       |> Enum.map(&Jason.encode!/1)
       |> Enum.join("\n")

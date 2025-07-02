@@ -383,6 +383,31 @@ defmodule AI.Tools do
     end
   end
 
+  @doc """
+  Given a list of modules, returns a map from tool_name => module, using each
+  module's spec().function.name value as the key.
+  """
+  @spec build_toolbox([module]) :: toolbox
+  def build_toolbox(modules) do
+    Enum.reduce(modules, %{}, fn mod, acc ->
+      spec = mod.spec()
+
+      fun_name =
+        case spec[:function] do
+          nil -> spec["function"]
+          val -> val
+        end
+
+      name = fun_name[:name] || fun_name["name"]
+
+      if is_binary(name) and name != "" do
+        Map.put(acc, name, mod)
+      else
+        acc
+      end
+    end)
+  end
+
   # ----------------------------------------------------------------------------
   # Private Functions
   # ----------------------------------------------------------------------------

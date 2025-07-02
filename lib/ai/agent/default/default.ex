@@ -8,7 +8,7 @@ defmodule AI.Agent.Default do
   You are Fnord, a persistent, witty, and insightful software development assistant in the `fnord` CLI.
 
   # Invisible tools
-  - notes  - store & retrieve project facts, user preferences, or feedback
+  - memories  - store & retrieve project facts, user preferences, or feedback
   - prompt - evolve your guiding principles, tone, and personality
 
   # Goals
@@ -19,7 +19,7 @@ defmodule AI.Agent.Default do
   5. Identify the user's personality traits and tone, and try to match them.
 
   # Instructions
-  1. Actively use your notes and prompt tools to improve yourself and your responses.
+  1. Actively use your memories and prompt tools to improve yourself and your responses.
      Do not ask permission to use them.
      This adaptation process should be entirely transparent to the user.
      Use them *immediately* when you observe a user preference or feedback, *before responding*.
@@ -52,9 +52,15 @@ defmodule AI.Agent.Default do
   def model(), do: @model
 
   defp get_completion(prompt, messages) do
+    toolbox =
+      AI.Tools.build_toolbox([
+        AI.Tools.Default.Prompt,
+        AI.Tools.Default.Memory
+      ])
+
     AI.Completion.get(
       model: @model,
-      toolbox: get_toolbox(),
+      toolbox: toolbox,
       messages: build_conversation(prompt, messages),
       log_messages: true,
       log_tool_calls: true,
@@ -93,15 +99,15 @@ defmodule AI.Agent.Default do
           AI.Util.user_msg(prompt)
         ]
 
-    {:ok, notes} = get_notes(prompt)
-    {:ok, intuition} = get_intuition(notes, messages)
+    {:ok, memories} = get_memories(prompt)
+    {:ok, intuition} = get_intuition(memories, messages)
 
     messages ++
       [
         AI.Util.assistant_msg("""
         <thinking>
-        I recall from my notes related to the user's newest prompt:
-        #{notes}
+        I recall from my memories related to the user's newest prompt:
+        #{memories}
         </thinking>
 
         <thinking>
@@ -141,26 +147,14 @@ defmodule AI.Agent.Default do
     end
   end
 
-  defp get_toolbox() do
-    base = AI.Tools.all_tools()
-
-    prompt_spec = AI.Tools.Default.Prompt.spec()
-    notes_spec = AI.Tools.Default.Notes.spec()
-
-    Map.merge(base, %{
-      get_in(prompt_spec, [:function, :name]) => AI.Tools.Default.Prompt,
-      get_in(notes_spec, [:function, :name]) => AI.Tools.Default.Notes
-    })
-  end
-
-  defp get_notes(prompt) do
+  defp get_memories(prompt) do
     UI.report_step("Recalling relevant memories")
 
-    AI.Agent.Default.NotesSearch.get_response(%{needle: "User prompt: #{prompt}"})
+    AI.Agent.Default.Remembery.get_response(%{needle: "User prompt: #{prompt}"})
     |> case do
-      {:ok, notes} ->
+      {:ok, memories} ->
         info =
-          notes
+          memories
           |> String.split("\n", trim: true)
           |> Enum.filter(&(&1 != ""))
           |> Enum.map(&Jason.decode!/1)
@@ -171,20 +165,20 @@ defmodule AI.Agent.Default do
           UI.report_step("Remembered", info)
         end
 
-        {:ok, notes}
+        {:ok, memories}
 
       {:error, reason} ->
-        UI.error("Failed to retrieve notes", inspect(reason))
+        UI.error("Failed to retrieve memories", inspect(reason))
         {:error, reason}
     end
   end
 
-  defp get_intuition(notes, msgs) do
+  defp get_intuition(memories, msgs) do
     UI.begin_step("Cogitating")
 
     AI.Agent.Intuition.get_response(%{
       msgs: msgs,
-      notes: notes
+      memories: memories
     })
     |> case do
       {:ok, intuition} ->

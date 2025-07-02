@@ -1,4 +1,4 @@
-defmodule AI.Tools.Default.Notes do
+defmodule AI.Tools.Default.Memory do
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -35,7 +35,7 @@ defmodule AI.Tools.Default.Notes do
   end
 
   def ui_note_on_result(%{"op" => "search"} = args, result) do
-    notes =
+    memories =
       result
       |> String.split("\n", trim: true)
       |> Enum.filter(&(&1 != ""))
@@ -43,7 +43,7 @@ defmodule AI.Tools.Default.Notes do
       |> Enum.map(fn %{"text" => text} -> text end)
       |> Enum.join("\n")
 
-    {"Remembered (re: '#{args["needle"]}')", notes}
+    {"Remembered (re: '#{args["needle"]}')", memories}
   end
 
   @impl AI.Tools
@@ -93,10 +93,10 @@ defmodule AI.Tools.Default.Notes do
     %{
       type: "function",
       function: %{
-        name: "notes",
+        name: "memories",
         description: """
-        Add a note to your personal notes. This is useful for keeping track of
-        important information or reminders.
+        Add a memory to your personal store of persistent memories. This is
+        useful for keeping track of important information or reminders.
         """,
         parameters: %{
           type: "object",
@@ -109,17 +109,17 @@ defmodule AI.Tools.Default.Notes do
             id: %{
               type: "string",
               description:
-                "The ID of the note to update or delete. Required for update/delete operations."
+                "The ID of the memory to update or delete. Required for update/delete operations."
             },
             text: %{
               type: "string",
-              description: "The text of the note. Required for create/update operations."
+              description: "The text of the memory. Required for create/update operations."
             },
             needle: %{
               type: "string",
               description: """
-              The text to search for in your notes.
-              Returns a JSONL list of notes whose text contained the needle (case insensitive).
+              The text to search for in your memories.
+              Returns a JSONL list of memories whose text contained the needle (case insensitive).
               Required for search operations.
               """
             }
@@ -131,24 +131,24 @@ defmodule AI.Tools.Default.Notes do
 
   @impl AI.Tools
   def call(%{"op" => "create", "text" => text}) do
-    with {:ok, id} <- Store.DefaultProject.Notes.create(text) do
+    with {:ok, id} <- Store.DefaultProject.Memories.create(text) do
       {:ok, "Note created succesfully (ID: #{id})"}
     end
   end
 
   def call(%{"op" => "update", "id" => id, "text" => text}) do
-    with {:ok, id} <- Store.DefaultProject.Notes.update(id, text) do
+    with {:ok, id} <- Store.DefaultProject.Memories.update(id, text) do
       {:ok, "Note updated successfully (ID: #{id})"}
     end
   end
 
   def call(%{"op" => "delete", "id" => id}) do
-    with {:ok, id} <- Store.DefaultProject.Notes.delete(id) do
+    with {:ok, id} <- Store.DefaultProject.Memories.delete(id) do
       {:ok, "Note deleted successfully (ID: #{id})"}
     end
   end
 
   def call(%{"op" => "search", "needle" => needle}) do
-    AI.Agent.Default.NotesSearch.get_response(%{needle: needle})
+    AI.Agent.Default.Remembery.get_response(%{needle: needle})
   end
 end

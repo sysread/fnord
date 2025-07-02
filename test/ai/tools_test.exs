@@ -126,4 +126,58 @@ defmodule AI.ToolsTest do
                AI.Tools.on_tool_result("mock_tool", @req_args, "some value", @tools)
     end
   end
+
+  describe "build_toolbox/1" do
+    defmodule MockBuildTool do
+      @behaviour AI.Tools
+
+      @impl AI.Tools
+      def spec, do: %{function: %{name: "mock_build_tool"}}
+
+      @impl AI.Tools
+      def is_available?, do: true
+
+      @impl AI.Tools
+      def read_args(args), do: {:ok, args}
+
+      @impl AI.Tools
+      def ui_note_on_request(_args), do: nil
+
+      @impl AI.Tools
+      def ui_note_on_result(_args, _result), do: nil
+
+      @impl AI.Tools
+      def call(_args), do: {:ok, :ok}
+    end
+
+    test "returns a proper toolbox map from a list of modules" do
+      assert AI.Tools.build_toolbox([MockBuildTool]) == %{"mock_build_tool" => MockBuildTool}
+    end
+
+    defmodule BadSpecTool do
+      @behaviour AI.Tools
+
+      @impl AI.Tools
+      def spec, do: nil
+
+      @impl AI.Tools
+      def is_available?, do: true
+
+      @impl AI.Tools
+      def read_args(args), do: {:ok, args}
+
+      @impl AI.Tools
+      def ui_note_on_request(_args), do: nil
+
+      @impl AI.Tools
+      def ui_note_on_result(_args, _result), do: nil
+
+      @impl AI.Tools
+      def call(_args), do: {:ok, :ok}
+    end
+
+    test "skips modules with malformed or missing spec/0" do
+      assert AI.Tools.build_toolbox([MockBuildTool, BadSpecTool]) == %{"mock_build_tool" => MockBuildTool}
+    end
+  end
 end

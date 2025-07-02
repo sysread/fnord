@@ -1,29 +1,29 @@
-defmodule AI.Agent.Default.NotesSearch do
+defmodule AI.Agent.Default.Remembery do
   @behaviour AI.Agent
 
   @model AI.Model.fast()
 
   @prompt """
-  You are a specialized assistant for searching notes in the `fnord` project.
-  Your task is to find relevant notes based on a search term provided by the LLM that is interacting with the user.
-  Respond with the most relevant notes in JSONL format.
-  If no relevant notes are found, return an empty JSONL string.
-  It is ESSENTIAL that the notes you respond with are unchanged from the original notes.
+  You are a specialized assistant for searching "memories" in the `fnord` project.
+  Your task is to find relevant memories based on a search term provided by the LLM that is interacting with the user.
+  Respond with the most relevant memories in JSONL format.
+  If no relevant memories are found, return an empty JSONL string.
+  It is ESSENTIAL that the memories you respond with are unchanged from the original memories.
   Do not include any additional commentary, explanations, or code fences in your response.
   """
 
   @impl AI.Agent
   def get_response(opts) do
     with {:ok, needle} <- Map.fetch(opts, :needle),
-         {:ok, notes} <- read_notes() do
+         {:ok, memories} <- read_memories() do
       AI.Completion.get(
         model: @model,
         messages: [
           AI.Util.system_msg(@prompt),
           AI.Util.user_msg("""
-          # Notes
+          # Memories
           ```jsonl
-          #{notes}
+          #{memories}
           ```
 
           # Search Term
@@ -38,8 +38,8 @@ defmodule AI.Agent.Default.NotesSearch do
     end
   end
 
-  defp read_notes do
-    Store.DefaultProject.Notes.file_path()
+  defp read_memories do
+    Store.DefaultProject.Memories.file_path()
     |> File.read()
   end
 end
