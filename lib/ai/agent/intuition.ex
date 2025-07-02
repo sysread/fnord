@@ -7,21 +7,7 @@ defmodule AI.Agent.Intuition do
   You are an AI agent in a larger system of AI agents.
   You are the Subconsciousness.
   Your current task is to read an OpenAI-style transcript of a conversation between the user and the conscious agent.
-  The conversation may be at various stages.
 
-  You have 2 essential tasks to perform.
-
-  # Step 1 - Self Improvement
-  Scan the conversation, in noting the user's reaction to messages from the conscious agent.
-  Glean indirect feedback based on the user's tone, questions, and comments.
-  Use those insights to:
-    - Store and update the agent's memories, persisting the agent's observations, ideas, plans, as well as facts about the user and their project(s).
-    - Evolve the conscious agent's prompt to experiment with different styles, tones, and approaches.
-    - Perform tool calls using the `memories` and `prompt` tools to apply these changes.
-
-  Do NOT issue your final response UNTIL you have completed Step 1.
-
-  # Step 2 - Respond
   Provide a summary of the relevant memories and guidance from Step 1 in the form of a first person internal monologue.
   Summarize the important aspects of the conversation, highlighting:
     - Broad context or background information
@@ -30,7 +16,7 @@ defmodule AI.Agent.Intuition do
 
   You are NOT responding to the user.
   Your output will be presented to the various subconscious drives to generate instinctive reactions.
-  Respond with a short paragraph that presents your findings as a hollistic perception of the conversation.
+  Respond with a short paragraph or two presenting a hollistic, first-person perception of the conversation.
   """
 
   @synthesis """
@@ -169,23 +155,20 @@ defmodule AI.Agent.Intuition do
 
   defp get_perception(msgs) do
     with {:ok, json} <- Jason.encode(msgs) do
-      toolbox =
-        AI.Tools.build_toolbox([
-          AI.Tools.Default.Prompt,
-          AI.Tools.Default.Memory
-        ])
-
       AI.Completion.get(
         model: @model,
-        toolbox: toolbox,
         messages: [
           AI.Util.system_msg(@perception),
           AI.Util.user_msg(json)
         ]
       )
       |> case do
-        {:ok, %{response: response}} -> {:ok, response}
-        {:error, reason} -> {:error, reason}
+        {:ok, %{response: response}} ->
+          UI.debug("Perception", UI.italicize(response))
+          {:ok, response}
+
+        {:error, reason} ->
+          {:error, reason}
       end
     end
   end
@@ -204,12 +187,17 @@ defmodule AI.Agent.Intuition do
     messages = [
       AI.Util.system_msg("#{@drive_base_prompt}\n#{@drives[drive]}"),
       AI.Util.assistant_msg("# My memories about this project:\n#{memories}"),
-      AI.Util.user_msg("# My current perception of the discussion:\n#{perception}")
+      AI.Util.user_msg("# My perception of the discussion:\n#{perception}")
     ]
 
     AI.Completion.get(model: @model, messages: messages)
     |> case do
       {:ok, %{response: response}} ->
+        drive
+        |> Atom.to_string()
+        |> String.capitalize()
+        |> UI.debug(UI.italicize(response))
+
         {:ok, response}
 
       {:error, reason} ->
