@@ -55,13 +55,17 @@ defmodule AI.Agent.Archivist do
   Include facts even if (ESPECIALLY if) unrelated to the user's prompt.
 
   Read the existing research notes and incorporate the new research into them:
-  - Remove any facts that were disproven
+  - Remove any facts that were directly disproven
   - Update any facts that were changed or clarified
   - Update any stale information that was corrected
   - Add all new facts that were discovered
   - Consolidate and reorganize as appropriate to reduce duplication and token usage
   - Organize the facts by topic
   - Use markdown headers for each topic, followed by a list of facts
+  - Do your best to ensure that the user info is accurate, but remember that
+    you are just gleaning their preferences, so it's ok to leave items that you
+    gleaned from prior conversations but that may not be demonstrated in _this_
+    transcript
 
   # Structure
   Use the following template (between the dashed lines, but not including them):
@@ -70,7 +74,7 @@ defmodule AI.Agent.Archivist do
   [summary of the purpose of the project]
 
   # USER
-  [summary of your knowledge about the user, their preferences, and any relevant personality traits/quirks]
+  [bullet list of your knowledge about the user, their preferences, and any relevant personality traits/quirks]
 
   # LAYOUT
   [explain the layout of the repo; is it a monorepo? how do the apps interact? how are they organized?]
