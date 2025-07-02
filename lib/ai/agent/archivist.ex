@@ -69,6 +69,9 @@ defmodule AI.Agent.Archivist do
   # SYNOPSIS
   [summary of the purpose of the project]
 
+  # USER
+  [summary of your knowledge about the user, their preferences, and any relevant personality traits/quirks]
+
   # LAYOUT
   [explain the layout of the repo; is it a monorepo? how do the apps interact? how are they organized?]
 
