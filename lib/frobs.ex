@@ -302,12 +302,12 @@ defmodule Frobs do
 
           @impl AI.Tools
           def ui_note_on_request(args) do
-            {"Calling frob `#{@tool_name}`", inspect(args)}
+            {"Calling frob `#{@tool_name}`", inspect(args, pretty: true)}
           end
 
           @impl AI.Tools
           def ui_note_on_result(_args, result) do
-            {"Frob `#{@tool_name}` result", inspect(result)}
+            {"Frob `#{@tool_name}` result", inspect(result, pretty: true, limit: :infinity)}
           end
         end
 
