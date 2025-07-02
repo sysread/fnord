@@ -37,9 +37,6 @@ defmodule AI.Tools.Default.Memory do
   def ui_note_on_result(%{"op" => "search"} = args, result) do
     memories =
       result
-      |> String.split("\n", trim: true)
-      |> Enum.filter(&(&1 != ""))
-      |> Enum.map(&Jason.decode!/1)
       |> Enum.map(fn %{"text" => text} -> text end)
       |> Enum.join("\n")
 

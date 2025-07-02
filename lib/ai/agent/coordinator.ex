@@ -414,7 +414,7 @@ defmodule AI.Agent.Coordinator do
   defp get_intuition(%{notes: notes, msgs: msgs} = state) do
     UI.begin_step("Cogitating")
 
-    AI.Agent.Intuition.get_response(%{notes: notes, msgs: msgs})
+    AI.Agent.Intuition.get_response(%{memories: notes, msgs: msgs})
     |> case do
       {:ok, intuition} ->
         UI.report_step("Intuition", UI.italicize(intuition))

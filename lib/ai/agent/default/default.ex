@@ -155,9 +155,6 @@ defmodule AI.Agent.Default do
       {:ok, memories} ->
         info =
           memories
-          |> String.split("\n", trim: true)
-          |> Enum.filter(&(&1 != ""))
-          |> Enum.map(&Jason.decode!/1)
           |> Enum.map(fn %{"text" => text} -> text end)
           |> Enum.join("\n")
 

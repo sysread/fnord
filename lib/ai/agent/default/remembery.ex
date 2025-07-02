@@ -10,6 +10,7 @@ defmodule AI.Agent.Default.Remembery do
   If no relevant memories are found, return an empty JSONL string.
   It is ESSENTIAL that the memories you respond with are unchanged from the original memories.
   Do not include any additional commentary, explanations, or code fences in your response.
+  If nothing matches, respond with an empty string (rather than `[]`, because that's not valid for JSONL).
   """
 
   @impl AI.Agent
@@ -32,7 +33,7 @@ defmodule AI.Agent.Default.Remembery do
         ]
       )
       |> case do
-        {:ok, %{response: response}} -> {:ok, response}
+        {:ok, %{response: response}} -> {:ok, parse_response(response)}
         {:error, reason} -> {:error, reason}
       end
     end
@@ -41,5 +42,12 @@ defmodule AI.Agent.Default.Remembery do
   defp read_memories do
     Store.DefaultProject.Memories.file_path()
     |> File.read()
+  end
+
+  defp parse_response(response) do
+    response
+    |> String.split("\n", trim: true)
+    |> Enum.filter(&(&1 != ""))
+    |> Enum.map(&Jason.decode!/1)
   end
 end

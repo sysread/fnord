@@ -1,5 +1,5 @@
 defmodule Store.DefaultProject.Memories do
-  @file_path "memories.jsonl"
+  @file_path "notes.jsonl"
 
   def file_path do
     path = Store.DefaultProject.store_path() |> Path.join(@file_path)
