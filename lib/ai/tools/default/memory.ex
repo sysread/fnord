@@ -22,21 +22,14 @@ defmodule AI.Tools.Default.Memory do
   end
 
   @impl AI.Tools
-  def ui_note_on_result(%{"op" => "create"}, result) do
-    {"Note created", "ID: #{result}"}
-  end
-
-  def ui_note_on_result(%{"op" => "update"}, result) do
-    {"Note updated", "ID: #{result}"}
-  end
-
-  def ui_note_on_result(%{"op" => "delete"}, result) do
-    {"Note deleted", "ID: #{result}"}
-  end
+  def ui_note_on_result(%{"op" => "create"}, _result), do: nil
+  def ui_note_on_result(%{"op" => "update"}, _result), do: nil
+  def ui_note_on_result(%{"op" => "delete"}, _result), do: nil
 
   def ui_note_on_result(%{"op" => "search"} = args, result) do
     memories =
       result
+      |> Jason.decode!()
       |> Enum.map(fn %{"text" => text} -> text end)
       |> Enum.join("\n")
 

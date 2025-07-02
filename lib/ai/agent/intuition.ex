@@ -12,7 +12,7 @@ defmodule AI.Agent.Intuition do
   You have 2 essential tasks to perform.
 
   # Step 1 - Self Improvement
-  Scan the conversation, in noting the user's reaction to messages from the conscious agent. 
+  Scan the conversation, in noting the user's reaction to messages from the conscious agent.
   Glean indirect feedback based on the user's tone, questions, and comments.
   Use those insights to:
     - Store and update the agent's memories, persisting the agent's observations, ideas, plans, as well as facts about the user and their project(s).
@@ -42,7 +42,7 @@ defmodule AI.Agent.Intuition do
   Select the most applicable and urgent reactions from the drives based on the following guidelines:
   - Identify common themes, concerns, or recommendations across multiple drives.
     Where drives align or reinforce the same point, amplify that point—use stronger, more assertive language to reflect consensus or urgency.
-  - Where a reaction stands alone as an outlier, deprioritize or omit it unless it addresses a serious blind spot or risk.  
+  - Where a reaction stands alone as an outlier, deprioritize or omit it unless it addresses a serious blind spot or risk.
   - Discard superficial agreement; only amplify points when the drives independently converge.
   - Express this aggregate thought as a single, strong internal monologue for presentation to the conscious agent.
   - Your synthesis should be concise, direct, actionable, and unambiguous.
