@@ -151,10 +151,19 @@ defmodule AI.Agent.Intuition do
 
   @impl AI.Agent
   def get_response(opts) do
-    with {:ok, msgs} <- Map.fetch(opts, :msgs),
-         {:ok, memories} <- Map.fetch(opts, :memories),
+    with {:ok, msgs} <- get_arg(opts, :msgs),
+         {:ok, memories} <- get_arg(opts, :memories),
          {:ok, perception} <- get_perception(msgs) do
       get_drive_reactions(perception, memories)
+    end
+  end
+
+  defp get_arg(opts, key) do
+    opts
+    |> Map.fetch(key)
+    |> case do
+      {:ok, value} -> {:ok, value}
+      :error -> {:error, "Missing required argument: #{key}"}
     end
   end
 
