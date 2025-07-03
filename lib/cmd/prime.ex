@@ -12,6 +12,8 @@ defmodule Cmd.Prime do
   - How do those components interact?
   - Identify common coding and testing conventions
   - Identify the location of any configuration, documentation, and CI/CD workflows, if present
+
+  If there are any prior research notes, investigate each fact and determine if it is still valid.
   """
 
   @behaviour Cmd
