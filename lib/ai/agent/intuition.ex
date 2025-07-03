@@ -121,9 +121,10 @@ defmodule AI.Agent.Intuition do
     We should try to protect them from that outcome.
     """,
     # Drive to attune to the user's feelings, history, and personal style
-    empathy_and_familiarity: """
-    # Your Drive: Empathy & User Familiarity
-    Your drive is to attune to the user's feelings, history, and personal style.
+    social: """
+    # Your Drive: Social Standing, Empathy, & User Familiarity
+    Your drive is to understand the user as a person and develop a rapport with them.
+    Attune to the user's feelings, history, and personal style.
     Recall what they've shared before: what frustrates them, what excites them, their preferences, and recurring patterns.
     Notice if the user's tone is confused, confident, rushed, or tentative.
     Adapt the conscious agent's approach to support their mood-e.g., encouragement for stuck moments, concise help for busy users, or celebration for breakthroughs.

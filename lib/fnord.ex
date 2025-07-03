@@ -67,7 +67,6 @@ defmodule Fnord do
       Cmd.Ask,
       Cmd.Config,
       Cmd.Conversations,
-      Cmd.Default,
       Cmd.Files,
       Cmd.Frobs,
       Cmd.Index,
@@ -86,7 +85,6 @@ defmodule Fnord do
       name: "fnord",
       description: @desc,
       version: Util.get_running_version(),
-      allow_unknown_args: true,
       subcommands: Enum.flat_map(subcommands, & &1.spec())
     ]
   end
@@ -99,9 +97,9 @@ defmodule Fnord do
       {subcommand, %Optimus.ParseResult{} = result} ->
         {:ok, subcommand, merge_options(result), result.unknown}
 
-      # If no subcommand is specified, use Cmd.Default.
-      %Optimus.ParseResult{} = result ->
-        {:ok, [:default], merge_options(result), result.unknown}
+      # If no subcommand is specified, fail.
+      _ ->
+        {:error, :no_subcommand}
     end
   end
 

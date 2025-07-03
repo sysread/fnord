@@ -45,4 +45,22 @@ defmodule SettingsTest do
     settings = Settings.delete(settings, "foo")
     assert Settings.get(settings, "foo", :deleted) == :deleted
   end
+
+  test "automatic cleanup of default project directory" do
+    home = Settings.home()
+    default_dir = Path.join(home, "default")
+
+    # Setup: ensure the default dir exists
+    File.mkdir_p!(default_dir)
+    assert File.exists?(default_dir)
+
+    # Call Settings.new() which triggers cleanup
+    _settings = Settings.new()
+
+    # Assert directory no longer exists
+    refute File.exists?(default_dir)
+
+    # Cleanup (in case)
+    File.rm_rf!(default_dir)
+  end
 end

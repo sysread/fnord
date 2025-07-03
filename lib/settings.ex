@@ -5,8 +5,27 @@ defmodule Settings do
 
   @spec new() :: t()
   def new() do
+    cleanup_default_project_dir()
+
     %Settings{path: settings_file()}
     |> slurp()
+  end
+
+  # ----------------------------------------------------------------------------
+  # Cleans up the "default" project directory within the store on startup.
+  #
+  # This function exists to remove any lingering "default" project data which
+  # might cause inconsistencies or conflicts. It is safe to call repeatedly
+  # and will not raise errors if the directory does not exist. Moreover, no
+  # code depends on this directory being present, so removing it has no adverse
+  # side effects.
+  # ----------------------------------------------------------------------------
+  defp cleanup_default_project_dir do
+    path = Path.join(home(), "default")
+
+    if File.exists?(path) do
+      File.rm_rf!(path)
+    end
   end
 
   @doc """
