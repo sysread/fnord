@@ -39,10 +39,11 @@ defmodule Cmd.Notes do
   end
 
   defp show_notes() do
-    Store.Project.Notes.read()
-    |> case do
-      {:ok, notes} -> IO.puts(notes)
-      _ -> IO.puts(:stderr, "No notes found")
+    with {:ok, notes} <- Store.Project.Notes.format() do
+      IO.puts(notes)
+    else
+      {:error, :no_notes} ->
+        IO.puts(:stderr, "No notes found. Please run `prime` first to gather information.")
     end
   end
 

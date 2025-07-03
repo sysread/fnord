@@ -430,7 +430,7 @@ defmodule AI.Agent.Coordinator do
   # Automatic research retrieval
   # -----------------------------------------------------------------------------
   defp get_notes(state) do
-    with {:ok, notes} <- Store.Project.Notes.read() do
+    with {:ok, notes} <- Store.Project.Notes.format() do
       UI.debug("Retrieving prior research")
       UI.debug("To view prior research", "`fnord notes -p #{state.project}`")
 
@@ -455,12 +455,9 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp save_notes(state) do
-    args = %{
-      transcript: AI.Util.research_transcript(state.msgs),
-      max_tokens: (@model.context * 0.10) |> Float.round(0) |> round()
-    }
+    transcript = AI.Util.research_transcript(state.msgs)
 
-    with {:ok, _response} <- AI.Agent.Archivist.get_response(args) do
+    with {:ok, _response} <- AI.Agent.Archivist.get_response(%{transcript: transcript}) do
       UI.report_step("Updated persistent research notes")
     else
       other -> UI.error("Failed to save research notes: #{inspect(other)}")

@@ -235,4 +235,14 @@ defmodule Util do
       _ -> {:error, :enoent}
     end
   end
+
+  @doc """
+  Capitalizes the first letter of each word in the input string.
+  """
+  def ucfirst(input) when is_binary(input) do
+    input
+    |> String.split(" ")
+    |> Enum.map(&String.capitalize/1)
+    |> Enum.join(" ")
+  end
 end
