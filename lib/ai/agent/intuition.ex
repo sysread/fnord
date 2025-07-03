@@ -175,7 +175,8 @@ defmodule AI.Agent.Intuition do
   end
 
   defp get_drive_reactions(perception, memories) do
-    Map.keys(@drives)
+    @drives
+    |> Map.keys()
     |> Util.async_stream(&get_drive_reaction(&1, perception, memories))
     |> Enum.flat_map(fn
       {:ok, {:ok, response}} -> [response]

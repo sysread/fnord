@@ -145,11 +145,12 @@ defmodule AI.Agent.Archivist do
       existing_notes = Map.get(notes, section, "(no notes have been saved for this section yet)")
       analyze_section(section, existing_notes, transcript)
     end)
-    |> Enum.flat_map(fn
+    |> Enum.map(fn
       {:ok, {:ok, section, response}} -> {section, response}
-      _ -> []
+      _ -> nil
     end)
-    |> Map.new()
+    |> Enum.reject(&is_nil/1)
+    |> Enum.into(%{})
     |> then(&{:ok, &1})
   end
 
