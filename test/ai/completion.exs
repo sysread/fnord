@@ -1,10 +1,36 @@
-defmodule AI.CompletionToolboxTest do
+defmodule AI.Completion do
   use Fnord.TestCase
 
   alias AI.Completion
   alias AI.Model
 
   setup do: set_config(quiet: true)
+
+  describe "get/1" do
+    test "Completion.get/1 surfaces API error response to user" do
+      :meck.new(AI.ChatCompletion, [:non_strict])
+
+      :meck.expect(AI.ChatCompletion, :get, fn _model, _msgs, _specs ->
+        {:error, %{http_status: 500, code: "server_error", message: "backend exploded"}}
+      end)
+
+      user_msg = %{role: "user", content: "trigger error"}
+
+      opts = [
+        model: Model.new("dummy", 0),
+        messages: [user_msg],
+        toolbox: %{}
+      ]
+
+      assert {:error, state} = Completion.get(opts)
+
+      assert state.response =~ "HTTP Status: 500"
+      assert state.response =~ "Error code: server_error"
+      assert state.response =~ "backend exploded"
+
+      :meck.unload(AI.ChatCompletion)
+    end
+  end
 
   describe "toolbox integration" do
     defmodule TestTool do
