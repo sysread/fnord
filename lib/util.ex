@@ -196,13 +196,19 @@ defmodule Util do
   """
   @spec path_within_root?(binary, binary) :: boolean
   def path_within_root?(path, root) do
-    with {:ok, resolved_root} <- resolve_symlink(root),
-         {:ok, resolved_path} <- resolve_symlink(path, resolved_root) do
-      path_segments = Path.split(resolved_path)
-      root_segments = Path.split(resolved_root)
-      Enum.take(path_segments, length(root_segments)) == root_segments
+    if File.exists?(path) do
+      with {:ok, resolved_root} <- resolve_symlink(root),
+           {:ok, resolved_path} <- resolve_symlink(path, resolved_root) do
+        path_segments = Path.split(resolved_path)
+        root_segments = Path.split(resolved_root)
+        Enum.take(path_segments, length(root_segments)) == root_segments
+      else
+        _ -> false
+      end
     else
-      _ -> false
+      path = expand_path(path, root)
+      root = expand_path(root)
+      String.starts_with?(path, root <> "/")
     end
   end
 

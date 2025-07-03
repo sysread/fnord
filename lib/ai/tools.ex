@@ -162,11 +162,12 @@ defmodule AI.Tools do
   # General Tool Registry - only required for tools that are generally available
   # ----------------------------------------------------------------------------
   @tools %{
-    "file_reindex_tool" => AI.Tools.File.Reindex,
     "file_contents_tool" => AI.Tools.File.Contents,
     "file_info_tool" => AI.Tools.File.Info,
     "file_list_tool" => AI.Tools.File.List,
+    # "file_manage_tool" => AI.Tools.File.Manage,
     "file_outline_tool" => AI.Tools.File.Outline,
+    "file_reindex_tool" => AI.Tools.File.Reindex,
     "file_search_tool" => AI.Tools.File.Search,
     "file_spelunker_tool" => AI.Tools.File.Spelunker,
     "git_diff_branch_tool" => AI.Tools.Git.DiffBranch,
