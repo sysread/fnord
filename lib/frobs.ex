@@ -302,7 +302,7 @@ defmodule Frobs do
 
           @impl AI.Tools
           def ui_note_on_request(args) do
-            {"Calling frob `#{@tool_name}`", inspect(args, pretty: true)}
+            {"Calling frob `#{@tool_name}`", Jason.encode!(args, pretty: true)}
           end
 
           @impl AI.Tools
