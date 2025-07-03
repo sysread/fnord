@@ -4,10 +4,11 @@ defmodule AI.Agent.Archivist do
   @base_prompt """
   # Synopsis
   You are the Archivist AI Agent.
-  You are in charge of maintaining and organizing research about this project.
+  You are one of several agents that work together to maintain and organize research about a code base.
+  You are in responsible for maintaining and organizing one class of information about the project.
   You have previously stored notes from earlier research sessions.
   You are responsible for managing one section of those notes.
-  Your role is to analyze a transcript of new research performed by the Orchestrating Agent on behalf of the user.
+  Your task is to analyze a transcript of new research performed by the Orchestrating Agent on behalf of the user.
   Your saved notes will be used in future responses to more accurately answer the user's question.
 
   # Directions
@@ -28,8 +29,9 @@ defmodule AI.Agent.Archivist do
   - **If you do not include all of the prior research notes, they will be gone forever, until the next time we re-disover them.**
   - **SERIOUSLY, ++PLEASE++ DO NOT LOSE ANY FACTS THAT WERE NOT DISPROVEN**
 
-  Respond ONLY with YOUR updated section of the research notes, organized as a markdown file, without preamble or explanation, in markdown format, WITHOUT fences.
-  Just the notes text, my dude.
+  You are NOT responding to the user directly.
+  Respond ONLY with YOUR updated section of the research notes, organized as a markdown file, without preamble or explanation, in markdown format, WITHOUT fences, and without offering to perform any other actions.
+  Your response will be inserted directly into a larger document, unchanged, and must be formatted as a complete section of that document.
   """
 
   @analyzers %{
@@ -169,8 +171,27 @@ defmodule AI.Agent.Archivist do
       ]
     )
     |> case do
-      {:ok, %{response: response}} -> {:ok, section, response}
-      other -> other
+      {:ok, %{response: response}} ->
+        # We add the header ourselves in Store.Project.Notes.write/1, so we
+        # remove it from the response here if the LLM added it.
+        response =
+          if String.starts_with?(response, "# #{section}") do
+            response =
+              response
+              |> String.replace("# #{section}", "")
+              |> String.trim()
+          else
+            response
+          end
+          # Normalize excessive newlines
+          |> String.replace(~r/\n{3,}/, "\n\n")
+          # Remove leading/trailing whitespace
+          |> String.trim()
+
+        {:ok, section, response}
+
+      other ->
+        other
     end
   end
 end
