@@ -1,8 +1,10 @@
 defmodule AI.CompletionToolboxTest do
-  use ExUnit.Case, async: false
+  use Fnord.TestCase
 
   alias AI.Completion
   alias AI.Model
+
+  setup do: set_config(quiet: true)
 
   describe "toolbox integration" do
     defmodule TestTool do
