@@ -296,7 +296,7 @@ defmodule Cmd.Index do
       # emit debug logs to stderr. The user can control whether those are
       # displayed by setting LOGGER_LEVEL.
       if Application.get_env(:fnord, :quiet) do
-        UI.debug("✓ #{entry.file}")
+        UI.info("✓ #{entry.file}")
       end
 
       :ok
