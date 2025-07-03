@@ -46,10 +46,14 @@ defmodule AI.Util do
         ["User Query: #{content}" | acc]
 
       %{role: @role_assistant, content: content}, acc when is_binary(content) ->
-        [content | acc]
+        # Ignore <think> messages, which are used to indicate the assistant is thinking
+        if String.starts_with?(content, "<think>") && String.ends_with?(content, "</think>") do
+          acc
+        else
+          [content | acc]
+        end
 
-      # Not supported in reasoning models, but still may be present in older
-      # conversations.
+      # May be present in older conversations.
       %{role: "system", content: _}, acc ->
         acc
 

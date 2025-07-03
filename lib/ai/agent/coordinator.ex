@@ -9,7 +9,6 @@ defmodule AI.Agent.Coordinator do
   """
 
   @model AI.Model.smart()
-  # @model AI.Model.reasoning(:medium)
 
   @behaviour AI.Agent
 
@@ -261,13 +260,16 @@ defmodule AI.Agent.Coordinator do
   """
 
   @begin """
+  <think>
   I'm going to start by considering the user's question.
   First, I need to be certain I understand the question, the context, the terms used, and how it relates to the project.
   I'll spawn a few research tasks to explore different facets of the question in parallel.
   I can assimilate that information and use it to inform my next steps.
+  </think>
   """
 
   @clarify """
+  <think>
   Wait, does my research so far match my initial assumptions?
   Let me think about this.
   Does my research strategy still make sense based on my initial findings?
@@ -275,9 +277,11 @@ defmodule AI.Agent.Coordinator do
   Many projects evolve over time, and terminology can change as a product matures.
   It's not yet time to finalize my response.
   I am going to do a bit more research with my tools to make sure I don't get tripped up by any concepts or terminology that might be ambiguously labeled in the project.
+  </think>
   """
 
   @refine """
+  <think>
   I think I've got a better handle on the context of the user's question now.
   Now I want to focus on identifying the most relevant information in the project.
   Are there any unresolved questions that I need to research further to ensure I'm not hallucinating details?
@@ -286,22 +290,27 @@ defmodule AI.Agent.Coordinator do
   Considering the user's needs will help me understand their motivations and perhaps the context in which *they* are working.
   Would it be helpful if I found some examples in the project that demonstrate the topic? User's love it when they can copy and paste.
   It's not yet time to finalize my response; I need to resolve some of these questions first.
+  </think>
   """
 
   @continue """
+  <think>
   The user wants me to spend a little extra time researching, so I'm going to dig deeper into the project.
   Maybe I can find some other useful details or gotchas to look out for.
   The user will be very happy if I can provide warnings about common pitfalls around this topic.
   After all, they wouldn't ask me if they already knew all of this stuff.
+  </think>
   """
 
   @finalize """
+  <think>
   I believe that I have identified all of the information I need to answer the user's question.
   What is the best way to present this information to the user?
   I know a lot about instructional design, technical writing, and learning.
   I can use this knowledge to structure my response in a way that is easy to follow and understand.
   The user is probably a programmer or engineer.
   I had beter avoid using smart quotes, apostrophes, and em dashes. Programmers hate those!
+  </think>
   """
 
   @template """
@@ -418,7 +427,14 @@ defmodule AI.Agent.Coordinator do
     |> case do
       {:ok, intuition} ->
         UI.report_step("Intuition", UI.italicize(intuition))
-        %{state | msgs: state.msgs ++ [AI.Util.assistant_msg(intuition)]}
+
+        msg = """
+        <think>
+        #{intuition}
+        </think>
+        """
+
+        %{state | msgs: state.msgs ++ [AI.Util.assistant_msg(msg)]}
 
       {:error, reason} ->
         UI.error("Derp. Cogitation failed.", inspect(reason))
@@ -430,7 +446,7 @@ defmodule AI.Agent.Coordinator do
   # Automatic research retrieval
   # -----------------------------------------------------------------------------
   defp get_notes(state) do
-    with {:ok, notes} <- Store.Project.Notes.format() do
+    with {:ok, notes} <- Store.Project.Notes.read() do
       UI.debug("Retrieving prior research")
       UI.debug("To view prior research", "`fnord notes -p #{state.project}`")
 
@@ -455,9 +471,12 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp save_notes(state) do
-    transcript = AI.Util.research_transcript(state.msgs)
+    args = %{
+      transcript: AI.Util.research_transcript(state.msgs),
+      max_tokens: (@model.context * 0.10) |> Float.round(0) |> round()
+    }
 
-    with {:ok, _response} <- AI.Agent.Archivist.get_response(%{transcript: transcript}) do
+    with {:ok, _response} <- AI.Agent.Archivist.get_response(args) do
       UI.report_step("Updated persistent research notes")
     else
       other -> UI.error("Failed to save research notes: #{inspect(other)}")

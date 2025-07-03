@@ -1,15 +1,51 @@
 defmodule AI.Agent.Archivist do
   @model AI.Model.fast()
 
-  @base_prompt """
-  # Synopsis
+  @prompt """
+  # Your Role
   You are the Archivist AI Agent.
-  You are one of several agents that work together to maintain and organize research about a code base.
-  You are in responsible for maintaining and organizing one class of information about the project.
+  You are in charge of maintaining and organizing research about this project.
   You have previously stored notes from earlier research sessions.
-  You are responsible for managing one section of those notes.
-  Your task is to analyze a transcript of new research performed by the Orchestrating Agent on behalf of the user.
+  You will be provided a transcript of new research performed by the Orchestrating Agent on behalf of the user.
+  Organize and file the facts discovered during the research for future reference, incorporating them into your notes from prior research.
   Your saved notes will be used in future responses to more accurately answer the user's question.
+
+  # Research Notes
+  Many code bases are long-lived, with multiple languages, changes to terminology that are inconsistently applied, and ambiguous or stale documentation.
+  Your saved research notes will guide future research to avoid these pitfalls.
+
+  Examples of useful information to save:
+  - User preferences
+    - Coding styles
+    - Coding conventions
+    - Commenting style
+    - Try to intuit the user's personality and tone preferences from their prompt and reactions to the coordinating agent's responses
+  - Ambiguities in phrasing:
+    - Inconsistent phrasing
+    - Components or concepts with names that are similar to other components
+    - Components or concepts that are referenced by multiple names
+    - Components or concepts that have unexpected names that do not match their behavior
+    - Changes in terminology or naming conventions over time
+  - Rabbit holes
+    - eg "Component X looks like it is related to Feature Y, but is is instead part of Feature Z"
+    - eg "The README claims ..., but in fact ..."
+  - Identifying inaccurate documentation or comments in the code base so we aren't fooled by them twice
+  - The purpose of a file, component, or concept
+  - Relationships between files, components, and/or concepts
+  - The location or single source of truth for a concept
+  - Data flow between components and application boundaries
+  - Organization of apps within the code base; in particular, each apps':
+    - Purpose
+    - Role
+    - Dependencies
+    - Relationships to other apps
+    - Data flow between apps
+    - Shared components and where they are located
+    - Sharing mechanisms between apps
+    - CI/CD and build workflows
+  - Organization of components, ESPECIALLY if its confusing
+  - Research strategies that worked well or poorly
+  - Anything else that you think might might be useful or prevent us from getting tripped up in the future
 
   # Directions
   Read the transcript and identify ALL facts that were discovered about the code base.
@@ -22,114 +58,110 @@ defmodule AI.Agent.Archivist do
   - Add all new facts that were discovered
   - Consolidate and reorganize as appropriate to reduce duplication and token usage
   - Organize the facts by topic
-  - Use markdown headers (h2+) for each topic, followed by a list of facts
+  - Use markdown headers for each topic, followed by a list of facts
+  - Do your best to ensure that the user info is accurate, but remember that
+    you are just gleaning their preferences, so it's ok to leave items that you
+    gleaned from prior conversations but that may not be demonstrated in _this_
+    transcript
 
-  IMPORTANT:
-  - **Do not lose existing facts that were NOT disproven by the new research transcript**
-  - **If you do not include all of the prior research notes, they will be gone forever, until the next time we re-disover them.**
-  - **SERIOUSLY, ++PLEASE++ DO NOT LOSE ANY FACTS THAT WERE NOT DISPROVEN**
+  # Response
+  **Do not lose existing facts that weren't disproven by new research.**
+  Respond ONLY with the updated research notes, organized as a markdown file, without preamble or explanation, in markdown format, not wrapped in code fences.
+  Use the following template (between the dashed lines, but not including them):
+  -----
+  # SYNOPSIS
+  [summary of the purpose of the project]
 
-  You are NOT responding to the user directly.
-  Respond ONLY with YOUR updated section of the research notes, organized as a markdown file, without preamble or explanation, in markdown format, WITHOUT fences, and without offering to perform any other actions.
-  Your response will be inserted directly into a larger document, unchanged, and must be formatted as a complete section of that document.
+  # USER
+  [bullet list of your knowledge about the user, their preferences, and any relevant personality traits/quirks]
+
+  # LAYOUT
+  [explain the layout of the repo; is it a monorepo? how do the apps interact? how are they organized?]
+
+  # APPLICATIONS & COMPONENTS
+  [for each app or primary/top-level component, provide a brief description, location, and dependencies]
+
+  # NOTES
+  [organize notes by topic, with a subheading for each topic, and a list of facts]
+  -----
   """
-
-  @analyzers %{
-    "User" => """
-    # Your Role
-    You are responsible for the `USER` section of the notes.
-    Analyze the transcript, focusing on the user's messages.
-    Observe their phrasing, tone, concerns, and reactions to the Orchestrating Agent's responses, if present.
-    Theorize what the user might prefer in terms of coding style, commenting style, and personality traits.
-    Try to intuit how the user processes information and what they might find helpful or unhelpful in future interactions.
-
-    In particular, look for:
-    - Coding styles
-    - Coding conventions
-    - Commenting style
-    - Personality traits and quirks
-    - Preferences for how information is presented
-
-    Incorporate your findings into the text of the `USER` section of the notes.
-    Respond with the complete, updated text.
-    """,
-    "Synopsis" => """
-    # Your Role
-    You are responsible for the `SYNOPSIS` section of the notes.
-    Analyze the transcript and prior notes to maintain an up-to-date, concise summary of the purpose and scope of the project.
-    Focus on the high-level goal, target audience, and core functionality as described in new research.
-    Update this section to reflect any major shifts or clarified understanding.
-
-    In particular, look for:
-    - High-level purpose of the codebase or project
-    - Key objectives, capabilities, and boundaries
-    - Any clarified or corrected misconceptions about what the project is or does
-
-    Incorporate your findings into the text of the `SYNOPSIS` section of the notes.
-    Respond with the complete, updated text.
-    """,
-    "Layout" => """
-    # Your Role
-    You are responsible for the `LAYOUT` section of the notes.
-    Analyze the transcript and prior notes to update and clarify the structure of the codebase.
-    Note the organization of applications, components, and modules, and how they interact.
-    Focus on the overall directory structure, major subfolders, and how different parts of the repo relate or communicate.
-
-    In particular, look for:
-    - Whether the repo is a monorepo or multi-repo
-    - Top-level organization and naming of directories or apps
-    - Relationships and interactions between major parts of the codebase
-    - Any architectural boundaries or points of integration
-
-    Incorporate your findings into the text of the `LAYOUT` section of the notes.
-    Respond with the complete, updated text.
-    """,
-    "Applications & Components" => """
-    # Your Role
-    You are responsible for the `APPLICATIONS & COMPONENTS` section of the notes.
-    For each application or major top-level component in the codebase, provide a brief description, location (path), and dependencies.
-    Analyze the transcript and prior notes for new facts about each app/component, its purpose, its relationships, and any changes in dependencies or roles.
-
-    In particular, look for:
-    - New applications or components introduced/discovered
-    - Changes to the purpose or role of any app/component
-    - Updates to locations or dependencies
-    - New relationships or clarified connections between apps/components
-
-    Incorporate your findings into the text of the `APPLICATIONS & COMPONENTS` section of the notes.
-    Respond with the complete, updated text.
-    """,
-    "Notes" => """
-    # Your Role
-    You are responsible for the `NOTES` section of the research notes.
-    Organize notes by topic, using subheadings for each topic and a list of facts under each.
-    Focus on capturing insights, gotchas, known ambiguities, research strategies, pitfalls, changes in terminology, and anything that may be useful in future research.
-
-    In particular, look for:
-    - Ambiguities, rabbit holes, and misleading documentation or comments
-    - Clarifications or corrections to prior misunderstandings
-    - Terminology drift (components referenced by multiple names, etc)
-    - Purpose and relationships of files/components/concepts
-    - Data flow, application boundaries, shared components, and workflows
-    - CI/CD, build systems, and organization of components
-    - Research strategies that worked well or poorly
-    - Any additional facts that might prevent confusion in the future
-
-    Structure the section using markdown headers (h2+ - NEVER h1) for each topic and bullet lists for facts under each.
-    Incorporate your findings into the text of the `NOTES` section of the notes.
-    Respond with the complete, updated text.
-    """
-  }
 
   @behaviour AI.Agent
 
   @impl AI.Agent
   def get_response(opts) do
     with {:ok, transcript} <- Map.fetch(opts, :transcript),
+         {:ok, max_tokens} <- Map.fetch(opts, :max_tokens),
          {:ok, old_notes} <- fetch_notes(),
-         {:ok, notes} <- organize_notes(old_notes, transcript),
-         :ok <- Store.Project.Notes.write(notes) do
+         {:ok, compressed} <- compress_notes(old_notes, max_tokens),
+         {:ok, organized} <- organize_notes(transcript, compressed),
+         :ok = Store.Project.Notes.write(organized) do
+      {:ok, organized}
+    else
+      {:compress_error, reason} -> {:error, "failed to compress notes: #{reason}"}
+      {:organize_error, reason} -> {:error, "failed to organize notes: #{reason}"}
+    end
+  end
+
+  # Recursively compress notes until under max_tokens
+  defp compress_notes(notes, max_tokens) do
+    count = AI.PretendTokenizer.guesstimate_tokens(notes)
+    count_str = Util.format_number(count)
+    max_tokens_str = Util.format_number(max_tokens)
+
+    if count <= max_tokens do
+      UI.report_step("Compressing prior research", "Nothing to do")
       {:ok, notes}
+    else
+      UI.report_step(
+        "Compressing prior research",
+        "Attempting to compress to within #{max_tokens_str} tokens (currently at #{count_str})"
+      )
+
+      prompt = """
+      # Your Role
+      You are the Archivist AI Agent.
+      The existing research notes exceed the allowed token limit.
+      Compress and reorganize to retain all facts and remove redundancies.
+      DO NOT LOSE ANY FACTS.
+
+      # Notes
+      #{notes}
+      """
+
+      AI.Accumulator.get_response(
+        model: @model,
+        prompt: prompt,
+        input: notes,
+        question: "Compress research notes to ≤ #{max_tokens_str} tokens."
+      )
+      |> case do
+        {:ok, %{response: compressed}} -> compress_notes(compressed, max_tokens)
+        {:error, reason} -> {:compress_error, reason}
+      end
+    end
+  end
+
+  defp organize_notes(transcript, old_notes) do
+    UI.report_step("Updating prior research", "Assimilating new research into existing notes")
+
+    input = """
+    # NEW RESEARCH TRANSCRIPT
+    #{transcript}
+
+    # EXISTING RESEARCH NOTES
+    #{old_notes}
+    """
+
+    AI.Accumulator.get_response(
+      model: @model,
+      prompt: @prompt,
+      input: input,
+      question: "Organize, integrate, and file new facts into your existing research notes."
+    )
+    |> case do
+      {:ok, %{response: organized}} -> {:ok, organized}
+      {:error, reason} -> {:organize_error, reason}
     end
   end
 
@@ -137,60 +169,6 @@ defmodule AI.Agent.Archivist do
     case Store.Project.Notes.read() do
       {:ok, notes} -> {:ok, notes}
       {:error, :no_notes} -> {:ok, "No research has been conducted yet"}
-    end
-  end
-
-  defp organize_notes(notes, transcript) do
-    @analyzers
-    |> Map.keys()
-    |> Util.async_stream(fn section ->
-      existing_notes = Map.get(notes, section, "(no notes have been saved for this section yet)")
-      analyze_section(section, existing_notes, transcript)
-    end)
-    |> Enum.map(fn
-      {:ok, {:ok, section, response}} -> {section, response}
-      _ -> nil
-    end)
-    |> Enum.reject(&is_nil/1)
-    |> Enum.into(%{})
-    |> then(&{:ok, &1})
-  end
-
-  defp analyze_section(section, notes, transcript) do
-    AI.Completion.get(
-      model: @model,
-      messages: [
-        AI.Util.system_msg(@base_prompt <> "\n\n" <> @analyzers[section]),
-        AI.Util.user_msg("""
-        # Existing notes for "#{section}"
-        #{notes}
-
-        # Transcript of new research
-        #{transcript}
-        """)
-      ]
-    )
-    |> case do
-      {:ok, %{response: response}} ->
-        # We add the header ourselves in Store.Project.Notes.write/1, so we
-        # remove it from the response here if the LLM added it.
-        response =
-          if String.starts_with?(response, "# #{section}") do
-            response
-            |> String.replace("# #{section}", "")
-            |> String.trim()
-          else
-            response
-          end
-          # Normalize excessive newlines
-          |> String.replace(~r/\n{3,}/, "\n\n")
-          # Remove leading/trailing whitespace
-          |> String.trim()
-
-        {:ok, section, response}
-
-      other ->
-        other
     end
   end
 end
