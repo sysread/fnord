@@ -176,10 +176,9 @@ defmodule AI.Agent.Archivist do
         # remove it from the response here if the LLM added it.
         response =
           if String.starts_with?(response, "# #{section}") do
-            response =
-              response
-              |> String.replace("# #{section}", "")
-              |> String.trim()
+            response
+            |> String.replace("# #{section}", "")
+            |> String.trim()
           else
             response
           end
