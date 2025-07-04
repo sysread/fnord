@@ -96,14 +96,6 @@ defmodule AI.Tools.File.Contents do
     """
   end
 
-  # prepend "linenumber<TAB>line"
-  defp maybe_number_lines(text, true) do
-    text
-    |> String.split("\n", trim: false)
-    |> Enum.with_index(1)
-    |> Enum.map(fn {line, idx} -> "#{idx}\t#{line}" end)
-    |> Enum.join("\n")
-  end
-
+  defp maybe_number_lines(text, true), do: Util.numbered_lines(text, "\t")
   defp maybe_number_lines(text, _), do: text
 end

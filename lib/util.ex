@@ -251,4 +251,16 @@ defmodule Util do
     |> Enum.map(&String.capitalize/1)
     |> Enum.join(" ")
   end
+
+  @doc """
+  Adds line numbers to each line of the input text, separated by a specified
+  separator (default is "|"). The numbering starts from 1.
+  """
+  def numbered_lines(text, separator \\ "|") do
+    text
+    |> String.split("\n", trim: false)
+    |> Enum.with_index(1)
+    |> Enum.map(fn {line, idx} -> "#{idx}#{separator}#{line}" end)
+    |> Enum.join("\n")
+  end
 end

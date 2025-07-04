@@ -1,5 +1,5 @@
 defmodule AI.Agent.FileInfo do
-  @model AI.Model.large_context()
+  @model AI.Model.balanced()
 
   @prompt """
   You are an AI agent who is responsible for answering questions about a file's contents.
