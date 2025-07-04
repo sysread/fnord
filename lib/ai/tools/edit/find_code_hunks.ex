@@ -34,11 +34,11 @@ defmodule AI.Tools.Edit.Edit do
         name: "find_code_hunks",
         description: """
         In order to edit a file, you must first identify a contiguous section
-        of code to make changes to. This tool will scan through the file and
-        return the line ranges of all contiguous sections of code that match
-        your specific criteria. Once you have identified likely code hunks, you
-        may select the one you intended to edit and use the make_patch tool to
-        build a patch to apply your changes.
+        of code to make changes to. This tool uses an LLM to read through the
+        file and return the line ranges of all contiguous sections of code that
+        match your specific criteria. Once you have identified likely code
+        hunks, you may select the one you intended to edit and use the
+        make_patch tool to build a patch to apply your changes.
         """,
         parameters: %{
           type: "object",
