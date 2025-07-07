@@ -547,12 +547,12 @@ defmodule Frobs do
           {_, 0} ->
             true
 
-          {output, _exit_code} ->
-            Once.warn("""
-            Frob #{frob.name} is not available:
-            #{output}
-            """)
+          {"", _} ->
+            Once.warn("Frob #{frob.name} is not available.")
+            false
 
+          {output, _} ->
+            Once.warn("Frob #{frob.name} is not available:\n#{output}")
             false
         end
       end
