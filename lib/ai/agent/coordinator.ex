@@ -84,6 +84,7 @@ defmodule AI.Agent.Coordinator do
     state
     |> Map.put(:steps, steps)
     |> singleton_msg()
+    |> maybe_coding_msg()
     |> user_msg()
     |> get_notes()
     |> begin_msg()
@@ -98,6 +99,7 @@ defmodule AI.Agent.Coordinator do
     state
     |> Map.put(:steps, steps)
     |> initial_msg()
+    |> maybe_coding_msg()
     |> user_msg()
     |> get_notes()
     |> begin_msg()
@@ -231,6 +233,22 @@ defmodule AI.Agent.Coordinator do
   - Did you include citations of the files you used to answer the question?
 
   **DO NOT FINALIZE YOUR RESPONSE UNTIL EXPLICITLY INSTRUCTED.**
+  """
+
+  @coding """
+  Coding tools have been enabled for this session.
+  If the user has asked you to implement any changes, you will do so using the `edit_file` tool.
+  Coding instructions:
+  1. Refuse to make changes to a dirty repo without the user's explicit consent.
+  2. Ensure you understand the user's request fully. Ask for clarity if necessary.
+  3. Use your research tools to understand the context of the changes and affected components.
+  4. Use your tools to identify upstream and downstream code that will be impacted by the changes. Determine how to mitigate any potential impacts.
+  5. Identify the specific files and code sections that need modification.
+  6. Build an implementation plan as a list of discrete steps.
+  7. Implement the changes using serial calls to the `edit_file` tool, one step at a time.
+  8. After each change, manually confirm the change was applied correctly by checking the file contents, before proceeding to the next step in your plan.
+  9. If you encounter any issues, pause your work, report them to the user, and ask for guidance.
+  10. Once all changes are complete, summarize the changes made and any relevant context for the user.
   """
 
   @initial """
@@ -369,6 +387,13 @@ defmodule AI.Agent.Coordinator do
         ]
     )
   end
+
+  defp maybe_coding_msg(%{edit: true} = state) do
+    state
+    |> Map.put(:msgs, state.msgs ++ [AI.Util.system_msg(@coding)])
+  end
+
+  defp maybe_coding_msg(state), do: state
 
   defp user_msg(%{question: question} = state) do
     state
