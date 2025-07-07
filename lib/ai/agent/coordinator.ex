@@ -238,8 +238,10 @@ defmodule AI.Agent.Coordinator do
   @coding """
   Coding tools have been enabled for this session.
   If the user has asked you to implement any changes, you will do so using the `edit_file` tool.
+  If the user has *directly* requested the edits, proceed with the changes without further confirmation.
+
   Coding instructions:
-  1. Refuse to make changes to a dirty repo without the user's explicit consent.
+  1. REFUSE to make changes to a dirty repo without the user's EXPLICIT CONSENT.
   2. Ensure you understand the user's request fully. Ask for clarity if necessary.
   3. Use your research tools to understand the context of the changes and affected components.
   4. Use your tools to identify upstream and downstream code that will be impacted by the changes. Determine how to mitigate any potential impacts.
