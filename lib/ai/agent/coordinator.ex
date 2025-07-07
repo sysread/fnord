@@ -179,17 +179,12 @@ defmodule AI.Agent.Coordinator do
   defp get_completion(%{msgs: msgs} = state, replay \\ false) do
     current_step = state.current_step + 1
 
-    tools =
-      AI.Tools.all_tools()
-      |> Map.values()
-      |> Enum.map(& &1.spec())
-
     AI.Completion.get(
       log_msgs: true,
       log_tool_calls: true,
       replay_conversation: replay,
       model: @model,
-      tools: tools,
+      toolbox: get_tools(),
       messages: msgs
     )
     |> case do
@@ -519,6 +514,21 @@ defmodule AI.Agent.Coordinator do
   end
 
   # -----------------------------------------------------------------------------
+  # Tool box
+  # -----------------------------------------------------------------------------
+  defp get_tools do
+    AI.Tools.build_toolbox(
+      Map.values(AI.Tools.tools()) ++
+        [
+          # AI.Tools.Edit.EditFile,
+          AI.Tools.Edit.FindCodeHunks,
+          AI.Tools.Edit.MakePatch,
+          AI.Tools.Edit.ApplyPatch
+        ]
+    )
+  end
+
+  # -----------------------------------------------------------------------------
   # Testing response
   # -----------------------------------------------------------------------------
   @test_prompt """
@@ -564,16 +574,11 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp get_test_response(%{project: project} = state) do
-    tools =
-      AI.Tools.all_tools()
-      |> Map.values()
-      |> Enum.map(& &1.spec())
-
     AI.Completion.get(
       log_msgs: true,
       log_tool_calls: true,
       model: AI.Model.fast(),
-      tools: tools,
+      toolbox: get_tools(),
       messages: [
         @test_prompt
         |> String.replace("$$PROJECT$$", project)
