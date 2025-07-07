@@ -29,7 +29,7 @@ defmodule AI.Tools.Edit.EditFile do
     %{
       type: "function",
       function: %{
-        name: "make_changes",
+        name: "edit_file",
         description: """
         This tool uses an AI agent to make changes to a file based on specific
         instructions.
