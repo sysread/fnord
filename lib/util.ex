@@ -263,4 +263,33 @@ defmodule Util do
     |> Enum.map(fn {line, idx} -> "#{idx}#{separator}#{line}" end)
     |> Enum.join("\n")
   end
+
+  @doc """
+  Parses a binary string into an integer, returning `{:ok, int}` if successful,
+  or `{:error, :invalid_integer}` if the string cannot be parsed as an integer.
+  Accepts both binary strings and integers.
+  """
+  @spec parse_int(binary | integer) :: {:ok, integer} | {:error, :invalid_integer}
+  def parse_int(val) when is_integer(val), do: {:ok, val}
+
+  def parse_int(val) do
+    case Integer.parse(val) do
+      {int, ""} -> {:ok, int}
+      :error -> {:error, :invalid_integer}
+    end
+  end
+
+  @doc """
+  Converts a value to an integer, raising an `ArgumentError` if the value
+  cannot be parsed as an integer. Accepts both binary strings and integers.
+  """
+  @spec int_damnit(binary | integer) :: integer
+  def int_damnit(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, ""} -> int
+      _ -> raise ArgumentError, "Expected an integer, got: #{value}"
+    end
+  end
+
+  def int_damnit(value) when is_integer(value), do: value
 end

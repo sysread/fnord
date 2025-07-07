@@ -1,4 +1,4 @@
-defmodule AI.Tools.Edit.Edit do
+defmodule AI.Tools.Edit.FindCodeHunks do
   @behaviour AI.Tools
 
   @impl AI.Tools

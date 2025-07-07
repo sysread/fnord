@@ -32,9 +32,10 @@ defmodule AI.Tools.Edit.EditFile do
         name: "make_changes",
         description: """
         This tool uses an AI agent to make changes to a file based on
-        specific instructions. It is designed to edit code files by
-        replacing contiguous sections of the file (hunks) with new code
-        blocks, one by one.
+        specific instructions.
+
+        It is designed to edit code files by replacing contiguous sections of
+        the file (hunks) with new code blocks, one by one.
 
         Because the AI has a limited context window, it is recommended that
         you limit the number of changes per tool call.

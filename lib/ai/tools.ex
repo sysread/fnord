@@ -165,7 +165,7 @@ defmodule AI.Tools do
     "file_contents_tool" => AI.Tools.File.Contents,
     "file_info_tool" => AI.Tools.File.Info,
     "file_list_tool" => AI.Tools.File.List,
-    "file_manage_tool" => AI.Tools.File.Manage,
+    # "file_manage_tool" => AI.Tools.File.Manage,
     "file_outline_tool" => AI.Tools.File.Outline,
     "file_reindex_tool" => AI.Tools.File.Reindex,
     "file_search_tool" => AI.Tools.File.Search,
@@ -344,6 +344,24 @@ defmodule AI.Tools do
   @type entry_not_found :: {:error, :enoent}
   @type something_not_found :: project_not_found | entry_not_found
 
+  @doc """
+  Retrieves an argument from the parsed arguments map. If `allow_empty?` is
+  `true` (default: `false`), an empty string or `nil` value is considered valid
+  and will return `{:ok, value}`. If `allow_empty?` is `false`, an empty string
+  or `nil` will return an error indicating a missing argument.
+  """
+  @spec get_arg(parsed_args, atom | binary, bool) :: {:ok, any} | {:error, binary}
+  def get_arg(opts, key, allow_empty? \\ false) do
+    opts
+    |> Map.fetch(key)
+    |> case do
+      {:ok, ""} when not allow_empty? -> {:error, :missing_argument, key}
+      {:ok, nil} when not allow_empty? -> {:error, :missing_argument, key}
+      {:ok, value} -> {:ok, value}
+      :error -> {:error, :missing_argument, key}
+    end
+  end
+
   @spec has_indexed_project() :: boolean
   def has_indexed_project do
     with {:ok, project} <- Store.get_project() do
@@ -417,14 +435,12 @@ defmodule AI.Tools do
   end
 
   defp check_required_args([key | keys], args) do
-    with :ok <- get_arg(args, key) do
+    with :ok <- get_required_arg(args, key) do
       check_required_args(keys, args)
-    else
-      _ -> required_arg_error(key)
     end
   end
 
-  defp get_arg(args, key) do
+  defp get_required_arg(args, key) do
     args
     |> Map.fetch(key)
     |> case do

@@ -1,4 +1,7 @@
 defmodule AI.Tools.Edit.MakePatch do
+  # ----------------------------------------------------------------------------
+  # AI.Tools implementation
+  # ----------------------------------------------------------------------------
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -32,7 +35,22 @@ defmodule AI.Tools.Edit.MakePatch do
   end
 
   @impl AI.Tools
-  def read_args(args), do: {:ok, args}
+  def read_args(args) do
+    with {:ok, _} <- AI.Tools.get_arg(args, "file"),
+         {:ok, _} <- AI.Tools.get_arg(args, "new_code"),
+         {:ok, start_line} <- AI.Tools.get_arg(args, "start_line"),
+         {:ok, end_line} <- AI.Tools.get_arg(args, "end_line"),
+         {:start_line, {:ok, _}} <- {:start_line, Util.parse_int(start_line)},
+         {:end_line, {:ok, _}} <- {:end_line, Util.parse_int(end_line)} do
+      {:ok, args}
+    else
+      {:start_line, {:error, :invalid_integer}} ->
+        {:error, :invalid_argument, "start_line must be an integer"}
+
+      {:end_line, {:error, :invalid_integer}} ->
+        {:error, :invalid_argument, "end_line must be an integer"}
+    end
+  end
 
   @impl AI.Tools
   def spec do
@@ -46,8 +64,8 @@ defmodule AI.Tools.Edit.MakePatch do
         file path, start line, and end line) and a block of code to replace the
         *entire hunk in full*.
 
-        Once you have created a patch, you can apply it to the file using
-        apply_patch tool.
+        You will be provided with a patch ID that is used to apply the patch
+        using the apply_patch tool.
         """,
         parameters: %{
           type: "object",
@@ -99,28 +117,39 @@ defmodule AI.Tools.Edit.MakePatch do
         "new_code" => new_code
       }) do
     with {:ok, contents} <- AI.Tools.get_file_contents(file),
-         {start_line, ""} <- Integer.parse(start_line),
-         {end_line, ""} <- Integer.parse(end_line),
+         start_line <- Util.int_damnit(start_line),
+         end_line <- Util.int_damnit(end_line),
          {:ok, new_contents} <- update_code(contents, start_line, end_line, new_code),
-         {:ok, orig, dest} <- make_temp_files(new_contents) do
-      make_patch(orig, dest)
+         {:ok, orig} <- make_temp_file(contents),
+         {:ok, dest} <- make_temp_file(new_contents),
+         {:ok, patch} <- make_patch(orig, dest),
+         {patch_id, path} <- Patches.new_patch(patch) do
+      UI.debug("New patch created with ID #{patch_id} at #{path}")
+
+      {:ok,
+       %{
+         file: file,
+         start_line: start_line,
+         end_line: end_line,
+         # patch: patch,
+         patch_id: patch_id
+       }}
     end
   end
 
   defp make_patch(orig, temp) do
     System.cmd("diff", ["-u", orig, temp])
     |> case do
-      {output, 0} -> {:ok, output}
-      {output, _} -> {:error, "Failed to build patch: #{output}"}
+      {_output, 0} -> {:error, "The patch contained no changes!"}
+      {output, 1} -> {:ok, output}
+      {output, _} -> {:error, "Error building patch:\n\n#{output}"}
     end
   end
 
-  defp make_temp_files(contents) do
-    with {:ok, path1} <- Briefly.create(),
-         {:ok, path2} <- Briefly.create(),
-         :ok <- File.write(path1, contents),
-         :ok <- File.write(path1, contents) do
-      {:ok, path1, path2}
+  defp make_temp_file(contents) do
+    with {:ok, path} <- Briefly.create(),
+         :ok <- File.write(path, contents) do
+      {:ok, path}
     end
   end
 
@@ -128,6 +157,8 @@ defmodule AI.Tools.Edit.MakePatch do
     lines = String.split(contents, "\n")
     pre = Enum.take(lines, start_line - 1)
     post = Enum.drop(lines, end_line)
-    {:ok, Enum.join([pre, new_code, post], "\n")}
+    new_code_lines = String.split(new_code, "\n")
+    new_contents = Enum.join(pre ++ new_code_lines ++ post, "\n")
+    {:ok, new_contents}
   end
 end

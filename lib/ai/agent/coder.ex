@@ -39,16 +39,15 @@ defmodule AI.Agent.Coder do
       model: @model,
       log_msgs: true,
       log_tool_calls: true,
-      tools:
-        AI.Tools.build_toolbox([
-          AI.Tools.File.Contents,
-          AI.Tools.File.List,
-          AI.Tools.File.Manage,
-          AI.Tools.File.Search,
-          AI.Tools.Edit.FindCodeHunks,
-          AI.Tools.Edit.MakePatch,
-          AI.Tools.Edit.ApplyPatch
-        ]),
+      toolbox: [
+        AI.Tools.File.Contents,
+        AI.Tools.File.List,
+        AI.Tools.File.Manage,
+        AI.Tools.File.Search,
+        AI.Tools.Edit.FindCodeHunks,
+        AI.Tools.Edit.MakePatch,
+        AI.Tools.Edit.ApplyPatch
+      ],
       messages: [
         AI.Util.system_msg(@system_prompt),
         AI.Util.user_msg("""

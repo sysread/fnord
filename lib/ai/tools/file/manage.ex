@@ -33,8 +33,10 @@ defmodule AI.Tools.File.Manage do
       function: %{
         name: "file_manage_tool",
         description: """
-        Create, delete, or move files within the project source root.
-        All operations are strictly checked against the project root using symlink-aware validation.
+        Create, delete, or move files within the project source root. This does
+        NOT allow you to edit files directly. It only allows you to perform
+        basic file operations like creating, deleting, or moving/renaming files
+        and directories.
         """,
         parameters: %{
           type: "object",
@@ -67,7 +69,7 @@ defmodule AI.Tools.File.Manage do
 
   @impl AI.Tools
   def read_args(%{"operation" => "create"} = args) do
-    with {:ok, path} <- get_arg(args, "path") do
+    with {:ok, path} <- AI.Tools.get_arg(args, "path") do
       {:ok,
        %{
          "operation" => "create",
@@ -78,7 +80,7 @@ defmodule AI.Tools.File.Manage do
   end
 
   def read_args(%{"operation" => "delete"} = args) do
-    with {:ok, path} <- get_arg(args, "path") do
+    with {:ok, path} <- AI.Tools.get_arg(args, "path") do
       {:ok,
        %{
          "operation" => "delete",
@@ -89,8 +91,8 @@ defmodule AI.Tools.File.Manage do
   end
 
   def read_args(%{"operation" => "move"} = args) do
-    with {:ok, path} <- get_arg(args, "path"),
-         {:ok, dest_path} <- get_arg(args, "destination_path") do
+    with {:ok, path} <- AI.Tools.get_arg(args, "path"),
+         {:ok, dest_path} <- AI.Tools.get_arg(args, "destination_path") do
       {:ok,
        %{
          "operation" => "move",
@@ -106,14 +108,6 @@ defmodule AI.Tools.File.Manage do
 
   def read_args(_) do
     {:error, :missing_argument, "operation"}
-  end
-
-  defp get_arg(arg, key) do
-    case Map.fetch(arg, key) do
-      {:ok, ""} -> {:error, :missing_argument, key}
-      {:ok, value} -> {:ok, value}
-      :error -> {:error, :missing_argument, key}
-    end
   end
 
   @impl AI.Tools
