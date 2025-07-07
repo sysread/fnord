@@ -131,8 +131,14 @@ defmodule AI.Tools.Edit.MakePatch do
          file: file,
          start_line: start_line,
          end_line: end_line,
-         # patch: patch,
-         patch_id: patch_id
+         patch_id: patch_id,
+         patch: """
+         Here is the content of the patch you requested.
+         You can apply this patch using the `apply_patch` tool with the patch_id, `#{patch_id}`.
+         ```diff
+         #{patch}
+         ```
+         """
        }}
     end
   end
