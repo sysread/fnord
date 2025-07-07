@@ -83,6 +83,7 @@ defmodule AI.Agent.Coordinator do
 
     state
     |> Map.put(:steps, steps)
+    |> new_session_msg()
     |> singleton_msg()
     |> maybe_coding_msg()
     |> user_msg()
@@ -98,6 +99,7 @@ defmodule AI.Agent.Coordinator do
 
     state
     |> Map.put(:steps, steps)
+    |> new_session_msg()
     |> initial_msg()
     |> maybe_coding_msg()
     |> user_msg()
@@ -235,24 +237,6 @@ defmodule AI.Agent.Coordinator do
   **DO NOT FINALIZE YOUR RESPONSE UNTIL EXPLICITLY INSTRUCTED.**
   """
 
-  @coding """
-  Coding tools have been enabled for this session.
-  If the user has asked you to implement any changes, you will do so using the `edit_file` tool.
-  If the user has *directly* requested the edits, proceed with the changes without further confirmation.
-
-  Coding instructions:
-  1. REFUSE to make changes to a dirty repo without the user's EXPLICIT CONSENT.
-  2. Ensure you understand the user's request fully. Ask for clarity if necessary.
-  3. Use your research tools to understand the context of the changes and affected components.
-  4. Use your tools to identify upstream and downstream code that will be impacted by the changes. Determine how to mitigate any potential impacts.
-  5. Identify the specific files and code sections that need modification.
-  6. Build an implementation plan as a list of discrete steps.
-  7. Implement the changes using serial calls to the `edit_file` tool, one step at a time.
-  8. After each change, manually confirm the change was applied correctly by checking the file contents, before proceeding to the next step in your plan.
-  9. If you encounter any issues, pause your work, report them to the user, and ask for guidance.
-  10. Once all changes are complete, summarize the changes made and any relevant context for the user.
-  """
-
   @initial """
   You are an AI assistant that researches the user's code base to answer their qustions.
   You are assisting the user by researching their question about the project, "$$PROJECT$$".
@@ -273,6 +257,24 @@ defmodule AI.Agent.Coordinator do
   - Perform additional rounds of research as necessary to fill in gaps in your understanding or find examples for the user.
 
   **DO NOT FINALIZE YOUR RESPONSE UNTIL EXPLICITLY INSTRUCTED.**
+  """
+
+  @coding """
+  Coding tools have been enabled for this session.
+  If the user has asked you to implement any changes, you will do so using the `edit_file` tool.
+  If the user has *directly* requested the edits, proceed with the changes without further confirmation.
+
+  Coding instructions:
+  1. REFUSE to make changes to a dirty repo without the user's EXPLICIT CONSENT.
+  2. Ensure you understand the user's request fully. Ask for clarity if necessary.
+  3. Use your research tools to understand the context of the changes and affected components.
+  4. Use your tools to identify upstream and downstream code that will be impacted by the changes. Determine how to mitigate any potential impacts.
+  5. Identify the specific files and code sections that need modification.
+  6. Build an implementation plan as a list of discrete steps.
+  7. Implement the changes using serial calls to the `edit_file` tool, one step at a time.
+  8. After each change, manually confirm the change was applied correctly by checking the file contents, before proceeding to the next step in your plan.
+  9. If you encounter any issues, pause your work, report them to the user, and ask for guidance.
+  10. Once all changes are complete, summarize the changes made and any relevant context for the user.
   """
 
   @begin """
@@ -360,6 +362,20 @@ defmodule AI.Agent.Coordinator do
     else
       {:error, :not_a_git_repo} -> "Note: this project is not under git version control."
     end
+  end
+
+  defp new_session_msg(state) do
+    state
+    |> Map.put(
+      :msgs,
+      state.msgs ++
+        [
+          AI.Util.system_msg("""
+          Beginning a new session.
+          Artifacts from previous sessions within this conversation may be stale.
+          """)
+        ]
+    )
   end
 
   defp singleton_msg(%{project: project} = state) do
