@@ -273,6 +273,7 @@ defmodule AI.Agent.Coordinator do
   6. Build an implementation plan as a list of discrete steps.
   7. Implement the changes using serial calls to the `edit_file` tool, one step at a time.
   8. After each change, manually confirm the change was applied correctly by checking the file contents, before proceeding to the next step in your plan.
+     Use the `restore_backup` tool to revert changes if the `edit_file` tool applied it incorrectly, then GOTO 7.
   9. If you encounter any issues, pause your work, report them to the user, and ask for guidance.
   10. Once all changes are complete, summarize the changes made and any relevant context for the user.
   """
