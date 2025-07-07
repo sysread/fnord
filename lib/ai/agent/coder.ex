@@ -45,6 +45,17 @@ defmodule AI.Agent.Coder do
          {:ok, patch_id} <- make_patch(hunk, instructions),
          {:ok, result} <- apply_patch(path, patch_id) do
       {:ok, result}
+    else
+      {:patch_error, reason} ->
+        {:error,
+         """
+         The patch was NOT applied successfully.
+
+         The error was:
+         #{reason}
+
+         **`#{file}` was NOT modified.**
+         """}
     end
   end
 
@@ -155,19 +166,18 @@ defmodule AI.Agent.Coder do
     end
   end
 
-  defp apply_patch(file, patch_id) do
+  defp apply_patch(path, patch_id) do
+    backup = backup_filename(path)
+
     with patch_id <- Util.int_damnit(patch_id),
          {:ok, patch_file} <- Patches.get_patch(patch_id),
-         {:ok, project} <- Store.get_project(),
-         {:ok, path} <- Store.Project.find_file(project, file),
-         backup <- backup_filename(path),
          :ok <- File.cp(path, backup),
-         {output, 0} <- System.cmd("patch", [file, "-i", patch_file]),
+         {output, 0} <- System.cmd("patch", [path, "-i", patch_file]),
          {:ok, diff} <- Util.diff_files(backup, path) do
       {:ok,
        """
-       The patch was successfully applied to `#{file}`.
-       A backup of the original file has been created at `#{file}.bak`.
+       The patch was successfully applied to `#{path}`.
+       A backup of the original file has been created at `#{path}.bak`.
 
        Here is the output from the patch command:
        ```
@@ -179,11 +189,13 @@ defmodule AI.Agent.Coder do
        #{diff}
        ```
 
-       Please analyze the diff and the updated `#{file}` to ensure the changes are as expected.
+       Please analyze the diff and the updated `#{path}` to ensure the changes are as expected.
        """}
     else
       {:error, :patch_not_found} ->
-        {:error,
+        if File.exists?(backup), do: File.rm(backup)
+
+        {:patch_error,
          """
          Patch ID #{patch_id} not found.
          Please ensure you have created the patch with the make_patch tool.
@@ -192,7 +204,9 @@ defmodule AI.Agent.Coder do
          """}
 
       {:error, reason} ->
-        {:error, "Failed to apply patch: #{reason}"}
+        if File.exists?(backup), do: File.rm(backup)
+
+        {:patch_error, "Failed to apply patch: #{reason}"}
     end
   end
 
