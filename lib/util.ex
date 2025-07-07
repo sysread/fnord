@@ -292,4 +292,20 @@ defmodule Util do
   end
 
   def int_damnit(value) when is_integer(value), do: value
+
+  @doc """
+  Compares two files using the `diff` command and returns the output.
+  If the files are identical, it returns `{:ok, "No changes detected."}`.
+  If there are differences, it returns `{:ok, output}` with the diff output.
+  If an error occurs, it returns `{:error, output}` with the error message.
+  """
+  @spec diff_files(binary, binary) :: {:ok, binary} | {:error, binary}
+  def diff_files(a, b) do
+    System.cmd("diff", ["-u", a, b])
+    |> case do
+      {_, 0} -> {:ok, "No changes detected."}
+      {output, 1} -> {:ok, output}
+      {output, _} -> {:error, output}
+    end
+  end
 end

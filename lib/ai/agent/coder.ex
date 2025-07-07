@@ -1,69 +1,209 @@
 defmodule AI.Agent.Coder do
   @behaviour AI.Agent
 
-  @model AI.Model.reasoning(:high)
+  @model AI.Model.smart()
 
-  @system_prompt """
-  You are an AI agent within a larger application, `fnord`, that is comprised of multiple coordinated agents.
-  You are an expert software engineer, specializing in making precise, incremental changes to code files based on explicit instructions.
-  You care deeply about proper separation of concerns, consistency, testability, maintainability, and readability of the code you write.
-  You strongly believe that changes should be minimal (when possible) and follow the conventions and structure of the existing codebase to promote team velocity.
+  @max_attempts 3
 
-  Your role is to write code and make other changes to files within the user's project.
-  The coordinating agent will provide you with instructions and context for the changes needed.
-  Your task is to carefully implement the requested changes, paying special attention to matching the existing code style and structure.
-  Never leave unfinished code or comments in the files.
-  Never write code or change files that are not explicitly requested by the coordinating agent.
-  Include explanatory comments that document the purpose and workflow of the code, but never include discussion-context or explanatory scaffolding comments.
+  @identify_hunk_prompt """
+  You are an AI agent tasked with finding code hunks in a file.
+  The Coordinating Agent will provide you with a file name and instructions for changes it is implementing.
+  Your task is to use the `find_code_hunks` tool to identify the specific hunk that corresponds with the changes requested.
+  The `find_code_hunks` tools will return a list of possible hunks.
+  You must select the single hunk that matches the intent of the Coordinating Agent's instructions.
+  You may use the `file_contents_tool` to read the file in order to identify the correct hunk if necessary.
+  Respond in JSON with the selected hunk. For example:
+  ```json
+  {
+    "file": "path/to/file.ex",
+    "start_line": 10,
+    "end_line": 20
+  }
+  ```
+  Do not include any other text (including markdown fences) in your response - **JUST** the JSON object.
+  """
 
-  Changes must be planned out before applying them.
-  Each hunk must be edited separately, and you must not attempt to edit multiple hunks at once (that would cause a race condition in the concurrent tool call system).
-  Changes must be broken down into a set of serializable steps that can be executed in sequence.
-
-  Instructions:
-  1. Read the file to be modified using the `file_contents_tool` tool and understand its current state.
-  2. Identify relevant coding conventions and structure so your changes dovetail seamlessly with the existing code.
-  3. Plan out your changes as a series of discrete modifications, each to a separate, contiguous region of the file.
-  4. For each planned change:
-    a. Use the `find_code_hunks` tool to identify the destination hunk by starting and ending line numbers.
-    b. Use the `make_patch` tool to build a patch for the change.
-    c. Use the `apply_patch` tool to apply the patch to the file. Note that you MUST provide the patch word-for-word to the `apply_patch` tool for it to work correctly.
+  @make_patch_prompt """
+  You are an AI agent tasked with creating a patch for a code change.
+  The Coordinating Agent will provide you with a file name, instructions for changes, and a hunk that has been identified.
+  Your task is to use the `make_patch` tool to create a patch for the change.
+  The `make_patch` tool will return a patch ID that can be used to apply the patch.
+  Respond in JSON with the patch ID. For example:
+  ```json
+  {
+    "patch_id": 123
+  }
+  ```
+  Do not include any other text (including markdown fences) in your response - **JUST** the JSON object.
   """
 
   @impl AI.Agent
   def get_response(%{file: file, instructions: instructions}) do
     with {:ok, project} <- Store.get_project(),
-         {:ok, path} <- Store.Project.find_file(project, file) do
-      get_completion(path, instructions)
+         {:ok, path} <- Store.Project.find_file(project, file),
+         {:ok, hunk} <- identify_hunk(path, instructions),
+         {:ok, patch_id} <- make_patch(hunk, instructions),
+         {:ok, result} <- apply_patch(path, patch_id) do
+      {:ok, result}
     end
   end
 
-  defp get_completion(file, instructions) do
-    AI.Completion.get(
-      model: @model,
-      log_msgs: true,
-      log_tool_calls: true,
-      toolbox:
-        AI.Tools.build_toolbox([
-          AI.Tools.File.Contents,
-          AI.Tools.File.List,
-          AI.Tools.File.Manage,
-          AI.Tools.File.Search,
-          AI.Tools.Edit.FindCodeHunks,
-          AI.Tools.Edit.MakePatch,
-          AI.Tools.Edit.ApplyPatch
-        ]),
-      messages: [
-        AI.Util.system_msg(@system_prompt),
-        AI.Util.user_msg("""
-        The Coordinating Agent has asked you to edit `#{file}` with the following instructions:
-        > #{instructions}
-        """)
-      ]
-    )
-    |> case do
-      {:ok, %{response: response}} -> {:ok, response}
-      {:error, reason} -> {:error, reason}
+  defp identify_hunk(file, instructions, attempt \\ 1)
+
+  defp identify_hunk(_, _, @max_attempts) do
+    {:error, "Failed to identify hunk after #{@max_attempts} attempts"}
+  end
+
+  defp identify_hunk(file, instructions, attempt) do
+    with {:ok, json} <- Jason.encode(%{file: file, instructions: instructions}) do
+      AI.Completion.get(
+        model: @model,
+        log_msgs: true,
+        log_tool_calls: true,
+        toolbox:
+          AI.Tools.build_toolbox([
+            AI.Tools.File.Contents,
+            AI.Tools.Edit.FindCodeHunks
+          ]),
+        messages: [
+          AI.Util.system_msg(@identify_hunk_prompt),
+          AI.Util.user_msg(json)
+        ]
+      )
+      |> case do
+        {:ok, %{response: response}} ->
+          response
+          |> Jason.decode()
+          |> case do
+            {:ok, %{"file" => _, "start_line" => _, "end_line" => _} = hunk} ->
+              {:ok, hunk}
+
+            {:ok, _} ->
+              instructions = """
+              #{instructions}
+              -----
+              Your previous response was not a valid hunk.
+              Expected keys: "file", "start_line", "end_line".
+              Response: #{response}
+              """
+
+              identify_hunk(file, instructions, attempt + 1)
+
+            {:error, reason} ->
+              instructions = """
+              #{instructions}
+              -----
+              Your previous response was not valid JSON.
+              Response: #{response}
+              Error: #{reason}
+              """
+
+              identify_hunk(file, instructions, attempt + 1)
+          end
+      end
     end
+  end
+
+  defp make_patch(hunk, instructions, attempt \\ 1)
+
+  defp make_patch(_, _, @max_attempts) do
+    {:error, "Failed to create patch after #{@max_attempts} attempts"}
+  end
+
+  defp make_patch(hunk, instructions, attempt) do
+    with {:ok, json} <- Jason.encode(%{hunk: hunk, instructions: instructions}) do
+      AI.Completion.get(
+        model: @model,
+        log_msgs: true,
+        log_tool_calls: true,
+        toolbox: AI.Tools.build_toolbox([AI.Tools.Edit.MakePatch]),
+        messages: [
+          AI.Util.system_msg(@make_patch_prompt),
+          AI.Util.user_msg(json)
+        ]
+      )
+      |> case do
+        {:ok, %{response: response}} ->
+          response
+          |> Jason.decode()
+          |> case do
+            {:ok, %{"patch_id" => patch_id}} ->
+              {:ok, patch_id}
+
+            {:ok, _} ->
+              instructions = """
+              #{instructions}
+              -----
+              Your previous response was was missing the "patch_id" field.
+              Response: #{response}
+              """
+
+              make_patch(hunk, instructions, attempt + 1)
+
+            {:error, reason} ->
+              instructions = """
+              #{instructions}
+              -----
+              Your previous response was not valid JSON.
+              Response: #{response}
+              Error: #{reason}
+              """
+
+              make_patch(hunk, instructions, attempt + 1)
+          end
+      end
+    end
+  end
+
+  defp apply_patch(file, patch_id) do
+    with patch_id <- Util.int_damnit(patch_id),
+         {:ok, patch_file} <- Patches.get_patch(patch_id),
+         {:ok, project} <- Store.get_project(),
+         {:ok, path} <- Store.Project.find_file(project, file),
+         backup <- backup_filename(path),
+         :ok <- File.cp(path, backup),
+         {output, 0} <- System.cmd("patch", [file, "-i", patch_file]),
+         {:ok, diff} <- Util.diff_files(backup, path) do
+      {:ok,
+       """
+       The patch was successfully applied to `#{file}`.
+       A backup of the original file has been created at `#{file}.bak`.
+
+       Here is the output from the patch command:
+       ```
+       #{output}
+       ```
+
+       After patching, the file was compared to the backup, and the following changes were detected:
+       ```
+       #{diff}
+       ```
+
+       Please analyze the diff and the updated `#{file}` to ensure the changes are as expected.
+       """}
+    else
+      {:error, :patch_not_found} ->
+        {:error,
+         """
+         Patch ID #{patch_id} not found.
+         Please ensure you have created the patch with the make_patch tool.
+         Note that patch IDs are only valid for the duration of your response (e.g. all tool calls until you send your text response).
+         If you created this patch in a previous round of tool calls, you will need to recreate it before applying it.
+         """}
+
+      {:error, reason} ->
+        {:error, "Failed to apply patch: #{reason}"}
+    end
+  end
+
+  defp backup_filename(path) do
+    timestamp =
+      NaiveDateTime.utc_now()
+      |> NaiveDateTime.truncate(:second)
+      |> NaiveDateTime.to_string()
+      # YYYYMMDDHHMMSS
+      |> String.replace(~r/[^0-9]/, "")
+
+    "#{path}.bak.#{timestamp}"
   end
 end

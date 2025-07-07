@@ -561,7 +561,13 @@ defmodule AI.Agent.Coordinator do
   # Tool box
   # -----------------------------------------------------------------------------
   defp get_tools(%{edit: true}) do
-    AI.Tools.build_toolbox(Map.values(AI.Tools.tools()) ++ [AI.Tools.Edit.EditFile])
+    AI.Tools.build_toolbox(
+      Map.values(AI.Tools.tools()) ++
+        [
+          AI.Tools.Edit.EditFile,
+          AI.Tools.Edit.RestoreBackup
+        ]
+    )
   end
 
   defp get_tools(_) do

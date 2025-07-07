@@ -77,6 +77,14 @@ defmodule AI.Tools.Edit.EditFile do
 
   @impl AI.Tools
   def call(%{"file" => file, "instructions" => instructions}) do
+    with_lock(file, fn -> get_response(file, instructions) end)
+  end
+
+  defp with_lock(file, cb) do
+    Mutex.with_lock(:fnord_mutex, file, cb)
+  end
+
+  defp get_response(file, instructions) do
     AI.Agent.Coder.get_response(%{file: file, instructions: instructions})
   end
 end

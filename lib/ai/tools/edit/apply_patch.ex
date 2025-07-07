@@ -76,15 +76,23 @@ defmodule AI.Tools.Edit.ApplyPatch do
          {:ok, patch_file} <- Patches.get_patch(patch_id),
          {:ok, project} <- Store.get_project(),
          {:ok, path} <- Store.Project.find_file(project, file),
-         :ok <- File.cp(path, backup_filename(path)),
-         {output, 0} <- System.cmd("patch", [file, "-i", patch_file]) do
+         backup <- backup_filename(path),
+         :ok <- File.cp(path, backup),
+         {output, 0} <- System.cmd("patch", [file, "-i", patch_file]),
+         {:ok, diff} <- Util.diff_files(backup, path) do
       {:ok,
        """
        The patch was successfully applied to `#{file}`.
        A backup of the original file has been created at `#{file}.bak`.
+
        Here is the output from the patch command:
        ```
        #{output}
+       ```
+
+       After patching, the file was compared to the backup, and the following changes were detected:
+       ```
+       #{diff}
        ```
        """}
     else
