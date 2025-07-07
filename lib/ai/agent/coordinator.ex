@@ -24,6 +24,7 @@ defmodule AI.Agent.Coordinator do
     %{
       project: project.name,
       question: opts.question,
+      edit: opts.edit,
       msgs: opts.msgs,
       last_response: nil,
       steps: research_steps,
@@ -184,7 +185,7 @@ defmodule AI.Agent.Coordinator do
       log_tool_calls: true,
       replay_conversation: replay,
       model: @model,
-      toolbox: get_tools(),
+      toolbox: get_tools(state),
       messages: msgs
     )
     |> case do
@@ -516,16 +517,12 @@ defmodule AI.Agent.Coordinator do
   # -----------------------------------------------------------------------------
   # Tool box
   # -----------------------------------------------------------------------------
-  defp get_tools do
-    AI.Tools.build_toolbox(
-      Map.values(AI.Tools.tools()) ++
-        [
-          # AI.Tools.Edit.EditFile,
-          AI.Tools.Edit.FindCodeHunks,
-          AI.Tools.Edit.MakePatch,
-          AI.Tools.Edit.ApplyPatch
-        ]
-    )
+  defp get_tools(%{edit: true}) do
+    AI.Tools.build_toolbox(Map.values(AI.Tools.tools()) ++ [AI.Tools.Edit.EditFile])
+  end
+
+  defp get_tools(_) do
+    AI.Tools.build_toolbox(Map.values(AI.Tools.tools()))
   end
 
   # -----------------------------------------------------------------------------
@@ -578,7 +575,7 @@ defmodule AI.Agent.Coordinator do
       log_msgs: true,
       log_tool_calls: true,
       model: AI.Model.fast(),
-      toolbox: get_tools(),
+      toolbox: get_tools(state),
       messages: [
         @test_prompt
         |> String.replace("$$PROJECT$$", project)

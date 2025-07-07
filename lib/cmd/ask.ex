@@ -41,6 +41,11 @@ defmodule Cmd.Ask do
           ]
         ],
         flags: [
+          edit: [
+            long: "--edit",
+            short: "-e",
+            help: "Permit the AI to edit files in the project"
+          ],
           replay: [
             long: "--replay",
             short: "-r",

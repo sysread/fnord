@@ -31,19 +31,24 @@ defmodule AI.Tools.Edit.EditFile do
       function: %{
         name: "make_changes",
         description: """
-        This tool uses an AI agent to make changes to a file based on
-        specific instructions.
+        This tool uses an AI agent to make changes to a file based on specific
+        instructions.
 
         It is designed to edit code files by replacing contiguous sections of
         the file (hunks) with new code blocks, one by one.
 
         Because the AI has a limited context window, it is recommended that
-        you limit the number of changes per tool call.
+        you request a single change per request. Provide terse, direct,
+        explicit, detailed instructions to mitigate the risk of the agent
+        hallucinating details.
 
         NEVER request multiple tool calls to the same file in parallel, as that
         will lead to a race condition where the tool call system will execute
         the changes in parallel, leading to a race condition that can lose
         changes.
+
+        ALWAYS double-check the result of this tool call by directly inspecting
+        the contents of the file after the changes have been made.
         """,
         parameters: %{
           type: "object",
