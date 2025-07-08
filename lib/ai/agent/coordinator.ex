@@ -21,9 +21,14 @@ defmodule AI.Agent.Coordinator do
     research_steps = steps(opts.rounds)
     {:ok, project} = Store.get_project()
 
+    edit =
+      Map.get(opts, :edit, false) &&
+        AI.Tools.Codex.is_available?()
+
     %{
       project: project.name,
       question: opts.question,
+      edit: edit,
       msgs: opts.msgs,
       last_response: nil,
       steps: research_steps,
@@ -84,6 +89,7 @@ defmodule AI.Agent.Coordinator do
     |> Map.put(:steps, steps)
     |> new_session_msg()
     |> singleton_msg()
+    |> maybe_coding_msg()
     |> user_msg()
     |> get_notes()
     |> begin_msg()
@@ -99,6 +105,7 @@ defmodule AI.Agent.Coordinator do
     |> Map.put(:steps, steps)
     |> new_session_msg()
     |> initial_msg()
+    |> maybe_coding_msg()
     |> user_msg()
     |> get_notes()
     |> begin_msg()
@@ -256,6 +263,14 @@ defmodule AI.Agent.Coordinator do
   **DO NOT FINALIZE YOUR RESPONSE UNTIL EXPLICITLY INSTRUCTED.**
   """
 
+  @coding """
+  Coding has been enabled for this session.
+  Use the `codex` tool to implement any changes requested by the user.
+  Keep your instructions brief and ensure each step is a single, self-contained change to a contiguous region of a single file.
+  REQUIRED: verify the contents of EVERY file change after EACH call to this tool.
+  You MUST manually review the code changes made by the AI agent to ensure they are correct, complete, and did NOT introduce additional changes that were not requested.
+  """
+
   @begin """
   <think>
   I'm going to start by considering the user's question.
@@ -403,6 +418,13 @@ defmodule AI.Agent.Coordinator do
     |> Map.put(:msgs, state.msgs ++ [AI.Util.assistant_msg(@begin)])
   end
 
+  defp maybe_coding_msg(%{edit: false} = state), do: state
+
+  defp maybe_coding_msg(%{edit: true} = state) do
+    state
+    |> Map.put(:msgs, state.msgs ++ [AI.Util.system_msg(@coding)])
+  end
+
   defp clarify_msg(state) do
     state
     |> Map.put(:msgs, state.msgs ++ [AI.Util.assistant_msg(@clarify)])
@@ -532,6 +554,13 @@ defmodule AI.Agent.Coordinator do
   # -----------------------------------------------------------------------------
   # Tool box
   # -----------------------------------------------------------------------------
+  defp get_tools(%{edit: true}) do
+    AI.Tools.tools()
+    |> Map.values()
+    |> Enum.concat([AI.Tools.Codex])
+    |> AI.Tools.build_toolbox()
+  end
+
   defp get_tools(_) do
     AI.Tools.tools()
     |> Map.values()
