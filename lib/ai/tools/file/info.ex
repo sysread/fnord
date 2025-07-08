@@ -14,13 +14,7 @@ defmodule AI.Tools.File.Info do
   end
 
   @impl AI.Tools
-  def ui_note_on_result(%{"files" => files, "question" => question}, _result) do
-    {"Answered", "#{Enum.join(files, ", ")}: #{question}"}
-  end
-
-  def ui_note_on_result(_args, _result) do
-    nil
-  end
+  def ui_note_on_result(_args, _result), do: nil
 
   @impl AI.Tools
   def read_args(args) do
