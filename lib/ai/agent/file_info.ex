@@ -29,6 +29,7 @@ defmodule AI.Agent.FileInfo do
   # Guidelines
   - Citing Sources:
      - Reference the file content directly where applicable.
+     - Include line number ranges wherever possible.
      - When using git tools, cite commit hashes and summarize related changes to provide context.
      - Highlight impactful additions, especially those relevant to the query (e.g., identifier-related dependencies).
      - Evaluate new dependencies for their potential impact based on query context.

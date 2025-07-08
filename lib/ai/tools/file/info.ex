@@ -96,7 +96,8 @@ defmodule AI.Tools.File.Info do
   defp process_file(file, question) do
     response =
       with {:ok, content} <- AI.Tools.get_file_contents(file),
-           {:ok, response} <- get_agent_response(file, question, content) do
+           numbered = Util.numbered_lines(content),
+           {:ok, response} <- get_agent_response(file, question, numbered) do
         response
       else
         {:error, reason} ->
@@ -128,6 +129,8 @@ defmodule AI.Tools.File.Info do
   @spec format_response({atom, {String.t(), String.t() | atom}}) :: String.t()
   defp format_response({:ok, {file, result}}) do
     """
+    Line numbers are included (separated by `|`) for citation in your response.
+
     ## File
     #{file}
 

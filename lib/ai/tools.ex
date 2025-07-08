@@ -329,9 +329,19 @@ defmodule AI.Tools do
 
   @spec with_args(tool_name, parsed_args, (parsed_args -> any), toolbox | nil) :: any
   def with_args(tool, args, fun, tools \\ nil) do
-    with {:ok, module} <- tool_module(tool, tools),
-         {:ok, args} <- module.read_args(args) do
-      fun.(args)
+    try do
+      with {:ok, module} <- tool_module(tool, tools),
+           {:ok, args} <- module.read_args(args) do
+        fun.(args)
+      end
+    rescue
+      e in ArgumentError ->
+        UI.error(
+          "AI.Tools.with_args/3 failed for <#{tool}> with args: #{inspect(args)}",
+          inspect(e)
+        )
+
+        {:error, :invalid_argument, e.message}
     end
   end
 

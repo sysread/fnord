@@ -24,7 +24,6 @@ defmodule AI.Agent.Coordinator do
     %{
       project: project.name,
       question: opts.question,
-      edit: opts.edit,
       msgs: opts.msgs,
       last_response: nil,
       steps: research_steps,
@@ -85,7 +84,6 @@ defmodule AI.Agent.Coordinator do
     |> Map.put(:steps, steps)
     |> new_session_msg()
     |> singleton_msg()
-    |> maybe_coding_msg()
     |> user_msg()
     |> get_notes()
     |> begin_msg()
@@ -101,7 +99,6 @@ defmodule AI.Agent.Coordinator do
     |> Map.put(:steps, steps)
     |> new_session_msg()
     |> initial_msg()
-    |> maybe_coding_msg()
     |> user_msg()
     |> get_notes()
     |> begin_msg()
@@ -259,25 +256,6 @@ defmodule AI.Agent.Coordinator do
   **DO NOT FINALIZE YOUR RESPONSE UNTIL EXPLICITLY INSTRUCTED.**
   """
 
-  @coding """
-  Coding tools have been enabled for this session.
-  If the user has asked you to implement any changes, you will do so using the `edit_file` tool.
-  If the user has *directly* requested the edits, proceed with the changes without further confirmation.
-
-  Coding instructions:
-  1. REFUSE to make changes to a dirty repo without the user's EXPLICIT CONSENT.
-  2. Ensure you understand the user's request fully. Ask for clarity if necessary.
-  3. Use your research tools to understand the context of the changes and affected components.
-  4. Use your tools to identify upstream and downstream code that will be impacted by the changes. Determine how to mitigate any potential impacts.
-  5. Identify the specific files and code sections that need modification.
-  6. Build an implementation plan as a list of discrete steps.
-  7. Implement the changes using serial calls to the `edit_file` tool, one step at a time.
-  8. After each change, manually confirm the change was applied correctly by checking the file contents, before proceeding to the next step in your plan.
-     Use the `restore_backup` tool to revert changes if the `edit_file` tool applied it incorrectly, then GOTO 7.
-  9. If you encounter any issues, pause your work, report them to the user, and ask for guidance.
-  10. Once all changes are complete, summarize the changes made and any relevant context for the user.
-  """
-
   @begin """
   <think>
   I'm going to start by considering the user's question.
@@ -406,13 +384,6 @@ defmodule AI.Agent.Coordinator do
         ]
     )
   end
-
-  defp maybe_coding_msg(%{edit: true} = state) do
-    state
-    |> Map.put(:msgs, state.msgs ++ [AI.Util.system_msg(@coding)])
-  end
-
-  defp maybe_coding_msg(state), do: state
 
   defp user_msg(%{question: question} = state) do
     state
@@ -561,18 +532,10 @@ defmodule AI.Agent.Coordinator do
   # -----------------------------------------------------------------------------
   # Tool box
   # -----------------------------------------------------------------------------
-  defp get_tools(%{edit: true}) do
-    AI.Tools.build_toolbox(
-      Map.values(AI.Tools.tools()) ++
-        [
-          AI.Tools.Edit.EditFile,
-          AI.Tools.Edit.RestoreBackup
-        ]
-    )
-  end
-
   defp get_tools(_) do
-    AI.Tools.build_toolbox(Map.values(AI.Tools.tools()))
+    AI.Tools.tools()
+    |> Map.values()
+    |> AI.Tools.build_toolbox()
   end
 
   # -----------------------------------------------------------------------------

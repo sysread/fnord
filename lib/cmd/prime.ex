@@ -1,6 +1,9 @@
 defmodule Cmd.Prime do
   @primer_prompt """
-  Please provide an overview of the current project. Include the following information:
+  Please provide an overview of the current project.
+  If necessary, reindex the project first.
+
+  Include the following information:
   - Project name
   - Project description
   - What are the main features of the project?

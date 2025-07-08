@@ -270,12 +270,19 @@ defmodule Util do
   Accepts both binary strings and integers.
   """
   @spec parse_int(binary | integer) :: {:ok, integer} | {:error, :invalid_integer}
-  def parse_int(val) when is_integer(val), do: {:ok, val}
-
   def parse_int(val) do
-    case Integer.parse(val) do
-      {int, ""} -> {:ok, int}
-      :error -> {:error, :invalid_integer}
+    cond do
+      is_integer(val) ->
+        {:ok, val}
+
+      is_binary(val) ->
+        case Integer.parse(val) do
+          {int, ""} -> {:ok, int}
+          _ -> {:error, :invalid_integer}
+        end
+
+      true ->
+        {:error, :invalid_integer}
     end
   end
 
@@ -292,6 +299,10 @@ defmodule Util do
   end
 
   def int_damnit(value) when is_integer(value), do: value
+
+  def int_damnit(value) do
+    raise ArgumentError, "Expected an integer, got: #{inspect(value)}"
+  end
 
   @doc """
   Compares two files using the `diff` command and returns the output.

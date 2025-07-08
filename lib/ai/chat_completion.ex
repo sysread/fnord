@@ -45,6 +45,7 @@ defmodule AI.ChatCompletion do
         get_error(error)
 
       {:http_error, error} ->
+        UI.error("HTTP error while calling OpenAI API: #{inspect(error)}")
         IO.inspect(payload.messages |> Enum.slice(-1, 1), label: "Last message sent")
         get_error(error)
 
