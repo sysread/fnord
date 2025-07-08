@@ -52,6 +52,7 @@ defmodule Fnord.MixProject do
   defp deps do
     [
       {:briefly, "~> 0.5.1"},
+      {:clipboard, "~> 0.2.1"},
       {:dialyxir, "~> 1.4.5", only: [:dev], runtime: false},
       {:ex_doc, ">= 0.0.0", only: [:dev], runtime: false},
       {:httpoison, "~> 2.2.1"},

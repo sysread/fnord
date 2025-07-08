@@ -89,11 +89,13 @@ defmodule Cmd.Ask do
       {:ok, project} = Store.get_project()
       %{new: new, stale: stale, deleted: deleted} = Store.Project.index_status(project)
 
+      Clipboard.copy(conversation_id)
+
       UI.say("""
       ### Response Summary:
       - Response generated in #{time_taken} seconds
       - Tokens used: #{usage_str} | #{pct_context_used}% of context window (#{context_str})
-      - Conversation saved with ID #{conversation_id}
+      - Conversation saved with ID #{conversation_id} (_copied to clipboard_)
 
       ### Project Search Index Status:
       - Stale:   #{Enum.count(stale)}
