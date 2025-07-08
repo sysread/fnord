@@ -14,7 +14,6 @@ defmodule Fnord do
     {:ok, _} = Application.ensure_all_started(:briefly)
     Once.start_link([])
     Patches.start_link([])
-    Mutex.start_link(name: :fnord_mutex)
     configure_logger()
 
     with {:ok, [command | subcommands], opts, unknown} <- parse_options(args) do
