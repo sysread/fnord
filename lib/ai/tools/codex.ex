@@ -7,11 +7,20 @@ defmodule AI.Tools.Codex do
   def is_available?() do
     cond do
       !codex_installed?() ->
-        Once.warn("Codex CLI not installed")
+        Once.warn("""
+        Codex CLI not installed.
+        Editing tools are disabled.
+        """)
+
         false
 
       !has_min_version?() ->
-        Once.warn("Codex CLI version is too old. Minimum required version is #{@min_version}.")
+        Once.warn("""
+        Codex CLI version is too old.
+        Minimum required version is #{@min_version}.
+        Editing tools are disabled.
+        """)
+
         false
 
       true ->
