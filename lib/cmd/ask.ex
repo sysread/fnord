@@ -79,8 +79,6 @@ defmodule Cmd.Ask do
       time_taken = end_time - start_time
       pct_context_used = Float.round(usage / context * 100, 2)
 
-      maybe_copy_to_clipboard(conversation_id)
-
       UI.flush()
 
       usage_str = Util.format_number(usage)
@@ -169,19 +167,4 @@ defmodule Cmd.Ask do
     UI.report_step("Conversation saved", conversation.id)
     {:ok, conversation.id}
   end
-
-  # Checks for pbcopy and copies conversation ID if available
-  defp maybe_copy_to_clipboard(conversation_id) when is_binary(conversation_id) do
-    case System.find_executable("pbcopy") do
-      nil ->
-        :ok
-
-      pbcopy ->
-        {_output, 0} = System.cmd(pbcopy, [], input: conversation_id)
-        UI.info("Conversation ID #{conversation_id} copied to clipboard.")
-        :ok
-    end
-  end
-
-  defp maybe_copy_to_clipboard(_), do: :ok
 end
