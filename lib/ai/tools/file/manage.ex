@@ -17,8 +17,6 @@ defmodule AI.Tools.File.Manage do
     - Will not overwrite files: "create" fails if the file exists; "move" fails if the target exists.
     - Parent directories will be created as needed for "create" and "move".
     - Clean error messages for invalid arguments or OS failures.
-
-  Usage is via the AI.Tools tool call API, but is also fine in tests or CLI wrappers!
   """
 
   @behaviour AI.Tools
