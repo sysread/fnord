@@ -162,6 +162,7 @@ defmodule AI.Tools do
   # General Tool Registry - only required for tools that are generally available
   # ----------------------------------------------------------------------------
   @tools %{
+    "confirm_tool" => AI.Tools.Confirm,
     "file_contents_tool" => AI.Tools.File.Contents,
     "file_info_tool" => AI.Tools.File.Info,
     "file_list_tool" => AI.Tools.File.List,
