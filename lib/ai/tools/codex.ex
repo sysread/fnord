@@ -128,6 +128,7 @@ defmodule AI.Tools.Codex do
                     type: "string",
                     description: """
                     A concise description of the small, discrete change to be made in the specified file.
+                    NEVER use open-ended terms like "refactor" or "improve" without specifying EXACTLY what you want to change.
                     This should be a clear, concise instruction for the AI agent.
                     """
                   }
@@ -206,7 +207,8 @@ defmodule AI.Tools.Codex do
         project.source_root,
         "--sandbox",
         "workspace-write",
-        "--full-auto",
+        "--ask-for-approval",
+        "never",
         "--skip-git-repo-check",
         """
         File: #{file}
