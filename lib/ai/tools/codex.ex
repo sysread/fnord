@@ -205,10 +205,9 @@ defmodule AI.Tools.Codex do
         "fnord",
         "--cd",
         project.source_root,
+        "--full-auto",
         "--sandbox",
         "workspace-write",
-        "--ask-for-approval",
-        "never",
         "--skip-git-repo-check",
         """
         File: #{file}
