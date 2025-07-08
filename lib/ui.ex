@@ -110,6 +110,21 @@ defmodule UI do
     Logger.error(IO.ANSI.format([:red, msg, :reset, ": ", :cyan, detail, :reset], colorize?()))
   end
 
+  def warning_banner(msg) do
+    IO.puts(
+      :stderr,
+      IO.ANSI.format(
+        [
+          :red_background,
+          :black,
+          " <<< WARNING >>> #{msg} <<< WARNING >>> ",
+          :reset
+        ],
+        colorize?()
+      )
+    )
+  end
+
   @spec fatal(binary) :: no_return()
   def fatal(msg) do
     Logger.error(IO.ANSI.format([:red, msg, :reset], colorize?()))
