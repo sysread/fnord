@@ -14,7 +14,7 @@ defmodule AI.Tools.File.Contents do
   end
 
   @impl AI.Tools
-  def ui_note_on_result(args, _result), do: {"Retrieved file", args["file"]}
+  def ui_note_on_result(_args, _result), do: nil
 
   @impl AI.Tools
   def read_args(%{"file" => file}), do: {:ok, %{"file" => file}}
