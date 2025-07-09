@@ -85,6 +85,16 @@ defmodule Settings do
   end
 
   @doc """
+  Set the project name for the --project option.
+  """
+  @spec set_project(binary) :: :ok
+  def set_project(project_name) do
+    Application.put_env(:fnord, :project, project_name)
+    NotesServer.load_notes()
+    :ok
+  end
+
+  @doc """
   Check if the --project option is set.
   """
   def project_is_set?() do

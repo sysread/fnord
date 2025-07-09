@@ -55,6 +55,8 @@ defmodule AI.Agent.Intuition do
   You are building a prompt to control the thought strategy of the conscious agent.
   Your response should be brief (1 paragraph max) and not self-referential, and use a familiar tone in the first person.
   Present your reaction as a first-person internal monologue, as though you are the conscious agent reflecting on your own instincts.
+  Do not include any preface, formatting, or additional commentary.
+  Respond ONLY with the text of your reaction.
   """
 
   @drives %{
@@ -165,7 +167,7 @@ defmodule AI.Agent.Intuition do
       )
       |> case do
         {:ok, %{response: response}} ->
-          UI.debug("Perception", UI.italicize(response))
+          log(:perception, response)
           {:ok, response}
 
         {:error, reason} ->
@@ -195,11 +197,7 @@ defmodule AI.Agent.Intuition do
     AI.Completion.get(model: @model, messages: messages)
     |> case do
       {:ok, %{response: response}} ->
-        drive
-        |> Atom.to_string()
-        |> String.capitalize()
-        |> UI.debug(UI.italicize(response))
-
+        log(drive, response)
         {:ok, response}
 
       {:error, reason} ->
@@ -220,6 +218,23 @@ defmodule AI.Agent.Intuition do
 
       {:error, reason} ->
         {:error, "Error synthesizing subconscious reaction: #{inspect(reason)}"}
+    end
+  end
+
+  defp log(label, msg) do
+    if debug?() do
+      label
+      |> Atom.to_string()
+      |> String.capitalize()
+      |> UI.debug(UI.italicize(msg))
+    end
+  end
+
+  defp debug? do
+    System.get_env("FNORD_DEBUG_INTUITION")
+    |> case do
+      nil -> false
+      value -> String.downcase(value) in ["true", "1", "yes"]
     end
   end
 end

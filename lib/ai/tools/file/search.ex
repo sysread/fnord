@@ -11,7 +11,7 @@ defmodule AI.Tools.File.Search do
   def is_available?(), do: AI.Tools.has_indexed_project()
 
   @impl AI.Tools
-  def ui_note_on_request(args), do: {"Searching the index", args["query"]}
+  def ui_note_on_request(args), do: {"Semantic search", args["query"]}
 
   @impl AI.Tools
   def ui_note_on_result(_args, _result), do: nil

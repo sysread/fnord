@@ -51,6 +51,8 @@ defmodule AI.Agent.Coordinator do
       UI.debug("Testing mode enabled")
       get_test_response(state)
     else
+      NotesServer.consolidate()
+      NotesServer.ingest_user_msg(state.question)
       perform_step(state)
     end
   end
@@ -152,7 +154,6 @@ defmodule AI.Agent.Coordinator do
 
   defp perform_step(%{steps: [:finalize]} = state) do
     motd = Task.async(fn -> get_motd(state) end)
-    notes = Task.async(fn -> save_notes(state) end)
 
     UI.debug("Generating response")
 
@@ -171,16 +172,8 @@ defmodule AI.Agent.Coordinator do
       {:error, reason} -> UI.error("Failed to retrieve MOTD: #{inspect(reason)}")
     end
 
-    # We don't need to retain the output of the notes task for anything. But we
-    # do need to ensure it is completed before we exit, and report on its
-    # outcome.
-    UI.info("Waiting on update to research notes...")
-
-    Task.await(notes, :infinity)
-    |> case do
-      {:error, reason} -> UI.error("Failed to save research notes:\n\n#{reason}")
-      _ -> UI.debug("Research notes saved")
-    end
+    # Save the notes we've collected
+    NotesServer.commit()
 
     state
   end
@@ -191,6 +184,7 @@ defmodule AI.Agent.Coordinator do
     AI.Completion.get(
       log_msgs: true,
       log_tool_calls: true,
+      archive_notes: true,
       replay_conversation: replay,
       model: @model,
       toolbox: get_tools(state),
@@ -506,21 +500,6 @@ defmodule AI.Agent.Coordinator do
     else
       {:error, :no_notes} -> state
     end
-  end
-
-  defp save_notes(state) do
-    args = %{
-      transcript: AI.Util.research_transcript(state.msgs),
-      max_tokens: (@model.context * 0.10) |> Float.round(0) |> round()
-    }
-
-    with {:ok, _response} <- AI.Agent.Archivist.get_response(args) do
-      UI.report_step("Updated persistent research notes")
-    else
-      other -> UI.error("Failed to save research notes: #{inspect(other)}")
-    end
-
-    state
   end
 
   # -----------------------------------------------------------------------------

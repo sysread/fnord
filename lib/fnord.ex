@@ -14,6 +14,7 @@ defmodule Fnord do
     {:ok, _} = Application.ensure_all_started(:briefly)
     Once.start_link([])
     Patches.start_link([])
+    NotesServer.start_link([])
     configure_logger()
 
     with {:ok, [command | subcommands], opts, unknown} <- parse_options(args) do
@@ -143,10 +144,17 @@ defmodule Fnord do
   defp set_globals(args) do
     args
     |> Enum.each(fn
-      {:workers, workers} -> Application.put_env(:fnord, :workers, workers)
-      {:project, project} -> Application.put_env(:fnord, :project, project)
-      {:quiet, quiet} -> Application.put_env(:fnord, :quiet, quiet)
-      _ -> :ok
+      {:workers, workers} ->
+        Application.put_env(:fnord, :workers, workers)
+
+      {:quiet, quiet} ->
+        Application.put_env(:fnord, :quiet, quiet)
+
+      {:project, project} when is_binary(project) ->
+        Settings.set_project(project)
+
+      _ ->
+        :ok
     end)
 
     # --------------------------------------------------------------------------
@@ -156,7 +164,7 @@ defmodule Fnord do
     unless Settings.project_is_set?() do
       with {:ok, project} <- get_project_from_cwd() do
         UI.debug("Project not specified, but CWD is within recognized project: #{project}")
-        Application.put_env(:fnord, :project, project)
+        Settings.set_project(project)
       end
     end
 

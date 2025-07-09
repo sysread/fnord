@@ -25,6 +25,7 @@ defmodule AI.Completion do
     :specs,
     :log_msgs,
     :log_tool_calls,
+    :archive_notes,
     :replay_conversation,
     :usage,
     :messages,
@@ -39,6 +40,7 @@ defmodule AI.Completion do
           specs: list(AI.Tools.tool_spec()) | nil,
           log_msgs: boolean(),
           log_tool_calls: boolean(),
+          archive_notes: boolean(),
           replay_conversation: boolean(),
           usage: integer(),
           messages: list(),
@@ -75,6 +77,8 @@ defmodule AI.Completion do
       quiet? = Application.get_env(:fnord, :quiet)
       log_tool_calls = Keyword.get(opts, :log_tool_calls, !quiet?)
 
+      archive? = Keyword.get(opts, :archive_notes, false)
+
       state = %__MODULE__{
         opts: Enum.into(opts, %{}),
         model: model,
@@ -82,6 +86,7 @@ defmodule AI.Completion do
         specs: specs,
         log_msgs: log_msgs,
         log_tool_calls: log_tool_calls,
+        archive_notes: archive?,
         replay_conversation: replay,
         usage: 0,
         messages: messages,
@@ -217,6 +222,10 @@ defmodule AI.Completion do
     request = AI.Util.assistant_tool_msg(id, func, args_json)
 
     with {:ok, output} <- perform_tool_call(state, func, args_json) do
+      if state.archive_notes do
+        NotesServer.ingest_research(func, args_json, output)
+      end
+
       response = AI.Util.tool_msg(id, func, output)
       {:ok, [request, response]}
     else

@@ -4,6 +4,10 @@ defmodule Once do
   # -----------------------------------------------------------------------------
   # Public API
   # -----------------------------------------------------------------------------
+  def start_link(_) do
+    GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
+  end
+
   def warn(msg) do
     GenServer.call(__MODULE__, {:warn, msg})
   end
@@ -11,10 +15,6 @@ defmodule Once do
   # -----------------------------------------------------------------------------
   # GenServer Callbacks
   # -----------------------------------------------------------------------------
-  def start_link(_) do
-    GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
-  end
-
   def init(_) do
     {:ok, %{}}
   end
