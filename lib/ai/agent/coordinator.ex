@@ -266,6 +266,7 @@ defmodule AI.Agent.Coordinator do
   @coding """
   Coding has been enabled for this session.
   Use the `codex` tool to implement any changes requested by the user.
+  Use the codex tool to implement ANY requested code changes.
   Keep your instructions brief and ensure each step is a single, self-contained change to a contiguous region of a single file.
   NEVER use open-ended terms like "refactor" or "improve" without specifying EXACTLY what you want to change.
   REQUIRED: verify the contents of EVERY file change after EACH call to this tool.
