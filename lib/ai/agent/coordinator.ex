@@ -18,7 +18,7 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp new(opts) do
-    research_steps = steps(opts.rounds)
+    research_steps = steps(opts.rounds, opts.edit)
     {:ok, project} = Store.get_project()
 
     edit =
@@ -51,7 +51,6 @@ defmodule AI.Agent.Coordinator do
       UI.debug("Testing mode enabled")
       get_test_response(state)
     else
-      NotesServer.consolidate()
       NotesServer.ingest_user_msg(state.question)
       perform_step(state)
     end
@@ -63,13 +62,20 @@ defmodule AI.Agent.Coordinator do
   @first_steps [:initial, :clarify, :refine]
   @last_steps [:finalize]
 
-  defp steps(n) do
+  defp steps(n, edit?) do
     steps =
       cond do
         n <= 1 -> [:singleton]
         n == 2 -> [:singleton, :refine]
         n == 3 -> @first_steps
         n >= 3 -> @first_steps ++ Enum.map(1..(n - 3), fn _ -> :continue end)
+      end
+
+    steps =
+      if edit? do
+        steps ++ [:do_you_even_code_bro?]
+      else
+        steps
       end
 
     steps ++ @last_steps
@@ -147,6 +153,18 @@ defmodule AI.Agent.Coordinator do
     |> Map.put(:steps, steps)
     |> reminder_msg()
     |> continue_msg()
+    |> get_intuition()
+    |> get_completion()
+    |> perform_step()
+  end
+
+  defp perform_step(%{steps: [:do_you_even_code_bro? | steps]} = state) do
+    UI.debug("Considering code changes")
+
+    state
+    |> Map.put(:steps, steps)
+    |> reminder_msg()
+    |> do_you_even_code_bro?()
     |> get_intuition()
     |> get_completion()
     |> perform_step()
@@ -249,7 +267,6 @@ defmodule AI.Agent.Coordinator do
 
   Instructions:
   - Examine the user's question and identify multiple lines of research that cover all aspects of the question.
-  - Examine the user's question and identify multiple lines of research that cover all aspects of the question.
   - Delegate these lines of research to the research_tool in parallel to gather the information you need.
   - Once all results are available, compare, synthesize, and integrate their findings.
   - Perform additional rounds of research as necessary to fill in gaps in your understanding or find examples for the user.
@@ -259,6 +276,8 @@ defmodule AI.Agent.Coordinator do
 
   @coding """
   Coding is enabled for this session at the user's request.
+  THIS INDICATES THAT THE USER IS EXPECTING YOU TO MAKE PERSISTENT CODE CHANGES TO THE PROJECT.
+  ONLY request confirmation from the user if they explicitly ask you to do so.
 
   Use the `codex` tool to apply any code changes requested by the user.
   However, codex is *not* trustworthy: you must micromanage its output at every step.
@@ -324,6 +343,15 @@ defmodule AI.Agent.Coordinator do
   Maybe I can find some other useful details or gotchas to look out for.
   The user will be very happy if I can provide warnings about common pitfalls around this topic.
   After all, they wouldn't ask me if they already knew all of this stuff.
+  </think>
+  """
+
+  @do_you_even_code_bro? """
+  <think>
+  The user enabled editing tools, which could mean that they expect me to make the changes myself here...
+  Let's see... did the user ask for any specific changes?
+  If so, I need to be very careful about how I approach this.
+  I need to remember to make those changes now that I've gathered all of the information I need.
   </think>
   """
 
@@ -453,6 +481,13 @@ defmodule AI.Agent.Coordinator do
     |> Map.put(:msgs, state.msgs ++ [AI.Util.assistant_msg(@continue)])
   end
 
+  defp do_you_even_code_bro?(%{edit: true} = state) do
+    state
+    |> Map.put(:msgs, state.msgs ++ [AI.Util.assistant_msg(@do_you_even_code_bro?)])
+  end
+
+  defp do_you_even_code_bro?(state), do: state
+
   defp finalize_msg(state) do
     state
     |> Map.put(:msgs, state.msgs ++ [AI.Util.assistant_msg(@finalize)])
@@ -489,31 +524,25 @@ defmodule AI.Agent.Coordinator do
   end
 
   # -----------------------------------------------------------------------------
-  # Automatic research retrieval
+  # Notes
   # -----------------------------------------------------------------------------
-  defp get_notes(state) do
-    with {:ok, notes} <- Store.Project.Notes.read() do
-      UI.debug("Retrieving prior research")
-      UI.debug("To view prior research", "`fnord notes -p #{state.project}`")
+  defp get_notes(%{question: question} = state) do
+    # We want the initial notes to be extracted from the NotesServer before we
+    # commit to the much slower process of consolidation.
+    notes = NotesServer.ask(question)
 
-      msg =
-        AI.Util.system_msg("""
-        # Prior Research
-        You have conducted the following prior research on this project.
-        When possible, use this information to inform your research strategies, tool usage, and responses.
+    # Then we consolidate the new notes from the last session. This is a
+    # fire-and-forget, so it won't block the rest of the process.
+    NotesServer.consolidate()
 
-        ## Notes
-        #{notes}
-
-        ## Caveats
-        - Keep in mind that the project is under active development and the notes may be out of date.
-        - **ALWAYS** use your tools to verify the accuracy and completeness of prior research before using it!
-        """)
-
-      %{state | notes: notes, msgs: state.msgs ++ [msg]}
-    else
-      {:error, :no_notes} -> state
-    end
+    # Then we add the notes to the state, both as a message for the
+    # coordinating agent, and as a field in the state so that get_intuition/1
+    # can access them.
+    %{
+      state
+      | msgs: state.msgs ++ [AI.Util.system_msg("Prior research notes: #{notes}")],
+        notes: notes
+    }
   end
 
   # -----------------------------------------------------------------------------

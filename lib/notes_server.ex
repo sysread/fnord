@@ -16,8 +16,19 @@ defmodule NotesServer do
   """
   @spec load_notes() :: :ok | {:error, any}
   def load_notes() do
-    UI.debug("[notes-server] loading existing research")
     GenServer.cast(__MODULE__, :load_notes)
+  end
+
+  @doc """
+  Uses an AI model to answer a question about the existing research notes. The
+  question should be a concise request for information about the project, such
+  as "What is the purpose of this project?" or "What languages and technologies
+  are used in this project?". The AI model will analyze the existing notes and
+  return a concise answer.
+  """
+  @spec ask(binary) :: binary
+  def ask(question) do
+    GenServer.call(__MODULE__, {:ask, question}, :infinity)
   end
 
   @doc """
@@ -81,6 +92,7 @@ defmodule NotesServer do
     Your role is to attempt to deduce the user's coding preferences, learning style, personality, and other relevant traits based on their interactions.
     Respond with a formatted markdown list of user traits without any additional text.
     Additionally, note if you identify that a prior learning about the user was incorrect or is no longer valid.
+    Each item should mention that is is a trait of the user, e.g.: "User is experienced with Elixir"
     If nothing was identified, respond with "N/A" on a single line.
     """
   }
@@ -101,6 +113,15 @@ defmodule NotesServer do
     Respond with a formatted markdown list of facts without any additional text.
     If nothing was identified, respond with "N/A" on a single line.
     Just the facts, ma'am!
+    """
+  }
+
+  @ask %{
+    model: AI.Model.fast(),
+    prompt: """
+    You are a research assistant that answers questions about past research done on the project.
+    Your role is to provide concise, accurate answers based on the existing project notes.
+    When asked a question, extract all relevant information from the existing notes and organize it effectively based on your understanding of the requestor's needs.
     """
   }
 
@@ -286,24 +307,64 @@ defmodule NotesServer do
   end
 
   def handle_call(:commit, _from, state) do
-    facts = format_notes(state)
+    # Get the most recent copy of the notes, just in case another session was
+    # running in parallel.
+    with {:ok, notes} <- Store.Project.Notes.read() do
+      facts = format_notes(state)
 
-    notes = """
-    #{state.notes}
+      notes = """
+      #{notes}
 
-    # NEW NOTES (unconsolidated)
-    #{facts}
-    """
+      # NEW NOTES (unconsolidated)
+      #{facts}
+      """
 
-    Store.Project.Notes.write(notes)
+      Store.Project.Notes.write(notes)
+      |> case do
+        :ok ->
+          UI.info("[notes-server] new notes saved")
+          {:reply, :ok, %{state | new_facts: [], notes: notes}}
+
+        {:error, reason} ->
+          UI.error("[notes-server] error saving new notes", reason)
+          {:reply, {:error, reason}, state}
+      end
+    end
+  end
+
+  def handle_call({:ask, question}, _from, state) do
+    AI.Completion.get(
+      log_messages: false,
+      log_tool_calls: false,
+      model: @ask.model,
+      messages: [
+        AI.Util.system_msg(@ask.prompt),
+        AI.Util.user_msg("""
+        The following are the existing research notes about the project.
+        #{state.notes}
+        """),
+        AI.Util.user_msg("""
+        # New facts:
+        The following are the new facts that have been collected during the current session.
+        #{format_notes(state)}
+        """),
+        AI.Util.user_msg("""
+        #{question}
+        """)
+      ]
+    )
     |> case do
-      :ok ->
-        UI.info("[notes-server] new notes saved")
-        {:reply, :ok, %{state | new_facts: [], notes: notes}}
+      {:ok, %{response: response}} ->
+        response
+        |> String.trim()
+        |> case do
+          "" -> {:reply, "No relevant information found.", state}
+          answer -> {:reply, answer, state}
+        end
 
       {:error, reason} ->
-        UI.error("[notes-server] error saving new notes", reason)
-        {:reply, {:error, reason}, state}
+        UI.error("[notes-server] failed to answer question", reason)
+        {:reply, "Error processing request.", state}
     end
   end
 
@@ -339,10 +400,13 @@ defmodule NotesServer do
     |> Enum.reverse()
     |> Enum.flat_map(&String.split(&1, "\n", trim: true))
     |> Enum.map(fn fact ->
-      if String.starts_with?(fact, "- ") do
-        fact
-      else
-        "- #{fact}"
+      cond do
+        # list item w/o indentation
+        String.starts_with?(fact, "- ") -> fact
+        # list item with indentation
+        fact |> String.trim() |> String.starts_with?("- ") -> fact
+        # not a list item, so make it one
+        true -> "- #{fact}"
       end
     end)
     |> Enum.join("\n")

@@ -84,6 +84,13 @@ export FNORD_FORMATTER="gum format"
 ```
 
 
+- **Optional: Install `codex-cli`**
+
+For highly experimental AI-assisted code editing features, you may (optionally) install [`codex-cli`](https://github.com/openai/codex).
+If detected and up-to-date (minimum version 0.3.0), `fnord` will allow you to enable file editing through the `ask` command with the `--edit` flag (see below).
+Use with extreme caution - see the dedicated section on editing for critical safety details.
+
+
 ## Getting Started
 
 For the purposes of this guide, we will assume that `fnord` is installed and we are using it to interact with your project, `blarg`, which is located at `$HOME/dev/blarg`.
@@ -284,9 +291,9 @@ mix escript.install github sysread/fnord
 
 
 ### Other commands
-- **List projects:** `fnord projects`
-- **List files in a project:** `fnord files --project foo`
-- **Delete a project:** `fnord torch --project foo`
+- List projects: `fnord projects`
+- List files in a project: `fnord files --project foo`
+- Delete a project: `fnord torch --project foo`
 
 
 ## Tool usage
@@ -308,7 +315,7 @@ fnord tool --tool file_info_tool --project blarg --file "path/to/some_module.ext
 
 ## User integrations
 
-Users can create their own integrations, called **frobs**, that `fnord` can use as a tool call while researching.
+Users can create their own integrations, called frobs, that `fnord` can use as a tool call while researching.
 Just like built-in tools, these are usable through the `fnord tool` subcommand.
 
 ```bash
@@ -330,7 +337,7 @@ Frobs are stored in `$HOME/fnord/tools` and are comprised of the following files
 - `my_frob/spec.json` - a JSON file describing the frob's calling semantics in [OpenAI's function spec format](https://platform.openai.com/docs/guides/function-calling?api-mode=responses#defining-functions)
 - `my_frob/main` - a script or binary that performs the requested task
 
-**Make your tool available to your projects:** edit the `registry.json` file created when you ran `fnord frobs create` to include the project name(s) for which you want the frob to be available.
+Make your tool available to your projects: edit the `registry.json` file created when you ran `fnord frobs create` to include the project name(s) for which you want the frob to be available.
 
 ```json
 {
@@ -342,18 +349,59 @@ Frobs are stored in `$HOME/fnord/tools` and are comprised of the following files
 }
 ```
 
-**Implementing the frob:** the `main` file is a script or binary that implements the frob. `fnord` passes information to the frob via shell environment variables:
+Implementing the frob: the `main` file is a script or binary that implements the frob. `fnord` passes information to the frob via shell environment variables:
 
 - `FNORD_PROJECT`: The name of the currently selected project
 - `FNORD_CONFIG`: The project configuration from `$HOME/.fnord/settings.json` as a single JSON object
 - `FNORD_ARGS_JSON`: JSON object of LLM-provided arguments
 
-**Testing your frob:** if you prefix your `fnord ask` query with `testing:`, you can ask the LLM to test your frob to confirm it is working as expected.
+Testing your frob: if you prefix your `fnord ask` query with `testing:`, you can ask the LLM to test your frob to confirm it is working as expected.
 
 ```bash
 fnord ask -p blarg -q "testing: please confirm that the 'my_frob' tool is available to you"
 fnord ask -p blarg -q "testing: please make a call to 'my_frob' with the arguments 'foo' and 'bar' and report the results"
 ```
+
+
+## Writing code
+Fnord can (optionally) automate code changes in your project using the `ask` command with the `--edit` flag, if [`codex-cli`](https://github.com/openai/codex) is installed and detected (minimum version 0.3.0).
+
+HIGHLY EXPERIMENTAL!
+- Use `--edit` with extreme caution.
+- AI-driven code modification is unsafe, may corrupt or break files, and must always be manually reviewed.
+
+### How it works
+The AI will suggest *atomic, minimal steps* for code changes, and these are passed to `codex-cli`, which attempts to apply them.
+
+```bash
+fnord ask --project myproj --edit --question "Add a docstring to foo/thing.ex"
+```
+
+### Safeguards and sandboxing (codex-cli arguments)
+To minimize risk, fnord invokes codex-cli with these strong safety settings:
+- `--cd <project root>`: Only operates inside your project directory.
+- `--sandbox workspace-write`: Codex can only *write* files inside the workspace (project), and cannot touch files elsewhere; it can read any file for context.
+- `--full-auto`: Runs in automatic mode (approval policy: on-failure) - commands run without prompts unless they fail.
+- `--config disable_response_storage=true`: Codex does *not* store your data or code.
+- `--skip-git-repo-check`: Lets codex run in non-git projects.
+- Model is set by fnord internally for consistency.
+
+**See also:**
+- [codex-cli documentation](https://github.com/openai/codex#readme)
+- [config reference](https://github.com/openai/codex/blob/main/codex-rs/config.md)
+
+**Fnord configures the AI's instructions to strictly prohibit:**
+- Making changes outside your project/workspace.
+- Adding/removing files unless *explicitly* required.
+- Touching code outside the specified region, function, or file.
+- Unrelated refactoring, formatting, or guessing.
+
+**Despite all this,** code modification by an LLM is *unreliable* and is not safe for unsupervised use - codex or the AI may behave unpredictably.
+
+### User Responsibility
+- Every code change is your responsibility. 
+- **Manual review is **required** - AI may hallucinate, omit, or corrupt changes.**
+- Automated editing is always opt-in, disabled by default, and only available if codex-cli is present and new enough.
 
 
 ## Copyright and License
