@@ -191,15 +191,26 @@ defmodule AI.Completion do
   # Tool calls
   # -----------------------------------------------------------------------------
   defp handle_tool_calls(%{tool_call_requests: tool_calls} = state) do
-    messages =
-      tool_calls
+    {confirm_reqs, non_confirm_reqs} =
+      Enum.split_with(tool_calls, &is_confirm_tool_request?/1)
+
+    # First handle non-confirmation tool calls concurrently
+    messages_non_confirm =
+      non_confirm_reqs
       |> Util.async_stream(&handle_tool_call(state, &1))
       |> Enum.reduce(state.messages, fn
         {:ok, {:ok, msgs}}, acc -> acc ++ msgs
         _, acc -> acc
       end)
 
-    %{state | tool_call_requests: [], messages: messages}
+    # Now handle all confirm_tool requests serially and append
+    messages_final =
+      Enum.reduce(confirm_reqs, messages_non_confirm, fn req, acc ->
+        {:ok, msgs} = handle_tool_call(state, req)
+        acc ++ msgs
+      end)
+
+    %{state | tool_call_requests: [], messages: messages_final}
   end
 
   def handle_tool_call(state, %{id: id, function: %{name: func, arguments: args_json}}) do
@@ -307,4 +318,9 @@ defmodule AI.Completion do
       {tool, args_json, {:error, reason}}
     )
   end
+
+  # Returns true if this tool call request is a 'confirm_tool' function call.
+  defp is_confirm_tool_request?(%{function: %{name: "confirm_tool"}}), do: true
+  # Returns true if this tool call request is a 'confirm_tool' function call.
+  defp is_confirm_tool_request?(_), do: false
 end

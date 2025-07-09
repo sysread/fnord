@@ -47,7 +47,8 @@ defmodule AI.Tools.Confirm do
   @impl AI.Tools
   def call(%{"message" => msg} = args) do
     default = Map.get(args, "default", false)
-    {:ok, UI.confirm(msg, default)}
+    result = if UI.confirm(msg, default), do: true, else: false
+    {:ok, result}
   end
 
   @impl AI.Tools
