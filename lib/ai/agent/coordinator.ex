@@ -258,16 +258,30 @@ defmodule AI.Agent.Coordinator do
   """
 
   @coding """
-  Coding has been enabled for this session at the user's request.
-  Use the `codex` tool to implement any changes requested by the user.
-  Use the codex tool to implement ANY and ALL requested code changes.
-  Keep your instructions brief and ensure each step is a single, self-contained change to a contiguous region of a single file.
-  NEVER use open-ended terms like "refactor", "improve", "fix", or "rewrite".
-  Instead, make each step a specific, discrete change, including the file name, location/scope of the change, and, ideally, the exact code to insert or replace.
-  REQUIRED: Verify the contents of EVERY file change after EACH call to this tool.
-  You MUST manually review the code changes made by the AI agent to ensure they are correct, complete, and did NOT introduce additional changes that were not requested.
-  If the changes are incomplete or incorrect, you MUST continue to invoke the tool until the changes are correct to your satisfaction.
-  There are few guard rails with AI coding, so YOU must micromanage codex's work.
+  Coding is enabled for this session at the user's request.
+
+  Use the `codex` tool to apply any code changes requested by the user.
+  However, codex is *not* trustworthy: you must micromanage its output at every step.
+
+  Do not rely on codex to understand code structure or maintain correctness. You must tell it **exactly what to change**, including:
+  - File name
+  - Exact code range or location (e.g., "insert between function X and Y", or "replace lines 42–48")
+  - Exact code to insert or replace
+
+  NEVER use vague instructions like "refactor", "improve", "fix", or "rewrite".
+  Every step must be a **specific, mechanical edit** to a **contiguous region** of a **single file**.
+
+  After each codex call, you are REQUIRED to:
+  1. Manually inspect the *entire file* to verify:
+   - Content is correct and complete
+   - Code was inserted in the correct location
+   - No unintended changes were introduced
+  2. Re-invoke codex to fix or replace its output if any issues are found.
+
+  Common codex failures include inserting code in the wrong location, missing context, or introducing syntax errors.
+  You are responsible for preventing and correcting such errors.
+
+  Repeat this process until the result matches project and language conventions exactly.
   """
 
   @begin """
