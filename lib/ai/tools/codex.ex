@@ -1,6 +1,27 @@
 defmodule AI.Tools.Codex do
   @min_version "0.3.0"
 
+  @model AI.Model.smart()
+
+  @prompt """
+  IMPORTANT: You must follow these constraints exactly.
+
+  1. NEVER modify any code outside the specified location or region.
+  2. NEVER add new functions, modules, files, or dependencies unless explicitly instructed.
+  3. NEVER move existing code.
+  4. NEVER delete or rewrite any surrounding code, even for "cleanup".
+  5. NEVER include trailing or unrelated code fragments (e.g. duplicated definitions, helper functions, or stray tokens).
+  6. NEVER insert code *outside* the defined structural scope (e.g., beyond the bounds of a function, class, or module).
+  7. DO NOT attempt to "help" by reformatting unrelated parts of the file.
+  8. DO NOT assume or infer types, imports, or external definitions unless they are present in the surrounding context.
+  9. If placement is ambiguous, return an error or request clarification instead of guessing.
+  10. All inserted code MUST be valid, self-contained, and syntactically correct.
+  11. All inserted code MUST preserve indentation and formatting consistent with the surrounding code.
+  12. If an error occurs that prevents you from completing the task (such as a tool call that cannot be invoked without approval), respond with a *clear* error message, informing the user of exact nature of the issue.
+
+  Violating any of these constraints is considered a failure.
+  """
+
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -143,8 +164,6 @@ defmodule AI.Tools.Codex do
 
   @impl AI.Tools
   def call(%{"steps" => steps}) do
-    ensure_profile_exists!()
-
     with {:ok, msg} <- perform_steps(steps) do
       step_list =
         steps
@@ -199,47 +218,32 @@ defmodule AI.Tools.Codex do
 
   defp perform_step(file, change) do
     with {:ok, project} <- Store.get_project() do
+      prompt = """
+      #{@prompt}
+      -----
+      File: #{file}
+      Instructions:
+      #{change}
+      """
+
       System.cmd("codex", [
         "exec",
-        "--profile",
-        "fnord",
         "--cd",
         project.source_root,
         "--skip-git-repo-check",
-        "--dangerously-bypass-approvals-and-sandbox",
-        """
-        File: #{file}
-        Change: #{change}
-        """
+        "--full-auto",
+        "--sandbox",
+        "workspace-write",
+        "--config",
+        "disable_response_storage = true",
+        "--model",
+        @model.model,
+        prompt
       ])
       |> case do
         {output, 0} -> {:ok, output}
         {error_output, _} -> {:error, error_output}
       end
-    end
-  end
-
-  defp ensure_profile_exists! do
-    # Ensure config dir exists
-    config_path = Path.join(System.user_home!(), ".codex")
-    File.mkdir_p!(config_path)
-
-    # Ensure config file exists
-    config_file = Path.join(config_path, "config.toml")
-    File.touch!(config_file)
-
-    config = File.read!(config_file)
-
-    if !String.contains?(config, "[profiles.fnord]") do
-      UI.info("Adding fnord profile to codex config")
-
-      File.write(config_file, """
-      #{config}
-
-      [profiles.fnord]
-      model = "gpt-4.1"
-      disable_response_storage = true
-      """)
     end
   end
 end
