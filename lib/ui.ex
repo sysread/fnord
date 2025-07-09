@@ -12,10 +12,10 @@ defmodule UI do
     |> IO.puts()
   end
 
+  @spec confirm(binary) :: boolean
   def confirm(msg), do: confirm(msg, false)
 
-  def confirm(_msg, true), do: true
-
+  @spec confirm(binary, boolean) :: boolean
   def confirm(msg, default) do
     has_default = is_boolean(default)
 
