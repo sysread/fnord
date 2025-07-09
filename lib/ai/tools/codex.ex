@@ -206,7 +206,6 @@ defmodule AI.Tools.Codex do
         "--cd",
         project.source_root,
         "--skip-git-repo-check",
-        "--full-auto",
         "--dangerously-bypass-approvals-and-sandbox",
         """
         File: #{file}
