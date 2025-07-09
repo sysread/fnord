@@ -358,7 +358,7 @@ defmodule Store.Project do
   defp relative_to!(path, cwd) do
     rel =
       path
-      |> Path.expand()
+      |> Path.expand(cwd)
       |> Path.relative_to(cwd)
 
     case Path.safe_relative(rel, cwd) do
