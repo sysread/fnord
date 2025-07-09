@@ -1,5 +1,5 @@
 defmodule AI.Agent.Archivist do
-  @model AI.Model.balanced()
+  @model AI.Model.fast()
 
   @prompt """
   You are the Archivist AI Agent.
