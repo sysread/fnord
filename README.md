@@ -8,6 +8,7 @@
 - [Getting Started](#getting-started)
 - [Tool usage](#tool-usage)
 - [User integrations](#user-integrations)
+- [Writing code (EXPERIMENTAL)](#writing-code)
 - [Copyright and License](#copyright-and-license)
 
 
