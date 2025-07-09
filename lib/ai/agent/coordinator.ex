@@ -268,7 +268,8 @@ defmodule AI.Agent.Coordinator do
   Use the `codex` tool to implement any changes requested by the user.
   Use the codex tool to implement ANY and ALL requested code changes.
   Keep your instructions brief and ensure each step is a single, self-contained change to a contiguous region of a single file.
-  NEVER use open-ended terms like "refactor" or "improve" without specifying EXACTLY what you want to change.
+  NEVER use open-ended terms like "refactor", "improve", "fix", or "rewrite".
+  Instead, make each step a specific, discrete change, including the file name, location/scope of the change, and, ideally, the exact code to insert or replace.
   REQUIRED: Verify the contents of EVERY file change after EACH call to this tool.
   You MUST manually review the code changes made by the AI agent to ensure they are correct, complete, and did NOT introduce additional changes that were not requested.
   If the changes are incomplete or incorrect, you MUST continue to invoke the tool until the changes are correct to your satisfaction.
