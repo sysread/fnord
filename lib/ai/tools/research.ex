@@ -6,12 +6,12 @@ defmodule AI.Tools.Research do
 
   @impl AI.Tools
   def ui_note_on_request(args) do
-    {"Researching", args["prompt"]}
+    {"Assigning research task", args["prompt"]}
   end
 
   @impl AI.Tools
   def ui_note_on_result(args, result) do
-    {"Research complete",
+    {"Research task completed",
      """
      # Prompt
      #{args["prompt"]}
