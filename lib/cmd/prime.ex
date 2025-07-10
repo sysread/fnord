@@ -3,6 +3,12 @@ defmodule Cmd.Prime do
   Please provide an overview of the current project.
   If necessary, reindex the project first.
 
+  Find and read important documentation about the project, such as:
+  - README.md
+  - CONTRIBUTING.md
+  - docs/
+  - AGENTS.md (very useful if available, as it contains information intended for LLMs)
+
   Include the following information:
   - Project name
   - Project description
