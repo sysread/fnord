@@ -13,7 +13,6 @@ defmodule Fnord do
   def main(args) do
     {:ok, _} = Application.ensure_all_started(:briefly)
     Once.start_link([])
-    Patches.start_link([])
     NotesServer.start_link([])
     configure_logger()
 
