@@ -2,7 +2,8 @@ defmodule Cmd.Index do
   defstruct [
     :opts,
     :indexer,
-    :project
+    :project,
+    :has_notes?
   ]
 
   @type t :: %__MODULE__{}
@@ -69,9 +70,10 @@ defmodule Cmd.Index do
 
   @impl Cmd
   def run(opts, _subcommands, _unknown) do
-    opts
-    |> new()
-    |> perform_task()
+    with {:ok, idx} <- new(opts) do
+      perform_task({:ok, idx})
+      maybe_prime_notes(idx)
+    end
   end
 
   # -----------------------------------------------------------------------------
@@ -122,11 +124,19 @@ defmodule Cmd.Index do
            - the first index after the upgrade that made --dir optional
          """}
       else
+        has_notes? =
+          Store.Project.Notes.read()
+          |> case do
+            {:ok, _} -> true
+            {:error, :no_notes} -> false
+          end
+
         {:ok,
          %__MODULE__{
            opts: opts,
            indexer: Indexer.impl(),
-           project: project
+           project: project,
+           has_notes?: has_notes?
          }}
       end
     end
@@ -342,5 +352,20 @@ defmodule Cmd.Index do
     """
 
     Indexer.impl().get_embeddings(to_embed)
+  end
+
+  @prime_prompt """
+  No research has been done yet for this project.
+  Fnord uses notes from prior research to improve the quality of its answers.
+  Would you like to prime the project with some initial research?
+  """
+
+  defp maybe_prime_notes(%{opts: %{quiet: false}} = idx), do: idx
+  defp maybe_prime_notes(%{has_notes?: true} = idx), do: idx
+
+  defp maybe_prime_notes(idx) do
+    if UI.confirm(@prime_prompt, false) do
+      Cmd.Prime.run(idx.opts, [], [])
+    end
   end
 end
