@@ -293,7 +293,7 @@ defmodule Store.Project do
 
   defp is_hidden?(path) do
     cond do
-      String.ends_with?(path, ".github") -> false
+      String.contains?(path, "/.github/") -> false
       String.starts_with?(path, ".") -> true
       String.contains?(path, "/.") -> true
       true -> false
