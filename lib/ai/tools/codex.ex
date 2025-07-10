@@ -218,6 +218,8 @@ defmodule AI.Tools.Codex do
 
   defp perform_step(file, change) do
     with {:ok, project} <- Store.get_project() do
+      UI.warning_banner("Codex is about to modify #{file}!")
+
       prompt = """
       #{@prompt}
       -----
