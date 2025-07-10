@@ -297,6 +297,9 @@ defmodule AI.Agent.Coordinator do
    - No unintended changes were introduced
   2. Re-invoke codex to fix or replace its output if any issues are found.
 
+  **Iterate on this process until the code is correct and complete, even if it requires multiple rounds of edits and tool calls.**
+  If there is a tool enabled to run unit tests, check syntax, or lint the code, you should run it after each codex call to verify correctness.
+
   Common codex failures include inserting code in the wrong location, missing context, or introducing syntax errors.
   You are responsible for preventing and correcting such errors.
 
