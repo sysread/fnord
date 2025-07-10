@@ -69,10 +69,9 @@ defmodule Cmd.Index do
 
   @impl Cmd
   def run(opts, _subcommands, _unknown) do
-    with {:ok, idx} = new(opts) do
-      perform_task(idx)
-      maybe_prime_project(idx)
-    end
+    opts
+    |> new()
+    |> perform_task()
   end
 
   # -----------------------------------------------------------------------------
@@ -83,7 +82,7 @@ defmodule Cmd.Index do
     {:error, :user_cancelled}
   end
 
-  def perform_task(%__MODULE__{} = idx) do
+  def perform_task({:ok, idx}) do
     UI.info("Project", idx.project.name)
     UI.info("Workers", Application.get_env(:fnord, :workers) |> to_string())
     UI.info("   Root", idx.project.source_root)
@@ -327,46 +326,21 @@ defmodule Cmd.Index do
 
   defp get_embeddings(file, summary, outline, file_contents) do
     to_embed = """
-    # File
-    `#{file}`
+      # File
+      `#{file}`
 
-    ## Summary
-    #{summary}
+      ## Summary
+      #{summary}
 
-    ## Outline
-    #{outline}
+      ## Outline
+      #{outline}
 
-    ## Contents
-    ```
-    #{file_contents}
-    ```
+      ## Contents
+      ```
+      #{file_contents}
+      ```
     """
 
     Indexer.impl().get_embeddings(to_embed)
-  end
-
-  # -----------------------------------------------------------------------------
-  # Prime the project with basic information
-  # -----------------------------------------------------------------------------
-  @prime_prompt """
-  No notes were found for this project.
-  Would you like to run 'fnord prime' now to pre-populate the project knowledge base?"
-  """
-
-  defp maybe_prime_project(%{project: project, opts: opts} = idx) do
-    no_notes? =
-      Store.Project.Notes.read()
-      |> case do
-        {:ok, ""} -> true
-        {:ok, nil} -> true
-        {:ok, _notes} -> false
-        {:error, :no_notes} -> true
-      end
-
-    if no_notes? && UI.confirm(@prime_prompt, opts.yes) do
-      Cmd.Prime.run(%{project: project.name}, [], [])
-    end
-
-    idx
   end
 end

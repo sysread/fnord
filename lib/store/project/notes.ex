@@ -23,12 +23,7 @@ defmodule Store.Project.Notes do
   def read do
     with {:ok, file} <- file_path(),
          {:ok, notes} <- File.read(file) do
-      notes
-      |> String.trim()
-      |> case do
-        "" -> {:error, :no_notes}
-        notes -> {:ok, notes}
-      end
+      {:ok, notes}
     else
       {:error, :enoent} -> {:error, :no_notes}
       other -> other
