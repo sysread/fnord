@@ -88,7 +88,6 @@ defmodule AI.Tools.File.Edit do
          :ok <- File.rename(temp, abs_path) do
       {:ok, "#{path} was modified successfully. A backup was created at #{backup}."}
     else
-      {:error, posix, msg} -> {:error, "Failed to edit file (#{inspect(posix)}): #{msg}"}
       {:error, reason} -> {:error, "Failed to edit file: #{inspect(reason)}"}
     end
   end
