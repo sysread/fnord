@@ -85,13 +85,6 @@ export FNORD_FORMATTER="gum format"
 ```
 
 
-- **Optional: Install `codex-cli`**
-
-For highly experimental AI-assisted code editing features, you may (optionally) install [`codex-cli`](https://github.com/openai/codex).
-If detected and up-to-date (minimum version 0.3.0), `fnord` will allow you to enable file editing through the `ask` command with the `--edit` flag (see below).
-Use with extreme caution - see the dedicated section on editing for critical safety details.
-
-
 ## Getting Started
 
 For the purposes of this guide, we will assume that `fnord` is installed and we are using it to interact with your project, `blarg`, which is located at `$HOME/dev/blarg`.
@@ -365,45 +358,22 @@ fnord ask -p blarg -q "testing: please make a call to 'my_frob' with the argumen
 
 
 ## Writing code
-Fnord can (optionally) automate code changes in your project using the `ask` command with the `--edit` flag, if [`codex-cli`](https://github.com/openai/codex) is installed and detected (minimum version 0.3.0).
+Fnord can (optionally) automate code changes in your project using the `ask` command with the `--edit` flag.
 
-HIGHLY EXPERIMENTAL!
+**HIGHLY EXPERIMENTAL!**
 - Use `--edit` with extreme caution.
 - AI-driven code modification is unsafe, may corrupt or break files, and must always be manually reviewed.
 
 ### How it works
-The AI will suggest *atomic, minimal steps* for code changes, and these are passed to `codex-cli`, which attempts to apply them.
+The LLM has access to several tools that allow it to modify code within the project directory and perform basic file management tasks.
+It *cannot* perform write operations with `git` or act on files outside of the project's root and `/tmp`.
 
 ```bash
 fnord ask --project myproj --edit --question "Add a docstring to foo/thing.ex"
 ```
 
-### Safeguards and sandboxing (codex-cli arguments)
-To minimize risk, fnord invokes codex-cli with these strong safety settings:
-- `--cd <project root>`: Only operates inside your project directory.
-- `--sandbox workspace-write`: Codex can only *write* files inside the workspace (project), and cannot touch files elsewhere; it can read any file for context.
-- `--full-auto`: Runs in automatic mode (approval policy: on-failure) - commands run without prompts unless they fail.
-- `--config disable_response_storage=true`: Codex does *not* store your data or code.
-- `--skip-git-repo-check`: Lets codex run in non-git projects.
-- Model is set by fnord internally for consistency.
-
-**See also:**
-- [codex-cli documentation](https://github.com/openai/codex#readme)
-- [config reference](https://github.com/openai/codex/blob/main/codex-rs/config.md)
-
-**Fnord configures the AI's instructions to strictly prohibit:**
-- Making changes outside your project/workspace.
-- Adding/removing files unless *explicitly* required.
-- Touching code outside the specified region, function, or file.
-- Unrelated refactoring, formatting, or guessing.
-
-**Despite all this,** code modification by an LLM is *unreliable* and is not safe for unsupervised use - codex or the AI may behave unpredictably.
-
-### User Responsibility
-- Every code change is your responsibility. 
-- **Manual review is **required** - AI may hallucinate, omit, or corrupt changes.**
-- Automated editing is always opt-in, disabled by default, and only available if codex-cli is present and new enough.
-
+Code modification by an LLM is *unreliable* and is not safe for unsupervised use.
+The AI may behave unpredictably.
 
 ## Copyright and License
 
