@@ -88,7 +88,12 @@ defmodule AI.Tools.File.Edit do
          :ok <- File.rename(temp, abs_path) do
       {:ok, "#{path} was modified successfully. A backup was created at #{backup}."}
     else
-      {:error, reason} -> {:error, "Failed to edit file: #{inspect(reason)}"}
+      {:error, :enoent} ->
+        {:error,
+         "File #{args["path"]} not found. Do you need to create it first with the file_manage_tool?"}
+
+      {:error, reason} ->
+        {:error, "Failed to edit file: #{inspect(reason)}"}
     end
   end
 
@@ -99,14 +104,19 @@ defmodule AI.Tools.File.Edit do
   end
 
   defp validate_range(file, start_line, end_line) do
+    lines = num_lines(file)
+
     cond do
       start_line < 1 ->
         {:error, "Start line must be greater than or equal to 1."}
 
+      start_line > lines ->
+        {:error, "Start line exceeds the number of lines in the file."}
+
       end_line < start_line ->
         {:error, "End line must be greater than or equal to start line."}
 
-      end_line > num_lines(file) ->
+      lines > 0 && end_line > lines ->
         {:error, "End line exceeds the number of lines in the file."}
 
       true ->
