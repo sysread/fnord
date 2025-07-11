@@ -292,8 +292,9 @@ defmodule AI.Agent.Coordinator do
   3. Verify the changes by reading the file contents again with the `file_contents_tool` to ensure the code was inserted correctly.
   4. Repeat steps 1-3 until the code is correct and complete.
 
-  Review your changes carefully before finalizing your response.
-  Use the `file_manage_tool` to restore the original file using the backup created by the `file_edit_tool` if you make a mistake.
+  **Review your changes:** Use the `file_contents_tool` to read the file contents after each change to ensure that the code was inserted correctly.
+  **IF YOU MAKE A MISTAKE:** Use the `file_manage_tool` to restore the original file using the backup created by the `file_edit_tool`.
+
   Repeat this process for each file that needs to be changed.
   """
 
