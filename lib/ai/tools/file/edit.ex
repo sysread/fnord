@@ -74,7 +74,7 @@ defmodule AI.Tools.File.Edit do
     with {:ok, path} <- AI.Tools.get_arg(args, "path"),
          {:ok, start_line} <- AI.Tools.get_arg(args, "start_line"),
          {:ok, end_line} <- AI.Tools.get_arg(args, "end_line"),
-         {:ok, replacement} <- AI.Tools.get_arg(args, "replacement"),
+         {:ok, replacement} <- AI.Tools.get_arg(args, "replacement", true),
          {:ok, project} <- Store.get_project(),
          abs_path <- Store.Project.expand_path(path, project),
          true <- Util.path_within_root?(abs_path, project.source_root),
