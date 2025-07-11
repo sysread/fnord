@@ -20,10 +20,7 @@ defmodule AI.Agent.Coordinator do
   defp new(opts) do
     research_steps = steps(opts.rounds, opts.edit)
     {:ok, project} = Store.get_project()
-
-    edit =
-      Map.get(opts, :edit, false) &&
-        AI.Tools.Codex.is_available?()
+    edit = Map.get(opts, :edit, false)
 
     %{
       project: project.name,
@@ -279,31 +276,25 @@ defmodule AI.Agent.Coordinator do
   THIS INDICATES THAT THE USER IS EXPECTING YOU TO MAKE PERSISTENT CODE CHANGES TO THE PROJECT.
   ONLY request confirmation from the user if they explicitly ask you to do so.
 
-  Use the `codex` tool to apply any code changes requested by the user.
-  However, codex is *not* trustworthy: you must micromanage its output at every step.
+  # Guidelines:
+  - Changes should be as minimal as possible
+  - Changes should reflect the existing style and conventions of the project
+  - Never make changes that the user did not explicitly request
+  - Always double check your work; sometimes a change looks different once you see it in context
 
-  Do not rely on codex to understand code structure or maintain correctness. You must tell it **exactly what to change**, including:
-  - File name
-  - Exact code range or location (e.g., "insert between function X and Y", or "replace lines 42–48")
-  - Exact code to insert or replace
+  # Process:
+  Code changes should be made one at a time, and only to a contiguous region of a single file.
+  To make multiple changes, respond with a single tool_call request at a time.
+  If you attempt to modify multiple ranges within the same file concurrently, the results will be unpredictable, as line numbers may change between calls, and there is an implicit race between concurrent tool calls.
 
-  NEVER use vague instructions like "refactor", "improve", "fix", or "rewrite".
-  Every step must be a **specific, mechanical edit** to a **contiguous region** of a **single file**.
+  1. Use the `file_contents_tool` with the `line_numbers` flag to read the file contents and identify the exact location of the code to change.
+  2. Use the `file_edit_tool` to replace the lines of code with a fully formed replacement.
+  3. Verify the changes by reading the file contents again with the `file_contents_tool` to ensure the code was inserted correctly.
+  4. Repeat steps 1-3 until the code is correct and complete.
 
-  After each codex call, you are REQUIRED to:
-  1. Manually inspect the *entire file* to verify:
-   - Content is correct and complete
-   - Code was inserted in the correct location
-   - No unintended changes were introduced
-  2. Re-invoke codex to fix or replace its output if any issues are found.
+  You can always restore a file using the backup automatically created by the `file_edit_tool`.
 
-  **Iterate on this process until the code is correct and complete, even if it requires multiple rounds of edits and tool calls.**
-  If there is a tool enabled to run unit tests, check syntax, or lint the code, you should run it after each codex call to verify correctness.
-
-  Common codex failures include inserting code in the wrong location, missing context, or introducing syntax errors.
-  You are responsible for preventing and correcting such errors.
-
-  Repeat this process until the result matches project and language conventions exactly.
+  Repeat this process for each file that needs to be changed.
   """
 
   @begin """
@@ -587,7 +578,10 @@ defmodule AI.Agent.Coordinator do
   defp get_tools(%{edit: true}) do
     AI.Tools.tools()
     |> Map.values()
-    |> Enum.concat([AI.Tools.Codex])
+    |> Enum.concat([
+      AI.Tools.File.Manage,
+      AI.Tools.File.Edit
+    ])
     |> AI.Tools.build_toolbox()
   end
 
