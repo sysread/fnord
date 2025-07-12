@@ -8,9 +8,9 @@ defmodule AI.Completion do
 
   describe "get/1" do
     test "Completion.get/1 surfaces API error response to user" do
-      :meck.new(AI.ChatCompletion, [:non_strict])
+      :meck.new(AI.CompletionAPI, [:non_strict])
 
-      :meck.expect(AI.ChatCompletion, :get, fn _model, _msgs, _specs ->
+      :meck.expect(AI.CompletionAPI, :get, fn _model, _msgs, _specs ->
         {:error, %{http_status: 500, code: "server_error", message: "backend exploded"}}
       end)
 
@@ -28,7 +28,7 @@ defmodule AI.Completion do
       assert state.response =~ "Error code: server_error"
       assert state.response =~ "backend exploded"
 
-      :meck.unload(AI.ChatCompletion)
+      :meck.unload(AI.CompletionAPI)
     end
   end
 
@@ -64,9 +64,9 @@ defmodule AI.Completion do
     end
 
     test "Completion.get/1 invokes local tools from toolbox" do
-      :meck.new(AI.ChatCompletion, [:non_strict])
-      # Stub ChatCompletion.get to return a tool call, then a final assistant message
-      :meck.expect(AI.ChatCompletion, :get, fn _model, msgs, _specs ->
+      :meck.new(AI.CompletionAPI, [:non_strict])
+      # Stub CompletionAPI.get to return a tool call, then a final assistant message
+      :meck.expect(AI.CompletionAPI, :get, fn _model, msgs, _specs ->
         if Enum.any?(msgs, fn msg ->
              msg.role == "assistant" and msg.content == nil and Map.has_key?(msg, :tool_calls)
            end) do
@@ -100,7 +100,7 @@ defmodule AI.Completion do
       # Assert the final assistant message is included
       assert List.last(state.messages).role == "assistant"
       assert List.last(state.messages).content == "final response"
-      :meck.unload(AI.ChatCompletion)
+      :meck.unload(AI.CompletionAPI)
     end
   end
 end

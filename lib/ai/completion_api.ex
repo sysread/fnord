@@ -1,4 +1,4 @@
-defmodule AI.ChatCompletion do
+defmodule AI.CompletionAPI do
   @endpoint "https://api.openai.com/v1/chat/completions"
 
   @type model :: AI.Model.t()

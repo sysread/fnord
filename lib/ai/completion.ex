@@ -126,7 +126,7 @@ defmodule AI.Completion do
   # Completion handling
   # -----------------------------------------------------------------------------
   defp send_request(state) do
-    AI.ChatCompletion.get(
+    AI.CompletionAPI.get(
       state.model,
       state.messages,
       state.specs
