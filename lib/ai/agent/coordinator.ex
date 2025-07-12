@@ -291,6 +291,7 @@ defmodule AI.Agent.Coordinator do
   2. **Before making a permanent change, use the `file_edit_tool` with `dry_run: true` to preview the edit and see a diff with context.**
   3. **If the preview shows that the change is correct and safe, then use the `file_edit_tool` (with `dry_run: false` or omitted) to commit the change.**
   4. Verify the committed change by reading the file contents again with the `file_contents_tool` to ensure the code was inserted correctly.
+     If there is a tool_call available that can check syntax or run unit tests, be sure to use it to verify that the code is correct.
   5. Repeat steps 1-4 until the code is correct and complete.
 
   **Review your changes:** Use the `file_contents_tool` to read the file contents after each change to ensure that the code was inserted correctly.
