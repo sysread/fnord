@@ -8,19 +8,6 @@ defmodule Cmd.Ask do
 
   @impl Cmd
   def spec() do
-    edit =
-      if AI.Tools.Codex.is_available?() do
-        [
-          edit: [
-            long: "--edit",
-            short: "-e",
-            help: "Permit the AI to edit files in the project"
-          ]
-        ]
-      else
-        []
-      end
-
     [
       ask: [
         name: "ask",
@@ -53,15 +40,18 @@ defmodule Cmd.Ask do
             required: false
           ]
         ],
-        flags:
-          edit ++
-            [
-              replay: [
-                long: "--replay",
-                short: "-r",
-                help: "Replay a conversation (with --follow)"
-              ]
-            ]
+        flags: [
+          replay: [
+            long: "--replay",
+            short: "-r",
+            help: "Replay a conversation (with --follow)"
+          ],
+          edit: [
+            long: "--edit",
+            short: "-e",
+            help: "Permit the AI to edit files in the project"
+          ]
+        ]
       ]
     ]
   end

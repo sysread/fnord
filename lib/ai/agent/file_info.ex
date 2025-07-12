@@ -99,7 +99,10 @@ defmodule AI.Agent.FileInfo do
         input: content,
         question: question
       )
-      |> then(fn {:ok, %{response: response}} -> {:ok, response} end)
+      |> then(fn
+        {:ok, %{response: response}} -> {:ok, response}
+        {:error, reason} -> {:error, reason}
+      end)
     end
   end
 end
