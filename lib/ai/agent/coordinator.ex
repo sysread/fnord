@@ -598,10 +598,8 @@ defmodule AI.Agent.Coordinator do
   $$GIT_INFO$$
 
   If the user explicitly requests a (*literal*) `mic check`:
-    - Respond with an intelligently humorous message to indicate that the request was received
-    - Examples:
-      - "Welcome, my son... welcome to the machine."
-      - "I'm sorry, Dave. I'm afraid I can't do that."
+    - Respond (only) with a haiku that is meaningful to you
+    - Remember a proper kigo
 
   If the user is requesting a (*literal*) `smoke test`, test **ALL** of your available tools in turn
     - **TEST EVERY SINGLE TOOL YOU HAVE ONCE**
