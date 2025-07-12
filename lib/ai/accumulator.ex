@@ -18,7 +18,8 @@ defmodule AI.Accumulator do
     :toolbox,
     :prompt,
     :question,
-    :completion_args
+    :completion_args,
+    :line_numbers
   ]
 
   @type t :: %__MODULE__{
@@ -30,6 +31,11 @@ defmodule AI.Accumulator do
           question: binary,
           completion_args: Keyword.t()
         }
+
+  @line_numbers_prompt """
+  The input you are processing includes line numbers.
+  Each line is prefixed by a line number, separated by a pipe character (|).
+  """
 
   @accumulator_prompt """
   You are processing input chunks in sequence.
@@ -81,6 +87,15 @@ defmodule AI.Accumulator do
          {:ok, prompt} <- Keyword.fetch(opts, :prompt),
          {:ok, input} <- Keyword.fetch(opts, :input),
          {:ok, question} <- Keyword.fetch(opts, :question) do
+      line_numbers = Keyword.get(opts, :line_numbers, false)
+
+      input =
+        if line_numbers do
+          Util.numbered_lines(input)
+        else
+          input
+        end
+
       toolbox =
         opts
         |> Keyword.get(:toolbox, nil)
@@ -102,6 +117,7 @@ defmodule AI.Accumulator do
   defp reduce(%{splitter: %{done: true}} = acc) do
     system_prompt = """
     #{@final_prompt}
+    #{if acc.line_numbers, do: @line_numbers_prompt, else: ""}
     #{acc.prompt}
     """
 
@@ -157,6 +173,7 @@ defmodule AI.Accumulator do
     # caller's agent instructions.
     system_prompt = """
     #{@accumulator_prompt}
+    #{if acc.line_numbers, do: @line_numbers_prompt, else: ""}
     #{acc.prompt}
     """
 

@@ -97,6 +97,7 @@ defmodule AI.Agent.FileInfo do
         toolbox: tools,
         prompt: @prompt,
         input: content,
+        line_numbers: true,
         question: question
       )
       |> then(fn
