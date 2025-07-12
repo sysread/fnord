@@ -82,11 +82,11 @@ defmodule AI.Agent.FileInfo do
       tools =
         if Git.is_git_repo?() do
           [
-            AI.Tools.tool_spec!("git_diff_branch_tool"),
-            AI.Tools.tool_spec!("git_grep_tool"),
-            AI.Tools.tool_spec!("git_log_tool"),
-            AI.Tools.tool_spec!("git_pickaxe_tool"),
-            AI.Tools.tool_spec!("git_show_tool")
+            AI.Tools.Git.DiffBranch,
+            AI.Tools.Git.Grep,
+            AI.Tools.Git.Log,
+            AI.Tools.Git.Pickaxe,
+            AI.Tools.Git.Show
           ]
         else
           []
