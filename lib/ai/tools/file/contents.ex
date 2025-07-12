@@ -6,20 +6,30 @@ defmodule AI.Tools.File.Contents do
 
   @impl AI.Tools
   def ui_note_on_request(%{"file" => file, "line_numbers" => true}) do
-    {"Retrieving file", file}
+    {"Retrieving file +ln", file}
   end
 
   def ui_note_on_request(%{"file" => file}) do
-    {"Retrieving file", file}
+    {"Retrieving file -ln", file}
   end
 
   @impl AI.Tools
   def ui_note_on_result(_args, _result), do: nil
 
   @impl AI.Tools
-  def read_args(%{"file" => file}), do: {:ok, %{"file" => file}}
-  def read_args(%{"file_path" => file}), do: {:ok, %{"file" => file}}
-  def read_args(_args), do: AI.Tools.required_arg_error("file")
+  def read_args(args) do
+    args
+    |> Map.fetch("file_path")
+    |> case do
+      {:ok, file} -> args |> Map.put("file", file)
+      :error -> args
+    end
+    |> Map.fetch("file")
+    |> case do
+      {:ok, file} -> read_args(%{"file" => file})
+      :error -> AI.Tools.required_arg_error("file")
+    end
+  end
 
   @impl AI.Tools
   def spec() do
@@ -35,9 +45,6 @@ defmodule AI.Tools.File.Contents do
         responses. If you only need to learn specific facts or extract a
         section of code, use the file_info_tool to preserve your context
         window.
-
-        You may set `line_numbers=true` to prefix each line with its 1-based
-        number, which helps the LLM reason with line offsets.
         """,
         parameters: %{
           type: "object",
@@ -52,8 +59,8 @@ defmodule AI.Tools.File.Contents do
             },
             line_numbers: %{
               type: "boolean",
-              description: "If true, prefix each line with its 1-based line number.",
-              default: false
+              description: "If true (default), prefix each line with its 1-based line number.",
+              default: true
             }
           }
         }
@@ -63,7 +70,7 @@ defmodule AI.Tools.File.Contents do
 
   @impl AI.Tools
   def call(%{"file" => file} = args) do
-    line_numbers = Map.get(args, "line_numbers", false)
+    line_numbers = Map.get(args, "line_numbers", true)
 
     with {:ok, content} <- AI.Tools.get_file_contents(file) do
       output =

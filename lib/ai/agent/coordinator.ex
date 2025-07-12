@@ -287,7 +287,7 @@ defmodule AI.Agent.Coordinator do
   To make multiple changes, respond with a single tool_call request at a time.
   If you attempt to modify multiple ranges within the same file concurrently, the results will be unpredictable, as line numbers may change between calls, and there is an implicit race between concurrent tool calls.
 
-  1. Use the `file_contents_tool` with the `line_numbers` flag to identify the hunk to change.
+  1. Use the `file_contents_tool` WITH `line_numbers: true` to identify the hunk to change.
   2. Use the `file_edit_tool` with `dry_run: true` to preview the edit and see a diff with context.
   3. If the preview shows that the change is correct and safe, then use the `file_edit_tool` with `dry_run: false` to commit the change.
   4. Reread the file (with line numbers) to verify your changes. If available, use your tools to check syntax or run unit tests to ensure the code is correct.
