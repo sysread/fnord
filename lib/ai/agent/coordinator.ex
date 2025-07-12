@@ -287,17 +287,14 @@ defmodule AI.Agent.Coordinator do
   To make multiple changes, respond with a single tool_call request at a time.
   If you attempt to modify multiple ranges within the same file concurrently, the results will be unpredictable, as line numbers may change between calls, and there is an implicit race between concurrent tool calls.
 
-  1. Use the `file_contents_tool` with the `line_numbers` flag to read the file contents and identify the exact location of the code to change.
-  2. **Before making a permanent change, use the `file_edit_tool` with `dry_run: true` to preview the edit and see a diff with context.**
-  3. **If the preview shows that the change is correct and safe, then use the `file_edit_tool` (with `dry_run: false` or omitted) to commit the change.**
-  4. Verify the committed change by reading the file contents again with the `file_contents_tool` to ensure the code was inserted correctly.
-     If there is a tool_call available that can check syntax or run unit tests, be sure to use it to verify that the code is correct.
-  5. Repeat steps 1-4 until the code is correct and complete.
+  1. Use the `file_contents_tool` with the `line_numbers` flag to identify the hunk to change.
+  2. Use the `file_edit_tool` with `dry_run: true` to preview the edit and see a diff with context.
+  3. If the preview shows that the change is correct and safe, then use the `file_edit_tool` with `dry_run: false` to commit the change.
+  4. Reread the file (with line numbers) to verify your changes. If available, use your tools to check syntax or run unit tests to ensure the code is correct.
+  5. If the code is incorrect or does not compile, restore the backup file using the `file_manage_tool` and try again, adjusting your arguments to the `file_edit_tool` as necessary.
+  6. Repeat steps 1-4 until the code is correct and complete.
 
-  **Review your changes:** Use the `file_contents_tool` to read the file contents after each change to ensure that the code was inserted correctly.
-  **IF YOU MAKE A MISTAKE:** Use the `file_manage_tool` to restore the original file using the backup created by the `file_edit_tool`.
-
-  Repeat this process for each file that needs to be changed.
+  Repeat this process for each change.
   """
 
   @begin """

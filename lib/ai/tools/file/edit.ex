@@ -43,15 +43,16 @@ defmodule AI.Tools.File.Edit do
         name: "file_edit_tool",
         description: """
         Edit a file within the project source root by replacing a specified range of lines with new text.
+        Use the file_contents_tool with the line_numbers parameter to preview or identify the line range to edit.
 
-        - Line numbers are **1-based** and inclusive. For example, `start_line: 2, end_line: 4` replaces lines 2 through 4 (the second, third, and fourth lines of the file).
-        - The range must be valid: `1 <= start_line <= end_line <= total_lines_in_file`.
-        - Replacement text is inserted exactly as given, with no automatic newline padding or trimming.
-        - If you want to fully replace lines, ensure your `replacement` ends with a newline if appropriate.
-        - The file path must be within the project source root; edits outside the project root will be rejected.
-        - The original file is backed up before editing to allow for safe reversion.
-
-        Use the file_contents_tool with the `line_numbers` parameter to preview or identify the line range to edit.
+        - Line numbers are 1-based and inclusive.
+        - start_line must be > 0 and <= end_line.
+        - end_line must be >= start_line and <= total number of lines in the file.
+        - You must produce the exact text to replace the specified lines with, along with any necessary newlines, INCLUDING one at the end of the final line of the replacement text.
+        - It is YOUR responsibility to verify the changes after applying them.
+        - Use the dry_run option to test your changes before applying them.
+        - Line numbers will have changed after the edit. You MUST retrieve the updated file with line numbers if you plan to make additional changes.
+        - Use the file_manage_tool to restore the file from backup if the changes are incorrect, then try again.
         """,
         parameters: %{
           type: "object",
