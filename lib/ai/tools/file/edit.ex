@@ -42,27 +42,25 @@ defmodule AI.Tools.File.Edit do
       function: %{
         name: "file_edit_tool",
         description: """
-        Edit a file within the project source root by replacing a range of lines
-        with new text. This tool allows you to modify the contents of a file
-        directly, specifying the start and end lines to replace with new text.
+        Edit a file within the project source root by replacing a specified range of lines with new text.
 
-        Use the file_contents_tool with the line_numbers parameter to identify
-        the line range you want to edit.
+        - Line numbers are **1-based** and inclusive. For example, `start_line: 2, end_line: 4` replaces lines 2 through 4 (the second, third, and fourth lines of the file).
+        - The range must be valid: `1 <= start_line <= end_line <= total_lines_in_file`.
+        - Replacement text is inserted exactly as given, with no automatic newline padding or trimming.
+        - If you want to fully replace lines, ensure your `replacement` ends with a newline if appropriate.
+        - The file path must be within the project source root; edits outside the project root will be rejected.
+        - The original file is backed up before editing to allow for safe reversion.
 
-        The replacement must be a *complete* replacement for the specified
-        lines. If it is code, take care to ensure it is valid syntax.
-
-        The modified file will be backed up before editing, allowing you to
-        revert changes if needed.
+        Use the file_contents_tool with the `line_numbers` parameter to preview or identify the line range to edit.
         """,
         parameters: %{
           type: "object",
-          required: ["path"],
+          required: ["path", "start_line", "end_line", "replacement"],
           properties: %{
             path: %{
               type: "string",
               description:
-                "Path (relative to project root) of the file to operate on (or *source path* for move)."
+                "Path (relative to project root) of the file to operate on (or *source path* for move). Must be within the project source root."
             },
             start_line: %{
               type: "integer",
@@ -74,7 +72,18 @@ defmodule AI.Tools.File.Edit do
             },
             replacement: %{
               type: "string",
-              description: "The text or code to replace the specified lines with."
+              description:
+                "The exact text or code to replace the specified lines with. If you intend to fully replace lines, end with a newline."
+            },
+            dry_run: %{
+              type: "boolean",
+              description:
+                "If true, the tool will simulate the edit without making any changes. Defaults to false. Returns the updated block, with +/- <context_lines> lines of context around the edit."
+            },
+            context_lines: %{
+              type: "integer",
+              description:
+                "Number of lines of context to include around the edited block in the dry run output. Defaults to 3."
             }
           }
         }
@@ -88,18 +97,26 @@ defmodule AI.Tools.File.Edit do
          {:ok, start_line} <- AI.Tools.get_arg(args, "start_line"),
          {:ok, end_line} <- AI.Tools.get_arg(args, "end_line"),
          {:ok, replacement} <- AI.Tools.get_arg(args, "replacement", true),
+         dry_run <- Map.get(args, "dry_run", false),
+         context_lines <- Map.get(args, "context_lines", 3),
          {:ok, project} <- Store.get_project(),
          abs_path <- Store.Project.expand_path(path, project),
          :ok <- validate_path(abs_path, project.source_root),
          {:ok, contents} <- File.read(abs_path),
-         :ok <- validate_range(contents, start_line, end_line),
-         {:ok, backup} <- backup_file(abs_path),
-         {:ok, temp} <- Briefly.create(),
-         :ok <- File.cp(path, temp),
-         updated_contents <- make_changes(contents, start_line, end_line, replacement),
-         :ok <- File.write(temp, updated_contents),
-         :ok <- File.rename(temp, abs_path) do
-      {:ok, "#{path} was modified successfully. A backup was created at #{backup}."}
+         :ok <- validate_range(contents, start_line, end_line) do
+      updated_contents = make_changes(contents, start_line, end_line, replacement)
+
+      if dry_run do
+        {:ok, dry_run_preview(contents, updated_contents, start_line, end_line, context_lines)}
+      else
+        with {:ok, backup} <- backup_file(abs_path),
+             {:ok, temp} <- Briefly.create(),
+             :ok <- File.cp(path, temp),
+             :ok <- File.write(temp, updated_contents),
+             :ok <- File.rename(temp, abs_path) do
+          {:ok, "#{path} was modified successfully. A backup was created at #{backup}."}
+        end
+      end
     else
       {:error, :enoent} ->
         {:error,
@@ -156,6 +173,44 @@ defmodule AI.Tools.File.Edit do
         {:error, reason} -> {:error, reason}
       end
     end
+  end
+
+  defp dry_run_preview(original, updated, start_line, end_line, context_lines) do
+    orig_lines = String.split(original, "\n", trim: false)
+    updated_lines = String.split(updated, "\n", trim: false)
+
+    # 1-based to 0-based indices
+    start_idx = start_line - 1
+    end_idx = end_line - 1
+
+    before_context = max(start_idx - context_lines, 0)
+
+    after_context =
+      min(end_idx + context_lines, max(length(orig_lines), length(updated_lines)) - 1)
+
+    # Extract relevant lines from both original and updated
+    orig_snippet = Enum.slice(orig_lines, before_context..after_context)
+    updated_snippet = Enum.slice(updated_lines, before_context..after_context)
+
+    # Build simple diff output with +/- prefixes
+    diff =
+      Enum.zip(orig_snippet, updated_snippet)
+      |> Enum.map(fn
+        {o, u} when o == u -> "  " <> o
+        {o, u} -> "- " <> o <> "\n+ " <> u
+      end)
+      |> Enum.join("\n")
+
+    """
+    --- ORIGINAL (with context) ---
+    #{Enum.join(orig_snippet, "\n")}
+
+    --- UPDATED (with context) ---
+    #{Enum.join(updated_snippet, "\n")}
+
+    --- UNIFIED DIFF ---
+    #{diff}
+    """
   end
 
   defp make_changes(input, start_line, end_line, replacement) do

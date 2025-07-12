@@ -170,4 +170,112 @@ defmodule AI.Tools.File.EditTest do
       assert match?({:error, _}, result)
     end
   end
+
+  describe "dry run" do
+    test "basic dry run returns preview and does not modify file", %{path: path} do
+      original = File.read!(path)
+
+      args = %{
+        "path" => path,
+        "start_line" => 2,
+        "end_line" => 2,
+        "replacement" => "DRYRUN\n",
+        "dry_run" => true
+      }
+
+      {:ok, preview} = Edit.call(args)
+      assert is_binary(preview)
+      assert preview =~ "ORIGINAL"
+      assert preview =~ "UPDATED"
+      assert preview =~ "DRYRUN"
+      # File should remain unchanged
+      assert File.read!(path) == original
+    end
+
+    test "dry run with context_lines=0 gives only edited line", %{path: path} do
+      args = %{
+        "path" => path,
+        "start_line" => 2,
+        "end_line" => 2,
+        "replacement" => "FOO\n",
+        "dry_run" => true,
+        "context_lines" => 0
+      }
+
+      {:ok, preview} = Edit.call(args)
+      # Only the replaced line and its replacement should appear
+      assert preview =~ "FOO"
+      # Should not contain other lines for context
+      refute preview =~ "aaa"
+      refute preview =~ "ccc"
+    end
+
+    test "dry run at start of file with context beyond start", %{path: path} do
+      args = %{
+        "path" => path,
+        "start_line" => 1,
+        "end_line" => 1,
+        "replacement" => "START\n",
+        "dry_run" => true,
+        "context_lines" => 3
+      }
+
+      {:ok, preview} = Edit.call(args)
+      assert preview =~ "START"
+      # Should not error at file start
+    end
+
+    test "dry run at end of file with context beyond end", %{path: path} do
+      args = %{
+        "path" => path,
+        "start_line" => 4,
+        "end_line" => 4,
+        "replacement" => "END\n",
+        "dry_run" => true,
+        "context_lines" => 5
+      }
+
+      {:ok, preview} = Edit.call(args)
+      assert preview =~ "END"
+      # Should not error at file end
+    end
+
+    test "dry run returns correct diff markers", %{path: path} do
+      args = %{
+        "path" => path,
+        "start_line" => 2,
+        "end_line" => 3,
+        "replacement" => "NEW1\nNEW2\n",
+        "dry_run" => true,
+        "context_lines" => 1
+      }
+
+      {:ok, preview} = Edit.call(args)
+      # Should show - original, + replacement in unified diff section
+      assert preview =~ "- bbb"
+      assert preview =~ "- ccc"
+      assert preview =~ "+ NEW1"
+      assert preview =~ "+ NEW2"
+      assert preview =~ "--- ORIGINAL"
+      assert preview =~ "--- UPDATED"
+      assert preview =~ "--- UNIFIED DIFF"
+    end
+
+    test "dry run does not create backup or change file", %{path: path} do
+      original = File.read!(path)
+      backup = path <> ".bak.0"
+
+      args = %{
+        "path" => path,
+        "start_line" => 2,
+        "end_line" => 3,
+        "replacement" => "DRY\nRUN\n",
+        "dry_run" => true
+      }
+
+      {:ok, _preview} = Edit.call(args)
+      assert File.read!(path) == original
+      refute File.exists?(backup)
+    end
+  end
 end
