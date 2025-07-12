@@ -5,7 +5,20 @@ defmodule AI.Tools.File.Edit do
   def is_available?, do: true
 
   @impl AI.Tools
-  def read_args(args), do: {:ok, args}
+  def read_args(args) do
+    with {:ok, path} <- AI.Tools.get_arg(args, "path"),
+         {:ok, start_line} <- AI.Tools.get_arg(args, "start_line"),
+         {:ok, end_line} <- AI.Tools.get_arg(args, "end_line"),
+         {:ok, replacement} <- AI.Tools.get_arg(args, "replacement", true) do
+      {:ok,
+       %{
+         "path" => path,
+         "start_line" => start_line,
+         "end_line" => end_line,
+         "replacement" => replacement
+       }}
+    end
+  end
 
   @impl AI.Tools
   def ui_note_on_request(%{
@@ -77,7 +90,7 @@ defmodule AI.Tools.File.Edit do
          {:ok, replacement} <- AI.Tools.get_arg(args, "replacement", true),
          {:ok, project} <- Store.get_project(),
          abs_path <- Store.Project.expand_path(path, project),
-         true <- Util.path_within_root?(abs_path, project.source_root),
+         :ok <- validate_path(abs_path, project.source_root),
          {:ok, contents} <- File.read(abs_path),
          :ok <- validate_range(contents, start_line, end_line),
          {:ok, backup} <- backup_file(abs_path),
@@ -97,10 +110,12 @@ defmodule AI.Tools.File.Edit do
     end
   end
 
-  defp num_lines(file) do
-    file
-    |> String.split("\n", trim: false)
-    |> length()
+  defp validate_path(path, root) do
+    cond do
+      !Util.path_within_root?(path, root) -> {:error, "not within project root"}
+      !File.exists?(path) -> {:error, :enoent}
+      true -> :ok
+    end
   end
 
   defp validate_range(file, start_line, end_line) do
@@ -124,6 +139,12 @@ defmodule AI.Tools.File.Edit do
     end
   end
 
+  defp num_lines(file) do
+    file
+    |> String.split("\n", trim: false)
+    |> length()
+  end
+
   defp backup_file(orig, bak_number \\ 0) do
     backup = "#{orig}.bak.#{bak_number}"
 
@@ -137,11 +158,41 @@ defmodule AI.Tools.File.Edit do
     end
   end
 
-  defp make_changes(contents, start_line, end_line, replacement) do
-    lines = String.split(contents, "\n", trim: false)
-    pre = Enum.slice(lines, 0, start_line - 1)
-    post = Enum.slice(lines, end_line, length(lines) - end_line)
-    out = pre ++ String.split(replacement, "\n", trim: false) ++ post
-    Enum.join(out, "\n")
+  defp make_changes(input, start_line, end_line, replacement) do
+    {start_idx, end_idx} = line_range_indices(input, start_line, end_line)
+    prefix = binary_part(input, 0, start_idx)
+    suffix = binary_part(input, end_idx, byte_size(input) - end_idx)
+    prefix <> replacement <> suffix
+  end
+
+  defp line_range_indices(subject, start_line, end_line) do
+    starts = line_start_offsets(subject)
+    total_lines = length(starts)
+    s = max(min(start_line, total_lines), 1) - 1
+    e = max(min(end_line, total_lines), 1) - 1
+
+    start_idx = Enum.at(starts, s)
+
+    end_idx =
+      if e + 1 < total_lines do
+        Enum.at(starts, e + 1)
+      else
+        byte_size(subject)
+      end
+
+    {start_idx, end_idx}
+  end
+
+  defp line_start_offsets(bin) do
+    # All line start offsets, including at EOF if file ends with newline
+    offsets = [0]
+
+    offsets =
+      bin
+      |> :binary.matches("\n")
+      |> Enum.reduce(offsets, fn {idx, 1}, acc -> [idx + 1 | acc] end)
+      |> Enum.reverse()
+
+    offsets
   end
 end
