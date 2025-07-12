@@ -7,7 +7,6 @@ defmodule AI.Completion do
 
   - `toolbox` - a map of tool names to modules implementing `AI.Tools`; the specs list
     is derived automatically via `AI.Tools.toolbox_to_specs/1`.
-  - `tools` - (deprecated) a list of tool specs; used if `:toolbox` is not provided.
 
   ## Output options
 
@@ -62,14 +61,15 @@ defmodule AI.Completion do
   def new(opts) do
     with {:ok, model} <- Keyword.fetch(opts, :model),
          {:ok, messages} <- Keyword.fetch(opts, :messages) do
-      toolbox = Keyword.get(opts, :toolbox, nil)
+      toolbox =
+        opts
+        |> Keyword.get(:toolbox, nil)
+        |> AI.Tools.build_toolbox()
 
       specs =
-        if toolbox do
-          Enum.map(Map.values(toolbox), & &1.spec())
-        else
-          Keyword.get(opts, :tools, nil)
-        end
+        toolbox
+        |> Map.values()
+        |> Enum.map(& &1.spec())
 
       log_msgs = Keyword.get(opts, :log_msgs, false)
       replay = Keyword.get(opts, :replay_conversation, true)

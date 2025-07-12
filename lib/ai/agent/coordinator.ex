@@ -579,19 +579,13 @@ defmodule AI.Agent.Coordinator do
   # -----------------------------------------------------------------------------
   defp get_tools(%{edit: true}) do
     AI.Tools.tools()
-    |> Map.values()
     |> Enum.concat([
       AI.Tools.File.Manage,
       AI.Tools.File.Edit
     ])
-    |> AI.Tools.build_toolbox()
   end
 
-  defp get_tools(_) do
-    AI.Tools.tools()
-    |> Map.values()
-    |> AI.Tools.build_toolbox()
-  end
+  defp get_tools(_), do: AI.Tools.tools()
 
   # -----------------------------------------------------------------------------
   # Testing response

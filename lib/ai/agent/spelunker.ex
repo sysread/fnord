@@ -41,17 +41,15 @@ defmodule AI.Agent.Spelunker do
   # Private functions
   # -----------------------------------------------------------------------------
   defp build_response(opts) do
-    tools = [
-      AI.Tools.tool_spec!("file_search_tool"),
-      AI.Tools.tool_spec!("file_list_tool"),
-      AI.Tools.tool_spec!("file_info_tool"),
-      AI.Tools.tool_spec!("file_contents_tool"),
-      AI.Tools.tool_spec!("file_outline_tool")
-    ]
-
     AI.Completion.get(
       model: @model,
-      tools: tools,
+      toolbox: [
+        AI.Tools.File.Search,
+        AI.Tools.File.List,
+        AI.Tools.File.Info,
+        AI.Tools.File.Contents,
+        AI.Tools.File.Outline
+      ],
       messages: [
         AI.Util.system_msg(@prompt),
         AI.Util.user_msg("""

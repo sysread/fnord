@@ -19,6 +19,12 @@ defmodule AI.Splitter do
     :done
   ]
 
+  @type t :: %__MODULE__{
+          model: AI.Model.t(),
+          input: binary,
+          done: boolean
+        }
+
   def new(input, model) do
     %AI.Splitter{
       model: model,

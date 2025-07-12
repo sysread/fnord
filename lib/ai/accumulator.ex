@@ -15,11 +15,21 @@ defmodule AI.Accumulator do
     :splitter,
     :buffer,
     :model,
-    :tools,
+    :toolbox,
     :prompt,
     :question,
     :completion_args
   ]
+
+  @type t :: %__MODULE__{
+          splitter: AI.Splitter.t(),
+          buffer: binary,
+          model: binary,
+          toolbox: AI.Tools.toolbox() | nil,
+          prompt: binary,
+          question: binary,
+          completion_args: Keyword.t()
+        }
 
   @accumulator_prompt """
   You are processing input chunks in sequence.
@@ -62,7 +72,7 @@ defmodule AI.Accumulator do
   """
 
   @type success :: {:ok, AI.Completion.t()}
-  @type error :: {:error, String.t()}
+  @type error :: {:error, binary}
   @type response :: success | error
 
   @spec get_response(Keyword.t()) :: response
@@ -71,13 +81,16 @@ defmodule AI.Accumulator do
          {:ok, prompt} <- Keyword.fetch(opts, :prompt),
          {:ok, input} <- Keyword.fetch(opts, :input),
          {:ok, question} <- Keyword.fetch(opts, :question) do
-      tools = Keyword.get(opts, :tools, nil)
+      toolbox =
+        opts
+        |> Keyword.get(:toolbox, nil)
+        |> AI.Tools.build_toolbox()
 
       %__MODULE__{
         splitter: AI.Splitter.new(input, model),
         buffer: "",
         model: model,
-        tools: tools,
+        toolbox: toolbox,
         prompt: prompt,
         question: question,
         completion_args: Keyword.get(opts, :completion_args, [])
@@ -103,7 +116,7 @@ defmodule AI.Accumulator do
     args =
       acc.completion_args
       |> Keyword.put(:model, acc.model)
-      |> Keyword.put(:tools, acc.tools)
+      |> Keyword.put(:toolbox, acc.toolbox)
       |> Keyword.put(:messages, [
         AI.Util.system_msg(system_prompt),
         AI.Util.user_msg(user_prompt)
@@ -150,7 +163,7 @@ defmodule AI.Accumulator do
     args =
       acc.completion_args
       |> Keyword.put(:model, acc.model)
-      |> Keyword.put(:tools, acc.tools)
+      |> Keyword.put(:toolbox, acc.toolbox)
       |> Keyword.put(:messages, [
         AI.Util.system_msg(system_prompt),
         AI.Util.user_msg(user_prompt)

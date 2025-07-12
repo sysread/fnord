@@ -20,13 +20,12 @@ defmodule AI.Agent.Researcher do
     with {:ok, prompt} <- Map.fetch(opts, :prompt) do
       tools =
         AI.Tools.all_tools()
-        |> Map.values()
-        |> Enum.map(& &1.spec())
-        |> Enum.filter(fn tool -> tool.function.name != "research_tool" end)
+        |> AI.Tools.build_toolbox()
+        |> Map.filter(fn {k, _} -> k != "research_tool" end)
 
       AI.Completion.get(
         model: @model,
-        tools: tools,
+        toolbox: tools,
         messages: [
           AI.Util.system_msg(@prompt),
           AI.Util.user_msg(prompt)

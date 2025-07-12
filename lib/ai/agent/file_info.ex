@@ -94,7 +94,7 @@ defmodule AI.Agent.FileInfo do
 
       AI.Accumulator.get_response(
         model: @model,
-        tools: tools,
+        toolbox: tools,
         prompt: @prompt,
         input: content,
         question: question
