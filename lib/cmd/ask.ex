@@ -71,35 +71,10 @@ defmodule Cmd.Ask do
     with {:ok, opts} <- validate(opts),
          {:ok, msgs, conversation} <- restore_conversation(opts),
          opts <- Map.put(opts, :msgs, msgs),
-         %{msgs: msgs, usage: usage, context: context} <- AI.Agent.Coordinator.get_response(opts),
+         {:ok, msgs, usage, context} <- get_response(opts),
          {:ok, conversation_id} <- save_conversation(conversation, msgs) do
       end_time = System.monotonic_time(:second)
-      time_taken = end_time - start_time
-      pct_context_used = Float.round(usage / context * 100, 2)
-
-      UI.flush()
-
-      usage_str = Util.format_number(usage)
-      context_str = Util.format_number(context)
-
-      {:ok, project} = Store.get_project()
-      %{new: new, stale: stale, deleted: deleted} = Store.Project.index_status(project)
-
-      Clipboard.copy(conversation_id)
-
-      UI.say("""
-      ### Response Summary:
-      - Response generated in #{time_taken} seconds
-      - Tokens used: #{usage_str} | #{pct_context_used}% of context window (#{context_str})
-      - Conversation saved with ID #{conversation_id} (_copied to clipboard_)
-
-      ### Project Search Index Status:
-      - Stale:   #{Enum.count(stale)}
-      - New:     #{Enum.count(new)}
-      - Deleted: #{Enum.count(deleted)}
-
-      _Run `fnord index` to update the index._
-      """)
+      print_summary(start_time, end_time, usage, context, conversation_id)
     else
       {:error, :invalid_rounds} ->
         UI.error("--rounds expects a positive integer")
@@ -113,6 +88,39 @@ defmodule Cmd.Ask do
       {:ok, :testing} ->
         :ok
     end
+  end
+
+  defp get_response(opts) do
+    with %{msgs: msgs, usage: usage, context: context} <- AI.Agent.Coordinator.get_response(opts) do
+      {:ok, msgs, usage, context}
+    end
+  end
+
+  defp print_summary(start_time, end_time, usage, context, conversation_id) do
+    time_taken = end_time - start_time
+    pct_context_used = Float.round(usage / context * 100, 2)
+
+    usage_str = Util.format_number(usage)
+    context_str = Util.format_number(context)
+
+    {:ok, project} = Store.get_project()
+    %{new: new, stale: stale, deleted: deleted} = Store.Project.index_status(project)
+
+    UI.say("""
+    ### Response Summary:
+    - Response generated in #{time_taken} seconds
+    - Tokens used: #{usage_str} | #{pct_context_used}% of context window (#{context_str})
+    - Conversation saved with ID #{conversation_id} (_copied to clipboard_)
+
+    ### Project Search Index Status:
+    - Stale:   #{Enum.count(stale)}
+    - New:     #{Enum.count(new)}
+    - Deleted: #{Enum.count(deleted)}
+
+    _Run `fnord index` to update the index._
+    """)
+
+    UI.flush()
   end
 
   defp validate(opts) do
