@@ -114,7 +114,13 @@ defmodule AI.Tools.File.Edit do
              :ok <- File.cp(path, temp),
              :ok <- File.write(temp, updated_contents),
              :ok <- File.rename(temp, abs_path) do
-          {:ok, "#{path} was modified successfully. A backup was created at #{backup}."}
+          {:ok,
+           """
+           #{path} was modified successfully.
+           A backup was created at #{backup}.
+           Remember that after making changes, the line numbers within the file have likely changed.
+           Use the file_contents_tool with the line_numbers parameter to get the updated line numbers.
+           """}
         end
       end
     else

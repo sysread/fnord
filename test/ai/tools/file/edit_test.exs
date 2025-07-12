@@ -3,6 +3,11 @@ defmodule AI.Tools.File.EditTest do
 
   alias AI.Tools.File.Edit
 
+  @generic_msg """
+  Remember that after making changes, the line numbers within the file have likely changed.
+  Use the file_contents_tool with the line_numbers parameter to get the updated line numbers.
+  """
+
   setup do
     project = mock_project("edit-proj")
     File.mkdir_p!(project.source_root)
@@ -13,7 +18,10 @@ defmodule AI.Tools.File.EditTest do
   describe "positive path" do
     test "basic case", %{path: path} do
       args = %{"path" => path, "start_line" => 2, "end_line" => 3, "replacement" => "ccc\nbbb\n"}
-      msg = "#{path} was modified successfully. A backup was created at #{path}.bak.0."
+
+      msg =
+        "#{path} was modified successfully.\nA backup was created at #{path}.bak.0.\n#{@generic_msg}"
+
       assert {:ok, ^msg} = Edit.call(args)
       assert File.read!(path) == "aaa\nccc\nbbb\n\n"
       assert File.exists?(path <> ".bak.0")
@@ -22,20 +30,29 @@ defmodule AI.Tools.File.EditTest do
 
     test "multiple backups are created for multiple edits", %{path: path} do
       args = %{"path" => path, "start_line" => 2, "end_line" => 3, "replacement" => "ccc\nbbb\n"}
-      msg = "#{path} was modified successfully. A backup was created at #{path}.bak.0."
+
+      msg =
+        "#{path} was modified successfully.\nA backup was created at #{path}.bak.0.\n#{@generic_msg}"
+
       assert {:ok, ^msg} = Edit.call(args)
       assert File.exists?(path <> ".bak.0")
 
       # Make another edit
       args = %{"path" => path, "start_line" => 1, "end_line" => 1, "replacement" => "zzz\n"}
-      msg = "#{path} was modified successfully. A backup was created at #{path}.bak.1."
+
+      msg =
+        "#{path} was modified successfully.\nA backup was created at #{path}.bak.1.\n#{@generic_msg}"
+
       assert {:ok, ^msg} = Edit.call(args)
       assert File.exists?(path <> ".bak.1")
     end
 
     test "edit at beginning of file", %{path: path} do
       args = %{"path" => path, "start_line" => 1, "end_line" => 1, "replacement" => "zzz\n"}
-      msg = "#{path} was modified successfully. A backup was created at #{path}.bak.0."
+
+      msg =
+        "#{path} was modified successfully.\nA backup was created at #{path}.bak.0.\n#{@generic_msg}"
+
       assert {:ok, ^msg} = Edit.call(args)
       assert File.read!(path) == "zzz\nbbb\nccc\n\n"
       assert File.exists?(path <> ".bak.0")
@@ -44,7 +61,10 @@ defmodule AI.Tools.File.EditTest do
 
     test "edit at end of file", %{path: path} do
       args = %{"path" => path, "start_line" => 4, "end_line" => 4, "replacement" => "zzz\n"}
-      msg = "#{path} was modified successfully. A backup was created at #{path}.bak.0."
+
+      msg =
+        "#{path} was modified successfully.\nA backup was created at #{path}.bak.0.\n#{@generic_msg}"
+
       assert {:ok, ^msg} = Edit.call(args)
       assert File.read!(path) == "aaa\nbbb\nccc\nzzz\n"
       assert File.exists?(path <> ".bak.0")
@@ -53,7 +73,10 @@ defmodule AI.Tools.File.EditTest do
 
     test "edit to remove lines", %{path: path} do
       args = %{"path" => path, "start_line" => 2, "end_line" => 2, "replacement" => ""}
-      msg = "#{path} was modified successfully. A backup was created at #{path}.bak.0."
+
+      msg =
+        "#{path} was modified successfully.\nA backup was created at #{path}.bak.0.\n#{@generic_msg}"
+
       assert {:ok, ^msg} = Edit.call(args)
       assert File.read!(path) == "aaa\nccc\n\n"
       assert File.exists?(path <> ".bak.0")
@@ -62,7 +85,10 @@ defmodule AI.Tools.File.EditTest do
 
     test "edit to insert line", %{path: path} do
       args = %{"path" => path, "start_line" => 2, "end_line" => 2, "replacement" => "zzz\nbbb\n"}
-      msg = "#{path} was modified successfully. A backup was created at #{path}.bak.0."
+
+      msg =
+        "#{path} was modified successfully.\nA backup was created at #{path}.bak.0.\n#{@generic_msg}"
+
       assert {:ok, ^msg} = Edit.call(args)
       assert File.read!(path) == "aaa\nzzz\nbbb\nccc\n\n"
       assert File.exists?(path <> ".bak.0")
@@ -71,7 +97,10 @@ defmodule AI.Tools.File.EditTest do
 
     test "remove newline at end of file", %{path: path} do
       args = %{"path" => path, "start_line" => 4, "end_line" => 4, "replacement" => ""}
-      msg = "#{path} was modified successfully. A backup was created at #{path}.bak.0."
+
+      msg =
+        "#{path} was modified successfully.\nA backup was created at #{path}.bak.0.\n#{@generic_msg}"
+
       assert {:ok, ^msg} = Edit.call(args)
       assert File.read!(path) == "aaa\nbbb\nccc\n"
       assert File.exists?(path <> ".bak.0")
@@ -81,7 +110,10 @@ defmodule AI.Tools.File.EditTest do
     test "remove newline at beginning of file", %{path: path} do
       File.write!(path, "\n\naaa\nbbb\nccc\n")
       args = %{"path" => path, "start_line" => 1, "end_line" => 1, "replacement" => ""}
-      msg = "#{path} was modified successfully. A backup was created at #{path}.bak.0."
+
+      msg =
+        "#{path} was modified successfully.\nA backup was created at #{path}.bak.0.\n#{@generic_msg}"
+
       assert {:ok, ^msg} = Edit.call(args)
       assert File.read!(path) == "\naaa\nbbb\nccc\n"
       assert File.exists?(path <> ".bak.0")
