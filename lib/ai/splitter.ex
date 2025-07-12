@@ -40,9 +40,14 @@ defmodule AI.Splitter do
   def next_chunk(tok, bespoke_input) do
     bespoke_tokens = AI.PretendTokenizer.guesstimate_tokens(bespoke_input)
     remaining_tokens = tok.model.context - bespoke_tokens
-    remaining_chars = remaining_tokens * 4
-    {slice, remaining} = String.split_at(tok.input, remaining_chars)
-    is_done? = remaining == ""
-    {slice, %{tok | done: is_done?, input: remaining}}
+
+    if remaining_tokens <= 0 do
+      {"", %{tok | done: true, input: ""}}
+    else
+      remaining_chars = remaining_tokens * 4
+      {slice, remaining} = String.split_at(tok.input, remaining_chars)
+      is_done? = remaining == ""
+      {slice, %{tok | done: is_done?, input: remaining}}
+    end
   end
 end
