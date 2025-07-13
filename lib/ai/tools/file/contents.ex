@@ -17,19 +17,7 @@ defmodule AI.Tools.File.Contents do
   def ui_note_on_result(_args, _result), do: nil
 
   @impl AI.Tools
-  def read_args(args) do
-    args
-    |> Map.fetch("file_path")
-    |> case do
-      {:ok, file} -> args |> Map.put("file", file)
-      :error -> args
-    end
-    |> Map.fetch("file")
-    |> case do
-      {:ok, file} -> read_args(%{"file" => file})
-      :error -> AI.Tools.required_arg_error("file")
-    end
-  end
+  def read_args(args), do: {:ok, args}
 
   @impl AI.Tools
   def spec() do
