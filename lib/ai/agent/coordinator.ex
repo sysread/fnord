@@ -276,11 +276,19 @@ defmodule AI.Agent.Coordinator do
   THIS INDICATES THAT THE USER IS EXPECTING YOU TO MAKE PERSISTENT CODE CHANGES TO THE PROJECT.
   ONLY request confirmation from the user if they explicitly ask you to do so.
 
-  # Guidelines:
+  # General rules:
   - Changes should be as minimal as possible
   - Changes should reflect the existing style and conventions of the project
   - Never make changes that the user did not explicitly request
   - Always double check your work; sometimes a change looks different once you see it in context
+
+  # Guidelines:
+  - If you are not sure about a change, ask the user for clarification
+  - If your research identifies amgiguities the user did not consider, ask them for guidance
+  - Look for existing code that implements a similar algorithm or pattern to ensure consistency with the project's style and conventions
+  - Identify and update any unit tests that must be updated (both for the code you are changing as well as any upstream or downstream components that may be affected)
+  - Add test coverage for your changes if it does not already exist
+  - Check other unit tests to get a sense of conventions and style
 
   # Process:
   Code changes should be made one at a time, and only to a contiguous region of a single file.
@@ -342,10 +350,11 @@ defmodule AI.Agent.Coordinator do
 
   @do_you_even_code_bro? """
   <think>
-  The user enabled editing tools, which could mean that they expect me to make the changes myself here...
-  Let's see... did the user ask for any specific changes?
-  If so, I need to be very careful about how I approach this.
-  I need to remember to make those changes now that I've gathered all of the information I need.
+  The user enabled editing tools, which probably means they expect me to make the changes myself.
+  Let's see... what changes did the user ask me to make?
+  I need to approach this thoughtfully.
+  If the user asked me to implement something, I need to be sure that I've addressed all of the requirements.
+  If I have a tool available to tests or syntax/style checks, I should use it to verify that the code is correct.
   </think>
   """
 
