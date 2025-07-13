@@ -58,8 +58,6 @@ defmodule Cmd.Ask do
 
   @impl Cmd
   def run(opts, _subcommands, _unknown) do
-    start_time = System.monotonic_time(:second)
-
     opts =
       if opts[:edit] do
         UI.warning_banner("EDITING MODE ENABLED! THE AI CAN MODIFY FILES. YOU MUST BE NUTS.")
@@ -67,6 +65,8 @@ defmodule Cmd.Ask do
       else
         Map.put(opts, :edit, false)
       end
+
+    start_time = System.monotonic_time(:second)
 
     with {:ok, opts} <- validate(opts),
          {:ok, msgs, conversation} <- restore_conversation(opts),
