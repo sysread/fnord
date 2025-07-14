@@ -75,6 +75,8 @@ defmodule AI.Tools.Coder do
       {:identify_error, error} ->
         {:error,
          """
+         FAILURE: The coder_tool was unable to apply the requested changes. No changes were made to the file.
+
          The agent was unable to identify a single, contiguous range of lines in the file based on the provided instructions:
          #{error}
          """}
@@ -82,6 +84,8 @@ defmodule AI.Tools.Coder do
       {:confirm_error, error, preview} ->
         {:error,
          """
+         FAILURE: The coder_tool was unable to apply the requested changes. No changes were made to the file.
+
          The syntax checking agent found an error in the requested change:
          #{error}
 
@@ -90,7 +94,12 @@ defmodule AI.Tools.Coder do
          """}
 
       {:error, reason} ->
-        {:error, reason}
+        {:error,
+         """
+         FAILURE: The coder_tool was unable to apply the requested changes. No changes were made to the file.
+
+          #{reason}
+         """}
     end
   end
 
