@@ -54,6 +54,8 @@ defmodule FrobsTest do
       assert function_exported?(mod, :call, 1)
       assert function_exported?(mod, :ui_note_on_request, 1)
       assert function_exported?(mod, :ui_note_on_result, 2)
+      assert function_exported?(mod, :async?, 0)
+      assert mod.async?() == true
 
       # Confirm tool spec is accessible through AI.Tools
       tools = %{"hello_test" => mod}

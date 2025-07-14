@@ -309,6 +309,9 @@ defmodule Frobs do
           def ui_note_on_result(_args, result) do
             {"Frob `#{@tool_name}` result", inspect(result, pretty: true, limit: :infinity)}
           end
+
+          @impl AI.Tools
+          def async?, do: true
         end
 
       Module.create(mod_name, quoted, Macro.Env.location(__ENV__))
