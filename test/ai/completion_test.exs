@@ -61,27 +61,52 @@ defmodule AI.CompletionTest do
     end
   end
 
-  describe "get/1" do
-    test "Completion.get/1 surfaces API error response to user" do
-      :meck.expect(AI.CompletionAPI, :get, fn _model, _msgs, _specs ->
-        {:error, %{http_status: 500, code: "server_error", message: "backend exploded"}}
-      end)
-
-      user_msg = %{role: "user", content: "trigger error"}
-
-      assert {:error, state} =
-               AI.Completion.get(
-                 model: AI.Model.new("dummy", 0),
-                 messages: [user_msg],
-                 toolbox: %{}
-               )
-
-      assert state.response =~ "HTTP Status: 500"
-      assert state.response =~ "Error code: server_error"
-      assert state.response =~ "backend exploded"
-    end
+describe "new_from_conversation/2" do
+  test "returns error if conversation does not exist" do
+    conv = %{id: "fake-conv-id"}
+    :meck.expect(Store.Project.Conversation, :exists?, fn ^conv -> false end)
+    assert {:error, :conversation_not_found} = AI.Completion.new_from_conversation(conv, model: "mymodel")
   end
 
+  test "returns error if opts missing :model" do
+    conv = %{id: "existing-conv"}
+    :meck.expect(Store.Project.Conversation, :exists?, fn ^conv -> true end)
+    :meck.expect(Store.Project.Conversation, :read, fn ^conv -> {:ok, 12345, [%{role: "user", content: "some"}]} end)
+    assert :error = AI.Completion.new_from_conversation(conv, [])
+  end
+
+  test "returns ok state if valid conversation and opts" do
+    conv = %{id: "good-conv"}
+    :meck.expect(Store.Project.Conversation, :exists?, fn ^conv -> true end)
+    messages = [%{role: "user", content: "hello"}, %{role: "assistant", content: "world"}]
+    :meck.expect(Store.Project.Conversation, :read, fn ^conv -> {:ok, 888, messages} end)
+    opts = [model: "good-model"]
+    assert {:ok, state} = AI.Completion.new_from_conversation(conv, opts)
+    assert state.model == "good-model"
+    assert state.messages == messages
+  end
+end
+
+describe "get/1" do
+  test "Completion.get/1 surfaces API error response to user" do
+    :meck.expect(AI.CompletionAPI, :get, fn _model, _msgs, _specs ->
+      {:error, %{http_status: 500, code: "server_error", message: "backend exploded"}}
+    end)
+
+    user_msg = %{role: "user", content: "trigger error"}
+
+    assert {:error, state} =
+             AI.Completion.get(
+               model: AI.Model.new("dummy", 0),
+               messages: [user_msg],
+               toolbox: %{}
+             )
+
+    assert state.response =~ "HTTP Status: 500"
+    assert state.response =~ "Error code: server_error"
+    assert state.response =~ "backend exploded"
+  end
+end
   describe "toolbox integration" do
     defmodule TestTool do
       @behaviour AI.Tools
