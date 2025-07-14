@@ -125,7 +125,7 @@ defmodule AI.Tools.File.Edit do
           {:ok,
            """
            #{path} was modified successfully.
-           A backup was created at #{backup}.
+           #{path} is backed up as #{backup}.
            Remember that after making changes, the line numbers within the file have likely changed.
            Use the file_contents_tool with the line_numbers parameter to get the updated line numbers.
            """}
@@ -176,7 +176,23 @@ defmodule AI.Tools.File.Edit do
     |> length()
   end
 
-  defp backup_file(orig, bak_number \\ 0) do
+  defp backup_file(file) do
+    with {:ok, backup} <- Once.get(file) do
+      {:ok, backup}
+    else
+      {:error, :not_seen} ->
+        case backup_file(file, 0) do
+          {:ok, backup} ->
+            Once.set(file, backup)
+            {:ok, backup}
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+    end
+  end
+
+  defp backup_file(orig, bak_number) do
     backup = "#{orig}.bak.#{bak_number}"
 
     if File.exists?(backup) do
