@@ -19,6 +19,9 @@ defmodule AI.Tools do
     @behaviour AI.Tools
 
     @impl AI.Tools
+    def async?(), do: true
+
+    @impl AI.Tools
     def ui_note_on_request(_args) do
       {"Doing something", "This tool is doing something."}
     end
