@@ -1,4 +1,19 @@
 defmodule AI.Notes do
+  @moduledoc """
+  Coordinates the mini-agents that manage project research notes. The workflow for this is:
+  1. Initialize the notes with `init/1`, which loads existing notes from disk.
+  2. Consolidate new notes from the prior research session.
+     This incorporates the new facts in the `NEW NOTES` section into the main body of the notes file.
+  3. As user prompts arrive, ingest user messages with `ingest_user_msg/2`, which updates the user traits based on the user's messages.
+  4. As tool calls are made, ingest research results with `ingest_research/4`, which extracts facts from the tool call results.
+  5. Commit the newly gathered facts to disk with `commit/1`, which appends the new facts to the existing notes.
+     The new facts are stored in a special `NEW NOTES` section that is recognized by the consolidation agent.
+     These will be incorporated into the main notes body at the beginning of the next session.
+
+  The reason for this inverted workflow is because the consolidation process takes much longer than any of the other steps.
+  By performing it at the outset of a session, we reduce the impact of that unfortunate, abeit necessary, time delay on the user experience.
+  """
+
   defstruct [
     :notes,
     :user,
