@@ -303,7 +303,7 @@ defmodule AI.Agent.Coordinator do
   1. Use the `coder_tool` to perform the change.
   2. Inspect the response to ensure that the change is correct.
   3. REREAD THE FILE to verify your changes.
-  4. If available, use your tools to check syntax or run unit tests to ensure the code is correct.
+  4. If available, use your tools to check syntax, run unit tests, and/or format the code to ensure the code is correct and consistent.
      Note that the coding agent has NO access to these tools, so YOU must call them after each change.
   5. If the code is incorrect or does not compile, restore the backup file using the `file_manage_tool` and try again, adjusting your arguments to the `file_edit_tool` as necessary.
   6. Repeat until the code is correct and complete.
