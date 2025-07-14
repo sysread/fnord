@@ -299,5 +299,35 @@ defmodule AI.CompletionTest do
       # should be in order and at the end.
       assert tool_call_ids_in_order == [2, 1, 3]
     end
+
+    test "Completion.get/1 handles unknown tool requests gracefully" do
+      :meck.expect(AI.CompletionAPI, :get, fn _model, msgs, _specs ->
+        tool_calls_sent? = Enum.any?(msgs, fn msg -> Map.has_key?(msg, :tool_calls) end)
+
+        if tool_calls_sent? do
+          {:ok, :msg, "final assistant response", 0}
+        else
+          tool_call = %{id: 1, function: %{name: "ghost_tool", arguments: "{}"}}
+          {:ok, :tool, [tool_call]}
+        end
+      end)
+
+      user_msg = %{role: "user", content: "please use ghost_tool"}
+
+      assert {:ok, state} =
+               AI.Completion.get(
+                 model: AI.Model.new("dummy", 0),
+                 messages: [user_msg],
+                 toolbox: %{"test_tool" => TestTool}
+               )
+
+      assert Enum.any?(state.messages, fn msg ->
+               msg.role == "tool" and msg.name == "ghost_tool" and
+                 (msg.content =~ "not found" or msg.content =~ "unknown tool")
+             end)
+
+      assert List.last(state.messages).role == "assistant"
+      assert List.last(state.messages).content == "final assistant response"
+    end
   end
 end
