@@ -1,0 +1,179 @@
+defmodule AI.CompletionTest do
+  use Fnord.TestCase
+
+  setup do: set_config(quiet: true)
+
+  setup do
+    :meck.new(AI.CompletionAPI, [:non_strict])
+    :ok
+  end
+
+  describe "get/1" do
+    test "Completion.get/1 surfaces API error response to user" do
+      :meck.expect(AI.CompletionAPI, :get, fn _model, _msgs, _specs ->
+        {:error, %{http_status: 500, code: "server_error", message: "backend exploded"}}
+      end)
+
+      user_msg = %{role: "user", content: "trigger error"}
+
+      assert {:error, state} =
+               AI.Completion.get(
+                 model: AI.Model.new("dummy", 0),
+                 messages: [user_msg],
+                 toolbox: %{}
+               )
+
+      assert state.response =~ "HTTP Status: 500"
+      assert state.response =~ "Error code: server_error"
+      assert state.response =~ "backend exploded"
+
+      :meck.unload(AI.CompletionAPI)
+    end
+  end
+
+  describe "toolbox integration" do
+    defmodule TestTool do
+      @behaviour AI.Tools
+
+      @impl AI.Tools
+      def async?, do: true
+
+      @impl AI.Tools
+      def spec do
+        %{
+          type: "function",
+          function: %{
+            name: "test_tool",
+            parameters: %{type: "object", required: [], properties: %{}}
+          }
+        }
+      end
+
+      @impl AI.Tools
+      def is_available?, do: true
+
+      @impl AI.Tools
+      def read_args(args), do: {:ok, args}
+
+      @impl AI.Tools
+      def call(_args), do: {:ok, "tool_result"}
+
+      @impl AI.Tools
+      def ui_note_on_request(_args), do: {"Calling test_tool", "Invoking test_tool"}
+
+      @impl AI.Tools
+      def ui_note_on_result(_args, _result), do: {"Called test_tool", "test_tool completed"}
+    end
+
+    defmodule TestToolSync do
+      @behaviour AI.Tools
+
+      @impl AI.Tools
+      def async?, do: false
+
+      @impl AI.Tools
+      def spec do
+        %{
+          type: "function",
+          function: %{
+            name: "test_tool_sync",
+            parameters: %{type: "object", required: [], properties: %{}}
+          }
+        }
+      end
+
+      @impl AI.Tools
+      def is_available?, do: true
+
+      @impl AI.Tools
+      def read_args(args), do: {:ok, args}
+
+      @impl AI.Tools
+      def call(_args), do: {:ok, "tool_result_sync"}
+
+      @impl AI.Tools
+      def ui_note_on_request(_args) do
+        {"Calling test_tool_sync", "Invoking test_tool_sync"}
+      end
+
+      @impl AI.Tools
+      def ui_note_on_result(_args, _result) do
+        {"Called test_tool_sync", "test_tool completed_sync"}
+      end
+    end
+
+    test "Completion.get/1 invokes local tools from toolbox" do
+      # Stub CompletionAPI.get to return a tool call, then a final assistant message
+      :meck.expect(AI.CompletionAPI, :get, fn _model, msgs, _specs ->
+        tool_calls_sent? = Enum.any?(msgs, fn msg -> Map.has_key?(msg, :tool_calls) end)
+
+        if tool_calls_sent? do
+          {:ok, :msg, "final response", 0}
+        else
+          tool_call = %{id: 1, function: %{name: "test_tool", arguments: "{}"}}
+          {:ok, :tool, [tool_call]}
+        end
+      end)
+
+      user_msg = %{role: "user", content: "run test_tool"}
+
+      assert {:ok, state} =
+               AI.Completion.get(
+                 model: AI.Model.new("dummy", 0),
+                 messages: [user_msg],
+                 toolbox: %{"test_tool" => TestTool}
+               )
+
+      # Assert the tool request message is present
+      assert Enum.any?(state.messages, fn msg ->
+               msg.role == "assistant" and msg.content == nil and Map.has_key?(msg, :tool_calls)
+             end)
+
+      # Assert the tool response message includes our tool result
+      assert Enum.any?(state.messages, fn msg ->
+               msg.role == "tool" and msg.name == "test_tool" and msg.content =~ "tool_result"
+             end)
+
+      # Assert the final assistant message is included
+      assert List.last(state.messages).role == "assistant"
+      assert List.last(state.messages).content == "final response"
+      :meck.unload(AI.CompletionAPI)
+    end
+
+    test "Tool calls invocation respects async?/0" do
+      # Stub CompletionAPI.get to return a tool call, then a final assistant message
+      :meck.expect(AI.CompletionAPI, :get, fn _model, msgs, _specs ->
+        tool_calls_sent? = Enum.any?(msgs, fn msg -> Map.has_key?(msg, :tool_calls) end)
+
+        if tool_calls_sent? do
+          {:ok, :msg, "final response", 0}
+        else
+          {:ok, :tool,
+           [
+             %{id: 1, function: %{name: "test_tool_sync", arguments: "{}"}},
+             %{id: 2, function: %{name: "test_tool", arguments: "{}"}},
+             %{id: 3, function: %{name: "test_tool_sync", arguments: "{}"}}
+           ]}
+        end
+      end)
+
+      user_msg = %{role: "user", content: "do stuff, por favor"}
+
+      assert {:ok, state} =
+               AI.Completion.get(
+                 model: AI.Model.new("dummy", 0),
+                 messages: [user_msg],
+                 toolbox: %{"test_tool" => TestTool}
+               )
+
+      tool_call_ids_in_order =
+        state.messages
+        |> Enum.filter(&(&1.role == "tool"))
+        |> Enum.map(& &1.tool_call_id)
+
+      # #2 should be shuffled ahead because it's async. #1 and #3 are sync and
+      # should be in order and at the end.
+      assert tool_call_ids_in_order == [2, 1, 3]
+    end
+  end
+end

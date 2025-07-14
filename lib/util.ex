@@ -257,6 +257,7 @@ defmodule Util do
   separator (default is "|"). The numbering starts from 1, or `start_index`, if
   set.
   """
+  @spec numbered_lines(binary, binary, integer) :: binary
   def numbered_lines(text, separator \\ "|", start_index \\ 1) do
     text
     |> String.split("\n", trim: false)

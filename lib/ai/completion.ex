@@ -194,6 +194,13 @@ defmodule AI.Completion do
 
   # -----------------------------------------------------------------------------
   # Tool calls
+  #
+  # Note: We intentionally process and log each tool call as its own
+  # assistant/tool message pair, rather than grouping multiple tool calls in a
+  # single assistant message as the OpenAI API allows. This makes it easier to
+  # guarantee tool results always appear immediately after their request,
+  # simplifies auditing, and avoids out-of-order response issues. If you need
+  # OpenAI-compatible message grouping, refactor here.
   # -----------------------------------------------------------------------------
   defp handle_tool_calls(%{tool_call_requests: tool_calls} = state) do
     {async_calls, serial_calls} =

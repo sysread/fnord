@@ -265,21 +265,21 @@ defmodule AI.Tools.Coder do
       |> File.read!()
       |> Util.numbered_lines()
 
+    hunk =
+      file_contents
+      |> String.split("\n")
+      |> Enum.slice(start_line - 1, end_line - start_line + 1)
+      |> Enum.join("\n")
+
     system = """
     You are an AI coding assistant within a larger AI system.
     The Coordinating Agent asks you to apply changes to a file based on the provided instructions for a coding task.
-    Your changes will COMPLETELY replace the specified range of lines in the file.
-    Respond with a block of code that will replace all other content within the specified range of lines in the file.
+    Your changes will COMPLETELY replace the hunk defined by the line range in the file.
+    Respond with a block of code that will replace all other content within the hunk.
     Do not include any other text, comments, explanations, or markdown fences in your response.
     """
 
     user = """
-    Please apply the following changes to the specified range of lines in the file.
-    Perform NO other edits.
-    Make ONLY the changes explicitly requested by the Coordinating Agent.
-    # Instructions
-    #{instructions}
-
     # File: #{file}
     The file contents include 1-based line numbers at the start of each line, separated by a pipe (|).
     IMPORTANT: Your response must NOT include any line numbers or their pipe (`|`) separators.
@@ -289,6 +289,18 @@ defmodule AI.Tools.Coder do
     #{file_contents}
     ```
 
+    # Hunk: #{start_line}...#{end_line}
+    This is the hunk from the file that will be replaced by your response.
+    ```
+    #{hunk}
+    ```
+
+    # Instructions
+    Apply the following changes to the specified range of lines in the file.
+    Make ONLY the changes explicitly requested by the Coordinating Agent.
+    Perform NO other edits.
+
+    #{instructions}
     """
 
     AI.Completion.get(
