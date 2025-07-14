@@ -34,6 +34,7 @@ defmodule AI.Tools.Coder do
         name: "coder_tool",
         description: """
         Triggers an LLM agent to perform a coding task to a contiguous region within a single file in the project source root.
+        The LLM has no access to the tool_calls you have available. It can ONLY edit files. YOU must provide all information and context required to perform the task.
         Instructions must include ALL relevant context; this agent has no access to the prior conversation.
         Instructions must include clear, unambiguous "anchors", identifying a *single* region of the file to edit.
         Examples:
