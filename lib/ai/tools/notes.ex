@@ -2,6 +2,9 @@ defmodule AI.Tools.Notes do
   @behaviour AI.Tools
 
   @impl AI.Tools
+  def async?, do: true
+
+  @impl AI.Tools
   def spec do
     %{
       type: "function",

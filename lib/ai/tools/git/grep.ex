@@ -2,6 +2,9 @@ defmodule AI.Tools.Git.Grep do
   @behaviour AI.Tools
 
   @impl AI.Tools
+  def async?, do: true
+
+  @impl AI.Tools
   def is_available?, do: Git.is_available?()
 
   @impl AI.Tools

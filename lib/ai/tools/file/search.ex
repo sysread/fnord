@@ -3,6 +3,9 @@ defmodule AI.Tools.File.Search do
 
   @behaviour AI.Tools
 
+  @impl AI.Tools
+  def async?, do: true
+
   @doc """
   This tool requires that the project has been indexed to use. If the project
   has not been indexed, the tool should not be made available.

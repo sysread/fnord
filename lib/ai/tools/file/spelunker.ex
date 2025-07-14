@@ -2,6 +2,9 @@ defmodule AI.Tools.File.Spelunker do
   @behaviour AI.Tools
 
   @impl AI.Tools
+  def async?, do: true
+
+  @impl AI.Tools
   def is_available?, do: AI.Tools.has_indexed_project()
 
   @impl AI.Tools

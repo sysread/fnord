@@ -4,6 +4,9 @@ defmodule AI.Tools.Coder do
   @behaviour AI.Tools
 
   @impl AI.Tools
+  def async?, do: false
+
+  @impl AI.Tools
   def is_available?, do: AI.Tools.has_indexed_project()
 
   @impl AI.Tools

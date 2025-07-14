@@ -9,6 +9,9 @@ defmodule AI.Tools.File.Edit do
   @behaviour AI.Tools
 
   @impl AI.Tools
+  def async?, do: true
+
+  @impl AI.Tools
   def is_available?, do: true
 
   @impl AI.Tools

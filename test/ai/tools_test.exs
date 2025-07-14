@@ -7,6 +7,9 @@ defmodule AI.ToolsTest do
     @behaviour AI.Tools
 
     @impl AI.Tools
+    def async?, do: true
+
+    @impl AI.Tools
     def is_available?, do: true
 
     @impl AI.Tools
@@ -132,6 +135,9 @@ defmodule AI.ToolsTest do
       @behaviour AI.Tools
 
       @impl AI.Tools
+      def async?, do: true
+
+      @impl AI.Tools
       def spec, do: %{function: %{name: "mock_build_tool"}}
 
       @impl AI.Tools
@@ -158,6 +164,9 @@ defmodule AI.ToolsTest do
       @behaviour AI.Tools
 
       @impl AI.Tools
+      def async?, do: true
+
+      @impl AI.Tools
       def spec, do: nil
 
       @impl AI.Tools
@@ -177,7 +186,9 @@ defmodule AI.ToolsTest do
     end
 
     test "skips modules with malformed or missing spec/0" do
-      assert AI.Tools.build_toolbox([MockBuildTool, BadSpecTool]) == %{"mock_build_tool" => MockBuildTool}
+      assert AI.Tools.build_toolbox([MockBuildTool, BadSpecTool]) == %{
+               "mock_build_tool" => MockBuildTool
+             }
     end
   end
 end

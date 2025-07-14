@@ -353,6 +353,15 @@ defmodule AI.Tools do
     end
   end
 
+  @spec is_async?(tool_name, toolbox | nil) :: boolean
+  def is_async?(tool_name, tools \\ nil) do
+    with {:ok, module} <- tool_module(tool_name, tools) do
+      module.async?()
+    else
+      _ -> false
+    end
+  end
+
   # ----------------------------------------------------------------------------
   # Common Utility Functions
   # ----------------------------------------------------------------------------

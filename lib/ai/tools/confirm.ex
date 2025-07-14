@@ -2,6 +2,9 @@ defmodule AI.Tools.Confirm do
   @behaviour AI.Tools
 
   @impl AI.Tools
+  def async?, do: false
+
+  @impl AI.Tools
   def spec do
     %{
       type: "function",
