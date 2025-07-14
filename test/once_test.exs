@@ -8,6 +8,15 @@ defmodule OnceTest do
     :ok
   end
 
+  test "mark returns true for a new key" do
+    assert Once.mark("new_key") == true
+  end
+
+  test "mark returns false for an existing key" do
+    assert Once.mark("existing_key") == true
+    assert Once.mark("existing_key") == false
+  end
+
   test "warn logs the message only once" do
     msg = "hello"
 
