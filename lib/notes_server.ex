@@ -78,337 +78,42 @@ defmodule NotesServer do
   """
   @spec commit() :: :ok | {:error, any}
   def commit() do
-    UI.debug("[notes-server] committing new notes to persistent storage")
+    UI.debug("[notes-server] saving research collected this session")
     GenServer.call(__MODULE__, :commit, :infinity)
   end
 
   # -----------------------------------------------------------------------------
   # Server API
   # -----------------------------------------------------------------------------
-  @user %{
-    model: AI.Model.fast(),
-    prompt: """
-    You are a highly empathetic AI assistant that gleans knowledge about the user from the tone and content of their messages.
-    Your role is to attempt to deduce the user's coding preferences, learning style, personality, and other relevant traits based on their interactions.
-    Respond with a formatted markdown list of user traits without any additional text.
-    Additionally, note if you identify that a prior learning about the user was incorrect or is no longer valid.
-    Each item should mention that is is a trait of the user, e.g.: "User is experienced with Elixir"
-    If nothing was identified, respond with "N/A" on a single line.
-    """
-  }
-
-  @facts %{
-    model: AI.Model.fast(),
-    prompt: """
-    You are a research assistant that extracts facts about the project from tool call results.
-    Extract every non-transient fact about the project from the tool call result.
-    Topics of interest include (but are not limited to):
-    - Project purpose and goals
-    - Languages, frameworks, and technologies used
-    - Coding, style, and testing conventions
-    - Repo/app layout and organization
-    - Applications and components, their locations, and dependencies
-    - Any other notes about how the code behaves, integrates, etc.
-    - Details about individual features, components, modules, tests, etc.
-    Respond with a formatted markdown list of facts without any additional text.
-    If nothing was identified, respond with "N/A" on a single line.
-    Just the facts, ma'am!
-    """
-  }
-
-  @ask %{
-    model: AI.Model.fast(),
-    prompt: """
-    You are a research assistant that answers questions about past research done on the project.
-    Your role is to provide concise, accurate answers based on the existing project notes.
-    When asked a question, extract all relevant information from the existing notes and organize it effectively based on your understanding of the requestor's needs.
-    """
-  }
-
-  @consolidate %{
-    model: AI.Model.smart(),
-    prompt: """
-    You are a research assistant that consolidates and organizes project notes.
-    Your role is to incorporate newly extracted facts into existing project notes, ensuring that all information is accurate, up-to-date, and well-organized.
-    DO NOT lose ANY prior facts that were not disproven by the new notes.
-    Respond with the updated notes in markdown format, without any additional text, wrapping code fences, or explanations.
-
-    Newly organized facts will appear at the end of the existing notes in the document you are provided.
-    There may be multiple `# NEW NOTES (unconsolidated)` sections, each containing a list of new facts.
-    These should be consolidated into the existing notes.
-    The `# NEW NOTES (unconsolidated)` section(s) are removed after being incorporated into the document proper.
-
-    Goals:
-    - **Overall Goal:** Manage a well-organized, comprehensive, archive of research notes about the project.
-    - Dismiss ephemeral facts that (e.g. about individual tickets, PRs, or changes) that are not persistently relevant.
-    - Conflicting facts should be resolved by keeping the most recent information.
-    - Ensure the notes are organized by topic and concise.
-    - Combine nearly identical facts into a single entry.
-    - Reorganize as needed to improve clarity and flow.
-
-    Response Template:
-    # SYNOPSIS
-    [Summary of project purpose]
-
-    # USER
-    [Bullet list of knowledge about the user, preferences, and relevant traits]
-
-    # LANGUAGES AND TECHNOLOGIES
-    [Bullet list of languages, frameworks, and technologies used in the project]
-
-    # CONVENTIONS
-    [Bullet list of coding conventions, style pointers, test conventions followed in the project]
-
-    # LAYOUT
-    [Repo/app layout, interaction, organization]
-
-    # APPLICATIONS & COMPONENTS
-    [For each app/component: brief description, location, dependencies]
-
-    # NOTES
-    [Organized by topic: subheading per topic, then a list of facts]
-    """
-  }
-
   def init(_opts) do
-    {:ok, %{notes: "", user: "", new_facts: []}}
+    {:ok, AI.Notes.new()}
   end
 
   def handle_cast(:load_notes, state) do
-    with {:ok, notes} <- Store.Project.Notes.read() do
-      # Parse out USER section
-      user_section = extract_user_section(notes)
-      {:noreply, %{state | notes: notes, user: user_section}}
-    else
-      # No notes yet
-      {:error, :enoent} ->
-        {:noreply, %{state | notes: "", new_facts: []}}
-
-      {:error, reason} ->
-        UI.error("[notes-server] failed to load notes", inspect(reason))
-        {:noreply, state}
-    end
+    {:noreply, AI.Notes.init(state)}
   end
 
   def handle_cast({:ingest_user_msg, msg_text}, state) do
-    AI.Completion.get(
-      log_messages: false,
-      log_tool_calls: false,
-      model: @user.model,
-      messages: [
-        AI.Util.system_msg(@user.prompt),
-        AI.Util.user_msg("""
-        Background on the user (from your previous notes):
-        #{state.user}
-
-        The user said:
-        > #{msg_text}
-        """)
-      ]
-    )
-    |> case do
-      {:ok, %{response: response}} ->
-        response
-        |> String.trim()
-        |> String.downcase()
-        |> case do
-          "n/a" -> {:noreply, state}
-          facts -> {:noreply, %{state | new_facts: [facts | state.new_facts]}}
-        end
-
-      {:error, reason} ->
-        UI.error("[notes-server] failed to ingest research", reason)
-        {:noreply, state}
-    end
+    {:noreply, AI.Notes.ingest_user_msg(state, msg_text)}
   end
 
   def handle_cast({:ingest_research, func, args_json, result}, state) do
-    AI.Completion.get(
-      log_messages: false,
-      log_tool_calls: false,
-      model: @facts.model,
-      messages: [
-        AI.Util.system_msg(@facts.prompt),
-        AI.Util.user_msg("""
-        The following tool call was made:
-
-        **Function:** #{func}
-        **Arguments:**
-        ```json
-        #{args_json}
-        ```
-
-        The result of the tool call was:
-        #{inspect(result, pretty: true)}
-        """)
-      ]
-    )
-    |> case do
-      {:ok, %{response: response}} ->
-        response
-        |> String.trim()
-        |> String.downcase()
-        |> case do
-          "n/a" -> {:noreply, state}
-          facts -> {:noreply, %{state | new_facts: [facts | state.new_facts]}}
-        end
-
-      {:error, reason} ->
-        UI.error("[notes-server] failed to ingest research", reason)
-        {:noreply, state}
-    end
+    {:noreply, AI.Notes.ingest_research(state, func, args_json, result)}
   end
 
   def handle_cast(:consolidate, state) do
-    input = """
-    Please reorganize and consolidate the following project notes according to the specified guidelines.
-    -----
-    #{state.notes}
-    """
-
-    AI.Completion.get(
-      log_messages: false,
-      log_tool_calls: false,
-      model: @consolidate.model,
-      messages: [
-        AI.Util.system_msg(@consolidate.prompt),
-        AI.Util.user_msg(input)
-      ]
-    )
-    |> case do
-      {:ok, %{response: response}} ->
-        response
-        |> clean_notes_string()
-        |> case do
-          {:error, :empty_string} ->
-            UI.warn("[notes-server] consolidation agent responded with an empty string :/")
-            {:noreply, state}
-
-          {:ok, notes} ->
-            notes
-            |> Store.Project.Notes.write()
-            |> case do
-              :ok ->
-                UI.info("[notes-server] notes consolidated and saved")
-                {:noreply, %{state | notes: notes, new_facts: []}}
-
-              {:error, reason} ->
-                UI.error("[notes-server] failed to save consolidated notes", reason)
-                {:noreply, state}
-            end
-
-            {:noreply, %{state | notes: notes}}
-        end
-
-      {:error, reason} ->
-        UI.error("[notes-server] failed to consolidate notes", reason)
-        {:noreply, state}
-    end
+    {:noreply, AI.Notes.consolidate(state)}
   end
 
   def handle_call(:commit, _from, state) do
-    # Get the most recent copy of the notes, just in case another session was
-    # running in parallel.
-    with {:ok, notes} <- Store.Project.Notes.read() do
-      facts = format_notes(state)
-
-      notes = """
-      #{notes}
-
-      # NEW NOTES (unconsolidated)
-      #{facts}
-      """
-
-      Store.Project.Notes.write(notes)
-      |> case do
-        :ok ->
-          UI.info("[notes-server] new notes saved")
-          {:reply, :ok, %{state | new_facts: [], notes: notes}}
-
-        {:error, reason} ->
-          UI.error("[notes-server] error saving new notes", reason)
-          {:reply, {:error, reason}, state}
-      end
+    with {:ok, state} <- AI.Notes.commit(state) do
+      {:reply, :ok, state}
+    else
+      {:error, reason} -> {:reply, {:error, reason}, state}
     end
   end
 
   def handle_call({:ask, question}, _from, state) do
-    AI.Completion.get(
-      log_messages: false,
-      log_tool_calls: false,
-      model: @ask.model,
-      messages: [
-        AI.Util.system_msg(@ask.prompt),
-        AI.Util.user_msg("""
-        The following are the existing research notes about the project.
-        #{state.notes}
-        """),
-        AI.Util.user_msg("""
-        # New facts:
-        The following are the new facts that have been collected during the current session.
-        #{format_notes(state)}
-        """),
-        AI.Util.user_msg("""
-        #{question}
-        """)
-      ]
-    )
-    |> case do
-      {:ok, %{response: response}} ->
-        response
-        |> String.trim()
-        |> case do
-          "" -> {:reply, "No relevant information found.", state}
-          answer -> {:reply, answer, state}
-        end
-
-      {:error, reason} ->
-        UI.error("[notes-server] failed to answer question", reason)
-        {:reply, "Error processing request.", state}
-    end
-  end
-
-  # -----------------------------------------------------------------------------
-  # Utility Functions
-  # -----------------------------------------------------------------------------
-  defp clean_notes_string(input) do
-    trimmed =
-      input
-      |> String.split("\n", trim: false)
-      |> Enum.map(&String.trim_trailing/1)
-      |> Enum.join("\n")
-
-    if Regex.match?(~r/[[:graph:]]/, trimmed) do
-      {:ok, trimmed}
-    else
-      {:error, :empty_string}
-    end
-  end
-
-  defp extract_user_section(text) do
-    text
-    |> String.split(~r/\n{2,}/)
-    |> Enum.drop_while(&(!String.starts_with?(&1, "# USER")))
-    |> case do
-      [section | _] -> section
-      [] -> ""
-    end
-  end
-
-  defp format_notes(state) do
-    state.new_facts
-    |> Enum.reverse()
-    |> Enum.flat_map(&String.split(&1, "\n", trim: true))
-    |> Enum.map(fn fact ->
-      cond do
-        # list item w/o indentation
-        String.starts_with?(fact, "- ") -> fact
-        # list item with indentation
-        fact |> String.trim() |> String.starts_with?("- ") -> fact
-        # not a list item, so make it one
-        true -> "- #{fact}"
-      end
-    end)
-    |> Enum.join("\n")
+    {:reply, AI.Notes.ask(state, question), state}
   end
 end
