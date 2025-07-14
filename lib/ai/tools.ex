@@ -119,6 +119,13 @@ defmodule AI.Tools do
   @callback spec() :: tool_spec
 
   @doc """
+  Returns true if the tool is asynchronous, false otherwise. If `false`, when
+  the LLM performs a multi-tool call, this tool will be called synchronously,
+  after all other (asynchronous) tools have been called.
+  """
+  @callback async?() :: boolean
+
+  @doc """
   Returns true if the tool is available for use, false otherwise. This is used
   to determine whether the tool can be used in the current context, such as
   whether the tool is available in the current project or if it requires
