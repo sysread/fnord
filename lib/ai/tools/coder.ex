@@ -38,7 +38,7 @@ defmodule AI.Tools.Coder do
         Instructions must include ALL relevant context; this agent has no access to the prior conversation.
         Instructions must include clear, unambiguous "anchors", identifying a *single* region of the file to edit.
         Examples:
-        - "Add a new, private function at the end of the file named `blarg`. The function accepts 2 positional arguments, ..."
+        - "Add a new, private function at the end of the file (in a syntactically appropriate location) named `blarg`. The function accepts 2 positional arguments, ..."
         - "In the import list at the top of the file, remove the import for `foo.bar` and add an import for `baz.qux`."
         - "This file contains a mix of spaces and tabs. Convert all tabs to spaces, and ensure the indentation is consistent with 2 spaces per level."
         """,
@@ -174,7 +174,9 @@ defmodule AI.Tools.Coder do
     You are an AI coding assistant within a larger AI system.
     The Coordinating Agent asks you to identify a contiguous range of lines in a file based on the provided instructions for a coding task it is planning.
     Identify the *single*, contiguous range of lines in the file to be replaced, based on the instructions.
-    If the instructions are ambiguous or do not clearly identify a single range, respond with an error message that clearly explains the problem.
+    Use your programming expertise to ensure that the range is appropriate to the intent of the instructions.
+    For example, if asked to add a function at the end of the file, ensure the range would place the new function in a syntactically appropriate location.
+    If the instructions are ambiguous or do not clearly point to a single range, respond with an error message that clearly explains the problem.
 
     # Response Format
     You MUST respond ONLY with a single JSON object with the following fields, based on whether you were able to identify a range:
