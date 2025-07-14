@@ -94,6 +94,15 @@ defmodule AI.Tools.Coder do
          #{preview}
          """}
 
+      {:error, :enoent} ->
+        {:error,
+         """
+         FAILURE: The coder_tool was unable to apply the requested changes. No changes were made to the file.
+
+         The requested file does not exist or is not a regular file.
+         Please use the `list_files_tool` or one of the search tools to find the correct file path.
+         """}
+
       {:error, reason} ->
         {:error,
          """
@@ -333,8 +342,11 @@ defmodule AI.Tools.Coder do
     system = """
     You are an AI coding assistant within a larger AI system.
     The Coordinating Agent has asked you to confirm the changes made to a file based on the provided preview.
-    You are required to confirm whether the changes are 1) correct, and, 2) syntactically valid.
-    Use your programming knowledge to determine if the changes are *syntactically* correct.
+    You are required to confirm whether the changes are 1) correct, 2) syntactically valid, 3) true to the intent of the instructions.
+    Use your programming knowledge to determine if the changes are syntactically correct.
+    Use your experience as an engineer to determine if the changes are true to the intent of the instructions.
+    If any significant issues are identified, respond with a clear error message explaining the problem.
+    Bonus points if you can suggest improved instructions to avoid the issue on the next attempt.
 
     # Response Format
     Respond ONLY with one of the two following JSON objects:
