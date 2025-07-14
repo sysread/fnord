@@ -34,3 +34,6 @@ tags
 
 # JetBrain's IDE local configuration files
 .idea/
+
+# Why did Apple think this was a solid design choice?
+.DS_Store
