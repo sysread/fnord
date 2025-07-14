@@ -23,10 +23,13 @@ dialyzer: ## Run Dialyzer
 check: compile test dialyzer ## Run all checks
 	@echo "All checks passed"
 
-.PHONY: publish check
-publish: ## Publish the package
+.PHONY: release
+release: publish ## Alias for publish because apparently this is what my fingers' muscle memory prefers
+
+.PHONY: publish
+publish: check ## Publish the package
 	mix hex.publish
 
-.PHONY: republish check
-republish: ## Republish the package (within like 20m of publishing the last version)
+.PHONY: republish
+republish: check ## Republish the package (within like 20m of publishing the last version)
 	mix hex.publish --force
