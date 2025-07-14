@@ -37,3 +37,6 @@ tags
 
 # Why did Apple think this was a solid design choice?
 .DS_Store
+
+# Fnord generates backups when it writes code. Ignore them and use `make clean-bak` to remove them.
+**/*.bak.*
