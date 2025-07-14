@@ -19,24 +19,23 @@ defmodule AI.Tools.File.Info do
   def read_args(args) do
     with {:ok, files} <- get_files(args),
          {:ok, question} <- get_question(args) do
-      args =
-        %{"files" => files, "question" => question}
-        |> Map.fetch("name")
-        |> case do
-          {:ok, _name} ->
-            {:ok, args}
+      args
+      |> Map.put("files", files)
+      |> Map.put("question", question)
+      |> Map.fetch("name")
+      |> case do
+        {:ok, _name} ->
+          {:ok, args}
 
-          :error ->
-            with {:ok, name} <- AI.Agent.Nomenclater.get_response(%{}) do
-              args
-              |> Map.put("name", name)
-              |> then(&{:ok, &1})
-            else
-              _ -> {:ok, args |> Map.put("name", "File Info Agent")}
-            end
-        end
-
-      {:ok, args}
+        :error ->
+          with {:ok, name} <- AI.Agent.Nomenclater.get_response(%{}) do
+            args
+            |> Map.put("name", name)
+            |> then(&{:ok, &1})
+          else
+            _ -> {:ok, args |> Map.put("name", "File Info Agent")}
+          end
+      end
     end
   end
 
