@@ -254,12 +254,13 @@ defmodule Util do
 
   @doc """
   Adds line numbers to each line of the input text, separated by a specified
-  separator (default is "|"). The numbering starts from 1.
+  separator (default is "|"). The numbering starts from 1, or `start_index`, if
+  set.
   """
-  def numbered_lines(text, separator \\ "|") do
+  def numbered_lines(text, separator \\ "|", start_index \\ 1) do
     text
     |> String.split("\n", trim: false)
-    |> Enum.with_index(1)
+    |> Enum.with_index(start_index)
     |> Enum.map(fn {line, idx} -> "#{idx}#{separator}#{line}" end)
     |> Enum.join("\n")
   end

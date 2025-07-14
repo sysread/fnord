@@ -1,4 +1,11 @@
 defmodule AI.Tools.File.Edit do
+  @moduledoc """
+  Currently, this module is not used as a tool_call directly. Instead, it is
+  used by `AI.Tools.Coder`, the tool directly called by the AI agent. This tool
+  is instead used to perform the file edits themselves, after the AI-backed
+  tool does the work of identifying the lines to edit and the replacement text.
+  """
+
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -208,12 +215,23 @@ defmodule AI.Tools.File.Edit do
       end)
       |> Enum.join("\n")
 
+    # Number the snippets for clarity
+    orig_snippet =
+      orig_snippet
+      |> Enum.join("\n")
+      |> Util.numbered_lines("|", start_line - context_lines)
+
+    updated_snippet =
+      updated_snippet
+      |> Enum.join("\n")
+      |> Util.numbered_lines("|", start_line - context_lines)
+
     """
     --- ORIGINAL (with context) ---
-    #{Enum.join(orig_snippet, "\n")}
+    #{orig_snippet}
 
     --- UPDATED (with context) ---
-    #{Enum.join(updated_snippet, "\n")}
+    #{updated_snippet}
 
     --- UNIFIED DIFF ---
     #{diff}
