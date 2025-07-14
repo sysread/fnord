@@ -8,12 +8,8 @@ defmodule AI.Tools.File.Info do
   def is_available?, do: true
 
   @impl AI.Tools
-  def ui_note_on_request(%{"files" => files, "question" => question}) do
-    {"Considering #{Enum.join(files, ", ")}", question}
-  end
-
-  def ui_note_on_request(args) do
-    {"file_info_tool", "invalid arguments: #{inspect(args)}"}
+  def ui_note_on_request(%{"files" => files, "question" => question, "name" => name}) do
+    {"#{name} is considering #{Enum.join(files, ", ")}", question}
   end
 
   @impl AI.Tools
@@ -23,7 +19,24 @@ defmodule AI.Tools.File.Info do
   def read_args(args) do
     with {:ok, files} <- get_files(args),
          {:ok, question} <- get_question(args) do
-      {:ok, %{"files" => files, "question" => question}}
+      args =
+        %{"files" => files, "question" => question}
+        |> Map.fetch("name")
+        |> case do
+          {:ok, _name} ->
+            {:ok, args}
+
+          :error ->
+            with {:ok, name} <- AI.Agent.Nomenclater.get_response(%{}) do
+              args
+              |> Map.put("name", name)
+              |> then(&{:ok, &1})
+            else
+              _ -> {:ok, args |> Map.put("name", "File Info Agent")}
+            end
+        end
+
+      {:ok, args}
     end
   end
 

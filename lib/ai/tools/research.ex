@@ -9,12 +9,12 @@ defmodule AI.Tools.Research do
 
   @impl AI.Tools
   def ui_note_on_request(args) do
-    {"Assigning research task", args["prompt"]}
+    {"Assigning research task to #{args["name"]}", args["prompt"]}
   end
 
   @impl AI.Tools
   def ui_note_on_result(args, result) do
-    {"Research task completed",
+    {"Research task completed by #{args["name"]}",
      """
      # Prompt
      #{args["prompt"]}
@@ -25,7 +25,23 @@ defmodule AI.Tools.Research do
   end
 
   @impl AI.Tools
-  def read_args(args), do: {:ok, args}
+  def read_args(args) do
+    args
+    |> Map.fetch("name")
+    |> case do
+      {:ok, _name} ->
+        {:ok, args}
+
+      :error ->
+        with {:ok, name} <- AI.Agent.Nomenclater.get_response(%{}) do
+          args
+          |> Map.put("name", name)
+          |> then(&{:ok, &1})
+        else
+          _ -> {:ok, args |> Map.put("name", "Research Agent")}
+        end
+    end
+  end
 
   @impl AI.Tools
   def spec() do
