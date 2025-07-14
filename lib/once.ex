@@ -15,11 +15,27 @@ defmodule Once do
   end
 
   @doc """
+  Checks if a key has been seen before. If the key has not been seen, it
+  returns `{:error, :not_seen}`. If the key has been seen, it returns `{:ok,
+  value}` where `value` is the value associated with the key, or `true` if no
+  value was specified.
+  """
+  def get(key) do
+    Agent.get(__MODULE__, fn seen ->
+      with {:ok, value} <- Map.fetch(seen, key) do
+        {:ok, value}
+      else
+        _ -> {:error, :not_seen}
+      end
+    end)
+  end
+
+  @doc """
   Marks a key as seen. If the key has not been seen before, it returns `true`
   and updates the internal state. If the key has already been seen, it returns
   `false` without updating the state.
   """
-  def mark(key, value \\ true) do
+  def set(key, value \\ true) do
     Agent.get_and_update(__MODULE__, fn seen ->
       if Map.has_key?(seen, key) do
         {false, seen}
@@ -34,7 +50,7 @@ defmodule Once do
   during this session.
   """
   def warn(msg) do
-    if mark(msg) do
+    if set(msg) do
       UI.warn(msg)
     end
 
