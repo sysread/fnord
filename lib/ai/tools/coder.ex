@@ -108,6 +108,7 @@ defmodule AI.Tools.Coder do
     cond do
       !Util.path_within_root?(path, root) -> {:error, "not within project root"}
       !File.exists?(path) -> {:error, :enoent}
+      !File.regular?(path) -> {:error, :enoent}
       true -> :ok
     end
   end
