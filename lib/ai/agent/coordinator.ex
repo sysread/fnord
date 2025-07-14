@@ -366,7 +366,11 @@ defmodule AI.Agent.Coordinator do
   Let's see... what changes did the user ask me to make?
   I need to approach this thoughtfully.
   If the user asked me to implement something, I need to be sure that I've addressed all of the requirements.
-  If I have a tool available to tests or syntax/style checks, I should use it to verify that the code is correct.
+
+  Let me think. Did I:
+  - Call tools that can check the syntax of the code?
+  - Call tools that can format the code to ensure it follows the project's conventions?
+  - Call tools that can test the code to ensure it works as expected?
   </think>
   """
 
