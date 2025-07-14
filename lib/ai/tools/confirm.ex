@@ -1,6 +1,13 @@
 defmodule AI.Tools.Confirm do
   @behaviour AI.Tools
 
+  @doc """
+  This tool interacts with the user. Executing it concurrently could result in
+  multiple messages appearing in the terminal together before the user has a
+  chance to respond, with multiple stacked readlines waiting for input.
+  Instead, we execute them synchronously, to ensure we get an answer for one
+  before the next is displayed.
+  """
   @impl AI.Tools
   def async?, do: false
 

@@ -3,6 +3,11 @@ defmodule AI.Tools.Coder do
 
   @behaviour AI.Tools
 
+  @doc """
+  This tool relies on line numbers within the file to identify ranges. If those
+  numbers change between the time the range is identified and the time the
+  changes are applied, the tool will fail to apply the changes correctly.
+  """
   @impl AI.Tools
   def async?, do: false
 
