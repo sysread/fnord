@@ -206,7 +206,13 @@ defmodule AI.Agent.Coordinator do
       messages: msgs
     )
     |> case do
-      {:ok, %{response: response, messages: new_msgs, usage: usage}} ->
+      {:ok, %{response: response, messages: new_msgs, usage: usage} = completion} ->
+        completion
+        |> AI.Completion.tools_used()
+        |> Enum.each(fn {tool, count} ->
+          UI.report_step(tool, "called #{count} time(s)")
+        end)
+
         %{
           state
           | usage: usage,
