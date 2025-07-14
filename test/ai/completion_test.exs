@@ -4,8 +4,61 @@ defmodule AI.CompletionTest do
   setup do: set_config(quiet: true)
 
   setup do
-    :meck.new(AI.CompletionAPI, [:non_strict])
+    :meck.new(AI.CompletionAPI, [:no_link, :passthrough, :non_strict])
+    on_exit(fn -> :meck.unload(AI.CompletionAPI) end)
     :ok
+  end
+
+  describe "new/1" do
+    test "creates completion state with minimal valid opts" do
+      opts = [
+        model: "test-model",
+        messages: [%{role: "user", content: "yo"}]
+      ]
+
+      assert {:ok, state} = AI.Completion.new(opts)
+      assert state.model == "test-model"
+      assert state.messages == [%{role: "user", content: "yo"}]
+      # Defaults
+      assert state.log_msgs == false
+      assert state.replay_conversation == true
+      assert is_list(state.specs)
+    end
+
+    test "returns error when :model is missing" do
+      opts = [
+        messages: [%{role: "user", content: "yo"}]
+      ]
+
+      assert :error = AI.Completion.new(opts)
+    end
+
+    test "returns error when :messages is missing" do
+      opts = [
+        model: "test-model"
+      ]
+
+      assert :error = AI.Completion.new(opts)
+    end
+
+    test "parses optional toolbox and toggles options" do
+      my_toolbox = %{}
+
+      opts = [
+        model: "x",
+        messages: [],
+        toolbox: my_toolbox,
+        log_msgs: true,
+        replay_conversation: false,
+        archive_notes: true
+      ]
+
+      assert {:ok, state} = AI.Completion.new(opts)
+      assert state.toolbox == AI.Tools.build_toolbox(my_toolbox)
+      assert state.log_msgs == true
+      assert state.replay_conversation == false
+      assert state.archive_notes == true
+    end
   end
 
   describe "get/1" do
@@ -26,8 +79,6 @@ defmodule AI.CompletionTest do
       assert state.response =~ "HTTP Status: 500"
       assert state.response =~ "Error code: server_error"
       assert state.response =~ "backend exploded"
-
-      :meck.unload(AI.CompletionAPI)
     end
   end
 
@@ -137,7 +188,6 @@ defmodule AI.CompletionTest do
       # Assert the final assistant message is included
       assert List.last(state.messages).role == "assistant"
       assert List.last(state.messages).content == "final response"
-      :meck.unload(AI.CompletionAPI)
     end
 
     test "Tool calls invocation respects async?/0" do
