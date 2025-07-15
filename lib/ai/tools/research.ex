@@ -1,4 +1,6 @@
 defmodule AI.Tools.Research do
+  @default_name "Lauren Falbak-Completionfeld"
+
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -38,7 +40,7 @@ defmodule AI.Tools.Research do
           |> Map.put("name", name)
           |> then(&{:ok, &1})
         else
-          _ -> {:ok, args |> Map.put("name", "Research Agent")}
+          _ -> {:ok, args |> Map.put("name", @default_name)}
         end
     end
   end
