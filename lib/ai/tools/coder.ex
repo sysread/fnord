@@ -312,6 +312,10 @@ defmodule AI.Tools.Coder do
     )
     |> case do
       {:ok, %{response: replacement}} ->
+        # If the replacement is a single line, determine if it needs a trailing
+        # newline, or if it was probably intended to be a deletion.
+        replacement = normalize_single_line_replacement(replacement)
+
         AI.Tools.File.Edit.call(%{
           "path" => file,
           "start_line" => start_line,
@@ -438,5 +442,21 @@ defmodule AI.Tools.Coder do
       "dry_run" => false,
       "context_lines" => 5
     })
+  end
+
+  # Heuristic determination of whether a single line replacement should have a
+  # trailing newline. Complicated by the fact that a single line replacement
+  # could be a deletion (which we guess is the case for an empty string) or
+  # just a fuck-up where it generated a single line patch but forgot the
+  # newline.
+  defp normalize_single_line_replacement(replacement) do
+    cond do
+      # Likely a *deletion* - no \n needed
+      replacement == "" -> ""
+      # Already has a trailing newline
+      String.ends_with?(replacement, "\n") -> replacement
+      # Single line without trailing newline - add one
+      true -> replacement <> "\n"
+    end
   end
 end
