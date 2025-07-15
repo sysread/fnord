@@ -93,47 +93,48 @@ defmodule AI.CompletionTest do
     end
   end
 
-describe "get/1" do
-  test "Completion.get/1 surfaces API error response to user" do
-    :meck.expect(AI.CompletionAPI, :get, fn _model, _msgs, _specs ->
-      {:error, %{http_status: 500, code: "server_error", message: "backend exploded"}}
-    end)
+  describe "get/1" do
+    test "Completion.get/1 surfaces API error response to user" do
+      :meck.expect(AI.CompletionAPI, :get, fn _model, _msgs, _specs ->
+        {:error, %{http_status: 500, code: "server_error", message: "backend exploded"}}
+      end)
 
-    user_msg = %{role: "user", content: "trigger error"}
+      user_msg = %{role: "user", content: "trigger error"}
 
-    assert {:error, state} =
-             AI.Completion.get(
-               model: AI.Model.new("dummy", 0),
-               messages: [user_msg],
-               toolbox: %{}
-             )
+      assert {:error, state} =
+               AI.Completion.get(
+                 model: AI.Model.new("dummy", 0),
+                 messages: [user_msg],
+                 toolbox: %{}
+               )
 
-    assert state.response =~ "HTTP Status: 500"
-    assert state.response =~ "Error code: server_error"
-    assert state.response =~ "backend exploded"
+      assert state.response =~ "HTTP Status: 500"
+      assert state.response =~ "Error code: server_error"
+      assert state.response =~ "backend exploded"
+    end
+
+    test "Completion.get/1 surfaces rate limit error response and can print it" do
+      :meck.expect(AI.CompletionAPI, :get, fn _model, _msgs, _specs ->
+        {:error, %{http_status: 429, code: "rate_limit", message: "Rate limit exceeded"}}
+      end)
+
+      user_msg = %{role: "user", content: "trigger error"}
+
+      assert {:error, state} =
+               AI.Completion.get(
+                 model: AI.Model.new("dummy", 0),
+                 messages: [user_msg],
+                 toolbox: %{}
+               )
+
+      output = ExUnit.CaptureIO.capture_io(fn -> IO.puts(state.response) end)
+
+      assert output =~ "429"
+      assert output =~ "rate_limit"
+      assert output =~ "Rate limit exceeded"
+    end
   end
 
-  test "Completion.get/1 surfaces rate limit error response and can print it" do
-    :meck.expect(AI.CompletionAPI, :get, fn _model, _msgs, _specs ->
-      {:error, %{http_status: 429, code: "rate_limit", message: "Rate limit exceeded"}}
-    end)
-
-    user_msg = %{role: "user", content: "trigger error"}
-
-    assert {:error, state} =
-             AI.Completion.get(
-               model: AI.Model.new("dummy", 0),
-               messages: [user_msg],
-               toolbox: %{}
-             )
-
-    output = ExUnit.CaptureIO.capture_io(fn -> IO.puts(state.response) end)
-
-    assert output =~ "429"
-    assert output =~ "rate_limit"
-    assert output =~ "Rate limit exceeded"
-  end
-end
   describe "tools_used/1" do
     test "returns empty map if no messages" do
       assert %{} = AI.Completion.tools_used(%AI.Completion{messages: []})
