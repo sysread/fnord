@@ -28,12 +28,25 @@ defmodule Cmd.Upgrade do
     |> case do
       {:ok, version} ->
         current = Util.get_running_version()
+        cmp = Version.compare(current, version)
 
-        if Version.compare(current, version) == :lt do
+        confirm =
+          case cmp do
+            :lt ->
+              "Do you want to upgrade to the latest version of fnord?"
+
+            :eq ->
+              "You are on the latest version of fnord. Would you like to reinstall?"
+
+            :gt ->
+              raise "Current version is greater than the latest version. Versions are really made of wibbly-wobbly, timey-wimey stuff."
+          end
+
+        if Version.compare(current, version) != :gt do
           IO.puts("Current version: #{current}")
           IO.puts("Latest version: #{version}")
 
-          if UI.confirm("Do you want to upgrade to the latest version of fnord?", opts.yes) do
+          if UI.confirm(confirm, opts.yes) do
             System.cmd("mix", ["escript.install", "--force", "github", "sysread/fnord"],
               stderr_to_stdout: true,
               into: IO.stream(:stdio, :line)
