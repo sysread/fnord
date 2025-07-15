@@ -1,5 +1,5 @@
 defmodule AI.CompletionTest do
-  use Fnord.TestCase
+  use Fnord.TestCase, async: false
 
   setup do: set_config(quiet: true)
 
