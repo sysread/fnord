@@ -234,8 +234,14 @@ defmodule AI.Tools.File.Edit do
     diff =
       Enum.zip(orig_snippet, updated_snippet)
       |> Enum.map(fn
-        {o, u} when o == u -> "  " <> o
-        {o, u} -> "- " <> o <> "\n+ " <> u
+        {o, u} when o == u ->
+          "  #{o}"
+
+        {o, u} ->
+          """
+          - #{o}
+          + #{u}
+          """
       end)
       |> Enum.join("\n")
 
@@ -251,14 +257,14 @@ defmodule AI.Tools.File.Edit do
       |> Util.numbered_lines("|", start_line - context_lines)
 
     """
+    --- UNIFIED DIFF ---
+    #{diff}
+
     --- ORIGINAL (with context) ---
     #{orig_snippet}
 
     --- UPDATED (with context) ---
     #{updated_snippet}
-
-    --- UNIFIED DIFF ---
-    #{diff}
     """
   end
 
