@@ -366,6 +366,7 @@ defmodule AI.Agent.Coordinator do
   Let's see... what changes did the user ask me to make?
   I need to approach this thoughtfully.
   If the user asked me to implement something, I need to be sure that I've addressed all of the requirements.
+  If I tried to make changes and they failed, I should try to correct my instructions to the coder_tool and try again.
 
   Let me think. Did I:
   - Call tools that can check the syntax of the code?
