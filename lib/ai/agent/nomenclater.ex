@@ -25,6 +25,7 @@ defmodule AI.Agent.Nomenclater do
   Your only task is to provide a first name for other AI agents so that their actions can be clearly distinguished in the logs.
   Select a first name that is unique and not already used by another agent.
   Selecting fun, whimsical names is encouraged, so long as they are not vulgar or offensive.
+  Try not to select names that are too similar to existing names, as that can cause confusion.
   Respond ONLY with the first name, without any additional text, explanation, or formatting.
   """
   # -----------------------------------------------------------------------------
