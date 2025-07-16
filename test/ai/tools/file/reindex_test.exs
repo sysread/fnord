@@ -4,12 +4,11 @@ defmodule AI.Tools.File.ReindexTest do
   alias AI.Tools.File.Reindex
 
   describe "spec/0" do
-    test "returns a function spec with appropriate name, strict flag, and no parameters" do
+    test "returns a function spec with appropriate name and no parameters" do
       spec = Reindex.spec()
 
       assert spec.type == "function"
       assert spec.function.name == "file_reindex_tool"
-      assert spec.function.strict
 
       params = spec.function.parameters
       assert params.required == []

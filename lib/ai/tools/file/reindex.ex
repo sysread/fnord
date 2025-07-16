@@ -16,9 +16,7 @@ defmodule AI.Tools.File.Reindex do
         tool (file_search_tool) is up-to-date with all files in the project,
         including any new or modified files.
         """,
-        strict: true,
         parameters: %{
-          additionalProperties: false,
           type: "object",
           required: [],
           properties: %{}
@@ -45,7 +43,7 @@ defmodule AI.Tools.File.Reindex do
 
   @impl AI.Tools
   def call(_args) do
-    Cmd.Index.run(%{reindex: false, yes: true, quiet: true}, [], [])
+    Cmd.Index.run_as_tool_call(%{reindex: false, yes: true, quiet: true})
     {:ok, "Full reindex complete"}
   end
 end

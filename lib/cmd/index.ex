@@ -76,6 +76,16 @@ defmodule Cmd.Index do
     end
   end
 
+  @doc """
+  This function is used to run the indexing process as a tool call from within
+  the `file_reindex_tool` tool.
+  """
+  def run_as_tool_call(opts) do
+    with {:ok, idx} <- new(opts) do
+      perform_task({:ok, idx})
+    end
+  end
+
   # -----------------------------------------------------------------------------
   # Task execution
   # -----------------------------------------------------------------------------
