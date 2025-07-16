@@ -306,6 +306,10 @@ defmodule Frobs do
           end
 
           @impl AI.Tools
+          def ui_note_on_result(_args, result) when is_binary(result) do
+            {"Frob `#{@tool_name}` result", result}
+          end
+
           def ui_note_on_result(_args, result) do
             {"Frob `#{@tool_name}` result", inspect(result, pretty: true, limit: :infinity)}
           end
