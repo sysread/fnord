@@ -157,13 +157,12 @@ defmodule AI.Agent.Intuition do
   end
 
   defp get_perception(msgs) do
-    with {:ok, json} <- Jason.encode(msgs) do
-      AI.Completion.get(
+    with {:ok, json} <- Jason.encode(msgs, pretty: true) do
+      AI.Accumulator.get_response(
         model: @model,
-        messages: [
-          AI.Util.system_msg(@perception),
-          AI.Util.user_msg(json)
-        ]
+        prompt: @perception,
+        input: json,
+        question: "Respond with your subconscious perception of the conversation."
       )
       |> case do
         {:ok, %{response: response}} ->
