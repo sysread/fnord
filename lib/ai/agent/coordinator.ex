@@ -602,7 +602,7 @@ defmodule AI.Agent.Coordinator do
   # Tool box
   # -----------------------------------------------------------------------------
   defp get_tools(%{edit: true}) do
-    AI.Tools.tools()
+    AI.Tools.all_tools()
     |> Map.values()
     |> Enum.concat([
       AI.Tools.File.Manage,
@@ -611,7 +611,9 @@ defmodule AI.Agent.Coordinator do
     ])
   end
 
-  defp get_tools(_), do: AI.Tools.tools()
+  defp get_tools(_) do
+    AI.Tools.all_tools()
+  end
 
   # -----------------------------------------------------------------------------
   # Testing response

@@ -197,6 +197,9 @@ defmodule AI.Tools do
   # ----------------------------------------------------------------------------
   def tools, do: @tools
 
+  @doc """
+  Returns a `toolbox` that includes all generally available tools and frobs.
+  """
   @spec all_tools() :: toolbox
   def all_tools() do
     @tools
