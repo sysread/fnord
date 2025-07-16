@@ -39,7 +39,7 @@ defmodule AI.Splitter do
 
   def next_chunk(tok, bespoke_input) do
     bespoke_tokens = AI.PretendTokenizer.guesstimate_tokens(bespoke_input)
-    remaining_tokens = tok.model.context - bespoke_tokens
+    remaining_tokens = max_tokens(tok.model) - bespoke_tokens
 
     if remaining_tokens <= 0 do
       {"", %{tok | done: true, input: ""}}
@@ -49,5 +49,10 @@ defmodule AI.Splitter do
       is_done? = remaining == ""
       {slice, %{tok | done: is_done?, input: remaining}}
     end
+  end
+
+  defp max_tokens(model) do
+    # Leave some space since we just guestimate token counts
+    round(model.context * 0.9)
   end
 end
