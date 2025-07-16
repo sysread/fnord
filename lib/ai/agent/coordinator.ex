@@ -18,24 +18,26 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp new(opts) do
-    research_steps = steps(opts.rounds, opts.edit)
     {:ok, project} = Store.get_project()
     edit = Map.get(opts, :edit, false)
 
     %{
       project: project.name,
+      rounds: opts.rounds,
+      edit?: edit,
       question: opts.question,
       edit: edit,
       msgs: opts.msgs,
       last_response: nil,
-      steps: research_steps,
+      # populated by select_steps/1
+      steps: [],
       current_step: 0,
-      total_steps: Enum.count(research_steps),
       usage: 0,
       context: @model.context,
       replay: Map.get(opts, :replay, false),
       notes: nil
     }
+    |> select_steps()
   end
 
   defp consider(state) do
@@ -59,7 +61,18 @@ defmodule AI.Agent.Coordinator do
   @first_steps [:initial, :clarify, :refine]
   @last_steps [:finalize]
 
-  defp steps(n, edit?) do
+  defp select_steps(%{rounds: 1, edit?: edit?, msgs: [_ | _]} = state) do
+    steps =
+      if edit? do
+        [:followup, :do_you_even_code_bro?]
+      else
+        [:followup]
+      end
+
+    %{state | steps: steps ++ @last_steps}
+  end
+
+  defp select_steps(%{rounds: n, edit?: edit?} = state) do
     steps =
       cond do
         n <= 1 -> [:singleton]
@@ -75,7 +88,7 @@ defmodule AI.Agent.Coordinator do
         steps
       end
 
-    steps ++ @last_steps
+    %{state | steps: steps ++ @last_steps}
   end
 
   defp perform_step({:error, reason}) do
@@ -85,6 +98,22 @@ defmodule AI.Agent.Coordinator do
 
      #{reason}
      """}
+  end
+
+  defp perform_step(%{replay: replay, steps: [:followup | steps]} = state) do
+    UI.debug("Performing abbreviated research")
+
+    state
+    |> Map.put(:steps, steps)
+    |> new_session_msg()
+    |> singleton_msg()
+    |> maybe_coding_msg()
+    |> user_msg()
+    |> get_notes()
+    |> followup_msg()
+    |> get_intuition()
+    |> get_completion(replay)
+    |> perform_step()
   end
 
   defp perform_step(%{replay: replay, steps: [:singleton | steps]} = state) do
@@ -277,6 +306,17 @@ defmodule AI.Agent.Coordinator do
   - Perform additional rounds of research as necessary to fill in gaps in your understanding or find examples for the user.
 
   **DO NOT FINALIZE YOUR RESPONSE UNTIL EXPLICITLY INSTRUCTED.**
+  """
+
+  @followup """
+  <think>
+  The user is asking a follow-up question about my most recent response.
+  This might mean that they are not satisfied, that they have additional questions, or that there are additional details to consider.
+  I need to think carefully about how my previous response relates to the user's follow-up question.
+  I should consider whether my previous response was clear and whether it addressed the user's question.
+  If there are new details, I should investigate them and determine how they relate to my previous research, and then update my response accordingly.
+  Regardless, I need to make certain that my response is focused on the user's follow-up question and that I am not repeating information that the user already knows.
+  </think>
   """
 
   @coding """
@@ -472,6 +512,11 @@ defmodule AI.Agent.Coordinator do
       :msgs,
       state.msgs ++ [AI.Util.system_msg("Remember the user's original question: #{question}")]
     )
+  end
+
+  defp followup_msg(state) do
+    state
+    |> Map.put(:msgs, state.msgs ++ [AI.Util.assistant_msg(@followup)])
   end
 
   defp begin_msg(state) do
