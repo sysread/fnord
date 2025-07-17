@@ -254,6 +254,13 @@ defmodule AI.Agent.Coordinator do
 
       {:error, %{response: response}} ->
         {:error, response}
+
+      {:error, :context_length_exceeded} ->
+        {:error,
+         """
+         The conversation has grown too long for the model to process, exceeding the length of its context window.
+         Please start a new conversation.
+         """}
     end
   end
 
