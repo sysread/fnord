@@ -38,8 +38,18 @@ defmodule AI.Splitter do
   end
 
   def next_chunk(tok, bespoke_input) do
+    next_chunk(tok, bespoke_input, nil)
+  end
+
+  @doc """
+  Returns the next chunk and updated splitter state, accounting for the bespoke input tokens.
+
+  Optionally, a `max_chunk_tokens` can be provided to limit the chunk size explicitly.
+  """
+  def next_chunk(tok, bespoke_input, max_chunk_tokens) do
     bespoke_tokens = AI.PretendTokenizer.guesstimate_tokens(bespoke_input)
-    remaining_tokens = max_tokens(tok.model) - bespoke_tokens
+    max_tokens = max_chunk_tokens || max_tokens(tok.model)
+    remaining_tokens = max_tokens - bespoke_tokens
 
     if remaining_tokens <= 0 do
       {"", %{tok | done: true, input: ""}}

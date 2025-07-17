@@ -6,9 +6,14 @@ defmodule AI.CompletionAPI do
   @type tools :: nil | [AI.Tools.tool_spec()]
 
   @type usage :: integer()
-  @type msg_response :: {:ok, :msg, String.t(), usage}
+  @type msg_response :: {:ok, :msg, binary, usage}
   @type tool_response :: {:ok, :tool, list(map())}
-  @type response :: msg_response | tool_response | {:error, map}
+
+  @type response ::
+          msg_response
+          | tool_response
+          | {:error, map}
+          | {:error, :context_length_exceeded}
 
   @spec get(model, msgs, tools) :: response
   def get(model, msgs, tools \\ nil) do
@@ -45,9 +50,17 @@ defmodule AI.CompletionAPI do
         get_error(error)
 
       {:http_error, error} ->
-        UI.error("HTTP error while calling OpenAI API: #{inspect(error)}")
-        IO.inspect(payload.messages |> Enum.slice(-1, 1), label: "Last message sent")
-        get_error(error)
+        error
+        |> get_error()
+        |> case do
+          {:error, %{message: msg}} = error ->
+            UI.error("HTTP error while calling OpenAI API: #{msg}")
+            IO.inspect(payload.messages |> Enum.slice(-1, 1), label: "Last message sent")
+            error
+
+          error ->
+            error
+        end
 
       {:ok, response} ->
         get_response(response)
@@ -57,7 +70,7 @@ defmodule AI.CompletionAPI do
   # -----------------------------------------------------------------------------
   # Private functions
   # -----------------------------------------------------------------------------
-  @spec get_api_key!() :: String.t()
+  @spec get_api_key!() :: binary
   defp get_api_key!() do
     ["FNORD_OPENAI_API_KEY", "OPENAI_API_KEY"]
     |> Enum.find_value(&System.get_env(&1, nil))
@@ -98,14 +111,30 @@ defmodule AI.CompletionAPI do
     json_error_string
     |> Jason.decode()
     |> case do
+      {:ok, %{"error" => %{"code" => "context_length_exceeded"}}} ->
+        {:error, :context_length_exceeded}
+
       {:ok, %{"error" => %{"code" => code, "message" => msg}}} ->
-        {:error, %{http_status: http_status, code: code, message: msg}}
+        {:error,
+         %{
+           http_status: http_status,
+           code: code,
+           message: msg
+         }}
 
       {:ok, error} ->
-        {:error, %{http_status: http_status, error: inspect(error, pretty: true)}}
+        {:error,
+         %{
+           http_status: http_status,
+           error: inspect(error, pretty: true)
+         }}
 
       {:error, _} ->
-        {:error, %{http_status: http_status, error: json_error_string}}
+        {:error,
+         %{
+           http_status: http_status,
+           error: json_error_string
+         }}
     end
   end
 end

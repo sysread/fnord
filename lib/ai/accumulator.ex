@@ -1,4 +1,7 @@
 defmodule AI.Accumulator do
+  @backoff_threshold 0.6
+  @backoff_step 0.2
+
   @moduledoc """
   When file or other input to too large for the model's context window, this
   module may be used to process the file in chunks. It automatically modifies
@@ -147,7 +150,23 @@ defmodule AI.Accumulator do
     end
   end
 
-  defp process_chunk(acc) do
+  def process_chunk(acc), do: process_chunk(acc, 1.0)
+
+  # ----------------------------------------------------------------------------
+  # Processes a chunk of input by generating an updated accumulator response.
+  #
+  # The `frac` parameter represents the fraction of the model context to use
+  # for this chunk. On context length exceeded errors, it backs off by subtracting
+  # @backoff_step from frac, and retries. If frac drops below @backoff_threshold,
+  # returns an error indicating unable to back off further.
+  # ----------------------------------------------------------------------------
+  defp process_chunk(_acc, frac) when frac < @backoff_threshold do
+    {:error, "context window length exceeded: unable to back off further to fit the input"}
+  end
+
+  defp process_chunk(acc, frac) do
+    max_chunk_tokens = round(acc.model.context * frac)
+
     # Build the "user message" prompt, which contains the accumulated response.
     user_prompt = """
     # Question / Goal
@@ -157,10 +176,9 @@ defmodule AI.Accumulator do
     #{acc.buffer}
     """
 
-    # Get the next chunk from the splitter and update the splitter state. The
-    # next chunk is based on the tokens remaining after factoring in the user
-    # message size.
-    {chunk, splitter} = AI.Splitter.next_chunk(acc.splitter, user_prompt)
+    # Get the next chunk from the splitter and update the splitter state.
+    # The next chunk size is limited by the remaining context tokens.
+    {chunk, splitter} = AI.Splitter.next_chunk(acc.splitter, user_prompt, max_chunk_tokens)
     acc = %{acc | splitter: splitter}
 
     user_prompt = """
@@ -169,8 +187,7 @@ defmodule AI.Accumulator do
     #{chunk}
     """
 
-    # The system prompt is the prompt for the chunk response, along with the
-    # caller's agent instructions.
+    # Build the system prompt with the accumulator instructions and any relevant line number info.
     system_prompt = """
     #{@accumulator_prompt}
     #{if acc.line_numbers, do: @line_numbers_prompt, else: ""}
@@ -186,13 +203,27 @@ defmodule AI.Accumulator do
         AI.Util.user_msg(user_prompt)
       ])
 
-    AI.Completion.get(args)
+    # Call AI.Completion.get and handle responses centrally
+    args
+    |> AI.Completion.get()
     |> case do
       {:ok, %{response: response}} ->
         {:ok, %{acc | splitter: splitter, buffer: response}}
 
-      {:error, %{response: response}} ->
-        {:error, response}
+      {:error, :context_length_exceeded} ->
+        # Context length exceeded error handling:
+        # Back off and retry with smaller fraction only if frac >= @backoff_threshold
+        # If frac < @backoff_threshold, do not retry further and return error.
+        if frac >= @backoff_threshold do
+          UI.warn("Context length exceeded, backing off to fraction #{frac - @backoff_step}")
+          process_chunk(acc, frac - @backoff_step)
+        else
+          UI.error("Context length exceeded, unable to back off further. THIS. IS. SPARTA!")
+          {:error, "context window length exceeded: unable to back off further to fit the input"}
+        end
+
+      {:error, %AI.Completion{response: resp}} when is_binary(resp) ->
+        {:error, resp}
     end
   end
 end

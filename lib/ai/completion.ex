@@ -47,7 +47,10 @@ defmodule AI.Completion do
           response: String.t() | nil
         }
 
-  @type response :: {:ok, t} | {:error, t}
+  @type response ::
+          {:ok, t}
+          | {:error, t}
+          | {:error, :context_length_exceeded}
 
   @spec get(Keyword.t()) :: response
   def get(opts) do
@@ -148,6 +151,10 @@ defmodule AI.Completion do
     %{state | tool_call_requests: tool_calls}
     |> handle_tool_calls()
     |> send_request()
+  end
+
+  defp handle_response({:error, :context_length_exceeded}, _state) do
+    {:error, :context_length_exceeded}
   end
 
   defp handle_response({:error, %{http_status: http_status, code: code, message: msg}}, state) do
