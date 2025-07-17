@@ -11,10 +11,11 @@ defmodule Fnord do
   dispatches to the appropriate subcommand.
   """
   def main(args) do
+    configure_logger()
+
     {:ok, _} = Application.ensure_all_started(:briefly)
     Once.start_link([])
     NotesServer.start_link([])
-    configure_logger()
 
     with {:ok, [command | subcommands], opts, unknown} <- parse_options(args) do
       opts = set_globals(opts)
