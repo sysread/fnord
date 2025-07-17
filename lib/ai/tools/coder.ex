@@ -95,7 +95,7 @@ defmodule AI.Tools.Coder do
          """
          FAILURE: The coder_tool was unable to apply the requested changes. No changes were made to the file.
 
-         The syntax checking agent found an error in the requested change:
+         The code reviewing agent found an error in the requested change:
          #{error}
 
          The change attempted was:
