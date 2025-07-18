@@ -1,5 +1,5 @@
 defmodule UtilTest do
-  use Fnord.TestCase, async: true
+  use Fnord.TestCase, async: false
   import ExUnit.CaptureIO
 
   test "expand_path/2" do
