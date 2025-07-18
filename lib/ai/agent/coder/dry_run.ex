@@ -1,7 +1,7 @@
 defmodule AI.Agent.Coder.DryRun do
   @max_attempts 3
 
-  @model AI.Model.balanced()
+  @model AI.Model.reasoning(:high)
 
   @prompt """
   You are an AI coding assistant within a larger AI system.

@@ -1,7 +1,7 @@
 defmodule AI.Agent.Coder.RangeFinder do
   @max_attempts 3
 
-  @model AI.Model.balanced()
+  @model AI.Model.reasoning(:medium)
 
   @prompt """
   You are an AI coding assistant within a larger AI system.
