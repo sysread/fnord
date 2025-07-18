@@ -41,11 +41,12 @@ defmodule AI.Tools.Coder do
         description: """
         Triggers an LLM agent to perform a coding task to a contiguous region within a single file in the project source root.
         The LLM has no access to the tool_calls you have available. It can ONLY edit files. YOU must provide all information and context required to perform the task.
-        Instructions must include ALL relevant context; this agent has no access to the prior conversation.
+        Instructions should include details about conventions, style, preferred modules and patterns, and anything else you wish to have reflected in the output.
+        Instructions must include ALL relevant context; this agent has NO access to the prior conversation; they ONLY know what YOU tell them.
         Instructions must include clear, unambiguous "anchors", identifying a *single* region of the file to edit.
         Examples:
         - "Add a new, private function at the end of the file (in a syntactically appropriate location) named `blarg`. The function accepts 2 positional arguments, ..."
-        - "In the import list at the top of the file, remove the import for `foo.bar` and add an import for `baz.qux`."
+        - "In the import list at the top of the file, remove the import for `foo.bar` and add an import for `baz.qux`. Note that the user prefers never to use aliases."
         - "This file contains a mix of spaces and tabs. Convert all tabs to spaces, and ensure the indentation is consistent with 2 spaces per level."
         """,
         parameters: %{

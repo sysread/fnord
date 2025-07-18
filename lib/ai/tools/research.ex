@@ -10,19 +10,19 @@ defmodule AI.Tools.Research do
   def is_available?, do: true
 
   @impl AI.Tools
-  def ui_note_on_request(args) do
+  def ui_note_on_request(%{"name" => name, "prompt" => prompt} = args) do
     project = get_project(args)
-    {"Assigning research task in #{project} to #{args["name"]}", args["prompt"]}
+    {"#{name} is researching in #{project}", prompt}
   end
 
   @impl AI.Tools
-  def ui_note_on_result(args, result) do
+  def ui_note_on_result(%{"name" => name, "prompt" => prompt} = args, result) do
     project = get_project(args)
 
-    {"Research task in #{project} completed by #{args["name"]}",
+    {"#{name} has completed research in #{project}",
      """
-     # Prompt
-     #{args["prompt"]}
+     # Request
+     #{prompt}
 
      # Findings
      #{result}

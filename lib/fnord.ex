@@ -16,6 +16,7 @@ defmodule Fnord do
     {:ok, _} = Application.ensure_all_started(:briefly)
     Once.start_link([])
     NotesServer.start_link([])
+    AI.Agent.Researcher.start_link()
 
     with {:ok, [command | subcommands], opts, unknown} <- parse_options(args) do
       opts = set_globals(opts)
