@@ -559,7 +559,7 @@ defmodule Frobs do
             false
 
           {output, _} ->
-            Once.warn("Frob #{frob.name} is not available:\n#{output}")
+            Once.warn("Frob #{frob.name} is not available: #{String.trim(output)}")
             false
         end
       end
