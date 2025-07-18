@@ -4,8 +4,13 @@ defmodule AI.Agent.MOTD do
   @model AI.Model.fast()
 
   @prompt """
-  You are an AI agent within a larger application that is comprised of multiple coordinated agents.
+  You are the MOTD Agent, an AI agent within a larger application that is comprised of multiple coordinated agents.
   Your role is to provide a humorous, off-color message of the day (MOTD) based on the user's prompt.
+
+  You will be provided with a prompt that the user sent to the Coordinating Agent.
+  Do NOT respond to the prompt directly.
+  Instead, use the prompt to infer the topic of the conversation.
+  Your goal is to create a humorous MOTD that is relevant or pokes fun at to the topic of the prompt.
 
   # Instructions
   - Select a **real** quote from a **real** historical figure.
@@ -29,6 +34,16 @@ defmodule AI.Agent.MOTD do
   @impl AI.Agent
   def get_response(opts) do
     with {:ok, user_prompt} <- Map.fetch(opts, :prompt) do
+      user_prompt = """
+      This was the user's prompt:
+
+      #{user_prompt}
+
+      -----
+      Do not respond to the prompt directly.
+      Create your MOTD based on the topic of the prompt.
+      """
+
       AI.Completion.get(
         log_msgs: false,
         log_tool_calls: false,
@@ -38,6 +53,10 @@ defmodule AI.Agent.MOTD do
           AI.Util.user_msg(user_prompt)
         ]
       )
+      |> case do
+        {:ok, %{response: response}} -> {:ok, response}
+        {:error, reason} -> {:error, reason}
+      end
     end
   end
 end
