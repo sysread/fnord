@@ -621,9 +621,7 @@ defmodule AI.Agent.Coordinator do
   # MOTD
   # -----------------------------------------------------------------------------
   defp get_motd(state) do
-    with {:ok, %{response: motd}} <- AI.Agent.MOTD.get_response(%{prompt: state.question}) do
-      {:ok, motd}
-    end
+    AI.Agent.MOTD.get_response(%{prompt: state.question})
   end
 
   # -----------------------------------------------------------------------------

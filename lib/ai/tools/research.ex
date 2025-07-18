@@ -11,12 +11,15 @@ defmodule AI.Tools.Research do
 
   @impl AI.Tools
   def ui_note_on_request(args) do
-    {"Assigning research task to #{args["name"]}", args["prompt"]}
+    project = get_project(args)
+    {"Assigning research task in #{project} to #{args["name"]}", args["prompt"]}
   end
 
   @impl AI.Tools
   def ui_note_on_result(args, result) do
-    {"Research task completed by #{args["name"]}",
+    project = get_project(args)
+
+    {"Research task in #{project} completed by #{args["name"]}",
      """
      # Prompt
      #{args["prompt"]}
@@ -29,6 +32,8 @@ defmodule AI.Tools.Research do
   @impl AI.Tools
   def read_args(args) do
     args
+    # Give the researcher a name so we can connect the response to the message
+    # emitted when the research task is assigned.
     |> Map.fetch("name")
     |> case do
       {:ok, _name} ->
@@ -76,6 +81,16 @@ defmodule AI.Tools.Research do
               scratch with no context. The more explicit and clear you are, the
               more likely they are to produce useful results.
               """
+            },
+            fnord_project: %{
+              type: "string",
+              description: """
+              By default, research is performed within the current project. If
+              the user asks for you to cross-reference a different project,
+              this option may be specified to indicate that the research should
+              be performed in that project instead. Use list_projects_tool to
+              get a list of other available projects.
+              """
             }
           }
         }
@@ -84,10 +99,51 @@ defmodule AI.Tools.Research do
   end
 
   @impl AI.Tools
-  def call(args) do
-    case Map.fetch(args, "prompt") do
-      {:ok, prompt} -> AI.Agent.Researcher.get_response(%{prompt: prompt})
-      :error -> {:error, "Missing required argument: prompt"}
+  def call(%{"prompt" => prompt} = args) do
+    with {:ok, selected_project} <- Settings.get_selected_project() do
+      args
+      |> get_project()
+      |> case do
+        ^selected_project -> do_research(prompt)
+        project -> do_research(project, prompt)
+      end
+    end
+  end
+
+  defp do_research(prompt) do
+    AI.Agent.Researcher.get_response(%{prompt: prompt})
+  end
+
+  defp do_research(project, prompt) do
+    "/Users/jeff.ober/dev/fnord/fnord"
+    |> System.cmd(
+      ["ask", "--project", project, "--question", prompt],
+      env: [
+        {"LOGGER_LEVEL", "error"},
+        {"FNORD_FORMATTER", ""}
+      ],
+      parallelism: true,
+      stderr_to_stdout: true,
+      into: ""
+    )
+    |> case do
+      {output, 0} -> {:ok, output}
+      {output, _} -> {:error, output}
+    end
+  end
+
+  defp get_project(args) do
+    args
+    |> Map.get("fnord_project", nil)
+    |> case do
+      nil ->
+        case Settings.get_selected_project() do
+          {:ok, project} -> project
+          _ -> raise "No project specified and no current project selected."
+        end
+
+      project ->
+        project
     end
   end
 end
