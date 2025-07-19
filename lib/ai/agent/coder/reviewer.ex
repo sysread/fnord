@@ -19,6 +19,8 @@ defmodule AI.Agent.Coder.Reviewer do
   Bonus points if you can suggest improved instructions to avoid the issue on the next attempt.
 
   Note: The file contents include 1-based line numbers at the start of each line, separated by a pipe (|).
+  Note: The overall change has been split up into smaller hunks, each to a single, contiguous section of the file.
+        Only review this change to *this* hunk, not the entire file, or the entire change set.
 
   # Response Format
   Respond ONLY with one of the two following JSON objects:
