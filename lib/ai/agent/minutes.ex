@@ -1,13 +1,12 @@
-defmodule AI.Agent.SagaScribe do
+defmodule AI.Agent.Minutes do
   @moduledoc """
-  An AI.Agent that summarizes chat history in a friendly, concise, and engaging style,
-  producing a coherent and user-friendly summary.
+  An AI.Agent that summarizes chat history into meeting minutes.
   """
 
   @model AI.Model.balanced()
 
   @prompt """
-  You are the Conversation Agent, an AI agent within a larger, coordinated system.
+  You are the Conversation Minutes Agent, an AI agent within a larger, coordinated system.
   Your role is to document conversations, converting an OpenAI-style completion transcript into meeting minutes.
 
   You MUST document:
