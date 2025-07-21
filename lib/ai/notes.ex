@@ -50,7 +50,10 @@ defmodule AI.Notes do
     model: AI.Model.fast(),
     prompt: """
     You are a research assistant that extracts facts about the project from tool call results.
-    Extract every non-transient fact about the project from the tool call result.
+    Extract **non-transient** facts about the project from the tool call result.
+    Transient facts are those that are not persistently relevant, such as current repo state, individual tickets or projects, PRs, or changes.
+    You are concerned with the overall project architecture, design, and implementation details that are relevant to understanding the project as a whole.
+    Focus on the most important details that would help someone understand the project quickly and effectively.
     Topics of interest include (but are not limited to):
     - Project purpose and goals
     - Languages, frameworks, and technologies used
@@ -59,6 +62,8 @@ defmodule AI.Notes do
     - Applications and components, their locations, and dependencies
     - Any other notes about how the code behaves, integrates, etc.
     - Details about individual features, components, modules, tests, etc.
+    - Gotchas and pitfalls to avoid
+    - "Always check X before doing Y" type of advice
     Respond with a formatted markdown list of facts without any additional text.
     If nothing was identified, respond with "N/A" on a single line.
     Just the facts, ma'am!
@@ -143,19 +148,29 @@ defmodule AI.Notes do
     # Get the most recent copy of the notes, just in case another session was
     # running in parallel and modified them on disk.
     notes = load_notes()
+
+    # Format the new facts into a markdown list
     facts = format_new_notes(state)
 
-    notes = """
-    #{notes}
+    # If there is already a `# NEW NOTES (unconsolidated)` section, append to it.
+    notes =
+      if Regex.match?(~r/^# NEW NOTES \(unconsolidated\)$/, notes) do
+        """
+        #{notes}
+        #{facts}
+        """
+      else
+        """
+        #{notes}
 
-    # NEW NOTES (unconsolidated)
-    #{facts}
-    """
+        # NEW NOTES (unconsolidated)
+        #{facts}
+        """
+      end
 
     Store.Project.Notes.write(notes)
     |> case do
       :ok ->
-        UI.info("New notes saved in project data")
         {:ok, %{state | new_facts: [], notes: notes}}
 
       {:error, reason} ->
@@ -243,7 +258,6 @@ defmodule AI.Notes do
             |> Store.Project.Notes.write()
             |> case do
               :ok ->
-                UI.info("Consolidated notes saved")
                 %{state | notes: notes, new_facts: []}
 
               {:error, reason} ->

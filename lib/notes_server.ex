@@ -6,7 +6,7 @@ defmodule NotesServer do
   # -----------------------------------------------------------------------------
   @spec start_link(opts :: keyword()) :: GenServer.on_start()
   def start_link(opts \\ []) do
-    UI.debug("[notes-server] starting")
+    UI.debug("[notes-server]", "starting")
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
@@ -63,23 +63,35 @@ defmodule NotesServer do
   """
   @spec consolidate() :: :ok
   def consolidate() do
-    UI.debug("[notes-server] consolidating existing research")
+    UI.debug("[notes-server]", "consolidating existing research")
     GenServer.cast(__MODULE__, :consolidate)
   end
 
   @doc """
-  Commits the new notes that have been collected over the course of the current
+  Waits for the server to complete all operations before returning. This is
+  useful to ensure that all notes have been saved and consolidated before
+  exiting the application or moving on to the next step in the workflow.
+  """
+  def join() do
+    UI.debug("[notes-server]", "waiting for operations to complete")
+    GenServer.call(__MODULE__, :join, :infinity)
+  end
+
+  @doc """
+  Saves the new notes that have been collected over the course of the current
   session to persistent storage. This saves any newly extracted facts and user
   insights that have not yet been consolidated into the main research notes.
+
+  Returns immediately, but the actual saving process may take some time. Use
+  `join/0` to wait for the server to complete all operations if needed.
 
   The new notes are added to a special section at the end of the existing
   research notes, labeled `# NEW NOTES (unconsolidated)`. This section is meant
   to be consolidated later by the `consolidate/0` function.
   """
-  @spec commit() :: :ok | {:error, any}
-  def commit() do
-    UI.debug("[notes-server] saving research collected this session")
-    GenServer.call(__MODULE__, :commit, :infinity)
+  def save() do
+    UI.debug("[notes-server]", "saving new research")
+    GenServer.cast(__MODULE__, :save)
   end
 
   # -----------------------------------------------------------------------------
@@ -102,18 +114,23 @@ defmodule NotesServer do
   end
 
   def handle_cast(:consolidate, state) do
-    {:noreply, AI.Notes.consolidate(state)}
+    result = AI.Notes.consolidate(state)
+    UI.debug("[notes-server]", "consolidated existing research notes")
+    {:noreply, result}
   end
 
-  def handle_call(:commit, _from, state) do
-    with {:ok, state} <- AI.Notes.commit(state) do
-      {:reply, :ok, state}
-    else
-      {:error, reason} -> {:reply, {:error, reason}, state}
-    end
+  def handle_cast(:save, state) do
+    AI.Notes.commit(state)
+    {:noreply, state}
   end
 
   def handle_call({:ask, question}, _from, state) do
     {:reply, AI.Notes.ask(state, question), state}
+  end
+
+  # Just a placeholder for a no-op `call` to allow the client to know that the
+  # server has completed all operations prior to the call to `join/0`.
+  def handle_call(:join, _from, state) do
+    {:reply, :ok, state}
   end
 end

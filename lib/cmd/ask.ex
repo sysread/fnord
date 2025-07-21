@@ -44,12 +44,14 @@ defmodule Cmd.Ask do
           replay: [
             long: "--replay",
             short: "-r",
-            help: "Replay a conversation (with --follow)"
+            help: "Replay a conversation (with --follow)",
+            default: false
           ],
           edit: [
             long: "--edit",
             short: "-e",
-            help: "Permit the AI to edit files in the project"
+            help: "Permit the AI to edit files in the project",
+            default: false
           ]
         ]
       ]
@@ -58,6 +60,8 @@ defmodule Cmd.Ask do
 
   @impl Cmd
   def run(opts, _subcommands, _unknown) do
+    ConversationServer.start_link()
+
     opts =
       if opts[:edit] do
         UI.warning_banner("EDITING MODE ENABLED! THE AI CAN MODIFY FILES. YOU MUST BE NUTS.")
@@ -69,12 +73,11 @@ defmodule Cmd.Ask do
     start_time = System.monotonic_time(:second)
 
     with {:ok, opts} <- validate(opts),
-         {:ok, msgs, conversation} <- restore_conversation(opts),
-         opts <- Map.put(opts, :msgs, msgs),
-         {:ok, msgs, usage, context} <- get_response(opts),
-         {:ok, conversation_id} <- save_conversation(conversation, msgs) do
+         {:ok, usage, context, response} <- get_response(opts),
+         {:ok, conversation_id} <- save_conversation() do
       end_time = System.monotonic_time(:second)
-      print_summary(start_time, end_time, usage, context, conversation_id)
+      print_result(start_time, end_time, response, usage, context, conversation_id)
+      NotesServer.join()
     else
       {:error, :invalid_rounds} ->
         UI.error("--rounds expects a positive integer")
@@ -90,39 +93,9 @@ defmodule Cmd.Ask do
     end
   end
 
-  defp get_response(opts) do
-    with %{msgs: msgs, usage: usage, context: context} <- AI.Agent.Coordinator.get_response(opts) do
-      {:ok, msgs, usage, context}
-    end
-  end
-
-  defp print_summary(start_time, end_time, usage, context, conversation_id) do
-    time_taken = end_time - start_time
-    pct_context_used = Float.round(usage / context * 100, 2)
-
-    usage_str = Util.format_number(usage)
-    context_str = Util.format_number(context)
-
-    {:ok, project} = Store.get_project()
-    %{new: new, stale: stale, deleted: deleted} = Store.Project.index_status(project)
-
-    UI.say("""
-    ### Response Summary:
-    - Response generated in #{time_taken} seconds
-    - Tokens used: #{usage_str} | #{pct_context_used}% of context window (#{context_str})
-    - Conversation saved with ID #{conversation_id} (_copied to clipboard_)
-
-    ### Project Search Index Status:
-    - Stale:   #{Enum.count(stale)}
-    - New:     #{Enum.count(new)}
-    - Deleted: #{Enum.count(deleted)}
-
-    _Run `fnord index` to update the index._
-    """)
-
-    UI.flush()
-  end
-
+  # ----------------------------------------------------------------------------
+  # Validation
+  # ----------------------------------------------------------------------------
   defp validate(opts) do
     with :ok <- validate_conversation(opts),
          :ok <- validate_rounds(opts) do
@@ -145,32 +118,68 @@ defmodule Cmd.Ask do
 
   defp validate_conversation(_opts), do: :ok
 
-  defp get_conversation(%{follow: id}) when is_binary(id) do
-    {:ok, Store.Project.Conversation.new(id)}
-  end
+  # ----------------------------------------------------------------------------
+  # Agent response
+  # ----------------------------------------------------------------------------
+  defp get_response(opts) do
+    ConversationServer.load(opts[:follow])
 
-  defp get_conversation(_opts) do
-    {:ok, Store.Project.Conversation.new()}
-  end
+    %{
+      conversation: ConversationServer.get_conversation(),
+      edit: opts.edit,
+      rounds: opts.rounds,
+      question: opts.question,
+      replay: opts.replay
+    }
+    |> AI.Agent.Coordinator.get_response()
+    |> case do
+      %{usage: usage, context: context, last_response: response} ->
+        {:ok, usage, context, response}
 
-  defp restore_conversation(opts) do
-    with {:ok, conversation} <- get_conversation(opts) do
-      messages =
-        if Store.Project.Conversation.exists?(conversation) do
-          {:ok, _ts, messages} = Store.Project.Conversation.read(conversation)
-          messages
-        else
-          []
-        end
-
-      {:ok, messages, conversation}
+      other ->
+        other
     end
   end
 
-  defp save_conversation(conversation, messages) do
-    Store.Project.Conversation.write(conversation, messages)
-    UI.debug("Conversation saved to file", conversation.store_path)
-    UI.report_step("Conversation saved", conversation.id)
-    {:ok, conversation.id}
+  # ----------------------------------------------------------------------------
+  # Output
+  # ----------------------------------------------------------------------------
+  defp print_result(start_time, end_time, response, usage, context, conversation_id) do
+    time_taken = end_time - start_time
+    pct_context_used = Float.round(usage / context * 100, 2)
+
+    usage_str = Util.format_number(usage)
+    context_str = Util.format_number(context)
+
+    {:ok, project} = Store.get_project()
+    %{new: new, stale: stale, deleted: deleted} = Store.Project.index_status(project)
+
+    UI.say("""
+    #{response}
+
+    -----
+
+    ### Response Summary:
+    - Response generated in #{time_taken} seconds
+    - Tokens used: #{usage_str} | #{pct_context_used}% of context window (#{context_str})
+    - Conversation saved with ID #{conversation_id} (_copied to clipboard_)
+
+    ### Project Search Index Status:
+    - Stale:   #{Enum.count(stale)}
+    - New:     #{Enum.count(new)}
+    - Deleted: #{Enum.count(deleted)}
+
+    _Run `fnord index` to update the index._
+    """)
+
+    UI.flush()
+  end
+
+  defp save_conversation() do
+    with {:ok, conversation} <- ConversationServer.save() do
+      UI.debug("Conversation saved to file", conversation.store_path)
+      UI.report_step("Conversation saved", conversation.id)
+      {:ok, conversation.id}
+    end
   end
 end

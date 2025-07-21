@@ -14,37 +14,45 @@ defmodule AI.Agent.Coordinator do
 
   @impl AI.Agent
   def get_response(opts) do
-    opts |> new() |> consider()
+    opts
+    |> new()
+    |> select_steps()
+    |> consider()
   end
 
   defp new(opts) do
-    {:ok, project} = Store.get_project()
-    edit = Map.get(opts, :edit, false)
+    with {:ok, conversation} <- Map.fetch(opts, :conversation),
+         {:ok, edit?} <- Map.fetch(opts, :edit),
+         {:ok, rounds} <- Map.fetch(opts, :rounds),
+         {:ok, question} <- Map.fetch(opts, :question),
+         {:ok, replay} <- Map.fetch(opts, :replay),
+         {:ok, project} <- Store.get_project() do
+      %{
+        # User opts
+        rounds: rounds,
+        edit?: edit?,
+        replay: replay,
+        question: question,
+        conversation: conversation,
+        followup?: Store.Project.Conversation.exists?(conversation),
+        project: project.name,
 
-    %{
-      project: project.name,
-      rounds: opts.rounds,
-      edit?: edit,
-      question: opts.question,
-      edit: edit,
-      msgs: opts.msgs,
-      last_response: nil,
-      # populated by select_steps/1
-      steps: [],
-      current_step: 0,
-      usage: 0,
-      context: @model.context,
-      replay: Map.get(opts, :replay, false),
-      notes: nil
-    }
-    |> select_steps()
+        # State
+        last_response: nil,
+        steps: [],
+        current_step: 0,
+        usage: 0,
+        context: @model.context,
+        notes: nil
+      }
+    end
   end
 
   defp consider(state) do
     Frobs.list()
-    |> Enum.map(fn %{name: name} -> "- #{name}" end)
-    |> Enum.join("\n")
-    |> then(&UI.info("Available frobs:\n#{&1}"))
+    |> Enum.map(& &1.name)
+    |> Enum.join(" | ")
+    |> then(&UI.info("Available frobs", &1))
 
     if is_testing?(state) do
       UI.debug("Testing mode enabled")
@@ -58,37 +66,51 @@ defmodule AI.Agent.Coordinator do
   # -----------------------------------------------------------------------------
   # Research steps
   # -----------------------------------------------------------------------------
-  @first_steps [:initial, :clarify, :refine]
-  @last_steps [:finalize]
-
-  defp select_steps(%{rounds: 1, edit?: edit?, msgs: [_ | _]} = state) do
-    steps =
-      if edit? do
-        [:followup, :do_you_even_code_bro?]
-      else
-        [:followup]
-      end
-
-    %{state | steps: steps ++ @last_steps}
+  defp select_steps(%{edit?: true, followup?: true} = state) do
+    %{state | steps: [:followup, :do_you_even_code_bro?, :finalize]}
   end
 
-  defp select_steps(%{rounds: n, edit?: edit?} = state) do
-    steps =
-      cond do
-        n <= 1 -> [:singleton]
-        n == 2 -> [:singleton, :refine]
-        n == 3 -> @first_steps
-        n >= 3 -> @first_steps ++ Enum.map(1..(n - 3), fn _ -> :continue end)
-      end
+  defp select_steps(%{edit?: true, followup?: false, rounds: 1} = state) do
+    %{state | steps: [:singleton, :do_you_even_code_bro?, :finalize]}
+  end
 
-    steps =
-      if edit? do
-        steps ++ [:do_you_even_code_bro?]
-      else
-        steps
-      end
+  defp select_steps(%{edit?: true, followup?: false, rounds: 2} = state) do
+    %{state | steps: [:singleton, :refine, :do_you_even_code_bro?, :finalize]}
+  end
 
-    %{state | steps: steps ++ @last_steps}
+  defp select_steps(%{edit?: true, followup?: false, rounds: 3} = state) do
+    %{state | steps: [:initial, :clarify, :refine, :do_you_even_code_bro?, :finalize]}
+  end
+
+  defp select_steps(%{edit?: true, followup?: false, rounds: n} = state) when n > 3 do
+    %{
+      state
+      | steps:
+          [:initial, :clarify, :refine] ++
+            Enum.map(1..(n - 3), fn _ -> :continue end) ++
+            [:do_you_even_code_bro?, :finalize]
+    }
+  end
+
+  defp select_steps(%{edit?: false, rounds: 1} = state) do
+    %{state | steps: [:singleton, :finalize]}
+  end
+
+  defp select_steps(%{edit?: false, rounds: 2} = state) do
+    %{state | steps: [:singleton, :refine, :finalize]}
+  end
+
+  defp select_steps(%{edit?: false, rounds: 3} = state) do
+    %{state | steps: [:initial, :clarify, :refine, :finalize]}
+  end
+
+  defp select_steps(%{edit?: false, rounds: n} = state) do
+    %{
+      state
+      | steps:
+          [:initial, :clarify, :refine] ++
+            Enum.map(1..(n - 3), fn _ -> :continue end) ++ [:finalize]
+    }
   end
 
   defp perform_step({:error, reason}) do
@@ -113,6 +135,7 @@ defmodule AI.Agent.Coordinator do
     |> followup_msg()
     |> get_intuition()
     |> get_completion(replay)
+    |> save_notes()
     |> perform_step()
   end
 
@@ -129,6 +152,7 @@ defmodule AI.Agent.Coordinator do
     |> begin_msg()
     |> get_intuition()
     |> get_completion(replay)
+    |> save_notes()
     |> perform_step()
   end
 
@@ -145,6 +169,7 @@ defmodule AI.Agent.Coordinator do
     |> begin_msg()
     |> get_intuition()
     |> get_completion(replay)
+    |> save_notes()
     |> perform_step()
   end
 
@@ -157,6 +182,7 @@ defmodule AI.Agent.Coordinator do
     |> clarify_msg()
     |> get_intuition()
     |> get_completion()
+    |> save_notes()
     |> perform_step()
   end
 
@@ -169,6 +195,7 @@ defmodule AI.Agent.Coordinator do
     |> refine_msg()
     |> get_intuition()
     |> get_completion()
+    |> save_notes()
     |> perform_step()
   end
 
@@ -181,6 +208,7 @@ defmodule AI.Agent.Coordinator do
     |> continue_msg()
     |> get_intuition()
     |> get_completion()
+    |> save_notes()
     |> perform_step()
   end
 
@@ -193,37 +221,26 @@ defmodule AI.Agent.Coordinator do
     |> do_you_even_code_bro?()
     |> get_intuition()
     |> get_completion()
+    |> save_notes()
     |> perform_step()
   end
 
   defp perform_step(%{steps: [:finalize]} = state) do
-    motd = Task.async(fn -> get_motd(state) end)
-
     UI.debug("Generating response")
 
-    state =
-      state
-      |> Map.put(:steps, [])
-      |> reminder_msg()
-      |> finalize_msg()
-      |> template_msg()
-      |> get_completion()
-
-    # Retrieve and output the MOTD
-    with {:ok, motd} <- Task.await(motd, :infinity) do
-      UI.say("\n\n" <> motd)
-    else
-      {:error, reason} -> UI.error("Failed to retrieve MOTD: #{inspect(reason)}")
-    end
-
-    # Save the notes we've collected
-    NotesServer.commit()
-
     state
+    |> Map.put(:steps, [])
+    |> reminder_msg()
+    |> finalize_msg()
+    |> template_msg()
+    |> get_completion()
+    |> save_notes()
+    |> get_motd()
   end
 
-  defp get_completion(%{msgs: msgs} = state, replay \\ false) do
+  defp get_completion(state, replay \\ false) do
     current_step = state.current_step + 1
+    msgs = ConversationServer.get_messages()
 
     AI.Completion.get(
       log_msgs: true,
@@ -236,18 +253,19 @@ defmodule AI.Agent.Coordinator do
     )
     |> case do
       {:ok, %{response: response, messages: new_msgs, usage: usage} = completion} ->
+        ConversationServer.replace_msgs(new_msgs)
+
         completion
         |> AI.Completion.tools_used()
-        |> Enum.each(fn {tool, count} ->
-          UI.report_step(tool, "called #{count} time(s)")
-        end)
+        |> Enum.map(fn {tool, count} -> "- #{tool}: #{count} invocation(s)" end)
+        |> Enum.join("\n")
+        |> then(&UI.debug("Tools used", &1))
 
         %{
           state
           | usage: usage,
             current_step: current_step,
-            last_response: response,
-            msgs: new_msgs
+            last_response: response
         }
         |> log_usage()
         |> log_response()
@@ -467,127 +485,121 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp new_session_msg(state) do
+    """
+    Beginning a new session.
+    Artifacts from previous sessions within this conversation may be stale.
+    """
+    |> AI.Util.system_msg()
+    |> ConversationServer.append_msg()
+
     state
-    |> Map.put(
-      :msgs,
-      state.msgs ++
-        [
-          AI.Util.system_msg("""
-          Beginning a new session.
-          Artifacts from previous sessions within this conversation may be stale.
-          """)
-        ]
-    )
   end
 
   defp singleton_msg(%{project: project} = state) do
+    @singleton
+    |> String.replace("$$PROJECT$$", project)
+    |> String.replace("$$GIT_INFO$$", git_info())
+    |> AI.Util.system_msg()
+    |> ConversationServer.append_msg()
+
     state
-    |> Map.put(
-      :msgs,
-      state.msgs ++
-        [
-          @singleton
-          |> String.replace("$$PROJECT$$", project)
-          |> String.replace("$$GIT_INFO$$", git_info())
-          |> AI.Util.system_msg()
-        ]
-    )
   end
 
   defp initial_msg(%{project: project} = state) do
+    @initial
+    |> String.replace("$$PROJECT$$", project)
+    |> String.replace("$$GIT_INFO$$", git_info())
+    |> AI.Util.system_msg()
+    |> ConversationServer.append_msg()
+
     state
-    |> Map.put(
-      :msgs,
-      state.msgs ++
-        [
-          @initial
-          |> String.replace("$$PROJECT$$", project)
-          |> String.replace("$$GIT_INFO$$", git_info())
-          |> AI.Util.system_msg()
-        ]
-    )
   end
 
   defp user_msg(%{question: question} = state) do
+    question |> AI.Util.user_msg() |> ConversationServer.append_msg()
     state
-    |> Map.put(:msgs, state.msgs ++ [AI.Util.user_msg(question)])
   end
 
   defp reminder_msg(%{question: question} = state) do
+    "Remember the user's question: #{question}"
+    |> AI.Util.system_msg()
+    |> ConversationServer.append_msg()
+
     state
-    |> Map.put(
-      :msgs,
-      state.msgs ++ [AI.Util.system_msg("Remember the user's original question: #{question}")]
-    )
   end
 
   defp followup_msg(state) do
+    @followup |> AI.Util.assistant_msg() |> ConversationServer.append_msg()
     state
-    |> Map.put(:msgs, state.msgs ++ [AI.Util.assistant_msg(@followup)])
   end
 
   defp begin_msg(state) do
+    @begin |> AI.Util.assistant_msg() |> ConversationServer.append_msg()
     state
-    |> Map.put(:msgs, state.msgs ++ [AI.Util.assistant_msg(@begin)])
   end
 
-  defp maybe_coding_msg(%{edit: false} = state), do: state
+  defp maybe_coding_msg(%{edit?: false} = state), do: state
 
-  defp maybe_coding_msg(%{edit: true} = state) do
+  defp maybe_coding_msg(%{edit?: true} = state) do
+    @coding |> AI.Util.assistant_msg() |> ConversationServer.append_msg()
     state
-    |> Map.put(:msgs, state.msgs ++ [AI.Util.system_msg(@coding)])
   end
 
   defp clarify_msg(state) do
+    @clarify |> AI.Util.assistant_msg() |> ConversationServer.append_msg()
     state
-    |> Map.put(:msgs, state.msgs ++ [AI.Util.assistant_msg(@clarify)])
   end
 
   defp refine_msg(state) do
+    @refine |> AI.Util.assistant_msg() |> ConversationServer.append_msg()
     state
-    |> Map.put(:msgs, state.msgs ++ [AI.Util.assistant_msg(@refine)])
   end
 
   defp continue_msg(state) do
+    @continue |> AI.Util.assistant_msg() |> ConversationServer.append_msg()
     state
-    |> Map.put(:msgs, state.msgs ++ [AI.Util.assistant_msg(@continue)])
   end
 
-  defp do_you_even_code_bro?(%{edit: true} = state) do
+  defp do_you_even_code_bro?(%{edit?: true} = state) do
+    @do_you_even_code_bro? |> AI.Util.assistant_msg() |> ConversationServer.append_msg()
     state
-    |> Map.put(:msgs, state.msgs ++ [AI.Util.assistant_msg(@do_you_even_code_bro?)])
   end
 
   defp do_you_even_code_bro?(state), do: state
 
   defp finalize_msg(state) do
+    @finalize |> AI.Util.assistant_msg() |> ConversationServer.append_msg()
     state
-    |> Map.put(:msgs, state.msgs ++ [AI.Util.assistant_msg(@finalize)])
   end
 
   defp template_msg(state) do
+    @template |> AI.Util.assistant_msg() |> ConversationServer.append_msg()
     state
-    |> Map.put(:msgs, state.msgs ++ [AI.Util.system_msg(@template)])
   end
 
   # -----------------------------------------------------------------------------
   # Intuition
   # -----------------------------------------------------------------------------
-  defp get_intuition(%{notes: notes, msgs: msgs} = state) do
+  defp get_intuition(state) do
     UI.begin_step("Cogitating")
 
-    AI.Agent.Intuition.get_response(%{memories: notes, msgs: msgs})
+    AI.Agent.Intuition.get_response(%{
+      msgs: ConversationServer.get_messages(),
+      memories: state.notes
+    })
     |> case do
       {:ok, intuition} ->
         UI.report_step("Intuition", UI.italicize(intuition))
 
-        msg = """
+        """
         <think>
         #{intuition}
         </think>
         """
+        |> AI.Util.assistant_msg()
+        |> ConversationServer.append_msg()
 
-        %{state | msgs: state.msgs ++ [AI.Util.assistant_msg(msg)]}
+        state
 
       {:error, reason} ->
         UI.error("Derp. Cogitation failed.", inspect(reason))
@@ -607,28 +619,39 @@ defmodule AI.Agent.Coordinator do
     # fire-and-forget, so it won't block the rest of the process.
     NotesServer.consolidate()
 
-    # Then we add the notes to the state, both as a message for the
-    # coordinating agent, and as a field in the state so that get_intuition/1
-    # can access them.
-    %{
-      state
-      | msgs: state.msgs ++ [AI.Util.system_msg("Prior research notes: #{notes}")],
-        notes: notes
-    }
+    # Add the notes as a message for the coordinating agent, so that it
+    # can see relevant prior research before choosing how to proceed.
+    "Prior research notes: #{notes}"
+    |> AI.Util.system_msg()
+    |> ConversationServer.append_msg()
+
+    # Add notes to the state so that get_intuition/1 can access
+    %{state | notes: notes}
+  end
+
+  defp save_notes(state) do
+    NotesServer.save()
+    state
   end
 
   # -----------------------------------------------------------------------------
   # MOTD
   # -----------------------------------------------------------------------------
   defp get_motd(state) do
-    AI.Agent.MOTD.get_response(%{prompt: state.question})
+    with {:ok, motd} <- AI.Agent.MOTD.get_response(%{prompt: state.question}) do
+      %{state | last_response: state.last_response <> "\n\n" <> motd}
+    else
+      {:error, reason} ->
+        UI.error("Failed to retrieve MOTD: #{inspect(reason)}")
+        state
+    end
   end
 
   # -----------------------------------------------------------------------------
   # Output
   # -----------------------------------------------------------------------------
-  defp log_response(%{steps: [], last_response: answer} = state) do
-    UI.say(answer)
+  defp log_response(%{steps: []} = state) do
+    UI.debug("Response complete")
     state
   end
 
@@ -651,7 +674,7 @@ defmodule AI.Agent.Coordinator do
   # -----------------------------------------------------------------------------
   # Tool box
   # -----------------------------------------------------------------------------
-  defp get_tools(%{edit: true}) do
+  defp get_tools(%{edit?: true}) do
     AI.Tools.all_tools()
     |> Map.values()
     |> Enum.concat([

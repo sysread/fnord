@@ -26,6 +26,7 @@ defmodule AI.Agent.Nomenclater do
   Select a first name that is unique and not already used by another agent.
   Selecting fun, whimsical names is encouraged, so long as they are not vulgar or offensive.
   Your audience is geeky, so sci-fi- and cartoon-sounding names are welcome, but obviously not required.
+  If every name sounded like a widget from Zork!, no one will complain!
   Try not to select names that are too similar to existing names, as that can cause confusion.
   Respond ONLY with the first name, without any additional text, explanation, or formatting.
   """
