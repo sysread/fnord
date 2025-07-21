@@ -41,7 +41,7 @@ defmodule AI.Tools.Notes do
 
   @impl AI.Tools
   def ui_note_on_result(_args, result) do
-    {"Prior search identified", result}
+    {"Prior research identified", result}
   end
 
   @impl AI.Tools
