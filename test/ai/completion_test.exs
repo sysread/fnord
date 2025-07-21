@@ -147,7 +147,9 @@ defmodule AI.CompletionTest do
     end
 
     test "returns tool call counts for a single message with multiple tools" do
+      # Only counts tool calls after the user message
       messages = [
+        AI.Util.user_msg("start"),
         %{
           tool_calls: [
             %{function: %{name: "foo"}},
@@ -162,7 +164,9 @@ defmodule AI.CompletionTest do
     end
 
     test "returns tool call counts across multiple messages" do
+      # Only counts tool calls after the user message
       messages = [
+        AI.Util.user_msg("hello"),
         %{tool_calls: [%{function: %{name: "foo"}}]},
         %{},
         %{tool_calls: [%{function: %{name: "foo"}}, %{function: %{name: "bar"}}]}
@@ -180,6 +184,23 @@ defmodule AI.CompletionTest do
       ]
 
       assert %{} = AI.Completion.tools_used(%AI.Completion{messages: messages})
+    end
+
+    test "only counts tool_calls after the most recent user message" do
+      # Tool calls before the last user message should be ignored
+      messages = [
+        %{tool_calls: [%{function: %{name: "before"}}]},
+        AI.Util.user_msg("continue"),
+        %{
+          tool_calls: [
+            %{function: %{name: "after1"}},
+            %{function: %{name: "after2"}}
+          ]
+        }
+      ]
+
+      assert %{"after1" => 1, "after2" => 1} ==
+               AI.Completion.tools_used(%AI.Completion{messages: messages})
     end
   end
 

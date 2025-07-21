@@ -110,19 +110,39 @@ defmodule AI.Completion do
     end
   end
 
+  @doc """
+  Returns a map of tool names to the number of times each tool was called in
+  the most recent round of the conversation, starting from the most recent user
+  message.
+  """
   def tools_used(%{messages: messages}) do
-    messages
-    |> Enum.reduce(%{}, fn
-      %{tool_calls: tool_calls}, acc ->
-        tool_calls
-        |> Enum.reduce(acc, fn
-          %{function: %{name: func}}, acc ->
-            Map.update(acc, func, 1, &(&1 + 1))
-        end)
+    # Find the index of the most recent user message in the conversation
+    last_user_index =
+      messages
+      |> Enum.with_index()
+      |> Enum.reduce(nil, fn
+        {%{role: "user"}, idx}, _ -> idx
+        _, acc -> acc
+      end)
 
-      _, acc ->
-        acc
-    end)
+    # If no user message exists, return an empty map
+    if last_user_index == nil do
+      %{}
+    else
+      # Count tool calls only in messages after the last user message
+      messages
+      |> Enum.drop(last_user_index + 1)
+      |> Enum.reduce(%{}, fn
+        %{tool_calls: tool_calls}, acc ->
+          tool_calls
+          |> Enum.reduce(acc, fn %{function: %{name: func}}, acc ->
+            Map.update(acc, func, 1, &(&1 + 1))
+          end)
+
+        _, acc ->
+          acc
+      end)
+    end
   end
 
   # -----------------------------------------------------------------------------
