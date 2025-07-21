@@ -307,6 +307,13 @@ defmodule Frobs do
 
           @impl AI.Tools
           def ui_note_on_result(_args, result) when is_binary(result) do
+            result =
+              if String.length(result) > 1000 do
+                String.slice(result, 0, 1000) <> " | truncated"
+              else
+                result
+              end
+
             {"Frob `#{@tool_name}` result", result}
           end
 
