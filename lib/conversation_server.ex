@@ -41,15 +41,11 @@ defmodule ConversationServer do
   # -----------------------------------------------------------------------------
   # Server API
   # -----------------------------------------------------------------------------
-  def init(_) do
-    {:ok, %{conversation: Conversation.new(), msgs: [], ts: nil}}
-  end
+  def init(_), do: new()
 
   def handle_cast({:load, id}, state) do
-    conversation = Conversation.new(id)
-
-    with {:ok, ts, msgs} <- Conversation.read(conversation) do
-      {:noreply, %{state | conversation: conversation, msgs: msgs, ts: ts}}
+    with {:ok, new_state} <- new(id) do
+      {:noreply, new_state}
     else
       {:error, reason} -> {:stop, reason, state}
     end
@@ -73,10 +69,25 @@ defmodule ConversationServer do
 
   def handle_call(:save, _from, state) do
     with {:ok, conversation} <- Conversation.write(state.conversation, state.msgs),
-         {:ok, ts, msgs} <- Conversation.read(conversation) do
-      {:reply, {:ok, conversation}, %{state | conversation: conversation, msgs: msgs, ts: ts}}
+         {:ok, state} <- new(state.conversation.id) do
+      {:reply, {:ok, conversation}, state}
     else
       other -> {:reply, other, state}
+    end
+  end
+
+  # -----------------------------------------------------------------------------
+  # Internals
+  # -----------------------------------------------------------------------------
+  defp new() do
+    {:ok, %{conversation: Conversation.new(), msgs: [], ts: nil}}
+  end
+
+  defp new(conversation_id) do
+    conversation = Conversation.new(conversation_id)
+
+    with {:ok, ts, msgs} <- Conversation.read(conversation) do
+      {:ok, %{conversation: conversation, msgs: msgs, ts: ts}}
     end
   end
 end

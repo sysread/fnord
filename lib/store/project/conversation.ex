@@ -6,8 +6,7 @@ defmodule Store.Project.Conversation do
   having to parse dozens or hundreds of messages for each file.
 
   The JSON object currently has the following keys:
-  - `messages`: a list of messages in the conversation, each an object with a
-    `role` and `content` key (more for tool messages)
+  - `messages`: a list of messages in the conversation
 
   Existing conversations are retrieved by their UUID identifier.
   """
@@ -101,10 +100,7 @@ defmodule Store.Project.Conversation do
     |> build_store_dir()
     |> File.mkdir_p()
 
-    timestamp =
-      DateTime.utc_now()
-      |> DateTime.to_unix()
-
+    timestamp = marshal_ts()
     data = %{messages: messages}
 
     with {:ok, json} <- Jason.encode(data),
@@ -120,8 +116,8 @@ defmodule Store.Project.Conversation do
   @spec read(t) :: {:ok, DateTime.t(), list} | {:error, any()}
   def read(conversation) do
     with {:ok, contents} <- File.read(conversation.store_path),
-         [timestamp, json] <- String.split(contents, ":", parts: 2),
-         {:ok, timestamp} <- timestamp |> String.to_integer() |> DateTime.from_unix(),
+         [timestamp_str, json] <- String.split(contents, ":", parts: 2),
+         {:ok, timestamp} <- unmarshal_ts(timestamp_str),
          {:ok, %{"messages" => msgs}} <- Jason.decode(json) do
       {:ok, timestamp, Util.string_keys_to_atoms(msgs)}
     end
@@ -152,7 +148,7 @@ defmodule Store.Project.Conversation do
   """
   @spec question(t) :: {:ok, binary} | {:error, :no_question}
   def question(conversation) do
-    with {:ok, _, msgs} <- read(conversation) do
+    with {:ok, _ts, msgs} <- read(conversation) do
       msgs
       |> Enum.find(&(Map.get(&1, :role) == "user"))
       |> case do
@@ -188,5 +184,16 @@ defmodule Store.Project.Conversation do
   defp build_store_path(project_home, id) do
     file = build_store_dir(project_home) |> Path.join(id)
     file <> ".json"
+  end
+
+  defp unmarshal_ts(numerical_string) do
+    numerical_string
+    |> String.to_integer()
+    |> DateTime.from_unix()
+  end
+
+  defp marshal_ts() do
+    DateTime.utc_now()
+    |> DateTime.to_unix()
   end
 end
