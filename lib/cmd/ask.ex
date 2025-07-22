@@ -60,8 +60,6 @@ defmodule Cmd.Ask do
 
   @impl Cmd
   def run(opts, _subcommands, _unknown) do
-    ConversationServer.start_link()
-
     opts =
       if opts[:edit] do
         UI.warning_banner("EDITING MODE ENABLED! THE AI CAN MODIFY FILES. YOU MUST BE NUTS.")
@@ -73,8 +71,9 @@ defmodule Cmd.Ask do
     start_time = System.monotonic_time(:second)
 
     with {:ok, opts} <- validate(opts),
-         {:ok, usage, context, response} <- get_response(opts),
-         {:ok, conversation_id} <- save_conversation() do
+         {:ok, pid} = ConversationServer.start_link(opts[:follow]),
+         {:ok, usage, context, response} <- get_response(opts, pid),
+         {:ok, conversation_id} <- save_conversation(pid) do
       end_time = System.monotonic_time(:second)
       print_result(start_time, end_time, response, usage, context, conversation_id)
       NotesServer.join()
@@ -121,11 +120,9 @@ defmodule Cmd.Ask do
   # ----------------------------------------------------------------------------
   # Agent response
   # ----------------------------------------------------------------------------
-  defp get_response(opts) do
-    ConversationServer.load(opts[:follow])
-
+  defp get_response(opts, conversation_server) do
     %{
-      conversation: ConversationServer.get_conversation(),
+      conversation: conversation_server,
       edit: opts.edit,
       rounds: opts.rounds,
       question: opts.question,
@@ -175,8 +172,8 @@ defmodule Cmd.Ask do
     UI.flush()
   end
 
-  defp save_conversation() do
-    with {:ok, conversation} <- ConversationServer.save() do
+  defp save_conversation(pid) do
+    with {:ok, conversation} <- ConversationServer.save(pid) do
       UI.debug("Conversation saved to file", conversation.store_path)
       UI.report_step("Conversation saved", conversation.id)
       {:ok, conversation.id}

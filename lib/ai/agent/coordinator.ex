@@ -27,6 +27,11 @@ defmodule AI.Agent.Coordinator do
          {:ok, question} <- Map.fetch(opts, :question),
          {:ok, replay} <- Map.fetch(opts, :replay),
          {:ok, project} <- Store.get_project() do
+      followup? =
+        conversation
+        |> ConversationServer.get_conversation()
+        |> Store.Project.Conversation.exists?()
+
       %{
         # User opts
         rounds: rounds,
@@ -34,7 +39,7 @@ defmodule AI.Agent.Coordinator do
         replay: replay,
         question: question,
         conversation: conversation,
-        followup?: Store.Project.Conversation.exists?(conversation),
+        followup?: followup?,
         project: project.name,
 
         # State
@@ -240,7 +245,7 @@ defmodule AI.Agent.Coordinator do
 
   defp get_completion(state, replay \\ false) do
     current_step = state.current_step + 1
-    msgs = ConversationServer.get_messages()
+    msgs = ConversationServer.get_messages(state.conversation)
 
     AI.Completion.get(
       log_msgs: true,
@@ -253,7 +258,7 @@ defmodule AI.Agent.Coordinator do
     )
     |> case do
       {:ok, %{response: response, messages: new_msgs, usage: usage} = completion} ->
-        ConversationServer.replace_msgs(new_msgs)
+        ConversationServer.replace_msgs(new_msgs, state.conversation)
 
         completion
         |> AI.Completion.tools_used()
@@ -490,7 +495,7 @@ defmodule AI.Agent.Coordinator do
     Artifacts from previous sessions within this conversation may be stale.
     """
     |> AI.Util.system_msg()
-    |> ConversationServer.append_msg()
+    |> ConversationServer.append_msg(state.conversation)
 
     state
   end
@@ -500,7 +505,7 @@ defmodule AI.Agent.Coordinator do
     |> String.replace("$$PROJECT$$", project)
     |> String.replace("$$GIT_INFO$$", git_info())
     |> AI.Util.system_msg()
-    |> ConversationServer.append_msg()
+    |> ConversationServer.append_msg(state.conversation)
 
     state
   end
@@ -510,70 +515,100 @@ defmodule AI.Agent.Coordinator do
     |> String.replace("$$PROJECT$$", project)
     |> String.replace("$$GIT_INFO$$", git_info())
     |> AI.Util.system_msg()
-    |> ConversationServer.append_msg()
+    |> ConversationServer.append_msg(state.conversation)
 
     state
   end
 
   defp user_msg(%{question: question} = state) do
-    question |> AI.Util.user_msg() |> ConversationServer.append_msg()
+    question
+    |> AI.Util.user_msg()
+    |> ConversationServer.append_msg(state.conversation)
+
     state
   end
 
   defp reminder_msg(%{question: question} = state) do
     "Remember the user's question: #{question}"
     |> AI.Util.system_msg()
-    |> ConversationServer.append_msg()
+    |> ConversationServer.append_msg(state.conversation)
 
     state
   end
 
   defp followup_msg(state) do
-    @followup |> AI.Util.assistant_msg() |> ConversationServer.append_msg()
+    @followup
+    |> AI.Util.assistant_msg()
+    |> ConversationServer.append_msg(state.conversation)
+
     state
   end
 
   defp begin_msg(state) do
-    @begin |> AI.Util.assistant_msg() |> ConversationServer.append_msg()
+    @begin
+    |> AI.Util.assistant_msg()
+    |> ConversationServer.append_msg(state.conversation)
+
     state
   end
 
   defp maybe_coding_msg(%{edit?: false} = state), do: state
 
   defp maybe_coding_msg(%{edit?: true} = state) do
-    @coding |> AI.Util.assistant_msg() |> ConversationServer.append_msg()
+    @coding
+    |> AI.Util.assistant_msg()
+    |> ConversationServer.append_msg(state.conversation)
+
     state
   end
 
   defp clarify_msg(state) do
-    @clarify |> AI.Util.assistant_msg() |> ConversationServer.append_msg()
+    @clarify
+    |> AI.Util.assistant_msg()
+    |> ConversationServer.append_msg(state.conversation)
+
     state
   end
 
   defp refine_msg(state) do
-    @refine |> AI.Util.assistant_msg() |> ConversationServer.append_msg()
+    @refine
+    |> AI.Util.assistant_msg()
+    |> ConversationServer.append_msg(state.conversation)
+
     state
   end
 
   defp continue_msg(state) do
-    @continue |> AI.Util.assistant_msg() |> ConversationServer.append_msg()
+    @continue
+    |> AI.Util.assistant_msg()
+    |> ConversationServer.append_msg(state.conversation)
+
     state
   end
 
   defp do_you_even_code_bro?(%{edit?: true} = state) do
-    @do_you_even_code_bro? |> AI.Util.assistant_msg() |> ConversationServer.append_msg()
+    @do_you_even_code_bro?
+    |> AI.Util.assistant_msg()
+    |> ConversationServer.append_msg(state.conversation)
+
     state
   end
 
   defp do_you_even_code_bro?(state), do: state
 
   defp finalize_msg(state) do
-    @finalize |> AI.Util.assistant_msg() |> ConversationServer.append_msg()
+    @finalize
+    |> AI.Util.assistant_msg()
+    |> ConversationServer.append_msg(state.conversation)
+
     state
   end
 
   defp template_msg(state) do
-    @template |> AI.Util.assistant_msg() |> ConversationServer.append_msg()
+    @template
+    |> AI.Util.assistant_msg()
+    |> ConversationServer.append_msg(state.conversation)
+
     state
   end
 
@@ -584,7 +619,7 @@ defmodule AI.Agent.Coordinator do
     UI.begin_step("Cogitating")
 
     AI.Agent.Intuition.get_response(%{
-      msgs: ConversationServer.get_messages(),
+      msgs: ConversationServer.get_messages(state.conversation),
       memories: state.notes
     })
     |> case do
@@ -597,7 +632,7 @@ defmodule AI.Agent.Coordinator do
         </think>
         """
         |> AI.Util.assistant_msg()
-        |> ConversationServer.append_msg()
+        |> ConversationServer.append_msg(state.conversation)
 
         state
 
@@ -623,7 +658,7 @@ defmodule AI.Agent.Coordinator do
     # can see relevant prior research before choosing how to proceed.
     "Prior research notes: #{notes}"
     |> AI.Util.system_msg()
-    |> ConversationServer.append_msg()
+    |> ConversationServer.append_msg(state.conversation)
 
     # Add notes to the state so that get_intuition/1 can access
     %{state | notes: notes}

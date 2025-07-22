@@ -6,42 +6,71 @@ defmodule ConversationServer do
   # -----------------------------------------------------------------------------
   # Client API
   # -----------------------------------------------------------------------------
-  def start_link() do
-    GenServer.start_link(__MODULE__, nil, name: __MODULE__)
+  @spec start_link() :: GenServer.on_start()
+  def start_link(conversation_id \\ nil) do
+    GenServer.start_link(__MODULE__, conversation_id)
   end
 
-  def load(nil), do: :ok
+  @doc """
+  Load an existing conversation from persistent storage. If `conversation_id`
+  is `nil`, a new conversation is created. If a conversation with the given ID
+  does not exist or is corrupt, an error is returned.
+  """
+  @spec load(binary | nil, pid) :: :ok | {:error, any}
+  def load(nil, _pid), do: :ok
 
-  def load(conversation_id) do
-    UI.debug("[conversation-server] restoring existing conversation", conversation_id)
-    GenServer.cast(__MODULE__, {:load, conversation_id})
+  def load(conversation_id, pid) do
+    GenServer.cast(pid, {:load, conversation_id})
   end
 
-  def append_msg(new_msg) do
-    GenServer.cast(__MODULE__, {:append_msg, new_msg})
+  @doc """
+  Append a new message to the conversation. Does not save the conversation.
+  """
+  @spec append_msg(AI.Util.msg(), pid) :: :ok
+  def append_msg(new_msg, pid) do
+    GenServer.cast(pid, {:append_msg, new_msg})
   end
 
-  def replace_msgs(new_msgs) do
-    GenServer.cast(__MODULE__, {:replace_msgs, new_msgs})
+  @doc """
+  Replace all messages in the conversation with a new list of messages.
+  This does not save the conversation.
+  """
+  @spec replace_msgs([AI.Util.msg()], pid) :: :ok
+  def replace_msgs(new_msgs, pid) do
+    GenServer.cast(pid, {:replace_msgs, new_msgs})
   end
 
-  def get_conversation() do
-    GenServer.call(__MODULE__, :get_conversation)
+  @doc """
+  Get the current conversation object.
+  """
+  @spec get_conversation(pid) :: Conversation.t()
+  def get_conversation(pid) do
+    GenServer.call(pid, :get_conversation)
   end
 
-  def get_messages() do
-    GenServer.call(__MODULE__, :get_messages)
+  @doc """
+  Get the list of messages in the current conversation.
+  """
+  @spec get_messages(pid) :: [AI.Util.msg()]
+  def get_messages(pid) do
+    GenServer.call(pid, :get_messages)
   end
 
-  def save() do
-    UI.debug("[conversation-server] saving conversation")
-    GenServer.call(__MODULE__, :save)
+  @doc """
+  Save the current conversation to persistent storage. This updates the
+  conversation's timestamp and writes the messages to disk. If the conversation
+  is successfully saved, the server state is reloaded with the latest data.
+  """
+  @spec save(pid) :: {:ok, Conversation.t()} | {:error, any}
+  def save(pid) do
+    UI.debug("[conversation-server]", "saving conversation")
+    GenServer.call(pid, :save)
   end
 
   # -----------------------------------------------------------------------------
   # Server API
   # -----------------------------------------------------------------------------
-  def init(_), do: new()
+  def init(id), do: new(id)
 
   def handle_cast({:load, id}, state) do
     with {:ok, new_state} <- new(id) do
@@ -79,12 +108,11 @@ defmodule ConversationServer do
   # -----------------------------------------------------------------------------
   # Internals
   # -----------------------------------------------------------------------------
-  defp new() do
-    {:ok, %{conversation: Conversation.new(), msgs: [], ts: nil}}
-  end
+  defp new(), do: {:ok, %{conversation: Conversation.new(), msgs: [], ts: nil}}
+  defp new(nil), do: new()
 
-  defp new(conversation_id) do
-    conversation = Conversation.new(conversation_id)
+  defp new(id) do
+    conversation = Conversation.new(id)
 
     with {:ok, ts, msgs} <- Conversation.read(conversation) do
       {:ok, %{conversation: conversation, msgs: msgs, ts: ts}}

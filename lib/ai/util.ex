@@ -4,7 +4,40 @@ defmodule AI.Util do
   @role_assistant "assistant"
   @role_tool "tool"
 
+  @type tool_call :: %{
+          id: binary,
+          type: binary,
+          function: %{name: binary, arguments: binary}
+        }
+
+  @type tool_call_parsed :: %{
+          id: binary,
+          type: binary,
+          function: %{name: binary, arguments: map}
+        }
+
+  @type content_msg :: %{role: binary, content: binary}
+
+  @type tool_request_msg :: %{
+          role: binary,
+          content: nil,
+          tool_calls: [tool_call_parsed]
+        }
+
+  @type tool_response_msg :: %{
+          role: binary,
+          name: binary,
+          tool_call_id: binary,
+          content: binary
+        }
+
+  @type msg ::
+          content_msg
+          | tool_request_msg
+          | tool_response_msg
+
   # Computes the cosine similarity between two vectors
+  @spec cosine_similarity([float], [float]) :: float
   def cosine_similarity(vec1, vec2) do
     if length(vec1) != length(vec2) do
       raise ArgumentError, """
@@ -33,6 +66,7 @@ defmodule AI.Util do
   text. This is most commonly used to generate a transcript of the research
   performed in a conversation for various agents and tool calls.
   """
+  @spec research_transcript([msg]) :: binary
   def research_transcript(msgs) do
     # Make a lookup for tool call args by id
     tool_call_args = build_tool_call_args(msgs)
@@ -98,6 +132,7 @@ defmodule AI.Util do
   @doc """
   Extracts the user's *most recent* query from the conversation messages.
   """
+  @spec user_query([msg]) :: binary | nil
   def user_query(messages) do
     messages
     |> Enum.filter(&(&1.role == @role_user))
@@ -113,6 +148,7 @@ defmodule AI.Util do
   Creates a system message object, used to define the assistant's behavior for
   the conversation.
   """
+  @spec system_msg(binary) :: content_msg
   def system_msg(msg) do
     %{
       role: @role_system,
@@ -123,6 +159,7 @@ defmodule AI.Util do
   @doc """
   Creates a user message object, representing the user's input prompt.
   """
+  @spec user_msg(binary) :: content_msg
   def user_msg(msg) do
     %{
       role: @role_user,
@@ -133,6 +170,7 @@ defmodule AI.Util do
   @doc """
   Creates an assistant message object, representing the assistant's response.
   """
+  @spec assistant_msg(binary) :: content_msg
   def assistant_msg(msg) do
     %{
       role: @role_assistant,
@@ -144,6 +182,7 @@ defmodule AI.Util do
   This is the tool outputs message, which must come immediately after the
   `assistant_tool_msg/3` message with the same `tool_call_id` (`id`).
   """
+  @spec tool_msg(binary, binary, any) :: tool_response_msg
   def tool_msg(id, func, output) do
     output =
       if is_binary(output) do
@@ -170,6 +209,7 @@ defmodule AI.Util do
   This is the tool call message, which must come immediately before the
   `tool_msg/3` message with the same `tool_call_id` (`id`).
   """
+  @spec assistant_tool_msg(binary, binary, binary) :: tool_request_msg
   def assistant_tool_msg(id, func, args) do
     %{
       role: @role_assistant,

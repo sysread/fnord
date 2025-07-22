@@ -42,7 +42,7 @@ defmodule AI.Completion do
           archive_notes: boolean(),
           replay_conversation: boolean(),
           usage: integer(),
-          messages: list(),
+          messages: list(AI.Util.msg()),
           tool_call_requests: list(),
           response: String.t() | nil
         }
@@ -61,6 +61,7 @@ defmodule AI.Completion do
     end
   end
 
+  @spec new(Keyword.t()) :: {:ok, t} | {:error, any}
   def new(opts) do
     with {:ok, model} <- Keyword.fetch(opts, :model),
          {:ok, messages} <- Keyword.fetch(opts, :messages) do
@@ -101,6 +102,9 @@ defmodule AI.Completion do
     end
   end
 
+  @spec new_from_conversation(Store.Project.Conversation.t(), Keyword.t()) ::
+          {:ok, t}
+          | {:error, :conversation_not_found}
   def new_from_conversation(conversation, opts) do
     if Store.Project.Conversation.exists?(conversation) do
       {:ok, _ts, msgs} = Store.Project.Conversation.read(conversation)
@@ -115,6 +119,7 @@ defmodule AI.Completion do
   the most recent round of the conversation, starting from the most recent user
   message.
   """
+  @spec tools_used(t) :: %{String.t() => non_neg_integer()}
   def tools_used(%{messages: messages}) do
     # Find the index of the most recent user message in the conversation
     last_user_index =
@@ -148,6 +153,7 @@ defmodule AI.Completion do
   # -----------------------------------------------------------------------------
   # Completion handling
   # -----------------------------------------------------------------------------
+  @spec send_request(t) :: response
   defp send_request(state) do
     AI.CompletionAPI.get(
       state.model,
@@ -157,6 +163,7 @@ defmodule AI.Completion do
     |> handle_response(state)
   end
 
+  @spec handle_response({:ok, any} | {:error, any}, t) :: response
   defp handle_response({:ok, :msg, response, usage}, state) do
     {:ok,
      %{
@@ -240,20 +247,25 @@ defmodule AI.Completion do
       async_calls
       |> Util.async_stream(&handle_tool_call(state, &1))
       |> Enum.reduce(state.messages, fn
-        {:ok, {:ok, msgs}}, acc -> acc ++ msgs
+        {:ok, {:ok, req, res}}, acc -> acc ++ [req, res]
         _, acc -> acc
       end)
 
     # Now handle all remaining requests serially and append
     messages =
       Enum.reduce(serial_calls, messages, fn req, acc ->
-        {:ok, msgs} = handle_tool_call(state, req)
-        acc ++ msgs
+        {:ok, req, res} = handle_tool_call(state, req)
+        acc ++ [req, res]
       end)
 
     %{state | tool_call_requests: [], messages: messages}
   end
 
+  @spec handle_tool_call(t, AI.Util.tool_call()) :: {
+          :ok,
+          AI.Util.tool_request_msg(),
+          AI.Util.tool_response_msg()
+        }
   def handle_tool_call(state, %{id: id, function: %{name: func, arguments: args_json}}) do
     request = AI.Util.assistant_tool_msg(id, func, args_json)
 
@@ -263,12 +275,12 @@ defmodule AI.Completion do
       end
 
       response = AI.Util.tool_msg(id, func, output)
-      {:ok, [request, response]}
+      {:ok, request, response}
     else
       {:error, reason} ->
         oopsie(state, func, args_json, reason)
         response = AI.Util.tool_msg(id, func, reason)
-        {:ok, [request, response]}
+        {:ok, request, response}
 
       {:error, :unknown_tool, tool} ->
         oopsie(state, func, args_json, "Invalid tool #{tool}")
@@ -280,7 +292,7 @@ defmodule AI.Completion do
         """
 
         response = AI.Util.tool_msg(id, func, error)
-        {:ok, [request, response]}
+        {:ok, request, response}
 
       {:error, :missing_argument, key} ->
         oopsie(state, func, args_json, "Missing required argument #{key}")
@@ -301,7 +313,7 @@ defmodule AI.Completion do
         """
 
         response = AI.Util.tool_msg(id, func, error)
-        {:ok, [request, response]}
+        {:ok, request, response}
 
       {:error, :invalid_argument, key} ->
         oopsie(state, func, args_json, "Invalid argument #{key}")
@@ -322,7 +334,7 @@ defmodule AI.Completion do
         """
 
         response = AI.Util.tool_msg(id, func, error)
-        {:ok, [request, response]}
+        {:ok, request, response}
 
       {:error, exit_code, msg} when is_integer(exit_code) ->
         oopsie(state, func, args_json, "External process exited with code #{exit_code}: #{msg}")
@@ -334,7 +346,7 @@ defmodule AI.Completion do
         """
 
         response = AI.Util.tool_msg(id, func, error)
-        {:ok, [request, response]}
+        {:ok, request, response}
     end
   end
 
