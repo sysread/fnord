@@ -1,10 +1,13 @@
 defmodule Store.Project.Conversation do
   @moduledoc """
   Conversations are stored per project in the project's store dir, under
-  `converations/`. Each conversation is given a UUID identifier and stored as a
-  JSON file with the keys:
-    - `messages`: a list of messages in the conversation
-    - `timestamp`: the time the conversation was last written to
+  `converations/`. Each file is *mostly* JSON, but with a timestamp prepended
+  to the JSON data, separated by a colon. This allows for easy sorting, without
+  having to parse dozens or hundreds of messages for each file.
+
+  The JSON object currently has the following keys:
+  - `messages`: a list of messages in the conversation, each an object with a
+    `role` and `content` key (more for tool messages)
 
   Existing conversations are retrieved by their UUID identifier.
   """
