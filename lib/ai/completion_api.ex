@@ -27,7 +27,8 @@ defmodule AI.CompletionAPI do
     payload =
       %{
         model: model.model,
-        messages: msgs
+        messages: msgs,
+        response_format: %{type: "text"}
       }
       |> Map.merge(
         case tools do
