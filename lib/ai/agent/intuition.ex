@@ -4,19 +4,23 @@ defmodule AI.Agent.Intuition do
   @model AI.Model.fast()
 
   @perception """
-  You are an AI agent in a larger system of AI agents. You are the
-  Subconsciousness. Your task is to read an OpenAI-style transcript of a
-  conversation between the user and the conscious agent and provide an
-  objective *perception* of the situation for the subconscious to respond to.
+  You are an AI agent in a larger system of AI agents that form an aggregate
+  mind that responds to the user. You are the Subconsciousness. Your task is to
+  read a transcript of a conversation between the user and the Coordinating
+  Agent (the "conscious" agent that interacts directly with the user) to
+  provide an objective *perception* of the situation for the subconscious to
+  react to.
 
-  Summarize the important aspects of the conversation, highlighting:
-  - Broad context or background information
+  Identify significant aspects of the situation to react to:
+  - Broad context or goals
   - Active concerns or questions
-  - The user's tone and intent, *especially* if the user is responding to a previous message
+  - The user's motives or reactions
+  - The user's emotional state or tone
+  - What is being requested of you
 
   You are NOT responding to the user.
   Your output will be presented to the various subconscious drives to generate instinctive reactions.
-  Respond with a short paragraph or two presenting a hollistic, first-person perception of the conversation.
+  Respond with a short paragraph or two presenting a hollistic, first-person interpretation of events.
   """
 
   @synthesis """
@@ -157,21 +161,30 @@ defmodule AI.Agent.Intuition do
   end
 
   defp get_perception(msgs) do
-    with {:ok, json} <- Jason.encode(msgs, pretty: true) do
-      AI.Accumulator.get_response(
-        model: @model,
-        prompt: @perception,
-        input: json,
-        question: "Respond with your subconscious perception of the conversation."
-      )
-      |> case do
-        {:ok, %{response: response}} ->
-          log(:perception, response)
-          {:ok, response}
+    transcript =
+      msgs
+      |> Enum.filter(fn
+        %{role: "user"} -> true
+        %{role: "assistant", content: c} when is_binary(c) -> true
+      end)
+      |> Enum.map(fn %{role: role, content: content} ->
+        "#{role} said: #{content}"
+      end)
+      |> Enum.join("\n\n")
 
-        {:error, reason} ->
-          {:error, reason}
-      end
+    AI.Accumulator.get_response(
+      model: @model,
+      prompt: @perception,
+      input: transcript,
+      question: "Respond with your subconscious perception."
+    )
+    |> case do
+      {:ok, %{response: response}} ->
+        log(:perception, response)
+        {:ok, response}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
