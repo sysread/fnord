@@ -38,6 +38,8 @@ defmodule Http do
         {:error, %HTTPoison.Error{reason: reason}} ->
           {:transport_error, reason}
       end
+    else
+      {:error, %Jason.EncodeError{}} -> {:transport_error, :invalid_json_response}
     end
   end
 end
