@@ -47,33 +47,48 @@ defmodule AI.Agent.Coder.DryRun do
   end
 
   defp dry_run_changes(file, instructions, start_line, end_line, attempt) do
-    file_contents =
+    lines =
       file
       |> File.read!()
       |> Util.numbered_lines()
+      |> String.split("\n")
+
+    before_hunk =
+      lines
+      |> Enum.take(start_line - 1)
+      |> Enum.join("\n")
+
+    after_hunk =
+      lines
+      |> Enum.drop(end_line)
+      |> Enum.join("\n")
 
     hunk =
-      file_contents
-      |> String.split("\n")
+      lines
       |> Enum.slice(start_line - 1, end_line - start_line + 1)
       |> Enum.join("\n")
+
+    file_contents_with_marker =
+      """
+      #{before_hunk}
+      <!-- REPLACE THIS ENTIRE HUNK -->
+      #{hunk}
+      <!-- END OF HUNK -->
+      #{after_hunk}
+      """
 
     user = """
     # File: #{file}
     ```
-    #{file_contents}
-    ```
-
-    # Hunk: #{start_line}...#{end_line}
-    This is the hunk from the file that will be replaced by your response.
-    ```
-    #{hunk}
+    #{file_contents_with_marker}
     ```
 
     # Instructions
     Apply the following changes to the specified range of lines in the file.
     Make ONLY the changes explicitly requested by the Coordinating Agent.
     Perform NO other edits.
+
+    Respond ONLY with the raw file content for the specified range of lines.
 
     #{instructions}
     """
