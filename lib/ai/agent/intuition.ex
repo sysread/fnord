@@ -166,6 +166,7 @@ defmodule AI.Agent.Intuition do
       |> Enum.filter(fn
         %{role: "user"} -> true
         %{role: "assistant", content: c} when is_binary(c) -> true
+        _ -> false
       end)
       |> Enum.map(fn %{role: role, content: content} ->
         "#{role} said: #{content}"
