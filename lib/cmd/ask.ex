@@ -128,7 +128,7 @@ defmodule Cmd.Ask do
   # -----------------------------------------------------------------------------
   # Forking a conversation
   # -----------------------------------------------------------------------------
-  defp maybe_fork_conversation(%{fork: fork_id}) when is_binary(fork_id) do
+  defp maybe_fork_conversation(%{fork: fork_id} = opts) when is_binary(fork_id) do
     fork_conv = Store.Project.Conversation.new(fork_id)
 
     if Store.Project.Conversation.exists?(fork_conv) do
