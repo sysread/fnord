@@ -38,6 +38,13 @@ defmodule Cmd.Ask do
             short: "-f",
             help: "Continue an existing conversation by UUID",
             required: false
+          ],
+          fork: [
+            value_name: "UUID",
+            long: "--fork",
+            short: "-F",
+            help: "Fork (branch) an existing conversation by UUID",
+            required: false
           ]
         ],
         flags: [
@@ -71,6 +78,7 @@ defmodule Cmd.Ask do
     start_time = System.monotonic_time(:second)
 
     with {:ok, opts} <- validate(opts),
+         {:ok, opts} <- maybe_fork_conversation(opts),
          {:ok, pid} = ConversationServer.start_link(opts[:follow]),
          {:ok, usage, context, response} <- get_response(opts, pid),
          {:ok, conversation_id} <- save_conversation(pid) do
@@ -116,6 +124,24 @@ defmodule Cmd.Ask do
   end
 
   defp validate_conversation(_opts), do: :ok
+
+  # -----------------------------------------------------------------------------
+  # Forking a conversation
+  # -----------------------------------------------------------------------------
+  defp maybe_fork_conversation(%{fork: fork_id}) when is_binary(fork_id) do
+    fork_conv = Store.Project.Conversation.new(fork_id)
+
+    if Store.Project.Conversation.exists?(fork_conv) do
+      with {:ok, new_conv} <- Store.Project.Conversation.fork(fork_conv) do
+        UI.info("Conversation #{fork_id} forked as #{new_conv.id}")
+        {:ok, Map.put(opts, :follow, new_conv.id)}
+      end
+    else
+      {:error, :conversation_not_found}
+    end
+  end
+
+  defp maybe_fork_conversation(opts), do: {:ok, opts}
 
   # ----------------------------------------------------------------------------
   # Agent response

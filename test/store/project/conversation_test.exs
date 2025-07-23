@@ -99,4 +99,31 @@ defmodule Store.Project.ConversationTest do
     assert [%Conversation{id: ^id1}, %Conversation{id: ^id2}] =
              Conversation.list(ctx.project.store_path)
   end
+
+  test "fork/1 creates a new conversation with a distinct id and identical messages" do
+    messages = [
+      AI.Util.system_msg("You are a helpful assistant."),
+      AI.Util.user_msg("What's up?"),
+      AI.Util.assistant_msg("Not much, you?")
+    ]
+
+    orig = Conversation.new()
+    assert {:ok, orig} = Conversation.write(orig, messages)
+
+    assert {:ok, forked} = Conversation.fork(orig)
+    assert forked.id != orig.id
+    assert Conversation.exists?(forked)
+    assert {:ok, _ts, forked_msgs} = Conversation.read(forked)
+    assert forked_msgs == messages
+    assert {:ok, _ts1, ^messages} = Conversation.read(orig)
+    assert {:ok, _ts2, ^messages} = Conversation.read(forked)
+
+    # Ensure independence after fork
+    new_msgs = messages ++ [AI.Util.user_msg("Forked world!")]
+    assert {:ok, forked} = Conversation.write(forked, new_msgs)
+    assert {:ok, _ts, updated_forked_msgs} = Conversation.read(forked)
+    assert updated_forked_msgs == new_msgs
+    assert {:ok, _ts, orig_msgs} = Conversation.read(orig)
+    assert orig_msgs == messages
+  end
 end

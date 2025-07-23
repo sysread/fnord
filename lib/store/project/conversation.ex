@@ -124,6 +124,22 @@ defmodule Store.Project.Conversation do
   end
 
   @doc """
+  Forks the given conversation, returning a new conversation with a new UUID
+  and identical messages. Saves the forked conversation to disk with the
+  current timestamp.
+  """
+  @spec fork(t) :: {:ok, t} | {:error, any}
+  def fork(%__MODULE__{} = conversation) do
+    with {:ok, _ts, messages} <- read(conversation),
+         forked <- new(),
+         {:ok, _} <- write(forked, messages) do
+      {:ok, forked}
+    else
+      other -> {:error, other}
+    end
+  end
+
+  @doc """
   Returns the timestamp of the conversation. If the conversation has not yet
   been saved to the store, returns 0.
   """
