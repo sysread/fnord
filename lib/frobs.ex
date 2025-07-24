@@ -307,14 +307,19 @@ defmodule Frobs do
 
           @impl AI.Tools
           def ui_note_on_result(_args, result) when is_binary(result) do
-            result =
-              if String.length(result) > 1000 do
-                String.slice(result, 0, 1000) <> " | truncated"
-              else
-                result
-              end
+            lines = String.split(result, ~r/\r\n|\n/)
 
-            {"Frob `#{@tool_name}` result", result}
+            if length(lines) > 10 do
+              {first_lines, _rest} = Enum.split(lines, 10)
+              remaining = length(lines) - 10
+
+              truncated =
+                Enum.join(first_lines, "\n") <> "\n...plus #{remaining} additional lines"
+
+              {"Frob `#{@tool_name}` result", truncated}
+            else
+              {"Frob `#{@tool_name}` result", result}
+            end
           end
 
           def ui_note_on_result(_args, result) do
