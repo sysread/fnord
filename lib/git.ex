@@ -176,6 +176,32 @@ defmodule Git do
     end
   end
 
+  @doc """
+  Create a new git worktree at the specified path pointing to the given branch
+  or commit. Returns `{:ok, worktree_path}` on success or `{:error, reason}` on
+  failure.
+  """
+  def create_worktree(ref, worktree_path) do
+    git(["worktree", "add", worktree_path, ref])
+  end
+
+  @doc """
+  Remove the git worktree at the specified path, then prune stale worktrees to
+  avoid orphaned objects. Returns `:ok` on success or `{:error, reason}` on
+  failure.
+  """
+  def remove_worktree(worktree_path) do
+    case git(["worktree", "remove", worktree_path]) do
+      {:ok, _} ->
+        # prune any lingering worktree metadata
+        _ = git(["worktree", "prune"])
+        :ok
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
   # -----------------------------------------------------------------------------
   # Private functions
   # -----------------------------------------------------------------------------
