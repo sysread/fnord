@@ -71,31 +71,46 @@ defmodule AI.Tools.Coder do
   @impl AI.Tools
   def call(args) do
     with {:ok, project} <- Store.get_project(),
-         {:ok, file} <- AI.Tools.get_arg(args, "file"),
-         {:ok, instructions} <- AI.Tools.get_arg(args, "instructions"),
-         :ok <- validate_path(file, project.source_root),
-         {:ok, {start_line, end_line}} <- identify_range(file, instructions),
-         {:ok, replacement, preview} <- dry_run(file, instructions, start_line, end_line),
-         :ok <- confirm_changes(file, instructions, preview) do
-      {:ok, result} = apply_changes(file, start_line, end_line, replacement)
-      UI.info("Changes applied to #{file}:#{start_line}-#{end_line}", result)
-      {:ok, result}
-    else
-      {:error, :enoent} ->
-        {:error,
-         """
-         FAILURE: The coder_tool was unable to apply the requested changes. No changes were made to the file.
-         The requested file does not exist or is not a regular file.
-         Please use the `list_files_tool` or one of the search tools to find the correct file path.
-         """}
+         {:ok, {mod, sandbox}} <- start_sandbox(project) do
+      sandbox_base = mod.sandbox_path(sandbox)
 
-      {:error, reason} ->
-        {:error,
-         """
+      try do
+        with {:ok, file} <- AI.Tools.get_arg(args, "file"),
+             {:ok, instructions} <- AI.Tools.get_arg(args, "instructions"),
+             :ok <- validate_path(file, project.source_root),
+             sandbox_file = Path.join(sandbox_base, file),
+             {:ok, {start_line, end_line}} <- identify_range(sandbox_file, instructions),
+             {:ok, replacement, preview} <-
+               dry_run(sandbox_file, instructions, start_line, end_line),
+             :ok <- confirm_changes(sandbox_file, instructions, preview) do
+          {:ok, result} = apply_changes(sandbox_file, start_line, end_line, replacement)
+          mod.finalize_sandbox_commit(sandbox)
+          UI.info("Changes applied to #{file}:#{start_line}-#{end_line}", result)
+          {:ok, result}
+        else
+          {:error, :enoent} ->
+            mod.finalize_sandbox_discard(sandbox)
 
-         FAILURE: The coder_tool was unable to apply the requested changes. No changes were made to the file.
-         #{reason}
-         """}
+            {:error,
+             """
+             FAILURE: The coder_tool was unable to apply the requested changes. No changes were made to the file.
+             The requested file does not exist or is not a regular file.
+             Please use the `list_files_tool` or one of the search tools to find the correct file path.
+             """}
+
+          {:error, reason} ->
+            mod.finalize_sandbox_discard(sandbox)
+
+            {:error,
+             """
+
+             FAILURE: The coder_tool was unable to apply the requested changes. No changes were made to the file.
+             #{reason}
+             """}
+        end
+      after
+        mod.cleanup_sandbox(sandbox)
+      end
     end
   end
 
@@ -105,6 +120,23 @@ defmodule AI.Tools.Coder do
       !File.exists?(path) -> {:error, :enoent}
       !File.regular?(path) -> {:error, :enoent}
       true -> :ok
+    end
+  end
+
+  defp start_sandbox(project) do
+    mod =
+      if Git.is_git_repo?(project.source_root) do
+        Sandbox.GitWorktree
+      else
+        Sandbox.NoSandbox
+      end
+
+    case mod.prepare_sandbox(self(), %{source_root: project.source_root}) do
+      {:ok, sandbox} ->
+        {:ok, {mod, sandbox}}
+
+      error ->
+        error
     end
   end
 
