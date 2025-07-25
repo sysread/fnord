@@ -21,6 +21,8 @@ defmodule AI.Agent.Coder.Reviewer do
   Note: The file contents include 1-based line numbers at the start of each line, separated by a pipe (|).
   Note: The overall change has been split up into smaller hunks, each to a single, contiguous section of the file.
         Only review this change to *this* hunk, not the entire file, or the entire change set.
+  Note: If the replacement is longer or shorter than the original, that's OK; it will still replace the entire region.
+        Sometimes the identified hunk is intended to be replaced by a larger or smaller section of code (e.g. to remove or add lines around the hunk).
 
   # Response Format
   Respond ONLY with one of the two following JSON objects:

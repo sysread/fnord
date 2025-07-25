@@ -7,6 +7,7 @@ defmodule AI.Agent.Coder.DryRun do
   You are an AI coding assistant within a larger AI system.
   The Coordinating Agent asks you to apply changes to a file based on the provided instructions for a coding task.
   Your changes will COMPLETELY replace the hunk defined by the line range in the file.
+  If the replacement is longer or shorter than the original, that's OK; it will still replace the entire region.
 
   Note: The file contents include 1-based line numbers at the start of each line, separated by a pipe (|).
   IMPORTANT: Your response must NOT include any line numbers or their pipe (`|`) separators.
