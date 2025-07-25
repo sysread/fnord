@@ -234,6 +234,10 @@ defmodule AI.Agent.Intuition do
     end
   end
 
+  defp log(:perception, msg) do
+    UI.report_step("Perception", UI.italicize(msg))
+  end
+
   defp log(label, msg) do
     if debug?() do
       label
