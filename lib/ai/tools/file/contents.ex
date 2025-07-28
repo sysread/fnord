@@ -36,6 +36,12 @@ defmodule AI.Tools.File.Contents do
         responses. If you only need to learn specific facts or extract a
         section of code, use the file_info_tool to preserve your context
         window.
+
+        Note that this tool ONLY shows the current version of the file on the
+        currently checked-out branch. If you need to see the contents of the
+        file on a different branch (or for files that only exist on that
+        branch), you must use your git tools to retrieve that version of the
+        file.
         """,
         parameters: %{
           type: "object",
