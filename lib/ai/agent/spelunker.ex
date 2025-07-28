@@ -53,10 +53,8 @@ defmodule AI.Agent.Spelunker do
       messages: [
         AI.Util.system_msg(@prompt),
         AI.Util.user_msg("""
-        The Answers Agent has requested your assistance in tracing a path
-        through the code base, beginning with the symbol `#{opts.symbol}` in
-        the file `#{opts.start_file}`, in order to discover the answer to this
-        question: `#{opts.question}`.
+        The Answers Agent has requested your assistance in tracing a path through the code base.
+        Starting from `#{opts.start_file}:#{opts.symbol}`, your goal is: #{opts.goal}.
         """)
       ]
     )

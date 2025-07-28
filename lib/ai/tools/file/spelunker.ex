@@ -8,27 +8,71 @@ defmodule AI.Tools.File.Spelunker do
   def is_available?, do: AI.Tools.has_indexed_project()
 
   @impl AI.Tools
-  def ui_note_on_request(_args), do: nil
+  def ui_note_on_request(%{
+        "name" => name,
+        "start_file" => start_file,
+        "symbol" => symbol,
+        "goal" => goal
+      }) do
+    {"#{name} is spelunking the code",
+     """
+
+     Start file: #{start_file}
+         Symbol: #{symbol}
+           Goal: #{goal}
+     """}
+  end
 
   @impl AI.Tools
-  def ui_note_on_result(_args, _result), do: nil
+  def ui_note_on_result(
+        %{
+          "name" => name,
+          "start_file" => start_file,
+          "symbol" => symbol,
+          "goal" => goal
+        },
+        result
+      ) do
+    {"#{name} finished spelunking",
+     """
+
+     Start file: #{start_file}
+         Symbol: #{symbol}
+           Goal: #{goal}
+     -----
+     #{result}
+     """}
+  end
 
   @impl AI.Tools
   def read_args(args) do
     with {:ok, symbol} <- read_symbol(args),
          {:ok, start_file} <- read_start_file(args),
-         {:ok, question} <- read_question(args) do
+         {:ok, goal} <- read_goal(args) do
+      name =
+        case Map.get(args, "name") do
+          nil ->
+            case AI.Agent.Nomenclater.get_response(args) do
+              {:ok, generated_name} -> generated_name
+              _ -> "file_spelunker"
+            end
+
+          provided_name ->
+            provided_name
+        end
+
       {:ok,
        %{
          "symbol" => symbol,
          "start_file" => start_file,
-         "question" => question
+         "goal" => goal,
+         "name" => name
        }}
     end
   end
 
-  defp read_question(%{"question" => question}), do: {:ok, question}
-  defp read_question(_args), do: AI.Tools.required_arg_error("question")
+  defp read_goal(%{"goal" => goal}), do: {:ok, goal}
+  defp read_goal(_args), do: AI.Tools.required_arg_error("goal")
 
   defp read_symbol(%{"symbol" => symbol}), do: {:ok, symbol}
   defp read_symbol(_args), do: AI.Tools.required_arg_error("symbol")
@@ -48,14 +92,14 @@ defmodule AI.Tools.File.Spelunker do
         description: """
         Instructs an LLM to trace execution paths through the code to identify
         callers, callees, paths, and conditional logic affecting them. It can
-        answer questions about the structure of the code and traverse multiple
+        answer goals about the structure of the code and traverse multiple
         files to provide a call tree.
         """,
         strict: true,
         parameters: %{
           additionalProperties: false,
           type: "object",
-          required: ["symbol", "start_file", "question"],
+          required: ["symbol", "start_file", "goal"],
           properties: %{
             symbol: %{
               type: "string",
@@ -68,7 +112,7 @@ defmodule AI.Tools.File.Spelunker do
               type: "string",
               description: "A file path from the file_list_tool or file_search_tool."
             },
-            question: %{
+            goal: %{
               type: "string",
               description: """
               A prompt for the spelunker agent to respond to. For example:
@@ -87,11 +131,11 @@ defmodule AI.Tools.File.Spelunker do
   def call(args) do
     with {:ok, symbol} <- Map.fetch(args, "symbol"),
          {:ok, start_file} <- Map.fetch(args, "start_file"),
-         {:ok, question} <- Map.fetch(args, "question") do
+         {:ok, goal} <- Map.fetch(args, "goal") do
       AI.Agent.Spelunker.get_response(%{
         symbol: symbol,
         start_file: start_file,
-        question: question
+        goal: goal
       })
     end
   end
