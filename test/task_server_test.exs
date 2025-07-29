@@ -1,6 +1,5 @@
 defmodule TaskServerTest do
-  use ExUnit.Case, async: true
-  alias TaskServer
+  use Fnord.TestCase, async: false
 
   setup do
     {:ok, pid} = TaskServer.start_link()
