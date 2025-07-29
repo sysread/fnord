@@ -25,7 +25,7 @@ defmodule UI do
         no = if default == false, do: "N", else: "n"
 
         flush()
-        IO.write(:stderr, "#{msg} (#{yes}/#{no}) ")
+        IO.write(:stderr, UI.Formatter.format_output("#{msg} (#{yes}/#{no}) "))
 
         case IO.gets("") do
           "y\n" -> true
@@ -210,5 +210,15 @@ defmodule UI do
       end,
       options
     )
+  end
+
+  def choose(prompt, options, owl_opts \\ []) do
+    prompt |> UI.Formatter.format_output() |> IO.puts()
+    Owl.IO.select(options, owl_opts)
+  end
+
+  def prompt(prompt, owl_opts \\ []) do
+    prompt |> UI.Formatter.format_output() |> IO.puts()
+    Owl.IO.input(owl_opts)
   end
 end

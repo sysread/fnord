@@ -714,13 +714,15 @@ defmodule AI.Agent.Coordinator do
     |> Map.values()
     |> Enum.concat([
       AI.Tools.File.Manage,
-      # AI.Tools.File.Edit,
-      AI.Tools.Coder
+      AI.Tools.Coder,
+      AI.Tools.Shell
     ])
   end
 
   defp get_tools(_) do
     AI.Tools.all_tools()
+    |> Map.values()
+    |> Enum.concat([AI.Tools.Shell])
   end
 
   # -----------------------------------------------------------------------------
