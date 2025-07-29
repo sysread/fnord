@@ -78,10 +78,14 @@ defmodule AI.Tools.Coder do
         "Steps",
         steps
         |> Enum.map(&Jason.decode!/1)
-        |> Enum.map(fn %{"file" => file, "instructions" => instructions} ->
-          "- #{file}: #{instructions}"
+        |> Enum.with_index()
+        |> Enum.map(fn {idx, %{"file" => file, "instructions" => instructions}} ->
+          """
+          # Step #{idx + 1}) #{file}
+          #{instructions}
+          """
         end)
-        |> Enum.join("\n")
+        |> Enum.join("\n-----\n")
       )
 
       do_steps(steps)
