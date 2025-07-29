@@ -22,14 +22,17 @@ defmodule TaskServerTest do
     assert TaskServer.get_list(9999) == []
   end
 
-  test "add_task/2 adds tasks to a valid list and retrieves them in order with :todo outcome", %{pid: _pid} do
+  test "add_task/2 adds tasks to a valid list and retrieves them in order with :todo outcome", %{
+    pid: _pid
+  } do
     list_id = TaskServer.start_list()
     TaskServer.add_task(list_id, "task one")
     TaskServer.add_task(list_id, "task two")
+
     assert TaskServer.get_list(list_id) == [
-      %{name: "task one", outcome: :todo},
-      %{name: "task two", outcome: :todo}
-    ]
+             %{name: "task one", outcome: :todo},
+             %{name: "task two", outcome: :todo}
+           ]
   end
 
   test "complete_task/3 updates outcome for correct task only", %{pid: _pid} do
@@ -37,10 +40,11 @@ defmodule TaskServerTest do
     TaskServer.add_task(list_id, "task one")
     TaskServer.add_task(list_id, "task two")
     TaskServer.complete_task(list_id, 0, :done)
+
     assert TaskServer.get_list(list_id) == [
-      %{name: "task one", outcome: :done},
-      %{name: "task two", outcome: :todo}
-    ]
+             %{name: "task one", outcome: :done},
+             %{name: "task two", outcome: :todo}
+           ]
   end
 
   test "add_task/2 and complete_task/3 do nothing for missing IDs", %{pid: _pid} do
@@ -56,14 +60,17 @@ defmodule TaskServerTest do
     TaskServer.add_task(list_id, "first")
     assert TaskServer.get_list(list_id) == [%{name: "first", outcome: :todo}]
     TaskServer.add_task(list_id, "second")
+
     assert TaskServer.get_list(list_id) == [
-      %{name: "first", outcome: :todo},
-      %{name: "second", outcome: :todo}
-    ]
+             %{name: "first", outcome: :todo},
+             %{name: "second", outcome: :todo}
+           ]
+
     TaskServer.complete_task(list_id, 0, :done)
+
     assert TaskServer.get_list(list_id) == [
-      %{name: "first", outcome: :done},
-      %{name: "second", outcome: :todo}
-    ]
+             %{name: "first", outcome: :done},
+             %{name: "second", outcome: :todo}
+           ]
   end
 end
