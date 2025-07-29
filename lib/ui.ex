@@ -248,8 +248,16 @@ defmodule UI do
     Owl.IO.input(owl_opts)
   end
 
+  defp clean_detail(nil), do: ""
+
+  defp clean_detail(detail) when not is_binary(detail) do
+    detail
+    |> inspect(pretty: true)
+    |> clean_detail()
+  end
+
   defp clean_detail(detail) do
-    (detail || "")
+    detail
     |> String.trim()
     |> then(fn str ->
       # If there are multiple lines, prefix with an empty line
