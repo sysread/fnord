@@ -79,12 +79,9 @@ defmodule AI.Tools.Coder do
         steps
         |> Enum.map(&Jason.decode!/1)
         |> Enum.map(fn %{"file" => file, "instructions" => instructions} ->
-          """
-          # #{file}
-
-          #{instructions}
-          """
+          "- #{file}: #{instructions}"
         end)
+        |> Enum.join("\n")
       )
 
       do_steps(steps)
@@ -119,22 +116,15 @@ defmodule AI.Tools.Coder do
     end
   end
 
-  defp report_step(file, instructions) do
-    UI.info(
-      "Performing coding task",
-      """
-      # File
-      #{file}
-
-      # Instructions
-      #{instructions}
-      """
-    )
-  end
-
   defp do_step(json_step) do
     with {:ok, %{"file" => file, "instructions" => instructions}} <- Jason.decode(json_step) do
-      report_step(file, instructions)
+      UI.info(
+        "Performing coding task",
+        """
+        # #{file}
+        #{instructions}
+        """
+      )
 
       with {:ok, {start_line, end_line}} <- identify_range(file, instructions),
            {:ok, replacement, preview} <- dry_run(file, instructions, start_line, end_line),
