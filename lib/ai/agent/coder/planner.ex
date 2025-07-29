@@ -64,6 +64,7 @@ defmodule AI.Agent.Coder.Planner do
       {:ok, list_id}
     else
       :error -> {:error, :invalid_parameters}
+      other -> other
     end
   end
 
