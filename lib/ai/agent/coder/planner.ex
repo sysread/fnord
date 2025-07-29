@@ -20,6 +20,7 @@ defmodule AI.Agent.Coder.Planner do
   2. If the instructions are too vague, contain conflicting intents, or otherwise cannot be turned into a reasonably complete plan, return an error message.
   3. Split the changes to each task up by file.
   4. For each file, split the changes up into steps that can be performed on a single, contiguous hunk within that file.
+     Remember that, as each step is completed, the line numbers will change, so use relative references when describing locations in the file.
   5. Output an array of JSON objects, where each object contains the keys, `file` and `instructions`.
 
   Each step's instructions should clearly describe the change to be made and include 'review notes', clarifying any context needed for the Coder Agent and its review step to understand the change.
@@ -35,7 +36,7 @@ defmodule AI.Agent.Coder.Planner do
     },
     {
       "file": "lib/my_app/my_module.ex",
-      "instructions": "Add the following function immediately below the comment on line 54:\n```...```\n\n# Review notes:\nThis function is part of a larger change that will be completed in later steps. It depends on the function `another_function`, which was added in a previous step, and calls `something_else`, which will be added in a later step."
+      "instructions": "Add the following function immediately below the comment, \"# Some Comment\":\n```...```\n\n# Review notes:\nThis function is part of a larger change that will be completed in later steps. It depends on the function `another_function`, which was added in a previous step, and calls `something_else`, which will be added in a later step."
     },
     ...
   ]
