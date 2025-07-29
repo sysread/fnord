@@ -71,23 +71,10 @@ defmodule AI.Tools.Coder do
   def call(args) do
     with {:ok, instructions} <- AI.Tools.get_arg(args, "instructions"),
          {:ok, list_id} <- plan_steps(instructions),
-         {:ok, steps} <- get_steps(list_id) do
+         {:ok, steps} <- get_steps(list_id),
+         :ok <- test_steps(steps) do
       UI.info("Planning completed", "Executing #{length(steps)} steps")
-
-      UI.debug(
-        "Steps",
-        steps
-        |> Enum.map(&Jason.decode!/1)
-        |> Enum.with_index()
-        |> Enum.map(fn {idx, %{"file" => file, "instructions" => instructions}} ->
-          """
-          # Step #{idx + 1}) #{file}
-          #{instructions}
-          """
-        end)
-        |> Enum.join("\n-----\n")
-      )
-
+      log_steps(steps)
       do_steps(steps)
     else
       {:error, reason} ->
@@ -98,6 +85,46 @@ defmodule AI.Tools.Coder do
          #{reason}
          """}
     end
+  end
+
+  defp log_steps(steps, msg \\ "Steps") do
+    UI.debug(
+      msg,
+      steps
+      |> Enum.map(&Jason.decode!/1)
+      |> Enum.with_index()
+      |> Enum.map(fn {%{"file" => file, "instructions" => instructions}, idx} ->
+        """
+        # STEP #{idx + 1}: #{file}
+        #{instructions}
+        """
+      end)
+      |> Enum.join("\n-----\n")
+    )
+  end
+
+  # Calls identify_range on each step to see if the hunk can be identified, and
+  # returns the error if any step fails to identify a range.
+  defp test_steps(steps) do
+    log_steps(steps, "Testing steps")
+
+    steps
+    |> Enum.with_index()
+    |> Enum.reduce_while(:ok, fn {json_step, idx}, acc ->
+      with {:ok, %{"file" => file, "instructions" => instructions}} <- Jason.decode(json_step),
+           {:ok, _} <- identify_range(file, instructions) do
+        {:cont, acc}
+      else
+        {:error, reason} ->
+          {:halt,
+           {:error,
+            """
+            FAILURE: Step #{idx + 1} failed; the coder_tool was unable to identify the referenced hunk:
+            Step: #{json_step}
+            Reason: #{reason}
+            """}}
+      end
+    end)
   end
 
   defp get_steps(list_id) do
@@ -150,12 +177,35 @@ defmodule AI.Tools.Coder do
     end
   end
 
-  defp plan_steps(instructions) do
+  defp plan_steps(instructions, attempts_left \\ 3)
+
+  defp plan_steps(_, 0) do
+    {:error,
+     """
+     The agent was unable to generate a valid plan for the requested changes after multiple attempts.
+     Please review and possibly clarify your instructions and try again.
+     """}
+  end
+
+  defp plan_steps(instructions, attempts_left) do
     %{instructions: instructions}
     |> AI.Agent.Coder.Planner.get_response()
     |> case do
       {:ok, list_id} ->
-        {:ok, list_id}
+        with {:ok, steps} <- get_steps(list_id),
+             :ok <- test_steps(steps) do
+          {:ok, list_id}
+        else
+          {:error, reason} ->
+            instructions = """
+            #{instructions}
+            -----
+            Note: On your previous attempt, the steps did not pass validation:
+            #{reason}
+            """
+
+            plan_steps(instructions, attempts_left - 1)
+        end
 
       {:error, msg} ->
         UI.warn("Planning failed", """
