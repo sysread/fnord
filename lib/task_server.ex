@@ -8,7 +8,7 @@ defmodule TaskServer do
   @doc """
   Starts the TaskServer.
   """
-  @spec start_link(keyword()) :: {:ok, pid()} | {:error, any()}
+  @spec start_link(keyword) :: {:ok, pid} | {:error, any}
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
@@ -16,7 +16,7 @@ defmodule TaskServer do
   @doc """
   Creates a new task list and returns its ID.
   """
-  @spec start_list() :: integer()
+  @spec start_list() :: integer
   def start_list() do
     GenServer.call(__MODULE__, :start_list)
   end
@@ -24,13 +24,13 @@ defmodule TaskServer do
   @doc """
   Adds a task with the given name to the list with the given ID.
   """
-  @spec add_task(integer(), String.t()) :: :ok
+  @spec add_task(integer, binary) :: :ok
   def add_task(list_id, task_name) do
     GenServer.cast(__MODULE__, {:add_task, list_id, task_name})
   end
 
   @doc "Pushes task_name to the top of the task list for the given list_id."
-  @spec push_task(integer(), String.t()) :: :ok
+  @spec push_task(integer, binary) :: :ok
   def push_task(list_id, task_name) do
     GenServer.cast(__MODULE__, {:push_task, list_id, task_name})
   end
@@ -40,7 +40,7 @@ defmodule TaskServer do
   The task may be specified by its zero-based index (integer) or by its name (string).
   Using an index updates the outcome of the task at that position; using a name updates the outcome of the matching task(s).
   """
-  @spec complete_task(integer(), integer() | String.t(), atom() | String.t()) :: :ok
+  @spec complete_task(integer, integer | binary, atom | binary) :: :ok
   def complete_task(list_id, task_name, outcome) do
     GenServer.cast(__MODULE__, {:complete_task, list_id, task_name, outcome})
   end
@@ -48,7 +48,7 @@ defmodule TaskServer do
   @doc """
   Retrieves the list of tasks for the given list ID.
   """
-  @spec get_list(integer()) :: [%{name: String.t(), outcome: atom() | String.t()}]
+  @spec get_list(integer) :: [%{name: binary, outcome: atom | binary}]
   def get_list(list_id) do
     GenServer.call(__MODULE__, {:get_list, list_id})
   end
@@ -57,12 +57,10 @@ defmodule TaskServer do
   # Server Callbacks
   # ----------------------------------------------------------------------------
 
-  @impl true
-  def init(:ok) do
+  def init(_) do
     {:ok, %{next_id: 1, lists: %{}}}
   end
 
-  @impl true
   def handle_call(:start_list, _from, state) do
     id = state.next_id
     lists = Map.put(state.lists, id, [])
@@ -70,13 +68,11 @@ defmodule TaskServer do
     {:reply, id, new_state}
   end
 
-  @impl true
   def handle_call({:get_list, list_id}, _from, state) do
     tasks = Map.get(state.lists, list_id, [])
     {:reply, tasks, state}
   end
 
-  @impl true
   def handle_cast({:add_task, list_id, task_name}, state) do
     if Map.has_key?(state.lists, list_id) do
       tasks = Map.get(state.lists, list_id)
@@ -88,7 +84,6 @@ defmodule TaskServer do
     end
   end
 
-  @impl true
   def handle_cast({:push_task, list_id, task_name}, state) do
     if Map.has_key?(state.lists, list_id) do
       tasks = Map.get(state.lists, list_id)
@@ -100,7 +95,6 @@ defmodule TaskServer do
     end
   end
 
-  @impl true
   def handle_cast({:complete_task, list_id, task_id, outcome}, state) do
     case Map.fetch(state.lists, list_id) do
       :error ->
