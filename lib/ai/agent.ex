@@ -1,6 +1,6 @@
 defmodule AI.Agent do
-  @type response :: {:ok, any()}
-  @type error :: {:error, String.t()}
+  @type response :: {:ok, any}
+  @type error :: {:error, binary}
 
   # -----------------------------------------------------------------------------
   # Behaviour definition

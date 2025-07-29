@@ -29,18 +29,21 @@ defmodule TaskServer do
     GenServer.cast(__MODULE__, {:add_task, list_id, task_name})
   end
 
-  @doc "Pushes task_name to the top of the task list for the given list_id."
+  @doc """
+  Pushes task_name to the top of the task list for the given list_id.
+  """
   @spec push_task(integer, binary) :: :ok
   def push_task(list_id, task_name) do
     GenServer.cast(__MODULE__, {:push_task, list_id, task_name})
   end
 
   @doc """
-  Marks the specified task in the list with the given ID as complete with the given outcome.
-  The task may be specified by its zero-based index (integer) or by its name (string).
-  Using an index updates the outcome of the task at that position; using a name updates the outcome of the matching task(s).
+  Marks the specified task in the list with the given ID as complete with the
+  given outcome. The task may be specified by its zero-based index (integer) or
+  by its name (string). Using an index updates the outcome of the task at that
+  position; using a name updates the outcome of the matching task(s).
   """
-  @spec complete_task(integer, integer | binary, atom | binary) :: :ok
+  @spec complete_task(integer, binary, any) :: :ok
   def complete_task(list_id, task_name, outcome) do
     GenServer.cast(__MODULE__, {:complete_task, list_id, task_name, outcome})
   end

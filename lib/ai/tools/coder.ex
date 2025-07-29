@@ -2,9 +2,9 @@ defmodule AI.Tools.Coder do
   @behaviour AI.Tools
 
   @doc """
-  This tool relies on line numbers within the file to identify ranges. If those
-  numbers change between the time the range is identified and the time the
-  changes are applied, the tool will fail to apply the changes correctly.
+  This tool relies on line numbers within individual files to identify ranges.
+  If those numbers change between the time the range is identified and the time
+  the changes are applied, the tool will fail to apply the changes correctly.
   """
   @impl AI.Tools
   def async?, do: false
@@ -13,13 +13,13 @@ defmodule AI.Tools.Coder do
   def is_available?, do: AI.Tools.has_indexed_project()
 
   @impl AI.Tools
-  def ui_note_on_request(%{"file" => file, "instructions" => instructions}) do
-    {"Editing file #{file}", instructions}
+  def ui_note_on_request(%{"instructions" => instructions}) do
+    {"Planning and implementing changes", instructions}
   end
 
   @impl AI.Tools
-  def ui_note_on_result(%{"file" => file, "instructions" => instructions}, result) do
-    {"Changes applied to #{file}",
+  def ui_note_on_result(%{"instructions" => instructions}, result) do
+    {"Changes applied:",
      """
      # Instructions
      #{instructions}
@@ -39,28 +39,27 @@ defmodule AI.Tools.Coder do
       function: %{
         name: "coder_tool",
         description: """
-        Triggers an LLM agent to perform a coding task to a contiguous region within a single file in the project source root.
-        The LLM has no access to the tool_calls you have available. It can ONLY edit files. YOU must provide all information and context required to perform the task.
-        For the best results, split changes into smaller, conceptually distinct tasks, even if they are close enough together that they could be done in a single edit.
+        Launches a collection of AI Agents to plan and implement code changes within the project.
+        For the best results, provide clear, meticulously detailed instructions for the coding task.
         Instructions should include details about conventions, style, preferred modules and patterns, and anything else you wish to have reflected in the output.
-        Instructions must include ALL relevant context; this agent has NO access to the prior conversation; they ONLY know what YOU tell them.
-        Instructions must include clear, unambiguous "anchors", identifying a *single* region of the file to edit.
-        Examples:
-        - "Add a new, private function at the end of the file (in a syntactically appropriate location) named `blarg`. The function accepts 2 positional arguments, ..."
-        - "In the import list at the top of the file, remove the import for `foo.bar` and add an import for `baz.qux`. Note that the user prefers never to use aliases."
-        - "This file contains a mix of spaces and tabs. Convert all tabs to spaces, and ensure the indentation is consistent with 2 spaces per level."
+        Instructions must include ALL relevant context; the agents have NO access to the prior conversation; they ONLY know what YOU tell them.
+        If your instructions are ambiguous or unclear, this tool may not be able to generate a valid plan or implement the changes correctly.
         """,
         parameters: %{
           type: "object",
-          required: ["file", "instructions"],
+          required: ["instructions"],
           properties: %{
-            file: %{
-              type: "string",
-              description: "The path to the file to edit, relative to the project source root."
-            },
             instructions: %{
               type: "string",
-              description: "Clear, detailed instructions for the changes to make to the file."
+              description: """
+              Clear, detailed instructions for the coding task you wish to perform.
+              A good plan will include:
+              - A clear explanation of the purpose and intent of the changes
+              - A clear description of the changes to be made
+              - All relevant context required to implement the changes as intended
+              - The scope of the changes, including any dependencies on other files or functions
+              - Any conventions, style guides, or patterns that should be followed
+              """
             }
           }
         }
@@ -70,25 +69,12 @@ defmodule AI.Tools.Coder do
 
   @impl AI.Tools
   def call(args) do
-    with {:ok, project} <- Store.get_project(),
-         {:ok, file} <- AI.Tools.get_arg(args, "file"),
-         {:ok, instructions} <- AI.Tools.get_arg(args, "instructions"),
-         :ok <- validate_path(file, project.source_root),
-         {:ok, {start_line, end_line}} <- identify_range(file, instructions),
-         {:ok, replacement, preview} <- dry_run(file, instructions, start_line, end_line),
-         :ok <- confirm_changes(file, instructions, preview) do
-      {:ok, result} = apply_changes(file, start_line, end_line, replacement)
-      UI.info("Changes applied to #{file}:#{start_line}-#{end_line}", result)
-      {:ok, result}
+    with {:ok, instructions} <- AI.Tools.get_arg(args, "instructions"),
+         {:ok, list_id} <- plan_steps(instructions),
+         {:ok, steps} <- get_steps(list_id) do
+      UI.info("Planning completed", "Executing #{length(steps)} steps")
+      do_steps(steps)
     else
-      {:error, :enoent} ->
-        {:error,
-         """
-         FAILURE: The coder_tool was unable to apply the requested changes. No changes were made to the file.
-         The requested file does not exist or is not a regular file.
-         Please use the `list_files_tool` or one of the search tools to find the correct file path.
-         """}
-
       {:error, reason} ->
         {:error,
          """
@@ -99,12 +85,81 @@ defmodule AI.Tools.Coder do
     end
   end
 
-  defp validate_path(path, root) do
-    cond do
-      !Util.path_within_root?(path, root) -> {:error, "not within project root"}
-      !File.exists?(path) -> {:error, :enoent}
-      !File.regular?(path) -> {:error, :enoent}
-      true -> :ok
+  defp get_steps(list_id) do
+    list_id
+    |> TaskServer.get_list()
+    |> then(&{:ok, &1})
+  end
+
+  defp do_steps(steps) do
+    steps
+    |> Enum.reduce_while({:ok, []}, fn step, {:ok, results} ->
+      case do_step(step) do
+        {:ok, result} -> {:cont, {:ok, [result | results]}}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+    |> case do
+      {:ok, results} -> {:ok, Enum.reverse(results)}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp report_step(file, instructions) do
+    UI.info(
+      "Performing coding task",
+      """
+      # File
+      #{file}
+
+      # Instructions
+      #{instructions}
+      """
+    )
+  end
+
+  defp do_step(json_step) do
+    with {:ok, %{"file" => file, "instructions" => instructions}} <- Jason.decode(json_step) do
+      report_step(file, instructions)
+
+      with {:ok, {start_line, end_line}} <- identify_range(file, instructions),
+           {:ok, replacement, preview} <- dry_run(file, instructions, start_line, end_line),
+           :ok <- confirm_changes(file, instructions, preview),
+           {:ok, result} <- apply_changes(file, start_line, end_line, replacement) do
+        UI.info(
+          "Changes applied to #{file}:#{start_line}-#{end_line}",
+          """
+          # Instructions
+          #{instructions}
+
+          # Outcome
+          #{result}
+          """
+        )
+
+        {:ok, result}
+      end
+    end
+  end
+
+  defp plan_steps(instructions) do
+    %{instructions: instructions}
+    |> AI.Agent.Coder.Planner.get_response()
+    |> case do
+      {:ok, list_id} ->
+        {:ok, list_id}
+
+      {:error, msg} ->
+        UI.warn("Planning failed", """
+        The agent was unable to generate a valid plan for the requested changes.
+        #{msg}
+        """)
+
+        {:error,
+         """
+         The agent was unable to generate a valid plan for the requested changes:
+         #{msg}
+         """}
     end
   end
 
