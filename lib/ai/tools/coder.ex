@@ -73,6 +73,20 @@ defmodule AI.Tools.Coder do
          {:ok, list_id} <- plan_steps(instructions),
          {:ok, steps} <- get_steps(list_id) do
       UI.info("Planning completed", "Executing #{length(steps)} steps")
+
+      UI.debug(
+        "Steps",
+        steps
+        |> Enum.map(&Jason.decode!/1)
+        |> Enum.map(fn %{"file" => file, "instructions" => instructions} ->
+          """
+          # #{file}
+
+          #{instructions}
+          """
+        end)
+      )
+
       do_steps(steps)
     else
       {:error, reason} ->
