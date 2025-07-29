@@ -65,6 +65,15 @@ defmodule AI.Tools.Shell do
         Executes shell commands and returns the output. The user must approve
         execution of this command before it is run. The user may optionally
         approve the command for the entire session.
+
+        The following commands are always allowed without approval:
+        - `ls`
+        - `pwd`
+        - `find`
+        - `cat`
+        - `rg`
+        - `ag`
+        - `grep` (although take care, since it varies between bsd/macOS and GNU/Linux)
         """,
         parameters: %{
           type: "object",
@@ -97,8 +106,62 @@ defmodule AI.Tools.Shell do
     end
   end
 
+  defp call_shell_cmd(cmd, args) do
+    System.cmd(cmd, args, stderr_to_stdout: true, parallelism: true)
+    |> case do
+      {output, 0} -> {:ok, String.trim_trailing(output)}
+      {output, _} -> {:error, String.trim_trailing(output)}
+    end
+  end
+
   defp validate(cmd) do
     AI.Agent.ShellCmdParser.get_response(%{shell_cmd: cmd})
+  end
+
+  defp confirm(desc, _, "sh", args) do
+    full_cmd =
+      ["sh" | args]
+      |> Enum.join(" ")
+
+    options = [
+      "Approve",
+      "Deny",
+      "Deny (with feedback)"
+    ]
+
+    """
+    The AI agent would like to execute a shell command.
+
+    # Command
+    ```sh
+    #{full_cmd}
+    ```
+
+    # Description and Purpose
+    > #{desc}
+
+    # Approval
+    _Complex commands involving pipes, redirection, command substitution, and
+    other shell features cannot be approved for the entire session. You must
+    approve each command individually._
+    """
+    |> UI.choose(options)
+    |> case do
+      "Deny (with feedback)" ->
+        feedback = UI.prompt("Opine away:")
+
+        {:error,
+         """
+         The user declined to approve the command. They responded with:
+         #{feedback}
+         """}
+
+      "Deny" ->
+        {:error, "The user declined to approve the command."}
+
+      "Approve" ->
+        {:ok, :approved}
+    end
   end
 
   defp confirm(desc, approval_bits, cmd, args) do
@@ -146,7 +209,7 @@ defmodule AI.Tools.Shell do
         |> UI.choose(options)
         |> case do
           "Deny (with feedback)" ->
-            feedback = UI.prompt("Response:")
+            feedback = UI.prompt("Opine away:")
 
             {:error,
              """
@@ -164,14 +227,6 @@ defmodule AI.Tools.Shell do
             Once.set(key, :approved)
             {:ok, :approved}
         end
-    end
-  end
-
-  defp call_shell_cmd(cmd, args) do
-    System.cmd(cmd, args, stderr_to_stdout: true, parallelism: true)
-    |> case do
-      {output, 0} -> {:ok, String.trim_trailing(output)}
-      {output, _} -> {:error, String.trim_trailing(output)}
     end
   end
 end

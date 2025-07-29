@@ -83,8 +83,15 @@ defmodule AI.Agent.ShellCmdParser do
   - Treat the first token as "cmd", everything else as "args".
   - "approval_bits" should only include the executable and literal subcommands (verbs), not options or arguments.  
   - If the command is ambiguous or doesn't fit the above (e.g., missing executable), output only the error object.
-  - If the command includes any of the following constructs, respond only with an error: redirection (`>`, `>>`, `<`, `2>`), pipes (`|`), subshells or command substitution (`$()`, `` ` ``), logical operators (`&&`, `||`), semicolons (`;`), backgrounding (`&`), or process substitution (`<(...)`, `>(...)`).
   - If the command is obviously malformed or incomplete (e.g., missing or duplicated command or arguments, or contains only flags/options without a command), respond with an error.
+  - If the command includes any of the following constructs, the "cmd" is "sh", and "args" is ["-c", "<entire_command>"]:
+    - redirection (`>`, `>>`, `<`, `2>`)
+    - pipes (`|`)
+    - subshells or command substitution (`$()`, `` ` ``)
+    - logical operators (`&&`, `||`)
+    - semicolons (`;`)
+    - backgrounding (`&`)
+    - process substitution (`<(...)`, `>(...)`)
   """
 
   @impl AI.Agent
