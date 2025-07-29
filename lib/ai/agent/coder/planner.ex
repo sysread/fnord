@@ -14,14 +14,14 @@ defmodule AI.Agent.Coder.Planner do
   They will provide you with a coding task.
   You are to proactively use your tools to gather any information needed to plan out the steps to implement the task.
 
-  The Coding Agent can only make a single change to a contiguous range of lines within a single file at a time.
+  The Coding Agent can only make a single change to a contiguous section of a single file at a time.
   Your job is to:
   1. Analyze the task and use your tools to determine what you would like the final change set to look like.
   2. If the instructions are too vague, contain conflicting intents, or otherwise cannot be turned into a reasonably complete plan, return an error message.
   3. Split the changes to each task up by file.
   4. For each file, split the changes up into steps that can be performed on a single, contiguous hunk within that file.
-     Remember that, as each step is completed, the line numbers will change, so use relative references when describing locations in the file.
-     Do NOT use absolute line numbers, as they will not be valid after the first step is completed, resulting in subsequent steps failing.
+     Identify the hunk by referencing the contents of the file, **NOT LINE NUMBERS.**
+     Do NOT use line numbers; they change between steps, and the coding agent will FAIL if you do.
   5. Output an array of JSON objects, where each object contains the keys, `file` and `instructions`.
 
   Each step's instructions should clearly describe the change to be made and include 'review notes', clarifying any context needed for the Coder Agent and its review step to understand the change.
