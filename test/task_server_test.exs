@@ -34,7 +34,17 @@ defmodule TaskServerTest do
              %{name: "task two", outcome: :todo}
            ]
   end
-
+  test "push_task/2 prepends tasks to the top of the list", %{pid: _pid} do
+    list_id = TaskServer.start_list()
+    TaskServer.add_task(list_id, "one")
+    TaskServer.add_task(list_id, "two")
+    TaskServer.push_task(list_id, "urgent!")
+    assert TaskServer.get_list(list_id) == [
+             %{name: "urgent!", outcome: :todo},
+             %{name: "one", outcome: :todo},
+             %{name: "two", outcome: :todo}
+           ]
+  end
   test "complete_task/3 updates outcome for correct task only", %{pid: _pid} do
     list_id = TaskServer.start_list()
     TaskServer.add_task(list_id, "task one")

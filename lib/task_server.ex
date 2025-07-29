@@ -10,8 +10,7 @@ defmodule TaskServer do
   """
   @spec start_link(keyword()) :: {:ok, pid()} | {:error, any()}
   def start_link(opts \\ []) do
-    opts = Keyword.put_new(opts, :name, __MODULE__)
-    GenServer.start_link(__MODULE__, :ok, opts)
+    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
   @doc """
@@ -28,6 +27,12 @@ defmodule TaskServer do
   @spec add_task(integer(), String.t()) :: :ok
   def add_task(list_id, task_name) do
     GenServer.cast(__MODULE__, {:add_task, list_id, task_name})
+  end
+
+  @doc "Pushes task_name to the top of the task list for the given list_id."
+  @spec push_task(integer(), String.t()) :: :ok
+  def push_task(list_id, task_name) do
+    GenServer.cast(__MODULE__, {:push_task, list_id, task_name})
   end
 
   @doc """
@@ -77,6 +82,18 @@ defmodule TaskServer do
       tasks = Map.get(state.lists, list_id)
       new_task = %{name: task_name, outcome: :todo}
       lists = Map.put(state.lists, list_id, tasks ++ [new_task])
+      {:noreply, %{state | lists: lists}}
+    else
+      {:noreply, state}
+    end
+  end
+
+  @impl true
+  def handle_cast({:push_task, list_id, task_name}, state) do
+    if Map.has_key?(state.lists, list_id) do
+      tasks = Map.get(state.lists, list_id)
+      new_task = %{name: task_name, outcome: :todo}
+      lists = Map.put(state.lists, list_id, [new_task | tasks])
       {:noreply, %{state | lists: lists}}
     else
       {:noreply, state}
