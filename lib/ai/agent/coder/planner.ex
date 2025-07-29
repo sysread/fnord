@@ -104,7 +104,7 @@ defmodule AI.Agent.Coder.Planner do
 
                 steps
                 |> Enum.map(&Jason.encode!/1)
-                |> Enum.each(fn _ -> :ok end)
+                |> Enum.each(fn step -> TaskServer.add_task(list_id, step) end)
 
                 {:ok, list_id}
 
