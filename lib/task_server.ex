@@ -51,7 +51,7 @@ defmodule TaskServer do
   @doc """
   Retrieves the list of tasks for the given list ID.
   """
-  @spec get_list(integer) :: [%{name: binary, outcome: atom | binary}]
+  @spec get_list(integer) :: [binary]
   def get_list(list_id) do
     GenServer.call(__MODULE__, {:get_list, list_id})
   end
@@ -72,7 +72,15 @@ defmodule TaskServer do
   end
 
   def handle_call({:get_list, list_id}, _from, state) do
-    tasks = Map.get(state.lists, list_id, [])
+    tasks =
+      state.lists
+      |> Map.get(list_id, [])
+      |> Enum.map(fn
+        %{name: name, outcome: :todo} -> name
+        _ -> nil
+      end)
+      |> Enum.reject(&is_nil/1)
+
     {:reply, tasks, state}
   end
 
