@@ -54,7 +54,12 @@ defmodule UI do
     if is_nil(detail) do
       Logger.info(IO.ANSI.format([:green, msg, :reset], colorize?()))
     else
-      Logger.info(IO.ANSI.format([:green, msg, :reset, ": ", :cyan, detail, :reset], colorize?()))
+      Logger.info(
+        IO.ANSI.format(
+          [:green, msg, :reset, ": ", :cyan, clean_detail(detail), :reset],
+          colorize?()
+        )
+      )
     end
   end
 
@@ -63,7 +68,10 @@ defmodule UI do
       Logger.info(IO.ANSI.format([:yellow, msg, :reset], colorize?()))
     else
       Logger.info(
-        IO.ANSI.format([:yellow, msg, :reset, ": ", :cyan, detail, :reset], colorize?())
+        IO.ANSI.format(
+          [:yellow, msg, :reset, ": ", :cyan, clean_detail(detail), :reset],
+          colorize?()
+        )
       )
     end
   end
@@ -79,7 +87,12 @@ defmodule UI do
   end
 
   def debug(msg, detail) do
-    Logger.debug(IO.ANSI.format([:green, msg, :reset, ": ", :cyan, detail, :reset], colorize?()))
+    Logger.debug(
+      IO.ANSI.format(
+        [:green, msg, :reset, ": ", :cyan, clean_detail(detail), :reset],
+        colorize?()
+      )
+    )
   end
 
   def info(msg) do
@@ -88,8 +101,13 @@ defmodule UI do
 
   def info(msg, detail) do
     msg = msg || ""
-    detail = detail || ""
-    Logger.info(IO.ANSI.format([:green, msg, :reset, ": ", :cyan, detail, :reset], colorize?()))
+
+    Logger.info(
+      IO.ANSI.format(
+        [:green, msg, :reset, ": ", :cyan, clean_detail(detail), :reset],
+        colorize?()
+      )
+    )
   end
 
   def warn(msg) do
@@ -98,7 +116,10 @@ defmodule UI do
 
   def warn(msg, detail) do
     Logger.warning(
-      IO.ANSI.format([:yellow, msg, :reset, ": ", :cyan, detail, :reset], colorize?())
+      IO.ANSI.format(
+        [:yellow, msg, :reset, ": ", :cyan, clean_detail(detail), :reset],
+        colorize?()
+      )
     )
   end
 
@@ -107,7 +128,9 @@ defmodule UI do
   end
 
   def error(msg, detail) do
-    Logger.error(IO.ANSI.format([:red, msg, :reset, ": ", :cyan, detail, :reset], colorize?()))
+    Logger.error(
+      IO.ANSI.format([:red, msg, :reset, ": ", :cyan, clean_detail(detail), :reset], colorize?())
+    )
   end
 
   def warning_banner(msg) do
@@ -134,7 +157,10 @@ defmodule UI do
 
   @spec fatal(binary, binary) :: no_return()
   def fatal(msg, detail) do
-    Logger.error(IO.ANSI.format([:red, msg, :reset, ": ", :cyan, detail, :reset], colorize?()))
+    Logger.error(
+      IO.ANSI.format([:red, msg, :reset, ": ", :cyan, clean_detail(detail), :reset], colorize?())
+    )
+
     Logger.flush()
     System.halt(1)
   end
@@ -220,5 +246,19 @@ defmodule UI do
   def prompt(prompt, owl_opts \\ []) do
     prompt |> UI.Formatter.format_output() |> IO.puts()
     Owl.IO.input(owl_opts)
+  end
+
+  defp clean_detail(detail) do
+    (detail || "")
+    |> String.trim()
+    |> then(fn str ->
+      # If there are multiple lines, prefix with an empty line
+      # to ensure the string is displayed correctly.
+      if String.contains?(str, "\n") do
+        "\n" <> str
+      else
+        str
+      end
+    end)
   end
 end
