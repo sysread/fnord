@@ -29,13 +29,8 @@ defmodule TaskServer do
     GenServer.cast(__MODULE__, {:add_task, list_id, task_name})
   end
 
-  @doc """
-  Pushes task_name to the top of the task list for the given list_id.
-  """
-  @spec push_task(integer, binary) :: :ok
-  def push_task(list_id, task_name) do
-    GenServer.cast(__MODULE__, {:push_task, list_id, task_name})
-  end
+ 
+
 
   @doc """
   Marks the specified task in the list with the given ID as complete with the
@@ -95,16 +90,6 @@ defmodule TaskServer do
     end
   end
 
-  def handle_cast({:push_task, list_id, task_name}, state) do
-    if Map.has_key?(state.lists, list_id) do
-      tasks = Map.get(state.lists, list_id)
-      new_task = %{name: task_name, outcome: :todo}
-      lists = Map.put(state.lists, list_id, [new_task | tasks])
-      {:noreply, %{state | lists: lists}}
-    else
-      {:noreply, state}
-    end
-  end
 
   def handle_cast({:complete_task, list_id, task_id, outcome}, state) do
     case Map.fetch(state.lists, list_id) do

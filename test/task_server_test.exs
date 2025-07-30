@@ -28,13 +28,6 @@ defmodule TaskServerTest do
     assert TaskServer.get_list(list_id) == ["task one", "task two"]
   end
 
-  test "push_task/2 prepends tasks to the top of the list" do
-    list_id = TaskServer.start_list()
-    TaskServer.add_task(list_id, "one")
-    TaskServer.add_task(list_id, "two")
-    TaskServer.push_task(list_id, "urgent!")
-    assert TaskServer.get_list(list_id) == ["urgent!", "one", "two"]
-  end
 
   test "complete_task/3 updates outcome for correct task only" do
     list_id = TaskServer.start_list()
