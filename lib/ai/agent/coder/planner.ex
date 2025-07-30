@@ -68,17 +68,14 @@ defmodule AI.Agent.Coder.Planner do
   @preamble """
   <think>
   I need to split this task up into something that the Coding Agent can manage.
-  First I should determine which files are involved and come up with a holistic
-  set of changes that do what the Coordinating Agent wants. That means I need
-  to read some code, understand the context, and then formulate a mental model
-  of the final state of the code. I can break that down by file, and then by
-  individual hunks within each file. That may mean that I need to make multiple
-  changes to a single file, but each change must be a single, contiguous hunk.
-  That is going to result in a lot of individual steps, but that is what the
-  Coding Agent expects, so I will do that. LLMs often struggle with complex
-  tasks. I bet that is the reason that the Coordinating Agent is asking me to
-  break this down by file and by hunk. I seems like granularity is key here, so
-  I will make sure to break things down into small, manageable steps.
+  First I should determine which files are involved and come up with a holistic set of changes that do what the Coordinating Agent wants.
+  That means I need to read some code, understand the context, and then formulate a mental model of the final state of the code.
+  I can break that down by file, and then by individual hunks within each file.
+  That may mean that I need to make multiple changes to a single file, but each change must be a single, contiguous hunk.
+  That is going to result in a lot of individual steps, but that is what the Coding Agent expects, so I will do that.
+  LLMs often struggle with complex tasks.
+  I bet that is the reason that the Coordinating Agent is asking me to break this down by file and by hunk.
+  I seems like granularity is key here, so I will make sure to break things down into small, manageable steps.
   </think>
   """
 
