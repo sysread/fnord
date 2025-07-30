@@ -250,14 +250,10 @@ defmodule UI do
 
   defp clean_detail(nil), do: ""
 
-  defp clean_detail(detail) when not is_binary(detail) do
-    detail
-    |> inspect(pretty: true)
-    |> clean_detail()
-  end
-
   defp clean_detail(detail) do
     detail
+    |> IO.ANSI.format(colorize?())
+    |> IO.iodata_to_binary()
     |> String.trim()
     |> then(fn str ->
       # If there are multiple lines, prefix with an empty line
