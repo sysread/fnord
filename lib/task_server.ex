@@ -135,14 +135,18 @@ defmodule TaskServer do
   def handle_cast({:complete_task, list_id, task_id, outcome, result}, state) do
     state
     |> Map.get(:lists, %{})
-    |> Map.get(list_id, [])
-    |> Enum.map(fn
-      %{id: ^task_id} = task ->
-        %{task | outcome: outcome, result: result}
+    |> Map.fetch(list_id)
+    |> case do
+      :error ->
+        {:noreply, state}
 
-      task ->
-        task
-    end)
-    |> then(&{:noreply, %{state | lists: Map.put(state.lists, list_id, &1)}})
+      {:ok, tasks} ->
+        tasks
+        |> Enum.map(fn
+          %{id: ^task_id} = task -> %{task | outcome: outcome, result: result}
+          task -> task
+        end)
+        |> then(&{:noreply, %{state | lists: Map.put(state.lists, list_id, &1)}})
+    end
   end
 end
