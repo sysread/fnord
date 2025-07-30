@@ -75,11 +75,11 @@ defmodule TaskServer do
   def as_string(%{id: id, outcome: :done}, false), do: "- [✓] #{id}"
   def as_string(%{id: id, outcome: :failed}, false), do: "- [✗] #{id}"
 
-  def as_string(%{id: id, outcome: :done, result: result}, false) do
+  def as_string(%{id: id, outcome: :done, result: result}, true) do
     "- [✓] #{id}: #{result}"
   end
 
-  def as_string(%{id: id, outcome: :failed, result: result}, false) do
+  def as_string(%{id: id, outcome: :failed, result: result}, true) do
     "- [✗] #{id}: #{result}"
   end
 
