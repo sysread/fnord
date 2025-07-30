@@ -101,7 +101,7 @@ defmodule AI.CompletionTest do
 
   describe "get/1" do
     test "Completion.get/1 surfaces API error response to user" do
-      :meck.expect(AI.CompletionAPI, :get, fn _model, _msgs, _specs ->
+      :meck.expect(AI.CompletionAPI, :get, fn _model, _msgs, _specs, _res_fmt ->
         {:error, %{http_status: 500, code: "server_error", message: "backend exploded"}}
       end)
 
@@ -120,7 +120,7 @@ defmodule AI.CompletionTest do
     end
 
     test "Completion.get/1 surfaces rate limit error response and can print it" do
-      :meck.expect(AI.CompletionAPI, :get, fn _model, _msgs, _specs ->
+      :meck.expect(AI.CompletionAPI, :get, fn _model, _msgs, _specs, _res_fmt ->
         {:error, %{http_status: 429, code: "rate_limit", message: "Rate limit exceeded"}}
       end)
 
@@ -276,7 +276,7 @@ defmodule AI.CompletionTest do
     end
 
     test "Completion.get/1 invokes local tools from toolbox" do
-      :meck.expect(AI.CompletionAPI, :get, fn _model, msgs, _specs ->
+      :meck.expect(AI.CompletionAPI, :get, fn _model, msgs, _specs, _res_fmt ->
         tool_calls_sent? = Enum.any?(msgs, fn msg -> Map.has_key?(msg, :tool_calls) end)
 
         if tool_calls_sent? do
@@ -309,7 +309,7 @@ defmodule AI.CompletionTest do
     end
 
     test "Tool calls invocation respects async?/0" do
-      :meck.expect(AI.CompletionAPI, :get, fn _model, msgs, _specs ->
+      :meck.expect(AI.CompletionAPI, :get, fn _model, msgs, _specs, _response_fmt ->
         tool_calls_sent? = Enum.any?(msgs, fn msg -> Map.has_key?(msg, :tool_calls) end)
 
         if tool_calls_sent? do
@@ -342,7 +342,7 @@ defmodule AI.CompletionTest do
     end
 
     test "Completion.get/1 handles unknown tool requests gracefully" do
-      :meck.expect(AI.CompletionAPI, :get, fn _model, msgs, _specs ->
+      :meck.expect(AI.CompletionAPI, :get, fn _model, msgs, _specs, _res_fmt ->
         tool_calls_sent? = Enum.any?(msgs, fn msg -> Map.has_key?(msg, :tool_calls) end)
 
         if tool_calls_sent? do

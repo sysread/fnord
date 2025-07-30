@@ -20,6 +20,7 @@ defmodule AI.Completion do
   defstruct [
     :opts,
     :model,
+    :response_format,
     :toolbox,
     :specs,
     :log_msgs,
@@ -35,6 +36,7 @@ defmodule AI.Completion do
   @type t :: %__MODULE__{
           opts: Keyword.t(),
           model: String.t(),
+          response_format: map | nil,
           toolbox: AI.Tools.toolbox() | nil,
           specs: list(AI.Tools.tool_spec()) | nil,
           log_msgs: boolean(),
@@ -65,6 +67,8 @@ defmodule AI.Completion do
   def new(opts) do
     with {:ok, model} <- Keyword.fetch(opts, :model),
          {:ok, messages} <- Keyword.fetch(opts, :messages) do
+      response_format = Keyword.get(opts, :response_format, nil)
+
       toolbox =
         opts
         |> Keyword.get(:toolbox, nil)
@@ -86,6 +90,7 @@ defmodule AI.Completion do
       state = %__MODULE__{
         opts: Enum.into(opts, %{}),
         model: model,
+        response_format: response_format,
         toolbox: toolbox,
         specs: specs,
         log_msgs: log_msgs,
@@ -158,7 +163,8 @@ defmodule AI.Completion do
     AI.CompletionAPI.get(
       state.model,
       state.messages,
-      state.specs
+      state.specs,
+      state.response_format
     )
     |> handle_response(state)
   end

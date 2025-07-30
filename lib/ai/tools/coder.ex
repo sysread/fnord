@@ -92,13 +92,9 @@ defmodule AI.Tools.Coder do
       msg,
       steps
       |> Enum.map(&Jason.decode!/1)
-      |> Enum.with_index()
-      |> Enum.map(fn {%{"file" => file, "instructions" => instructions}, idx} ->
-        """
-        # STEP #{idx + 1}: #{file}
-        #{instructions}
-        """
-      end)
+      |> Enum.map(&Map.fetch!(&1, "label"))
+      |> Enum.with_index(1)
+      |> Enum.map(fn {label, idx} -> "  #{idx}. #{label}" end)
       |> Enum.join("\n-----\n")
     )
   end
@@ -137,8 +133,12 @@ defmodule AI.Tools.Coder do
     steps
     |> Enum.reduce_while({:ok, []}, fn step, {:ok, results} ->
       case do_step(step) do
-        {:ok, result} -> {:cont, {:ok, [result | results]}}
-        {:error, reason} -> {:halt, {:error, reason}}
+        {:ok, result} ->
+          TaskServer.complete_task(step)
+          {:cont, {:ok, [result | results]}}
+
+        {:error, reason} ->
+          {:halt, {:error, reason}}
       end
     end)
     |> case do

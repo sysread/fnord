@@ -4,6 +4,7 @@ defmodule AI.CompletionAPI do
   @type model :: AI.Model.t()
   @type msgs :: [map()]
   @type tools :: nil | [AI.Tools.tool_spec()]
+  @type response_format :: nil | map
 
   @type usage :: integer()
   @type msg_response :: {:ok, :msg, binary, usage}
@@ -15,9 +16,16 @@ defmodule AI.CompletionAPI do
           | {:error, map}
           | {:error, :context_length_exceeded}
 
-  @spec get(model, msgs, tools) :: response
-  def get(model, msgs, tools \\ nil) do
+  @spec get(model, msgs, tools, response_format) :: response
+  def get(model, msgs, tools \\ nil, response_format \\ nil) do
     api_key = get_api_key!()
+
+    response_format =
+      if is_nil(response_format) do
+        %{type: "text"}
+      else
+        response_format
+      end
 
     headers = [
       {"Authorization", "Bearer #{api_key}"},
@@ -28,7 +36,7 @@ defmodule AI.CompletionAPI do
       %{
         model: model.model,
         messages: msgs,
-        response_format: %{type: "text"}
+        response_format: response_format
       }
       |> Map.merge(
         case tools do
