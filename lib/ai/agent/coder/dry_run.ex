@@ -14,6 +14,8 @@ defmodule AI.Agent.Coder.DryRun do
              Only output the raw file content for this region.
              If you include line numbers or `|`, that will break the file.
 
+  Always try to match the style, formatting, and conventions of the original code.
+
   Respond with a block of code that will replace all other content within the hunk.
   Do not include any other text, comments, explanations, or markdown fences in your response.
   """
