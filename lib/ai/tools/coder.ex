@@ -69,8 +69,6 @@ defmodule AI.Tools.Coder do
 
   @impl AI.Tools
   def call(%{"instructions" => instructions}) do
-    UI.info("Coding", instructions)
-
     instructions
     |> code_stuff()
     |> case do
