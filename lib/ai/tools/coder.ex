@@ -100,7 +100,7 @@ defmodule AI.Tools.Coder do
   end
 
   defp plan_steps(instructions) do
-    UI.info("Planning coding task", instructions)
+    UI.info("Planning changes")
 
     with {:ok, list_id} <- AI.Agent.Coder.Planner.get_response(%{instructions: instructions}) do
       UI.info("Planning completed", TaskServer.as_string(list_id))

@@ -144,13 +144,6 @@ defmodule AI.Agent.Coder.Planner do
   def get_response(opts) do
     with {:ok, instructions} <- Map.fetch(opts, :instructions),
          {:ok, list_id} <- do_plan(instructions) do
-      UI.info(
-        "Changes planned",
-        list_id
-        |> TaskServer.get_list()
-        |> TaskServer.as_string()
-      )
-
       {:ok, list_id}
     else
       :error -> {:error, :invalid_parameters}
@@ -160,8 +153,6 @@ defmodule AI.Agent.Coder.Planner do
 
   @spec do_plan(binary) :: {:ok, integer} | {:error, binary}
   defp do_plan(instructions) do
-    UI.debug("Planning code changes", instructions)
-
     AI.Completion.get(
       model: @model,
       toolbox: @toolbox,
