@@ -114,20 +114,22 @@ defmodule TaskServer do
   end
 
   def handle_cast({:add_task, list_id, task_id, task_data}, state) do
-    task = %{
-      id: task_id,
-      data: task_data,
-      outcome: :todo,
-      result: nil
-    }
+    # does not create lists on demand: ignore invalid list IDs
+    case Map.fetch(state.lists, list_id) do
+      :error ->
+        {:noreply, state}
 
-    new_list =
-      state
-      |> Map.get(:lists, %{})
-      |> Map.get(list_id, [])
-      |> then(&[task | &1])
+      {:ok, tasks} ->
+        task = %{
+          id: task_id,
+          data: task_data,
+          outcome: :todo,
+          result: nil
+        }
 
-    {:noreply, %{state | lists: Map.put(state.lists, list_id, new_list)}}
+        new_list = [task | tasks]
+        {:noreply, %{state | lists: Map.put(state.lists, list_id, new_list)}}
+    end
   end
 
   def handle_cast({:complete_task, list_id, task_id, outcome, result}, state) do
