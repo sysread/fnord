@@ -141,7 +141,7 @@ defmodule AI.Tools.Coder do
     with {:ok, result} <- do_step(label, file, instructions) do
       UI.info("Step completed", label)
       TaskServer.complete_task(list_id, step.id, result)
-      do_steps(list_id, steps, :ok)
+      do_steps(steps, list_id, :ok)
     else
       {:error, reason} ->
         UI.warn("Step failed", label)
