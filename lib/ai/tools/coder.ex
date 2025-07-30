@@ -133,12 +133,8 @@ defmodule AI.Tools.Coder do
     steps
     |> Enum.reduce_while({:ok, []}, fn step, {:ok, results} ->
       case do_step(step) do
-        {:ok, result} ->
-          TaskServer.complete_task(step)
-          {:cont, {:ok, [result | results]}}
-
-        {:error, reason} ->
-          {:halt, {:error, reason}}
+        {:ok, result} -> {:cont, {:ok, [result | results]}}
+        {:error, reason} -> {:halt, {:error, reason}}
       end
     end)
     |> case do
