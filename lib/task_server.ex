@@ -1,131 +1,146 @@
 defmodule TaskServer do
+  defstruct [
+    :next_id,
+    :lists
+  ]
+
+  @type task :: %{
+          id: non_neg_integer | binary,
+          outcome: :todo | :done | :failed,
+          data: any,
+          result: any
+        }
+
+  @type t :: %__MODULE__{
+          next_id: non_neg_integer,
+          lists: %{
+            non_neg_integer => list(task)
+          }
+        }
+
   use GenServer
 
   # ----------------------------------------------------------------------------
   # Client API
   # ----------------------------------------------------------------------------
-
-  @doc """
-  Starts the TaskServer.
-  """
-  @spec start_link(keyword) :: {:ok, pid} | {:error, any}
+  @spec start_link(any) :: GenServer.on_start()
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
-  @doc """
-  Creates a new task list and returns its ID.
-  """
-  @spec start_list() :: integer
+  @spec start_list() :: non_neg_integer
   def start_list() do
     GenServer.call(__MODULE__, :start_list)
   end
 
-  @doc """
-  Adds a task with the given name to the list with the given ID.
-  """
-  @spec add_task(integer, binary) :: :ok
-  def add_task(list_id, task_name) do
-    GenServer.cast(__MODULE__, {:add_task, list_id, task_name})
-  end
-
- 
-
-
-  @doc """
-  Marks the specified task in the list with the given ID as complete with the
-  given outcome. The task may be specified by its zero-based index (integer) or
-  by its name (string). Using an index updates the outcome of the task at that
-  position; using a name updates the outcome of the matching task(s).
-  """
-  @spec complete_task(integer, binary, any) :: :ok
-  def complete_task(list_id, task_name, outcome) do
-    GenServer.cast(__MODULE__, {:complete_task, list_id, task_name, outcome})
-  end
-
-  @doc """
-  Retrieves the list of tasks for the given list ID.
-  """
-  @spec get_list(integer) :: [binary]
+  @spec get_list(non_neg_integer) :: list(task) | {:error, :not_found}
   def get_list(list_id) do
     GenServer.call(__MODULE__, {:get_list, list_id})
+  end
+
+  @spec add_task(non_neg_integer, binary, any) :: :ok
+  def add_task(list_id, task_id, task_data) do
+    GenServer.cast(__MODULE__, {:add_task, list_id, task_id, task_data})
+  end
+
+  @spec complete_task(non_neg_integer, binary, any) :: :ok
+  def complete_task(list_id, task_id, result) do
+    GenServer.cast(__MODULE__, {:complete_task, list_id, task_id, :done, result})
+  end
+
+  @spec fail_task(non_neg_integer, binary, any) :: :ok
+  def fail_task(list_id, task_id, msg) do
+    GenServer.cast(__MODULE__, {:complete_task, list_id, task_id, :failed, msg})
+  end
+
+  @spec as_string(non_neg_integer | list(task), boolean) :: binary
+  def as_string(subject, detail? \\ false)
+
+  def as_string(list_id, detail?) when is_integer(list_id) do
+    list_id
+    |> get_list()
+    |> case do
+      {:error, :not_found} -> "List #{list_id} not found"
+      tasks -> as_string(tasks, detail?)
+    end
+  end
+
+  def as_string([], _), do: ""
+
+  def as_string([task | tasks], detail?) do
+    as_string(task, detail?) <> "\n" <> as_string(tasks, detail?)
+  end
+
+  def as_string(%{id: id, outcome: :todo}, _), do: "- [ ] #{id}"
+  def as_string(%{id: id, outcome: :done}, false), do: "- [✓] #{id}"
+  def as_string(%{id: id, outcome: :failed}, false), do: "- [✗] #{id}"
+
+  def as_string(%{id: id, outcome: :done, result: result}, false) do
+    "- [✓] #{id}: #{result}"
+  end
+
+  def as_string(%{id: id, outcome: :failed, result: result}, false) do
+    "- [✗] #{id}: #{result}"
   end
 
   # ----------------------------------------------------------------------------
   # Server Callbacks
   # ----------------------------------------------------------------------------
-
   def init(_) do
-    {:ok, %{next_id: 1, lists: %{}}}
+    {:ok, %__MODULE__{next_id: 1, lists: %{}}}
   end
 
-  def handle_call(:start_list, _from, state) do
-    id = state.next_id
-    lists = Map.put(state.lists, id, [])
-    new_state = %{state | next_id: id + 1, lists: lists}
-    {:reply, id, new_state}
+  def handle_call(:start_list, _from, %{lists: lists, next_id: next_id} = state) do
+    {:reply, next_id,
+     %{
+       state
+       | lists: Map.put(lists, next_id, []),
+         next_id: next_id + 1
+     }}
   end
 
   def handle_call({:get_list, list_id}, _from, state) do
-    tasks =
-      state.lists
+    state.lists
+    |> Map.get(list_id)
+    |> case do
+      nil ->
+        {:reply, {:error, :not_found}, state}
+
+      tasks ->
+        tasks
+        |> Enum.reverse()
+        |> then(&{:reply, &1, state})
+    end
+  end
+
+  def handle_cast({:add_task, list_id, task_id, task_data}, state) do
+    task = %{
+      id: task_id,
+      data: task_data,
+      outcome: :todo,
+      result: nil
+    }
+
+    new_list =
+      state
+      |> Map.get(:lists, %{})
       |> Map.get(list_id, [])
-      |> Enum.map(fn
-        %{name: name, outcome: :todo} -> name
-        _ -> nil
-      end)
-      |> Enum.reject(&is_nil/1)
+      |> then(&[task | &1])
 
-    {:reply, tasks, state}
+    {:noreply, %{state | lists: Map.put(state.lists, list_id, new_list)}}
   end
 
-  def handle_cast({:add_task, list_id, task_name}, state) do
-    if Map.has_key?(state.lists, list_id) do
-      tasks = Map.get(state.lists, list_id)
-      new_task = %{name: task_name, outcome: :todo}
-      lists = Map.put(state.lists, list_id, tasks ++ [new_task])
-      {:noreply, %{state | lists: lists}}
-    else
-      {:noreply, state}
-    end
-  end
+  def handle_cast({:complete_task, list_id, task_id, outcome, result}, state) do
+    state
+    |> Map.get(:lists, %{})
+    |> Map.get(list_id, [])
+    |> Enum.map(fn
+      %{id: ^task_id} = task ->
+        %{task | outcome: outcome, result: result}
 
-
-  def handle_cast({:complete_task, list_id, task_id, outcome}, state) do
-    case Map.fetch(state.lists, list_id) do
-      :error ->
-        {:noreply, state}
-
-      {:ok, tasks} ->
-        cond do
-          is_integer(task_id) ->
-            if task_id >= 0 and task_id < length(tasks) do
-              updated_tasks =
-                List.update_at(tasks, task_id, fn task -> Map.put(task, :outcome, outcome) end)
-
-              lists = Map.put(state.lists, list_id, updated_tasks)
-              {:noreply, %{state | lists: lists}}
-            else
-              {:noreply, state}
-            end
-
-          is_binary(task_id) ->
-            updated_tasks =
-              Enum.map(tasks, fn
-                %{name: ^task_id} = task -> Map.put(task, :outcome, outcome)
-                other -> other
-              end)
-
-            if updated_tasks == tasks do
-              {:noreply, state}
-            else
-              lists = Map.put(state.lists, list_id, updated_tasks)
-              {:noreply, %{state | lists: lists}}
-            end
-
-          true ->
-            {:noreply, state}
-        end
-    end
+      task ->
+        task
+    end)
+    |> then(&{:noreply, %{state | lists: Map.put(state.lists, list_id, &1)}})
   end
 end

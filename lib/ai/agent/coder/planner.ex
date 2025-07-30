@@ -27,7 +27,7 @@ defmodule AI.Agent.Coder.Planner do
      - Do NOT use line numbers; they change between steps, and the coding agent will FAIL if you do.
      - Order the steps logically, so that each step builds on the previous one.
      - Example:
-       - Removing two functions from a file: 
+       - Removing two functions from a file:
          - Step 1: Remove function A. Include code review notes that function B will be removed in a later step.
          - Step 2: Remove function B.
        - Adding a function to a file and calling it from another function:
@@ -148,11 +148,7 @@ defmodule AI.Agent.Coder.Planner do
         "Changes planned",
         list_id
         |> TaskServer.get_list()
-        |> Enum.map(&Jason.decode!/1)
-        |> Enum.map(&Map.fetch!(&1, "label"))
-        |> Enum.with_index(1)
-        |> Enum.map(fn {label, idx} -> "  #{idx}. #{label}" end)
-        |> Enum.join("\n")
+        |> TaskServer.as_string()
       )
 
       {:ok, list_id}
@@ -197,9 +193,9 @@ defmodule AI.Agent.Coder.Planner do
               :ok ->
                 list_id = TaskServer.start_list()
 
-                steps
-                |> Enum.map(&Jason.encode!/1)
-                |> Enum.each(fn step -> TaskServer.add_task(list_id, step) end)
+                Enum.each(steps, fn %{"label" => label} = step ->
+                  TaskServer.add_task(list_id, label, step)
+                end)
 
                 {:ok, list_id}
 

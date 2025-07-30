@@ -6,56 +6,47 @@ defmodule TaskServerTest do
     %{pid: pid}
   end
 
-  test "start_link/0 starts the GenServer and it is alive", %{pid: pid} do
+  test "start_link/0", %{pid: pid} do
     assert Process.alive?(pid)
   end
 
-  test "start_list/0 returns unique, incrementing positive integer IDs" do
-    first_id = TaskServer.start_list()
-    second_id = TaskServer.start_list()
-    assert is_integer(first_id) and first_id > 0
-    assert second_id == first_id + 1
+  test "start_list/0" do
+    assert 1 = TaskServer.start_list()
+    assert 2 = TaskServer.start_list()
+    assert 3 = TaskServer.start_list()
   end
 
-  test "get_list/1 returns [] for unknown IDs", %{pid: _pid} do
-    assert TaskServer.get_list(9999) == []
-  end
-
-  test "add_task/2 adds tasks to a valid list and retrieves them in order with :todo outcome" do
+  test "task management" do
     list_id = TaskServer.start_list()
-    TaskServer.add_task(list_id, "task one")
-    TaskServer.add_task(list_id, "task two")
-    assert TaskServer.get_list(list_id) == ["task one", "task two"]
-  end
 
+    assert :ok = TaskServer.add_task(list_id, "Task 1", %{data: "Data 1"})
+    assert :ok = TaskServer.add_task(list_id, "Task 2", %{data: "Data 2"})
+    assert :ok = TaskServer.add_task(list_id, "Task 3", %{data: "Data 3"})
 
-  test "complete_task/3 updates outcome for correct task only" do
-    list_id = TaskServer.start_list()
-    TaskServer.add_task(list_id, "task one")
-    TaskServer.add_task(list_id, "task two")
-    assert TaskServer.get_list(list_id) == ["task one", "task two"]
-    TaskServer.complete_task(list_id, 0, :done)
-    assert TaskServer.get_list(list_id) == ["task two"]
-  end
+    tasks = TaskServer.get_list(list_id)
+    assert length(tasks) == 3
 
-  test "add_task/2 and complete_task/3 do nothing for missing IDs" do
-    assert TaskServer.get_list(9999) == []
-    TaskServer.add_task(9999, "orphan")
-    TaskServer.complete_task(9999, 0, :done)
-    assert TaskServer.get_list(9999) == []
-  end
+    assert TaskServer.as_string(list_id) ==
+             """
+             - [ ] Task 1
+             - [ ] Task 2
+             - [ ] Task 3
+             """
 
-  test "get_list/1 always returns current tasks in proper order" do
-    list_id = TaskServer.start_list()
-    assert TaskServer.get_list(list_id) == []
+    assert :ok = TaskServer.complete_task(list_id, "Task 1", "Result 1")
+    assert :ok = TaskServer.fail_task(list_id, "Task 2", "Failed due to error")
 
-    TaskServer.add_task(list_id, "first")
-    assert TaskServer.get_list(list_id) == ["first"]
+    assert [
+             %{id: "Task 1", outcome: :done, result: "Result 1"},
+             %{id: "Task 2", outcome: :failed, result: "Failed due to error"},
+             %{id: "Task 3", outcome: :todo, data: %{data: "Data 3"}, result: nil}
+           ] = TaskServer.get_list(list_id)
 
-    TaskServer.add_task(list_id, "second")
-    assert TaskServer.get_list(list_id) == ["first", "second"]
-
-    TaskServer.complete_task(list_id, 0, :done)
-    assert TaskServer.get_list(list_id) == ["second"]
+    assert TaskServer.as_string(list_id) ==
+             """
+             - [✓] Task 1
+             - [✗] Task 2
+             - [ ] Task 3
+             """
   end
 end

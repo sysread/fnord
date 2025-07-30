@@ -68,169 +68,120 @@ defmodule AI.Tools.Coder do
   end
 
   @impl AI.Tools
-  def call(args) do
-    with {:ok, instructions} <- AI.Tools.get_arg(args, "instructions"),
-         {:ok, list_id} <- plan_steps(instructions),
-         {:ok, steps} <- get_steps(list_id),
-         :ok <- test_steps(steps) do
-      UI.info("Planning completed", "Executing #{length(steps)} steps")
-      log_steps(steps)
-      do_steps(steps)
-    else
+  def call(%{"instructions" => instructions}) do
+    UI.info("Coding", instructions)
+
+    instructions
+    |> code_stuff()
+    |> case do
+      {:ok, result} ->
+        UI.info("Coding completed", result)
+        {:ok, result}
+
       {:error, reason} ->
+        UI.error("Coding failed", reason)
+
         {:error,
          """
-
          FAILURE: The coder_tool was unable to apply the requested changes. No changes were made to the file.
          #{reason}
          """}
     end
   end
 
-  defp log_steps(steps, msg \\ "Steps") do
-    UI.debug(
-      msg,
-      steps
-      |> Enum.map(&Jason.decode!/1)
-      |> Enum.map(&Map.fetch!(&1, "label"))
-      |> Enum.with_index(1)
-      |> Enum.map(fn {label, idx} -> "  #{idx}. #{label}" end)
-      |> Enum.join("\n-----\n")
-    )
-  end
-
-  # Calls identify_range on each step to see if the hunk can be identified, and
-  # returns the error if any step fails to identify a range.
-  defp test_steps(steps) do
-    log_steps(steps, "Testing steps")
-
-    steps
-    |> Enum.with_index()
-    |> Enum.reduce_while(:ok, fn {json_step, idx}, acc ->
-      with {:ok, %{"file" => file, "instructions" => instructions}} <- Jason.decode(json_step),
-           {:ok, _} <- identify_range(file, instructions) do
-        {:cont, acc}
-      else
-        {:error, reason} ->
-          {:halt,
-           {:error,
-            """
-            FAILURE: Step #{idx + 1} failed; the coder_tool was unable to identify the referenced hunk:
-            Step: #{json_step}
-            Reason: #{reason}
-            """}}
-      end
-    end)
-  end
-
-  defp get_steps(list_id) do
-    list_id
-    |> TaskServer.get_list()
-    |> then(&{:ok, &1})
-  end
-
-  defp do_steps(steps) do
-    steps
-    |> Enum.reduce_while({:ok, []}, fn step, {:ok, results} ->
-      case do_step(step) do
-        {:ok, result} -> {:cont, {:ok, [result | results]}}
-        {:error, reason} -> {:halt, {:error, reason}}
-      end
-    end)
-    |> case do
-      {:ok, results} -> {:ok, Enum.reverse(results)}
-      {:error, reason} -> {:error, reason}
+  defp code_stuff(instructions) do
+    with {:ok, list_id} <- plan_steps(instructions),
+         :ok <- do_steps(list_id) do
+      {:ok,
+       list_id
+       |> TaskServer.get_list()
+       |> TaskServer.as_string(true)}
     end
   end
 
-  defp do_step(json_step) do
-    with {:ok, %{"file" => file, "instructions" => instructions}} <- Jason.decode(json_step) do
+  defp plan_steps(instructions) do
+    UI.info("Planning coding task", instructions)
+
+    with {:ok, list_id} <- AI.Agent.Coder.Planner.get_response(%{instructions: instructions}) do
+      UI.info("Planning completed", TaskServer.as_string(list_id))
+      {:ok, list_id}
+    end
+  end
+
+  defp do_steps(list_id) do
+    list_id
+    |> TaskServer.get_list()
+    |> do_steps(list_id)
+  end
+
+  defp do_steps(steps, list_id, acc \\ :ok)
+
+  defp do_steps(remaining_steps, list_id, {:error, label, reason}) do
+    msg = """
+    The coding task failed at step: #{label}
+    #{reason}
+    """
+
+    # Fail the remaining tasks in the list
+    remaining_steps
+    |> Enum.each(fn %{id: id} ->
+      TaskServer.fail_task(list_id, id, "Cancelled due to failure at prior step: #{label}")
+    end)
+
+    {:error, msg}
+  end
+
+  defp do_steps([], _list_id, :ok), do: :ok
+
+  defp do_steps([step | steps], list_id, :ok) do
+    %{
+      "label" => label,
+      "file" => file,
+      "instructions" => instructions
+    } = step.data
+
+    with {:ok, result} <- do_step(label, file, instructions) do
+      UI.info("Step completed", label)
+      TaskServer.complete_task(list_id, step.id, result)
+      do_steps(list_id, steps, :ok)
+    else
+      {:error, reason} ->
+        UI.warn("Step failed", label)
+        TaskServer.fail_task(list_id, step.id, inspect(reason))
+        do_steps(list_id, steps, {:error, label, reason})
+    end
+  end
+
+  defp do_step(label, file, instructions) do
+    UI.info("Performing coding task", label)
+
+    with {:ok, {start_line, end_line}} <- identify_range(file, instructions),
+         {:ok, replacement, preview} <- dry_run(file, instructions, start_line, end_line),
+         :ok <- confirm_changes(file, instructions, preview),
+         {:ok, result} <- apply_changes(file, start_line, end_line, replacement) do
       UI.info(
-        "Performing coding task",
+        "Coding task complete",
         """
-        # #{file}
-        #{instructions}
+        # #{label}
+        Changes applied to #{file}:#{start_line}-#{end_line}.
+
+        # Outcome
+        #{result}
         """
       )
 
-      with {:ok, {start_line, end_line}} <- identify_range(file, instructions),
-           {:ok, replacement, preview} <- dry_run(file, instructions, start_line, end_line),
-           :ok <- confirm_changes(file, instructions, preview),
-           {:ok, result} <- apply_changes(file, start_line, end_line, replacement) do
-        UI.info(
-          "Changes applied to #{file}:#{start_line}-#{end_line}",
-          """
-          # Instructions
-          #{instructions}
-
-          # Outcome
-          #{result}
-          """
-        )
-
-        {:ok, result}
-      end
-    end
-  end
-
-  defp plan_steps(instructions, attempts_left \\ 3)
-
-  defp plan_steps(_, 0) do
-    {:error,
-     """
-     The agent was unable to generate a valid plan for the requested changes after multiple attempts.
-     Please review and possibly clarify your instructions and try again.
-     """}
-  end
-
-  defp plan_steps(instructions, attempts_left) do
-    %{instructions: instructions}
-    |> AI.Agent.Coder.Planner.get_response()
-    |> case do
-      {:ok, list_id} ->
-        with {:ok, steps} <- get_steps(list_id),
-             :ok <- test_steps(steps) do
-          {:ok, list_id}
-        else
-          {:error, reason} ->
-            instructions = """
-            #{instructions}
-            -----
-            Note: On your previous attempt, the steps did not pass validation:
-            #{reason}
-            """
-
-            plan_steps(instructions, attempts_left - 1)
-        end
-
-      {:error, msg} ->
-        UI.warn("Planning failed", """
-        The agent was unable to generate a valid plan for the requested changes.
-        #{msg}
-        """)
-
-        {:error,
-         """
-         The agent was unable to generate a valid plan for the requested changes:
-         #{msg}
-         """}
+      {:ok, result}
     end
   end
 
   defp identify_range(file, instructions) do
-    %{instructions: instructions, file: file}
-    |> AI.Agent.Coder.RangeFinder.get_response()
+    AI.Agent.Coder.RangeFinder.get_response(%{instructions: instructions, file: file})
     |> case do
       {:ok, {start_line, end_line}} ->
         UI.info("Hunk identified in #{file}", "Lines #{start_line}...#{end_line}")
         {:ok, {start_line, end_line}}
 
       {:identify_error, msg} ->
-        UI.warn("Coding failed", """
-        The agent was unable to identify a contiguous range of lines in the file based on the provided instructions.
-        #{msg}
-        """)
-
         {:error,
          """
          The agent was unable to identify a single, contiguous range of lines in the file based on the provided instructions:
