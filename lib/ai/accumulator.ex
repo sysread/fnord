@@ -222,6 +222,9 @@ defmodule AI.Accumulator do
           {:error, "context window length exceeded: unable to back off further to fit the input"}
         end
 
+      {:error, :api_unavailable} ->
+        {:error, "API temporarily unavailable"}
+
       {:error, %AI.Completion{response: resp}} when is_binary(resp) ->
         {:error, resp}
     end

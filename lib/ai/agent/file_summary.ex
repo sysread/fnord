@@ -50,7 +50,10 @@ defmodule AI.Agent.FileSummary do
         input: content,
         question: "Summarize the content of the file: #{file}"
       )
-      |> then(fn {:ok, %{response: response}} -> {:ok, response} end)
+      |> case do
+        {:ok, %{response: response}} -> {:ok, response}
+        {:error, reason} -> {:error, reason}
+      end
     end
   end
 end
