@@ -89,12 +89,16 @@ defmodule Cmd.Tool do
       long = "--#{arg}"
       help = arg_spec.description
       required = Map.get(is_required?, arg, false)
+      multiple_option = if arg_spec.type == "array", do: [multiple: true], else: []
 
-      Keyword.put(acc, arg,
-        long: long,
-        help: help,
-        required: required
-      )
+      opts =
+        [
+          long: long,
+          help: help,
+          required: required
+        ] ++ multiple_option
+
+      Keyword.put(acc, arg, opts)
     end)
   end
 

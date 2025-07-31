@@ -49,6 +49,7 @@ defmodule TaskServerTest do
              - [ ] Task 3
              """
   end
+
   describe "operations on invalid/nonexistent list IDs" do
     test "get, add, complete, and fail on nonexistent list" do
       invalid_id = 999
@@ -95,6 +96,7 @@ defmodule TaskServerTest do
       assert :ok = TaskServer.add_task(list_id, "dup", data1)
       assert :ok = TaskServer.add_task(list_id, "dup", data2)
       tasks = TaskServer.get_list(list_id)
+
       assert [
                %{id: "dup", outcome: :todo, data: ^data1, result: nil},
                %{id: "dup", outcome: :todo, data: ^data2, result: nil}
@@ -110,6 +112,7 @@ defmodule TaskServerTest do
       weird_data = [:a, :b, :c]
       assert :ok = TaskServer.add_task(list_id, "list_task", weird_data)
       tasks = TaskServer.get_list(list_id)
+
       assert [
                %{id: "nil_task", outcome: :todo, data: nil, result: nil},
                %{id: "empty_map_task", outcome: :todo, data: %{}, result: nil},
