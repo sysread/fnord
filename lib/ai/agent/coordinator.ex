@@ -439,9 +439,9 @@ defmodule AI.Agent.Coordinator do
   If I tried to make changes and they failed, I should try to correct my instructions to the coder_tool and try again.
 
   Let me think. Did I:
-  - Call tools that can check the syntax of the code?
-  - Call tools that can format the code to ensure it follows the project's conventions?
-  - Call tools that can test the code to ensure it works as expected?
+  - Call any tools that can check the syntax of the code?
+  - Call any tools that can format the code to ensure it follows the project's conventions?
+  - Call any tools that can test the code to ensure it works as expected?
   </think>
   """
 

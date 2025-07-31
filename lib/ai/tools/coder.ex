@@ -79,10 +79,23 @@ defmodule AI.Tools.Coder do
       {:error, reason} ->
         UI.error("Coding failed", reason)
 
+        reason =
+          reason
+          |> String.split("\n")
+          |> Enum.map(&"> #{&1}")
+          |> Enum.join("\n")
+
         {:error,
          """
-         FAILURE: The coder_tool was unable to apply the requested changes. No changes were made to the file.
+         FAILURE: The coder_tool was unable to apply the requested changes.
+         No changes were made to the file.
+
          #{reason}
+
+         **IMPORTANT:** If you are unable to resolve this issue with improved
+         instructions, you MUST ensure that you notify the user of the failure
+         and provide detailed instructions on how to implement the changes
+         manually.
          """}
     end
   end
