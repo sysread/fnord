@@ -123,7 +123,7 @@ defmodule AI.Agent.Coder.DryRun do
             # #{file} | #{start_line}...#{end_line}
 
             ```
-            #{replacement}
+            #{preview}
             ```
             """)
 
