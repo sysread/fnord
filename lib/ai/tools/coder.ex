@@ -146,7 +146,7 @@ defmodule AI.Tools.Coder do
       {:error, reason} ->
         UI.warn("Step failed", label)
         TaskServer.fail_task(list_id, step.id, inspect(reason))
-        do_steps(list_id, steps, {:error, label, reason})
+        do_steps(steps, list_id, {:error, label, reason})
     end
   end
 
