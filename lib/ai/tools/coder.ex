@@ -141,6 +141,7 @@ defmodule AI.Tools.Coder do
     with {:ok, result} <- do_step(label, file, instructions) do
       UI.info("Step completed", label)
       TaskServer.complete_task(list_id, step.id, result)
+      UI.info("Current task list", TaskServer.get_list(list_id) |> TaskServer.as_string(true))
       do_steps(steps, list_id, :ok)
     else
       {:error, reason} ->
