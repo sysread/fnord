@@ -9,6 +9,7 @@ defmodule AI.Agent.Coder.Planner do
   @model AI.Model.reasoning(:high)
 
   @prompt """
+  # Synopsis
   You are the Code Planner.
   You are an AI agent who plans coding tasks on behalf of the Coordinating Agent.
   They will provide you with a coding task.
@@ -18,7 +19,7 @@ defmodule AI.Agent.Coder.Planner do
   As a result, each step must be a single, self-contained change that can be made in one go.
   This means that when a file requires changes to multiple sections, EACH section must be its OWN STEP.
 
-  Procedure:
+  # Procedure
   1. Analyze the task and use your tools to determine what you would like the final change set to look like.
   2. If the instructions are too vague, contain conflicting intents, or otherwise cannot be turned into a reasonably complete plan, return an error message.
   3. Split the changes to each task up by file.
@@ -40,6 +41,12 @@ defmodule AI.Agent.Coder.Planner do
   If the step's instructions do not include that context, the Coder Agent's review step may flag the change as being incomplete or incorrect.
   For example, if step 1 adds the function X, which calls Y, and step 2 adds the function Y, the instructions for step 1 should note that Y will be added in a later step.
 
+  ## A note on insertions, deletions, and file management
+  Insertions and deletions can be tricky, because the agent must identify the exact hunk to change.
+  The best strategy is to instruct it to replace a larger hunk with the exact same code, but with the desired additions or deletions.
+  To add and remove files, you must use the `file_manage_tool`; the `coder_tool` cannot perform those tasks on your behalf.
+
+  ## Response format
   Example SUCCESS output:
   {
     "steps": [

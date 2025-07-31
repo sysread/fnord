@@ -4,6 +4,7 @@ defmodule AI.Agent.Coder.RangeFinder do
   @model AI.Model.reasoning(:medium)
 
   @prompt """
+  # Synopsis
   You are an AI coding assistant within a larger AI system.
   The Coordinating Agent asks you to identify a contiguous range of lines in a file based on the provided instructions for a coding task it is planning.
   Identify the *single*, contiguous range of lines in the file to be replaced, based on the instructions.
@@ -12,6 +13,25 @@ defmodule AI.Agent.Coder.RangeFinder do
   If the instructions are ambiguous or do not clearly point to a single range, respond with an error message that clearly explains the problem.
 
   Note: The file contents include 1-based line numbers at the start of each line, separated by a pipe (|).
+
+  ## Insertions and Deletions
+  Insertions and deletions are tricky!
+  If the instructions want to *insert* changes at a specific location, you must include context before and after it as part of your hunk.
+  If the instructions want to *delete* a section, include a few lines before and after the section to ensure the deletion is clear and unambiguous.
+  The LLM that will apply the changes will be instructed to replace the entire identified range, so it needs some lines before and after to use as the replacement.
+
+  ### Example Insertion
+  ```
+  a
+  b
+  c
+  d
+  ```
+  To delete c, the context should include at least b and d, so the replacement can be:
+  ```
+  b
+  d
+  ```
 
   # Response Format
   Constraints:
