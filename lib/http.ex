@@ -19,11 +19,9 @@ defmodule Http do
   """
   @spec post_json(url(), headers(), payload()) :: response()
   def post_json(url, headers, payload) do
-    workers = Application.get_env(:fnord, :workers, Cmd.default_workers())
-
     options = [
       recv_timeout: @recv_timeout,
-      hackney_options: [pool: :http, max_connections: workers]
+      hackney_options: [pool: :ai_api]
     ]
 
     with {:ok, body} <- Jason.encode(payload) do

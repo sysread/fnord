@@ -23,6 +23,12 @@ defmodule Fnord do
       opts = set_globals(opts)
       cmd_module = to_module_name(command)
 
+      # Now that global settings are set, we can configure the :hackney_pool to
+      # limit the number of concurrent requests.
+      :hackney_pool.start_pool(:ai_api,
+        max_connections: Application.get_env(:fnord, :workers, Cmd.default_workers())
+      )
+
       # Require a project if the command needs it. As a rule, we make the
       # project option optional in the Cmd implementation, and then manually
       # require it here. That allows us to default to the project associated
