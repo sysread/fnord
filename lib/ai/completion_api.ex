@@ -54,26 +54,37 @@ defmodule AI.CompletionAPI do
         end
       )
 
-    Http.post_json(@endpoint, headers, payload)
-    |> case do
-      {:transport_error, error} ->
-        get_error(error)
+    try do
+      Http.post_json(@endpoint, headers, payload)
+      |> case do
+        {:transport_error, error} ->
+          get_error(error)
 
-      {:http_error, error} ->
-        error
-        |> get_error()
-        |> case do
-          {:error, %{message: msg}} = error ->
-            UI.error("HTTP error while calling OpenAI API: #{msg}")
-            IO.inspect(payload.messages |> Enum.slice(-1, 1), label: "Last message sent")
-            error
+        {:http_error, error} ->
+          error
+          |> get_error()
+          |> case do
+            {:error, %{message: msg}} = error ->
+              UI.error("HTTP error while calling OpenAI API: #{msg}")
+              IO.inspect(payload.messages |> Enum.slice(-1, 1), label: "Last message sent")
+              error
 
-          error ->
-            error
-        end
+            error ->
+              error
+          end
 
-      {:ok, response} ->
-        get_response(response)
+        {:ok, response} ->
+          get_response(response)
+      end
+    rescue
+      e in Jason.DecodeError ->
+        {:error, %{http_status: 500, error: "JSON decode error: #{Exception.message(e)}"}}
+
+      e in RuntimeError ->
+        {:error, %{http_status: 500, error: "Runtime error: #{Exception.message(e)}"}}
+
+      e ->
+        {:error, %{http_status: 500, error: "Unexpected error: #{Exception.message(e)}"}}
     end
   end
 
