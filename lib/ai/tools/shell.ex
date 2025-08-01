@@ -19,10 +19,20 @@ defmodule AI.Tools.Shell do
   def read_args(args) do
     with {:ok, desc} <- AI.Tools.get_arg(args, "description"),
          {:ok, cmd} <- AI.Tools.get_arg(args, "cmd") do
+      cmd = String.trim(cmd)
+
       cond do
-        desc == "" -> {:error, "The description cannot be empty."}
-        cmd == "" || cmd == " " -> {:error, "The command cannot be empty."}
-        true -> {:ok, %{"description" => desc, "cmd" => cmd}}
+        desc == "" ->
+          {:error, :missing_argument, "description"}
+
+        cmd == "" ->
+          {:error, :missing_argument, "cmd"}
+
+        contains_disallowed_syntax?(cmd) ->
+          {:error, "Only simple, direct commands are permitted: no pipes, logical operators, redirection, subshells, or command chaining."}
+
+        true ->
+          {:ok, %{"description" => desc, "cmd" => cmd}}
       end
     end
   end
@@ -100,6 +110,7 @@ defmodule AI.Tools.Shell do
   def call(args) do
     with {:ok, desc} <- AI.Tools.get_arg(args, "description"),
          {:ok, cmd} <- AI.Tools.get_arg(args, "cmd"),
+         false <- contains_disallowed_syntax?(cmd),
          {:ok, %{"cmd" => cmd, "args" => args, "approval_bits" => bits}} <- validate(cmd),
          {:ok, :approved} <- confirm(desc, bits, cmd, args) do
       call_shell_cmd(cmd, args)
@@ -228,5 +239,118 @@ defmodule AI.Tools.Shell do
             {:ok, :approved}
         end
     end
+  end
+
+  defp contains_disallowed_syntax?(cmd) when is_binary(cmd) do
+    # Use a simpler approach that focuses on catching dangerous unquoted patterns
+    # while being permissive for complex quoting scenarios
+    try do
+      check_dangerous_patterns(cmd)
+    rescue
+      _ -> true
+    catch
+      :disallowed -> true
+      _ -> true
+    else
+      false -> false
+      true -> true
+    end
+  end
+
+  defp check_dangerous_patterns(cmd) do
+    # Check for command substitution in double quotes first
+    has_cmd_substitution_in_double_quotes?(cmd) or
+    # Then check unquoted dangerous patterns
+    (unquoted_parts = extract_unquoted_parts(cmd, [], :unquoted, "")
+     Enum.any?(unquoted_parts, fn part ->
+       contains_dangerous_unquoted_pattern?(part)
+     end))
+  end
+
+  defp has_cmd_substitution_in_double_quotes?(cmd) do
+    check_double_quoted_cmd_subst(cmd, :unquoted)
+  end
+
+  defp check_double_quoted_cmd_subst("", _state), do: false
+
+  defp check_double_quoted_cmd_subst(<<char::utf8, rest::binary>>, state) do
+    case {state, char} do
+      {:unquoted, ?'} -> check_double_quoted_cmd_subst(rest, :single_quoted)
+      {:unquoted, ?"} -> check_double_quoted_cmd_subst(rest, :double_quoted)
+      {:single_quoted, ?'} -> check_double_quoted_cmd_subst(rest, :unquoted)
+      {:double_quoted, ?"} -> check_double_quoted_cmd_subst(rest, :unquoted)
+      
+      {:double_quoted, ?\\} ->
+        # Skip escaped character
+        case rest do
+          <<_next::utf8, remaining::binary>> ->
+            check_double_quoted_cmd_subst(remaining, :double_quoted)
+          "" ->
+            false
+        end
+        
+      {:double_quoted, ?$} ->
+        case rest do
+          <<"(", _::binary>> -> true  # Found command substitution
+          _ -> check_double_quoted_cmd_subst(rest, :double_quoted)
+        end
+        
+      {:double_quoted, ?`} ->
+        # Check for backtick command substitution
+        case find_closing_backtick_simple(rest) do
+          true -> true  # Found backtick command substitution
+          false -> check_double_quoted_cmd_subst(rest, :double_quoted)
+        end
+        
+      {_, _} ->
+        check_double_quoted_cmd_subst(rest, state)
+    end
+  end
+
+  defp find_closing_backtick_simple(str) do
+    String.contains?(str, "`")
+  end
+
+  defp extract_unquoted_parts("", acc, _state, current) do
+    if current != "", do: [current | acc], else: acc
+  end
+
+  defp extract_unquoted_parts(<<char::utf8, rest::binary>>, acc, state, current) do
+    case {state, char} do
+      {:unquoted, ?'} ->
+        new_acc = if current != "", do: [current | acc], else: acc
+        extract_unquoted_parts(rest, new_acc, :single_quoted, "")
+        
+      {:unquoted, ?"} ->
+        new_acc = if current != "", do: [current | acc], else: acc
+        extract_unquoted_parts(rest, new_acc, :double_quoted, "")
+        
+      {:single_quoted, ?'} ->
+        extract_unquoted_parts(rest, acc, :unquoted, "")
+        
+      {:double_quoted, ?"} ->
+        extract_unquoted_parts(rest, acc, :unquoted, "")
+        
+      {:double_quoted, ?\\} ->
+        # Skip escaped char in double quotes
+        case rest do
+          <<_next::utf8, remaining::binary>> ->
+            extract_unquoted_parts(remaining, acc, :double_quoted, current)
+          "" ->
+            extract_unquoted_parts("", acc, :double_quoted, current)
+        end
+        
+      {:unquoted, _} ->
+        extract_unquoted_parts(rest, acc, state, current <> <<char>>)
+        
+      {_, _} ->
+        # In quoted context, ignore the character
+        extract_unquoted_parts(rest, acc, state, current)
+    end
+  end
+
+  defp contains_dangerous_unquoted_pattern?(part) do
+    # Check for dangerous shell patterns in unquoted text using regex
+    Regex.match?(~r/\||&&|\|\||;|>|<|`|\$\(|(?<!\&)\&(?!\&)|<\(|>\(/, part)
   end
 end
