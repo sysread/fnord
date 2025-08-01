@@ -121,7 +121,7 @@ fnord prime --project blarg
 
 ### Configuration
 
-You can view and edit the configuration for your project with the `fnord config` command.
+You can view and edit the configuration for existing projects with the `fnord config` command.
 
 ```bash
 fnord config list --project blarg

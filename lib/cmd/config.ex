@@ -59,8 +59,15 @@ defmodule Cmd.Config do
 
   def run(opts, [:set], _unknown) do
     with {:ok, project} <- Store.get_project() do
-      Store.Project.save_settings(project, opts[:root], opts[:exclude])
-      run(opts, [:list], [])
+      if !Store.Project.exists_in_store?(project) do
+        UI.error("""
+        Project '#{project.name}' does not exist.
+        Please create it with: `fnord index`
+        """)
+      else
+        Store.Project.save_settings(project, opts[:root], opts[:exclude])
+        run(opts, [:list], [])
+      end
     end
   end
 
