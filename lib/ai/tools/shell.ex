@@ -29,7 +29,8 @@ defmodule AI.Tools.Shell do
           {:error, :missing_argument, "cmd"}
 
         contains_disallowed_syntax?(cmd) ->
-          {:error, "Only simple, direct commands are permitted: no pipes, logical operators, redirection, subshells, or command chaining."}
+          {:error,
+           "Only simple, direct commands are permitted: no pipes, logical operators, redirection, subshells, or command chaining."}
 
         true ->
           {:ok, %{"description" => desc, "cmd" => cmd}}
@@ -135,7 +136,7 @@ defmodule AI.Tools.Shell do
       |> Enum.join(" ")
 
     options = [
-      "Approve",
+      "You son of a bitch, I'm in",
       "Deny",
       "Deny (with feedback)"
     ]
@@ -170,7 +171,7 @@ defmodule AI.Tools.Shell do
       "Deny" ->
         {:error, "The user declined to approve the command."}
 
-      "Approve" ->
+      "You son of a bitch, I'm in" ->
         {:ok, :approved}
     end
   end
@@ -181,7 +182,7 @@ defmodule AI.Tools.Shell do
       |> Enum.join(" ")
 
     approval_str =
-      ["Approve all for session:" | approval_bits]
+      ["You son of a... for the whole session:" | approval_bits]
       |> Enum.join(" ")
 
     key =
@@ -189,7 +190,7 @@ defmodule AI.Tools.Shell do
       |> Enum.join("#")
 
     options = [
-      "Approve",
+      "You son of a bitch, I'm in",
       approval_str,
       "Deny",
       "Deny (with feedback)"
@@ -231,7 +232,7 @@ defmodule AI.Tools.Shell do
           "Deny" ->
             {:error, "The user declined to approve the command."}
 
-          "Approve" ->
+          "You son of a bitch, I'm in" ->
             {:ok, :approved}
 
           ^approval_str ->
@@ -258,13 +259,51 @@ defmodule AI.Tools.Shell do
   end
 
   defp check_dangerous_patterns(cmd) do
-    # Check for command substitution in double quotes first
-    has_cmd_substitution_in_double_quotes?(cmd) or
-    # Then check unquoted dangerous patterns
-    (unquoted_parts = extract_unquoted_parts(cmd, [], :unquoted, "")
-     Enum.any?(unquoted_parts, fn part ->
-       contains_dangerous_unquoted_pattern?(part)
-     end))
+    # Check for various dangerous patterns
+    has_dangerous_characters?(cmd) or
+      has_unbalanced_quotes?(cmd) or
+      has_cmd_substitution_in_double_quotes?(cmd) or
+      (
+        unquoted_parts = extract_unquoted_parts(cmd, [], :unquoted, "")
+
+        Enum.any?(unquoted_parts, fn part ->
+          contains_dangerous_unquoted_pattern?(part)
+        end)
+      )
+  end
+
+  defp has_dangerous_characters?(cmd) do
+    # Check for dangerous characters that should be rejected regardless of context
+    # Here-document
+    # Shell escape sequences
+    String.contains?(cmd, ["\n", "\0"]) or
+      String.contains?(cmd, "<<") or
+      String.contains?(cmd, "$'") or
+      has_zero_width_space_in_unquoted?(cmd)
+  end
+
+  defp has_zero_width_space_in_unquoted?(cmd) do
+    # Check if zero-width space appears in unquoted parts
+    try do
+      unquoted_parts = extract_unquoted_parts(cmd, [], :unquoted, "")
+
+      Enum.any?(unquoted_parts, fn part ->
+        String.contains?(part, <<0x200B::utf8>>)
+      end)
+    catch
+      :unbalanced_quotes ->
+        # If quotes are unbalanced, just check if ZWSP exists anywhere (conservative)
+        String.contains?(cmd, <<0x200B::utf8>>)
+    end
+  end
+
+  defp has_unbalanced_quotes?(cmd) do
+    try do
+      extract_unquoted_parts(cmd, [], :unquoted, "")
+      false
+    catch
+      :unbalanced_quotes -> true
+    end
   end
 
   defp has_cmd_substitution_in_double_quotes?(cmd) do
@@ -275,33 +314,43 @@ defmodule AI.Tools.Shell do
 
   defp check_double_quoted_cmd_subst(<<char::utf8, rest::binary>>, state) do
     case {state, char} do
-      {:unquoted, ?'} -> check_double_quoted_cmd_subst(rest, :single_quoted)
-      {:unquoted, ?"} -> check_double_quoted_cmd_subst(rest, :double_quoted)
-      {:single_quoted, ?'} -> check_double_quoted_cmd_subst(rest, :unquoted)
-      {:double_quoted, ?"} -> check_double_quoted_cmd_subst(rest, :unquoted)
-      
+      {:unquoted, ?'} ->
+        check_double_quoted_cmd_subst(rest, :single_quoted)
+
+      {:unquoted, ?"} ->
+        check_double_quoted_cmd_subst(rest, :double_quoted)
+
+      {:single_quoted, ?'} ->
+        check_double_quoted_cmd_subst(rest, :unquoted)
+
+      {:double_quoted, ?"} ->
+        check_double_quoted_cmd_subst(rest, :unquoted)
+
       {:double_quoted, ?\\} ->
         # Skip escaped character
         case rest do
           <<_next::utf8, remaining::binary>> ->
             check_double_quoted_cmd_subst(remaining, :double_quoted)
+
           "" ->
             false
         end
-        
+
       {:double_quoted, ?$} ->
         case rest do
-          <<"(", _::binary>> -> true  # Found command substitution
+          # Found command substitution
+          <<"(", _::binary>> -> true
           _ -> check_double_quoted_cmd_subst(rest, :double_quoted)
         end
-        
+
       {:double_quoted, ?`} ->
         # Check for backtick command substitution
         case find_closing_backtick_simple(rest) do
-          true -> true  # Found backtick command substitution
+          # Found backtick command substitution
+          true -> true
           false -> check_double_quoted_cmd_subst(rest, :double_quoted)
         end
-        
+
       {_, _} ->
         check_double_quoted_cmd_subst(rest, state)
     end
@@ -311,8 +360,13 @@ defmodule AI.Tools.Shell do
     String.contains?(str, "`")
   end
 
-  defp extract_unquoted_parts("", acc, _state, current) do
-    if current != "", do: [current | acc], else: acc
+  defp extract_unquoted_parts("", acc, state, current) do
+    # If we end in a quoted state, quotes are unbalanced
+    case state do
+      :single_quoted -> throw(:unbalanced_quotes)
+      :double_quoted -> throw(:unbalanced_quotes)
+      :unquoted -> if current != "", do: [current | acc], else: acc
+    end
   end
 
   defp extract_unquoted_parts(<<char::utf8, rest::binary>>, acc, state, current) do
@@ -320,29 +374,30 @@ defmodule AI.Tools.Shell do
       {:unquoted, ?'} ->
         new_acc = if current != "", do: [current | acc], else: acc
         extract_unquoted_parts(rest, new_acc, :single_quoted, "")
-        
+
       {:unquoted, ?"} ->
         new_acc = if current != "", do: [current | acc], else: acc
         extract_unquoted_parts(rest, new_acc, :double_quoted, "")
-        
+
       {:single_quoted, ?'} ->
         extract_unquoted_parts(rest, acc, :unquoted, "")
-        
+
       {:double_quoted, ?"} ->
         extract_unquoted_parts(rest, acc, :unquoted, "")
-        
+
       {:double_quoted, ?\\} ->
         # Skip escaped char in double quotes
         case rest do
           <<_next::utf8, remaining::binary>> ->
             extract_unquoted_parts(remaining, acc, :double_quoted, current)
+
           "" ->
             extract_unquoted_parts("", acc, :double_quoted, current)
         end
-        
+
       {:unquoted, _} ->
-        extract_unquoted_parts(rest, acc, state, current <> <<char>>)
-        
+        extract_unquoted_parts(rest, acc, state, current <> <<char::utf8>>)
+
       {_, _} ->
         # In quoted context, ignore the character
         extract_unquoted_parts(rest, acc, state, current)
