@@ -251,7 +251,11 @@ defmodule UI do
   defp clean_detail(nil), do: ""
 
   defp clean_detail(detail) do
-    detail
+    if iodata?(detail) do
+      detail
+    else
+      inspect(detail, pretty: true, limit: :infinity)
+    end
     |> IO.ANSI.format(colorize?())
     |> IO.iodata_to_binary()
     |> String.trim()
@@ -265,4 +269,14 @@ defmodule UI do
       end
     end)
   end
+
+  defp iodata?(term) when is_binary(term), do: true
+  defp iodata?(term) when is_integer(term) and term in 0..255, do: true
+  defp iodata?([]), do: true
+  defp iodata?([head | tail]), do: iodata?(head) and iodata_tail?(tail)
+  defp iodata?(_), do: false
+
+  defp iodata_tail?(tail) when is_list(tail), do: iodata?(tail)
+  defp iodata_tail?(tail) when is_binary(tail), do: true
+  defp iodata_tail?(_), do: false
 end
