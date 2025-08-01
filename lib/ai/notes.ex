@@ -310,8 +310,7 @@ defmodule AI.Notes do
     with {:ok, notes} <- Store.Project.Notes.read() do
       notes
     else
-      {:error, :enoent} ->
-        UI.warn("No existing notes found, starting fresh")
+      {:error, :no_notes} ->
         ""
 
       {:error, reason} ->

@@ -6,7 +6,6 @@ defmodule NotesServer do
   # -----------------------------------------------------------------------------
   @spec start_link(opts :: keyword()) :: GenServer.on_start()
   def start_link(opts \\ []) do
-    UI.debug("[notes-server]", "starting")
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
@@ -63,7 +62,6 @@ defmodule NotesServer do
   """
   @spec consolidate() :: :ok
   def consolidate() do
-    UI.debug("[notes-server]", "consolidating existing research")
     GenServer.cast(__MODULE__, :consolidate)
   end
 
