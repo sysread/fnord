@@ -41,6 +41,7 @@ defmodule AI.Tools.Coder do
         description: """
         Launches a collection of AI Agents to plan and implement code changes within the project.
         For the best results, provide clear, meticulously detailed instructions for the coding task.
+        Use the file_manage_tool to create, delete, or rename files BEFORE using this tool.
         Instructions should include details about conventions, style, preferred modules and patterns, and anything else you wish to have reflected in the output.
         Instructions must include ALL relevant context; the agents have NO access to the prior conversation; they ONLY know what YOU tell them.
         If your instructions are ambiguous or unclear, this tool may not be able to generate a valid plan or implement the changes correctly.
