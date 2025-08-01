@@ -24,13 +24,35 @@ defmodule AI.Agent.Coder.Reviewer do
   Note: If the replacement is longer or shorter than the original, that's OK; it will still replace the entire region.
         Sometimes the identified hunk is intended to be replaced by a larger or smaller section of code (e.g. to remove or add lines around the hunk).
 
-  # Response Format
-  Respond ONLY with one of the two following JSON objects:
-  **Success:** `{"valid": true}`
-  **Failure:** `{"valid": false, "error": "<clear explanation of the problem>"}`
-
   Do not include any other text, comments, explanations, or markdown fences in your response.
   """
+
+  @response_format %{
+    type: "json_schema",
+    json_schema: %{
+      name: "code_review_result",
+      description: """
+      A JSON object indicating whether the code changes are valid and correct,
+      or providing an error message if issues are found.
+      """,
+      schema: %{
+        type: "object",
+        required: ["valid"],
+        properties: %{
+          valid: %{
+            type: "boolean",
+            description:
+              "True if the changes are correct, syntactically valid, and true to intent"
+          },
+          error: %{
+            type: "string",
+            description: "Clear explanation of problems found. Required when valid is false."
+          }
+        },
+        additionalProperties: false
+      }
+    }
+  }
 
   # ----------------------------------------------------------------------------
   # Behaviour Implementation
@@ -85,6 +107,7 @@ defmodule AI.Agent.Coder.Reviewer do
 
     AI.Completion.get(
       model: @model,
+      response_format: @response_format,
       messages: [
         AI.Util.system_msg(@prompt),
         AI.Util.user_msg(user)
@@ -92,13 +115,16 @@ defmodule AI.Agent.Coder.Reviewer do
     )
     |> case do
       {:ok, %{response: response}} ->
-        response
-        |> Jason.decode()
-        |> case do
-          {:ok, %{"valid" => true}} -> :ok
-          {:ok, %{"valid" => false, "error" => msg}} -> {:confirm_error, msg}
-          {:ok, %{"error" => error}} -> {:confirm_error, error}
-          {:error, _} -> confirm_changes(file, instructions, preview, attempt + 1)
+        # JSON parsing is now guaranteed by response_format, so we can decode directly
+        case Jason.decode!(response) do
+          %{"valid" => true} ->
+            :ok
+
+          %{"valid" => false, "error" => msg} ->
+            {:confirm_error, msg}
+
+          %{"valid" => false} ->
+            {:confirm_error, "Changes are invalid but no specific error provided"}
         end
 
       {:error, _} ->

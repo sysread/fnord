@@ -33,20 +33,40 @@ defmodule AI.Agent.Coder.RangeFinder do
   d
   ```
 
-  # Response Format
-  Constraints:
-  - `start_line` <= `end_line`
-  - `start_line` >= 1
-  - `end_line` <= the number of lines in the file
-  - if `start_line` == `end_line`, the range is a single line
-  - The instructions will be applied to *fully* replace the identified range, so the range must cover the entire area to be replaced.
-
-  You MUST respond ONLY with a single JSON object with the following fields, based on whether you were able to identify a range:
-  **Success:** `{"start_line": <start_line>, "end_line": <end_line>}`
-  **Failure:** `{"error": "<error message>"}`
-
   Do not include any other text, comments, explanations, or markdown fences in your response.
   """
+
+  @response_format %{
+    type: "json_schema",
+    json_schema: %{
+      name: "range_identification",
+      description: """
+      A JSON object identifying either a line range to be replaced or an error
+      if the range cannot be determined from the instructions.
+      """,
+      schema: %{
+        type: "object",
+        properties: %{
+          start_line: %{
+            type: "integer",
+            minimum: 1,
+            description: "The starting line number (1-based, inclusive). Required if no error."
+          },
+          end_line: %{
+            type: "integer",
+            minimum: 1,
+            description: "The ending line number (1-based, inclusive). Required if no error."
+          },
+          error: %{
+            type: "string",
+            description:
+              "Error message explaining why the range could not be identified. Required if no start_line/end_line."
+          }
+        },
+        additionalProperties: false
+      }
+    }
+  }
 
   # ----------------------------------------------------------------------------
   # Behaviour Implementation
@@ -70,7 +90,6 @@ defmodule AI.Agent.Coder.RangeFinder do
           {:ok, {integer, integer}}
           | {:identify_error, binary}
           | {:error, binary}
-          | {:error, :max_attempts_reached}
   defp identify_range(file, instructions, attempt \\ 1)
 
   defp identify_range(_, _, attempt) when attempt > @max_attempts do
@@ -97,6 +116,7 @@ defmodule AI.Agent.Coder.RangeFinder do
 
     AI.Completion.get(
       model: @model,
+      response_format: @response_format,
       messages: [
         AI.Util.system_msg(@prompt),
         AI.Util.user_msg(user)
@@ -104,19 +124,31 @@ defmodule AI.Agent.Coder.RangeFinder do
     )
     |> case do
       {:ok, %{response: response}} ->
-        response
-        |> Jason.decode()
-        |> case do
-          {:ok, %{"start_line" => start_line, "end_line" => end_line}} ->
-            file_contents
-            |> validate_range(start_line, end_line)
-            |> case do
-              :ok -> {:ok, {start_line, end_line}}
-              {:error, _error} -> identify_range(file, instructions, attempt + 1)
+        # JSON parsing is now guaranteed by response_format, so we can decode directly
+        case Jason.decode!(response) do
+          %{"start_line" => start_line, "end_line" => end_line} = result ->
+            # Ensure we have both fields and no error
+            if Map.has_key?(result, "error") do
+              {:identify_error, result["error"]}
+            else
+              file_contents
+              |> validate_range(start_line, end_line)
+              |> case do
+                :ok -> {:ok, {start_line, end_line}}
+                {:error, _error} -> identify_range(file, instructions, attempt + 1)
+              end
             end
 
-          {:ok, %{"error" => msg}} ->
+          %{"error" => msg} ->
             {:identify_error, msg}
+
+          result ->
+            # Handle case where neither proper range nor error is provided
+            if Map.has_key?(result, "start_line") || Map.has_key?(result, "end_line") do
+              identify_range(file, instructions, attempt + 1)
+            else
+              {:identify_error, "No valid range or error provided"}
+            end
         end
 
       {:error, _reason} ->

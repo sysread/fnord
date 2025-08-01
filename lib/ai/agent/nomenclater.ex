@@ -29,8 +29,33 @@ defmodule AI.Agent.Nomenclater do
   If every name sounded like a widget from `Zork!`, no one will complain!
   Each name should EITHER be <first_name last_name> OR <first_name the "adjective">.
   Try not to select names that are too similar to existing names, as that can cause confusion.
-  Respond ONLY with the first name, without any additional text, explanation, or formatting.
   """
+
+  @response_format %{
+    type: "json_schema",
+    json_schema: %{
+      name: "agent_name",
+      description: """
+      A JSON object containing a single first name for an AI agent.
+      The name should be a single word or simple phrase.
+      """,
+      schema: %{
+        type: "object",
+        required: ["name"],
+        properties: %{
+          name: %{
+            type: "string",
+            pattern: "^\\w+(?:\\s+\\w+)*$",
+            minLength: 1,
+            maxLength: 50,
+            description:
+              "A first name for the AI agent, consisting of word characters and spaces only"
+          }
+        },
+        additionalProperties: false
+      }
+    }
+  }
   # -----------------------------------------------------------------------------
   # Behaviour implementation
   # -----------------------------------------------------------------------------
@@ -52,24 +77,12 @@ defmodule AI.Agent.Nomenclater do
         |> Enum.map(&"- #{&1}")
         |> Enum.join("\n")
 
-      warning =
-        if attempt > 1 do
-          ""
-        else
-          """
-          **Warning:**
-          Your previous response contained more than one word, which is not allowed.
-          Please provide a single-word first name for an AI agent.
-          """
-        end
-
       AI.Completion.get(
         model: @model,
+        response_format: @response_format,
         messages: [
           AI.Util.system_msg(@prompt),
           AI.Util.user_msg("""
-          #{warning}
-
           These names are already in use:
           #{names}
 
@@ -79,17 +92,23 @@ defmodule AI.Agent.Nomenclater do
       )
       |> case do
         {:ok, %{response: response}} ->
-          # Quickly check that it's just a one-word response as a half-assed
-          # heuristic for validation.
-          if Regex.match?(~r/^\w+$/, response) do
-            UniqueNameThing.add_name(response)
-            {:ok, response}
-          else
-            get_name(attempt + 1)
+          # JSON parsing and format validation is now guaranteed by response_format
+          case Jason.decode!(response) do
+            %{"name" => name} ->
+              # Check uniqueness - this is content validation, not format validation
+              if name in UniqueNameThing.existing_names() do
+                get_name(attempt + 1)
+              else
+                UniqueNameThing.add_name(name)
+                {:ok, name}
+              end
           end
 
         {:error, %{response: response}} ->
           {:error, response}
+
+        {:error, _reason} ->
+          get_name(attempt + 1)
       end
     end
   end

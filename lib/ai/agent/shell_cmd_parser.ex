@@ -20,69 +20,14 @@ defmodule AI.Agent.ShellCmdParser do
   - For example, for `git -C path rev-parse --show-toplevel`, the approval_bits are ["git", "rev-parse"] (ignore flags and options).
   - For `find . -type f`, approval_bits is just ["find"].
   - For `docker run -it ubuntu`, approval_bits is ["docker", "run"].
-  - If the input cannot be confidently parsed, output only: `{"error": "<reason>"}`
-
-  Output format
-
-  ```json
-  {
-  "cmd": "<base_command>",
-  "args": ["<arg1>", "<arg2>", ...],
-  "approval_bits": ["<base_command>", "<subcommand>", ...]
-  }
-  ```
-
-  Examples
-
-  - Input: `git -C /repo diff --stat`
-  Output:
-  ```json
-  {
-    "cmd": "git",
-    "args": ["-C", "/repo", "diff", "--stat"],
-    "approval_bits": ["git", "diff"]
-  }
-  ```
-
-  - Input: `find . -type f`
-  Output:
-  ```json
-  {
-    "cmd": "find",
-    "args": [".", "-type", "f"],
-    "approval_bits": ["find"]
-  }
-  ```
-
-  - Input: `docker run -it alpine`
-  Output:
-  ```json
-  {
-    "cmd": "docker",
-    "args": ["run", "-it", "alpine"],
-    "approval_bits": ["docker", "run"]
-  }
-  ```
-
-  - Input: `ls -l`
-  Output:
-  ```json
-  {
-    "cmd": "ls",
-    "args": ["-l"],
-    "approval_bits": ["ls"]
-  }
-  ```
-
-  Do NOT include explanations, summary, or markdown fences in your response.
-  Respond in pure, strict JSON format as specified above.
+  - If the input cannot be confidently parsed, provide an error message explaining why.
 
   Special rules
 
   - Do **not** attempt to guess meanings—split strictly on whitespace, respecting quoted arguments.
   - Treat the first token as "cmd", everything else as "args".
   - "approval_bits" should only include the executable and literal subcommands (verbs), not options or arguments.  
-  - If the command is ambiguous or doesn't fit the above (e.g., missing executable), output only the error object.
+  - If the command is ambiguous or doesn't fit the above (e.g., missing executable), respond with an error.
   - If the command is obviously malformed or incomplete (e.g., missing or duplicated command or arguments, or contains only flags/options without a command), respond with an error.
   - If the command includes any of the following constructs, the "cmd" is "sh", and "args" is ["-c", "<entire_command>"]:
     - redirection (`>`, `>>`, `<`, `2>`)
@@ -93,6 +38,44 @@ defmodule AI.Agent.ShellCmdParser do
     - backgrounding (`&`)
     - process substitution (`<(...)`, `>(...)`)
   """
+
+  @response_format %{
+    type: "json_schema",
+    json_schema: %{
+      name: "shell_command_parse",
+      description: """
+      A JSON object containing the parsed components of a shell command,
+      or an error message if the command cannot be parsed.
+      """,
+      schema: %{
+        type: "object",
+        properties: %{
+          cmd: %{
+            type: "string",
+            minLength: 1,
+            description: "The main executable command"
+          },
+          args: %{
+            type: "array",
+            items: %{type: "string"},
+            description: "Array of all arguments following the command"
+          },
+          approval_bits: %{
+            type: "array",
+            items: %{type: "string"},
+            minItems: 1,
+            description:
+              "Array containing the executable and any subcommands that define a unique operation"
+          },
+          error: %{
+            type: "string",
+            description: "Error message explaining why the command could not be parsed"
+          }
+        },
+        additionalProperties: false
+      }
+    }
+  }
 
   @impl AI.Agent
   def get_response(opts) do
@@ -131,6 +114,7 @@ defmodule AI.Agent.ShellCmdParser do
       log_msgs: false,
       log_tool_calls: false,
       model: @model,
+      response_format: @response_format,
       messages: [
         AI.Util.system_msg(@prompt),
         AI.Util.user_msg("""
@@ -150,26 +134,34 @@ defmodule AI.Agent.ShellCmdParser do
   defp validate_response({:error, reason}), do: {:error, reason}
 
   defp validate_response({:ok, response}) do
-    case Jason.decode(response) do
-      {:error, reason} ->
-        {:invalid_format, "Invalid JSON response: #{inspect(reason)}"}
-
-      {:ok, %{"error" => error}} ->
+    # JSON parsing and structure validation is now guaranteed by response_format
+    case Jason.decode!(response) do
+      %{"error" => error} ->
         {:rejected, error}
 
-      {:ok, %{"cmd" => cmd, "args" => args, "approval_bits" => approval_bits} = parsed} ->
+      %{"cmd" => cmd, "args" => args, "approval_bits" => approval_bits} = parsed ->
+        # Basic sanity checks (though schema should prevent these)
         cond do
-          not is_binary(cmd) ->
-            {:invalid_format, "The 'cmd' field must be a string."}
+          not is_binary(cmd) or cmd == "" ->
+            {:invalid_format, "The 'cmd' field must be a non-empty string."}
 
           not is_list(args) ->
             {:invalid_format, "The 'args' field must be an array."}
 
-          not is_list(approval_bits) ->
-            {:invalid_format, "The 'approval_bits' field must be an array."}
+          not is_list(approval_bits) or length(approval_bits) == 0 ->
+            {:invalid_format, "The 'approval_bits' field must be a non-empty array."}
 
           true ->
             {:ok, parsed}
+        end
+
+      result ->
+        # Handle case where neither proper fields nor error is provided
+        if Map.has_key?(result, "cmd") || Map.has_key?(result, "args") ||
+             Map.has_key?(result, "approval_bits") do
+          {:invalid_format, "Incomplete command parsing result"}
+        else
+          {:invalid_format, "No valid command parse or error provided"}
         end
     end
   end
