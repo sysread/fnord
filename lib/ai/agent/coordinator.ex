@@ -284,6 +284,13 @@ defmodule AI.Agent.Coordinator do
          The conversation has grown too long for the model to process, exceeding the length of its context window.
          Please start a new conversation.
          """}
+
+      {:error, :api_unavailable} ->
+        {:error,
+         """
+         The OpenAI API is currently unavailable.
+         Please try again later.
+         """}
     end
   end
 
