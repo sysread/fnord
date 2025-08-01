@@ -39,14 +39,12 @@ defmodule AI.Completion.Output do
   end
 
   def log_tool_call_error(_state, tool, args_json, reason) do
-    UI.error("""
-    The agent performed an invalid tool call request.
-
-    Error: #{reason}
-
-    Details:
+    UI.warn("""
+    Tool call failed:
     - Tool: #{tool}
     - Args: #{args_json}
+
+    #{reason}
     """)
   end
 
