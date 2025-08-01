@@ -25,3 +25,11 @@
 - Run `mix format` to ensure code is formatted consistently.
 - Run `ENV=dev mix dialyzer` to check for type errors.
 - Use printf-debugging instead of `mix run` to troubleshoot.
+
+# Learning
+You must learn the project as you work in it, and persist your knowledge to improve your effectiveness in future sessions.
+Begin EVERY session by reading your notes in `.claude/notes.md` to refresh your memory on the project context, patterns, and gotchas.
+- Read `.claude/notes.md` at the start of each session to refresh context on project details and gotchas.
+- Update `.claude/notes.md` whenever you discover new project facts, patterns, or gotchas that would be useful for future sessions.
+- Update `.claude/notes.md` whenever you discover a conflicting fact that disagrees with the current notes. This helps maintain accurate project context.
+- Regularly review and reorganize your notes to consolidate related information and remove duplicates.
