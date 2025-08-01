@@ -58,12 +58,24 @@ defmodule Git do
   end
 
   def grep(regex, ignore_case?) do
-    if ignore_case? do
-      ["grep", "-m", "1", "-i", regex]
-    else
-      ["grep", "-m", "1", "-e", regex]
+    args =
+      if ignore_case? do
+        ["grep", "-m", "1", "-i", regex]
+      else
+        ["grep", "-m", "1", "-e", regex]
+      end
+
+    # Special case: git-grep exits non-zero ($?=1) if no matches are found.
+    # `git/1` treats non-zero exit codes as errors. Ergo, we call System.cmd
+    # directly to avoid conflating the exit code with an actual error.
+    case System.cmd("git", args, @common_args) do
+      # Successful match
+      {output, 0} -> {:ok, String.trim_trailing(output)}
+      # No match found, but no error
+      {output, 1} -> {:ok, String.trim_trailing(output)}
+      # Some other error occurred
+      {output, _} -> {:error, String.trim_trailing(output)}
     end
-    |> git()
   end
 
   def pickaxe_regex(regex) do
