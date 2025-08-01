@@ -84,6 +84,7 @@ defmodule Cmd.Ask do
          {:ok, conversation_id} <- save_conversation(pid) do
       end_time = System.monotonic_time(:second)
       print_result(start_time, end_time, response, usage, context, conversation_id)
+      Clipboard.copy(conversation_id)
       NotesServer.join()
     else
       {:error, :invalid_rounds} ->
