@@ -38,25 +38,30 @@ defmodule AI.Tools.Troubleshooter do
         description: """
         **AI Troubleshooting Agent for systematic problem diagnosis and resolution.**
 
-        This agent follows a disciplined, iterative workflow to diagnose and fix problems:
-        1. Context gathering and reproduction
-        2. Output analysis and hypothesis formation  
-        3. Source code investigation
-        4. Fix proposal and application
-        5. Retesting and iteration
-        6. Escalation with detailed findings if unable to resolve
+        This agent follows a disciplined, iterative workflow to diagnose and fix any type of problem:
+        1. Tool discovery and context gathering
+        2. Problem reproduction using appropriate tools
+        3. Output analysis and hypothesis formation  
+        4. Systematic investigation (code, config, environment, etc.)
+        5. Fix proposal and application
+        6. Retesting and iteration
+        7. Escalation with detailed findings if unable to resolve
 
-        The troubleshooter has access to shell commands, file editing tools, and code analysis 
-        capabilities to systematically investigate and resolve issues.
+        The troubleshooter discovers and uses all available tools including shell commands, 
+        file operations, code analysis tools, and any user-created automation tools (frobs) 
+        relevant to the problem domain.
 
-        Use this when you encounter:
-        - Test failures or compilation errors
-        - Runtime bugs or unexpected behavior
-        - Performance issues or system problems
-        - Configuration or environment issues
+        Use this for any systematic problem-solving including:
+        - Build failures, compilation errors, or test failures
+        - CI/CD pipeline issues and deployment problems
+        - Runtime bugs, performance issues, or system problems
+        - Configuration, environment, or dependency issues
+        - Command-line tool failures or script errors
+        - Infrastructure or service integration problems
 
-        The agent will provide transparent, step-by-step investigation with clear reasoning
-        and will cite all files, commands, and outputs used in the troubleshooting process.
+        The agent adapts its approach based on available tools and problem type, providing 
+        transparent investigation with complete documentation of all steps, tools used, 
+        and reasoning applied.
         """,
         parameters: %{
           type: "object",

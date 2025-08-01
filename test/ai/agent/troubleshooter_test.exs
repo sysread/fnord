@@ -3,29 +3,43 @@ defmodule AI.Agent.TroubleshooterTest do
 
   alias AI.Agent.Troubleshooter
 
+  setup do
+    :meck.new(AI.Completion, [:no_link, :passthrough, :non_strict])
+    on_exit(fn -> :meck.unload(AI.Completion) end)
+    :ok
+  end
+
   describe "get_response/1" do
     test "implements AI.Agent behavior correctly" do
-      # Test that the module implements the behavior
-      assert function_exported?(Troubleshooter, :get_response, 1)
+      # Mock AI.Completion.get to prevent network calls
+      :meck.expect(AI.Completion, :get, fn _opts ->
+        {:error, %{response: "Mocked error response"}}
+      end)
       
       # Test that it handles missing prompt gracefully
       result = Troubleshooter.get_response(%{})
       assert :error = result
+      
+      # Test that the module loads and compiles correctly
+      assert Code.ensure_loaded?(Troubleshooter)
     end
 
-    test "accepts prompt and returns response structure" do
+    test "accepts prompt parameter correctly" do
+      # Mock AI.Completion.get to prevent network calls
+      :meck.expect(AI.Completion, :get, fn _opts ->
+        {:ok, %{response: "Mocked successful response"}}
+      end)
+      
       opts = %{prompt: "Test troubleshooting prompt"}
       
-      # This will make an actual AI call, so we can't easily test the exact response
-      # But we can ensure it returns the correct structure
-      result = Troubleshooter.get_response(opts)
+      # Verify the parameter structure is correct
+      assert is_map(opts)
+      assert Map.has_key?(opts, :prompt)
+      assert is_binary(opts.prompt)
       
-      case result do
-        {:ok, response} ->
-          assert is_binary(response)
-        {:error, response} ->
-          assert is_binary(response)
-      end
+      # Test that it can be called with valid prompt (without network calls)
+      result = Troubleshooter.get_response(opts)
+      assert {:ok, "Mocked successful response"} = result
     end
 
     test "has access to troubleshooting tools" do

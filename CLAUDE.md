@@ -1,3 +1,6 @@
+# General
+- This is an elixir escript app. Remember what that means for supervision, testing, and deployment.
+
 # Code style
 - Don't alias modules. Use the full module name instead.
 - Avoid single line syntax (e.g. `if x, do: y` or `def foo(x), do: x + 1`).
