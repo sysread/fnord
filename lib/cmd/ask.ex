@@ -153,7 +153,7 @@ defmodule Cmd.Ask do
       edit: opts.edit,
       rounds: opts.rounds,
       question: opts.question,
-      replay: opts.replay
+      replay: Map.get(opts, :replay, false)
     }
     |> AI.Agent.Coordinator.get_response()
     |> case do
