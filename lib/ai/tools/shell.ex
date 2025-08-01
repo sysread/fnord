@@ -119,10 +119,26 @@ defmodule AI.Tools.Shell do
   end
 
   defp call_shell_cmd(cmd, args) do
-    System.cmd(cmd, args, stderr_to_stdout: true, parallelism: true)
-    |> case do
-      {output, 0} -> {:ok, String.trim_trailing(output)}
-      {output, _} -> {:error, String.trim_trailing(output)}
+    cwd =
+      with {:ok, project} <- Store.get_project() do
+        project.source_root
+      else
+        _ -> File.cwd!()
+      end
+
+    try do
+      System.cmd(cmd, args, stderr_to_stdout: true, parallelism: true, cd: cwd)
+      |> case do
+        {output, 0} -> {:ok, String.trim_trailing(output)}
+        {output, _} -> {:error, String.trim_trailing(output)}
+      end
+    rescue
+      e in ErlangError ->
+        case e.reason do
+          :enoent -> {:error, "Command not found: #{cmd}"}
+          :eaccess -> {:error, "Permission denied: #{cmd}"}
+          other -> {:error, "Posix error: #{Atom.to_string(other)}"}
+        end
     end
   end
 
