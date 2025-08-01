@@ -190,7 +190,8 @@ defmodule AI.Tools do
     "list_projects_tool" => AI.Tools.ListProjects,
     "prior_research" => AI.Tools.Notes,
     "research_tool" => AI.Tools.Research,
-    "ripgrep_search" => AI.Tools.Ripgrep
+    "ripgrep_search" => AI.Tools.Ripgrep,
+    "troubleshooter_tool" => AI.Tools.Troubleshooter
   }
 
   # ----------------------------------------------------------------------------
