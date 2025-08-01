@@ -107,7 +107,14 @@ defmodule Cmd.Index do
       end
     )
 
-    index_project(idx)
+    try do
+      index_project(idx)
+    rescue
+      e ->
+        UI.error("An error occurred during indexing", Exception.message(e))
+        UI.info("Recovery", "Restarting the indexing process will pick up where it left off.")
+        {:error, e}
+    end
   end
 
   def perform_task(other) do
