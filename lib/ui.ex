@@ -248,9 +248,9 @@ defmodule UI do
     Owl.IO.input(owl_opts)
   end
 
-  defp clean_detail(nil), do: ""
+  def clean_detail(nil), do: ""
 
-  defp clean_detail(detail) do
+  def clean_detail(detail) do
     if iodata?(detail) do
       detail
     else
@@ -270,11 +270,11 @@ defmodule UI do
     end)
   end
 
-  defp iodata?(term) when is_binary(term), do: true
-  defp iodata?(term) when is_integer(term) and term in 0..255, do: true
-  defp iodata?([]), do: true
-  defp iodata?([head | tail]), do: iodata?(head) and iodata_tail?(tail)
-  defp iodata?(_), do: false
+  def iodata?(term) when is_binary(term), do: true
+  def iodata?(term) when is_integer(term) and term in 0..255, do: true
+  def iodata?([]), do: true
+  def iodata?([head | tail]), do: iodata?(head) and iodata_tail?(tail)
+  def iodata?(_), do: false
 
   defp iodata_tail?(tail) when is_list(tail), do: iodata?(tail)
   defp iodata_tail?(tail) when is_binary(tail), do: true
