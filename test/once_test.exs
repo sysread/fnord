@@ -1,5 +1,5 @@
 defmodule OnceTest do
-  use ExUnit.Case
+  use Fnord.TestCase
 
   import ExUnit.CaptureLog
 
@@ -32,6 +32,7 @@ defmodule OnceTest do
   end
 
   test "warn logs the message only once" do
+    set_log_level(:warning)
     msg = "hello"
 
     log =
@@ -50,6 +51,7 @@ defmodule OnceTest do
   end
 
   test "warn logs different messages separately" do
+    set_log_level(:warning)
     first = "first"
     second = "second"
 

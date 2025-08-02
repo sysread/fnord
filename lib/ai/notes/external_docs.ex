@@ -28,11 +28,13 @@ defmodule AI.Notes.ExternalDocs do
       {:claude, Path.join(user_home, ".config/claude/CLAUDE.md"), "~/.config/claude/CLAUDE.md"},
       {:agents, Path.join(user_home, ".agents/AGENTS.md"), "~/.agents/AGENTS.md"},
       {:agents, Path.join(user_home, ".config/agents/AGENTS.md"), "~/.config/agents/AGENTS.md"},
-      
+
       # Project root files (more specific)
-      {:claude, Path.join(project_root, "CLAUDE.md"), get_relative_path(Path.join(project_root, "CLAUDE.md"), cwd)},
-      {:agents, Path.join(project_root, "AGENTS.md"), get_relative_path(Path.join(project_root, "AGENTS.md"), cwd)},
-      
+      {:claude, Path.join(project_root, "CLAUDE.md"),
+       get_relative_path(Path.join(project_root, "CLAUDE.md"), cwd)},
+      {:agents, Path.join(project_root, "AGENTS.md"),
+       get_relative_path(Path.join(project_root, "AGENTS.md"), cwd)},
+
       # Current working directory files (most specific)
       {:claude, Path.join(cwd, "CLAUDE.md"), "./CLAUDE.md"},
       {:agents, Path.join(cwd, "AGENTS.md"), "./AGENTS.md"}

@@ -15,11 +15,11 @@ defmodule AI.Agent.TroubleshooterTest do
       :meck.expect(AI.Completion, :get, fn _opts ->
         {:error, %{response: "Mocked error response"}}
       end)
-      
+
       # Test that it handles missing prompt gracefully
       result = Troubleshooter.get_response(%{})
       assert :error = result
-      
+
       # Test that the module loads and compiles correctly
       assert Code.ensure_loaded?(Troubleshooter)
     end
@@ -29,14 +29,14 @@ defmodule AI.Agent.TroubleshooterTest do
       :meck.expect(AI.Completion, :get, fn _opts ->
         {:ok, %{response: "Mocked successful response"}}
       end)
-      
+
       opts = %{prompt: "Test troubleshooting prompt"}
-      
+
       # Verify the parameter structure is correct
       assert is_map(opts)
       assert Map.has_key?(opts, :prompt)
       assert is_binary(opts.prompt)
-      
+
       # Test that it can be called with valid prompt (without network calls)
       result = Troubleshooter.get_response(opts)
       assert {:ok, "Mocked successful response"} = result
@@ -54,13 +54,13 @@ defmodule AI.Agent.TroubleshooterTest do
     test "module has correct behavior and compiles successfully" do
       # Ensure module is loaded
       Code.ensure_loaded!(Troubleshooter)
-      
+
       # Verify the module implements the AI.Agent behavior
       assert function_exported?(Troubleshooter, :get_response, 1)
-      
+
       # Verify module loads without errors
       assert Code.ensure_loaded?(Troubleshooter)
-      
+
       # The detailed prompt testing would require accessing private module attributes
       # which is not straightforward in Elixir. The fact that the module compiles
       # and the integration test passes validates the prompt structure.

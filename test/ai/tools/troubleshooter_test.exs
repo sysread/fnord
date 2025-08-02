@@ -76,4 +76,3 @@ defmodule AI.Tools.TroubleshooterTest do
     end
   end
 end
-
