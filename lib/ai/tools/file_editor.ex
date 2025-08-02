@@ -1,4 +1,4 @@
-defmodule AI.Tools.NewCoder do
+defmodule AI.Tools.FileEditor do
   @moduledoc """
   String-based code editing tool that uses exact and fuzzy string matching
   instead of line numbers. Handles whitespace normalization while preserving
@@ -45,7 +45,7 @@ defmodule AI.Tools.NewCoder do
     %{
       type: "function",
       function: %{
-        name: "coder_tool",
+        name: "file_editor_tool",
         description: """
         Edit a file by finding and replacing exact strings using position-based splicing.
         Uses fuzzy matching to handle whitespace differences while preserving original

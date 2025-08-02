@@ -72,19 +72,19 @@ defmodule AI.Agent.Coordinator do
   # Research steps
   # -----------------------------------------------------------------------------
   defp select_steps(%{edit?: true, followup?: true} = state) do
-    %{state | steps: [:followup, :do_you_even_code_bro?, :finalize]}
+    %{state | steps: [:followup, :coding, :finalize]}
   end
 
   defp select_steps(%{edit?: true, followup?: false, rounds: 1} = state) do
-    %{state | steps: [:singleton, :do_you_even_code_bro?, :finalize]}
+    %{state | steps: [:singleton, :coding, :finalize]}
   end
 
   defp select_steps(%{edit?: true, followup?: false, rounds: 2} = state) do
-    %{state | steps: [:singleton, :refine, :do_you_even_code_bro?, :finalize]}
+    %{state | steps: [:singleton, :refine, :coding, :finalize]}
   end
 
   defp select_steps(%{edit?: true, followup?: false, rounds: 3} = state) do
-    %{state | steps: [:initial, :clarify, :refine, :do_you_even_code_bro?, :finalize]}
+    %{state | steps: [:initial, :clarify, :refine, :coding, :finalize]}
   end
 
   defp select_steps(%{edit?: true, followup?: false, rounds: n} = state) when n > 3 do
@@ -93,7 +93,7 @@ defmodule AI.Agent.Coordinator do
       | steps:
           [:initial, :clarify, :refine] ++
             Enum.map(1..(n - 3), fn _ -> :continue end) ++
-            [:do_you_even_code_bro?, :finalize]
+            [:coding, :finalize]
     }
   end
 
@@ -134,7 +134,6 @@ defmodule AI.Agent.Coordinator do
     |> Map.put(:steps, steps)
     |> new_session_msg()
     |> singleton_msg()
-    |> maybe_coding_msg()
     |> user_msg()
     |> get_notes()
     |> followup_msg()
@@ -151,7 +150,6 @@ defmodule AI.Agent.Coordinator do
     |> Map.put(:steps, steps)
     |> new_session_msg()
     |> singleton_msg()
-    |> maybe_coding_msg()
     |> user_msg()
     |> get_notes()
     |> begin_msg()
@@ -168,7 +166,6 @@ defmodule AI.Agent.Coordinator do
     |> Map.put(:steps, steps)
     |> new_session_msg()
     |> initial_msg()
-    |> maybe_coding_msg()
     |> user_msg()
     |> get_notes()
     |> begin_msg()
@@ -217,13 +214,13 @@ defmodule AI.Agent.Coordinator do
     |> perform_step()
   end
 
-  defp perform_step(%{steps: [:do_you_even_code_bro? | steps]} = state) do
-    UI.debug("Considering code changes")
+  defp perform_step(%{steps: [:coding | steps]} = state) do
+    UI.debug("Executing coding phase")
 
     state
     |> Map.put(:steps, steps)
     |> reminder_msg()
-    |> do_you_even_code_bro?()
+    |> execute_coding_phase()
     |> get_intuition()
     |> get_completion()
     |> save_notes()
@@ -356,75 +353,6 @@ defmodule AI.Agent.Coordinator do
   </think>
   """
 
-  @coding """
-  Coding is enabled for this session at the user's request.
-  THIS INDICATES THAT THE USER IS EXPECTING YOU TO MAKE PERSISTENT CODE CHANGES TO THE PROJECT.
-  ONLY request confirmation from the user if they explicitly ask you to do so.
-
-  # General rules:
-  - Changes should be as minimal as possible
-  - Changes should reflect the existing style and conventions of the project
-  - Never make changes that the user did not explicitly request
-  - Always double check your work; sometimes a change looks different once you see it in context
-
-  # Guidelines:
-  - If you are not sure about a change, ask the user for clarification
-  - If your research identifies amgiguities the user did not consider, ask them for guidance
-  - Look for existing code that implements a similar algorithm or pattern to ensure consistency with the project's style and conventions
-  - Identify and update any unit tests that must be updated (both for the code you are changing as well as any upstream or downstream components that may be affected)
-  - Add test coverage for your changes if it does not already exist
-  - Check other unit tests to get a sense of conventions and style
-
-  # Process:
-  Code changes should be made one at a time, and only to a contiguous region of a single file.
-  To make multiple changes, respond with a single tool_call request at a time.
-  If you attempt to modify multiple ranges within the same file concurrently, the results will be unpredictable, as line numbers may change between calls, and there is an implicit race between concurrent tool calls.
-
-  ## TROUBLESHOOTING coder_tool FAILURES:
-  When coder_tool fails (not found/multiple matches), follow this recovery process:
-  1. Don't abandon the edit - this is normal and fixable!
-  2. Use file_contents_tool to re-examine the current file state
-  3. Look for a "needle in the haystack" - find unique surrounding text
-  4. Expand your old_string to include 3-5 lines before AND after your target
-  5. Try again immediately - persistence is key to successful editing
-
-  Example recovery: If `old_string: "const foo = bar;"` fails, try:
-  ```
-  old_string: "function doSomething() {
-    // This is a comment
-    const foo = bar;
-    return foo * 2;
-  }"
-  ```
-
-  Inspect the file and identify the changes you wish to make.
-  Split the changes into steps, where each step modifies a SINGLE, contiguous region of the file.
-  
-  ## CRITICAL: PRESERVE EXISTING CONTENT
-  When adding to existing sections (like feature lists, function parameters, etc.):
-  - Include ALL existing content in your new_string
-  - Only add your new content, don't replace or remove existing items
-  - Read the current file content carefully to see what's already there
-  
-  For each step:
-  1. FIRST use `file_contents_tool` to read the exact text and see the current formatting.
-  2. Use the `coder_tool` to perform the change, including 2-3 lines of context before/after your target text in old_string.
-  3. ENSURE your new_string preserves all existing content and only adds your changes.
-  4. Inspect the response to ensure that the change is correct.
-  5. REREAD THE FILE to verify your changes.
-  6. If available, use your tools to check syntax, run unit tests, and/or format the code to ensure the code is correct and consistent.
-     Note that the coding agent has NO access to these tools, so YOU must call them after each change.
-  7. If the code is incorrect or does not compile, restore the backup file using the `file_manage_tool` and try again, adjusting your arguments to the `coder_tool` as necessary.
-  8. If `coder_tool` fails with "not found" or "multiple matches":
-     a) IMMEDIATELY use `file_contents_tool` to re-examine the current file content
-     b) Identify a larger, more unique section of text that includes your target
-     c) Retry the `coder_tool` with the improved old_string (more context lines)
-     d) Don't give up after one failure - try 2-3 times with different context amounts
-  8. Repeat until the code is correct and complete.
-
-  Repeat this process for each change.
-  """
-
   @begin """
   <think>
   I'm going to start by considering the user's question.
@@ -465,27 +393,6 @@ defmodule AI.Agent.Coordinator do
   Maybe I can find some other useful details or gotchas to look out for.
   The user will be very happy if I can provide warnings about common pitfalls around this topic.
   After all, they wouldn't ask me if they already knew all of this stuff.
-  </think>
-  """
-
-  @do_you_even_code_bro? """
-  <think>
-  The user enabled editing tools, which probably means they expect me to make the changes myself.
-  Let's see... what changes did the user ask me to make?
-  I need to approach this thoughtfully.
-  If the user asked me to implement something, I need to be sure that I've addressed all of the requirements.
-  If I tried to make changes and they failed, I should try to correct my instructions to the coder_tool and try again.
-
-  IMPORTANT: When coder_tool fails, I should NOT give up! Instead:
-  - Re-read the file to see the current state
-  - Find a better, more unique text snippet with more context
-  - Try again with a larger old_string that includes surrounding lines
-  - Be persistent - most editing failures are just context/matching issues
-
-  Let me think. Did I:
-  - Call any tools that can check the syntax of the code?
-  - Call any tools that can format the code to ensure it follows the project's conventions?
-  - Call any tools that can test the code to ensure it works as expected?
   </think>
   """
 
@@ -596,16 +503,6 @@ defmodule AI.Agent.Coordinator do
     state
   end
 
-  defp maybe_coding_msg(%{edit?: false} = state), do: state
-
-  defp maybe_coding_msg(%{edit?: true} = state) do
-    @coding
-    |> AI.Util.assistant_msg()
-    |> ConversationServer.append_msg(state.conversation)
-
-    state
-  end
-
   defp clarify_msg(state) do
     @clarify
     |> AI.Util.assistant_msg()
@@ -630,15 +527,29 @@ defmodule AI.Agent.Coordinator do
     state
   end
 
-  defp do_you_even_code_bro?(%{edit?: true} = state) do
-    @do_you_even_code_bro?
+  @coding """
+  <think>
+  The research phase is complete. Now I need to implement the requested changes.
+  I'll break down the user's request into logical milestones and delegate each
+  milestone to the specialized coder agent for implementation.
+  </think>
+  """
+
+  defp execute_coding_phase(%{edit?: true} = state) do
+    @coding
     |> AI.Util.assistant_msg()
     |> ConversationServer.append_msg(state.conversation)
 
-    state
+    case AI.Agent.Coordinator.Epics.create_and_execute_epic(state) do
+      {:ok, result} ->
+        %{state | last_response: result}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
-  defp do_you_even_code_bro?(state), do: state
+  defp execute_coding_phase(state), do: state
 
   defp finalize_msg(state) do
     @finalize
@@ -754,13 +665,10 @@ defmodule AI.Agent.Coordinator do
   # Tool box
   # -----------------------------------------------------------------------------
   defp get_tools(%{edit?: true}) do
+    # Add coder agent tool for edit operations
     AI.Tools.all_tools()
     |> Map.values()
-    |> Enum.concat([
-      AI.Tools.File.Manage,
-      AI.Tools.NewCoder,
-      AI.Tools.Shell
-    ])
+    |> Enum.concat([AI.Tools.Shell, AI.Tools.CoderAgent])
   end
 
   defp get_tools(_) do

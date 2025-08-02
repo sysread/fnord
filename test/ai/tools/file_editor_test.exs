@@ -1,10 +1,10 @@
-defmodule AI.Tools.NewCoderTest do
+defmodule AI.Tools.FileEditorTest do
   use Fnord.TestCase
 
-  alias AI.Tools.NewCoder
+  alias AI.Tools.FileEditor
 
   setup do
-    # NewCoder uses Once for backup management
+    # FileEditor uses Once for backup management
     start_supervised(Once)
 
     project = mock_project("new-coder-test")
@@ -16,9 +16,9 @@ defmodule AI.Tools.NewCoderTest do
   describe "string matching functions" do
     test "normalize_for_matching/1" do
       # Use :sys.get_state to access private functions for testing
-      assert NewCoder.normalize_for_matching("  hello   world  ") == "hello world"
-      assert NewCoder.normalize_for_matching("Hello\n\tWorld") == "hello world"
-      assert NewCoder.normalize_for_matching("") == ""
+      assert FileEditor.normalize_for_matching("  hello   world  ") == "hello world"
+      assert FileEditor.normalize_for_matching("Hello\n\tWorld") == "hello world"
+      assert FileEditor.normalize_for_matching("") == ""
     end
 
     test "find_and_replace/3 with exact match" do
@@ -26,7 +26,7 @@ defmodule AI.Tools.NewCoderTest do
       old_string = "line2"
       new_string = "REPLACED"
 
-      result = NewCoder.find_and_replace(content, old_string, new_string)
+      result = FileEditor.find_and_replace(content, old_string, new_string)
 
       assert {:ok, updated, %{type: :exact}} = result
       assert updated == "line1\nREPLACED\nline3"
@@ -37,7 +37,7 @@ defmodule AI.Tools.NewCoderTest do
       old_string = "line2"
       new_string = "REPLACED"
 
-      result = NewCoder.find_and_replace(content, old_string, new_string)
+      result = FileEditor.find_and_replace(content, old_string, new_string)
 
       assert {:error, :multiple_matches} = result
     end
@@ -47,7 +47,7 @@ defmodule AI.Tools.NewCoderTest do
       old_string = "nonexistent"
       new_string = "REPLACED"
 
-      result = NewCoder.find_and_replace(content, old_string, new_string)
+      result = FileEditor.find_and_replace(content, old_string, new_string)
 
       assert {:error, :not_found} = result
     end
@@ -66,7 +66,7 @@ defmodule AI.Tools.NewCoderTest do
       """
 
       normalized_target =
-        NewCoder.normalize_for_matching("""
+        FileEditor.normalize_for_matching("""
         Features:
         - Extensive AI capabilities
         - Integration with development workflows
@@ -75,7 +75,7 @@ defmodule AI.Tools.NewCoderTest do
 
       # This should complete quickly, not hang
       start_time = System.monotonic_time(:millisecond)
-      result = NewCoder.find_fuzzy_matches(content, normalized_target)
+      result = FileEditor.find_fuzzy_matches(content, normalized_target)
       end_time = System.monotonic_time(:millisecond)
 
       # Should complete in well under a second
@@ -88,7 +88,7 @@ defmodule AI.Tools.NewCoderTest do
       content = "short content"
       normalized_target = "this is a very long target that is longer than the content itself"
 
-      result = NewCoder.find_original_boundaries(content, 0, normalized_target)
+      result = FileEditor.find_original_boundaries(content, 0, normalized_target)
 
       assert result == nil
     end
@@ -112,7 +112,7 @@ defmodule AI.Tools.NewCoderTest do
         "new_string" => "- Semantic search\n- Chain-of-thought reasoning\n- Git archaeology"
       }
 
-      result = NewCoder.call(args)
+      result = FileEditor.call(args)
 
       assert {:ok, msg} = result
       assert msg =~ "was modified successfully using exact matching"
@@ -134,7 +134,7 @@ defmodule AI.Tools.NewCoderTest do
         "new_string" => "replacement"
       }
 
-      result = NewCoder.call(args)
+      result = FileEditor.call(args)
 
       assert {:error, msg} = result
 
@@ -153,7 +153,7 @@ defmodule AI.Tools.NewCoderTest do
         "new_string" => "replacement"
       }
 
-      result = NewCoder.call(args)
+      result = FileEditor.call(args)
 
       assert {:error, msg} = result
       assert msg =~ "not found"
@@ -179,7 +179,7 @@ defmodule AI.Tools.NewCoderTest do
         "new_string" => "## Features\n\n- Chain-of-thought reasoning"
       }
 
-      result = NewCoder.call(args)
+      result = FileEditor.call(args)
 
       assert {:ok, _msg} = result
 
@@ -226,7 +226,7 @@ defmodule AI.Tools.NewCoderTest do
           "## Features\n\n- Chain-of-thought reasoning\n- Semantic search\n- Git archaeology\n- User integrations"
       }
 
-      result = NewCoder.call(args)
+      result = FileEditor.call(args)
 
       assert {:ok, _msg} = result
 
