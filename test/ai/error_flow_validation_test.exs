@@ -1,5 +1,18 @@
 defmodule AI.ErrorFlowValidationTest do
-  use Fnord.TestCase, async: true
+  use Fnord.TestCase, async: false
+
+  setup do
+    # Set up project context for ConversationServer
+    project = mock_project("error-flow-test")
+    set_config(:project, project)
+    :ok
+  end
+
+  # Helper to create a test conversation PID
+  defp test_conversation_pid do
+    {:ok, pid} = ConversationServer.start_link()
+    pid
+  end
 
   @moduledoc """
   Tests error flow validation and state transition safety without complex mocking.
@@ -9,87 +22,55 @@ defmodule AI.ErrorFlowValidationTest do
   and potential side effects of extensive mocking.
   """
 
-  describe "agent validation contracts" do
-    test "AI.Agent.validate_standard_opts handles all error cases" do
-      # Test each validation failure path
-      error_cases = [
-        # Missing fields
-        {%{conversation: "uuid-123"}, "Missing required field: instructions"},
-        {%{instructions: "test"}, "Missing required field: conversation"},
-
-        # Invalid types
-        {%{instructions: 123, conversation: "uuid-456"}, "Instructions must be a binary string"},
-        {%{instructions: "test", conversation: 123}, "Conversation ID must be a binary string"},
-
-        # Invalid values
-        {%{instructions: "", conversation: "uuid-789"}, "Instructions cannot be empty"},
-        {%{instructions: "   \n\t  ", conversation: "uuid-abc"}, "Instructions cannot be empty"},
-        {%{instructions: "test", conversation: ""}, "Conversation ID cannot be empty"},
-
-        # Non-map input
-        {"not_a_map", "Options must be a map"},
-        {nil, "Options must be a map"},
-        {[], "Options must be a map"}
-      ]
-
-      for {invalid_opts, expected_error} <- error_cases do
-        result = AI.Agent.validate_standard_opts(invalid_opts)
-        assert {:error, ^expected_error} = result
-      end
-    end
-
-    test "AI.Agent.validate_standard_opts accepts valid inputs" do
-      valid_cases = [
-        %{instructions: "Simple task", conversation: "uuid-0"},
-        %{instructions: "Complex\nmultiline\ninstructions", conversation: "uuid-123"},
-        %{instructions: "Unicode: 用户认证 🔐", conversation: "uuid-999"},
-        %{instructions: "Very long " <> String.duplicate("x", 10000), conversation: "uuid-1"},
-        %{instructions: "MILESTONE: test\nDESCRIPTION: formatted", conversation: "uuid-42"}
-      ]
-
-      for valid_opts <- valid_cases do
-        assert :ok = AI.Agent.validate_standard_opts(valid_opts)
-      end
+  describe "agent behavior contracts" do
+    test "AI.Agent behavior defines expected callbacks" do
+      # Test that the behavior defines the expected contract
+      callbacks = AI.Agent.behaviour_info(:callbacks)
+      assert {:get_response, 1} in callbacks
+      
+      optional_callbacks = AI.Agent.behaviour_info(:optional_callbacks)
+      assert {:validate_opts, 1} in optional_callbacks
     end
   end
 
   describe "coder agent error propagation" do
-    test "get_response propagates validation errors correctly" do
-      # Test that AI.Agent.Coder.get_response properly validates and returns errors
-      # without requiring full agent execution
+    test "get_response handles malformed options with Map.fetch" do
+      # Test that AI.Agent.Coder.get_response uses Map.fetch which returns errors for missing keys
+      # This relies on the 'with' construct instead of runtime validation
 
-      validation_error_cases = [
-        # missing instructions
-        %{conversation: "uuid-123"},
-        # missing conversation
-        %{instructions: "test"},
-        # empty instructions
-        %{instructions: "", conversation: "uuid-456"},
-        # empty conversation
-        %{instructions: "test", conversation: ""}
+      # Missing required fields will cause Map.fetch to return {:error, :key}
+      # This propagates through the 'with' construct
+      
+      invalid_cases = [
+        %{conversation: test_conversation_pid()},  # missing instructions
+        %{instructions: "test"}                    # missing conversation
       ]
 
-      for invalid_opts <- validation_error_cases do
+      for invalid_opts <- invalid_cases do
+        # Should return the Map.fetch error (:error), not crash
         result = AI.Agent.Coder.get_response(invalid_opts)
-
-        # Should return error tuple with descriptive message
-        assert {:error, error_message} = result
-        assert is_binary(error_message)
-        assert String.starts_with?(error_message, "Invalid agent options:")
+        assert result == :error
       end
     end
 
     test "get_response accepts valid options structure" do
-      # We can't test full execution without Store.get_project and other dependencies,
-      # but we can verify the validation layer works correctly
+      # Test that properly formatted options pass the initial validation
+      # We can't test full execution without proper setup, but we can test that
+      # the options format is accepted by the agent's initial parsing
 
       valid_opts = %{
         instructions: "MILESTONE: validation_test\nTest validation flow",
-        conversation: "uuid-validation"
+        conversation: test_conversation_pid()
       }
 
-      # Validation should pass (the actual response will depend on Store state)
-      assert :ok = AI.Agent.validate_standard_opts(valid_opts)
+      # Should get past the Map.fetch validation and fail later due to missing Store
+      result = AI.Agent.Coder.get_response(valid_opts)
+      
+      # Should not be a Map.fetch error (which would be :error)
+      refute result == :error
+      
+      # May be other errors due to missing services, which is expected
+      assert match?({:ok, _}, result) or match?({:error, _}, result)
     end
   end
 
@@ -128,24 +109,27 @@ defmodule AI.ErrorFlowValidationTest do
   end
 
   describe "state transition safety" do
-    test "validation occurs before state changes in agent workflow" do
-      # This test verifies that validation happens first in the agent workflow,
-      # preventing partial state changes when options are invalid
+    test "Map.fetch prevents invalid state creation" do
+      # This test verifies that Map.fetch prevents missing keys
+      # from reaching the agent's internal state creation logic
 
-      invalid_opts = %{
-        # This will fail validation
-        instructions: "",
-        conversation: "uuid-statetest"
-      }
-
-      # Should fail immediately during validation, before any state creation
+      # With Map.fetch and 'with' construct, missing keys fail fast
+      # This is safer than runtime validation that could be bypassed
+      
+      invalid_opts = %{instructions: "test"}  # missing conversation
+      
+      # Should fail at Map.fetch, not reach state creation
       result = AI.Agent.Coder.get_response(invalid_opts)
-      assert {:error, _} = result
-
-      # The error should be a validation error, not a runtime error from
-      # attempting to create state with invalid options
-      {:error, error_message} = result
-      assert String.contains?(error_message, "Instructions cannot be empty")
+      assert result == :error
+      
+      valid_opts = %{
+        instructions: "MILESTONE: test\nValid milestone", 
+        conversation: test_conversation_pid()
+      }
+      
+      # Should pass Map.fetch validation (may fail later due to missing services)
+      result2 = AI.Agent.Coder.get_response(valid_opts)
+      refute result2 == :error
     end
 
     test "TaskServer operations maintain data integrity" do
@@ -174,9 +158,7 @@ defmodule AI.ErrorFlowValidationTest do
       # Ensure TaskServer is running for this test
       {:ok, _pid} = TaskServer.start_link()
 
-      # Agent validation errors
-      {:error, agent_error} = AI.Agent.validate_standard_opts(%{conversation: "uuid-test"})
-      assert String.starts_with?(agent_error, "Missing required field:")
+      # System uses consistent error formats
 
       # Tool argument errors  
       {:error, :missing_argument, field} = AI.Tools.CoderAgent.read_args(%{})
@@ -188,16 +170,13 @@ defmodule AI.ErrorFlowValidationTest do
     end
 
     test "error messages are user-friendly and actionable" do
-      # Test that error messages don't contain internal implementation details
-      {:error, error_msg} = AI.Agent.validate_standard_opts("not_a_map")
-
-      # Should be clear and actionable
-      assert error_msg == "Options must be a map"
-
-      # Should not contain technical jargon
-      refute String.contains?(error_msg, "pattern match")
-      refute String.contains?(error_msg, "function clause")
-      refute String.contains?(error_msg, "badarg")
+      # Tool errors should be descriptive and not contain technical jargon
+      {:error, :missing_argument, field} = AI.Tools.CoderAgent.read_args(%{})
+      assert is_binary(field)
+      assert field != ""
+      
+      # Should be clear field names, not internal details
+      assert field in ["instructions", "conversation_id"]
     end
   end
 

@@ -93,11 +93,11 @@ defmodule Cmd.Ask do
       {:error, :conversation_not_found} ->
         UI.error("Conversation ID #{opts[:conversation]} not found")
 
+      {:error, :testing} ->
+        :ok
+
       {:error, other} ->
         UI.error("An error occurred while generating the response:\n\n#{other}")
-
-      {:ok, :testing} ->
-        :ok
     end
   end
 
@@ -148,20 +148,15 @@ defmodule Cmd.Ask do
   # Agent response
   # ----------------------------------------------------------------------------
   defp get_response(opts, conversation_server) do
-    %{
-      conversation: conversation_server,
-      edit: opts.edit,
-      rounds: opts.rounds,
-      question: opts.question,
-      replay: Map.get(opts, :replay, false)
-    }
-    |> AI.Agent.Coordinator.get_response()
-    |> case do
-      %{usage: usage, context: context, last_response: response} ->
-        {:ok, usage, context, response}
-
-      other ->
-        other
+    with {:ok, %{usage: usage, context: context, last_response: response}} <-
+           AI.Agent.Coordinator.get_response_state(%{
+             conversation: conversation_server,
+             edit: opts.edit,
+             rounds: opts.rounds,
+             question: opts.question,
+             replay: Map.get(opts, :replay, false)
+           }) do
+      {:ok, usage, context, response}
     end
   end
 

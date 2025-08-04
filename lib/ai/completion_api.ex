@@ -6,9 +6,9 @@ defmodule AI.CompletionAPI do
   @type tools :: nil | [AI.Tools.tool_spec()]
   @type response_format :: nil | map
 
-  @type usage :: integer()
+  @type usage :: non_neg_integer
   @type msg_response :: {:ok, :msg, binary, usage}
-  @type tool_response :: {:ok, :tool, list(map())}
+  @type tool_response :: {:ok, :tool, list(map)}
 
   @type response ::
           msg_response

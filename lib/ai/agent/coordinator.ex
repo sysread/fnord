@@ -8,18 +8,65 @@ defmodule AI.Agent.Coordinator do
   use before finalizing its response.
   """
 
+  defstruct [
+    :rounds,
+    :edit?,
+    :replay,
+    :question,
+    :conversation,
+    :followup?,
+    :project,
+    :last_response,
+    :steps,
+    :usage,
+    :context,
+    :notes
+  ]
+
+  @type t :: %__MODULE__{
+          # User opts
+          rounds: non_neg_integer,
+          edit?: boolean,
+          replay: boolean,
+          question: binary,
+          conversation: pid,
+          followup?: boolean,
+          project: binary,
+
+          # State
+          last_response: binary | nil,
+          steps: list(atom),
+          usage: non_neg_integer,
+          context: non_neg_integer,
+          notes: binary | nil
+        }
+
+  @type error :: {:error, binary | atom | :testing}
+
   @model AI.Model.smart()
 
   @behaviour AI.Agent
 
   @impl AI.Agent
   def get_response(opts) do
+    with {:ok, %{last_response: response}} <- get_response_state(opts) do
+      {:ok, response}
+    end
+  end
+
+  @spec get_response_state(map) :: {:ok, t} | error
+  def get_response_state(opts) do
     opts
     |> new()
     |> select_steps()
     |> consider()
+    |> case do
+      {:error, reason} -> {:error, reason}
+      state -> {:ok, state}
+    end
   end
 
+  @spec new(map) :: t
   defp new(opts) do
     with {:ok, conversation} <- Map.fetch(opts, :conversation),
          {:ok, edit?} <- Map.fetch(opts, :edit),
@@ -32,7 +79,7 @@ defmodule AI.Agent.Coordinator do
         |> ConversationServer.get_conversation()
         |> Store.Project.Conversation.exists?()
 
-      %{
+      %__MODULE__{
         # User opts
         rounds: rounds,
         edit?: edit?,
@@ -45,7 +92,6 @@ defmodule AI.Agent.Coordinator do
         # State
         last_response: nil,
         steps: [],
-        current_step: 0,
         usage: 0,
         context: @model.context,
         notes: nil
@@ -53,6 +99,7 @@ defmodule AI.Agent.Coordinator do
     end
   end
 
+  @spec consider(t) :: t | error
   defp consider(state) do
     Frobs.list()
     |> Enum.map(& &1.name)
@@ -71,6 +118,7 @@ defmodule AI.Agent.Coordinator do
   # -----------------------------------------------------------------------------
   # Research steps
   # -----------------------------------------------------------------------------
+  @spec select_steps(t) :: t
   defp select_steps(%{edit?: true, followup?: true} = state) do
     %{state | steps: [:followup, :coding, :finalize]}
   end
@@ -118,15 +166,7 @@ defmodule AI.Agent.Coordinator do
     }
   end
 
-  defp perform_step({:error, reason}) do
-    {:error,
-     """
-     An error occurred while processing your request.
-
-     #{reason}
-     """}
-  end
-
+  @spec perform_step(t) :: t
   defp perform_step(%{replay: replay, steps: [:followup | steps]} = state) do
     UI.debug("Performing abbreviated research")
 
@@ -240,8 +280,8 @@ defmodule AI.Agent.Coordinator do
     |> get_motd()
   end
 
+  @spec get_completion(t, boolean) :: t | error
   defp get_completion(state, replay \\ false) do
-    current_step = state.current_step + 1
     msgs = ConversationServer.get_messages(state.conversation)
 
     AI.Completion.get(
@@ -266,7 +306,6 @@ defmodule AI.Agent.Coordinator do
         %{
           state
           | usage: usage,
-            current_step: current_step,
             last_response: response
         }
         |> log_usage()
@@ -427,6 +466,7 @@ defmodule AI.Agent.Coordinator do
   Respond NOW with your findings in the requested format.
   """
 
+  @spec git_info() :: binary
   defp git_info() do
     with {:ok, root} <- Git.git_root(),
          {:ok, branch} <- Git.current_branch() do
@@ -440,6 +480,7 @@ defmodule AI.Agent.Coordinator do
     end
   end
 
+  @spec new_session_msg(t) :: t
   defp new_session_msg(state) do
     """
     Beginning a new session.
@@ -451,6 +492,7 @@ defmodule AI.Agent.Coordinator do
     state
   end
 
+  @spec singleton_msg(t) :: t
   defp singleton_msg(%{project: project} = state) do
     @singleton
     |> String.replace("$$PROJECT$$", project)
@@ -461,6 +503,7 @@ defmodule AI.Agent.Coordinator do
     state
   end
 
+  @spec initial_msg(t) :: t
   defp initial_msg(%{project: project} = state) do
     @initial
     |> String.replace("$$PROJECT$$", project)
@@ -471,6 +514,7 @@ defmodule AI.Agent.Coordinator do
     state
   end
 
+  @spec user_msg(t) :: t
   defp user_msg(%{question: question} = state) do
     question
     |> AI.Util.user_msg()
@@ -479,6 +523,7 @@ defmodule AI.Agent.Coordinator do
     state
   end
 
+  @spec reminder_msg(t) :: t
   defp reminder_msg(%{question: question} = state) do
     "Remember the user's question: #{question}"
     |> AI.Util.system_msg()
@@ -487,6 +532,7 @@ defmodule AI.Agent.Coordinator do
     state
   end
 
+  @spec followup_msg(t) :: t
   defp followup_msg(state) do
     @followup
     |> AI.Util.assistant_msg()
@@ -495,6 +541,7 @@ defmodule AI.Agent.Coordinator do
     state
   end
 
+  @spec begin_msg(t) :: t
   defp begin_msg(state) do
     @begin
     |> AI.Util.assistant_msg()
@@ -503,6 +550,7 @@ defmodule AI.Agent.Coordinator do
     state
   end
 
+  @spec clarify_msg(t) :: t
   defp clarify_msg(state) do
     @clarify
     |> AI.Util.assistant_msg()
@@ -511,6 +559,7 @@ defmodule AI.Agent.Coordinator do
     state
   end
 
+  @spec refine_msg(t) :: t
   defp refine_msg(state) do
     @refine
     |> AI.Util.assistant_msg()
@@ -519,6 +568,7 @@ defmodule AI.Agent.Coordinator do
     state
   end
 
+  @spec continue_msg(t) :: t
   defp continue_msg(state) do
     @continue
     |> AI.Util.assistant_msg()
@@ -535,22 +585,21 @@ defmodule AI.Agent.Coordinator do
   </think>
   """
 
+  @spec execute_coding_phase(t) :: t | error
   defp execute_coding_phase(%{edit?: true} = state) do
     @coding
     |> AI.Util.assistant_msg()
     |> ConversationServer.append_msg(state.conversation)
 
     case AI.Agent.Coordinator.Epics.create_and_execute_epic(state) do
-      {:ok, result} ->
-        %{state | last_response: result}
-
-      {:error, reason} ->
-        {:error, reason}
+      {:ok, result} -> %{state | last_response: result}
+      {:error, reason} -> {:error, reason}
     end
   end
 
   defp execute_coding_phase(state), do: state
 
+  @spec finalize_msg(t) :: t
   defp finalize_msg(state) do
     @finalize
     |> AI.Util.assistant_msg()
@@ -559,6 +608,7 @@ defmodule AI.Agent.Coordinator do
     state
   end
 
+  @spec template_msg(t) :: t
   defp template_msg(state) do
     @template
     |> AI.Util.assistant_msg()
@@ -570,6 +620,7 @@ defmodule AI.Agent.Coordinator do
   # -----------------------------------------------------------------------------
   # Intuition
   # -----------------------------------------------------------------------------
+  @spec get_intuition(t) :: t
   defp get_intuition(state) do
     UI.begin_step("Cogitating")
 
@@ -600,6 +651,7 @@ defmodule AI.Agent.Coordinator do
   # -----------------------------------------------------------------------------
   # Notes
   # -----------------------------------------------------------------------------
+  @spec get_notes(t) :: t
   defp get_notes(%{question: question} = state) do
     # We want the initial notes to be extracted from the NotesServer before we
     # commit to the much slower process of consolidation.
@@ -619,6 +671,7 @@ defmodule AI.Agent.Coordinator do
     %{state | notes: notes}
   end
 
+  @spec save_notes(t) :: t
   defp save_notes(state) do
     NotesServer.save()
     state
@@ -627,6 +680,7 @@ defmodule AI.Agent.Coordinator do
   # -----------------------------------------------------------------------------
   # MOTD
   # -----------------------------------------------------------------------------
+  @spec get_motd(t) :: t
   defp get_motd(state) do
     with {:ok, motd} <- AI.Agent.MOTD.get_response(%{prompt: state.question}) do
       %{state | last_response: state.last_response <> "\n\n" <> motd}
@@ -652,18 +706,15 @@ defmodule AI.Agent.Coordinator do
     state
   end
 
-  defp log_usage(usage) when is_integer(usage) do
-    UI.log_usage(@model, usage)
-  end
-
   defp log_usage(%{usage: usage} = state) do
-    log_usage(usage)
+    UI.log_usage(@model, usage)
     state
   end
 
   # -----------------------------------------------------------------------------
   # Tool box
   # -----------------------------------------------------------------------------
+  @spec get_tools(t) :: list(module)
   defp get_tools(%{edit?: true}) do
     # Add coder agent tool for edit operations
     AI.Tools.all_tools()
@@ -714,12 +765,14 @@ defmodule AI.Agent.Coordinator do
   Report any anomalies or errors encountered during the process and provide a summary of the outcomes.
   """
 
+  @spec is_testing?(t) :: boolean
   defp is_testing?(%{question: question}) do
     question
     |> String.downcase()
     |> String.starts_with?("testing:")
   end
 
+  @spec get_test_response(t) :: {:error, :testing}
   defp get_test_response(%{project: project} = state) do
     AI.Completion.get(
       log_msgs: true,
@@ -734,7 +787,7 @@ defmodule AI.Agent.Coordinator do
         AI.Util.user_msg(state.question)
       ]
     )
-    |> then(fn {:ok, %{response: msg, usage: usage} = response} ->
+    |> then(fn {:ok, %{response: msg} = response} ->
       UI.say(msg)
 
       response
@@ -743,9 +796,9 @@ defmodule AI.Agent.Coordinator do
         UI.report_step(tool, "called #{count} time(s)")
       end)
 
-      log_usage(usage)
+      log_usage(response)
     end)
 
-    {:ok, :testing}
+    {:error, :testing}
   end
 end

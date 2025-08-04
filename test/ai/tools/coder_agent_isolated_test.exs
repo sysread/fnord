@@ -74,34 +74,41 @@ defmodule AI.Tools.CoderAgentIsolatedTest do
 
   # Single test that uses mocking - carefully isolated
   describe "agent delegation with controlled mocking" do
-    test "validates agent options before delegation - mocked validation only" do
-      # This test carefully mocks only the validation step to test error propagation
+    test "propagates agent errors correctly - mocked agent response only" do
+      # This test carefully mocks only the agent response to test error propagation
       # without executing the full agent workflow
 
+      # Set up a mock project so ConversationServer can be created
+      project = mock_project("coder-agent-test")
+      set_config(:project, project)
+
       # Setup mocking - ensure we clean up even if test fails
-      :meck.new(AI.Agent, [:passthrough])
+      :meck.new(AI.Agent.Coder, [:passthrough])
 
       try do
-        # Mock validation failure only
-        :meck.expect(AI.Agent, :validate_standard_opts, fn _opts ->
-          {:error, "Instructions cannot be empty"}
+        # Mock agent failure only
+        :meck.expect(AI.Agent.Coder, :get_response, fn _opts ->
+          {:error, "Agent execution failed"}
         end)
 
+        # Create a mock conversation PID for testing
+        {:ok, conversation_pid} = ConversationServer.start_link()
+        
         args = %{
-          "instructions" => "",
-          "conversation_id" => 123
+          "instructions" => "valid instructions",
+          "conversation_id" => conversation_pid
         }
 
         result = AI.Tools.CoderAgent.call(args)
 
-        # Should propagate validation error correctly
-        assert {:error, "Invalid coder agent request: Instructions cannot be empty"} = result
+        # Should propagate agent error correctly
+        assert {:error, "Coder agent failed: Agent execution failed"} = result
 
-        # Verify validation was called
-        assert :meck.called(AI.Agent, :validate_standard_opts, :_)
+        # Verify agent was called
+        assert :meck.called(AI.Agent.Coder, :get_response, :_)
       after
         # Always clean up mocks
-        :meck.unload(AI.Agent)
+        :meck.unload(AI.Agent.Coder)
       end
     end
   end

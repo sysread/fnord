@@ -187,20 +187,15 @@ defmodule AI.Agent.Coder do
   </think>
   """
 
+  @spec get_response(%{instructions: binary(), conversation: pid()}) :: {:ok, binary()} | {:error, binary()}
   @impl AI.Agent
   def get_response(opts) do
-    case AI.Agent.validate_standard_opts(opts) do
-      :ok ->
-        opts
-        |> new()
-        |> perform_research()
-        |> create_plan()
-        |> execute_stack()
-        |> validate_results()
-
-      {:error, reason} ->
-        {:error, "Invalid agent options: #{reason}"}
-    end
+    opts
+    |> new()
+    |> perform_research()
+    |> create_plan()
+    |> execute_stack()
+    |> validate_results()
   end
 
   # Initialize the agent state

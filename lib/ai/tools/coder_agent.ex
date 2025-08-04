@@ -90,24 +90,18 @@ defmodule AI.Tools.CoderAgent do
   end
 
   @impl AI.Tools
-  def call(%{"instructions" => instructions, "conversation_id" => conversation_id}) do
+  def call(%{"instructions" => instructions, "conversation_id" => conversation_pid}) when is_pid(conversation_pid) do
     agent_opts = %{
       instructions: instructions,
-      conversation: conversation_id
+      conversation: conversation_pid
     }
 
-    case AI.Agent.validate_standard_opts(agent_opts) do
-      :ok ->
-        case AI.Agent.Coder.get_response(agent_opts) do
-          {:ok, result} ->
-            {:ok, result}
+    case AI.Agent.Coder.get_response(agent_opts) do
+      {:ok, result} ->
+        {:ok, result}
 
-          {:error, reason} ->
-            {:error, "Coder agent failed: #{reason}"}
-        end
-
-      {:error, validation_error} ->
-        {:error, "Invalid coder agent request: #{validation_error}"}
+      {:error, reason} ->
+        {:error, "Coder agent failed: #{reason}"}
     end
   end
 end

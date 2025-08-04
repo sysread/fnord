@@ -136,12 +136,9 @@ defmodule AI.Agent.Coordinator.Epics do
         Use your task stack to organize work - break this milestone into concrete tasks.
         """
 
-        # Get the conversation ID from the conversation server
-        conversation = ConversationServer.get_conversation(state.conversation)
-
         case AI.Tools.CoderAgent.call(%{
                "instructions" => milestone_instructions,
-               "conversation_id" => conversation.id
+               "conversation_id" => state.conversation
              }) do
           {:ok, result} ->
             TaskServer.complete_task(milestone_list_id, milestone.id, "Milestone completed")
