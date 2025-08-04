@@ -11,17 +11,30 @@
 # Feature changes
 - Ensure that `README.md` is up-to-date and accurate.
 
+# Troubleshooting
+- Favor unit tests over one-off scripts and `mix run` commands for debugging.
+- Favor `IO.inspect` for printf-debugging.
+
 # Unit tests
 - See `test/support/fnord_test_case.ex`.
 - Default to `async: false`.
 - Prefer `meck` over `mox` when possible. We are migrating away from `mox`.
 - ONLY mock to avoid external dependencies, such as network calls. Look at Fnord.TestCase to see how to set up fixtures.
+- Unit tests should follow the structure of `./lib`:
+  - `lib/foo.ex` -> `test/foo_test.exs`
+  - `lib/foo/bar.ex` -> `test/foo/bar_test.exs`
+  - If you wish to add multiple test files for the same module, place under a subdirectory with the module's file base name:
+    - `lib/foo.ex` -> `test/foo_test.exs` (positive path or main entrypoint), `test/foo/foo_does_X_test.exs`, `test/foo/foo_does_not_do_Y_test.exs`, etc.
 
 # NEVER
 - Do not make changes unless explicitly requested by the user's prompt.
 - Do not use `make` commands unless explicitly requested by the user's prompt.
 - Do not use `elixirc` to test code changes. Use `mix compile` or `mix test` instead.
 - Do not run `git clean` or `git reset --hard` in the codebase. This can lead to data loss.
+- NEVER "fix" a test by removing it or skipping it:
+  - If the test is no longer useful, ask the user EXPLICITLY if it can be removed.
+  - If the user explicitly ASKED you to remove it, go ahead and remove it.
+  - If the test is failing due to test-related code, you may add new fixtures and mocks as needed (also, see `Fnord.TestCase` for existing fixtures).
 
 # ALWAYS
 - Run `mix test` to confirm that changes compile and do not break existing functionality.
