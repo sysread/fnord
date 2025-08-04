@@ -91,7 +91,7 @@ defmodule AI.Tools do
   @type tool_name :: binary
   @type project_name :: binary | nil
   @type unparsed_args :: binary
-  @type parsed_args :: %{binary => any}
+  @type parsed_args :: %{binary => any} | %{atom => any}
   @type toolbox :: %{binary => module}
 
   @type tool_error :: {:error, binary}
@@ -114,6 +114,7 @@ defmodule AI.Tools do
           | {:ok, any}
           | {:error, any}
           | :error
+          | args_error
           | frob_error
 
   @doc """

@@ -5,6 +5,18 @@ defmodule AI.Tools.StackManager do
   Provides tools for managing task stacks during coding operations.
   """
 
+  @typep action :: binary
+  @typep stack_id :: non_neg_integer
+  @typep task_id :: binary
+
+  @typep tool_args :: %{
+           required(:action) => action,
+           required(:stack_id) => stack_id,
+           optional(:task_id) => task_id,
+           optional(:task_data) => binary,
+           optional(:result) => binary
+         }
+
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -14,27 +26,30 @@ defmodule AI.Tools.StackManager do
   def is_available?, do: true
 
   @impl AI.Tools
+  @spec read_args(map) :: AI.Tools.raw_tool_result()
   def read_args(args) do
     with {:ok, action} <- AI.Tools.get_arg(args, "action"),
          {:ok, stack_id} <- AI.Tools.get_arg(args, "stack_id") do
       {:ok,
        %{
-         "action" => action,
-         "stack_id" => String.to_integer(stack_id),
-         "task_id" => Map.get(args, "task_id"),
-         "task_data" => Map.get(args, "task_data"),
-         "result" => Map.get(args, "result")
+         action: action,
+         stack_id: stack_id,
+         task_id: Map.get(args, "task_id"),
+         task_data: Map.get(args, "task_data"),
+         result: Map.get(args, "result")
        }}
     end
   end
 
   @impl AI.Tools
-  def ui_note_on_request(%{"action" => action, "stack_id" => stack_id}) do
+  @spec ui_note_on_request(tool_args) :: {binary, binary}
+  def ui_note_on_request(%{action: action, stack_id: stack_id}) do
     {"Stack Management", "#{action} on stack #{stack_id}"}
   end
 
   @impl AI.Tools
-  def ui_note_on_result(%{"action" => action}, result) do
+  @spec ui_note_on_result(tool_args, binary) :: {binary, binary}
+  def ui_note_on_result(%{action: action}, result) do
     {"Stack #{action} Result", result}
   end
 
@@ -70,7 +85,7 @@ defmodule AI.Tools.StackManager do
               description: "The stack operation to perform"
             },
             stack_id: %{
-              type: "string",
+              type: "number",
               description: "The ID of the task stack to operate on"
             },
             task_id: %{
@@ -92,56 +107,53 @@ defmodule AI.Tools.StackManager do
   end
 
   @impl AI.Tools
-  def call(args) do
-    with {:ok, action} <- AI.Tools.get_arg(args, "action"),
-         {:ok, stack_id} <- AI.Tools.get_arg(args, "stack_id") do
-      stack_id = String.to_integer(stack_id)
+  @spec call(tool_args) :: {:ok, binary} | {:error, binary}
+  def call(%{action: "push_task"} = args), do: push_task(args)
+  def call(%{action: "view_stack"} = args), do: view_stack(args)
+  def call(%{action: "mark_current_done"} = args), do: mark_current_done(args)
+  def call(%{action: "mark_current_failed"} = args), do: mark_current_failed(args)
+  def call(%{action: "drop_task"} = args), do: drop_task(args)
+  def call(%{action: action}), do: {:error, "Unknown action: #{action}"}
 
-      case action do
-        "push_task" ->
-          with {:ok, task_id} <- AI.Tools.get_arg(args, "task_id"),
-               {:ok, task_data} <- AI.Tools.get_arg(args, "task_data") do
-            TaskServer.push_task(stack_id, task_id, task_data)
-            {:ok, "Task '#{task_id}' pushed to top of stack #{stack_id}"}
-          else
-            {:error, :missing_argument, key} -> {:error, "Missing required argument: #{key}"}
-          end
+  defp push_task(args) do
+    with {:ok, stack_id} <- AI.Tools.get_arg(args, :stack_id),
+         {:ok, task_id} <- AI.Tools.get_arg(args, :task_id),
+         {:ok, task_data} <- AI.Tools.get_arg(args, :task_data) do
+      TaskServer.push_task(stack_id, task_id, task_data)
+      {:ok, "Task '#{task_id}' pushed to top of stack #{stack_id}"}
+    end
+  end
 
-        "view_stack" ->
-          stack_display = TaskServer.as_string(stack_id)
+  defp view_stack(args) do
+    with {:ok, stack_id} <- AI.Tools.get_arg(args, :stack_id) do
+      {:ok,
+       """
+       Current stack #{stack_id}:
+       #{TaskServer.as_string(stack_id)}
+       """}
+    end
+  end
 
-          {:ok,
-           """
-           Current stack #{stack_id}:
-           #{stack_display}
-           """}
+  defp mark_current_done(args) do
+    with {:ok, stack_id} <- AI.Tools.get_arg(args, :stack_id),
+         {:ok, result} <- AI.Tools.get_arg(args, :result) do
+      TaskServer.mark_current_done(stack_id, result)
+      {:ok, "Current task marked as done: #{result}"}
+    end
+  end
 
-        "mark_current_done" ->
-          with {:ok, result} <- AI.Tools.get_arg(args, "result") do
-            TaskServer.mark_current_done(stack_id, result)
-            {:ok, "Current task marked as done: #{result}"}
-          else
-            {:error, :missing_argument, key} -> {:error, "Missing required argument: #{key}"}
-          end
+  defp mark_current_failed(args) do
+    with {:ok, stack_id} <- AI.Tools.get_arg(args, :stack_id),
+         {:ok, result} <- AI.Tools.get_arg(args, :result) do
+      TaskServer.mark_current_failed(stack_id, result)
+      {:ok, "Current task marked as failed: #{result}"}
+    end
+  end
 
-        "mark_current_failed" ->
-          with {:ok, result} <- AI.Tools.get_arg(args, "result") do
-            TaskServer.mark_current_failed(stack_id, result)
-            {:ok, "Current task marked as failed: #{result}"}
-          else
-            {:error, :missing_argument, key} -> {:error, "Missing required argument: #{key}"}
-          end
-
-        "drop_task" ->
-          TaskServer.drop_task(stack_id)
-          {:ok, "Dropped current task from stack #{stack_id}"}
-
-        _ ->
-          {:error, "Unknown action: #{action}"}
-      end
-    else
-      error ->
-        {:error, "Invalid arguments: #{inspect(error)}"}
+  defp drop_task(args) do
+    with {:ok, stack_id} <- AI.Tools.get_arg(args, :stack_id) do
+      TaskServer.drop_task(stack_id)
+      {:ok, "Dropped current task from stack #{stack_id}"}
     end
   end
 end
