@@ -336,7 +336,9 @@ defmodule AI.Agent.Coder do
     AI.Completion.get(
       model: @model,
       toolbox: toolbox,
-      messages: msgs
+      messages: msgs,
+      log_msgs: true,
+      log_tool_calls: true
     )
     |> case do
       {:ok, %{response: response, messages: new_msgs, usage: usage}} ->
