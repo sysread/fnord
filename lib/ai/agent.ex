@@ -7,7 +7,7 @@ defmodule AI.Agent do
   """
 
   @type instructions :: binary()
-  @type conversation_id :: non_neg_integer()
+  @type conversation_id :: binary()
   @type agent_response :: binary()
   @type agent_error :: binary()
 
@@ -55,13 +55,13 @@ defmodule AI.Agent do
   """
   @spec validate_standard_opts(agent_opts()) :: :ok | {:error, binary()}
   def validate_standard_opts(%{instructions: instructions, conversation: conversation_id})
-      when is_binary(instructions) and is_integer(conversation_id) do
+      when is_binary(instructions) and is_binary(conversation_id) do
     cond do
       String.trim(instructions) == "" ->
         {:error, "Instructions cannot be empty"}
 
-      conversation_id < 0 ->
-        {:error, "Conversation ID must be non-negative"}
+      String.trim(conversation_id) == "" ->
+        {:error, "Conversation ID cannot be empty"}
 
       true ->
         :ok
@@ -79,8 +79,8 @@ defmodule AI.Agent do
       not is_binary(Map.get(opts, :instructions)) ->
         {:error, "Instructions must be a binary string"}
 
-      not is_integer(Map.get(opts, :conversation)) ->
-        {:error, "Conversation ID must be an integer"}
+      not is_binary(Map.get(opts, :conversation)) ->
+        {:error, "Conversation ID must be a binary string"}
 
       true ->
         validate_standard_opts(opts)

@@ -1,11 +1,11 @@
 defmodule AI.AgentTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   describe "validate_standard_opts/1" do
-    test "validates correct options with binary instructions and integer conversation" do
+    test "validates correct options with binary instructions and binary conversation" do
       valid_opts = %{
         instructions: "Implement user authentication",
-        conversation: 123
+        conversation: "abc123-uuid"
       }
 
       assert :ok = AI.Agent.validate_standard_opts(valid_opts)
@@ -14,7 +14,7 @@ defmodule AI.AgentTest do
     test "rejects empty instructions" do
       opts = %{
         instructions: "",
-        conversation: 123
+        conversation: "uuid-123"
       }
 
       assert {:error, "Instructions cannot be empty"} = AI.Agent.validate_standard_opts(opts)
@@ -23,34 +23,33 @@ defmodule AI.AgentTest do
     test "rejects whitespace-only instructions" do
       opts = %{
         instructions: "   \n\t  ",
-        conversation: 123
+        conversation: "uuid-456"
       }
 
       assert {:error, "Instructions cannot be empty"} = AI.Agent.validate_standard_opts(opts)
     end
 
-    test "rejects negative conversation IDs" do
+    test "rejects empty conversation IDs" do
       opts = %{
         instructions: "Valid instructions",
-        conversation: -1
+        conversation: ""
       }
 
-      assert {:error, "Conversation ID must be non-negative"} =
-               AI.Agent.validate_standard_opts(opts)
+      assert {:error, "Conversation ID cannot be empty"} = AI.Agent.validate_standard_opts(opts)
     end
 
-    test "accepts zero conversation ID" do
+    test "rejects whitespace-only conversation IDs" do
       opts = %{
         instructions: "Valid instructions",
-        conversation: 0
+        conversation: "   \n\t   "
       }
 
-      assert :ok = AI.Agent.validate_standard_opts(opts)
+      assert {:error, "Conversation ID cannot be empty"} = AI.Agent.validate_standard_opts(opts)
     end
 
     test "rejects missing instructions field" do
       opts = %{
-        conversation: 123
+        conversation: "uuid-789"
       }
 
       assert {:error, "Missing required field: instructions"} =
@@ -69,20 +68,20 @@ defmodule AI.AgentTest do
     test "rejects non-binary instructions" do
       opts = %{
         instructions: 12345,
-        conversation: 123
+        conversation: "uuid-abc"
       }
 
       assert {:error, "Instructions must be a binary string"} =
                AI.Agent.validate_standard_opts(opts)
     end
 
-    test "rejects non-integer conversation" do
+    test "rejects non-binary conversation" do
       opts = %{
         instructions: "Valid instructions",
-        conversation: "not_an_integer"
+        conversation: 12345
       }
 
-      assert {:error, "Conversation ID must be an integer"} =
+      assert {:error, "Conversation ID must be a binary string"} =
                AI.Agent.validate_standard_opts(opts)
     end
 
@@ -93,19 +92,9 @@ defmodule AI.AgentTest do
     end
 
     test "handles atom keys correctly" do
-      # This tests the internal recursion when we have atom keys
       opts = %{
         instructions: "Valid instructions",
-        conversation: 456
-      }
-
-      assert :ok = AI.Agent.validate_standard_opts(opts)
-    end
-
-    test "handles large conversation IDs" do
-      opts = %{
-        instructions: "Valid instructions",
-        conversation: 999_999_999
+        conversation: "uuid-def"
       }
 
       assert :ok = AI.Agent.validate_standard_opts(opts)
@@ -114,7 +103,7 @@ defmodule AI.AgentTest do
     test "handles unicode in instructions" do
       opts = %{
         instructions: "Implement 用户认证 with emoji 🔐",
-        conversation: 789
+        conversation: "uuid-ghi"
       }
 
       assert :ok = AI.Agent.validate_standard_opts(opts)
@@ -124,7 +113,7 @@ defmodule AI.AgentTest do
       # Should still validate the required fields even with extra ones
       opts = %{
         instructions: "Valid instructions",
-        conversation: 123,
+        conversation: "uuid-jkl",
         unknown_field: "extra_data",
         another_field: 456
       }
@@ -147,11 +136,8 @@ defmodule AI.AgentTest do
       assert {:validate_opts, 1} in optional_callbacks
     end
 
-    test "type specifications are consistent" do
-      # This is more of a documentation test to ensure types are defined
-      # In a real project you might use a tool like Gradualizer for this
-
-      # Just verify the module has the expected type definitions
+    test "type specifications use binary conversation IDs" do
+      # This is more of a documentation test to ensure types are defined correctly
       {:docs_v1, _, :elixir, _, _, _, docs} = Code.fetch_docs(AI.Agent)
 
       # Check that we have documented the expected types
@@ -170,12 +156,12 @@ defmodule AI.AgentTest do
   describe "error message clarity" do
     test "provides specific error messages for each validation failure" do
       test_cases = [
-        {%{conversation: 123}, "Missing required field: instructions"},
+        {%{conversation: "uuid-123"}, "Missing required field: instructions"},
         {%{instructions: "test"}, "Missing required field: conversation"},
-        {%{instructions: "", conversation: 123}, "Instructions cannot be empty"},
-        {%{instructions: "test", conversation: -1}, "Conversation ID must be non-negative"},
-        {%{instructions: 123, conversation: 456}, "Instructions must be a binary string"},
-        {%{instructions: "test", conversation: "abc"}, "Conversation ID must be an integer"},
+        {%{instructions: "", conversation: "uuid-456"}, "Instructions cannot be empty"},
+        {%{instructions: "test", conversation: ""}, "Conversation ID cannot be empty"},
+        {%{instructions: 123, conversation: "uuid-789"}, "Instructions must be a binary string"},
+        {%{instructions: "test", conversation: 123}, "Conversation ID must be a binary string"},
         {"not_a_map", "Options must be a map"}
       ]
 
@@ -184,17 +170,17 @@ defmodule AI.AgentTest do
       end
     end
 
-    test "error messages are user-friendly" do
+    test "error messages are user-friendly and actionable" do
       # Test that error messages are clear and actionable  
       # When conversation is invalid type, that's caught first
-      opts = %{instructions: "", conversation: "invalid"}
+      opts = %{instructions: "", conversation: 123}
 
       # Should get the conversation type error first
-      assert {:error, "Conversation ID must be an integer"} =
+      assert {:error, "Conversation ID must be a binary string"} =
                AI.Agent.validate_standard_opts(opts)
 
       # Test empty instructions with valid conversation
-      opts2 = %{instructions: "", conversation: 123}
+      opts2 = %{instructions: "", conversation: "uuid-abc"}
       assert {:error, "Instructions cannot be empty"} = AI.Agent.validate_standard_opts(opts2)
 
       # Error message should not contain technical jargon or internal details
@@ -211,7 +197,7 @@ defmodule AI.AgentTest do
 
       opts = %{
         instructions: large_instructions,
-        conversation: 123
+        conversation: "uuid-large"
       }
 
       assert :ok = AI.Agent.validate_standard_opts(opts)
@@ -230,7 +216,7 @@ defmodule AI.AgentTest do
 
       opts = %{
         instructions: multiline_instructions,
-        conversation: 456
+        conversation: "uuid-multiline"
       }
 
       assert :ok = AI.Agent.validate_standard_opts(opts)
@@ -238,30 +224,32 @@ defmodule AI.AgentTest do
 
     test "distinguishes between nil and empty string instructions" do
       # nil instructions should fail with missing field error
-      nil_opts = %{conversation: 123}
+      nil_opts = %{conversation: "uuid-nil"}
 
       assert {:error, "Missing required field: instructions"} =
                AI.Agent.validate_standard_opts(nil_opts)
 
       # empty string should fail with empty instructions error
-      empty_opts = %{instructions: "", conversation: 123}
+      empty_opts = %{instructions: "", conversation: "uuid-empty"}
 
       assert {:error, "Instructions cannot be empty"} =
                AI.Agent.validate_standard_opts(empty_opts)
     end
 
-    test "handles boundary values for conversation IDs" do
-      # Test boundary values
-      boundary_cases = [
-        # minimum valid value
-        0,
-        # just above minimum
-        1,
-        # large positive integer
-        2_147_483_647
+    test "handles various UUID formats" do
+      # Test different UUID-like formats
+      uuid_formats = [
+        # Standard UUID
+        "550e8400-e29b-41d4-a716-446655440000",
+        # Simple hex string
+        "abc123def456",
+        # Descriptive ID
+        "conversation_123",
+        # Timestamped ID
+        "session-2024-01-01-12345"
       ]
 
-      for conversation_id <- boundary_cases do
+      for conversation_id <- uuid_formats do
         opts = %{
           instructions: "Test instructions",
           conversation: conversation_id

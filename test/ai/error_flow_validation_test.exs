@@ -14,17 +14,17 @@ defmodule AI.ErrorFlowValidationTest do
       # Test each validation failure path
       error_cases = [
         # Missing fields
-        {%{conversation: 123}, "Missing required field: instructions"},
+        {%{conversation: "uuid-123"}, "Missing required field: instructions"},
         {%{instructions: "test"}, "Missing required field: conversation"},
 
         # Invalid types
-        {%{instructions: 123, conversation: 456}, "Instructions must be a binary string"},
-        {%{instructions: "test", conversation: "abc"}, "Conversation ID must be an integer"},
+        {%{instructions: 123, conversation: "uuid-456"}, "Instructions must be a binary string"},
+        {%{instructions: "test", conversation: 123}, "Conversation ID must be a binary string"},
 
         # Invalid values
-        {%{instructions: "", conversation: 123}, "Instructions cannot be empty"},
-        {%{instructions: "   \n\t  ", conversation: 123}, "Instructions cannot be empty"},
-        {%{instructions: "test", conversation: -1}, "Conversation ID must be non-negative"},
+        {%{instructions: "", conversation: "uuid-789"}, "Instructions cannot be empty"},
+        {%{instructions: "   \n\t  ", conversation: "uuid-abc"}, "Instructions cannot be empty"},
+        {%{instructions: "test", conversation: ""}, "Conversation ID cannot be empty"},
 
         # Non-map input
         {"not_a_map", "Options must be a map"},
@@ -40,11 +40,11 @@ defmodule AI.ErrorFlowValidationTest do
 
     test "AI.Agent.validate_standard_opts accepts valid inputs" do
       valid_cases = [
-        %{instructions: "Simple task", conversation: 0},
-        %{instructions: "Complex\nmultiline\ninstructions", conversation: 123},
-        %{instructions: "Unicode: 用户认证 🔐", conversation: 999_999_999},
-        %{instructions: "Very long " <> String.duplicate("x", 10000), conversation: 1},
-        %{instructions: "MILESTONE: test\nDESCRIPTION: formatted", conversation: 42}
+        %{instructions: "Simple task", conversation: "uuid-0"},
+        %{instructions: "Complex\nmultiline\ninstructions", conversation: "uuid-123"},
+        %{instructions: "Unicode: 用户认证 🔐", conversation: "uuid-999"},
+        %{instructions: "Very long " <> String.duplicate("x", 10000), conversation: "uuid-1"},
+        %{instructions: "MILESTONE: test\nDESCRIPTION: formatted", conversation: "uuid-42"}
       ]
 
       for valid_opts <- valid_cases do
@@ -60,13 +60,13 @@ defmodule AI.ErrorFlowValidationTest do
 
       validation_error_cases = [
         # missing instructions
-        %{conversation: 123},
+        %{conversation: "uuid-123"},
         # missing conversation
         %{instructions: "test"},
         # empty instructions
-        %{instructions: "", conversation: 123},
-        # invalid conversation
-        %{instructions: "test", conversation: -1}
+        %{instructions: "", conversation: "uuid-456"},
+        # empty conversation
+        %{instructions: "test", conversation: ""}
       ]
 
       for invalid_opts <- validation_error_cases do
@@ -85,7 +85,7 @@ defmodule AI.ErrorFlowValidationTest do
 
       valid_opts = %{
         instructions: "MILESTONE: validation_test\nTest validation flow",
-        conversation: 123
+        conversation: "uuid-validation"
       }
 
       # Validation should pass (the actual response will depend on Store state)
@@ -110,9 +110,9 @@ defmodule AI.ErrorFlowValidationTest do
         "conversation_id" => "not_a_number"
       }
 
-      assert_raise ArgumentError, fn ->
-        AI.Tools.CoderAgent.read_args(args)
-      end
+      # Should parse successfully since we no longer convert to integer
+      assert {:ok, parsed} = AI.Tools.CoderAgent.read_args(args)
+      assert parsed["conversation_id"] == "not_a_number"
     end
 
     test "CoderAgent.read_args succeeds with valid arguments" do
@@ -123,7 +123,7 @@ defmodule AI.ErrorFlowValidationTest do
 
       assert {:ok, parsed} = AI.Tools.CoderAgent.read_args(valid_args)
       assert parsed["instructions"] == "MILESTONE: test\nImplement feature"
-      assert parsed["conversation_id"] == 456
+      assert parsed["conversation_id"] == "456"
     end
   end
 
@@ -135,7 +135,7 @@ defmodule AI.ErrorFlowValidationTest do
       invalid_opts = %{
         # This will fail validation
         instructions: "",
-        conversation: 123
+        conversation: "uuid-statetest"
       }
 
       # Should fail immediately during validation, before any state creation
@@ -175,7 +175,7 @@ defmodule AI.ErrorFlowValidationTest do
       {:ok, _pid} = TaskServer.start_link()
 
       # Agent validation errors
-      {:error, agent_error} = AI.Agent.validate_standard_opts(%{conversation: 123})
+      {:error, agent_error} = AI.Agent.validate_standard_opts(%{conversation: "uuid-test"})
       assert String.starts_with?(agent_error, "Missing required field:")
 
       # Tool argument errors  

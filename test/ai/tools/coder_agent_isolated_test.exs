@@ -33,7 +33,7 @@ defmodule AI.Tools.CoderAgentIsolatedTest do
 
       assert {:ok, parsed} = result
       assert parsed["instructions"] == "MILESTONE: test\nDESCRIPTION: Test implementation"
-      assert parsed["conversation_id"] == 123
+      assert parsed["conversation_id"] == "123"
     end
 
     test "read_args handles missing arguments" do
@@ -114,10 +114,9 @@ defmodule AI.Tools.CoderAgentIsolatedTest do
         "conversation_id" => "not_a_number"
       }
 
-      # Should raise during argument parsing, before any agent calls
-      assert_raise ArgumentError, fn ->
-        AI.Tools.CoderAgent.read_args(args)
-      end
+      # Should parse successfully since we no longer convert to integer
+      assert {:ok, parsed} = AI.Tools.CoderAgent.read_args(args)
+      assert parsed["conversation_id"] == "not_a_number"
     end
 
     test "validates instruction format expectations" do
@@ -138,7 +137,7 @@ defmodule AI.Tools.CoderAgentIsolatedTest do
       assert {:ok, parsed} = AI.Tools.CoderAgent.read_args(args)
       assert String.contains?(parsed["instructions"], "MILESTONE: user_authentication")
       assert String.contains?(parsed["instructions"], "DESCRIPTION:")
-      assert parsed["conversation_id"] == 789
+      assert parsed["conversation_id"] == "789"
     end
   end
 

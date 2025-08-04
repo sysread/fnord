@@ -21,7 +21,7 @@ defmodule AI.Tools.CoderAgent do
       {:ok,
        %{
          "instructions" => instructions,
-         "conversation_id" => String.to_integer(conversation_id)
+         "conversation_id" => conversation_id
        }}
     end
   end
