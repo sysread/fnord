@@ -15,8 +15,11 @@
 - Favor unit tests over one-off scripts and `mix run` commands for debugging.
 - Favor `IO.inspect` for printf-debugging.
 - `make reset-scratch` will generate a test project in `./scratch` (git-ignored) that you can use to test code changes without affecting real projects.
-  - After calling `make reset-scratch`, `mix escript.build` and then `cd` into the directory and create/update the fnord project with `../fnord index --project fnord-scratch --directory .`.
-  - Then, you can use `fnord ask --project fnord-scratch --question "..." [--edit]` to live-test changes.
+  - After calling `make reset-scratch`, `mix escript.build` and then `cd` into the directory and create/update the fnord project with `../fnord index --project scratch-test --directory . --quiet`.
+  - Then, you can use `fnord ask --project scratch-test --question "..." [--edit]` to live-test changes.
+  - Note that some Owl tui components rely on communicating with the tty, so use `--quiet` to index to skip Owl-based animations.
+  - Set `LOGGER_LEVEL=debug` to see more detailed logs during the indexing process, including tool call outputs.
+  - You can find conversation transcripts in `$HOME/.fnord/projects/scratch-test/conversations/` after running `fnord ask`.
 
 # Unit tests
 - See `test/support/fnord_test_case.ex`.
