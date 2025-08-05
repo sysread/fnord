@@ -580,9 +580,10 @@ defmodule AI.Agent.Coordinator do
   @coding """
   <think>
   The research phase is complete. Now I need to implement the requested changes.
-  I should use the code_planner_tool to create a strategic development plan that
-  breaks down the user's request into logical milestones. This will help ensure
-  a systematic approach to the implementation.
+  I should use the code_planner_tool to create a strategic development plan that breaks down the user's request into logical milestones.
+  This will help ensure a systematic approach to the implementation.
+  One thing I can do to improve the outcome is to ensure that I give the code_planner_tool as much context as possible.
+  I should also include the relevant file paths and some detailed notes about the organization of the code they will be modifying.
   </think>
   """
 
