@@ -30,6 +30,7 @@ fnord
 
 # Temporary prototype files
 scratch*
+scratch.tar.gz
 tags
 
 # JetBrain's IDE local configuration files

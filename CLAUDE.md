@@ -14,6 +14,9 @@
 # Troubleshooting
 - Favor unit tests over one-off scripts and `mix run` commands for debugging.
 - Favor `IO.inspect` for printf-debugging.
+- `make reset-scratch` will generate a test project in `./scratch` (git-ignored) that you can use to test code changes without affecting real projects.
+  - After calling `make reset-scratch`, `mix escript.build` and then `cd` into the directory and create/update the fnord project with `../fnord index --project fnord-scratch --directory .`.
+  - Then, you can use `fnord ask --project fnord-scratch --question "..." [--edit]` to live-test changes.
 
 # Unit tests
 - See `test/support/fnord_test_case.ex`.
@@ -42,6 +45,7 @@
 - Run `ENV=dev mix dialyzer` to check for type errors.
 - Use printf-debugging instead of `mix run` to troubleshoot.
 - Shortcut: `make check` compiles the code, runs the tests, and checks for dialyzer errors.
+- Use the `comprehensive-code-reviewer` agent to review your code changes as soon as they are complete.
 
 # Learning
 You must learn the project as you work in it, and persist your knowledge to improve your effectiveness in future sessions.

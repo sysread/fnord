@@ -48,3 +48,17 @@ clean: clean-bak ## Clean up ALL build artifacts, including dependencies and bui
 	rm -rf _build
 	rm -rf deps
 	rm -rf .elixir_ls
+
+.PHONY: reset-scratch
+reset-scratch: ## Reset scratch directory from archive if present
+	@if [ -d "scratch" ]; then \
+		echo "Removing existing scratch directory..."; \
+		rm -rf ./scratch; \
+	fi
+	@if [ -f "scratch.tar.gz" ]; then \
+		echo "Extracting scratch.tar.gz..."; \
+		tar -xzf scratch.tar.gz; \
+		echo "Scratch directory restored."; \
+	else \
+		echo "No scratch.tar.gz found to extract."; \
+	fi
