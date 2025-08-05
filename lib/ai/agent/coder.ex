@@ -187,7 +187,8 @@ defmodule AI.Agent.Coder do
   </think>
   """
 
-  @spec get_response(%{instructions: binary(), conversation: pid()}) :: {:ok, binary()} | {:error, binary()}
+  @spec get_response(%{instructions: binary(), conversation: pid()}) ::
+          {:ok, binary()} | {:error, binary()}
   @impl AI.Agent
   def get_response(opts) do
     opts

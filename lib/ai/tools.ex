@@ -173,6 +173,7 @@ defmodule AI.Tools do
   # General Tool Registry - only required for tools that are generally available
   # ----------------------------------------------------------------------------
   @tools %{
+    "code_planner_tool" => AI.Tools.CodePlanner,
     "confirm_tool" => AI.Tools.Confirm,
     "file_contents_tool" => AI.Tools.File.Contents,
     "file_info_tool" => AI.Tools.File.Info,

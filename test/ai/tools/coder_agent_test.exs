@@ -1,4 +1,4 @@
-defmodule AI.Tools.CoderAgentIsolatedTest do
+defmodule AI.Tools.CoderAgentTest do
   use Fnord.TestCase, async: false
 
   # IMPORTANT: This test module uses meck and must run synchronously
@@ -93,7 +93,7 @@ defmodule AI.Tools.CoderAgentIsolatedTest do
 
         # Create a mock conversation PID for testing
         {:ok, conversation_pid} = ConversationServer.start_link()
-        
+
         args = %{
           "instructions" => "valid instructions",
           "conversation_id" => conversation_pid

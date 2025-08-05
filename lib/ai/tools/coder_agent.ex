@@ -90,7 +90,8 @@ defmodule AI.Tools.CoderAgent do
   end
 
   @impl AI.Tools
-  def call(%{"instructions" => instructions, "conversation_id" => conversation_pid}) when is_pid(conversation_pid) do
+  def call(%{"instructions" => instructions, "conversation_id" => conversation_pid})
+      when is_pid(conversation_pid) do
     agent_opts = %{
       instructions: instructions,
       conversation: conversation_pid

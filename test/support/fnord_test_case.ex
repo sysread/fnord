@@ -197,5 +197,4 @@ defmodule Fnord.TestCase do
     on_exit(fn -> Application.put_env(:fnord, key, orig) end)
     Application.put_env(:fnord, key, val)
   end
-
 end

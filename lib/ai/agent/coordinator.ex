@@ -580,21 +580,19 @@ defmodule AI.Agent.Coordinator do
   @coding """
   <think>
   The research phase is complete. Now I need to implement the requested changes.
-  I'll break down the user's request into logical milestones and delegate each
-  milestone to the specialized coder agent for implementation.
+  I should use the code_planner_tool to create a strategic development plan that
+  breaks down the user's request into logical milestones. This will help ensure
+  a systematic approach to the implementation.
   </think>
   """
 
-  @spec execute_coding_phase(t) :: t | error
+  @spec execute_coding_phase(t) :: t
   defp execute_coding_phase(%{edit?: true} = state) do
     @coding
     |> AI.Util.assistant_msg()
     |> ConversationServer.append_msg(state.conversation)
 
-    case AI.Agent.Coordinator.Epics.create_and_execute_epic(state) do
-      {:ok, result} -> %{state | last_response: result}
-      {:error, reason} -> {:error, reason}
-    end
+    state
   end
 
   defp execute_coding_phase(state), do: state
@@ -716,10 +714,10 @@ defmodule AI.Agent.Coordinator do
   # -----------------------------------------------------------------------------
   @spec get_tools(t) :: list(module)
   defp get_tools(%{edit?: true}) do
-    # Add coder agent tool for edit operations
+    # Add coder agent tool and code planner tool for edit operations
     AI.Tools.all_tools()
     |> Map.values()
-    |> Enum.concat([AI.Tools.Shell, AI.Tools.CoderAgent])
+    |> Enum.concat([AI.Tools.Shell, AI.Tools.CoderAgent, AI.Tools.CodePlanner])
   end
 
   defp get_tools(_) do
