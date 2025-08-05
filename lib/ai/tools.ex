@@ -285,9 +285,10 @@ defmodule AI.Tools do
           | nil
   def on_tool_request(tool, args, tools \\ nil) do
     with {:ok, module} <- tool_module(tool, tools),
-         :ok <- validate_required_args(tool, args, tools) do
+         :ok <- validate_required_args(tool, args, tools),
+         {:ok, processed_args} <- module.read_args(args) do
       try do
-        module.ui_note_on_request(args)
+        module.ui_note_on_request(processed_args)
       rescue
         e ->
           UI.error(
