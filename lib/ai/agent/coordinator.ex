@@ -583,7 +583,7 @@ defmodule AI.Agent.Coordinator do
   Wait, they enabled my coding tool_calls!
   That could mean they want me to make changes to the code base.
   What was the user's prompt again?
-  If they want me to make changes, I need to provide the `code_architect_tool` with comprehensive context, including my research findings and user requirements.
+  If they want me to make changes, I need to provide the `coder_tool` with comprehensive context, including my research findings and user requirements.
   That way has enough information to manage the entire development workflow: planning, implementation, and validation.
   Then I will need to double-check its work to ensure it meets the user's needs, remains in scope, and that the code is correct, polished, and tested.
   </think>
