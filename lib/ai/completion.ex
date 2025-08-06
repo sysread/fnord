@@ -18,7 +18,6 @@ defmodule AI.Completion do
   `LOGGER_LEVEL` must be set to `debug` to see the output of tool call results.
   """
   defstruct [
-    :opts,
     :model,
     :response_format,
     :toolbox,
@@ -34,7 +33,6 @@ defmodule AI.Completion do
   ]
 
   @type t :: %__MODULE__{
-          opts: Keyword.t(),
           model: String.t(),
           response_format: map | nil,
           toolbox: AI.Tools.toolbox() | nil,
@@ -89,7 +87,6 @@ defmodule AI.Completion do
       archive? = Keyword.get(opts, :archive_notes, false)
 
       state = %__MODULE__{
-        opts: Enum.into(opts, %{}),
         model: model,
         response_format: response_format,
         toolbox: toolbox,
@@ -113,8 +110,11 @@ defmodule AI.Completion do
           | {:error, :conversation_not_found}
   def new_from_conversation(conversation, opts) do
     if Store.Project.Conversation.exists?(conversation) do
-      {:ok, _ts, msgs} = Store.Project.Conversation.read(conversation)
-      new(Keyword.put(opts, :messages, msgs))
+      with {:ok, _ts, msgs} <- Store.Project.Conversation.read(conversation) do
+        opts
+        |> Keyword.put(:messages, msgs)
+        |> new()
+      end
     else
       {:error, :conversation_not_found}
     end
