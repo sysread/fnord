@@ -198,7 +198,7 @@ defmodule AI.Agent.Code.Planner do
               TaskServer.add_task(list_id, label, detail)
             end)
 
-            %{state | internal: %{state.internal | list_id: list_id}}
+            Common.put_state(state, :list_id, list_id)
         end
 
       state ->
