@@ -15,7 +15,7 @@ defmodule AI.Tools.File.Info do
   end
 
   @impl AI.Tools
-  def ui_note_on_result(%{"files" => files, "question" => question, "name" => name}, _result) do
+  def ui_note_on_result(%{"files" => files, "question" => question, "name" => name}, result) do
     {"#{name} finished considerable considerations",
      """
      # Files
@@ -23,6 +23,9 @@ defmodule AI.Tools.File.Info do
 
      # Question
      #{question}
+
+     # Result(s)
+     #{result}
      """}
   end
 
