@@ -71,6 +71,7 @@ defmodule AI.Tools.Research do
         parameters: %{
           type: "object",
           required: ["prompt"],
+          additionalProperties: false,
           properties: %{
             prompt: %{
               type: "string",

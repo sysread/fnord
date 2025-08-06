@@ -1,26 +1,15 @@
 defmodule AI.Agent.Code.Planner do
+  alias AI.Agent.Code.Common
+
+  @type t :: Common.t()
+
   @model AI.Model.reasoning(:high)
 
   @prompt """
   You are the Code Planner, an AI agent within a larger system.
   Your role is to plan the implementation of a code change requested by the Coordinating Agent.
 
-  You hold strong opinions about proper code structure and design:
-  - The Prime Directive: Proper Separation of Concerns
-  - "Opinionated" means "I failed to imagine how this would be used"
-  - Keep your special cases off of my API
-  - Do the dishes as we cook
-  - I may not like the style conventions, but the most important thing is consistency
-  - Comments are for humans (and LLMs, apparently), and should walk the reader through the code, explaining why the feature behaves as it does.
-    If the reader hides all of the code, the comments should still tell a complete story.
-  - There is a level of abstraction that is the "sweet spot" between DRY, KISS, YAGNI, and unnecessary dependency.
-  - Magic is for Tim the Enchanter, not for code.
-    That said, dev joy keeps the user happy.
-  - Unit tests NEVER reach out onto the network. Those are called Integration Tests.
-    Unit tests ONLY test the code they are written for, not the code that calls it, even if that is the only way to reach the function being tested.
-  - Features should be organized to be separate from each other.
-    Integration points call into features.
-    Features are NEVER sprinkled across the code base.
+  #{AI.Agent.Code.Common.coder_values_prompt()}
   """
 
   # ----------------------------------------------------------------------------
@@ -30,48 +19,14 @@ defmodule AI.Agent.Code.Planner do
 
   @impl AI.Agent
   def get_response(%{request: request}) do
-    request
-    |> new()
+    Common.new(@model, AI.Tools.all_tools(), @prompt, request)
     |> research()
     |> visualize()
     |> plan()
     |> case do
-      %{error: nil, list_id: list_id} -> {:ok, list_id}
+      %{error: nil, internal: %{list_id: list_id}} -> {:ok, list_id}
       %{error: error} -> {:error, error}
     end
-  end
-
-  # ----------------------------------------------------------------------------
-  # Internals
-  # ----------------------------------------------------------------------------
-  defstruct [
-    :request,
-    :error,
-    :list_id,
-    :response,
-    :messages
-  ]
-
-  @type t :: %__MODULE__{
-          request: binary,
-          error: any,
-          list_id: non_neg_integer | nil,
-          response: binary | nil,
-          messages: AI.Util.msg_list()
-        }
-
-  @spec new(binary) :: t
-  defp new(request) do
-    %__MODULE__{
-      request: request,
-      error: nil,
-      list_id: nil,
-      response: nil,
-      messages: [
-        AI.Util.system_msg(@prompt),
-        AI.Util.user_msg(request)
-      ]
-    }
   end
 
   # ----------------------------------------------------------------------------
@@ -122,7 +77,7 @@ defmodule AI.Agent.Code.Planner do
   @spec research(t) :: t
   defp research(%{error: nil} = state) do
     UI.debug("Researching change request", state.request)
-    get_completion(state, new_messages: [AI.Util.system_msg(@research_prompt)])
+    Common.get_completion(state, @research_prompt)
   end
 
   # ----------------------------------------------------------------------------
@@ -143,7 +98,7 @@ defmodule AI.Agent.Code.Planner do
   @spec visualize(t) :: t
   defp visualize(%{error: nil} = state) do
     UI.debug("Considering the flow of the affected components", state.request)
-    get_completion(state, new_messages: [AI.Util.system_msg(@visualize_prompt)])
+    Common.get_completion(state, @visualize_prompt)
   end
 
   defp visualize(state), do: state
@@ -204,11 +159,11 @@ defmodule AI.Agent.Code.Planner do
                   type: "string",
                   description: """
                   A detailed description of the step, including:
-                    - A single, concrete goal
-                    - Clear, unambiguous definition of scope
-                    - Clear acceptance criteria
-                    - Detailed description of the change, with relevant code snippets, examples, and file paths
-                    - An 'anchor' that describes the location in unambiguous terms.
+                  - A single, concrete goal
+                  - Clear, unambiguous definition of scope
+                  - Clear acceptance criteria
+                  - Detailed description of the change, with relevant code snippets, examples, and file paths
+                  - An 'anchor' that describes the location in unambiguous terms
                   """
                 }
               }
@@ -223,10 +178,8 @@ defmodule AI.Agent.Code.Planner do
   defp plan(%{error: nil} = state) do
     UI.debug("Identifying steps required to reach the desired state", state.request)
 
-    get_completion(state,
-      new_messages: [AI.Util.system_msg(@plan_prompt)],
-      response_format: @plan_response_format
-    )
+    state
+    |> Common.get_completion(@plan_prompt, @plan_response_format)
     |> case do
       %{error: nil, response: response} ->
         response
@@ -245,40 +198,13 @@ defmodule AI.Agent.Code.Planner do
               TaskServer.add_task(list_id, label, detail)
             end)
 
-            %{state | list_id: list_id}
+            %{state | internal: %{state.internal | list_id: list_id}}
         end
+
+      state ->
+        state
     end
   end
 
   defp plan(state), do: state
-
-  # ----------------------------------------------------------------------------
-  # Innards
-  # ----------------------------------------------------------------------------
-  @spec get_completion(t, keyword) :: t
-  defp get_completion(state, opts) do
-    toolbox = Keyword.get(opts, :toolbox, AI.Tools.all_tools())
-    messages = state.messages ++ Keyword.get(opts, :new_messages, [])
-    response_format = Keyword.get(opts, :response_format, nil)
-
-    AI.Completion.get(
-      model: @model,
-      toolbox: toolbox,
-      messages: messages,
-      response_format: response_format,
-      log_msgs: true,
-      log_tool_calls: true
-    )
-    |> case do
-      {:ok, %{response: response, messages: messages}} ->
-        msg = AI.Util.assistant_msg(response)
-        %{state | response: response, messages: messages ++ [msg]}
-
-      {:error, %{response: response}} ->
-        %{state | error: response}
-
-      {:error, reason} ->
-        %{state | error: reason}
-    end
-  end
 end

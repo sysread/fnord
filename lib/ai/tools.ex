@@ -195,6 +195,12 @@ defmodule AI.Tools do
     "troubleshooter_tool" => AI.Tools.Troubleshooter
   }
 
+  @rw_tools %{
+    "file_edit_tool" => AI.Tools.File.Edit,
+    "file_manage_tool" => AI.Tools.File.Manage,
+    "shell_tool" => AI.Tools.Shell
+  }
+
   # ----------------------------------------------------------------------------
   # API Functions
   # ----------------------------------------------------------------------------
@@ -209,6 +215,16 @@ defmodule AI.Tools do
     |> Map.merge(Frobs.module_map())
     |> Enum.filter(fn {_name, mod} -> mod.is_available?() end)
     |> Map.new()
+  end
+
+  @doc """
+  Returns a `toolbox` that includes all generally available tools plus
+  read/write file editing and management tools.
+  """
+  @spec all_tools(:rw) :: toolbox
+  def all_tools(:rw) do
+    all_tools()
+    |> Map.merge(@rw_tools)
   end
 
   @doc """
