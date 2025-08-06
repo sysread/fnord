@@ -255,7 +255,7 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp perform_step(%{steps: [:coding | steps]} = state) do
-    UI.debug("Executing coding phase")
+    UI.debug("Identifying coding tasks")
 
     state
     |> Map.put(:steps, steps)
@@ -579,11 +579,13 @@ defmodule AI.Agent.Coordinator do
 
   @coding """
   <think>
-  The research phase is complete. Now I need to implement the requested changes.
-  I should use the code_planner_tool to create a strategic development plan that breaks down the user's request into logical milestones.
-  This will help ensure a systematic approach to the implementation.
-  One thing I can do to improve the outcome is to ensure that I give the code_planner_tool as much context as possible.
-  I should also include the relevant file paths and some detailed notes about the organization of the code they will be modifying.
+  I think I have enough information to understand and respond to the user.
+  Wait, they enabled my coding tool_calls!
+  That could mean they want me to make changes to the code base.
+  What was the user's prompt again?
+  If they want me to make changes, I need to provide the `code_architect_tool` with comprehensive context, including my research findings and user requirements.
+  That way has enough information to manage the entire development workflow: planning, implementation, and validation.
+  Then I will need to double-check its work to ensure it meets the user's needs, remains in scope, and that the code is correct, polished, and tested.
   </think>
   """
 
@@ -715,10 +717,9 @@ defmodule AI.Agent.Coordinator do
   # -----------------------------------------------------------------------------
   @spec get_tools(t) :: list(module)
   defp get_tools(%{edit?: true}) do
-    # Add coder agent tool and code planner tool for edit operations
     AI.Tools.all_tools()
     |> Map.values()
-    |> Enum.concat([AI.Tools.Shell, AI.Tools.CoderAgent, AI.Tools.CodePlanner])
+    |> Enum.concat([AI.Tools.Shell, AI.Tools.File.Edit])
   end
 
   defp get_tools(_) do

@@ -1,18 +1,14 @@
 defmodule AI.Tools.File.Edit do
   @moduledoc """
-  Currently, this module is not used as a tool_call directly. Instead, it is
-  used by `AI.Tools.Coder`, the tool directly called by the AI agent. This tool
-  is instead used to perform the file edits themselves, after the AI-backed
-  tool does the work of identifying the lines to edit and the replacement text.
+  String-based code editing tool that uses exact and fuzzy string matching
+  instead of line numbers. Handles whitespace normalization while preserving
+  original formatting and indentation.
   """
+
+  @max_needle_length 5000
 
   @behaviour AI.Tools
 
-  @doc """
-  This tool relies on line numbers within the file to identify ranges. If those
-  numbers change between the time the range is identified and the time the
-  changes are applied, the tool will fail to apply the changes correctly.
-  """
   @impl AI.Tools
   def async?, do: false
 
@@ -22,32 +18,26 @@ defmodule AI.Tools.File.Edit do
   @impl AI.Tools
   def read_args(args) do
     with {:ok, path} <- AI.Tools.get_arg(args, "path"),
-         {:ok, start_line} <- AI.Tools.get_arg(args, "start_line"),
-         {:ok, end_line} <- AI.Tools.get_arg(args, "end_line"),
-         {:ok, replacement} <- AI.Tools.get_arg(args, "replacement", true) do
+         {:ok, old_string} <- AI.Tools.get_arg(args, "old_string"),
+         {:ok, new_string} <- AI.Tools.get_arg(args, "new_string") do
       {:ok,
        %{
          "path" => path,
-         "start_line" => start_line,
-         "end_line" => end_line,
-         "replacement" => replacement
+         "old_string" => old_string,
+         "new_string" => new_string
        }}
     end
   end
 
   @impl AI.Tools
-  def ui_note_on_request(%{
-        "path" => path,
-        "start_line" => start_line,
-        "end_line" => end_line,
-        "replacement" => replacement
-      }) do
-    {"Editing file #{path}[#{start_line}...#{end_line}]", replacement}
+  def ui_note_on_request(%{"path" => path, "old_string" => old, "new_string" => new}) do
+    diff_output = generate_diff(old, new, path)
+    {"Editing #{path}", diff_output}
   end
 
   @impl AI.Tools
-  def ui_note_on_result(_, result) do
-    {"Changes applied", result}
+  def ui_note_on_result(%{"path" => path}, result) do
+    {"Changes applied to #{path}", result}
   end
 
   @impl AI.Tools
@@ -57,49 +47,57 @@ defmodule AI.Tools.File.Edit do
       function: %{
         name: "file_edit_tool",
         description: """
-        Edit a file within the project source root by replacing a specified range of lines with new text.
-        Use the file_contents_tool with the line_numbers parameter to preview or identify the line range to edit.
+        Edit a file by finding and replacing exact strings using position-based splicing.
+        Uses fuzzy matching to handle whitespace differences while preserving original
+        formatting and indentation.
 
-        - Line numbers are 1-based and inclusive.
-        - start_line must be > 0 and <= end_line.
-        - end_line must be >= start_line and <= total number of lines in the file.
-        - You must produce the exact text to replace the specified lines with, along with any necessary newlines, INCLUDING one at the end of the final line of the replacement text.
-        - It is YOUR responsibility to verify the changes after applying them.
-        - Use the dry_run option to test your changes before applying them.
-        - Line numbers will have changed after the edit. You MUST retrieve the updated file with line numbers if you plan to make additional changes.
-        - Use the file_manage_tool to restore the file from backup if the changes are incorrect, then try again.
+        CRITICAL SUCCESS FACTORS:
+        - Include enough context in old_string to make it unique in the file
+        - Copy text exactly from the file, including indentation and spacing
+        - Use file_contents_tool first to see the exact text formatting
+        - The old_string should contain exactly what you want to replace
+        - Pay special attention to whitespace and indentation;
+          carefully consider how the replacement will affect whitespace
+
+        💡 TIP: To avoid duplication, include the entire section you want to replace in old_string, not just a small part like a header.
+        For example:
+        - BAD:  old_string: "## Features"
+        - GOOD: old_string: "## Features\\n\\n- Feature 1\\n- Feature 2"
+
+        EXAMPLES OF GOOD old_string VALUES:
+        ```
+        function calculateTotal(items) {
+          let sum = 0;
+          for (let item of items) {
+            sum += item.price;
+          }
+          return sum;
+        }
+        ```
+
+        EXAMPLES OF BAD old_string VALUES:
+        - `let sum = 0;` (too short, likely multiple matches)
+        - `calculateTotal` (just the function name, not enough context)
+        - `line1\\nline2\\nline3` (escaped newlines - use real line breaks instead!)
         """,
         parameters: %{
           type: "object",
-          required: ["path", "start_line", "end_line", "replacement"],
+          required: ["path", "old_string", "new_string"],
           properties: %{
             path: %{
               type: "string",
-              description:
-                "Path (relative to project root) of the file to operate on (or *source path* for move). Must be within the project source root."
+              description: "Path (relative to project root) of the file to edit"
             },
-            start_line: %{
-              type: "integer",
-              description: "The starting line number for the edit (1-based index, inclusive)."
+            old_string: %{
+              type: "string",
+              description: """
+              The exact text to find and replace. MUST include enough surrounding context (2-3 lines before/after) to make it unique in the file. Copy this text exactly from the file, preserving all whitespace and indentation. If you get a "multiple matches" error, include more context lines.
+              """
             },
-            end_line: %{
-              type: "integer",
-              description: "The ending line number for the edit (1-based index, inclusive)."
-            },
-            replacement: %{
+            new_string: %{
               type: "string",
               description:
-                "The exact text or code to replace the specified lines with. If you intend to fully replace lines, end with a newline."
-            },
-            dry_run: %{
-              type: "boolean",
-              description:
-                "If true, the tool will simulate the edit without making any changes. Defaults to false. Returns the updated block, with +/- <context_lines> lines of context around the edit."
-            },
-            context_lines: %{
-              type: "integer",
-              description:
-                "Number of lines of context to include around the edited block in the dry run output. Defaults to 3."
+                "The replacement text. Indentation will be preserved from the original."
             }
           }
         }
@@ -110,43 +108,156 @@ defmodule AI.Tools.File.Edit do
   @impl AI.Tools
   def call(args) do
     with {:ok, path} <- AI.Tools.get_arg(args, "path"),
-         {:ok, start_line} <- AI.Tools.get_arg(args, "start_line"),
-         {:ok, end_line} <- AI.Tools.get_arg(args, "end_line"),
-         {:ok, replacement} <- AI.Tools.get_arg(args, "replacement", true),
-         dry_run <- Map.get(args, "dry_run", false),
-         context_lines <- Map.get(args, "context_lines", 3),
+         {:ok, old_string} <- AI.Tools.get_arg(args, "old_string"),
+         {:ok, new_string} <- AI.Tools.get_arg(args, "new_string"),
          {:ok, project} <- Store.get_project(),
          abs_path <- Store.Project.expand_path(path, project),
          :ok <- validate_path(abs_path, project.source_root),
+         :ok <- validate_needle_length(old_string),
          {:ok, contents} <- File.read(abs_path),
-         :ok <- validate_range(contents, start_line, end_line) do
-      updated_contents = make_changes(contents, start_line, end_line, replacement)
-
-      if dry_run do
-        {:ok, dry_run_preview(contents, updated_contents, start_line, end_line, context_lines)}
-      else
-        with {:ok, backup} <- backup_file(abs_path),
-             {:ok, temp} <- Briefly.create(),
-             :ok <- File.cp(path, temp),
-             :ok <- File.write(temp, updated_contents),
-             :ok <- File.rename(temp, abs_path) do
-          {:ok,
-           """
-           #{path} was modified successfully.
-           #{path} is backed up as #{backup}.
-           Remember that after making changes, the line numbers within the file have likely changed.
-           Use the file_contents_tool with the line_numbers parameter to get the updated line numbers.
-           """}
-        end
-      end
+         {:ok, updated, match} <- find_and_replace_impl(contents, old_string, new_string) do
+      apply_changes(abs_path, path, updated, match)
     else
       {:error, :enoent} ->
         {:error,
-         "File #{args["path"]} not found. Do you need to create it first with the file_manage_tool?"}
+         """
+         File #{args["path"]} not found.
+         NO CHANGES WERE MADE.
+         """}
+
+      {:error, :not_found} ->
+        {:error,
+         """
+         Could not find the specified text in #{args["path"]}.
+         Make sure old_string matches exactly (including whitespace).
+         NO CHANGES WERE MADE.
+         """}
+
+      {:error, :multiple_matches} ->
+        {:error,
+         """
+         Found multiple matches for the specified text in #{args["path"]}.
+         Please include more context to make old_string unique.
+         NO CHANGES WERE MADE.
+         """}
+
+      {:error, :needle_length} ->
+        {:error,
+         """
+         The value you supplied for `old_string` is is too long.
+         The maximum length is #{@max_needle_length} characters.
+         NO CHANGES WERE MADE.
+         """}
 
       {:error, reason} ->
-        {:error, "Failed to edit file: #{inspect(reason)}"}
+        {:error,
+         """
+         File change failed for #{args["path"]}:
+         #{inspect(reason)}
+
+         NO CHANGES WERE MADE.
+         """}
     end
+  end
+
+  # ----------------------------------------------------------------------------
+  # Private Functions (some exposed for testing)
+  # ----------------------------------------------------------------------------
+
+  defp validate_needle_length(needle) do
+    if String.length(needle) > @max_needle_length do
+      {:error, :needle_length}
+    else
+      :ok
+    end
+  end
+
+  # Generate a colored diff using the system diff utility
+  defp generate_diff(old_string, new_string, path) do
+    with {:ok, temp_dir} <- Briefly.create(directory: true),
+         old_file <- Path.join(temp_dir, "old_#{Path.basename(path)}"),
+         new_file <- Path.join(temp_dir, "new_#{Path.basename(path)}"),
+         :ok <- File.write(old_file, old_string),
+         :ok <- File.write(new_file, new_string) do
+      # Use diff -u for unified diff format
+      case System.cmd("diff", ["-u", old_file, new_file], stderr_to_stdout: true) do
+        {_output, 0} ->
+          # No differences (shouldn't happen in practice)
+          "No changes detected"
+
+        {output, 1} ->
+          # Differences found (normal case - this is what we want)
+          clean_diff_output(output)
+
+        {output, 2} ->
+          # Error occurred (file not found, permission issues, etc.)
+          "Error generating diff: #{String.trim(output)}"
+
+        {output, exit_code} ->
+          # Unexpected exit code
+          "Unexpected diff exit code #{exit_code}: #{String.trim(output)}"
+      end
+    else
+      error ->
+        # Fallback to simple preview if diff fails
+        old_preview =
+          String.slice(old_string, 0, 100) <>
+            if String.length(old_string) > 100, do: "...", else: ""
+
+        new_preview =
+          String.slice(new_string, 0, 100) <>
+            if String.length(new_string) > 100, do: "...", else: ""
+
+        "#{old_preview} → #{new_preview} (diff unavailable: #{inspect(error)})"
+    end
+  end
+
+  # Clean up diff output and add colors
+  defp clean_diff_output(diff_output) do
+    diff_output
+    |> String.split("\n")
+    # Remove the file path lines (--- and +++ headers)
+    |> Enum.drop(2)
+    # Remove newline warnings
+    |> Enum.reject(&String.contains?(&1, "No newline at end of file"))
+    |> Enum.map(&colorize_diff_line/1)
+    |> Enum.join("\n")
+    |> String.trim()
+  end
+
+  # Add ANSI color codes to diff lines
+  defp colorize_diff_line(line) do
+    cond do
+      # Green for additions
+      String.starts_with?(line, "+") and not String.starts_with?(line, "+++") ->
+        IO.ANSI.format([:green_background, :black, line])
+
+      # Red for deletions
+      String.starts_with?(line, "-") and not String.starts_with?(line, "---") ->
+        IO.ANSI.format([:red_background, :black, line])
+
+      # Cyan for hunk headers
+      String.starts_with?(line, "@@") ->
+        IO.ANSI.format([:cyan, line])
+
+      # No color for context lines
+      true ->
+        line
+    end
+  end
+
+  # Expose some private functions for testing
+  if Mix.env() == :test do
+    def normalize_for_matching(text), do: normalize_for_matching_impl(text)
+
+    def find_and_replace(content, old_string, new_string),
+      do: find_and_replace_impl(content, old_string, new_string)
+
+    def find_fuzzy_matches(content, normalized_target),
+      do: find_fuzzy_matches_impl(content, normalized_target)
+
+    def find_original_boundaries(content, start_pos, normalized_target),
+      do: find_original_boundaries_impl(content, start_pos, normalized_target)
   end
 
   defp validate_path(path, root) do
@@ -157,33 +268,270 @@ defmodule AI.Tools.File.Edit do
     end
   end
 
-  defp validate_range(file, start_line, end_line) do
-    lines = num_lines(file)
+  # The core matching algorithm using position-based splicing
+  defp find_and_replace_impl(content, old_string, new_string) do
+    # Step 1: Try exact match first
+    case find_match_position(content, old_string) do
+      {:ok, start_pos, length} ->
+        # Direct splice replacement - no adjustment needed
+        before = String.slice(content, 0, start_pos)
+        after_match = String.slice(content, start_pos + length, String.length(content))
 
-    cond do
-      start_line < 1 ->
-        {:error, "Start line must be greater than or equal to 1."}
+        {:ok, before <> new_string <> after_match,
+         %{type: :exact, position: start_pos, length: length}}
 
-      start_line > lines ->
-        {:error, "Start line exceeds the number of lines in the file."}
+      {:error, :multiple_matches} ->
+        {:error, :multiple_matches}
 
-      end_line < start_line ->
-        {:error, "End line must be greater than or equal to start line."}
-
-      lines > 0 && end_line > lines ->
-        {:error, "End line exceeds the number of lines in the file."}
-
-      true ->
-        :ok
+      {:error, :not_found} ->
+        # Step 2: Try fuzzy matching with position-based approach
+        fuzzy_find_and_replace_impl(content, old_string, new_string)
     end
   end
 
-  defp num_lines(file) do
-    file
-    |> String.split("\n", trim: false)
-    |> length()
+  # Find exact match position, return start position and length
+  defp find_match_position(content, target) do
+    case :binary.matches(content, target) do
+      [] ->
+        {:error, :not_found}
+
+      [{start_pos, length}] ->
+        {:ok, start_pos, length}
+
+      [_first | _rest] ->
+        {:error, :multiple_matches}
+    end
   end
 
+  # Fuzzy matching with whitespace normalization
+  defp fuzzy_find_and_replace_impl(content, old_string, new_string) do
+    # Check for very long strings that might cause performance issues
+    if String.length(old_string) > 500 do
+      # IO.puts("WARNING: Very long old_string (#{String.length(old_string)} chars), this might be slow")
+    end
+
+    # Check for escaped newlines - this is a major performance killer
+    escaped_newlines = String.contains?(old_string, "\\n")
+    actual_newlines = String.contains?(old_string, "\n")
+
+    if escaped_newlines and not actual_newlines do
+      {:error,
+       "old_string contains escaped newlines (\\n) instead of actual newlines. This suggests the text was improperly formatted. Please copy the text directly from the file with real line breaks."}
+    else
+      normalized_target = normalize_for_matching_impl(old_string)
+
+      # Additional safety check for normalized target
+      if String.length(normalized_target) > 1000 do
+        {:error,
+         "Normalized search string too long (#{String.length(normalized_target)} chars). Please use a shorter, more specific string."}
+      else
+        # Find all potential matches by sliding window
+        try do
+          content
+          |> find_fuzzy_matches_impl(normalized_target)
+          |> case do
+            [] -> {:error, :not_found}
+            [match] -> apply_fuzzy_replacement(content, match, new_string)
+            [_ | _] -> {:error, :multiple_matches}
+          end
+        catch
+          {:timeout, msg} -> {:error, msg}
+        end
+      end
+    end
+  end
+
+  # Normalize text for matching (but preserve original structure)
+  defp normalize_for_matching_impl(text) do
+    text
+    # Collapse whitespace
+    |> String.replace(~r/\s+/, " ")
+    # Trim edges
+    |> String.replace(~r/^\s+|\s+$/, "")
+    # Case insensitive
+    |> String.downcase()
+  end
+
+  # Find potential matches using sliding window
+  defp find_fuzzy_matches_impl(content, normalized_target) do
+    target_length = String.length(normalized_target)
+    content_length = String.length(content)
+
+    if target_length == 0 or content_length == 0 do
+      []
+    else
+      # Much more aggressive limits for performance
+      max_positions =
+        cond do
+          # Very long targets get very limited search
+          target_length > 200 -> 50
+          # Long targets get limited search
+          target_length > 100 -> 200
+          # Normal case, reduced from 5000
+          true -> Enum.min([content_length - target_length, 1000])
+        end
+
+      # IO.puts("Fuzzy search: target_length=#{target_length}, max_positions=#{max_positions}")
+
+      start_time = System.monotonic_time(:millisecond)
+
+      result =
+        0..max_positions
+        |> Stream.map(fn start_pos ->
+          # Timeout check every 100 iterations
+          if rem(start_pos, 100) == 0 do
+            elapsed = System.monotonic_time(:millisecond) - start_time
+            # 3 second timeout
+            if elapsed > 3000 do
+              throw({:timeout, "Fuzzy search took too long (#{elapsed}ms), stopping"})
+            end
+          end
+
+          find_original_boundaries_impl(content, start_pos, normalized_target)
+        end)
+        |> Stream.reject(&is_nil/1)
+        # Stop after finding 3 matches max (reduced from 5)
+        |> Enum.take(3)
+
+      result
+    end
+  end
+
+  # The key insight: find the original text boundaries that normalize to our target
+  defp find_original_boundaries_impl(content, start_pos, normalized_target) do
+    # Expand window until we capture enough text that normalizes to our target
+    min_length = String.length(normalized_target)
+    remaining_content = String.length(content) - start_pos
+    # Much more aggressive limits to prevent exponential blowup
+    # Reduced from 1000!
+    max_length = Enum.min([min_length + 50, remaining_content, 200])
+
+    if max_length < min_length or min_length == 0 do
+      nil
+    else
+      # Instead of checking every length, use binary search approach
+      # Check lengths at: min, min+10, min+20, ..., max
+      # Max 10 steps
+      step_size = max(1, div(max_length - min_length, 10))
+
+      min_length..max_length
+      |> Stream.take_every(step_size)
+      |> Enum.find_value(fn length ->
+        candidate = String.slice(content, start_pos, length)
+        normalized_candidate = normalize_for_matching_impl(candidate)
+
+        if normalized_candidate == normalized_target do
+          %{start: start_pos, length: length, original: candidate}
+        end
+      end)
+    end
+  end
+
+  # Apply replacement using position-based splicing
+  defp apply_fuzzy_replacement(content, match, new_string) do
+    %{start: start_pos, length: length} = match
+
+    before = String.slice(content, 0, start_pos)
+    after_match = String.slice(content, start_pos + length, String.length(content))
+
+    # Preserve indentation from original
+    indentation = extract_leading_whitespace(match.original)
+    formatted_replacement = apply_indentation(new_string, indentation)
+
+    updated = before <> formatted_replacement <> after_match
+    {:ok, updated, %{type: :fuzzy, position: start_pos, length: length}}
+  end
+
+  # Extract leading whitespace to preserve indentation
+  defp extract_leading_whitespace(text) do
+    case Regex.run(~r/^(\s*)/, text) do
+      [_, whitespace] -> whitespace
+      _ -> ""
+    end
+  end
+
+  # Apply consistent indentation to replacement text
+  defp apply_indentation(text, indentation) do
+    text
+    |> String.split("\n")
+    |> Enum.map(fn
+      # Empty lines stay empty
+      "" -> ""
+      line -> indentation <> String.trim_leading(line)
+    end)
+    |> Enum.join("\n")
+  end
+
+  # Apply the changes with backup
+  defp apply_changes(abs_path, rel_path, updated_contents, match_info) do
+    with {:ok, backup} <- backup_file(abs_path),
+         {:ok, temp} <- Briefly.create(),
+         :ok <- File.write(temp, updated_contents),
+         :ok <- File.rename(temp, abs_path) do
+      # Generate context preview showing the changes in context
+      context_preview = generate_context_preview(updated_contents, match_info, rel_path)
+
+      {:ok,
+       """
+       #{rel_path} was modified successfully using #{match_info[:type]} matching.
+       #{rel_path} is backed up as #{backup}.
+
+       #{context_preview}
+       """}
+    end
+  end
+
+  # Generate a preview showing the modified section with surrounding context
+  defp generate_context_preview(content, match_info, file_path) do
+    lines = String.split(content, "\n")
+    total_lines = length(lines)
+
+    # Calculate which lines the change affects
+    %{position: start_pos} = match_info
+    text_before_change = String.slice(content, 0, start_pos)
+
+    # Find the line number where the change starts (1-based)
+    change_start_line = text_before_change |> String.split("\n") |> length()
+
+    # Show context: 10 lines before and after the change area
+    context_start = max(1, change_start_line - 10)
+    context_end = min(total_lines, change_start_line + 20)
+
+    context_lines =
+      lines
+      |> Enum.slice(context_start - 1, context_end - context_start + 1)
+      # Line numbers start from context_start
+      |> Enum.with_index(context_start)
+      |> Enum.map(fn {line, line_num} ->
+        # Show which line was the target of the change
+        if line_num == change_start_line do
+          "#{String.pad_leading(to_string(line_num), 4)}→ #{line}  ← CHANGE STARTED HERE"
+        else
+          "#{String.pad_leading(to_string(line_num), 4)}  #{line}"
+        end
+      end)
+      |> Enum.join("\n")
+
+    """
+    ⚠️  CRITICAL: REVIEW YOUR CHANGES CAREFULLY ⚠️
+
+    The file #{file_path} has been modified. Here's how your changes appear in context:
+
+    #{context_lines}
+
+    ⚠️  IF THE CHANGES LOOK WRONG (e.g., duplicated content):
+    1. Use file_contents_tool to examine the current state
+    2. Use coder_tool again with a more specific old_string that includes MORE context
+    3. Make sure your old_string contains exactly what you want to replace
+
+    💡 TIP: To avoid duplication, include the entire section you want to replace in old_string, not just a small part like a header.
+    For example:
+    - BAD:  old_string: "## Features"
+    - GOOD: old_string: "## Features\\n\\n- Feature 1\\n- Feature 2"
+    """
+  end
+
+  # Create backup file (borrowed from original File.Edit tool)
   defp backup_file(file) do
     with {:ok, backup} <- Once.get(file) do
       {:ok, backup}
@@ -211,98 +559,5 @@ defmodule AI.Tools.File.Edit do
         {:error, reason} -> {:error, reason}
       end
     end
-  end
-
-  defp dry_run_preview(original, updated, start_line, end_line, context_lines) do
-    orig_lines = String.split(original, "\n", trim: false)
-    updated_lines = String.split(updated, "\n", trim: false)
-
-    # 1-based to 0-based indices
-    start_idx = start_line - 1
-    end_idx = end_line - 1
-
-    before_context = max(start_idx - context_lines, 0)
-
-    after_context =
-      min(end_idx + context_lines, max(length(orig_lines), length(updated_lines)) - 1)
-
-    # Extract relevant lines from both original and updated
-    orig_snippet = Enum.slice(orig_lines, before_context..after_context)
-    updated_snippet = Enum.slice(updated_lines, before_context..after_context)
-
-    # Build simple diff output with +/- prefixes
-    diff =
-      Enum.zip(orig_snippet, updated_snippet)
-      |> Enum.map(fn
-        {o, u} when o == u ->
-          "  #{o}"
-
-        {o, u} ->
-          """
-          - #{o}
-          + #{u}
-          """
-      end)
-      |> Enum.join("\n")
-
-    # Number the snippets for clarity
-    orig_snippet =
-      orig_snippet
-      |> Enum.join("\n")
-      |> Util.numbered_lines("|", start_line - context_lines)
-
-    updated_snippet =
-      updated_snippet
-      |> Enum.join("\n")
-      |> Util.numbered_lines("|", start_line - context_lines)
-
-    """
-    --- UNIFIED DIFF ---
-    #{diff}
-
-    --- ORIGINAL (with context) ---
-    #{orig_snippet}
-
-    --- UPDATED (with context) ---
-    #{updated_snippet}
-    """
-  end
-
-  defp make_changes(input, start_line, end_line, replacement) do
-    {start_idx, end_idx} = line_range_indices(input, start_line, end_line)
-    prefix = binary_part(input, 0, start_idx)
-    suffix = binary_part(input, end_idx, byte_size(input) - end_idx)
-    prefix <> replacement <> suffix
-  end
-
-  defp line_range_indices(subject, start_line, end_line) do
-    starts = line_start_offsets(subject)
-    total_lines = length(starts)
-    s = max(min(start_line, total_lines), 1) - 1
-    e = max(min(end_line, total_lines), 1) - 1
-
-    start_idx = Enum.at(starts, s)
-
-    end_idx =
-      if e + 1 < total_lines do
-        Enum.at(starts, e + 1)
-      else
-        byte_size(subject)
-      end
-
-    {start_idx, end_idx}
-  end
-
-  defp line_start_offsets(bin) do
-    # All line start offsets, including at EOF if file ends with newline
-    offsets = [0]
-
-    offsets =
-      bin
-      |> :binary.matches("\n")
-      |> Enum.reduce(offsets, fn {idx, 1}, acc -> [idx + 1 | acc] end)
-      |> Enum.reverse()
-
-    offsets
   end
 end

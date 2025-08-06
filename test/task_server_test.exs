@@ -140,13 +140,10 @@ defmodule TaskServerTest do
       assert :ok = TaskServer.add_task(list_id, "bottom", %{order: 1})
       assert :ok = TaskServer.push_task(list_id, "top", %{order: 2})
 
-      # Get list shows in reverse order, so top task appears first
-      tasks = TaskServer.get_list(list_id)
-
       assert [
-               %{id: "bottom", outcome: :todo},
-               %{id: "top", outcome: :todo}
-             ] = tasks
+               %{id: "top", outcome: :todo},
+               %{id: "bottom", outcome: :todo}
+             ] = TaskServer.get_list(list_id)
     end
 
     test "peek_task returns current task without removing it" do
@@ -171,58 +168,19 @@ defmodule TaskServerTest do
       assert {:error, :not_found} = TaskServer.peek_task(999)
     end
 
-    test "drop_task removes current task" do
+    test "peek_task shows only :todos" do
       list_id = TaskServer.start_list()
-      assert :ok = TaskServer.push_task(list_id, "first", %{data: 1})
-      assert :ok = TaskServer.push_task(list_id, "second", %{data: 2})
+      assert :ok = TaskServer.push_task(list_id, "task1", %{data: 1})
+      assert :ok = TaskServer.push_task(list_id, "task2", %{data: 2})
+      assert :ok = TaskServer.complete_task(list_id, "task2", "done")
 
-      # Drop should remove the top task
-      assert :ok = TaskServer.drop_task(list_id)
-      assert {:ok, %{id: "first"}} = TaskServer.peek_task(list_id)
+      assert [
+               %{id: "task2", outcome: :done, result: "done"},
+               %{id: "task1", outcome: :todo, data: %{data: 1}, result: nil}
+             ] = TaskServer.get_list(list_id)
 
-      # Drop again should remove the remaining task
-      assert :ok = TaskServer.drop_task(list_id)
-      assert {:error, :empty} = TaskServer.peek_task(list_id)
-    end
-
-    test "drop_task on empty list does nothing" do
-      list_id = TaskServer.start_list()
-      assert :ok = TaskServer.drop_task(list_id)
-      assert {:error, :empty} = TaskServer.peek_task(list_id)
-    end
-
-    test "drop_task on nonexistent list does nothing" do
-      assert :ok = TaskServer.drop_task(999)
-    end
-
-    test "mark_current_done updates top task" do
-      list_id = TaskServer.start_list()
-      assert :ok = TaskServer.push_task(list_id, "task", %{data: 1})
-      assert :ok = TaskServer.mark_current_done(list_id, "completed successfully")
-
-      assert {:ok, %{id: "task", outcome: :done, result: "completed successfully"}} =
-               TaskServer.peek_task(list_id)
-    end
-
-    test "mark_current_failed updates top task" do
-      list_id = TaskServer.start_list()
-      assert :ok = TaskServer.push_task(list_id, "task", %{data: 1})
-      assert :ok = TaskServer.mark_current_failed(list_id, "failed with error")
-
-      assert {:ok, %{id: "task", outcome: :failed, result: "failed with error"}} =
-               TaskServer.peek_task(list_id)
-    end
-
-    test "mark operations on empty list do nothing" do
-      list_id = TaskServer.start_list()
-      assert :ok = TaskServer.mark_current_done(list_id, "result")
-      assert :ok = TaskServer.mark_current_failed(list_id, "error")
-      assert {:error, :empty} = TaskServer.peek_task(list_id)
-    end
-
-    test "mark operations on nonexistent list do nothing" do
-      assert :ok = TaskServer.mark_current_done(999, "result")
-      assert :ok = TaskServer.mark_current_failed(999, "error")
+      # Peek should return the first todo task
+      assert {:ok, %{id: "task1", outcome: :todo}} = TaskServer.peek_task(list_id)
     end
   end
 end
