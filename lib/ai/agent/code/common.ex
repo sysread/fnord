@@ -73,7 +73,7 @@ defmodule AI.Agent.Code.Common do
         ) :: t
 
   def put_state(state, key, value) when is_atom(key) do
-    %{state | internal: %{state.internal | key => value}}
+    %{state | internal: Map.put(state.internal, key, value)}
   end
 
   def put_state(state, keys, value) when is_list(keys) do
