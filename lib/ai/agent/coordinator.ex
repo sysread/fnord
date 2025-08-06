@@ -718,9 +718,7 @@ defmodule AI.Agent.Coordinator do
   @spec get_tools(t) :: AI.Tools.toolbox()
   defp get_tools(%{edit?: true}) do
     AI.Tools.all_tools(:rw)
-    |> Map.merge(%{
-      "coder_tool" => AI.Tools.Coder.spec()
-    })
+    |> Map.merge(%{"coder_tool" => AI.Tools.Coder})
   end
 
   defp get_tools(_), do: AI.Tools.all_tools()

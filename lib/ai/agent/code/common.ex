@@ -1,7 +1,7 @@
 defmodule AI.Agent.Code.Common do
   defstruct [
     :model,
-    :tools,
+    :toolbox,
     :request,
     :response,
     :error,
@@ -16,7 +16,7 @@ defmodule AI.Agent.Code.Common do
   """
   @type t :: %__MODULE__{
           model: AI.Model.t(),
-          tools: AI.Tools.toolbox(),
+          toolbox: AI.Tools.toolbox(),
           request: binary,
           response: binary | nil,
           error: any,
@@ -30,14 +30,14 @@ defmodule AI.Agent.Code.Common do
   """
   @spec new(
           model :: AI.Model.t(),
-          tools :: AI.Tools.toolbox(),
+          toolbox :: AI.Tools.toolbox(),
           system_prompt :: binary,
           user_prompt :: binary
         ) :: t
-  def new(model, tools, system_prompt, user_prompt) do
+  def new(model, toolbox, system_prompt, user_prompt) do
     %__MODULE__{
       model: model,
-      tools: tools,
+      toolbox: toolbox,
       request: user_prompt,
       internal: %{},
       response: nil,
