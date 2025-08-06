@@ -13,14 +13,14 @@ defmodule Fnord do
   def main(args) do
     configure_logger()
 
-    {:ok, _} = Application.ensure_all_started(:briefly)
-    Once.start_link([])
-    NotesServer.start_link([])
-    TaskServer.start_link()
-    AI.Agent.Researcher.start_link()
+    Services.start_all()
 
+    # Parse command line arguments
     with {:ok, [command | subcommands], opts, unknown} <- parse_options(args) do
+      # Certain options are common to most, if not all, subcommands, and control
+      # global state (e.g. project, verbosity, number of workers).
       opts = set_globals(opts)
+
       cmd_module = to_module_name(command)
 
       # Now that global settings are set, we can configure the :hackney_pool to

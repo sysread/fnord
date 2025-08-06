@@ -3,11 +3,6 @@ defmodule OnceTest do
 
   import ExUnit.CaptureLog
 
-  setup do
-    start_supervised(Once)
-    :ok
-  end
-
   test "set returns true for a new key" do
     assert Once.set("new_key") == true
   end

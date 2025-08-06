@@ -10,7 +10,7 @@ defmodule Once do
   @doc """
   Starts the agent that keeps track of seen keys.
   """
-  def start_link(_opts) do
+  def start_link() do
     Agent.start_link(fn -> Map.new() end, name: __MODULE__)
   end
 

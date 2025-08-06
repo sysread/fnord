@@ -1,15 +1,6 @@
 defmodule TaskServerTest do
   use Fnord.TestCase, async: false
 
-  setup do
-    {:ok, pid} = TaskServer.start_link()
-    %{pid: pid}
-  end
-
-  test "start_link/0", %{pid: pid} do
-    assert Process.alive?(pid)
-  end
-
   test "start_list/0" do
     assert 1 = TaskServer.start_list()
     assert 2 = TaskServer.start_list()

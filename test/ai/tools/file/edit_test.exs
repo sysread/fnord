@@ -2,9 +2,6 @@ defmodule AI.Tools.File.EditTest do
   use Fnord.TestCase
 
   setup do
-    # AI.Tools.File.Edit uses Once for backup management
-    start_supervised(Once)
-
     project = mock_project("new-coder-test")
     File.mkdir_p!(project.source_root)
 

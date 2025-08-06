@@ -85,6 +85,14 @@ defmodule Fnord.TestCase do
         on_exit(fn -> Logger.configure(level: orig) end)
         :ok
       end
+
+      # -----------------------------------------------------------------------------
+      # Start all genservers that Fnord uses.
+      # -----------------------------------------------------------------------------
+      setup do
+        Services.start_all()
+        :ok
+      end
     end
   end
 
