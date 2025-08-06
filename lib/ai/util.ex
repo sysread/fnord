@@ -36,6 +36,8 @@ defmodule AI.Util do
           | tool_request_msg
           | tool_response_msg
 
+  @type msg_list :: [msg]
+
   # Computes the cosine similarity between two vectors
   @spec cosine_similarity([float], [float]) :: float
   def cosine_similarity(vec1, vec2) do

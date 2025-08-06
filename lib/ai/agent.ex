@@ -11,5 +11,5 @@ defmodule AI.Agent do
   Process instructions and return a response using the agent's specialized
   capabilities.
   """
-  @callback get_response(map) :: {:ok, binary} | {:error, binary | atom}
+  @callback get_response(map) :: {:ok, any} | {:error, any}
 end
