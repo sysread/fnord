@@ -118,11 +118,6 @@ defmodule AI.Tools do
           | frob_error
 
   @doc """
-  Returns the OpenAPI spec for the tool as an elixir map.
-  """
-  @callback spec() :: tool_spec
-
-  @doc """
   Returns true if the tool is asynchronous, false otherwise. If `false`, when
   the LLM performs a multi-tool call, this tool will be called synchronously,
   after all other (asynchronous) tools have been called.
@@ -137,12 +132,6 @@ defmodule AI.Tools do
   external tool like ripgrep, etc.).
   """
   @callback is_available?() :: boolean
-
-  @doc """
-  Calls the tool with the provided arguments and returns the response as an :ok
-  tuple.
-  """
-  @callback call(args :: map) :: raw_tool_result
 
   @doc """
   Reads the arguments and returns a map of the arguments if they are valid.
@@ -168,6 +157,17 @@ defmodule AI.Tools do
               {binary, binary}
               | binary
               | nil
+
+  @doc """
+  Returns the OpenAPI spec for the tool as an elixir map.
+  """
+  @callback spec() :: tool_spec
+
+  @doc """
+  Calls the tool with the provided arguments and returns the response as an :ok
+  tuple.
+  """
+  @callback call(args :: map) :: raw_tool_result
 
   # ----------------------------------------------------------------------------
   # General Tool Registry - only required for tools that are generally available
