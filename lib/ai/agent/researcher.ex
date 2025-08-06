@@ -79,7 +79,8 @@ defmodule AI.Agent.Researcher do
   end
 
   # ----------------------------------------------------------------------------
-  # Agent
+  # Agent: controls recursion, where the researcher can call itself as a tool
+  # call to investigate multiple lines of inquiry.
   # ----------------------------------------------------------------------------
   @max_researchers 10
 
