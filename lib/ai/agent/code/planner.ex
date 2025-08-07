@@ -182,11 +182,27 @@ defmodule AI.Agent.Code.Planner do
   }
 
   @spec plan(t) :: t
-  defp plan(%{error: nil, name: name} = state) do
+  defp plan(state, invalid_format? \\ false)
+
+  defp plan(%{error: nil, name: name} = state, invalid_format?) do
     UI.info("#{name} is identifying steps required to reach the desired state", state.request)
 
+    prompt =
+      if invalid_format? do
+        """
+        #{@plan_prompt}
+        -----
+        Your previous response was not in the correct format.
+        Pay special attention to required fields and data types.
+        Please adhere to the specified JSON schema.
+        Try your response again, ensuring it matches the required format.
+        """
+      else
+        @plan_prompt
+      end
+
     state
-    |> Common.get_completion(@plan_prompt, @plan_response_format)
+    |> Common.get_completion(prompt, @plan_response_format)
     |> case do
       %{error: nil, response: response} ->
         response
@@ -213,5 +229,5 @@ defmodule AI.Agent.Code.Planner do
     end
   end
 
-  defp plan(state), do: state
+  defp plan(state, _), do: state
 end

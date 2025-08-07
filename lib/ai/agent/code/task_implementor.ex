@@ -155,30 +155,34 @@ defmodule AI.Agent.Code.TaskImplementor do
          {:ok, task} <- TaskServer.peek_task(task_list_id) do
       UI.info("#{name} is working", task.id)
 
-      task_prompt =
+      prompt = """
+      # Ticket
+      #{task.id}
+
+      # Details
+      #{task.data}
+
+      # Instructions
+      The project requirements are provided to give you context, but restrict
+      your changes to what is explicitly requested in *this* ticket.
+      """
+
+      prompt =
         if invalid_format? do
           """
+          #{prompt}
+          -----
           Your previous response was not in the correct format.
           Pay special attention to required fields and data types.
           Please adhere to the specified JSON schema.
           Try your response again, ensuring it matches the required format.
           """
         else
-          """
-          # Ticket
-          #{task.id}
-
-          # Details
-          #{task.data}
-
-          # Instructions
-          The project requirements are provided to give you context, but restrict
-          your changes to what is explicitly requested in *this* ticket.
-          """
+          prompt
         end
 
       state
-      |> Common.get_completion(task_prompt, @response_format)
+      |> Common.get_completion(prompt, @response_format)
       |> case do
         %{error: nil, response: response} = state ->
           response

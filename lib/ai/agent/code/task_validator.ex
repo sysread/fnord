@@ -131,16 +131,20 @@ defmodule AI.Agent.Code.TaskValidator do
     with {:ok, task_list_id} <- Common.get_state(state, :task_list_id) do
       UI.info("#{name} is validating changes")
 
+      prompt = "Please perform manual validation (QA) of the changes made to the code base."
+
       prompt =
         if invalid_format? do
           """
+          #{prompt}
+          -----
           Your previous response was not in the correct format.
           Pay special attention to required fields and data types.
           Please adhere to the specified JSON schema.
           Try your response again, ensuring it matches the required format.
           """
         else
-          "Please perform manual validation (QA) of the changes made to the code base."
+          prompt
         end
 
       state
