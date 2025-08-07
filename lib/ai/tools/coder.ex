@@ -11,10 +11,20 @@ defmodule AI.Tools.Coder do
   def read_args(args), do: {:ok, args}
 
   @impl AI.Tools
-  def ui_note_on_request(_args), do: nil
+  def ui_note_on_request(%{"requirements" => requirements}) do
+    {"Preparing to implement code changes", requirements}
+  end
 
   @impl AI.Tools
-  def ui_note_on_result(_args, _result), do: nil
+  def ui_note_on_result(%{"requirements" => requirements}, result) do
+    {"Code changes complete", """
+      # Requirements
+      #{requirements}
+
+      # Result
+      #{result}
+      """}
+  end
 
   @impl AI.Tools
   def spec do

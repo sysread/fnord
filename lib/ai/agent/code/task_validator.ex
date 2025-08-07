@@ -121,9 +121,9 @@ defmodule AI.Agent.Code.TaskValidator do
   # ----------------------------------------------------------------------------
   # Core Logic
   # ----------------------------------------------------------------------------
-  defp verify(%{error: nil} = state) do
+  defp verify(%{error: nil, name: name} = state) do
     with {:ok, task_list_id} <- Common.get_state(state, :task_list_id) do
-      UI.debug("Validating changes")
+      UI.info("#{name} is validating changes")
 
       prompt = "Please perform manual validation (QA) of the changes made to the code base."
 
@@ -136,14 +136,17 @@ defmodule AI.Agent.Code.TaskValidator do
           |> case do
             {:ok, %{followUpTasks: []}} ->
               # Report the outcome of QA
-              UI.debug("Validation complete", "No issues identified")
+              UI.info("#{name} has completed validation", "No issues identified")
 
               # All good, we're done!
               %{state | error: nil}
 
             {:ok, %{followUpTasks: new_tasks}} ->
               # Report the outcome of QA
-              UI.debug("Validation identified new issues", Common.format_new_tasks(new_tasks))
+              UI.info(
+                "#{name} identified issues during validation",
+                Common.format_new_tasks(new_tasks)
+              )
 
               # Push the new tasks onto the stack
               Common.add_follow_up_tasks(task_list_id, new_tasks)

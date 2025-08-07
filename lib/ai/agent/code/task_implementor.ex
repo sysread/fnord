@@ -144,10 +144,10 @@ defmodule AI.Agent.Code.TaskImplementor do
   # ----------------------------------------------------------------------------
   # Core Logic
   # ----------------------------------------------------------------------------
-  defp implement(%{error: nil} = state) do
+  defp implement(%{error: nil, name: name} = state) do
     with {:ok, task_list_id} <- Common.get_state(state, :task_list_id),
          {:ok, task} <- TaskServer.peek_task(task_list_id) do
-      UI.debug("Implementing task", task.id)
+      UI.info("#{name} is working", task.id)
 
       task_prompt = """
       # Ticket
