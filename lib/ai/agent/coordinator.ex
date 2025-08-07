@@ -578,21 +578,15 @@ defmodule AI.Agent.Coordinator do
   end
 
   @coding """
-  <think>
-  I think I have enough information to understand and respond to the user.
-  Wait, they enabled my coding tool_calls!
-  That could mean they want me to make changes to the code base.
-  What was the user's prompt again?
-  If they want me to make changes, I need to provide the `coder_tool` with comprehensive context, including my research findings and user requirements.
-  That way has enough information to manage the entire development workflow: planning, implementation, and validation.
-  Then I will need to double-check its work to ensure it meets the user's needs, remains in scope, and that the code is correct, polished, and tested.
-  </think>
+  Reminder: the user has enabled your coding capabilities.
+  Did the user ask you to make changes to the code base on their behalf?
+  Double check their question to ensure you have performed all of the tasks they requested of you.
   """
 
   @spec execute_coding_phase(t) :: t
   defp execute_coding_phase(%{edit?: true} = state) do
     @coding
-    |> AI.Util.assistant_msg()
+    |> AI.Util.system_msg()
     |> ConversationServer.append_msg(state.conversation)
 
     state
@@ -717,8 +711,7 @@ defmodule AI.Agent.Coordinator do
   # -----------------------------------------------------------------------------
   @spec get_tools(t) :: AI.Tools.toolbox()
   defp get_tools(%{edit?: true}) do
-    AI.Tools.all_tools(:rw)
-    |> Map.merge(%{"coder_tool" => AI.Tools.Coder})
+    AI.Tools.all_tools() |> AI.Tools.with_coding_tools()
   end
 
   defp get_tools(_), do: AI.Tools.all_tools()

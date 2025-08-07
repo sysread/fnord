@@ -19,7 +19,11 @@ defmodule AI.Agent.Code.Planner do
 
   @impl AI.Agent
   def get_response(%{request: request}) do
-    Common.new(@model, AI.Tools.all_tools(), @prompt, request)
+    tools =
+      AI.Tools.all_tools()
+      |> AI.Tools.with_rw_tools()
+
+    Common.new(@model, tools, @prompt, request)
     |> research()
     |> visualize()
     |> plan()
@@ -38,7 +42,10 @@ defmodule AI.Agent.Code.Planner do
   Familiarize yourself with the conventions and patterns used in this area of the project.
 
   # Response Template
-  Use the following template for your response (without the markdown fences):
+  Use the following template for your response (without the markdown fences).
+  For each section, ensure that you **ONLY report CONCRETE findings from your research, not abstract concepts.**
+  Abstract warnings will only confuse the Implementing Agent and pollute their context window with unhelpful noise.
+
   ```
   # ANALYSIS
 

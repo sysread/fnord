@@ -120,7 +120,11 @@ defmodule AI.Agent.Code.TaskImplementor do
     The Coordinating Agent has asked you to implement the above tasks.
     """
 
-    Common.new(@model, AI.Tools.all_tools(:rw), @prompt, request)
+    tools =
+      AI.Tools.all_tools()
+      |> AI.Tools.with_rw_tools()
+
+    Common.new(@model, tools, @prompt, request)
     |> Common.put_state(:task_list_id, task_list_id)
     |> Common.put_state(:requirements, requirements)
     |> implement()

@@ -201,6 +201,11 @@ defmodule AI.Tools do
     "shell_tool" => AI.Tools.Shell
   }
 
+  @coding_tools %{
+    "coder_tool" => AI.Tools.Coder,
+    "shell_tool" => AI.Tools.Shell
+  }
+
   # ----------------------------------------------------------------------------
   # API Functions
   # ----------------------------------------------------------------------------
@@ -218,13 +223,22 @@ defmodule AI.Tools do
   end
 
   @doc """
-  Returns a `toolbox` that includes all generally available tools plus
-  read/write file editing and management tools.
+  Adds the read/write tools to the toolbox. This includes tools that can
+  **directly** perform file edits, shell commands, and other read/write
+  operations.
   """
-  @spec all_tools(:rw) :: toolbox
-  def all_tools(:rw) do
-    all_tools()
+  def with_rw_tools(toolbox) do
+    toolbox
     |> Map.merge(@rw_tools)
+  end
+
+  @doc """
+  Adds the coding tools to the toolbox. Coding tools mutate the codebase, but
+  do so in an organized, planned way, rather than directly managing files.
+  """
+  def with_coding_tools(toolbox) do
+    toolbox
+    |> Map.merge(@coding_tools)
   end
 
   @doc """
