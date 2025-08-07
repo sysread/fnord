@@ -18,8 +18,10 @@ defmodule AI.Tools.File.Edit do
   @impl AI.Tools
   def read_args(args) do
     with {:ok, path} <- AI.Tools.get_arg(args, "path"),
-         {:ok, old_string} <- AI.Tools.get_arg(args, "old_string"),
-         {:ok, new_string} <- AI.Tools.get_arg(args, "new_string") do
+         {:ok, old_string} <- AI.Tools.get_arg(args, "old_string") do
+      # Handle new_string specially to allow empty strings (for deletion)
+      new_string = Map.get(args, "new_string", "")
+
       {:ok,
        %{
          "path" => path,
@@ -47,9 +49,11 @@ defmodule AI.Tools.File.Edit do
       function: %{
         name: "file_edit_tool",
         description: """
-        Edit a file by finding and replacing exact strings using position-based splicing.
+        Edit existing files by finding and replacing exact strings using position-based splicing.
         Uses fuzzy matching to handle whitespace differences while preserving original
         formatting and indentation.
+
+        NOTE: This tool can only edit existing files. To create new files, use file_manage_tool first.
 
         CRITICAL SUCCESS FACTORS:
         - Include enough context in old_string to make it unique in the file
@@ -82,22 +86,30 @@ defmodule AI.Tools.File.Edit do
         """,
         parameters: %{
           type: "object",
-          required: ["path", "old_string", "new_string"],
+          required: ["path", "old_string"],
           properties: %{
             path: %{
               type: "string",
-              description: "Path (relative to project root) of the file to edit"
+              description: """
+              Path (relative to project root) of the file to edit.
+              """
             },
             old_string: %{
               type: "string",
               description: """
-              The exact text to find and replace. MUST include enough surrounding context (2-3 lines before/after) to make it unique in the file. Copy this text exactly from the file, preserving all whitespace and indentation. If you get a "multiple matches" error, include more context lines.
+              The exact text to find and replace.
+              MUST be unique in the file - if multiple matches are found, you must add more context.
+              MUST include enough surrounding context (2-3 lines before/after) to make it unique in the file.
+              Copy this text exactly from the file, preserving all whitespace and indentation.
+              Cannot be empty - this tool only edits existing files.
               """
             },
             new_string: %{
               type: "string",
-              description:
-                "The replacement text. Indentation will be preserved from the original."
+              description: """
+              The replacement text. Optional - if not provided or empty, the old_string will be deleted.
+              Indentation will be preserved from the original.
+              """
             }
           }
         }
@@ -109,54 +121,60 @@ defmodule AI.Tools.File.Edit do
   def call(args) do
     with {:ok, path} <- AI.Tools.get_arg(args, "path"),
          {:ok, old_string} <- AI.Tools.get_arg(args, "old_string"),
-         {:ok, new_string} <- AI.Tools.get_arg(args, "new_string"),
-         {:ok, project} <- Store.get_project(),
-         abs_path <- Store.Project.expand_path(path, project),
-         :ok <- validate_path(abs_path, project.source_root),
-         :ok <- validate_needle_length(old_string),
-         {:ok, contents} <- File.read(abs_path),
-         {:ok, updated, match} <- find_and_replace_impl(contents, old_string, new_string) do
-      apply_changes(abs_path, path, updated, match)
-    else
-      {:error, :enoent} ->
-        {:error,
-         """
-         File #{args["path"]} not found.
-         NO CHANGES WERE MADE.
-         """}
+         {:ok, project} <- Store.get_project() do
+      # Handle new_string specially to allow empty strings (for deletion)
+      new_string = Map.get(args, "new_string", "")
 
-      {:error, :not_found} ->
-        {:error,
-         """
-         Could not find the specified text in #{args["path"]}.
-         Make sure old_string matches exactly (including whitespace).
-         NO CHANGES WERE MADE.
-         """}
+      abs_path = Store.Project.expand_path(path, project)
 
-      {:error, :multiple_matches} ->
-        {:error,
-         """
-         Found multiple matches for the specified text in #{args["path"]}.
-         Please include more context to make old_string unique.
-         NO CHANGES WERE MADE.
-         """}
+      with :ok <- validate_path_for_edit(abs_path, project.source_root),
+           :ok <- validate_needle_length(old_string),
+           {:ok, contents} <- File.read(abs_path),
+           {:ok, updated, match} <-
+             find_and_replace_with_validation_impl(contents, old_string, new_string) do
+        apply_changes(abs_path, path, updated, match)
+      else
+        {:error, :enoent} ->
+          {:error,
+           """
+           File #{args["path"]} does not exist.
+           This tool can only edit existing files. Use file_manage_tool to create new files first.
+           NO CHANGES WERE MADE.
+           """}
 
-      {:error, :needle_length} ->
-        {:error,
-         """
-         The value you supplied for `old_string` is is too long.
-         The maximum length is #{@max_needle_length} characters.
-         NO CHANGES WERE MADE.
-         """}
+        {:error, :not_found} ->
+          {:error,
+           """
+           Could not find the specified text in #{args["path"]}.
+           Make sure old_string matches exactly (including whitespace).
+           NO CHANGES WERE MADE.
+           """}
 
-      {:error, reason} ->
-        {:error,
-         """
-         File change failed for #{args["path"]}:
-         #{inspect(reason)}
+        {:error, :multiple_matches} ->
+          {:error,
+           """
+           Found multiple matches for the specified text in #{args["path"]}.
+           Please include more context to make old_string unique.
+           NO CHANGES WERE MADE.
+           """}
 
-         NO CHANGES WERE MADE.
-         """}
+        {:error, :needle_length} ->
+          {:error,
+           """
+           The value you supplied for `old_string` is is too long.
+           The maximum length is #{@max_needle_length} characters.
+           NO CHANGES WERE MADE.
+           """}
+
+        {:error, reason} ->
+          {:error,
+           """
+           File change failed for #{args["path"]}:
+           #{inspect(reason)}
+
+           NO CHANGES WERE MADE.
+           """}
+      end
     end
   end
 
@@ -260,11 +278,28 @@ defmodule AI.Tools.File.Edit do
       do: find_original_boundaries_impl(content, start_pos, normalized_target)
   end
 
-  defp validate_path(path, root) do
+  defp validate_path_for_edit(path, root) do
     cond do
       !Util.path_within_root?(path, root) -> {:error, "not within project root"}
-      !File.exists?(path) -> {:error, :enoent}
       true -> :ok
+    end
+  end
+
+  # Find and replace with uniqueness validation
+  defp find_and_replace_with_validation_impl(content, old_string, new_string) do
+    # First check if old_string appears multiple times (uniqueness validation)
+    case :binary.matches(content, old_string) do
+      [] ->
+        # Not found, try fuzzy matching
+        fuzzy_find_and_replace_impl(content, old_string, new_string)
+
+      [_single_match] ->
+        # Exactly one match, proceed with normal replacement
+        find_and_replace_impl(content, old_string, new_string)
+
+      [_first | _rest] ->
+        # Multiple matches, this violates uniqueness
+        {:error, :multiple_matches}
     end
   end
 
@@ -471,10 +506,17 @@ defmodule AI.Tools.File.Edit do
       # Generate context preview showing the changes in context
       context_preview = generate_context_preview(updated_contents, match_info, rel_path)
 
+      backup_message =
+        if backup do
+          "#{rel_path} is backed up as #{backup}."
+        else
+          "#{rel_path} was created (no backup needed)."
+        end
+
       {:ok,
        """
        #{rel_path} was modified successfully using #{match_info[:type]} matching.
-       #{rel_path} is backed up as #{backup}.
+       #{backup_message}
 
        #{context_preview}
        """}
@@ -515,7 +557,8 @@ defmodule AI.Tools.File.Edit do
     """
     ⚠️  CRITICAL: REVIEW YOUR CHANGES CAREFULLY ⚠️
 
-    The file #{file_path} has been modified. Here's how your changes appear in context:
+    The file #{file_path} has been modified.
+    Here's how your changes appear in context:
 
     #{context_lines}
 
@@ -533,18 +576,23 @@ defmodule AI.Tools.File.Edit do
 
   # Create backup file (borrowed from original File.Edit tool)
   defp backup_file(file) do
-    with {:ok, backup} <- Once.get(file) do
-      {:ok, backup}
-    else
-      {:error, :not_seen} ->
-        case backup_file(file, 0) do
-          {:ok, backup} ->
-            Once.set(file, backup)
-            {:ok, backup}
+    # If the file doesn't exist, no backup is needed
+    if File.exists?(file) do
+      with {:ok, backup} <- Once.get(file) do
+        {:ok, backup}
+      else
+        {:error, :not_seen} ->
+          case backup_file(file, 0) do
+            {:ok, backup} ->
+              Once.set(file, backup)
+              {:ok, backup}
 
-          {:error, reason} ->
-            {:error, reason}
-        end
+            {:error, reason} ->
+              {:error, reason}
+          end
+      end
+    else
+      {:ok, nil}
     end
   end
 
