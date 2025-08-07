@@ -53,16 +53,41 @@ defmodule AI.Tools.Coder do
   @impl AI.Tools
   def call(args) do
     with {:ok, requirements} <- AI.Tools.get_arg(args, "requirements"),
-         {:ok, task_list_id} <- AI.Agent.Code.Planner.get_response(%{request: requirements}),
-         {:ok, _} <- AI.Agent.Code.TaskImplementor.get_response(%{task_list_id: task_list_id}) do
+         {:ok, task_list_id} <- plan(requirements),
+         {:ok, change_summary} <- implement(requirements, task_list_id),
+         {:ok, :validated} <- validate(requirements, task_list_id, change_summary) do
       {:ok,
        """
-       # Requirements
-       #{requirements}
-
        # Result
        #{TaskServer.as_string(task_list_id, true)}
+      
+       # Change Summary
+       #{change_summary}
+
+       # Outcome
+       All changes have been successfully implemented and validated.
        """}
     end
+  end
+
+  defp plan(requirements) do
+    AI.Agent.Code.Planner.get_response(%{
+      request: requirements
+    })
+  end
+
+  defp implement(requirements, task_list_id) do
+    AI.Agent.Code.TaskImplementor.get_response(%{
+      task_list_id: task_list_id,
+      requirements: requirements
+    })
+  end
+
+  defp validate(requirements, task_list_id, change_summary) do
+    AI.Agent.Code.TaskValidator.get_response(%{
+      task_list_id: task_list_id,
+      requirements: requirements,
+      change_summary: change_summary
+    })
   end
 end

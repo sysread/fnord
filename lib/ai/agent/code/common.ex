@@ -191,4 +191,57 @@ defmodule AI.Agent.Code.Common do
       Features are NEVER sprinkled across the code base.
     """
   end
+
+  # ----------------------------------------------------------------------------
+  # Helpers
+  # ----------------------------------------------------------------------------
+  def report_task_stack(state) do
+    with {:ok, task_list_id} <- get_state(state, :task_list_id) do
+      UI.debug("Pending Work", TaskServer.as_string(task_list_id))
+    end
+  end
+
+  def format_new_tasks(new_tasks) do
+    new_tasks
+    |> Enum.map(&"- #{&1.label}")
+    |> Enum.join()
+    |> case do
+      "" -> "No follow-up tasks were identified."
+      tasks -> tasks
+    end
+  end
+
+  def report_task_outcome(task, "", outcome, follow_up_tasks) do
+    UI.debug(
+      "Task completed",
+      """
+      # Task
+      #{task.id}
+
+      # Outcome
+      #{outcome}
+
+      # Follow-up Tasks
+      #{follow_up_tasks |> format_new_tasks()}
+      """
+    )
+  end
+
+  def report_task_outcome(task, error, outcome, follow_up_tasks) do
+    UI.error(
+      "Task implementation failed",
+      """
+      # Task
+      #{task.id}
+
+      # What Went Wrong
+      **Error:** #{error}
+
+      #{outcome}
+
+      # Follow-up Tasks
+      #{follow_up_tasks |> format_new_tasks()}
+      """
+    )
+  end
 end
