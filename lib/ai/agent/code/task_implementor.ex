@@ -144,22 +144,34 @@ defmodule AI.Agent.Code.TaskImplementor do
   # ----------------------------------------------------------------------------
   # Core Logic
   # ----------------------------------------------------------------------------
-  defp implement(%{error: nil, name: name} = state) do
+  defp implement(state, invalid_format? \\ false)
+
+  defp implement(%{error: nil, name: name} = state, invalid_format?) do
     with {:ok, task_list_id} <- Common.get_state(state, :task_list_id),
          {:ok, task} <- TaskServer.peek_task(task_list_id) do
       UI.info("#{name} is working", task.id)
 
-      task_prompt = """
-      # Ticket
-      #{task.id}
+      task_prompt =
+        if invalid_format? do
+          """
+          Your previous response was not in the correct format.
+          Pay special attention to required fields and data types.
+          Please adhere to the specified JSON schema.
+          Try your response again, ensuring it matches the required format.
+          """
+        else
+          """
+          # Ticket
+          #{task.id}
 
-      # Details
-      #{task.data}
+          # Details
+          #{task.data}
 
-      # Instructions
-      The project requirements are provided to give you context, but restrict
-      your changes to what is explicitly requested in *this* ticket.
-      """
+          # Instructions
+          The project requirements are provided to give you context, but restrict
+          your changes to what is explicitly requested in *this* ticket.
+          """
+        end
 
       state
       |> Common.get_completion(task_prompt, @response_format)
@@ -194,6 +206,9 @@ defmodule AI.Agent.Code.TaskImplementor do
 
             {:error, reason} ->
               %{state | error: reason}
+
+            _ ->
+              implement(state, true)
           end
 
         state ->
@@ -202,7 +217,7 @@ defmodule AI.Agent.Code.TaskImplementor do
     end
   end
 
-  defp implement(state), do: state
+  defp implement(state, _), do: state
 
   # ----------------------------------------------------------------------------
   # Summary
