@@ -132,21 +132,21 @@ defmodule AI.Agent.Code.TaskValidator do
       |> case do
         %{error: nil, response: response} = state ->
           response
-          |> Jason.decode()
+          |> Jason.decode(keys: :atoms)
           |> case do
-            {:ok, %{"followUpTasks" => []}} ->
+            {:ok, %{followUpTasks: []}} ->
               # Report the outcome of QA
               UI.debug("Validation complete", "No issues identified")
 
               # All good, we're done!
               %{state | error: nil}
 
-            {:ok, %{"followUpTasks" => new_tasks}} ->
+            {:ok, %{followUpTasks: new_tasks}} ->
               # Report the outcome of QA
               UI.debug("Validation identified new issues", Common.format_new_tasks(new_tasks))
 
               # Push the new tasks onto the stack
-              Enum.each(new_tasks, &TaskServer.push_task(task_list_id, &1.label, &1.detail))
+              Common.add_follow_up_tasks(task_list_id, new_tasks)
               Common.report_task_stack(state)
 
               # Pass control back to the Coordinating Agent

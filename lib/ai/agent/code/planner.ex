@@ -183,18 +183,18 @@ defmodule AI.Agent.Code.Planner do
     |> case do
       %{error: nil, response: response} ->
         response
-        |> Jason.decode()
+        |> Jason.decode(keys: :atoms)
         |> case do
           {:error, reason} ->
             %{state | error: reason}
 
-          {:ok, %{"error" => error}} ->
+          {:ok, %{error: error}} ->
             %{state | error: error}
 
-          {:ok, %{"steps" => steps}} ->
+          {:ok, %{steps: steps}} ->
             list_id = TaskServer.start_list()
 
-            Enum.each(steps, fn %{"label" => label, "detail" => detail} ->
+            Enum.each(steps, fn %{label: label, detail: detail} ->
               TaskServer.add_task(list_id, label, detail)
             end)
 

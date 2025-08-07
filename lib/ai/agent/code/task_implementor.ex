@@ -166,9 +166,9 @@ defmodule AI.Agent.Code.TaskImplementor do
       |> case do
         %{error: nil, response: response} = state ->
           response
-          |> Jason.decode()
+          |> Jason.decode(keys: :atoms)
           |> case do
-            {:ok, %{"error" => "", "outcome" => outcome, "followUpTasks" => new_tasks}} ->
+            {:ok, %{error: "", outcome: outcome, followUpTasks: new_tasks}} ->
               # Report the outcome to the user
               Common.report_task_outcome(task, "", outcome, new_tasks)
 
@@ -176,13 +176,13 @@ defmodule AI.Agent.Code.TaskImplementor do
               TaskServer.complete_task(task_list_id, task.id, outcome)
 
               # If there are follow-up tasks, toss them on the stack
-              Enum.each(new_tasks, &TaskServer.push_task(task_list_id, &1.label, &1.detail))
+              Common.add_follow_up_tasks(task_list_id, new_tasks)
               Common.report_task_stack(state)
 
               # Then, recurse to handle the next task.
               implement(state)
 
-            {:ok, %{"error" => error, "outcome" => outcome, "followUpTasks" => new_tasks}} ->
+            {:ok, %{error: error, outcome: outcome, followUpTasks: new_tasks}} ->
               # Report the error to the user
               Common.report_task_outcome(task, error, outcome, new_tasks)
 

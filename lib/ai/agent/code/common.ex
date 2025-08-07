@@ -9,6 +9,9 @@ defmodule AI.Agent.Code.Common do
     :internal
   ]
 
+  @type task :: TaskServer.task()
+  @type new_task :: %{label: binary, detail: binary}
+
   @typedoc """
   Common state for AI agents that work with code. Includes an `internal` `map`
   that can be used to store additional state that is specific to the
@@ -71,7 +74,6 @@ defmodule AI.Agent.Code.Common do
           key :: atom | list,
           value :: any
         ) :: t
-
   def put_state(state, key, value) when is_atom(key) do
     %{state | internal: Map.put(state.internal, key, value)}
   end
@@ -101,7 +103,6 @@ defmodule AI.Agent.Code.Common do
           state :: t,
           key :: atom | list
         ) :: {:ok, any} | {:error, any}
-
   def get_state(state, key) when is_atom(key) do
     with {:ok, value} <- Map.fetch(state.internal, key) do
       {:ok, value}
@@ -131,7 +132,6 @@ defmodule AI.Agent.Code.Common do
           response_format :: map | nil,
           keep_prompt? :: boolean
         ) :: t
-
   def get_completion(state, prompt, response_format \\ nil, keep_prompt? \\ false) do
     AI.Completion.get(
       model: state.model,
@@ -195,12 +195,25 @@ defmodule AI.Agent.Code.Common do
   # ----------------------------------------------------------------------------
   # Helpers
   # ----------------------------------------------------------------------------
+  @spec add_follow_up_tasks(TaskServer.list_id(), list(new_task)) :: :ok
+  def add_follow_up_tasks(list_id, new_tasks) do
+    Enum.each(new_tasks, &add_follow_up_task(list_id, &1))
+    :ok
+  end
+
+  @spec add_follow_up_task(TaskServer.list_id(), new_task) :: any
+  def add_follow_up_task(list_id, %{label: label, detail: detail}) do
+    TaskServer.push_task(list_id, label, detail)
+  end
+
+  @spec report_task_stack(state :: t) :: any
   def report_task_stack(state) do
     with {:ok, task_list_id} <- get_state(state, :task_list_id) do
       UI.debug("Pending Work", TaskServer.as_string(task_list_id))
     end
   end
 
+  @spec format_new_tasks(list(new_task)) :: binary
   def format_new_tasks(new_tasks) do
     new_tasks
     |> Enum.map(&"- #{&1.label}")
@@ -211,6 +224,12 @@ defmodule AI.Agent.Code.Common do
     end
   end
 
+  @spec report_task_outcome(
+          task :: task,
+          error :: binary,
+          outcome :: binary,
+          follow_up_tasks :: list(new_task)
+        ) :: :ok
   def report_task_outcome(task, "", outcome, follow_up_tasks) do
     UI.debug(
       "Task completed",
