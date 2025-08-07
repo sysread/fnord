@@ -112,9 +112,14 @@ defmodule NotesServer do
   end
 
   def handle_cast(:consolidate, state) do
-    result = AI.Notes.consolidate(state)
-    UI.debug("[notes-server]", "consolidated existing research notes")
-    {:noreply, result}
+    if AI.Notes.has_new_facts?(state) do
+      result = AI.Notes.consolidate(state)
+      UI.debug("[notes-server]", "consolidated existing research notes")
+      {:noreply, result}
+    else
+      UI.debug("[notes-server]", "no new notes; skipping consolidation")
+      {:noreply, state}
+    end
   end
 
   def handle_cast(:save, state) do

@@ -303,6 +303,18 @@ defmodule AI.Notes do
     end
   end
 
+  @doc """
+  Returns `true` if the given notes struct's text contains the section header
+  "# new notes (unconsolidated)" (case-insensitive), indicating uncategorized
+  notes pending consolidation.
+  """
+  @spec has_new_facts?(t) :: boolean
+  def has_new_facts?(%__MODULE__{notes: notes}) do
+    notes
+    |> String.downcase()
+    |> String.contains?("# new notes (unconsolidated)")
+  end
+
   # ----------------------------------------------------------------------------
   # Utility Functions
   # ----------------------------------------------------------------------------
