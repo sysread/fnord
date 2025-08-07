@@ -222,6 +222,8 @@ defmodule AI.Agent.Code.TaskImplementor do
         state ->
           state
       end
+    else
+      {:error, :not_found} -> state
     end
   end
 

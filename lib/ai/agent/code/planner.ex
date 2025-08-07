@@ -222,6 +222,9 @@ defmodule AI.Agent.Code.Planner do
             end)
 
             Common.put_state(state, :list_id, list_id)
+
+          _ ->
+            plan(state, true)
         end
 
       state ->

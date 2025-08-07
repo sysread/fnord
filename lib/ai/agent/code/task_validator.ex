@@ -185,6 +185,8 @@ defmodule AI.Agent.Code.TaskValidator do
         state ->
           state
       end
+    else
+      {:error, :not_found} -> state
     end
   end
 
