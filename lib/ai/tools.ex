@@ -412,18 +412,16 @@ defmodule AI.Tools do
   @type something_not_found :: project_not_found | entry_not_found
 
   @doc """
-  Retrieves an argument from the parsed arguments map. If `allow_empty?` is
-  `true` (default: `false`), an empty string or `nil` value is considered valid
-  and will return `{:ok, value}`. If `allow_empty?` is `false`, an empty string
-  or `nil` will return an error indicating a missing argument.
+  Retrieves an argument from the parsed arguments map. Empty strings or `nil`
+  values will return an error indicating a missing argument.
   """
-  @spec get_arg(parsed_args, atom | binary, bool) :: {:ok, any} | {:error, binary}
-  def get_arg(opts, key, allow_empty? \\ false) do
+  @spec get_arg(parsed_args, atom | binary) :: {:ok, any} | missing_arg_error
+  def get_arg(opts, key) do
     opts
     |> Map.fetch(key)
     |> case do
-      {:ok, ""} when not allow_empty? -> {:error, :missing_argument, key}
-      {:ok, nil} when not allow_empty? -> {:error, :missing_argument, key}
+      {:ok, ""} -> {:error, :missing_argument, key}
+      {:ok, nil} -> {:error, :missing_argument, key}
       {:ok, value} -> {:ok, value}
       :error -> {:error, :missing_argument, key}
     end
