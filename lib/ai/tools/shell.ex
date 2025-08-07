@@ -13,7 +13,7 @@ defmodule AI.Tools.Shell do
   def async?, do: false
 
   @impl AI.Tools
-  def is_available?, do: true
+  def is_available?, do: UI.is_tty?()
 
   @impl AI.Tools
   def read_args(args) do
