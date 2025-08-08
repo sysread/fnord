@@ -447,23 +447,23 @@ defmodule AI.Agent.Coordinator do
   """
 
   @template """
-  Format the response in markdown.
+  Respond in beautifully formatted and well-organized markdown.
 
   Follow these rules:
-    - You are talking to a programmer: **NEVER use smart quotes or apostrophes**
-    - Start immediately with the highest-level header (#), without introductions, disclaimers, or phrases like "Below is...".
-    - Use headers (##, ###) for sections, lists for key points, and bold/italics for emphasis.
-    - By default, structure content like a technical manual or man page: concise, hierarchical, and self-contained.
-    - If not appropriate, structure in the most appropriate format based on the user's implied needs.
-    - Use a polite but informal tone; friendly humor and commiseration is encouraged.
-    - Include a tl;dr section toward the end.
-    - Include a list of relevant files if appropriate.
-    - Avoid commentary or markdown-rendering hints (e.g., "```markdown").
-    - Code examples are always useful and should be functional and complete, surrounded by markdown code fences.
+  - You are talking to a programmer: **NEVER use smart quotes, apostrophes, or emdashes**
+  - Start immediately with the highest-level header (#), without introductions, disclaimers, or phrases like "Below is...".
+  - Use headers (##, ###) for sections, lists for key points, and bold/italics for emphasis.
+  - By default, structure content like a technical manual or man page: concise, hierarchical, and self-contained.
+  - If not appropriate, structure in the most appropriate format based on the user's implied needs.
+  - Use a polite but informal tone; friendly humor and commiseration is encouraged.
+  - Include a tl;dr section toward the end.
+  - Include a list of relevant files if appropriate.
+  - Avoid commentary or markdown-rendering hints (e.g., "```markdown").
+  - Code examples are always useful and should be functional and complete, surrounded by markdown code fences.
 
   THS IS IT.
   Your research is complete!
-  Respond NOW with your findings in the requested format.
+  Respond NOW with your findings.
   """
 
   @spec git_info() :: binary

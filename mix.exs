@@ -62,6 +62,7 @@ defmodule Fnord.MixProject do
       {:number, "~> 1.0.5"},
       {:optimus, "~> 0.2"},
       {:owl, "~> 0.12"},
+      {:text_diff, "~> 0.1.0"},
       {:uniq, "~> 0.1"},
       {:yaml_elixir, "~> 2.11"}
     ]

@@ -8,11 +8,7 @@ defmodule AI.Agent.Code.HunkFinder do
           error: binary
         }
 
-  @type hunk :: %{
-          start_line: non_neg_integer,
-          end_line: non_neg_integer,
-          contents: binary
-        }
+  @type hunk :: Hunk.t()
 
   @type response :: {:ok, list(hunk)} | {:error, binary}
 
@@ -116,23 +112,33 @@ defmodule AI.Agent.Code.HunkFinder do
     with {:ok, file} <- Map.fetch(opts, :file),
          {:ok, criteria} <- Map.fetch(opts, :criteria),
          {:ok, replacement} <- Map.fetch(opts, :replacement),
-         {:ok, contents} <- AI.Tools.get_file_contents(file) do
-      find_hunk(file, contents, criteria, replacement)
+         {:ok, contents} <- File.read(file),
+         {:ok, name} <- AI.Agent.Nomenclater.get_response(%{}),
+         _ <- log_start(name, file, criteria, replacement),
+         {:ok, hunk} <- find_hunk(file, contents, criteria, replacement) do
+      log_success(name, hunk)
+      {:ok, hunk}
+    else
+      :error ->
+        {:error, :missing_required_parameters}
+
+      {:error, reason} ->
+        UI.error("Failed to identify hunk", inspect(reason, pretty: true))
+        {:error, reason}
     end
   end
 
   # ----------------------------------------------------------------------------
   # Internals
   # ----------------------------------------------------------------------------
-  @spec find_hunk(binary, binary, binary, binary) :: {:ok, hunk} | {:error, binary}
+  @spec find_hunk(binary, binary, binary, binary) ::
+          {:ok, hunk}
+          | {:error, term}
   defp find_hunk(file, contents, criteria, replacement) do
-    lines = String.split(contents, "\n")
-    numbered_contents = Util.numbered_lines(contents)
-
     """
     # File: `#{file}`
     ```
-    #{numbered_contents}
+    #{Util.numbered_lines(contents)}
     ```
 
     # Criteria
@@ -150,7 +156,7 @@ defmodule AI.Agent.Code.HunkFinder do
         |> Jason.decode(keys: :atoms!)
         |> case do
           {:ok, %{error: reason}} when byte_size(reason) > 0 -> {:error, reason}
-          {:ok, range} -> read_hunk(range, lines)
+          {:ok, range} -> Hunk.new(file, range.start_line, range.end_line)
           {:error, reason} -> {:error, inspect(reason, pretty: true)}
         end
 
@@ -159,35 +165,9 @@ defmodule AI.Agent.Code.HunkFinder do
     end
   end
 
-  @spec read_hunk(candidate_range, list(binary)) :: {:ok, hunk} | {:error, binary}
-  defp read_hunk(%{start_line: start_line, end_line: end_line}, lines) do
-    cond do
-      start_line < 1 ->
-        {:error, "start_line must be >= 1, got: #{start_line}"}
-
-      end_line < start_line ->
-        {:error, "end_line must be >= start_line, got: #{end_line} < #{start_line}"}
-
-      end_line > length(lines) ->
-        {:error,
-         "end_line must be <= number of lines in file, got: #{end_line} > #{length(lines)}"}
-
-      true ->
-        lines
-        |> Enum.slice(start_line - 1, end_line - start_line + 1)
-        |> Enum.join("\n")
-        |> then(fn contents ->
-          %{
-            start_line: start_line,
-            end_line: end_line,
-            contents: contents
-          }
-        end)
-        |> then(&{:ok, &1})
-    end
-  end
-
-  @spec get_completion(binary) :: {:ok, binary} | {:error, term}
+  @spec get_completion(binary) ::
+          {:ok, binary}
+          | {:error, term}
   defp get_completion(msg) do
     AI.Completion.get(
       model: @model,
@@ -202,5 +182,21 @@ defmodule AI.Agent.Code.HunkFinder do
       {:error, %{response: response}} -> {:error, response}
       {:error, reason} -> {:error, reason}
     end
+  end
+
+  defp log_start(name, file, criteria, replacement) do
+    UI.info("#{name} is locating a righteous hunk", """
+    File: #{file}
+
+    Criteria:
+    #{criteria}
+
+    Replacement:
+    #{replacement}
+    """)
+  end
+
+  defp log_success(name, hunk) do
+    UI.info("#{name} found their hunk!", inspect(hunk, pretty: true))
   end
 end

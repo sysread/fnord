@@ -1,9 +1,12 @@
 defmodule AI.Agent.Code.PatchMaker do
   # ----------------------------------------------------------------------------
+  # Types
+  # ----------------------------------------------------------------------------
+  @type hunk :: Hunk.t()
+
+  # ----------------------------------------------------------------------------
   # Globals
   # ----------------------------------------------------------------------------
-  @context_lines 10
-
   @format_error "The LLM responded with an invalid JSON format. Please try again."
 
   @model AI.Model.reasoning(:medium)
@@ -70,21 +73,32 @@ defmodule AI.Agent.Code.PatchMaker do
   @impl AI.Agent
   def get_response(opts) do
     with {:ok, file} <- Map.fetch(opts, :file),
-         {:ok, start_line} <- Map.fetch(opts, :start_line),
-         {:ok, end_line} <- Map.fetch(opts, :end_line),
+         {:ok, hunk} <- Map.fetch(opts, :hunk),
          {:ok, replacement} <- Map.fetch(opts, :replacement),
-         {:ok, prompt} <- build_prompt(file, start_line, end_line, replacement),
+         {:ok, name} <- AI.Agent.Nomenclater.get_response(%{}),
+         _ <- log_start(name, replacement),
+         {:ok, prompt} <- build_prompt(file, hunk, replacement),
          {:ok, response} <- get_completion(prompt) do
       response
       |> Jason.decode(keys: :atoms!)
       |> case do
-        {:ok, %{error: reason}} when byte_size(reason) > 0 -> {:error, reason}
-        {:ok, %{replacement: replacement}} -> {:ok, trim_final_newline(replacement)}
-        {:error, _} -> {:error, @format_error}
+        {:ok, %{error: reason}} when byte_size(reason) > 0 ->
+          {:error, reason}
+
+        {:ok, %{replacement: replacement}} ->
+          log_success(name, replacement)
+          {:ok, trim_final_newline(replacement)}
+
+        {:error, _} ->
+          {:error, @format_error}
       end
     else
-      :error -> {:error, "Missing required options"}
-      {:error, reason} -> {:error, reason}
+      :error ->
+        {:error, "Missing required options"}
+
+      {:error, reason} ->
+        UI.error("Failed to conform replacement text", inspect(reason, pretty: true))
+        {:error, reason}
     end
   end
 
@@ -108,25 +122,19 @@ defmodule AI.Agent.Code.PatchMaker do
     end
   end
 
-  @spec build_prompt(binary, integer, integer, binary) :: {:ok, binary} | {:error, term}
-  defp build_prompt(file, start_line, end_line, replacement) do
-    with {:ok, content} <- File.read(file) do
-      lines = String.split(content, "\n")
-      pre = get_pre_context(lines, start_line)
-      post = get_post_context(lines, end_line)
-      hunk = hunk_lines(lines, start_line, end_line)
+  @spec build_prompt(binary, hunk, binary) :: {:ok, binary} | {:error, term}
+  defp build_prompt(file, hunk, replacement) do
+    pre = "<!-- START OF SECTION TO REPLACE -->\n"
+    post = "\n<!-- END OF SECTION TO REPLACE -->"
 
+    with {:ok, context} <- Hunk.with_context(hunk, pre, post) do
       prompt = """
       # FILE
       `#{file}`
 
       # REGION TO BE MODIFIED
       ```
-      #{pre}
-      <!-- START OF SECTION TO REPLACE -->
-      #{hunk}
-      <!-- END OF SECTION TO REPLACE -->
-      #{post}
+      #{context}
       ```
 
       # REPLACEMENT TEXT
@@ -142,31 +150,6 @@ defmodule AI.Agent.Code.PatchMaker do
     end
   end
 
-  @spec hunk_lines(list(binary), integer, integer) :: binary
-  defp hunk_lines(lines, start_line, end_line) do
-    lines
-    |> Enum.slice(start_line - 1, end_line - start_line + 1)
-    |> Enum.join("\n")
-  end
-
-  @spec get_pre_context(list(binary), integer) :: binary
-  defp get_pre_context(lines, start_line) do
-    start_index = max(0, start_line - @context_lines - 1)
-
-    lines
-    |> Enum.slice(start_index, start_line - start_index - 1)
-    |> Enum.join("\n")
-  end
-
-  @spec get_post_context(list(binary), integer) :: binary
-  defp get_post_context(lines, end_line) do
-    end_index = min(length(lines), end_line + @context_lines)
-
-    lines
-    |> Enum.slice(end_line, end_index - end_line)
-    |> Enum.join("\n")
-  end
-
   @spec trim_final_newline(binary) :: binary
   defp trim_final_newline(text) do
     if String.ends_with?(text, "\n") do
@@ -174,5 +157,13 @@ defmodule AI.Agent.Code.PatchMaker do
     else
       text
     end
+  end
+
+  defp log_start(name, replacement) do
+    UI.info("#{name} is conforming the replacement", replacement)
+  end
+
+  defp log_success(name, replacement) do
+    UI.info("#{name} is SUCH a conformist", replacement)
   end
 end

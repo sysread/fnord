@@ -41,7 +41,7 @@ defmodule AI.Model do
     %AI.Model{
       model: "gpt-5-mini",
       context: 400_000,
-      reasoning: :low
+      reasoning: :medium
     }
   end
 

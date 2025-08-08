@@ -6,12 +6,17 @@ defmodule AI.Tools.File.Edit do
   """
 
   # ----------------------------------------------------------------------------
+  # Types
+  # ----------------------------------------------------------------------------
+  @type hunk :: Hunk.t()
+
+  # ----------------------------------------------------------------------------
   # Behaviour Implementation
   # ----------------------------------------------------------------------------
   @behaviour AI.Tools
 
   @impl AI.Tools
-  def async?, do: false
+  def async?, do: true
 
   @impl AI.Tools
   def is_available?, do: true
@@ -20,10 +25,28 @@ defmodule AI.Tools.File.Edit do
   def read_args(args), do: {:ok, args}
 
   @impl AI.Tools
-  def ui_note_on_request(_args), do: nil
+  def ui_note_on_request(%{"file" => file, "find" => find, "replacement" => replacement}) do
+    {"Preparing file changes",
+     """
+     File: #{file}
+
+     Replacing:
+     ```
+     #{find}
+     ```
+
+     With:
+     ```
+     #{replacement}
+     ```
+     """}
+  end
 
   @impl AI.Tools
-  def ui_note_on_result(_arg, _result), do: nil
+  def ui_note_on_result(%{"file" => file}, result) do
+    UI.say(result)
+    {"File edited successfully", file}
+  end
 
   @impl AI.Tools
   def spec do
@@ -82,15 +105,18 @@ defmodule AI.Tools.File.Edit do
          {:ok, replacement} <- AI.Tools.get_arg(args, "replacement"),
          {:ok, hunk} <- find_hunk(file, criteria, replacement),
          {:ok, adjusted_replacement} <- adjust_replacement(file, hunk, replacement),
-         {:ok, updated_contents} <- update_file_contents(file, hunk, adjusted_replacement),
-         :ok <- File.write(file, updated_contents) do
-      {:ok, "done!"}
+         :ok <- apply_changes(hunk, adjusted_replacement) do
+      diff = build_diff(hunk, adjusted_replacement)
+      {:ok, diff}
     end
   end
 
   # ----------------------------------------------------------------------------
   # Internals
   # ----------------------------------------------------------------------------
+  @spec find_hunk(binary, binary, binary) ::
+          {:ok, hunk}
+          | {:error, term}
   defp find_hunk(file, criteria, replacement) do
     AI.Agent.Code.HunkFinder.get_response(%{
       file: file,
@@ -99,23 +125,22 @@ defmodule AI.Tools.File.Edit do
     })
   end
 
+  @spec adjust_replacement(binary, hunk, binary) ::
+          {:ok, binary}
+          | {:error, term}
   defp adjust_replacement(file, hunk, replacement) do
     AI.Agent.Code.PatchMaker.get_response(%{
       file: file,
-      start_line: hunk.start_line,
-      end_line: hunk.end_line,
+      hunk: hunk,
       replacement: replacement
     })
   end
 
-  defp update_file_contents(file, hunk, replacement) do
-    with {:ok, contents} <- File.read(file) do
-      lines = String.split(contents, "\n")
-      lines_before = lines |> Enum.take(hunk.start_line - 1)
-      lines_after = lines |> Enum.drop(hunk.end_line)
-      lines_within = String.split(replacement, "\n")
+  defp apply_changes(hunk, replacement) do
+    Hunk.replace_in_file(hunk, replacement)
+  end
 
-      {:ok, Enum.join(lines_before ++ lines_within ++ lines_after, "\n")}
-    end
+  defp build_diff(hunk, replacement) do
+    TextDiff.format(hunk.contents, replacement, line: hunk.start_line, color: false)
   end
 end
