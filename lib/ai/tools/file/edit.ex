@@ -41,7 +41,7 @@ defmodule AI.Tools.File.Edit do
         """,
         parameters: %{
           type: "object",
-          required: ["file", "replace", "with"],
+          required: ["file", "find", "replacement"],
           properties: %{
             file: %{
               type: "string",
