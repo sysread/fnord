@@ -7,6 +7,7 @@ defmodule AI.Model do
 
   @type reasoning_level ::
           :none
+          | :minimal
           | :low
           | :medium
           | :high
@@ -31,7 +32,7 @@ defmodule AI.Model do
     %AI.Model{
       model: "gpt-5",
       context: 400_000,
-      reasoning: :none
+      reasoning: :medium
     }
   end
 
@@ -40,7 +41,7 @@ defmodule AI.Model do
     %AI.Model{
       model: "gpt-5-mini",
       context: 400_000,
-      reasoning: :none
+      reasoning: :low
     }
   end
 
@@ -49,7 +50,7 @@ defmodule AI.Model do
     %AI.Model{
       model: "gpt-5-nano",
       context: 400_000,
-      reasoning: :none
+      reasoning: :minimal
     }
   end
 
