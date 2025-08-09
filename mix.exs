@@ -11,9 +11,7 @@ defmodule Fnord.MixProject do
       package: package(),
       deps: deps(),
       escript: escript(),
-      docs: docs(),
-      # TEMP: remove this once https://github.com/jeremyjh/dialyxir/issues/561 is resolved
-      dialyzer: [flags: [:no_opaque]]
+      docs: docs()
     ]
   end
 

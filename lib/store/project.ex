@@ -202,7 +202,7 @@ defmodule Store.Project do
       project
       |> list_all_files()
       |> Stream.filter(&(!is_hidden?(&1)))
-      |> Stream.filter(&(!MapSet.member?(excluded_paths, &1)))
+      |> Stream.filter(&(!Map.has_key?(excluded_paths, &1)))
       |> Stream.filter(&is_text?(&1, project))
       |> Stream.map(&Store.Project.Entry.new_from_file_path(project, &1))
 
@@ -216,7 +216,7 @@ defmodule Store.Project do
     entries =
       project
       |> stored_files()
-      |> Stream.filter(&(MapSet.member?(excluded_paths, &1.file) || !File.exists?(&1.file)))
+      |> Stream.filter(&(Map.has_key?(excluded_paths, &1.file) || !File.exists?(&1.file)))
       |> Stream.map(fn entry ->
         Store.Project.Entry.delete(entry)
         entry
@@ -320,7 +320,7 @@ defmodule Store.Project do
   defp excluded_paths(%{exclude_cache: nil} = project) do
     user_excluded =
       if is_nil(project.exclude) do
-        MapSet.new()
+        %{}
       else
         project.exclude
         |> Enum.flat_map(fn exclude ->
@@ -337,13 +337,13 @@ defmodule Store.Project do
         |> Enum.filter(&File.regular?/1)
         # Convert everything to absolute paths
         |> Enum.map(&Path.absname/1)
-        # Convert to a MapSet for faster lookups
-        |> MapSet.new()
+        # Convert to a Map for faster lookups
+        |> Map.new(&{&1, true})
       end
 
     excluded =
       with {:ok, git_ignored_files} <- Git.ignored_files(project.source_root) do
-        MapSet.union(user_excluded, git_ignored_files)
+        Map.merge(user_excluded, git_ignored_files)
       else
         {:error, _} -> user_excluded
       end

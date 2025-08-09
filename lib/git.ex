@@ -160,7 +160,7 @@ defmodule Git do
          out
          |> String.split("\n", trim: true)
          |> Enum.map(&Path.absname(&1, root))
-         |> MapSet.new()}
+         |> Map.new(&{&1, true})}
 
       {:error, error_output} ->
         {:error, String.trim_trailing(error_output)}

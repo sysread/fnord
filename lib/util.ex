@@ -139,7 +139,7 @@ defmodule Util do
           | {:error, File.posix()}
   def resolve_symlink(path, root \\ nil) do
     with {:ok, root} <- get_root_or_cwd(root) do
-      do_resolve_symlink(path, root, MapSet.new())
+      do_resolve_symlink(path, root)
     end
   end
 
@@ -155,14 +155,14 @@ defmodule Util do
     end
   end
 
-  @spec do_resolve_symlink(binary, binary, MapSet.t()) ::
+  @spec do_resolve_symlink(binary, binary, map | nil) ::
           {:ok, binary}
           | {:error, :circular_symlink}
           | {:error, File.posix()}
-  defp do_resolve_symlink(path, root, seen) do
+  defp do_resolve_symlink(path, root, seen \\ %{}) do
     abs_path = expand_path(path, root)
 
-    if MapSet.member?(seen, abs_path) do
+    if Map.has_key?(seen, abs_path) do
       {:error, :circular_symlink}
     else
       case File.lstat(abs_path) do
@@ -174,7 +174,7 @@ defmodule Util do
               |> Path.expand(Path.dirname(abs_path))
               # follow the symlink, but update the memo to prevent circular
               # references from causing infinite recursion
-              |> do_resolve_symlink(root, MapSet.put(seen, abs_path))
+              |> do_resolve_symlink(root, Map.put(seen, abs_path, true))
 
             error ->
               error
