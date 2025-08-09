@@ -513,7 +513,6 @@ defmodule AI.Tools do
     |> Map.fetch(key)
     |> case do
       :error -> required_arg_error(key)
-      {:ok, ""} -> required_arg_error(key)
       {:ok, nil} -> required_arg_error(key)
       _ -> :ok
     end
