@@ -157,9 +157,9 @@ defmodule AI.Tools.Shell do
       "Deny (with feedback)"
     ]
 
-    """
-    The AI agent would like to execute a shell command.
+    UI.warning_banner("The AI agent would like to execute a shell command")
 
+    """
     # Command
     ```sh
     #{full_cmd}
