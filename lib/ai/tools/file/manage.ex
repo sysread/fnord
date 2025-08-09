@@ -102,8 +102,9 @@ defmodule AI.Tools.File.Manage do
             },
             path: %{
               type: "string",
-              description:
-                "Path (relative to project root) of the file to operate on (or *source path* for move)."
+              description: """
+              Path (relative to project root) of the file to operate on (or *source path* for move).
+              """
             },
             destination_path: %{
               type: "string",
@@ -111,8 +112,17 @@ defmodule AI.Tools.File.Manage do
             },
             is_directory: %{
               type: "boolean",
-              description:
-                "If true, treat the path as a directory (for create or delete operations). Required to delete a directory."
+              description: """
+              If true, treat the path as a directory (for create or delete operations).
+              Required to delete a directory.
+              """
+            },
+            initial_contents: %{
+              type: "string",
+              description: """
+              ONLY applicable when `operation` is `create` and `is_directory` is false.
+              Initial contents of the file to create. If not provided, an empty file will be created.
+              """
             }
           }
         }
@@ -125,9 +135,10 @@ defmodule AI.Tools.File.Manage do
     with {:ok, project} <- Store.get_project(),
          abs_src <- Store.Project.expand_path(path, project),
          is_directory? <- Map.get(args, "is_directory", false),
+         initial_contents <- Map.get(args, "initial_contents", ""),
          :ok <- validate_path(project, path) do
       case op do
-        "create" -> create_path(path, abs_src, is_directory?)
+        "create" -> create_path(path, abs_src, is_directory?, initial_contents)
         "delete" -> delete_path(path, abs_src, is_directory?)
         "move" -> move_path(project, path, abs_src, args["destination_path"])
         _ -> {:error, :invalid_argument, "operation"}
@@ -143,7 +154,7 @@ defmodule AI.Tools.File.Manage do
     end
   end
 
-  defp create_path(path, abs_path, true) do
+  defp create_path(path, abs_path, true, _initial_contents) do
     if File.exists?(abs_path) do
       {:error, "Path already exists: #{path}"}
     else
@@ -157,13 +168,13 @@ defmodule AI.Tools.File.Manage do
     end
   end
 
-  defp create_path(path, abs_path, false) do
+  defp create_path(path, abs_path, false, initial_contents) do
     if File.exists?(abs_path) do
       {:error, "Path already exists: #{path}"}
     else
       abs_path |> Path.dirname() |> File.mkdir_p!()
 
-      case File.write(abs_path, "") do
+      case File.write(abs_path, initial_contents) do
         :ok -> {:ok, "Created file: #{path}"}
         {:error, reason} -> {:error, "Failed to create file #{path}: #{inspect(reason)}"}
       end
