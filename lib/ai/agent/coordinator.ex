@@ -762,11 +762,17 @@ defmodule AI.Agent.Coordinator do
 
   @spec get_test_response(t) :: {:error, :testing}
   defp get_test_response(%{project: project} = state) do
+    # Enable all tools for testing.
+    tools =
+      AI.Tools.all_tools()
+      |> AI.Tools.with_coding_tools()
+      |> AI.Tools.with_rw_tools()
+
     AI.Completion.get(
       log_msgs: true,
       log_tool_calls: true,
       model: AI.Model.fast(),
-      toolbox: get_tools(state),
+      toolbox: tools,
       messages: [
         @test_prompt
         |> String.replace("$$PROJECT$$", project)
