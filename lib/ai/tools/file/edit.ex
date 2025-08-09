@@ -44,7 +44,7 @@ defmodule AI.Tools.File.Edit do
 
   @impl AI.Tools
   def ui_note_on_result(%{"file" => file}, result) do
-    UI.say(result)
+    IO.write(:stderr, result)
     {"File edited successfully", file}
   end
 
@@ -141,7 +141,6 @@ defmodule AI.Tools.File.Edit do
   end
 
   defp build_diff(hunk, replacement) do
-    TextDiff.format(hunk.contents, replacement, line: hunk.start_line, color: false)
-    |> IO.iodata_to_binary()
+    TextDiff.format(hunk.contents, replacement, line: hunk.start_line, color: true)
   end
 end
