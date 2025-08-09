@@ -69,6 +69,14 @@ defmodule HunkTest do
       assert {:error, :invalid_end_line} = Hunk.new(path, 3, 2)
       assert {:error, :end_line_exceeds_file_length} = Hunk.new(path, 4, 99)
     end
+
+    test "handles empty files", %{project: proj} do
+      file = mock_source_file(proj, "empty.txt", "")
+      assert {:ok, hunk} = Hunk.new(file, 0, 0)
+      assert hunk.start_line == 0
+      assert hunk.end_line == 0
+      assert hunk.contents == ""
+    end
   end
 
   describe "with_context/4" do

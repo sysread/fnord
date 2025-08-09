@@ -177,6 +177,9 @@ defmodule Hunk do
       lines = String.split(contents, "\n", trim: false)
 
       cond do
+        contents == "" ->
+          {:ok, ""}
+
         start_line < 1 ->
           {:error, :invalid_start_line}
 
