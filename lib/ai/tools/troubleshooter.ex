@@ -51,7 +51,7 @@ defmodule AI.Tools.Troubleshooter do
         file operations, code analysis tools, and any user-created automation tools (frobs) 
         relevant to the problem domain.
 
-        Use this for any systematic problem-solving including:
+        **Use this for any systematic problem-solving including:**
         - Build failures, compilation errors, or test failures
         - CI/CD pipeline issues and deployment problems
         - Runtime bugs, performance issues, or system problems
