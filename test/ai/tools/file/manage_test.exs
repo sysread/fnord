@@ -132,17 +132,11 @@ defmodule AI.Tools.File.ManageTest do
 
     test "returns error on missing path" do
       assert {:error, :missing_argument, "path"} = Manage.read_args(%{"operation" => "create"})
-
-      assert {:error, :missing_argument, "path"} =
-               Manage.read_args(%{"operation" => "delete", "path" => ""})
     end
 
     test "returns error on missing destination for move" do
       assert {:error, :missing_argument, "destination_path"} =
                Manage.read_args(%{"operation" => "move", "path" => "f"})
-
-      assert {:error, :missing_argument, "destination_path"} =
-               Manage.read_args(%{"operation" => "move", "path" => "f", "destination_path" => ""})
     end
 
     test "returns ok with valid data" do

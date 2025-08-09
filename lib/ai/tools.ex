@@ -420,7 +420,6 @@ defmodule AI.Tools do
     opts
     |> Map.fetch(key)
     |> case do
-      {:ok, ""} -> {:error, :missing_argument, key}
       {:ok, nil} -> {:error, :missing_argument, key}
       {:ok, value} -> {:ok, value}
       :error -> {:error, :missing_argument, key}
