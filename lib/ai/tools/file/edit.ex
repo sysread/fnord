@@ -142,5 +142,6 @@ defmodule AI.Tools.File.Edit do
 
   defp build_diff(hunk, replacement) do
     TextDiff.format(hunk.contents, replacement, line: hunk.start_line, color: false)
+    |> IO.iodata_to_binary()
   end
 end
