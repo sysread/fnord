@@ -134,6 +134,10 @@ defmodule AI.Agent.Code.HunkFinder do
   @spec find_hunk(binary, binary, binary, binary) ::
           {:ok, hunk}
           | {:error, term}
+  defp find_hunk(file, "", _criteria, _replacement) do
+    Hunk.new(file, 0, 0)
+  end
+
   defp find_hunk(file, contents, criteria, replacement) do
     """
     # File: `#{file}`
