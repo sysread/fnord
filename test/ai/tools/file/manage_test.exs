@@ -182,5 +182,12 @@ defmodule AI.Tools.File.ManageTest do
       assert {:ok, %{"operation" => "move", "path" => "a.txt", "destination_path" => "b.txt"}} =
                Manage.read_args(args)
     end
+
+    test "read_args accepts replace with path and file_content" do
+      args = %{"operation" => "replace", "path" => "f.txt", "file_content" => "x"}
+
+      assert {:ok, %{"operation" => "replace", "path" => "f.txt", "file_content" => "x"}} =
+               AI.Tools.File.Manage.read_args(args)
+    end
   end
 end

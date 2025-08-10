@@ -80,6 +80,18 @@ defmodule AI.Tools.File.Manage do
     end
   end
 
+  def read_args(%{"operation" => "replace"} = args) do
+    with {:ok, path} <- AI.Tools.get_arg(args, "path"),
+         {:ok, file_content} <- AI.Tools.get_arg(args, "file_content") do
+      {:ok,
+       %{
+         "operation" => "replace",
+         "path" => path,
+         "file_content" => file_content
+       }}
+    end
+  end
+
   def read_args(%{"operation" => _}) do
     {:error, :invalid_argument, "operation"}
   end
