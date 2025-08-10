@@ -34,7 +34,7 @@ defmodule AI.Tools.File.Manage do
   end
 
   def ui_note_on_result(_args, {:error, reason}), do: {"File operation error", to_string(reason)}
-  def ui_note_on_result(_args, result), do: {"File operation result", inspect(result)}
+  def ui_note_on_result(_args, result), do: {"File operation result", result}
 
   @impl AI.Tools
   def read_args(%{"operation" => "create"} = args) do
