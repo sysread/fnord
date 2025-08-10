@@ -156,7 +156,7 @@ defmodule AI.Tools.File.Manage do
         "replace" -> replace_path(path, abs_src, file_content)
         "delete" -> delete_path(path, abs_src, is_directory?)
         "move" -> move_path(project, path, abs_src, args["destination_path"])
-        _ -> {:error, :invalid_argument, "operation"}
+        other -> {:error, :invalid_argument, "operation ('#{other}' not supported)"}
       end
     end
   end
