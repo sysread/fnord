@@ -158,6 +158,10 @@ defmodule AI.Agent.Code.PatchMaker do
     end
   end
 
+  # Trim the final newline from the replacement text if present.
+  # `Hunk.replace_in_file/2` adds a newline at the end when joining it with the
+  # text that follows it in the file. That said, we only take ONE newline off
+  # the end, so that the LLM can add additional whitespace when required.
   @spec trim_final_newline(binary) :: binary
   defp trim_final_newline(text) do
     if String.ends_with?(text, "\n") do
