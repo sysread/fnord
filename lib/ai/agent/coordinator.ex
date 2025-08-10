@@ -343,12 +343,32 @@ defmodule AI.Agent.Coordinator do
   You reason through problems step by step.
   """
 
-  @singleton """
+  @coding """
   #{@common}
 
   Instructions:
+  - The user has enabled your coding capabilities.
+  - Analyze the user's prompt and determine what changes they are asking you to make.
+  - Instruct the `coder_tool` to plan and implement the changes, delegating the work to it.
+  - Use your knowledge of LLMs to design a prompt for the coder tool that will improve the quality of the code changes it makes.
+  - The `coder_tool` will research, plan, design, implement, and verify the changes you requested.
+  - Once it has completed its work, your job is to verify that the changes are sound, correct, and cover the user's needs without breaking existing functionality.
+    - Double check the syntax on the changes
+    - Double check the formatting on the changes
+    - Double check the logic on the changes
+    - Double check whether there are unit tests or docs that need to be updated
+    - For small fixups, go ahead and make the changes yourself
+    - For larger changes, invoke the tool again to take corrective action
+  """
+
+  @singleton """
+  #{@common}
+
+  Consider:
   - If the user asked you to make changes to the repo and you do not see the coder_tool available to you as a tool_call, notify them that they must run `fnord ask` with `--edit` for you to be able to make code changes.
   - If the user asked you to troubleshoot a problem, ensure you have access to adequate tool_calls and delegate the work to the troubleshooter_tool.
+
+  Instructions:
   - Examine the user's question and identify multiple lines of research that cover all aspects of the question.
   - Delegate these lines of research to the research_tool in parallel to gather the information you need.
   - Once all results are available, compare, synthesize, and integrate their findings.
@@ -367,12 +387,15 @@ defmodule AI.Agent.Coordinator do
   @initial """
   #{@common}
 
+  Consider:
+  - If the user asked you to make changes to the repo and you do not see the coder_tool available to you as a tool_call, notify them that they must run `fnord ask` with `--edit` for you to be able to make code changes.
+  - If the user asked you to troubleshoot a problem, ensure you have access to adequate tool_calls and delegate the work to the troubleshooter_tool.
+
+  Procedure:
   Your first step is to break down the user's request into individual lines of research.
   You will then execute these tasks, parallelizing as many as possible.
 
   Instructions:
-  - If the user asked you to make changes to the repo and you do not see the coder_tool available to you as a tool_call, notify them that they must run `fnord ask` with `--edit` for you to be able to make code changes.
-  - If the user asked you to troubleshoot a problem, ensure you have access to adequate tool_calls and delegate the work to the troubleshooter_tool.
   - Examine the user's question and identify multiple lines of research that cover all aspects of the question.
   - Delegate these lines of research to the research_tool in parallel to gather the information you need.
   - Once all results are available, compare, synthesize, and integrate their findings.
@@ -435,7 +458,7 @@ defmodule AI.Agent.Coordinator do
   </think>
   """
 
-  @coding """
+  @coding_reminder """
   Reminder: the user has enabled your coding capabilities.
   Did the user ask you to make changes to the code base on their behalf?
   Double check their question to ensure you have performed all of the tasks they requested of you.
@@ -504,6 +527,16 @@ defmodule AI.Agent.Coordinator do
   end
 
   @spec singleton_msg(t) :: t
+  defp singleton_msg(%{project: project, edit?: true} = state) do
+    @coding
+    |> String.replace("$$PROJECT$$", project)
+    |> String.replace("$$GIT_INFO$$", git_info())
+    |> AI.Util.system_msg()
+    |> ConversationServer.append_msg(state.conversation)
+
+    state
+  end
+
   defp singleton_msg(%{project: project} = state) do
     @singleton
     |> String.replace("$$PROJECT$$", project)
@@ -515,6 +548,16 @@ defmodule AI.Agent.Coordinator do
   end
 
   @spec initial_msg(t) :: t
+  defp initial_msg(%{project: project, edit?: true} = state) do
+    @coding
+    |> String.replace("$$PROJECT$$", project)
+    |> String.replace("$$GIT_INFO$$", git_info())
+    |> AI.Util.system_msg()
+    |> ConversationServer.append_msg(state.conversation)
+
+    state
+  end
+
   defp initial_msg(%{project: project} = state) do
     @initial
     |> String.replace("$$PROJECT$$", project)
@@ -590,7 +633,7 @@ defmodule AI.Agent.Coordinator do
 
   @spec execute_coding_phase(t) :: t
   defp execute_coding_phase(%{edit?: true} = state) do
-    @coding
+    @coding_reminder
     |> AI.Util.system_msg()
     |> ConversationServer.append_msg(state.conversation)
 
