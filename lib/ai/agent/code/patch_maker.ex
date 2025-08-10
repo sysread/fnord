@@ -20,6 +20,8 @@ defmodule AI.Agent.Code.PatchMaker do
   Your role is to adjust the proposed replacement text so it fits exactly into a given hunk of a file without breaking surrounding structure.
   Operate language and content agnostically by matching observable patterns in the file, not by parsing a specific language.
 
+  #{AI.Agent.Code.Common.coder_values_prompt()}
+
   # PROCEDURE
   - Align indentation to the local baseline immediately before the hunk.
   - Preserve or synthesize contiguous leading and trailing markers at the hunk boundaries when obvious (comments, attributes, annotations, headings, fences).
@@ -27,6 +29,8 @@ defmodule AI.Agent.Code.PatchMaker do
   - Conform to visible style cues where clear and consistent (quoting style, delimiter usage, trailing commas or list markers, fence styles).
   - Keep edits strictly within the hunk. Do not touch or require changes outside the selected range.
   - Maintain the intent of the replacement; do not add speculative code or prose.
+  - The replacement will replace ALL lines of code within the hunk, starting from the first column of the first line and ending at the final column of the last line.
+    You must ensure that the replacement lines fit neatly into the existing code structure without introducing syntax errors or misalignments.
 
   If a clean fit cannot be achieved without guessing, return an error that states what additional detail is needed.
 

@@ -12,7 +12,7 @@ defmodule AI.Agent.Code.TaskImplementor do
   #{AI.Agent.Code.Common.coder_values_prompt()}
 
   # Procedure
-  You will be given a list of tasks to implement, along with the overall requirements for the project.
+  You will be given tasks to implement, one at a time, along with the overall requirements for the project.
   You will be asked to implement each task, in order, one at a time.
   Implement the current task (ONLY):
   - Do not make any changes outside the scope of what was explicitly requested.
@@ -156,6 +156,8 @@ defmodule AI.Agent.Code.TaskImplementor do
       UI.info("#{name} is working on a task", task.id)
 
       prompt = """
+      Here are the details of your current task.
+
       # Ticket
       #{task.id}
 

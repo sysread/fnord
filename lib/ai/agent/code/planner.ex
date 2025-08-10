@@ -114,10 +114,16 @@ defmodule AI.Agent.Code.Planner do
   # Plan
   # ----------------------------------------------------------------------------
   @plan_prompt """
-  Compare the current state of the code with your solution.
-  The implementation will result from a "cascade" of changes, where each layers on top of the previous one.
   Consider the types of changes that LLMs tend to struggle with.
   Design your plan to minimize the risk of compounding errors and mitigate the weaknesses of LLMs when writing code.
+
+  If new files, modules, or packages are required, carefully consider where they should be placed for consistent organization, reduce surprise, and maintain clear boundaries between components.
+  Weigh the benefits of editing existing code against the risks of introducing bugs or breaking existing functionality.
+  Given the novelty of AI-generated code, it may be better to create a new "feature package" in an isolated location and just call it from existing code to mitigate risk and dependency.
+  Incidentally, this ia also good practice for biological programmers, as it reduces the surface area for bugs and makes writing unit tests much simpler.
+
+  Compare the current state of the code with your solution.
+  The implementation will result from a "cascade" of changes, where each layers on top of the previous one.
   What atomic steps can you take to get from the current state to your solution?
   Pay special attention to ordering the changes in a logical fashion.
 
@@ -127,6 +133,9 @@ defmodule AI.Agent.Code.Planner do
   - Clear acceptance criteria
   - A detailed description of the change to be made, including any relevant code snippets, examples, and file paths
   - An "anchor" that describes the location in unambiguous terms (note that line numbers change across tasks, so anchors must reference components, syntax, or other relatively stable identifiers)
+
+  It costs nothing to split tasks into smaller steps.
+  Ultimately, the best experience for the user is for your plan to succeed and for the resulting code to be usable and correct.
   """
 
   @plan_response_format %{
