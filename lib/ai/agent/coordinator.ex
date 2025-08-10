@@ -349,7 +349,7 @@ defmodule AI.Agent.Coordinator do
   Instructions:
   - The user has enabled your coding capabilities.
   - Analyze the user's prompt and determine what changes they are asking you to make.
-  - Instruct the `coder_tool` to plan and implement the changes, delegating the work to it.
+  - Delegate the all of the work of researching, planning, and implementing the changes to the `coder_tool`.
   - Use your knowledge of LLMs to design a prompt for the coder tool that will improve the quality of the code changes it makes.
   - The `coder_tool` will research, plan, design, implement, and verify the changes you requested.
   - Once it has completed its work, your job is to verify that the changes are sound, correct, and cover the user's needs without breaking existing functionality.
