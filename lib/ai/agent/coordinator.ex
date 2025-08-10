@@ -439,6 +439,8 @@ defmodule AI.Agent.Coordinator do
   Reminder: the user has enabled your coding capabilities.
   Did the user ask you to make changes to the code base on their behalf?
   Double check their question to ensure you have performed all of the tasks they requested of you.
+  Double check the changes that were made to ensure that they are correct and that you have not introduced any bugs.
+  Use any locally enabled tool_calls (or fall back on the `shell_tool`) to run the test suite, check for compilation errors, run linters, static analysis, and so on, to ensure you've provided the user with the best experience possible.
   """
 
   @finalize """
