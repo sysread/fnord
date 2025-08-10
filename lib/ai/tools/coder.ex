@@ -27,7 +27,7 @@ defmodule AI.Tools.Coder do
       function: %{
         name: "coder_tool",
         description: """
-        Plans, implements, and verifies changes to the code base.
+        Researches, plans, implements, and verifies changes to the code base.
         It is the responsibility of the Coordinating Agent to verify that the changes meet their needs once implemented.
         """,
         parameters: %{
@@ -38,14 +38,10 @@ defmodule AI.Tools.Coder do
             requirements: %{
               type: "string",
               description: """
-              Detailed requirements for the code change.
-              Must include:
+              Detailed requirements for the code change:
               - Purpose of the change
               - Concrete functionality to be implemented
-              - References to files, directories, components, and other relevant code elements
               - Clear acceptance criteria
-
-              The more detail you can provide on the requirements, the better the outcome will be.
               """
             }
           }
