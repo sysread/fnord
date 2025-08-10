@@ -149,6 +149,7 @@ defmodule Hunk do
   @spec replace_in_file(t, binary) ::
           :ok
           | {:error, :file_not_found}
+          | {:error, :invalid_hunk_contents}
           | {:error, :hunk_is_stale}
   def replace_in_file(hunk, replacement) do
     cond do
@@ -163,22 +164,33 @@ defmodule Hunk do
 
       true ->
         with {:ok, contents} <- File.read(hunk.file) do
-          lines = String.split(contents, "\n")
-          lines_before = Enum.take(lines, hunk.start_line - 1)
-          lines_after = Enum.drop(lines, hunk.end_line)
-          lines_within = String.split(replacement, "\n")
-          new_contents = Enum.join(lines_before ++ lines_within ++ lines_after, "\n")
+          # Special-case: empty file & zero-length hunk → write replacement verbatim
+          if contents == "" and hunk.start_line == 0 and hunk.end_line == 0 do
+            File.write(hunk.file, replacement)
+          else
+            lines = String.split(contents, "\n")
+            # Clamp counts to avoid negative indices
+            before_count = max(hunk.start_line - 1, 0)
+            after_count = max(hunk.end_line, 0)
 
-          File.write(hunk.file, new_contents)
+            lines_before = Enum.take(lines, before_count)
+            lines_after = Enum.drop(lines, after_count)
+            lines_within = String.split(replacement, "\n")
+
+            new_contents =
+              [lines_before, lines_within, lines_after]
+              |> List.flatten()
+              |> Enum.join("\n")
+
+            File.write(hunk.file, new_contents)
+          end
         else
           _ -> {:error, :file_not_found}
         end
     end
   end
-
-  # ----------------------------------------------------------------------------
+  # -- Validation helpers for replace_in_file/2 --
   # Internal Functions
-  # ----------------------------------------------------------------------------
   @spec md5(binary) :: {:ok, binary} | {:error, term}
   defp md5(file) do
     with {:ok, contents} <- File.read(file) do
