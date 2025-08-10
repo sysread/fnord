@@ -165,8 +165,13 @@ defmodule AI.Agent.Code.TaskImplementor do
       #{task.data}
 
       # Instructions
-      The project requirements are provided to give you context, but restrict
-      your changes to what is explicitly requested in *this* ticket.
+      1. The project requirements are provided to give you context, but restrict your changes to what is explicitly requested in *this* ticket.
+      2. Implement the task as described, following the coding standards and practices of the project.
+      3. Use your tools to manually confirm your changes.
+         Read the file to ensure your change was applied correctly.
+         Verify the correct syntax, compilation, and formatting of the code, to the extent possible, given that the code may be in flux (e.g. calling a function that will be added in a future step).
+         Continue editing the file until you are satisfied that your change is correct.
+         Your job is not complete until the task is fully implemented and tested.
       """
 
       prompt =
