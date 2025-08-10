@@ -193,25 +193,11 @@ defmodule AI.Agent.Code.HunkFinder do
     end
   end
 
-  defp log_start(name, file, criteria, replacement) do
-    UI.info("#{name} is locating a righteous hunk", """
-    File: #{file}
-
-    Criteria:
-    #{criteria}
-
-    Replacement:
-    #{replacement}
-    """)
+  defp log_start(name, file, _criteria, _replacement) do
+    UI.info("#{name} is locating a righteous hunk", file)
   end
 
   defp log_success(name, hunk) do
     UI.info("#{name} found their hunk!", "#{hunk.file}:#{hunk.start_line}-#{hunk.end_line}")
-
-    UI.debug("Hunk contents", """
-    ```
-    #{hunk.contents}
-    ```
-    """)
   end
 end

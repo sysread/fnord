@@ -19,6 +19,8 @@ defmodule AI.Agent.Code.TaskValidator do
   - If there is a REPL or interactive console, that can be used to explore the new functionality.
   - If the project's language features an interpreter that can be used to execute code directly, use it to explore the new functionality.
   - You can use the `shell_tool` to run commands that are not covered directly by the tool_calls you have access to.
+  - You can also use the `shell_tool` to test the behavior of the code in a more interactive way, such as evaluating commands with interpreted languages or running scripts.
+  - It is perfectly acceptable to create test scripts or temporary files to explore the new functionality, so long as they are removed before returning the result.
   Identify compilers, interpreters, linters, formatters, and other tools that can be leveraged to verify the completeness and correctness of the implementation.
 
   ## Validate

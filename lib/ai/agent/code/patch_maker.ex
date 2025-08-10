@@ -163,11 +163,11 @@ defmodule AI.Agent.Code.PatchMaker do
     end
   end
 
-  defp log_start(name, replacement) do
-    UI.info("#{name} is conforming the replacement", replacement)
+  defp log_start(name, _replacement) do
+    UI.info("#{name} is conforming the replacement to the target site")
   end
 
-  defp log_success(name, replacement) do
-    UI.info("#{name} is SUCH a conformist", replacement)
+  defp log_success(name, _replacement) do
+    UI.info("#{name} is SUCH a conformist")
   end
 end

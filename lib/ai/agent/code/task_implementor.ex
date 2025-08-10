@@ -153,7 +153,7 @@ defmodule AI.Agent.Code.TaskImplementor do
   defp implement(%{error: nil, name: name} = state, invalid_format?) do
     with {:ok, task_list_id} <- Common.get_state(state, :task_list_id),
          {:ok, task} <- TaskServer.peek_task(task_list_id) do
-      UI.info("#{name} is working", task.id)
+      UI.info("#{name} is working on a task", task.id)
 
       prompt = """
       # Ticket

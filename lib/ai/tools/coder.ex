@@ -12,18 +12,12 @@ defmodule AI.Tools.Coder do
 
   @impl AI.Tools
   def ui_note_on_request(%{"requirements" => requirements}) do
-    {"Preparing to implement code changes", requirements}
+    {"Planning implementation", requirements}
   end
 
   @impl AI.Tools
-  def ui_note_on_result(%{"requirements" => requirements}, result) do
-    {"Code changes complete", """
-      # Requirements
-      #{requirements}
-
-      # Result
-      #{result}
-      """}
+  def ui_note_on_result(_args, result) do
+    {"Changes implemented", result}
   end
 
   @impl AI.Tools
@@ -70,7 +64,7 @@ defmodule AI.Tools.Coder do
        """
        # Result
        #{TaskServer.as_string(task_list_id, true)}
-      
+
        # Change Summary
        #{change_summary}
 

@@ -150,7 +150,6 @@ defmodule AI.Agent.Code.Common do
       toolbox: state.toolbox,
       messages: state.messages ++ [AI.Util.system_msg(prompt)],
       response_format: response_format,
-      log_msgs: true,
       log_tool_calls: true
     )
     |> case do

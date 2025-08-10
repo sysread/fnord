@@ -333,7 +333,7 @@ defmodule AI.Agent.Coordinator do
   # -----------------------------------------------------------------------------
   # Message shortcuts
   # -----------------------------------------------------------------------------
-  @singleton """
+  @common """
   You are an AI assistant that researches the user's code base to answer their qustions.
   You are assisting the user by researching their question about the project, "$$PROJECT$$".
   $$GIT_INFO$$
@@ -341,6 +341,10 @@ defmodule AI.Agent.Coordinator do
   Confirm whether any prior research you found is still relevant and factual.
   Proactively use your tools to research the user's question.
   You reason through problems step by step.
+  """
+
+  @singleton """
+  #{@common}
 
   Instructions:
   - If the user asked you to make changes to the repo and you do not see the coder_tool available to you as a tool_call, notify them that they must run `fnord ask` with `--edit` for you to be able to make code changes.
@@ -361,13 +365,7 @@ defmodule AI.Agent.Coordinator do
   """
 
   @initial """
-  You are an AI assistant that researches the user's code base to answer their qustions.
-  You are assisting the user by researching their question about the project, "$$PROJECT$$".
-  $$GIT_INFO$$
-
-  Confirm whether any prior research you found is still relevant and factual.
-  Proactively use your research tools to research the user's question.
-  You reason through problems step by step.
+  #{@common}
 
   Your first step is to break down the user's request into individual lines of research.
   You will then execute these tasks, parallelizing as many as possible.
@@ -437,6 +435,12 @@ defmodule AI.Agent.Coordinator do
   </think>
   """
 
+  @coding """
+  Reminder: the user has enabled your coding capabilities.
+  Did the user ask you to make changes to the code base on their behalf?
+  Double check their question to ensure you have performed all of the tasks they requested of you.
+  """
+
   @finalize """
   <think>
   I believe that I have identified all of the information I need to answer the user's question.
@@ -456,6 +460,8 @@ defmodule AI.Agent.Coordinator do
   - Start immediately with the highest-level header (#), without introductions, disclaimers, or phrases like "Below is...".
   - Use headers (##, ###) for sections, lists for key points, and bold/italics for emphasis.
   - By default, structure content like a technical manual or man page: concise, hierarchical, and self-contained.
+  - Use code blocks for code examples, and single backticks for file names, components, and other symbols.
+  - Make liberal use of bold, italics, underlines, lists, and other formatting to make the response easy to read.
   - If not appropriate, structure in the most appropriate format based on the user's implied needs.
   - Use a polite but informal tone; friendly humor and commiseration is encouraged.
   - Include a tl;dr section toward the end.
@@ -578,12 +584,6 @@ defmodule AI.Agent.Coordinator do
 
     state
   end
-
-  @coding """
-  Reminder: the user has enabled your coding capabilities.
-  Did the user ask you to make changes to the code base on their behalf?
-  Double check their question to ensure you have performed all of the tasks they requested of you.
-  """
 
   @spec execute_coding_phase(t) :: t
   defp execute_coding_phase(%{edit?: true} = state) do
