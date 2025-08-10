@@ -9,6 +9,11 @@ defmodule AI.Tools.File.Manage do
 
   @impl AI.Tools
   def ui_note_on_request(%{"operation" => "create", "path" => path}), do: {"Creating file", path}
+
+  def ui_note_on_request(%{"operation" => "replace", "path" => path}) do
+    {"Overwriting file", path}
+  end
+
   def ui_note_on_request(%{"operation" => "delete", "path" => path}), do: {"Deleting file", path}
 
   def ui_note_on_request(%{"operation" => "move", "path" => path, "destination_path" => dest}) do
@@ -20,6 +25,10 @@ defmodule AI.Tools.File.Manage do
   @impl AI.Tools
   def ui_note_on_result(%{"operation" => "create", "path" => path}, {:ok, _}) do
     {"File created", path}
+  end
+
+  def ui_note_on_result(%{"operation" => "replace", "path" => path}, {:ok, _}) do
+    {"File overwritten", path}
   end
 
   def ui_note_on_result(%{"operation" => "delete", "path" => path}, {:ok, _}) do
@@ -97,8 +106,8 @@ defmodule AI.Tools.File.Manage do
           properties: %{
             operation: %{
               type: "string",
-              enum: ["create", "delete", "move"],
-              description: "The operation to perform: create, delete, or move."
+              enum: ["create", "replace", "delete", "move"],
+              description: "The operation to perform: create, replace, delete, or move."
             },
             path: %{
               type: "string",
@@ -117,11 +126,16 @@ defmodule AI.Tools.File.Manage do
               Required to delete a directory.
               """
             },
-            initial_contents: %{
+            file_content: %{
               type: "string",
               description: """
-              ONLY applicable when `operation` is `create` and `is_directory` is false.
-              Initial contents of the file to create. If not provided, an empty file will be created.
+              Not applicable to `delete` or `move` operations.
+              Not application if `is_directory` is true.
+
+              For `create` operations, this is the content to write to the file.
+              If not provided, an empty file will be created.
+
+              For `replace` operations, this is the new content to write, completely replacing the file's contents.
               """
             }
           }
@@ -135,10 +149,11 @@ defmodule AI.Tools.File.Manage do
     with {:ok, project} <- Store.get_project(),
          abs_src <- Store.Project.expand_path(path, project),
          is_directory? <- Map.get(args, "is_directory", false),
-         initial_contents <- Map.get(args, "initial_contents", ""),
+         file_content <- Map.get(args, "file_content", ""),
          :ok <- validate_path(project, path) do
       case op do
-        "create" -> create_path(path, abs_src, is_directory?, initial_contents)
+        "create" -> create_path(path, abs_src, is_directory?, file_content)
+        "replace" -> replace_path(path, abs_src, file_content)
         "delete" -> delete_path(path, abs_src, is_directory?)
         "move" -> move_path(project, path, abs_src, args["destination_path"])
         _ -> {:error, :invalid_argument, "operation"}
@@ -154,7 +169,7 @@ defmodule AI.Tools.File.Manage do
     end
   end
 
-  defp create_path(path, abs_path, true, _initial_contents) do
+  defp create_path(path, abs_path, true, _file_content) do
     if File.exists?(abs_path) do
       {:error, "Path already exists: #{path}"}
     else
@@ -168,16 +183,34 @@ defmodule AI.Tools.File.Manage do
     end
   end
 
-  defp create_path(path, abs_path, false, initial_contents) do
+  defp create_path(path, abs_path, false, file_content) do
     if File.exists?(abs_path) do
       {:error, "Path already exists: #{path}"}
     else
       abs_path |> Path.dirname() |> File.mkdir_p!()
 
-      case File.write(abs_path, initial_contents) do
+      case File.write(abs_path, file_content) do
         :ok -> {:ok, "Created file: #{path}"}
         {:error, reason} -> {:error, "Failed to create file #{path}: #{inspect(reason)}"}
       end
+    end
+  end
+
+  defp replace_path(path, abs_path, file_content) do
+    cond do
+      not File.exists?(abs_path) ->
+        {:error, "File does not exist: #{path}"}
+
+      File.dir?(abs_path) ->
+        {:error, "Cannot replace a directory with a file: #{path}"}
+
+      true ->
+        abs_path
+        |> File.write(file_content)
+        |> case do
+          :ok -> {:ok, "Replaced file contents: #{path}"}
+          {:error, reason} -> {:error, "Failed to replace file #{path}: #{inspect(reason)}"}
+        end
     end
   end
 

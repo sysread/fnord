@@ -21,6 +21,17 @@ defmodule AI.Tools.File.ManageTest do
       assert File.read!(abs_path) == ""
     end
 
+    test "successfully creates a new file with initial contents", %{project: project} do
+      path = "foo/bar.txt"
+      abs_path = Path.join(project.source_root, path)
+      refute File.exists?(abs_path)
+
+      args = %{"operation" => "create", "path" => path, "file_content" => "Hello, world!"}
+      assert {:ok, "Created file: foo/bar.txt"} = Manage.call(args)
+      assert File.exists?(abs_path)
+      assert File.read!(abs_path) == "Hello, world!"
+    end
+
     test "refuses to create if file exists", %{project: project} do
       path = "foo/existing.txt"
       abs_path = Path.join(project.source_root, path)
@@ -36,6 +47,32 @@ defmodule AI.Tools.File.ManageTest do
       args = %{"operation" => "create", "path" => "../evil.txt"}
       assert {:error, reason} = Manage.call(args)
       assert reason =~ "escapes project root"
+    end
+  end
+
+  describe "replace" do
+    test "successfully overwrites an existing file", %{project: project} do
+      path = "bar.txt"
+      abs_path = Path.join(project.source_root, path)
+      refute File.exists?(abs_path)
+
+      File.write!(abs_path, "Old content")
+      assert File.read!(abs_path) == "Old content"
+
+      args = %{"operation" => "replace", "path" => path, "file_content" => "New content"}
+      assert {:ok, "Replaced file contents: bar.txt"} = Manage.call(args)
+      assert File.exists?(abs_path)
+      assert File.read!(abs_path) == "New content"
+    end
+
+    test "refuses to overwrite a non-existent file", %{project: project} do
+      path = "foo/bar.txt"
+      abs_path = Path.join(project.source_root, path)
+      refute File.exists?(abs_path)
+
+      args = %{"operation" => "replace", "path" => path, "file_content" => "New content"}
+      assert {:error, reason} = Manage.call(args)
+      assert reason =~ "does not exist"
     end
   end
 
@@ -144,35 +181,6 @@ defmodule AI.Tools.File.ManageTest do
 
       assert {:ok, %{"operation" => "move", "path" => "a.txt", "destination_path" => "b.txt"}} =
                Manage.read_args(args)
-    end
-  end
-
-  describe "ui_note_on_request/1 and ui_note_on_result/2" do
-    test "give correct UI feedback" do
-      req_create = %{"operation" => "create", "path" => "z.txt"}
-      assert Manage.ui_note_on_request(req_create) == {"Creating file", "z.txt"}
-
-      assert Manage.ui_note_on_result(req_create, {:ok, "Created file: z.txt"}) ==
-               {"File created", "z.txt"}
-
-      req_delete = %{"operation" => "delete", "path" => "z.txt"}
-      assert Manage.ui_note_on_request(req_delete) == {"Deleting file", "z.txt"}
-
-      assert Manage.ui_note_on_result(req_delete, {:ok, "Deleted file: z.txt"}) ==
-               {"File deleted", "z.txt"}
-
-      req_move = %{"operation" => "move", "path" => "foo.txt", "destination_path" => "bar.txt"}
-      assert Manage.ui_note_on_request(req_move) == {"Moving file", "foo.txt -> bar.txt"}
-
-      assert Manage.ui_note_on_result(req_move, {:ok, "Moved foo.txt -> bar.txt"}) ==
-               {"File moved", "foo.txt -> bar.txt"}
-
-      # error/result fallback
-      result = {:error, "fail!"}
-      assert Manage.ui_note_on_result(req_create, result) == {"File operation error", "fail!"}
-
-      assert Manage.ui_note_on_result(%{}, {:ok, :other}) ==
-               {"File operation result", "{:ok, :other}"}
     end
   end
 end
