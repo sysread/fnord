@@ -32,14 +32,14 @@ defmodule AI.Model do
     %AI.Model{
       model: "gpt-5",
       context: 400_000,
-      reasoning: :medium
+      reasoning: :high
     }
   end
 
   @spec balanced() :: t
   def balanced() do
     %AI.Model{
-      model: "gpt-5-mini",
+      model: "gpt-5",
       context: 400_000,
       reasoning: :medium
     }

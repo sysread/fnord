@@ -131,7 +131,12 @@ defmodule AI.Agent.Code.HunkFinder do
   # ----------------------------------------------------------------------------
   # Internals
   # ----------------------------------------------------------------------------
-  @spec find_hunk(binary, binary, binary, binary) ::
+  @spec find_hunk(
+          file :: binary,
+          contents :: binary,
+          criteria :: binary,
+          replacement :: binary
+        ) ::
           {:ok, hunk}
           | {:error, term}
   defp find_hunk(file, "", _criteria, _replacement) do
@@ -201,6 +206,12 @@ defmodule AI.Agent.Code.HunkFinder do
   end
 
   defp log_success(name, hunk) do
-    UI.info("#{name} found their hunk!", inspect(hunk, pretty: true))
+    UI.info("#{name} found their hunk!", "#{hunk.file}:#{hunk.start_line}-#{hunk.end_line}")
+
+    UI.debug("Hunk contents", """
+    ```
+    #{hunk.contents}
+    ```
+    """)
   end
 end

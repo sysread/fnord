@@ -57,42 +57,58 @@ defmodule Hunk do
           | {:error, :file_not_found}
           | {:error, File.posix()}
   def with_context(hunk, pre_anchor, post_anchor, context_lines \\ @context_lines) do
-    with {:ok, file_contents} <- File.read(hunk.file),
-         {pos, _len} <- :binary.match(file_contents, hunk.contents) do
-      # Compute the starting line (0-based) of the match in the original file.
-      start_line_idx = :binary.matches(binary_part(file_contents, 0, pos), "\n") |> length()
+    hunk.file
+    |> File.read()
+    |> case do
+      # Keep a final newline to match expectations
+      {:ok, ""} ->
+        {:ok, pre_anchor <> post_anchor <> "\n"}
 
-      lines = String.split(file_contents, "\n", trim: false)
-      from = max(start_line_idx - context_lines, 0)
-      to = min(start_line_idx + context_lines, length(lines) - 1)
+      # Extra guard if the hunk is zero-length even when file later changed
+      {:ok, _file_contents} when hunk.contents == "" ->
+        {:ok, pre_anchor <> post_anchor <> "\n"}
 
-      # Slice context from the original file (no anchors yet).
-      snippet_lines = Enum.slice(lines, from, to - from + 1)
+      {:ok, file_contents} ->
+        with {pos, _len} <- :binary.match(file_contents, hunk.contents) do
+          # Compute the starting line (0-based) of the match in the original file.
+          start_line_idx = :binary.matches(binary_part(file_contents, 0, pos), "\n") |> length()
 
-      # Figure out where to insert anchors relative to the slice.
-      within_idx = start_line_idx - from
+          lines = String.split(file_contents, "\n", trim: false)
+          from = max(start_line_idx - context_lines, 0)
+          to = min(start_line_idx + context_lines, length(lines) - 1)
 
-      contents_line_count =
-        hunk.contents
-        |> String.split("\n", trim: false)
-        |> length()
+          # Slice context from the original file (no anchors yet).
+          snippet_lines = Enum.slice(lines, from, to - from + 1)
 
-      # Insert anchors as standalone lines: pre before the first line of the hunk,
-      # post after the last line of the hunk.
-      snippet_lines =
-        snippet_lines
-        |> List.insert_at(within_idx, pre_anchor)
-        |> List.insert_at(within_idx + contents_line_count + 1, post_anchor)
+          # Figure out where to insert anchors relative to the slice.
+          within_idx = start_line_idx - from
 
-      snippet = Enum.join(snippet_lines, "\n")
-      # Ensure trailing newline to match the test's heredoc expectation.
-      snippet = if String.ends_with?(snippet, "\n"), do: snippet, else: snippet <> "\n"
+          contents_line_count =
+            hunk.contents
+            |> String.split("\n", trim: false)
+            |> length()
 
-      {:ok, snippet}
-    else
-      :nomatch -> {:error, :not_found}
-      {:error, :enoent} -> {:error, :file_not_found}
-      {:error, reason} -> {:error, reason}
+          # Insert anchors as standalone lines: pre before the first line of the hunk,
+          # post after the last line of the hunk.
+          snippet_lines =
+            snippet_lines
+            |> List.insert_at(within_idx, pre_anchor)
+            |> List.insert_at(within_idx + contents_line_count + 1, post_anchor)
+
+          snippet = Enum.join(snippet_lines, "\n")
+          # Ensure trailing newline to match the test's heredoc expectation.
+          snippet = if String.ends_with?(snippet, "\n"), do: snippet, else: snippet <> "\n"
+
+          {:ok, snippet}
+        else
+          :nomatch -> {:error, :not_found}
+        end
+
+      {:error, :enoent} ->
+        {:error, :file_not_found}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 

@@ -9,6 +9,9 @@ defmodule AI.Agent.Code.PatchMaker do
   # ----------------------------------------------------------------------------
   @format_error "The LLM responded with an invalid JSON format. Please try again."
 
+  @pre_anchor "<!-- START OF SECTION TO REPLACE -->"
+  @post_anchor "<!-- END OF SECTION TO REPLACE -->"
+
   @model AI.Model.reasoning(:medium)
 
   @prompt """
@@ -124,15 +127,16 @@ defmodule AI.Agent.Code.PatchMaker do
 
   @spec build_prompt(binary, hunk, binary) :: {:ok, binary} | {:error, term}
   defp build_prompt(file, hunk, replacement) do
-    pre = "<!-- START OF SECTION TO REPLACE -->\n"
-    post = "\n<!-- END OF SECTION TO REPLACE -->"
-
-    with {:ok, context} <- Hunk.with_context(hunk, pre, post) do
+    with {:ok, context} <- Hunk.with_context(hunk, @pre_anchor, @post_anchor) do
       prompt = """
       # FILE
       `#{file}`
 
       # REGION TO BE MODIFIED
+
+      There are markers delimiting the section to be replaced so you know exactly where your code will fit.
+      **Do NOT include the anchors in your replacement!**
+
       ```
       #{context}
       ```

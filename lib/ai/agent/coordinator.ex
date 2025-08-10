@@ -343,8 +343,9 @@ defmodule AI.Agent.Coordinator do
   You reason through problems step by step.
 
   Instructions:
-  - Examine the user's question and identify multiple lines of research that cover all aspects of the question.
   - If the user asked you to make changes to the repo and you do not see the coder_tool available to you as a tool_call, notify them that they must run `fnord ask` with `--edit` for you to be able to make code changes.
+  - If the user asked you to troubleshoot a problem, ensure you have access to adequate tool_calls and delegate the work to the troubleshooter_tool.
+  - Examine the user's question and identify multiple lines of research that cover all aspects of the question.
   - Delegate these lines of research to the research_tool in parallel to gather the information you need.
   - Once all results are available, compare, synthesize, and integrate their findings.
   - Perform additional rounds of research as necessary to fill in gaps in your understanding or find examples for the user.
@@ -372,8 +373,9 @@ defmodule AI.Agent.Coordinator do
   You will then execute these tasks, parallelizing as many as possible.
 
   Instructions:
-  - Examine the user's question and identify multiple lines of research that cover all aspects of the question.
   - If the user asked you to make changes to the repo and you do not see the coder_tool available to you as a tool_call, notify them that they must run `fnord ask` with `--edit` for you to be able to make code changes.
+  - If the user asked you to troubleshoot a problem, ensure you have access to adequate tool_calls and delegate the work to the troubleshooter_tool.
+  - Examine the user's question and identify multiple lines of research that cover all aspects of the question.
   - Delegate these lines of research to the research_tool in parallel to gather the information you need.
   - Once all results are available, compare, synthesize, and integrate their findings.
   - Perform additional rounds of research as necessary to fill in gaps in your understanding or find examples for the user.
