@@ -10,8 +10,6 @@ defmodule AI.Agent.Code.HunkFinder do
 
   @type hunk :: Hunk.t()
 
-  @type response :: {:ok, list(hunk)} | {:error, binary}
-
   # ----------------------------------------------------------------------------
   # Constants
   # ----------------------------------------------------------------------------
