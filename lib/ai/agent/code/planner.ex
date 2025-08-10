@@ -99,7 +99,7 @@ defmodule AI.Agent.Code.Planner do
   Now, compare your Blue Sky Implementation with the current state of the code.
   Murphy dictates that the perfect implementation will not be possible, but you go to war with the army you *have*.
   What is the closest you can get to the ideal implementation that still dovetails into the code as it is?
-  Respond with your Near Ideal Implementation, including any relevant files, functions, or components that may be affected by this change.
+  Respond with your near ideal implementation, including any relevant files, functions, or components that may be affected by this change.
   """
 
   @spec visualize(t) :: t
@@ -116,6 +116,8 @@ defmodule AI.Agent.Code.Planner do
   @plan_prompt """
   Compare the current state of the code with your solution.
   The implementation will result from a "cascade" of changes, where each layers on top of the previous one.
+  Consider the types of changes that LLMs tend to struggle with.
+  Design your plan to minimize the risk of compounding errors and mitigate the weaknesses of LLMs when writing code.
   What atomic steps can you take to get from the current state to your solution?
   Pay special attention to ordering the changes in a logical fashion.
 
