@@ -189,7 +189,7 @@ defmodule Hunk do
         end
     end
   end
-  # -- Validation helpers for replace_in_file/2 --
+
   # Internal Functions
   @spec md5(binary) :: {:ok, binary} | {:error, term}
   defp md5(file) do
