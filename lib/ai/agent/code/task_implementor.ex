@@ -246,5 +246,7 @@ defmodule AI.Agent.Code.TaskImplementor do
   Produce a concise report outlining the work done, changes made, and problems encountered.
   """
 
-  defp summarize(state), do: Common.get_completion(state, @summary_prompt, nil, true)
+  defp summarize(state) do
+    Common.get_completion(state, @summary_prompt, nil, true)
+  end
 end
