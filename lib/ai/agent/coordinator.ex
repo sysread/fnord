@@ -480,20 +480,20 @@ defmodule AI.Agent.Coordinator do
 
   @template """
   Respond in beautifully formatted and well-organized markdown.
+    - Make use of markdown headers for organization
+    - Use lists, bold, italics, and underlines **liberally* to highlight key points
+    - Include code blocks for code examples
+    - Use inline code formatting for file names, components, and other symbols
 
   Follow these rules:
   - You are talking to a programmer: **NEVER use smart quotes, apostrophes, or emdashes**
   - Start immediately with the highest-level header (#), without introductions, disclaimers, or phrases like "Below is...".
-  - Use headers (##, ###) for sections, lists for key points, and bold/italics for emphasis.
   - By default, structure content like a technical manual or man page: concise, hierarchical, and self-contained.
-  - Use code blocks for code examples, and single backticks for file names, components, and other symbols.
-  - Make liberal use of bold, italics, underlines, lists, and other formatting to make the response easy to read.
   - If not appropriate, structure in the most appropriate format based on the user's implied needs.
   - Use a polite but informal tone; friendly humor and commiseration is encouraged.
   - Include a tl;dr section toward the end.
   - Include a list of relevant files if appropriate.
-  - Avoid commentary or markdown-rendering hints (e.g., "```markdown").
-  - Code examples are always useful and should be functional and complete, surrounded by markdown code fences.
+  - Code examples are always useful and should be functional and complete.
 
   THS IS IT.
   Your research is complete!
