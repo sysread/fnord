@@ -30,27 +30,27 @@ defmodule AI.Model do
   @spec smart() :: t
   def smart() do
     %AI.Model{
-      model: "gpt-5",
-      context: 400_000,
-      reasoning: :high
+      model: "gpt-4.1",
+      context: 1_000_000,
+      reasoning: :none
     }
   end
 
   @spec balanced() :: t
   def balanced() do
     %AI.Model{
-      model: "gpt-5",
-      context: 400_000,
-      reasoning: :medium
+      model: "gpt-4.1-mini",
+      context: 1_000_000,
+      reasoning: :none
     }
   end
 
   @spec fast() :: t
   def fast() do
     %AI.Model{
-      model: "gpt-5-nano",
-      context: 400_000,
-      reasoning: :minimal
+      model: "gpt-4.1-nano",
+      context: 1_000_000,
+      reasoning: :none
     }
   end
 
