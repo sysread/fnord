@@ -18,9 +18,7 @@ defmodule ApprovalsServer do
   # ----------------------------------------------------------------------------
   @type state :: %{
           ephemeral: MapSet.t(String.t()),
-          project: MapSet.t(String.t()),
-          global: MapSet.t(String.t()),
-          current_project: String.t() | nil
+          global: MapSet.t(String.t())
         }
 
   # ----------------------------------------------------------------------------
@@ -42,9 +40,24 @@ defmodule ApprovalsServer do
   """
   @spec approved?(String.t()) :: boolean
   def approved?(command) do
+    command = to_string(command)
     Agent.get(__MODULE__, fn state ->
+      # Load project approvals dynamically based on current project
+      current_project_approvals = 
+        case get_current_project() do
+          nil -> 
+            MapSet.new()
+          project_name ->
+            settings = Settings.new()
+            project_commands = Settings.get_approved_commands(settings, project_name)
+            project_commands
+            |> Enum.filter(fn {_cmd, approved} -> approved end)
+            |> Enum.map(fn {cmd, _approved} -> cmd end)
+            |> MapSet.new()
+        end
+
       all_approved = 
-        [state.global, state.project, state.ephemeral]
+        [state.global, current_project_approvals, state.ephemeral]
         |> Enum.reduce(MapSet.new(), &MapSet.union/2)
       MapSet.member?(all_approved, command)
     end)
@@ -61,27 +74,29 @@ defmodule ApprovalsServer do
   """
   @spec approve(:session | :project | :global, String.t()) :: :ok | {:error, :no_project}
   def approve(:session, command) do
+    command = to_string(command)
     Agent.update(__MODULE__, fn state ->
       %{state | ephemeral: MapSet.put(state.ephemeral, command)}
     end)
   end
 
   def approve(:project, command) do
+    command = to_string(command)
     Agent.get_and_update(__MODULE__, fn state ->
-      case state.current_project do
+      # Check current project dynamically instead of relying on cached state
+      case get_current_project() do
         nil ->
           {{:error, :no_project}, state}
 
         project_name ->
-          # Persist to Settings
+          # Persist to Settings - need to use the returned value to ensure it's saved
           settings = Settings.new()
-          Settings.set_command_approval(settings, project_name, command, true)
+          _updated_settings = Settings.set_command_approval(settings, project_name, command, true)
 
           # Update state - remove from ephemeral since project overrides
           new_state = %{
             state
-            | project: MapSet.put(state.project, command),
-              ephemeral: MapSet.delete(state.ephemeral, command)
+            | ephemeral: MapSet.delete(state.ephemeral, command)
           }
 
           {:ok, new_state}
@@ -90,21 +105,19 @@ defmodule ApprovalsServer do
   end
 
   def approve(:global, command) do
+    command = to_string(command)
     Agent.update(__MODULE__, fn state ->
-      # Persist to Settings
+      # Persist to Settings - need to use the returned value to ensure it's saved
       settings = Settings.new()
-      Settings.set_command_approval(settings, :global, command, true)
+      _updated_settings = Settings.set_command_approval(settings, :global, command, true)
 
       # Update state - remove from lower tiers since global overrides
       %{
         state
         | global: MapSet.put(state.global, command),
-          project: MapSet.delete(state.project, command),
           ephemeral: MapSet.delete(state.ephemeral, command)
       }
     end)
-
-    :ok
   end
 
   @doc """
@@ -130,7 +143,6 @@ defmodule ApprovalsServer do
 
   defp load_initial_state do
     settings = Settings.new()
-    current_project = get_current_project()
 
     # Load global approvals
     global_commands = Settings.get_approved_commands(settings, :global)
@@ -140,25 +152,9 @@ defmodule ApprovalsServer do
       |> Enum.map(fn {cmd, _approved} -> cmd end)
       |> MapSet.new()
 
-    # Load project approvals if project is set
-    project_approved = 
-      case current_project do
-        nil -> 
-          MapSet.new()
-        
-        project_name ->
-          project_commands = Settings.get_approved_commands(settings, project_name)
-          project_commands
-          |> Enum.filter(fn {_cmd, approved} -> approved end)
-          |> Enum.map(fn {cmd, _approved} -> cmd end)
-          |> MapSet.new()
-      end
-
     %{
       ephemeral: MapSet.new(),
-      project: project_approved,
-      global: global_approved,
-      current_project: current_project
+      global: global_approved
     }
   end
 

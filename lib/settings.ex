@@ -145,6 +145,10 @@ defmodule Settings do
   @spec set_project(t, map()) :: map()
   def set_project(settings, data) do
     with {:ok, project} <- get_selected_project() do
+      # Validate that the project name is not a global config key
+      unless is_valid_project_name?(project) do
+        raise ArgumentError, "Cannot use '#{project}' as project name - it conflicts with global configuration"
+      end
       set(settings, project, data)
       data
     else
@@ -154,9 +158,9 @@ defmodule Settings do
 
   @spec list_projects(t) :: [binary]
   def list_projects(settings) do
-    settings.data
+    settings
+    |> get_projects()
     |> Map.keys()
-    |> Enum.reject(&(&1 == "approved_commands"))
     |> Enum.sort()
   end
 
@@ -264,6 +268,38 @@ defmodule Settings do
     settings = ensure_approved_commands_exist(settings)
     File.write!(settings.path, Jason.encode!(settings.data, pretty: true))
     settings
+  end
+
+  @doc """
+  Get all project configurations, filtering out global configuration keys.
+  Returns a map of project_name => project_config.
+  """
+  @spec get_projects(t()) :: %{binary() => map()}
+  def get_projects(settings) do
+    settings.data
+    |> Enum.filter(fn {key, value} -> 
+      is_valid_project_name?(key) and is_map(value) and Map.has_key?(value, "root")
+    end)
+    |> Map.new()
+  end
+
+  @doc """
+  Check if a given key represents a valid project name (not a global config key).
+  Returns false for global configuration keys like "approved_commands".
+  """
+  @spec is_valid_project_name?(binary()) :: boolean()
+  def is_valid_project_name?(name) when is_binary(name) do
+    not Enum.member?(global_config_keys(), name)
+  end
+  
+  def is_valid_project_name?(_), do: false
+
+  @doc """
+  Get the list of global configuration keys that should not be treated as project names.
+  """
+  @spec global_config_keys() :: [binary()]
+  def global_config_keys() do
+    ["approved_commands"]
   end
 
   defp make_key(key) when is_atom(key), do: Atom.to_string(key)

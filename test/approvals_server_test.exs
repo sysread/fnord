@@ -61,9 +61,8 @@ defmodule ApprovalsServerTest do
       # Restart server to load from Settings
       {:ok, _pid} = ApprovalsServer.start_link()
       
-      state = ApprovalsServer.get_state()
-      assert state.current_project == @test_project
-      assert MapSet.member?(state.project, "make build")
+      # Verify project approval works (project is dynamically detected)
+      assert ApprovalsServer.approved?("make build")
     end
 
     test "handles no project set gracefully" do
@@ -74,9 +73,8 @@ defmodule ApprovalsServerTest do
       # Restart server
       {:ok, _pid} = ApprovalsServer.start_link()
       
-      state = ApprovalsServer.get_state()
-      assert state.current_project == nil
-      assert MapSet.size(state.project) == 0
+      # Verify that project approvals fail when no project is set
+      assert ApprovalsServer.approve(:project, "test cmd") == {:error, :no_project}
     end
   end
 
@@ -115,7 +113,8 @@ defmodule ApprovalsServerTest do
       
       state = ApprovalsServer.get_state()
       assert MapSet.member?(state.global, "shared command")
-      refute MapSet.member?(state.project, "shared command")
+      # Project approvals are loaded dynamically, so we just verify it's still approved
+      assert ApprovalsServer.approved?("shared command")
     end
 
     test "hierarchical lookup works - project and session coexist" do
@@ -164,9 +163,7 @@ defmodule ApprovalsServerTest do
       
       assert ApprovalsServer.approve(:project, "project cmd") == :ok
       
-      # Check in-memory state
-      state = ApprovalsServer.get_state()
-      assert MapSet.member?(state.project, "project cmd")
+      # Check that command is approved
       assert ApprovalsServer.approved?("project cmd")
       
       # Check persistence
@@ -187,7 +184,8 @@ defmodule ApprovalsServerTest do
       # Then promote to project
       ApprovalsServer.approve(:project, "cmd")
       state = ApprovalsServer.get_state()
-      assert MapSet.member?(state.project, "cmd")
+      # Check that it's still approved and removed from ephemeral
+      assert ApprovalsServer.approved?("cmd")
       refute MapSet.member?(state.ephemeral, "cmd")
     end
   end
@@ -214,15 +212,16 @@ defmodule ApprovalsServerTest do
       # Add to project tier first
       ApprovalsServer.approve(:project, "cmd")
       
-      state = ApprovalsServer.get_state()
-      assert MapSet.member?(state.project, "cmd")
+      # Verify it's approved at project level
+      assert ApprovalsServer.approved?("cmd")
       
       # Promote to global
       ApprovalsServer.approve(:global, "cmd")
       
       state = ApprovalsServer.get_state()
       assert MapSet.member?(state.global, "cmd")
-      refute MapSet.member?(state.project, "cmd")
+      # Command should still be approved (now from global)
+      assert ApprovalsServer.approved?("cmd")
       refute MapSet.member?(state.ephemeral, "cmd")
     end
   end
@@ -257,10 +256,9 @@ defmodule ApprovalsServerTest do
       
       ApprovalsServer.reset()
       
-      state = ApprovalsServer.get_state()
-      assert state.current_project == other_project
-      assert MapSet.member?(state.project, "project2 cmd")
-      refute MapSet.member?(state.project, "project1 cmd")
+      # Verify that the new project's approvals are available
+      assert ApprovalsServer.approved?("project2 cmd")
+      refute ApprovalsServer.approved?("project1 cmd")
       
       # Clean up
       Settings.delete(settings, other_project)

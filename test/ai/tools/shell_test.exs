@@ -203,6 +203,54 @@ defmodule AI.Tools.ShellTest do
       assert :meck.called(ApprovalsServer, :approve, [:session, "shell_cmd#ls"])
     end
 
+    test "approves for project when user chooses project approval option" do
+      :meck.expect(ApprovalsServer, :approved?, fn _ -> false end)
+      :meck.expect(UI, :choose, fn _prompt, options -> 
+        # Simulate user choosing the project approval option
+        Enum.find(options, &String.starts_with?(&1, "You son of a... for this project:"))
+      end)
+      :meck.expect(ApprovalsServer, :approve, fn :project, "shell_cmd#ls" -> :ok end)
+      :meck.expect(Store, :get_project, fn -> {:ok, %{source_root: "/test/path"}} end)
+      :meck.expect(System, :cmd, fn "ls", ["-l"], _ -> {"output", 0} end)
+
+      result = Shell.call(%{"description" => @valid_desc, "cmd" => "ls -l"})
+      assert {:ok, "output"} = result
+      
+      # Verify ApprovalsServer.approve was called for project approval
+      assert :meck.called(ApprovalsServer, :approve, [:project, "shell_cmd#ls"])
+    end
+
+    test "returns error when project approval is chosen but no project is set" do
+      :meck.expect(ApprovalsServer, :approved?, fn _ -> false end)
+      :meck.expect(UI, :choose, fn _prompt, options -> 
+        # Simulate user choosing the project approval option
+        Enum.find(options, &String.starts_with?(&1, "You son of a... for this project:"))
+      end)
+      :meck.expect(ApprovalsServer, :approve, fn :project, "shell_cmd#ls" -> {:error, :no_project} end)
+
+      result = Shell.call(%{"description" => @valid_desc, "cmd" => "ls -l"})
+      assert {:error, error_msg} = result
+      assert error_msg =~ "Cannot approve for project: no project is currently set"
+      assert error_msg =~ "fnord config set"
+    end
+
+    test "approves globally when user chooses global approval option" do
+      :meck.expect(ApprovalsServer, :approved?, fn _ -> false end)
+      :meck.expect(UI, :choose, fn _prompt, options -> 
+        # Simulate user choosing the global approval option
+        Enum.find(options, &String.starts_with?(&1, "You son of a... globally:"))
+      end)
+      :meck.expect(ApprovalsServer, :approve, fn :global, "shell_cmd#ls" -> :ok end)
+      :meck.expect(Store, :get_project, fn -> {:ok, %{source_root: "/test/path"}} end)
+      :meck.expect(System, :cmd, fn "ls", ["-l"], _ -> {"output", 0} end)
+
+      result = Shell.call(%{"description" => @valid_desc, "cmd" => "ls -l"})
+      assert {:ok, "output"} = result
+      
+      # Verify ApprovalsServer.approve was called for global approval
+      assert :meck.called(ApprovalsServer, :approve, [:global, "shell_cmd#ls"])
+    end
+
     test "uses cached approval from ApprovalsServer for subsequent calls" do
       :meck.expect(ApprovalsServer, :approved?, fn "shell_cmd#ls" -> true end)
       :meck.expect(Store, :get_project, fn -> {:ok, %{source_root: "/test/path"}} end)

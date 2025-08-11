@@ -201,6 +201,14 @@ defmodule AI.Tools.Shell do
       ["You son of a... for the whole session:" | approval_bits]
       |> Enum.join(" ")
 
+    project_approval_str =
+      ["You son of a... for this project:" | approval_bits]
+      |> Enum.join(" ")
+
+    global_approval_str =
+      ["You son of a... globally:" | approval_bits]
+      |> Enum.join(" ")
+
     command_key =
       ["shell_cmd" | approval_bits]
       |> Enum.join("#")
@@ -208,6 +216,8 @@ defmodule AI.Tools.Shell do
     options = [
       "You son of a bitch, I'm in",
       approval_str,
+      project_approval_str,
+      global_approval_str,
       "Deny",
       "Deny (with feedback)"
     ]
@@ -229,7 +239,10 @@ defmodule AI.Tools.Shell do
 
       # Approval
       You can approve this call only, or you can approve all future calls for
-      this command and its subcommands in this session.
+      this command and its subcommands for:
+      - This session only (not saved)
+      - This project (saved persistently in project settings)
+      - All projects globally (saved persistently in global settings)
       """
       |> UI.choose(options)
       |> case do
@@ -251,6 +264,22 @@ defmodule AI.Tools.Shell do
         ^approval_str ->
           # Approve for session using ApprovalsServer
           ApprovalsServer.approve(:session, command_key)
+          {:ok, :approved}
+
+        ^project_approval_str ->
+          # Approve for project using ApprovalsServer
+          case ApprovalsServer.approve(:project, command_key) do
+            :ok ->
+              {:ok, :approved}
+
+            {:error, :no_project} ->
+              {:error,
+               "Cannot approve for project: no project is currently set. Use 'fnord config set <project>' to set a project first."}
+          end
+
+        ^global_approval_str ->
+          # Approve globally using ApprovalsServer
+          ApprovalsServer.approve(:global, command_key)
           {:ok, :approved}
       end
     end

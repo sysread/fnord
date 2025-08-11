@@ -189,10 +189,10 @@ defmodule Fnord do
 
   @spec get_project_from_cwd() :: {:ok, binary} | {:error, :not_in_project}
   defp get_project_from_cwd() do
-    # Map project roots to project names.
+    # Map project roots to project names using Settings.get_projects/1
     projects =
       Settings.new()
-      |> Map.get(:data, %{})
+      |> Settings.get_projects()
       |> Enum.map(fn {k, %{"root" => root}} -> {root, k} end)
       |> Map.new()
 
