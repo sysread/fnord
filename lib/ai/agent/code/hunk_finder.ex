@@ -13,7 +13,7 @@ defmodule AI.Agent.Code.HunkFinder do
   # ----------------------------------------------------------------------------
   # Constants
   # ----------------------------------------------------------------------------
-  @model AI.Model.reasoning(:low)
+  @model AI.Model.reasoning(:medium)
 
   @prompt """
   # SYNOPSIS
