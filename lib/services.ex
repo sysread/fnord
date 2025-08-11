@@ -13,5 +13,6 @@ defmodule Services do
     NotesServer.start_link()
     TaskServer.start_link()
     AI.Agent.Researcher.start_link()
+    BackupFileServer.start_link()
   end
 end

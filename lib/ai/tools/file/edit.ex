@@ -10,6 +10,12 @@ defmodule AI.Tools.File.Edit do
   # ----------------------------------------------------------------------------
   @type hunk :: Hunk.t()
 
+  @type edit_result :: %{
+          diff: binary,
+          backup_file: binary,
+          backup_files: [binary]
+        }
+
   # ----------------------------------------------------------------------------
   # Behaviour Implementation
   # ----------------------------------------------------------------------------
@@ -43,9 +49,16 @@ defmodule AI.Tools.File.Edit do
   end
 
   @impl AI.Tools
-  def ui_note_on_result(%{"file" => file}, result) do
-    IO.write(:stderr, result)
-    {"File edited successfully", file}
+  def ui_note_on_result(%{"file" => file}, result) when is_binary(result) do
+    case Jason.decode(result) do
+      {:ok, %{"diff" => diff, "backup_file" => backup_file}} ->
+        IO.write(:stderr, diff)
+        {"File edited successfully", "#{file} (backup: #{Path.basename(backup_file)})"}
+
+      _ ->
+        IO.write(:stderr, result)
+        {"File edited successfully", file}
+    end
   end
 
   @impl AI.Tools
@@ -98,16 +111,28 @@ defmodule AI.Tools.File.Edit do
     }
   end
 
+  @spec call(map) :: {:ok, edit_result} | {:error, term}
   @impl AI.Tools
   def call(args) do
     with {:ok, file} <- AI.Tools.get_arg(args, "file"),
          {:ok, criteria} <- AI.Tools.get_arg(args, "find"),
          {:ok, replacement} <- AI.Tools.get_arg(args, "replacement"),
+         {:ok, project} <- Store.get_project(),
+         absolute_file <- Store.Project.expand_path(file, project),
+         {:ok, backup_path} <- BackupFileServer.create_backup(absolute_file),
          {:ok, hunk} <- find_hunk(file, criteria, replacement),
          {:ok, adjusted_replacement} <- adjust_replacement(file, hunk, replacement),
          :ok <- apply_changes(hunk, adjusted_replacement) do
       diff = build_diff(hunk, adjusted_replacement)
-      {:ok, diff}
+      backup_files = BackupFileServer.get_session_backups()
+
+      result = %{
+        diff: diff,
+        backup_file: backup_path,
+        backup_files: backup_files
+      }
+
+      {:ok, result}
     end
   end
 
