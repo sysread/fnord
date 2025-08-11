@@ -14,5 +14,6 @@ defmodule Services do
     TaskServer.start_link()
     AI.Agent.Researcher.start_link()
     BackupFileServer.start_link()
+    ApprovalsServer.start_link()
   end
 end
