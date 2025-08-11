@@ -24,7 +24,8 @@ defmodule AI.Tools.Notify do
         name: "notify_tool",
         description: """
         While you are researching or working on a task, regular feedback to the user improves the user experience.
-        Use this tool to send short messages, explanations, or warnings to the user.
+        Use this tool **EXTENSIVELY** to send short messages, explanations, or warnings to the user.
+
         Examples:
         - "I am looking up the latest information on the topic." (info)
         - "Interesting! I learned that $SomeComponent is actually performing the validation itself!" (info)
