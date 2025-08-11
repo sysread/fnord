@@ -341,6 +341,10 @@ defmodule AI.Agent.Coordinator do
   Confirm whether any prior research you found is still relevant and factual.
   Proactively use your tools to research the user's question.
   You reason through problems step by step.
+
+  Use the `notify_tool` **extensively** to report what you are doing to the user through the UI.
+  That will improve the user experience and help them understand what you are doing and why.
+  They also get a kick out of it when you report interesting findings you made along the way.
   """
 
   @coding """
