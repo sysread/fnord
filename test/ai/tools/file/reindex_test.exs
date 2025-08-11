@@ -29,7 +29,7 @@ defmodule AI.Tools.File.ReindexTest do
     test "invokes Cmd.Index and returns success tuple" do
       # Set up a mock project for the reindex tool to work with
       _project = mock_project("reindex_test_project")
-      
+
       assert Reindex.call(%{}) == {:ok, "Full reindex complete"}
     end
   end

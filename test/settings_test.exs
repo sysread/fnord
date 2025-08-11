@@ -69,7 +69,8 @@ defmodule SettingsTest do
       settings = Settings.new()
 
       # Add a project without approved_commands
-      _settings = Settings.set(settings, "settings_test_project", %{"root" => "/test", "exclude" => []})
+      _settings =
+        Settings.set(settings, "settings_test_project", %{"root" => "/test", "exclude" => []})
 
       # Verify migration added approved_commands
       updated_settings = Settings.new()
@@ -112,10 +113,16 @@ defmodule SettingsTest do
       settings = Settings.new()
       settings = Settings.set(settings, "settings_test_project", %{"root" => "/test"})
 
-      settings = Settings.set_command_approval(settings, "settings_test_project", "make build", true)
-      assert Settings.get_approved_commands(settings, "settings_test_project") == %{"make build" => true}
+      settings =
+        Settings.set_command_approval(settings, "settings_test_project", "make build", true)
 
-      settings = Settings.set_command_approval(settings, "settings_test_project", "docker run", false)
+      assert Settings.get_approved_commands(settings, "settings_test_project") == %{
+               "make build" => true
+             }
+
+      settings =
+        Settings.set_command_approval(settings, "settings_test_project", "docker run", false)
+
       expected = %{"make build" => true, "docker run" => false}
       assert Settings.get_approved_commands(settings, "settings_test_project") == expected
     end
@@ -132,20 +139,30 @@ defmodule SettingsTest do
     test "remove_command_approval/3 removes project command" do
       settings = Settings.new()
       settings = Settings.set(settings, "settings_test_project", %{"root" => "/test"})
-      settings = Settings.set_command_approval(settings, "settings_test_project", "make build", true)
-      settings = Settings.set_command_approval(settings, "settings_test_project", "docker run", false)
+
+      settings =
+        Settings.set_command_approval(settings, "settings_test_project", "make build", true)
+
+      settings =
+        Settings.set_command_approval(settings, "settings_test_project", "docker run", false)
 
       settings = Settings.remove_command_approval(settings, "settings_test_project", "make build")
-      assert Settings.get_approved_commands(settings, "settings_test_project") == %{"docker run" => false}
+
+      assert Settings.get_approved_commands(settings, "settings_test_project") == %{
+               "docker run" => false
+             }
     end
 
     test "get_command_approval/3 returns project approval over global" do
       settings = Settings.new()
       settings = Settings.set_command_approval(settings, :global, "git push", false)
       settings = Settings.set(settings, "settings_test_project", %{"root" => "/test"})
-      settings = Settings.set_command_approval(settings, "settings_test_project", "git push", true)
 
-      assert Settings.get_command_approval(settings, "settings_test_project", "git push") == {:ok, true}
+      settings =
+        Settings.set_command_approval(settings, "settings_test_project", "git push", true)
+
+      assert Settings.get_command_approval(settings, "settings_test_project", "git push") ==
+               {:ok, true}
     end
 
     test "get_command_approval/3 falls back to global when not set in project" do
@@ -153,7 +170,8 @@ defmodule SettingsTest do
       settings = Settings.set_command_approval(settings, :global, "git push", true)
       settings = Settings.set(settings, "settings_test_project", %{"root" => "/test"})
 
-      assert Settings.get_command_approval(settings, "settings_test_project", "git push") == {:ok, true}
+      assert Settings.get_command_approval(settings, "settings_test_project", "git push") ==
+               {:ok, true}
     end
 
     test "get_command_approval/3 returns error when command not found anywhere" do

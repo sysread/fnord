@@ -95,6 +95,24 @@ defmodule Settings do
   end
 
   @doc """
+  Set the quiet mode for UI output.
+  """
+  @spec set_quiet(boolean) :: :ok
+  def set_quiet(quiet) when is_boolean(quiet) do
+    Application.put_env(:fnord, :quiet, quiet)
+    :ok
+  end
+
+  @doc """
+  Set the number of workers for concurrent operations.
+  """
+  @spec set_workers(pos_integer) :: :ok
+  def set_workers(workers) when is_integer(workers) and workers > 0 do
+    Application.put_env(:fnord, :workers, workers)
+    :ok
+  end
+
+  @doc """
   Check if the --project option is set.
   """
   def project_is_set?() do

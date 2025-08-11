@@ -103,7 +103,7 @@ defmodule Store.Project do
 
   @spec make_default_for_session(t) :: t
   def make_default_for_session(project) do
-    Application.put_env(:fnord, :project, project.name)
+    Settings.set_project(project.name)
     project
   end
 

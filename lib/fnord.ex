@@ -153,10 +153,10 @@ defmodule Fnord do
     args
     |> Enum.each(fn
       {:workers, workers} ->
-        Application.put_env(:fnord, :workers, workers)
+        Settings.set_workers(workers)
 
       {:quiet, quiet} ->
-        Application.put_env(:fnord, :quiet, quiet)
+        Settings.set_quiet(quiet)
 
       {:project, project} when is_binary(project) ->
         Settings.set_project(project)

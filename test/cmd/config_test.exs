@@ -261,7 +261,8 @@ defmodule Cmd.ConfigTest do
           )
         end)
 
-      assert output =~ "Command 'make build' removed from project 'config_test_project' approval list."
+      assert output =~
+               "Command 'make build' removed from project 'config_test_project' approval list."
 
       # Verify it was actually removed
       updated_settings = Settings.new()
