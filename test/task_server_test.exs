@@ -19,9 +19,9 @@ defmodule TaskServerTest do
 
     assert TaskServer.as_string(list_id) ==
              """
-             - [ ] Task 1
-             - [ ] Task 2
-             - [ ] Task 3
+             [ ] Task 1
+             [ ] Task 2
+             [ ] Task 3
              """
 
     assert :ok = TaskServer.complete_task(list_id, "Task 1", "Result 1")
@@ -35,9 +35,9 @@ defmodule TaskServerTest do
 
     assert TaskServer.as_string(list_id) ==
              """
-             - [✓] Task 1
-             - [✗] Task 2
-             - [ ] Task 3
+             [✓] Task 1
+             [✗] Task 2
+             [ ] Task 3
              """
   end
 

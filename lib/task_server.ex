@@ -83,16 +83,16 @@ defmodule TaskServer do
   end
 
   def as_string(%{id: id, outcome: :done, result: result}, true) do
-    "- [✓] #{id}: #{result}"
+    "[✓] #{id}: #{result}"
   end
 
   def as_string(%{id: id, outcome: :failed, result: result}, true) do
-    "- [✗] #{id}: #{result}"
+    "[✗] #{id}: #{result}"
   end
 
-  def as_string(%{id: id, outcome: :todo}, _), do: "- [ ] #{id}"
-  def as_string(%{id: id, outcome: :done}, _), do: "- [✓] #{id}"
-  def as_string(%{id: id, outcome: :failed}, _), do: "- [✗] #{id}"
+  def as_string(%{id: id, outcome: :todo}, _), do: "[ ] #{id}"
+  def as_string(%{id: id, outcome: :done}, _), do: "[✓] #{id}"
+  def as_string(%{id: id, outcome: :failed}, _), do: "[✗] #{id}"
 
   # ----------------------------------------------------------------------------
   # Server Callbacks
