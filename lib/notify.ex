@@ -14,6 +14,19 @@ defmodule Notifier do
     end
   end
 
+  @doc """
+  Attempts to dismiss/clear notifications for the given group.
+  Only works on systems that support notification dismissal.
+  """
+  @spec dismiss(String.t()) :: :ok | {:error, term}
+  def dismiss(group \\ "fnord") do
+    case :os.type() do
+      {:unix, :darwin} -> mac_dismiss(group)
+      {:unix, :linux} -> linux_dismiss(group)
+      _ -> :ok  # No-op for unsupported systems
+    end
+  end
+
   # ----------------------------------------------------------------------------
   # MacOS
   # ----------------------------------------------------------------------------
@@ -48,6 +61,18 @@ defmodule Notifier do
     ~s(") <> String.replace(s, ~s("), ~s(\\")) <> ~s(")
   end
 
+  defp mac_dismiss(group) do
+    cond do
+      exe?("terminal-notifier") ->
+        # Remove all notifications for the group
+        run("terminal-notifier", ["-remove", group])
+
+      true ->
+        # osascript doesn't support programmatic dismissal
+        :ok
+    end
+  end
+
   # ----------------------------------------------------------------------------
   # Linux
   # ----------------------------------------------------------------------------
@@ -77,6 +102,12 @@ defmodule Notifier do
   defp gui_env?() do
     (System.get_env("WAYLAND_DISPLAY") || "") != "" ||
       (System.get_env("DISPLAY") || "") != ""
+  end
+
+  defp linux_dismiss(_group) do
+    # Most Linux notification systems don't support easy programmatic dismissal
+    # without tracking notification IDs, which would require significant changes
+    :ok
   end
 
   # ----------------------------------------------------------------------------

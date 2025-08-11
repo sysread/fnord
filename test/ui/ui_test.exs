@@ -75,4 +75,82 @@ defmodule UI.UITest do
       refute UI.iodata?(improper)
     end
   end
+
+  describe "with_notification_timeout/2" do
+    test "returns function result when function completes quickly" do
+      # Mock Notifier to ensure it's not called
+      :meck.new(Notifier, [:passthrough])
+      :meck.expect(Notifier, :notify, fn _title, _message, _opts -> :ok end)
+
+      result = UI.with_notification_timeout(fn -> :quick_result end, "test message", 1000)
+      
+      assert result == :quick_result
+      # Verify notification was not sent
+      assert :meck.called(Notifier, :notify, :_) == false
+
+      :meck.unload(Notifier)
+    end
+
+    test "sends notification after timeout but still returns result" do
+      # Mock Notifier
+      :meck.new(Notifier, [:passthrough])
+      :meck.expect(Notifier, :notify, fn _title, _message, _opts -> :ok end)
+
+      # Function that delays longer than timeout
+      delayed_func = fn ->
+        Process.sleep(200)  
+        :delayed_result
+      end
+
+      result = UI.with_notification_timeout(delayed_func, "test message", 100)
+      
+      assert result == :delayed_result
+      # Verify notification was sent
+      assert :meck.called(Notifier, :notify, ["Fnord", "test message", [urgency: "critical"]])
+
+      :meck.unload(Notifier)
+    end
+
+    test "cancels notification if function completes before timeout" do
+      # Mock Notifier
+      :meck.new(Notifier, [:passthrough])
+      :meck.expect(Notifier, :notify, fn _title, _message, _opts -> :ok end)
+
+      # Function that completes just before timeout
+      fast_func = fn ->
+        Process.sleep(50)  
+        :fast_result
+      end
+
+      result = UI.with_notification_timeout(fast_func, "test message", 100)
+      
+      assert result == :fast_result
+      # Verify notification was not sent
+      assert :meck.called(Notifier, :notify, :_) == false
+
+      :meck.unload(Notifier)
+    end
+
+    test "dismisses notification when function completes after timeout" do
+      # Mock Notifier
+      :meck.new(Notifier, [:passthrough])
+      :meck.expect(Notifier, :notify, fn _title, _message, _opts -> :ok end)
+      :meck.expect(Notifier, :dismiss, fn _group -> :ok end)
+
+      # Function that delays longer than timeout
+      delayed_func = fn ->
+        Process.sleep(200)  
+        :delayed_result
+      end
+
+      result = UI.with_notification_timeout(delayed_func, "test message", 100)
+      
+      assert result == :delayed_result
+      # Verify notification was sent and then dismissed
+      assert :meck.called(Notifier, :notify, ["Fnord", "test message", [urgency: "critical"]])
+      assert :meck.called(Notifier, :dismiss, ["fnord"])
+
+      :meck.unload(Notifier)
+    end
+  end
 end

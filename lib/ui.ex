@@ -27,11 +27,13 @@ defmodule UI do
         flush()
         IO.write(:stderr, UI.Formatter.format_output("#{msg} (#{yes}/#{no}) "))
 
-        case IO.gets("") do
-          "y\n" -> true
-          "Y\n" -> true
-          _ -> default
-        end
+        with_notification_timeout(fn ->
+          case IO.gets("") do
+            "y\n" -> true
+            "Y\n" -> true
+            _ -> default
+          end
+        end, "Fnord is waiting for your response to: #{msg}")
 
       has_default ->
         default
@@ -240,7 +242,10 @@ defmodule UI do
 
   def choose(prompt, options, owl_opts \\ []) do
     prompt |> UI.Formatter.format_output() |> IO.puts()
-    Owl.IO.select(options, owl_opts)
+    
+    with_notification_timeout(fn ->
+      Owl.IO.select(options, owl_opts)
+    end, "Fnord is waiting for your selection: #{prompt}")
   end
 
   def prompt(prompt, owl_opts \\ []) do
@@ -279,4 +284,69 @@ defmodule UI do
   defp iodata_tail?(tail) when is_list(tail), do: iodata?(tail)
   defp iodata_tail?(tail) when is_binary(tail), do: true
   defp iodata_tail?(_), do: false
+
+  # ----------------------------------------------------------------------------
+  # Notification timeout for interactive prompts
+  # ----------------------------------------------------------------------------
+  
+  @notification_timeout_ms 60_000
+
+  @doc """
+  Executes a function with a notification timeout.
+  
+  If the function takes longer than the specified timeout (default 60 seconds),
+  a system notification is sent to alert the user, but the function continues to run.
+  The notification is cancelled if the function completes before the timeout.
+  """
+  @spec with_notification_timeout((() -> any), binary) :: any
+  def with_notification_timeout(func, notification_message) do
+    timeout_ms = Application.get_env(:fnord, :ui_timeout_ms, @notification_timeout_ms)
+    with_notification_timeout(func, notification_message, timeout_ms)
+  end
+
+  @spec with_notification_timeout((() -> any), binary, non_neg_integer) :: any
+  def with_notification_timeout(func, notification_message, timeout_ms) do
+    # Start a task to execute the function
+    task = Task.async(func)
+    
+    # Start a timer for the notification
+    timer_ref = Process.send_after(self(), {:notification_timeout, notification_message}, timeout_ms)
+    
+    # Wait for the task to complete while handling timeout messages
+    result = wait_for_task_with_timeout(task, timer_ref)
+    
+    # Clean up: cancel timer if still active
+    Process.cancel_timer(timer_ref)
+    
+    result
+  end
+  
+  @spec wait_for_task_with_timeout(Task.t(), reference) :: any
+  defp wait_for_task_with_timeout(task, timer_ref) do
+    wait_for_task_with_timeout(task, timer_ref, false)
+  end
+
+  @spec wait_for_task_with_timeout(Task.t(), reference, boolean) :: any
+  defp wait_for_task_with_timeout(task, timer_ref, notification_sent?) do
+    receive do
+      {:notification_timeout, message} ->
+        # Send notification but continue waiting for the task
+        Notifier.notify("Fnord", message, urgency: "critical")
+        wait_for_task_with_timeout(task, timer_ref, true)
+    after
+      100 ->
+        # Check if task completed
+        case Task.yield(task, 0) do
+          {:ok, result} ->
+            # If we sent a notification, try to dismiss it
+            if notification_sent? do
+              Notifier.dismiss("fnord")
+            end
+            result
+          nil ->
+            # Keep waiting
+            wait_for_task_with_timeout(task, timer_ref, notification_sent?)
+        end
+    end
+  end
 end
