@@ -23,7 +23,8 @@ defmodule Notifier do
     case :os.type() do
       {:unix, :darwin} -> mac_dismiss(group)
       {:unix, :linux} -> linux_dismiss(group)
-      _ -> :ok  # No-op for unsupported systems
+      # No-op for unsupported systems
+      _ -> :ok
     end
   end
 

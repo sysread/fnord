@@ -279,7 +279,10 @@ defmodule BackupFileServerTest do
       assert :meck.called(UI, :warning_banner, ["Backup files were created during this session"])
       assert :meck.called(UI, :say, ["- #{backup_file}"])
       assert :meck.called(UI, :confirm, ["Would you like to delete these backup files?"])
-      assert :meck.called(UI, :say, ["_Backup files not deleted. They may be removed at your convenience._"])
+
+      assert :meck.called(UI, :say, [
+               "_Backup files not deleted. They may be removed at your convenience._"
+             ])
 
       # Verify backup file still exists
       assert File.exists?(backup_file)
@@ -313,7 +316,11 @@ defmodule BackupFileServerTest do
       assert :meck.called(UI, :warning_banner, ["Backup files were created during this session"])
       assert :meck.called(UI, :say, ["- #{backup_file}"])
       assert :meck.called(UI, :confirm, ["Would you like to delete these backup files?"])
-      assert :meck.called(UI, :warn, ["Unable to delete some backup files", "- #{Path.basename(backup_file)}"])
+
+      assert :meck.called(UI, :warn, [
+               "Unable to delete some backup files",
+               "- #{Path.basename(backup_file)}"
+             ])
 
       :meck.unload(UI)
       :meck.unload(File)

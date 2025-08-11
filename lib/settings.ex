@@ -138,6 +138,7 @@ defmodule Settings do
   def list_projects(settings) do
     settings.data
     |> Map.keys()
+    |> Enum.reject(&(&1 == "approved_commands"))
     |> Enum.sort()
   end
 
@@ -151,6 +152,89 @@ defmodule Settings do
     end
   end
 
+  @doc """
+  Get approved commands for global or project scope.
+  """
+  @spec get_approved_commands(t, :global | binary) :: map()
+  def get_approved_commands(settings, :global) do
+    get(settings, "approved_commands", %{})
+  end
+
+  def get_approved_commands(settings, project_name) when is_binary(project_name) do
+    case get(settings, project_name) do
+      nil -> %{}
+      project_data -> Map.get(project_data, "approved_commands", %{})
+    end
+  end
+
+  @doc """
+  Set approval status for a command in global or project scope.
+  """
+  @spec set_command_approval(t, :global | binary, binary, boolean) :: t()
+  def set_command_approval(settings, :global, command, approved)
+      when is_binary(command) and is_boolean(approved) do
+    current_commands = get_approved_commands(settings, :global)
+    updated_commands = Map.put(current_commands, command, approved)
+    set(settings, "approved_commands", updated_commands)
+  end
+
+  def set_command_approval(settings, project_name, command, approved)
+      when is_binary(project_name) and is_binary(command) and is_boolean(approved) do
+    project_data = get(settings, project_name, %{})
+    current_commands = Map.get(project_data, "approved_commands", %{})
+    updated_commands = Map.put(current_commands, command, approved)
+    updated_project_data = Map.put(project_data, "approved_commands", updated_commands)
+    set(settings, project_name, updated_project_data)
+  end
+
+  @doc """
+  Remove a command from approved commands list in global or project scope.
+  """
+  @spec remove_command_approval(t, :global | binary, binary) :: t()
+  def remove_command_approval(settings, :global, command) when is_binary(command) do
+    current_commands = get_approved_commands(settings, :global)
+    updated_commands = Map.delete(current_commands, command)
+    set(settings, "approved_commands", updated_commands)
+  end
+
+  def remove_command_approval(settings, project_name, command)
+      when is_binary(project_name) and is_binary(command) do
+    project_data = get(settings, project_name, %{})
+    current_commands = Map.get(project_data, "approved_commands", %{})
+    updated_commands = Map.delete(current_commands, command)
+    updated_project_data = Map.put(project_data, "approved_commands", updated_commands)
+    set(settings, project_name, updated_project_data)
+  end
+
+  @doc """
+  Get approval status for a command. Checks project scope first, then falls back to global.
+  """
+  @spec get_command_approval(t, binary, binary) :: {:ok, boolean} | {:error, :not_found}
+  def get_command_approval(settings, project_name, command)
+      when is_binary(project_name) and is_binary(command) do
+    project_commands = get_approved_commands(settings, project_name)
+    global_commands = get_approved_commands(settings, :global)
+
+    case {Map.get(project_commands, command), Map.get(global_commands, command)} do
+      {project_approval, _} when is_boolean(project_approval) -> {:ok, project_approval}
+      {nil, global_approval} when is_boolean(global_approval) -> {:ok, global_approval}
+      {nil, nil} -> {:error, :not_found}
+    end
+  end
+
+  @doc """
+  Get approval status for a command in global scope only.
+  """
+  @spec get_global_command_approval(t, binary) :: {:ok, boolean} | {:error, :not_found}
+  def get_global_command_approval(settings, command) when is_binary(command) do
+    global_commands = get_approved_commands(settings, :global)
+
+    case Map.get(global_commands, command) do
+      approval when is_boolean(approval) -> {:ok, approval}
+      nil -> {:error, :not_found}
+    end
+  end
+
   defp slurp(settings) do
     %Settings{
       settings
@@ -159,10 +243,38 @@ defmodule Settings do
   end
 
   defp spew(settings) do
+    settings = ensure_approved_commands_exist(settings)
     File.write!(settings.path, Jason.encode!(settings.data, pretty: true))
     settings
   end
 
   defp make_key(key) when is_atom(key), do: Atom.to_string(key)
   defp make_key(key), do: key
+
+  defp ensure_approved_commands_exist(settings) do
+    data = settings.data
+
+    data =
+      if Map.has_key?(data, "approved_commands") do
+        data
+      else
+        Map.put(data, "approved_commands", %{})
+      end
+
+    data =
+      Enum.reduce(data, data, fn
+        {key, project_data}, acc when is_map(project_data) and key != "approved_commands" ->
+          if Map.has_key?(project_data, "approved_commands") do
+            acc
+          else
+            updated_project_data = Map.put(project_data, "approved_commands", %{})
+            Map.put(acc, key, updated_project_data)
+          end
+
+        _, acc ->
+          acc
+      end)
+
+    %Settings{settings | data: data}
+  end
 end

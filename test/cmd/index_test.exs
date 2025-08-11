@@ -35,6 +35,9 @@ defmodule Cmd.IndexTest do
 
   describe "new" do
     test "returns error when source :directory is not passed or present in settings" do
+      # Ensure clean state - no project should be set in Application environment
+      Application.put_env(:fnord, :project, nil)
+      
       assert {:error, :project_not_set} = Cmd.Index.new(%{project: "test_project"})
     end
 
