@@ -85,7 +85,6 @@ defmodule Cmd.Ask do
       end_time = System.monotonic_time(:second)
       print_result(start_time, end_time, response, usage, context, conversation_id)
       Clipboard.copy(conversation_id)
-      NotesServer.join()
     else
       {:error, :invalid_rounds} ->
         UI.error("--rounds expects a positive integer")
@@ -99,6 +98,10 @@ defmodule Cmd.Ask do
       {:error, other} ->
         UI.error("An error occurred while generating the response:\n\n#{other}")
     end
+
+    BackupFileServer.offer_cleanup()
+    NotesServer.join()
+    :ok
   end
 
   # ----------------------------------------------------------------------------

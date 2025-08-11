@@ -50,18 +50,21 @@ defmodule AI.Tools.File.EditTest do
   describe "ui_note_on_result/2" do
     test "positive path with JSON-encoded backup info" do
       args = %{"file" => "test.txt"}
-      result = Jason.encode!(%{
-        diff: "some diff output",
-        backup_file: "/path/to/test.txt.0.0.bak",
-        backup_files: ["/path/to/test.txt.0.0.bak"]
-      })
 
-      stderr_output = ExUnit.CaptureIO.capture_io(:stderr, fn ->
-        {title, message} = Edit.ui_note_on_result(args, result)
+      result =
+        Jason.encode!(%{
+          diff: "some diff output",
+          backup_file: "/path/to/test.txt.0.0.bak",
+          backup_files: ["/path/to/test.txt.0.0.bak"]
+        })
 
-        assert title == "File edited successfully"
-        assert message == "test.txt (backup: test.txt.0.0.bak)"
-      end)
+      stderr_output =
+        ExUnit.CaptureIO.capture_io(:stderr, fn ->
+          {title, message} = Edit.ui_note_on_result(args, result)
+
+          assert title == "File edited successfully"
+          assert message == "test.txt (backup: test.txt.0.0.bak)"
+        end)
 
       assert stderr_output == "some diff output"
     end
@@ -70,12 +73,13 @@ defmodule AI.Tools.File.EditTest do
       args = %{"file" => "test.txt"}
       result = "some diff output"
 
-      stderr_output = ExUnit.CaptureIO.capture_io(:stderr, fn ->
-        {title, file} = Edit.ui_note_on_result(args, result)
+      stderr_output =
+        ExUnit.CaptureIO.capture_io(:stderr, fn ->
+          {title, file} = Edit.ui_note_on_result(args, result)
 
-        assert title == "File edited successfully"
-        assert file == "test.txt"
-      end)
+          assert title == "File edited successfully"
+          assert file == "test.txt"
+        end)
 
       assert stderr_output == "some diff output"
     end
@@ -84,12 +88,13 @@ defmodule AI.Tools.File.EditTest do
       args = %{"file" => "test.txt"}
       result = "{invalid json"
 
-      stderr_output = ExUnit.CaptureIO.capture_io(:stderr, fn ->
-        {title, file} = Edit.ui_note_on_result(args, result)
+      stderr_output =
+        ExUnit.CaptureIO.capture_io(:stderr, fn ->
+          {title, file} = Edit.ui_note_on_result(args, result)
 
-        assert title == "File edited successfully"
-        assert file == "test.txt"
-      end)
+          assert title == "File edited successfully"
+          assert file == "test.txt"
+        end)
 
       assert stderr_output == "{invalid json"
     end
@@ -277,7 +282,7 @@ defmodule AI.Tools.File.EditTest do
       }
 
       assert {:ok, result} = Edit.call(args)
-      
+
       # Should use global counter 1 since 0 already exists
       expected_backup = "#{test_file}.1.0.bak"
       assert result.backup_file == expected_backup
@@ -310,9 +315,10 @@ defmodule AI.Tools.File.EditTest do
           file: file,
           start_line: 1,
           end_line: 1,
-          contents: (if String.ends_with?(file, "file1.txt"), do: "content 1", else: "content 2"),
+          contents: if(String.ends_with?(file, "file1.txt"), do: "content 1", else: "content 2"),
           hash: "test_hash"
         }
+
         {:ok, test_hunk}
       end)
 

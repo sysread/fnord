@@ -1,10 +1,10 @@
 defmodule BackupFileServer do
   @moduledoc """
   GenServer that manages backup file creation for file editing operations with dual counter system.
-  
+
   Backup files follow the naming pattern:
   `original_filename.global_session_counter.change_counter.bak`
-  
+
   - global_session_counter: Per-file, per-OS-process counter that increments when
     existing backup files from previous processes are detected
   - change_counter: Per-file counter that increments for each successful edit
@@ -53,10 +53,10 @@ defmodule BackupFileServer do
 
   @doc """
   Returns all backup files created during this session (current OS process).
-  
+
   This includes backup files for all edited files during the current session,
   but excludes any backup files that may exist from previous sessions.
-  
+
   Files are returned in reverse chronological order (most recent first).
   """
   @spec get_session_backups() :: [binary]
@@ -70,6 +70,36 @@ defmodule BackupFileServer do
   @spec reset() :: :ok
   def reset do
     Agent.update(__MODULE__, fn _state -> initial_state() end)
+  end
+
+  @doc """
+  Offers to cleanup backup files created during this session.
+
+  If backup files exist, lists them and prompts the user for confirmation
+  before deleting them. If no backup files exist, does nothing silently.
+  """
+  @spec offer_cleanup() :: :ok
+  def offer_cleanup do
+    backup_files = get_session_backups()
+
+    if Enum.empty?(backup_files) do
+      :ok
+    else
+      backup_file_list =
+        backup_files
+        |> Enum.reverse()
+        |> Enum.map(&"- #{&1}")
+        |> Enum.join("\n")
+
+      UI.warning_banner("Backup files were created during this session")
+      UI.say(backup_file_list)
+
+      if UI.confirm("Would you like to delete these backup files?") do
+        cleanup_session_backups(backup_files)
+      else
+        UI.say("_Backup files not deleted. They may be removed at your convenience._")
+      end
+    end
   end
 
   # ----------------------------------------------------------------------------
@@ -167,6 +197,33 @@ defmodule BackupFileServer do
     case File.exists?(source_path) do
       true -> File.cp(source_path, backup_path)
       false -> {:error, :source_file_not_found}
+    end
+  end
+
+  @spec cleanup_session_backups([binary]) :: :ok
+  defp cleanup_session_backups(backup_files) do
+    {deleted_count, failed_files} =
+      backup_files
+      |> Enum.reduce({0, []}, fn backup_file, {deleted, failed} ->
+        case File.rm(backup_file) do
+          :ok ->
+            UI.debug("Deleted backup file", Path.basename(backup_file))
+            {deleted + 1, failed}
+
+          {:error, reason} ->
+            UI.warn("Failed to delete backup file", "#{Path.basename(backup_file)}: #{reason}")
+            {deleted, [Path.basename(backup_file) | failed]}
+        end
+      end)
+
+    if Enum.empty?(failed_files) do
+      UI.info("Successfully deleted #{deleted_count} backup file(s)")
+    else
+      failed_files
+      |> Enum.reverse()
+      |> Enum.map(&"- #{&1}")
+      |> Enum.join("\n")
+      |> then(&UI.warn("Unable to delete some backup files", &1))
     end
   end
 end

@@ -120,9 +120,10 @@ defmodule BackupFileServerTest do
     end
   end
 
-
   describe "get_session_backups/0" do
-    test "positive path returns session backup files in reverse chronological order", %{project: project} do
+    test "positive path returns session backup files in reverse chronological order", %{
+      project: project
+    } do
       # Initially empty
       assert BackupFileServer.get_session_backups() == []
 
@@ -131,7 +132,7 @@ defmodule BackupFileServerTest do
       file2 = Path.join(project.source_root, "file2.txt")
       File.write!(file1, "content 1")
       File.write!(file2, "content 2")
-      
+
       assert {:ok, backup1} = BackupFileServer.create_backup(file1)
       assert BackupFileServer.get_session_backups() == [backup1]
 
@@ -152,7 +153,7 @@ defmodule BackupFileServerTest do
       # Create a file and simulate existing backup from "previous session"
       test_file = Path.join(project.source_root, "test.txt")
       File.write!(test_file, "content")
-      
+
       # Pre-existing backup file (not tracked by current session)
       existing_backup = "#{test_file}.0.5.bak"
       File.write!(existing_backup, "old session content")
@@ -162,11 +163,11 @@ defmodule BackupFileServerTest do
 
       # Create backup in current session
       assert {:ok, session_backup} = BackupFileServer.create_backup(test_file)
-      
+
       # Should only return the current session backup, not the pre-existing one
       assert BackupFileServer.get_session_backups() == [session_backup]
       assert session_backup != existing_backup
-      
+
       # Verify the pre-existing backup still exists but isn't tracked
       assert File.exists?(existing_backup)
       refute Enum.member?(BackupFileServer.get_session_backups(), existing_backup)
@@ -178,10 +179,10 @@ defmodule BackupFileServerTest do
       # Create some backups
       test_file = Path.join(project.source_root, "test.txt")
       File.write!(test_file, "content")
-      
+
       BackupFileServer.create_backup(test_file)
       BackupFileServer.create_backup(test_file)
-      
+
       assert length(BackupFileServer.get_session_backups()) == 2
 
       # Reset should clear state
@@ -201,10 +202,121 @@ defmodule BackupFileServerTest do
 
       # Reset server state first 
       BackupFileServer.reset()
-      
+
       # Should start from 0.0 for a file with no existing backups
       assert {:ok, backup} = BackupFileServer.create_backup(test_file)
       assert backup == "#{test_file}.0.0.bak"
+    end
+  end
+
+  describe "offer_cleanup/0" do
+    test "skips cleanup when no backup files exist" do
+      # Mock UI to capture calls (but none should be made)
+      :meck.new(UI, [:passthrough])
+
+      BackupFileServer.offer_cleanup()
+
+      # Verify no UI calls were made
+      assert :meck.called(UI, :info, :_) == false
+
+      :meck.unload(UI)
+    end
+
+    test "offers cleanup when backup files exist and user accepts", %{project: project} do
+      # Create some backup files
+      test_file1 = Path.join(project.source_root, "file1.txt")
+      test_file2 = Path.join(project.source_root, "file2.txt")
+      File.write!(test_file1, "content 1")
+      File.write!(test_file2, "content 2")
+
+      {:ok, backup1} = BackupFileServer.create_backup(test_file1)
+      {:ok, backup2} = BackupFileServer.create_backup(test_file2)
+
+      # Verify backup files exist
+      assert File.exists?(backup1)
+      assert File.exists?(backup2)
+
+      # Mock UI functions
+      :meck.new(UI, [:passthrough])
+      :meck.expect(UI, :warning_banner, fn _msg -> :ok end)
+      :meck.expect(UI, :say, fn _msg -> :ok end)
+      :meck.expect(UI, :info, fn _msg -> :ok end)
+      :meck.expect(UI, :confirm, fn _prompt -> true end)
+
+      BackupFileServer.offer_cleanup()
+
+      # Verify UI calls were made
+      assert :meck.called(UI, :warning_banner, ["Backup files were created during this session"])
+      # The backup files are listed in chronological order (oldest first) due to Enum.reverse()
+      assert :meck.called(UI, :say, ["- #{backup1}\n- #{backup2}"])
+      assert :meck.called(UI, :confirm, ["Would you like to delete these backup files?"])
+      assert :meck.called(UI, :info, ["Successfully deleted 2 backup file(s)"])
+
+      # Verify backup files were deleted
+      refute File.exists?(backup1)
+      refute File.exists?(backup2)
+
+      :meck.unload(UI)
+    end
+
+    test "retains backup files when user declines", %{project: project} do
+      # Create a backup file
+      test_file = Path.join(project.source_root, "file.txt")
+      File.write!(test_file, "content")
+
+      {:ok, backup_file} = BackupFileServer.create_backup(test_file)
+      assert File.exists?(backup_file)
+
+      # Mock UI functions - user declines deletion
+      :meck.new(UI, [:passthrough])
+      :meck.expect(UI, :warning_banner, fn _msg -> :ok end)
+      :meck.expect(UI, :say, fn _msg -> :ok end)
+      :meck.expect(UI, :confirm, fn _prompt -> false end)
+
+      BackupFileServer.offer_cleanup()
+
+      # Verify UI calls were made
+      assert :meck.called(UI, :warning_banner, ["Backup files were created during this session"])
+      assert :meck.called(UI, :say, ["- #{backup_file}"])
+      assert :meck.called(UI, :confirm, ["Would you like to delete these backup files?"])
+      assert :meck.called(UI, :say, ["_Backup files not deleted. They may be removed at your convenience._"])
+
+      # Verify backup file still exists
+      assert File.exists?(backup_file)
+
+      :meck.unload(UI)
+    end
+
+    test "handles partial deletion failures gracefully", %{project: project} do
+      # Create backup files
+      test_file = Path.join(project.source_root, "file.txt")
+      File.write!(test_file, "content")
+
+      {:ok, backup_file} = BackupFileServer.create_backup(test_file)
+      assert File.exists?(backup_file)
+
+      # Mock UI functions
+      :meck.new(UI, [:passthrough])
+      :meck.expect(UI, :warning_banner, fn _msg -> :ok end)
+      :meck.expect(UI, :say, fn _msg -> :ok end)
+      :meck.expect(UI, :warn, fn _msg1, _msg2 -> :ok end)
+      :meck.expect(UI, :debug, fn _msg1, _msg2 -> :ok end)
+      :meck.expect(UI, :confirm, fn _prompt -> true end)
+
+      # Mock File.rm to simulate file failing to delete
+      :meck.new(File, [:passthrough])
+      :meck.expect(File, :rm, fn _path -> {:error, :eacces} end)
+
+      BackupFileServer.offer_cleanup()
+
+      # Verify UI calls were made
+      assert :meck.called(UI, :warning_banner, ["Backup files were created during this session"])
+      assert :meck.called(UI, :say, ["- #{backup_file}"])
+      assert :meck.called(UI, :confirm, ["Would you like to delete these backup files?"])
+      assert :meck.called(UI, :warn, ["Unable to delete some backup files", "- #{Path.basename(backup_file)}"])
+
+      :meck.unload(UI)
+      :meck.unload(File)
     end
   end
 end
