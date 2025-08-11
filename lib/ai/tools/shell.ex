@@ -201,7 +201,7 @@ defmodule AI.Tools.Shell do
       ["You son of a... for the whole session:" | approval_bits]
       |> Enum.join(" ")
 
-    key =
+    command_key =
       ["shell_cmd" | approval_bits]
       |> Enum.join("#")
 
@@ -212,49 +212,47 @@ defmodule AI.Tools.Shell do
       "Deny (with feedback)"
     ]
 
-    key
-    |> Once.get()
-    |> case do
-      {:ok, :approved} ->
-        {:ok, :approved}
+    # Check if command is already approved using ApprovalsServer
+    if ApprovalsServer.approved?(command_key) do
+      {:ok, :approved}
+    else
+      """
+      The AI agent would like to execute a shell command.
 
-      _ ->
-        """
-        The AI agent would like to execute a shell command.
+      # Command
+      ```sh
+      #{full_cmd}
+      ```
 
-        # Command
-        ```sh
-        #{full_cmd}
-        ```
+      # Description and Purpose
+      > #{desc}
 
-        # Description and Purpose
-        > #{desc}
+      # Approval
+      You can approve this call only, or you can approve all future calls for
+      this command and its subcommands in this session.
+      """
+      |> UI.choose(options)
+      |> case do
+        "Deny (with feedback)" ->
+          feedback = UI.prompt("Opine away:")
 
-        # Approval
-        You can approve this call only, or you can approve all future calls for
-        this command and its subcommands in this session.
-        """
-        |> UI.choose(options)
-        |> case do
-          "Deny (with feedback)" ->
-            feedback = UI.prompt("Opine away:")
+          {:error,
+           """
+           The user declined to approve the command. They responded with:
+           #{feedback}
+           """}
 
-            {:error,
-             """
-             The user declined to approve the command. They responded with:
-             #{feedback}
-             """}
+        "Deny" ->
+          {:error, "The user declined to approve the command."}
 
-          "Deny" ->
-            {:error, "The user declined to approve the command."}
+        "You son of a bitch, I'm in" ->
+          {:ok, :approved}
 
-          "You son of a bitch, I'm in" ->
-            {:ok, :approved}
-
-          ^approval_str ->
-            Once.set(key, :approved)
-            {:ok, :approved}
-        end
+        ^approval_str ->
+          # Approve for session using ApprovalsServer
+          ApprovalsServer.approve(:session, command_key)
+          {:ok, :approved}
+      end
     end
   end
 end

@@ -11,7 +11,7 @@ defmodule AI.Tools.ShellTest do
     :meck.new(AI.Agent.ShellCmdParser, [:no_link, :passthrough])
     :meck.new(System, [:no_link, :passthrough])
     :meck.new(UI, [:no_link, :passthrough])
-    :meck.new(Once, [:no_link, :passthrough])
+    :meck.new(ApprovalsServer, [:no_link, :passthrough])
     :meck.new(Store, [:no_link, :passthrough])
 
     # CRITICAL: Provide default mock for AI.Agent.ShellCmdParser to prevent network calls
@@ -31,7 +31,7 @@ defmodule AI.Tools.ShellTest do
     end)
 
     on_exit(fn ->
-      :meck.unload([AI.Agent.ShellCmdParser, System, UI, Once, Store])
+      :meck.unload([AI.Agent.ShellCmdParser, System, UI, ApprovalsServer, Store])
     end)
 
     {:ok, project: mock_project("shell_test")}
@@ -123,7 +123,7 @@ defmodule AI.Tools.ShellTest do
       :meck.expect(AI.Agent.ShellCmdParser, :get_response, fn %{shell_cmd: "ls -l"} ->
         {:ok, %{"cmd" => "ls", "args" => ["-l"], "approval_bits" => ["ls"]}}
       end)
-      :meck.expect(Once, :get, fn _ -> {:ok, :approved} end)
+      :meck.expect(ApprovalsServer, :approved?, fn _ -> true end)
       :meck.expect(Store, :get_project, fn -> {:ok, %{source_root: "/test"}} end)
       :meck.expect(System, :cmd, fn "ls", ["-l"], _ -> {"output", 0} end)
       
@@ -175,7 +175,7 @@ defmodule AI.Tools.ShellTest do
     end
 
     test "executes command when user approves with 'You son of a bitch, I'm in'" do
-      :meck.expect(Once, :get, fn _ -> {:error, :not_seen} end)
+      :meck.expect(ApprovalsServer, :approved?, fn _ -> false end)
       :meck.expect(UI, :choose, fn _prompt, _options -> "You son of a bitch, I'm in" end)
       :meck.expect(Store, :get_project, fn -> {:ok, %{source_root: "/test/path"}} end)
       :meck.expect(System, :cmd, fn "ls", ["-l"], [stderr_to_stdout: true, parallelism: true, cd: "/test/path"] ->
@@ -187,24 +187,24 @@ defmodule AI.Tools.ShellTest do
     end
 
     test "approves for session when user chooses session approval option" do
-      :meck.expect(Once, :get, fn _ -> {:error, :not_seen} end)
+      :meck.expect(ApprovalsServer, :approved?, fn _ -> false end)
       :meck.expect(UI, :choose, fn _prompt, options -> 
         # Simulate user choosing the session approval option
         Enum.find(options, &String.starts_with?(&1, "You son of a... for the whole session:"))
       end)
-      :meck.expect(Once, :set, fn "shell_cmd#ls", :approved -> true end)
+      :meck.expect(ApprovalsServer, :approve, fn :session, "shell_cmd#ls" -> :ok end)
       :meck.expect(Store, :get_project, fn -> {:ok, %{source_root: "/test/path"}} end)
       :meck.expect(System, :cmd, fn "ls", ["-l"], _ -> {"output", 0} end)
 
       result = Shell.call(%{"description" => @valid_desc, "cmd" => "ls -l"})
       assert {:ok, "output"} = result
       
-      # Verify Once.set was called for session approval
-      assert :meck.called(Once, :set, ["shell_cmd#ls", :approved])
+      # Verify ApprovalsServer.approve was called for session approval
+      assert :meck.called(ApprovalsServer, :approve, [:session, "shell_cmd#ls"])
     end
 
-    test "uses cached approval from Once for subsequent calls" do
-      :meck.expect(Once, :get, fn "shell_cmd#ls" -> {:ok, :approved} end)
+    test "uses cached approval from ApprovalsServer for subsequent calls" do
+      :meck.expect(ApprovalsServer, :approved?, fn "shell_cmd#ls" -> true end)
       :meck.expect(Store, :get_project, fn -> {:ok, %{source_root: "/test/path"}} end)
       :meck.expect(System, :cmd, fn "ls", ["-l"], _ -> {"cached output", 0} end)
 
@@ -216,7 +216,7 @@ defmodule AI.Tools.ShellTest do
     end
 
     test "returns error when user denies command" do
-      :meck.expect(Once, :get, fn _ -> {:error, :not_seen} end)
+      :meck.expect(ApprovalsServer, :approved?, fn _ -> false end)
       :meck.expect(UI, :choose, fn _prompt, _options -> "Deny" end)
 
       result = Shell.call(%{"description" => @valid_desc, "cmd" => "ls -l"})
@@ -224,7 +224,7 @@ defmodule AI.Tools.ShellTest do
     end
 
     test "returns error with feedback when user denies with feedback" do
-      :meck.expect(Once, :get, fn _ -> {:error, :not_seen} end)
+      :meck.expect(ApprovalsServer, :approved?, fn _ -> false end)
       :meck.expect(UI, :choose, fn _prompt, _options -> "Deny (with feedback)" end)
       :meck.expect(UI, :prompt, fn _ -> "This seems unnecessary" end)
 
@@ -273,7 +273,7 @@ defmodule AI.Tools.ShellTest do
       :meck.expect(AI.Agent.ShellCmdParser, :get_response, fn %{shell_cmd: _} ->
         {:ok, %{"cmd" => "ls", "args" => ["-l"], "approval_bits" => ["ls"]}}
       end)
-      :meck.expect(Once, :get, fn _ -> {:ok, :approved} end)
+      :meck.expect(ApprovalsServer, :approved?, fn _ -> true end)
       :ok
     end
 
