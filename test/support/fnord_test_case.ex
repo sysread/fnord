@@ -45,12 +45,18 @@ defmodule Fnord.TestCase do
       setup :set_mox_from_context
 
       setup do
+        # Ensure no OpenAI API key is set in the environment. This prevents
+        # test from accidentally reaching out onto the network.
+        System.put_env("OPENAI_API_KEY", "")
+        System.put_env("FNORD_OPENAI_API_KEY", "")
+      end
+
+      setup do
         # Globally override the configured Indexer with our stub because the
         # Indexer uses an external service to generate embeddings and
         # AI-generated summaries and so whatnot.
         set_config(:indexer, MockIndexer)
         Mox.stub_with(MockIndexer, StubIndexer)
-
         :ok
       end
 
