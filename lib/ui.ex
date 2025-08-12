@@ -12,6 +12,48 @@ defmodule UI do
     |> IO.puts()
   end
 
+  # ----------------------------------------------------------------------------
+  # Inversion of the `detail` for notifications from Fnord Prefect itself
+  # ----------------------------------------------------------------------------
+  def feedback(:info, msg) do
+    Logger.info(
+      IO.ANSI.format(
+        [:green_background, "Fnord Prefect", :reset, ": ", :green, msg, :reset],
+        colorize?()
+      )
+    )
+  end
+
+  def feedback(:warn, msg) do
+    Logger.warning(
+      IO.ANSI.format(
+        [:yellow_background, "Fnord Prefect", :reset, ": ", :yellow, msg, :reset],
+        colorize?()
+      )
+    )
+  end
+
+  def feedback(:error, msg) do
+    Logger.error(
+      IO.ANSI.format(
+        [:red_background, "Fnord Prefect", :reset, ": ", :red, msg, :reset],
+        colorize?()
+      )
+    )
+  end
+
+  def feedback(:debug, msg) do
+    Logger.debug(
+      IO.ANSI.format(
+        [:cyan_background, "Fnord Prefect", :reset, ": ", :cyan, msg, :reset],
+        colorize?()
+      )
+    )
+  end
+
+  # ----------------------------------------------------------------------------
+  # Step reporting and logging
+  # ----------------------------------------------------------------------------
   def report_step(msg), do: info(msg)
   def report_step(msg, detail), do: info(msg, detail)
 
@@ -98,21 +140,6 @@ defmodule UI do
     )
   end
 
-  def warning_banner(msg) do
-    IO.puts(
-      :stderr,
-      IO.ANSI.format(
-        [
-          :red_background,
-          :black,
-          " <<< WARNING >>> #{msg} <<< WARNING >>> ",
-          :reset
-        ],
-        colorize?()
-      )
-    )
-  end
-
   @spec fatal(binary) :: no_return()
   def fatal(msg) do
     Logger.error(IO.ANSI.format([:red, msg, :reset], colorize?()))
@@ -130,6 +157,22 @@ defmodule UI do
     System.halt(1)
   end
 
+  @spec warning_banner(binary) :: :ok
+  def warning_banner(msg) do
+    IO.puts(
+      :stderr,
+      IO.ANSI.format(
+        [
+          :red_background,
+          :black,
+          " <<< WARNING >>> #{msg} <<< WARNING >>> ",
+          :reset
+        ],
+        colorize?()
+      )
+    )
+  end
+
   @spec log_usage(AI.Model.t(), non_neg_integer) :: :ok
   def log_usage(model, usage) when is_integer(usage) do
     percentage = Float.round(usage / model.context * 100, 2)
@@ -138,6 +181,7 @@ defmodule UI do
     info("Context window usage", "#{percentage}% (#{str_usage} / #{str_context} tokens)")
   end
 
+  @spec italicize(binary) :: iodata
   def italicize(text) do
     IO.ANSI.format([:italic, text, :reset], colorize?())
   end
