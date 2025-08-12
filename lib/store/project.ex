@@ -22,9 +22,10 @@ defmodule Store.Project do
 
   @spec new(String.t(), String.t()) :: t
   def new(project_name, store_path) do
-    settings = Settings.new() |> Settings.get(project_name, %{})
-    exclude = Map.get(settings, "exclude", [])
-    root = Map.get(settings, "root", nil)
+    settings = Settings.new()
+    project_data = Settings.get_project_data(settings, project_name) || %{}
+    exclude = Map.get(project_data, "exclude", [])
+    root = Map.get(project_data, "root", nil)
 
     %__MODULE__{
       name: project_name,
@@ -69,8 +70,9 @@ defmodule Store.Project do
         end
       end)
 
-    Settings.new()
-    |> Settings.set(project.name, %{
+    settings = Settings.new()
+
+    Settings.set_project_data(settings, project.name, %{
       "root" => root,
       "exclude" => exclude
     })
@@ -102,7 +104,7 @@ defmodule Store.Project do
     File.rm_rf!(project.store_path)
 
     # Remove from settings
-    Settings.new() |> Settings.delete(project.name)
+    Settings.new() |> Settings.delete_project_data(project.name)
 
     :ok
   end

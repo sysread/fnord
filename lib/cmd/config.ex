@@ -137,7 +137,7 @@ defmodule Cmd.Config do
         Settings.set_project(project_name)
 
         with {:ok, project} <- Store.get_project() do
-          case Settings.get(settings, project.name) do
+          case Settings.get_project_data(settings, project.name) do
             nil -> UI.error("Project not found")
             config -> config |> Jason.encode!(pretty: true) |> IO.puts()
           end

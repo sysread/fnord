@@ -8,7 +8,7 @@ defmodule AI.Tools.Ripgrep do
   def is_available?(), do: System.find_executable("rg") |> is_nil() |> Kernel.not()
 
   @impl AI.Tools
-  def ui_note_on_request(args), do: {"ripgrep", Jason.encode!(args)}
+  def ui_note_on_request(args), do: {"rg", Jason.encode!(args)}
 
   @impl AI.Tools
   def ui_note_on_result(_args, _result), do: nil
