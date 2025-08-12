@@ -206,7 +206,7 @@ defmodule Services.NamePoolTest do
     test "clears pool state" do
       :meck.new(AI.Agent.Nomenclater, [:passthrough])
 
-      :meck.expect(AI.Agent.Nomenclater, :get_names, fn count ->
+      :meck.expect(AI.Agent.Nomenclater, :get_names, fn count, _used ->
         names = Enum.map(1..count, &"ResetName#{&1}")
         {:ok, names}
       end)
