@@ -2,29 +2,11 @@ defmodule FrobsTest do
   use Fnord.TestCase
 
   setup do
-    # ---------------------------------------------------------------------------
-    # Override $HOME via the HOME environment variable
-    # Fnord uses `System.user_home!/0` which respects HOME
-    # ---------------------------------------------------------------------------
-    {:ok, temp_home} = Briefly.create(directory: true)
-    original_home = System.get_env("HOME")
-    System.put_env("HOME", temp_home)
-
-    on_exit(fn ->
-      if original_home do
-        System.put_env("HOME", original_home)
-      else
-        System.delete_env("HOME")
-      end
-    end)
-
-    # Create a mock project
     mock_project("blarg")
-
-    %{temp_home: temp_home}
+    :ok
   end
 
-  test "creates, validates, loads, and runs a frob", %{temp_home: home} do
+  test "creates, validates, loads, and runs a frob", %{home_dir: home} do
     # Create it
     assert {:ok, %Frobs{name: "say_hi"} = frob} = Frobs.create("say_hi")
 
@@ -76,7 +58,7 @@ defmodule FrobsTest do
   end
 
   describe "validation" do
-    test "fails to load frob with invalid JSON spec", %{temp_home: home} do
+    test "fails to load frob with invalid JSON spec", %{home_dir: home} do
       path = Path.join([home, "fnord", "tools", "bad_frob"])
       File.mkdir_p!(path)
       File.write!(Path.join(path, "spec.json"), "{ not valid json ")
@@ -88,7 +70,7 @@ defmodule FrobsTest do
       assert {:error, :invalid_json, _} = Frobs.load("bad_frob")
     end
 
-    test "fails when spec is missing name", %{temp_home: home} do
+    test "fails when spec is missing name", %{home_dir: home} do
       path = Path.join([home, "fnord", "tools", "broken_frob"])
       File.mkdir_p!(path)
 
@@ -104,14 +86,14 @@ defmodule FrobsTest do
       assert {:error, :invalid_structure, _} = Frobs.load("broken_frob")
     end
 
-    test "fails to load frob with non-executable main", %{temp_home: home} do
+    test "fails to load frob with non-executable main", %{home_dir: home} do
       assert {:ok, _frob} = Frobs.create("no_exec")
       File.chmod!(Path.join([home, "fnord", "tools", "no_exec", "main"]), 0o644)
 
       assert {:error, :not_executable} = Frobs.load("no_exec")
     end
 
-    test "fails if required field is not in properties", %{temp_home: home} do
+    test "fails if required field is not in properties", %{home_dir: home} do
       path = Path.join([home, "fnord", "tools", "field_mismatch"])
       File.mkdir_p!(path)
 

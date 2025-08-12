@@ -389,7 +389,7 @@ defmodule UI do
     end
   end
 
-  def colorize?, do: is_tty?()
+  def colorize?, do: is_tty?() && !quiet?()
 
   def clean_detail(nil), do: ""
 

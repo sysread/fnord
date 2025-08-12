@@ -185,17 +185,25 @@ defmodule Frobs do
       {:error, :frob_exists}
     else
       home |> File.mkdir_p!()
+      registry = Path.join(home, @registry)
+      json_spec = Path.join(home, @json_spec)
+      available = Path.join(home, @available)
+      main = Path.join(home, @main)
 
-      Path.join(home, @registry) |> File.write!(@default_registry)
-
-      Path.join(home, @json_spec)
-      |> File.write!(String.replace(@default_spec, "%FROB_NAME%", name))
-
-      Path.join(home, @available) |> File.write!(@default_available)
-      Path.join(home, @available) |> File.chmod!(0o755)
-
-      Path.join(home, @main) |> File.write!(@default_main)
-      Path.join(home, @main) |> File.chmod!(0o755)
+      [
+        fn -> File.write!(registry, @default_registry) end,
+        fn -> File.write!(json_spec, String.replace(@default_spec, "%FROB_NAME%", name)) end,
+        fn ->
+          File.write!(available, @default_available)
+          File.chmod!(available, 0o755)
+        end,
+        fn ->
+          File.write!(main, @default_main)
+          File.chmod!(main, 0o755)
+        end
+      ]
+      |> Util.async_stream(& &1.())
+      |> Stream.run()
 
       load(name)
     end

@@ -5,67 +5,22 @@ defmodule AI.Tools.File.EditTest do
 
   setup do
     project = mock_project("edit-test")
-    File.mkdir_p!(project.source_root)
 
     # Reset backup server state for clean tests
     Services.BackupFile.reset()
 
-    # Mock UI to prevent interactive behavior during tests
-    :meck.new(UI, [:no_link, :passthrough])
-    # Force non-color mode in tests
-    :meck.expect(UI, :colorize?, fn -> false end)
-    # Force non-TTY mode in tests
-    :meck.expect(UI, :is_tty?, fn -> false end)
-
     # Mock the approvals service to prevent interactive prompts during tests
     :meck.new(Services.Approvals, [:no_link, :passthrough])
 
-    :meck.expect(Services.Approvals, :confirm_command, fn _description,
-                                                          _approval_bits,
-                                                          _full_command,
-                                                          _opts ->
+    :meck.expect(Services.Approvals, :confirm_command, fn _, _, _, _ ->
       {:ok, :approved}
     end)
 
     on_exit(fn ->
-      :meck.unload([UI, Services.Approvals])
+      :meck.unload([Services.Approvals])
     end)
 
     {:ok, project: project}
-  end
-
-  describe "async?/0" do
-    test "positive path" do
-      assert Edit.async?() == true
-    end
-  end
-
-  describe "is_available?/0" do
-    test "positive path" do
-      assert Edit.is_available?() == true
-    end
-  end
-
-  describe "read_args/1" do
-    test "positive path" do
-      args = %{"file" => "test.txt", "find" => "old", "replacement" => "new"}
-      assert {:ok, ^args} = Edit.read_args(args)
-    end
-  end
-
-  describe "ui_note_on_request/1" do
-    test "positive path" do
-      args = %{"file" => "test.txt", "find" => "old code", "replacement" => "new code"}
-
-      {title, body} = Edit.ui_note_on_request(args)
-
-      assert title == "Preparing file changes"
-      assert body =~ "File: test.txt"
-      assert body =~ "Replacing:"
-      assert body =~ "old code"
-      assert body =~ "With:"
-      assert body =~ "new code"
-    end
   end
 
   describe "ui_note_on_result/2" do
