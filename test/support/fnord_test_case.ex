@@ -49,12 +49,14 @@ defmodule Fnord.TestCase do
         # test from accidentally reaching out onto the network.
         System.put_env("OPENAI_API_KEY", "")
         System.put_env("FNORD_OPENAI_API_KEY", "")
+        :ok
       end
 
       setup do
         # Globally override interactive mode, so that code called by tests does
         # not attempt to read from stdin.
         Settings.set_quiet(true)
+        :ok
       end
 
       setup do
