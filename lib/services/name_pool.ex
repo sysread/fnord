@@ -9,7 +9,6 @@ defmodule Services.NamePool do
   """
 
   use GenServer
-  require Logger
 
   @name __MODULE__
 
@@ -96,16 +95,15 @@ defmodule Services.NamePool do
                 checked_out: MapSet.put(updated_state.checked_out, name)
             }
 
-            Logger.debug("Checked out name: #{name} (#{length(remaining)} remaining)")
             {:reply, {:ok, name}, new_state}
 
           [] ->
-            Logger.error("Unable to allocate names from pool")
+            UI.error("Unable to allocate names from pool")
             {:reply, {:error, "No names available"}, updated_state}
         end
 
       {:error, reason} ->
-        Logger.error("Failed to ensure names available: #{inspect(reason)}")
+        UI.error("Failed to ensure names available", reason)
         {:reply, {:error, reason}, state}
     end
   end
@@ -137,10 +135,9 @@ defmodule Services.NamePool do
           checked_out: MapSet.delete(state.checked_out, name)
       }
 
-      Logger.debug("Checked in name: #{name} (#{length(new_state.available)} available)")
       {:noreply, new_state}
     else
-      Logger.warning("Attempted to check in name that wasn't checked out: #{name}")
+      UI.warn("Attempted to check in name that wasn't checked out", name)
       {:noreply, state}
     end
   end
@@ -154,7 +151,6 @@ defmodule Services.NamePool do
     if length(state.available) > 0 do
       {:ok, state}
     else
-      Logger.info("Name pool empty, allocating new chunk of #{state.chunk_size} names")
       allocate_name_chunk(state)
     end
   end
@@ -165,8 +161,6 @@ defmodule Services.NamePool do
 
     case AI.Agent.Nomenclater.get_names(state.chunk_size, used_names) do
       {:ok, names} when is_list(names) ->
-        Logger.info("Allocated #{length(names)} names to pool")
-
         new_state = %{
           state
           | available: names ++ state.available,
@@ -176,7 +170,7 @@ defmodule Services.NamePool do
         {:ok, new_state}
 
       {:error, reason} ->
-        Logger.error("Failed to allocate names: #{inspect(reason)}")
+        UI.error("Failed to make up names for your agents", reason)
         {:error, reason}
     end
   end
