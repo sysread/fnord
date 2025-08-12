@@ -52,6 +52,12 @@ defmodule Fnord.TestCase do
       end
 
       setup do
+        # Globally override interactive mode, so that code called by tests does
+        # not attempt to read from stdin.
+        Settings.set_quiet(true)
+      end
+
+      setup do
         # Globally override the configured Indexer with our stub because the
         # Indexer uses an external service to generate embeddings and
         # AI-generated summaries and so whatnot.
