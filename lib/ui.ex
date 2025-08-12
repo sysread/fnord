@@ -18,34 +18,34 @@ defmodule UI do
   def feedback(:info, msg) do
     Logger.info(
       IO.ANSI.format(
-        [:green_background, "Fnord Prefect", :reset, ": ", :green, msg, :reset],
+        [:green_background, "Fnord Prefect", :reset, ": ", italicize(msg), :reset],
         colorize?()
       )
     )
   end
 
   def feedback(:warn, msg) do
-    Logger.warning(
+    Logger.info(
       IO.ANSI.format(
-        [:yellow_background, "Fnord Prefect", :reset, ": ", :yellow, msg, :reset],
+        [:yellow_background, "Fnord Prefect", :reset, ": ", italicize(msg), :reset],
         colorize?()
       )
     )
   end
 
   def feedback(:error, msg) do
-    Logger.error(
+    Logger.info(
       IO.ANSI.format(
-        [:red_background, "Fnord Prefect", :reset, ": ", :red, msg, :reset],
+        [:red_background, "Fnord Prefect", :reset, ": ", italicize(msg), :reset],
         colorize?()
       )
     )
   end
 
   def feedback(:debug, msg) do
-    Logger.debug(
+    Logger.info(
       IO.ANSI.format(
-        [:cyan_background, "Fnord Prefect", :reset, ": ", :cyan, msg, :reset],
+        [:cyan_background, "Fnord Prefect", :reset, ": ", italicize(msg), :reset],
         colorize?()
       )
     )
