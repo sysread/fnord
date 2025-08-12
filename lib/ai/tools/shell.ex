@@ -149,6 +149,13 @@ defmodule AI.Tools.Shell do
 
   defp confirm(desc, approval_bits, cmd, args) do
     full_cmd = [cmd | args] |> Enum.join(" ")
-    Services.Approvals.confirm_command(desc, approval_bits, full_cmd, tag: "shell_cmd")
+
+    # Complex commands (like "sh -c ...") should not allow persistent approvals for security
+    persistent = cmd != "sh"
+
+    Services.Approvals.confirm_command(desc, approval_bits, full_cmd,
+      tag: "shell_cmd",
+      persistent: persistent
+    )
   end
 end

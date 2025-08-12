@@ -307,4 +307,150 @@ defmodule Services.ApprovalsTest do
       assert Services.Approvals.approved?(long_cmd)
     end
   end
+
+  describe "confirm_command/4 with persistent option" do
+    setup do
+      # Mock UI components to avoid interactive prompts during tests
+      :meck.new(UI, [:no_link, :passthrough])
+
+      on_exit(fn ->
+        :meck.unload([UI])
+      end)
+
+      :ok
+    end
+
+    test "persistent: true shows all approval options (default behavior)" do
+      :meck.expect(UI, :choose, fn prompt, options ->
+        # Verify that persistent options are included
+        assert Enum.any?(options, &String.contains?(&1, "for the whole session"))
+        assert Enum.any?(options, &String.contains?(&1, "for this project"))
+        assert Enum.any?(options, &String.contains?(&1, "globally"))
+
+        assert String.contains?(
+                 prompt,
+                 "You can approve this call only, or you can approve all future calls"
+               )
+
+        "You son of a bitch, I'm in"
+      end)
+
+      result =
+        Services.Approvals.confirm_command(
+          "Test command",
+          ["git", "status"],
+          "git status",
+          persistent: true
+        )
+
+      assert {:ok, :approved} = result
+    end
+
+    test "persistent: false shows only immediate approval options" do
+      :meck.expect(UI, :choose, fn prompt, options ->
+        # Verify that only immediate approval options are shown
+        refute Enum.any?(options, &String.contains?(&1, "for the whole session"))
+        refute Enum.any?(options, &String.contains?(&1, "for this project"))
+        refute Enum.any?(options, &String.contains?(&1, "globally"))
+
+        # Should only have immediate options
+        assert "You son of a bitch, I'm in" in options
+        assert "Deny" in options
+        assert "Deny (with feedback)" in options
+        assert length(options) == 3
+
+        assert String.contains?(
+                 prompt,
+                 "Complex commands involving pipes, redirection, command substitution"
+               )
+
+        "You son of a bitch, I'm in"
+      end)
+
+      result =
+        Services.Approvals.confirm_command(
+          "Complex shell command",
+          ["sh"],
+          "sh -c 'ls | grep foo'",
+          persistent: false
+        )
+
+      assert {:ok, :approved} = result
+    end
+
+    test "persistent: false handles deny with feedback" do
+      :meck.expect(UI, :choose, fn _prompt, _options ->
+        "Deny (with feedback)"
+      end)
+
+      :meck.expect(UI, :prompt, fn _prompt ->
+        "This looks dangerous!"
+      end)
+
+      result =
+        Services.Approvals.confirm_command(
+          "Dangerous command",
+          ["rm"],
+          "rm -rf /",
+          persistent: false
+        )
+
+      assert {:error, error_msg} = result
+      assert String.contains?(error_msg, "This looks dangerous!")
+    end
+
+    test "persistent: false handles deny" do
+      :meck.expect(UI, :choose, fn _prompt, _options ->
+        "Deny"
+      end)
+
+      result =
+        Services.Approvals.confirm_command(
+          "Unwanted command",
+          ["evil"],
+          "evil command",
+          persistent: false
+        )
+
+      assert {:error, "The user declined to approve the command."} = result
+    end
+
+    test "default behavior is persistent: true" do
+      :meck.expect(UI, :choose, fn _prompt, options ->
+        # Should have persistent options by default
+        assert Enum.any?(options, &String.contains?(&1, "for the whole session"))
+        "You son of a bitch, I'm in"
+      end)
+
+      result =
+        Services.Approvals.confirm_command(
+          "Default test",
+          ["test"],
+          "test command"
+          # No persistent option specified - should default to true
+        )
+
+      assert {:ok, :approved} = result
+    end
+
+    test "persistent approval still works when command already approved" do
+      # First approve a command
+      Services.Approvals.approve(:session, "action#already#approved")
+
+      # Should skip confirmation entirely and return approved
+      result =
+        Services.Approvals.confirm_command(
+          "Already approved",
+          ["already", "approved"],
+          "already approved",
+          # Even with persistent: false, pre-approved commands should work
+          persistent: false
+        )
+
+      assert {:ok, :approved} = result
+
+      # Verify UI.choose was never called since command was pre-approved
+      refute :meck.called(UI, :choose, :_)
+    end
+  end
 end

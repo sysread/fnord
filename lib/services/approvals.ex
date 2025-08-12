@@ -231,11 +231,6 @@ defmodule Services.Approvals do
   @spec confirm_command(String.t(), approval_bits, String.t(), keyword()) :: confirmation_result
   def confirm_command(description, approval_bits, full_command, opts \\ [])
 
-  def confirm_command(description, _approval_bits, "sh " <> _args = full_command, _opts) do
-    # Complex shell commands cannot be approved for sessions due to security concerns
-    confirm_complex_shell_command(description, full_command)
-  end
-
   def confirm_command(description, approval_bits, full_command, opts) do
     tag = Keyword.get(opts, :tag, @default_tag)
     command_key = build_command_key(approval_bits, tag)
@@ -243,7 +238,7 @@ defmodule Services.Approvals do
     if approved?(command_key) do
       {:ok, :approved}
     else
-      confirm_with_approval_options(description, approval_bits, full_command, command_key)
+      confirm_with_approval_options(description, approval_bits, full_command, command_key, opts)
     end
   end
 
@@ -272,82 +267,92 @@ defmodule Services.Approvals do
     end
   end
 
-  defp confirm_complex_shell_command(description, full_command) do
-    options = [
+  defp confirm_with_approval_options(description, approval_bits, full_command, command_key, opts) do
+    persistent = Keyword.get(opts, :persistent, true)
+
+    base_options = [
       "You son of a bitch, I'm in",
       "Deny",
       "Deny (with feedback)"
     ]
 
-    UI.warning_banner("The AI agent would like to execute a shell command")
+    if persistent do
+      approval_str = ["You son of a... for the whole session:" | approval_bits] |> Enum.join(" ")
 
-    """
-    # Command
-    ```sh
-    #{full_command}
-    ```
+      project_approval_str =
+        ["You son of a... for this project:" | approval_bits] |> Enum.join(" ")
 
-    # Description and Purpose
-    > #{description}
+      global_approval_str = ["You son of a... globally:" | approval_bits] |> Enum.join(" ")
 
-    # Approval
-    _Complex commands involving pipes, redirection, command substitution, and
-    other shell features cannot be approved for the entire session. You must
-    approve each command individually._
-    """
-    |> UI.choose(options)
-    |> case do
-      "Deny (with feedback)" ->
-        feedback = UI.prompt("Opine away:")
-        {:error, "The user declined to approve the command. They responded with:\n#{feedback}"}
+      options = [
+        "You son of a bitch, I'm in",
+        approval_str,
+        project_approval_str,
+        global_approval_str,
+        "Deny",
+        "Deny (with feedback)"
+      ]
 
-      "Deny" ->
-        {:error, "The user declined to approve the command."}
+      prompt_text = """
+      The AI agent would like to execute a command.
 
-      "You son of a bitch, I'm in" ->
-        {:ok, :approved}
+      # Command
+      ```sh
+      #{full_command}
+      ```
+
+      # Description and Purpose
+      > #{description}
+
+      # Approval
+      You can approve this call only, or you can approve all future calls for
+      this command and its subcommands for:
+      - This session only (not saved)
+      - This project (saved persistently in project settings)
+      - All projects globally (saved persistently in global settings)
+      """
+
+      prompt_text
+      |> UI.choose(options)
+      |> handle_approval_choice(
+        approval_str,
+        project_approval_str,
+        global_approval_str,
+        command_key
+      )
+    else
+      # Non-persistent approval - only immediate approval or deny
+      prompt_text = """
+      The AI agent would like to execute a command.
+
+      # Command
+      ```sh
+      #{full_command}
+      ```
+
+      # Description and Purpose
+      > #{description}
+
+      # Approval
+      _Complex commands involving pipes, redirection, command substitution, and
+      other advanced features cannot be approved for the entire session. You must
+      approve each command individually._
+      """
+
+      prompt_text
+      |> UI.choose(base_options)
+      |> case do
+        "Deny (with feedback)" ->
+          feedback = UI.prompt("Opine away:")
+          {:error, "The user declined to approve the command. They responded with:\n#{feedback}"}
+
+        "Deny" ->
+          {:error, "The user declined to approve the command."}
+
+        "You son of a bitch, I'm in" ->
+          {:ok, :approved}
+      end
     end
-  end
-
-  defp confirm_with_approval_options(description, approval_bits, full_command, command_key) do
-    approval_str = ["You son of a... for the whole session:" | approval_bits] |> Enum.join(" ")
-    project_approval_str = ["You son of a... for this project:" | approval_bits] |> Enum.join(" ")
-    global_approval_str = ["You son of a... globally:" | approval_bits] |> Enum.join(" ")
-
-    options = [
-      "You son of a bitch, I'm in",
-      approval_str,
-      project_approval_str,
-      global_approval_str,
-      "Deny",
-      "Deny (with feedback)"
-    ]
-
-    """
-    The AI agent would like to execute a shell command.
-
-    # Command
-    ```sh
-    #{full_command}
-    ```
-
-    # Description and Purpose
-    > #{description}
-
-    # Approval
-    You can approve this call only, or you can approve all future calls for
-    this command and its subcommands for:
-    - This session only (not saved)
-    - This project (saved persistently in project settings)
-    - All projects globally (saved persistently in global settings)
-    """
-    |> UI.choose(options)
-    |> handle_approval_choice(
-      approval_str,
-      project_approval_str,
-      global_approval_str,
-      command_key
-    )
   end
 
   defp handle_approval_choice(

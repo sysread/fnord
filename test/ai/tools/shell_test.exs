@@ -426,4 +426,70 @@ defmodule AI.Tools.ShellTest do
       assert Shell.async?() == false
     end
   end
+
+  describe "persistent approval handling" do
+    setup do
+      # Mock successful parsing and execution for these tests
+      :meck.expect(AI.Agent.ShellCmdParser, :get_response, fn %{shell_cmd: _} ->
+        {:ok, %{"cmd" => "test", "args" => [], "approval_bits" => ["test"]}}
+      end)
+
+      :meck.expect(Store, :get_project, fn -> {:ok, %{source_root: "/test"}} end)
+      :meck.expect(System, :cmd, fn _, _, _ -> {"output", 0} end)
+
+      :ok
+    end
+
+    test "passes persistent: false for 'sh' commands" do
+      # Override the default mock to return 'sh' command
+      :meck.expect(AI.Agent.ShellCmdParser, :get_response, fn %{shell_cmd: _} ->
+        {:ok, %{"cmd" => "sh", "args" => ["-c", "ls | grep foo"], "approval_bits" => ["sh"]}}
+      end)
+
+      # Mock the approvals service to verify it receives persistent: false
+      :meck.expect(Services.Approvals, :confirm_command, fn _desc, _bits, _cmd, opts ->
+        # Verify that persistent: false is passed for sh commands
+        assert Keyword.get(opts, :persistent) == false
+        assert Keyword.get(opts, :tag) == "shell_cmd"
+        {:ok, :approved}
+      end)
+
+      result =
+        Shell.call(%{"description" => "Complex shell command", "cmd" => "sh -c 'ls | grep foo'"})
+
+      assert {:ok, "output"} = result
+    end
+
+    test "passes persistent: true for regular commands" do
+      # Mock the approvals service to verify it receives persistent: true (default)
+      :meck.expect(Services.Approvals, :confirm_command, fn _desc, _bits, _cmd, opts ->
+        # For non-sh commands, persistent should be true (default behavior)
+        assert Keyword.get(opts, :persistent) == true
+        assert Keyword.get(opts, :tag) == "shell_cmd"
+        {:ok, :approved}
+      end)
+
+      result = Shell.call(%{"description" => "Simple command", "cmd" => "ls -l"})
+      assert {:ok, "output"} = result
+    end
+
+    test "passes persistent: true for other complex commands that aren't 'sh'" do
+      # Override to return a different complex command (not 'sh')
+      :meck.expect(AI.Agent.ShellCmdParser, :get_response, fn %{shell_cmd: _} ->
+        {:ok,
+         %{"cmd" => "bash", "args" => ["-c", "complex command"], "approval_bits" => ["bash"]}}
+      end)
+
+      :meck.expect(Services.Approvals, :confirm_command, fn _desc, _bits, _cmd, opts ->
+        # Even for bash commands, we only special-case 'sh'
+        assert Keyword.get(opts, :persistent) == true
+        {:ok, :approved}
+      end)
+
+      result =
+        Shell.call(%{"description" => "Bash command", "cmd" => "bash -c 'complex command'"})
+
+      assert {:ok, "output"} = result
+    end
+  end
 end
