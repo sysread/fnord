@@ -119,9 +119,10 @@ defmodule AI.Tools.File.Edit do
          {:ok, replacement} <- AI.Tools.get_arg(args, "replacement"),
          {:ok, project} <- Store.get_project(),
          absolute_file <- Store.Project.expand_path(file, project),
-         {:ok, backup_path} <- Services.BackupFile.create_backup(absolute_file),
          {:ok, hunk} <- find_hunk(file, criteria, replacement),
          {:ok, adjusted_replacement} <- adjust_replacement(file, hunk, replacement),
+         {:ok, :approved} <- confirm_edit(file, hunk, adjusted_replacement),
+         {:ok, backup_path} <- Services.BackupFile.create_backup(absolute_file),
          :ok <- apply_changes(hunk, adjusted_replacement) do
       diff = build_diff(hunk, adjusted_replacement)
       backup_files = Services.BackupFile.get_session_backups()
@@ -165,21 +166,64 @@ defmodule AI.Tools.File.Edit do
     Hunk.replace_in_file(hunk, replacement)
   end
 
-  defp build_diff(hunk, replacement) do
-    hunk.contents
-    |> TextDiff.format(
-      replacement,
-      color: false,
-      line_numbers: false,
-      format: [
-        gutter: [
-          eq: "   ",
-          del: " - ",
-          ins: " + ",
-          skip: "..."
-        ]
-      ]
+  @spec confirm_edit(binary, hunk, binary) ::
+          {:ok, :approved}
+          | {:error, term}
+  defp confirm_edit(file, hunk, adjusted_replacement) do
+    # Build approval bits for hierarchical approval - use file path components
+    approval_bits = Path.split(file) |> Enum.reject(&(&1 == "."))
+
+    # Create a preview diff to show the user what will change
+    diff_preview = build_diff(hunk, adjusted_replacement)
+
+    # Display the colorized diff separately before the approval prompt
+    if UI.colorize?() and is_list(diff_preview) do
+      IO.puts("\nDiff preview:")
+      UI.format_and_display(diff_preview)
+    end
+
+    # Build a description of the change (without embedding the diff)
+    description = """
+    Edit file #{file}
+
+    Lines #{hunk.start_line}-#{hunk.end_line}
+    #{if not UI.colorize?(), do: "\n#{diff_preview}", else: ""}
+    """
+
+    # Use the approvals service with persistent: false (session-only approvals)
+    Services.Approvals.confirm_command(
+      description,
+      approval_bits,
+      "file_edit #{file}",
+      tag: "file_edit",
+      persistent: false
     )
-    |> IO.iodata_to_binary()
+  end
+
+  defp build_diff(hunk, replacement) do
+    colorize = UI.colorize?()
+
+    diff_iodata =
+      hunk.contents
+      |> TextDiff.format(
+        replacement,
+        color: colorize,
+        line_numbers: false,
+        format: [
+          gutter: [
+            eq: "   ",
+            del: " - ",
+            ins: " + ",
+            skip: "..."
+          ]
+        ]
+      )
+
+    # Don't convert to binary if colors are enabled - keep as iodata for ANSI formatting
+    if colorize do
+      diff_iodata
+    else
+      IO.iodata_to_binary(diff_iodata)
+    end
   end
 end

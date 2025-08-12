@@ -236,8 +236,28 @@ defmodule UI do
   # ----------------------------------------------------------------------------
   # Interactive prompts
   # ----------------------------------------------------------------------------
+  @doc """
+  Formats and displays content that can be either markdown (binary) or ANSI iodata.
+
+  - If content is a binary, treats it as markdown and passes it through the configured formatter
+  - If content is iodata (list), treats it as ANSI-formatted content and uses IO.ANSI.format
+  """
+  @spec format_and_display(binary | iodata) :: :ok
+  def format_and_display(content) when is_binary(content) do
+    content |> UI.Formatter.format_output() |> IO.puts()
+  end
+
+  def format_and_display(content) when is_list(content) do
+    content |> IO.ANSI.format(colorize?()) |> IO.puts()
+  end
+
+  def format_and_display(content) do
+    # Fallback for other types - convert to string and treat as markdown
+    content |> to_string() |> UI.Formatter.format_output() |> IO.puts()
+  end
+
   def choose(prompt, options, owl_opts \\ []) do
-    prompt |> UI.Formatter.format_output() |> IO.puts()
+    format_and_display(prompt)
 
     with_notification_timeout(
       fn ->

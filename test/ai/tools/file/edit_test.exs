@@ -10,6 +10,25 @@ defmodule AI.Tools.File.EditTest do
     # Reset backup server state for clean tests
     Services.BackupFile.reset()
 
+    # Mock UI to prevent interactive behavior during tests
+    :meck.new(UI, [:no_link, :passthrough])
+    :meck.expect(UI, :colorize?, fn -> false end)  # Force non-color mode in tests
+    :meck.expect(UI, :is_tty?, fn -> false end)   # Force non-TTY mode in tests
+
+    # Mock the approvals service to prevent interactive prompts during tests
+    :meck.new(Services.Approvals, [:no_link, :passthrough])
+
+    :meck.expect(Services.Approvals, :confirm_command, fn _description,
+                                                          _approval_bits,
+                                                          _full_command,
+                                                          _opts ->
+      {:ok, :approved}
+    end)
+
+    on_exit(fn ->
+      :meck.unload([UI, Services.Approvals])
+    end)
+
     {:ok, project: project}
   end
 
@@ -371,8 +390,32 @@ defmodule AI.Tools.File.EditTest do
       assert {:error, :missing_argument, "replacement"} = Edit.call(args)
     end
 
-    test "fails when backup creation fails", %{project: _project} do
-      # Mock backup server to return error
+    test "fails when backup creation fails", %{project: project} do
+      # Create test file first so hunk finding succeeds
+      test_file = Path.join(project.source_root, "test.txt")
+      File.write!(test_file, "some content")
+
+      # Mock AI agents to succeed
+      :meck.new(AI.Agent.Code.HunkFinder, [:passthrough])
+      :meck.new(AI.Agent.Code.PatchMaker, [:passthrough])
+
+      test_hunk = %Hunk{
+        file: test_file,
+        start_line: 1,
+        end_line: 1,
+        contents: "some content",
+        hash: "test_hash"
+      }
+
+      :meck.expect(AI.Agent.Code.HunkFinder, :get_response, fn _args ->
+        {:ok, test_hunk}
+      end)
+
+      :meck.expect(AI.Agent.Code.PatchMaker, :get_response, fn _args ->
+        {:ok, "new content"}
+      end)
+
+      # Mock backup server to return error AFTER hunk processing succeeds
       :meck.new(Services.BackupFile, [:passthrough])
 
       :meck.expect(Services.BackupFile, :create_backup, fn _file ->
@@ -380,12 +423,14 @@ defmodule AI.Tools.File.EditTest do
       end)
 
       args = %{
-        "file" => "nonexistent.txt",
+        "file" => "test.txt",
         "find" => "content",
         "replacement" => "new content"
       }
 
       assert {:error, :source_file_not_found} = Edit.call(args)
+
+      :meck.unload([AI.Agent.Code.HunkFinder, AI.Agent.Code.PatchMaker])
 
       :meck.unload(Services.BackupFile)
     end
@@ -491,6 +536,122 @@ defmodule AI.Tools.File.EditTest do
       :meck.unload(AI.Agent.Code.HunkFinder)
       :meck.unload(AI.Agent.Code.PatchMaker)
       :meck.unload(Hunk)
+    end
+
+    test "requests approval with correct parameters", %{project: project} do
+      # Create test file
+      src_dir = Path.join(project.source_root, "src")
+      File.mkdir_p!(src_dir)
+      test_file = Path.join(src_dir, "utils.ex")
+      original_content = "def old_function\n  :old\nend"
+      File.write!(test_file, original_content)
+
+      # Mock AI agents to succeed
+      :meck.new(AI.Agent.Code.HunkFinder, [:passthrough])
+      :meck.new(AI.Agent.Code.PatchMaker, [:passthrough])
+      :meck.new(Hunk, [:passthrough])
+
+      test_hunk = %Hunk{
+        file: test_file,
+        start_line: 1,
+        end_line: 3,
+        contents: "def old_function\n  :old\nend",
+        hash: "test_hash"
+      }
+
+      adjusted_replacement = "def new_function\n  :new\nend"
+
+      :meck.expect(AI.Agent.Code.HunkFinder, :get_response, fn _args ->
+        {:ok, test_hunk}
+      end)
+
+      :meck.expect(AI.Agent.Code.PatchMaker, :get_response, fn _args ->
+        {:ok, adjusted_replacement}
+      end)
+
+      :meck.expect(Hunk, :replace_in_file, fn _hunk, _replacement ->
+        :ok
+      end)
+
+      # Override default approval mock to verify parameters
+      :meck.expect(Services.Approvals, :confirm_command, fn description,
+                                                            approval_bits,
+                                                            full_command,
+                                                            opts ->
+        # Verify the approval parameters are correct
+        assert String.contains?(description, "Edit file src/utils.ex")
+        assert String.contains?(description, "Lines 1-3")
+        # In non-color mode, diff should be embedded in description
+        assert String.contains?(description, "- |def old_function")
+        assert String.contains?(description, "+ |def new_function")
+
+        # Approval bits should be file path components 
+        assert approval_bits == ["src", "utils.ex"]
+
+        # Full command should identify the file being edited
+        assert full_command == "file_edit src/utils.ex"
+
+        # Should use file_edit tag and persistent: false
+        assert Keyword.get(opts, :tag) == "file_edit"
+        assert Keyword.get(opts, :persistent) == false
+
+        {:ok, :approved}
+      end)
+
+      args = %{
+        "file" => "src/utils.ex",
+        "find" => "old_function",
+        "replacement" => "new_function"
+      }
+
+      assert {:ok, result} = Edit.call(args)
+      assert Map.has_key?(result, :diff)
+
+      :meck.unload([AI.Agent.Code.HunkFinder, AI.Agent.Code.PatchMaker, Hunk])
+    end
+
+    test "fails when user denies approval", %{project: project} do
+      # Create test file
+      test_file = Path.join(project.source_root, "test.txt")
+      File.write!(test_file, "content to change")
+
+      # Mock AI agents to succeed
+      :meck.new(AI.Agent.Code.HunkFinder, [:passthrough])
+      :meck.new(AI.Agent.Code.PatchMaker, [:passthrough])
+
+      test_hunk = %Hunk{
+        file: test_file,
+        start_line: 1,
+        end_line: 1,
+        contents: "content to change",
+        hash: "test_hash"
+      }
+
+      :meck.expect(AI.Agent.Code.HunkFinder, :get_response, fn _args ->
+        {:ok, test_hunk}
+      end)
+
+      :meck.expect(AI.Agent.Code.PatchMaker, :get_response, fn _args ->
+        {:ok, "changed content"}
+      end)
+
+      # Mock approval service to deny
+      :meck.expect(Services.Approvals, :confirm_command, fn _description,
+                                                            _approval_bits,
+                                                            _full_command,
+                                                            _opts ->
+        {:error, "User denied the change"}
+      end)
+
+      args = %{
+        "file" => "test.txt",
+        "find" => "content",
+        "replacement" => "changed content"
+      }
+
+      assert {:error, "User denied the change"} = Edit.call(args)
+
+      :meck.unload([AI.Agent.Code.HunkFinder, AI.Agent.Code.PatchMaker])
     end
   end
 end
