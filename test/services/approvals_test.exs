@@ -37,15 +37,14 @@ defmodule Services.ApprovalsTest do
       Agent.stop(Services.Approvals)
 
       settings = Settings.new()
-      settings = Settings.set_command_approval(settings, :global, "git push", true)
-      _settings = Settings.set_command_approval(settings, :global, "rm -rf", false)
+      _settings = Settings.add_approved_command(settings, :global, "action", "git push")
 
       # Restart server to load from Settings
       {:ok, _pid} = Services.Approvals.start_link()
 
       state = Services.Approvals.get_state()
-      assert MapSet.member?(state.global, "git push")
-      refute MapSet.member?(state.global, "rm -rf")
+
+      assert MapSet.member?(state.global, "action#git push")
     end
 
     test "loads existing project approvals when project is set" do
@@ -57,13 +56,13 @@ defmodule Services.ApprovalsTest do
 
       # Set up project approvals
       settings = Settings.new()
-      _settings = Settings.set_command_approval(settings, @test_project, "make build", true)
+      _settings = Settings.add_approved_command(settings, @test_project, "action", "make build")
 
       # Restart server to load from Settings
       {:ok, _pid} = Services.Approvals.start_link()
 
       # Verify project approval works (project is dynamically detected)
-      assert Services.Approvals.approved?("make build")
+      assert Services.Approvals.approved?("action#make build")
     end
 
     test "handles no project set gracefully" do
@@ -168,10 +167,10 @@ defmodule Services.ApprovalsTest do
       # Check that command is approved
       assert Services.Approvals.approved?("project cmd")
 
-      # Check persistence
+      # Check persistence - new format: {"action": ["project cmd"]}
       settings = Settings.new()
       project_commands = Settings.get_approved_commands(settings, @test_project)
-      assert project_commands["project cmd"] == true
+      assert "project cmd" in Map.get(project_commands, "action", [])
     end
 
     test "removes command from session tier when promoting" do
@@ -201,10 +200,10 @@ defmodule Services.ApprovalsTest do
       assert MapSet.member?(state.global, "global cmd")
       assert Services.Approvals.approved?("global cmd")
 
-      # Check persistence
+      # Check persistence - new format: {"action": ["global cmd"]}
       settings = Settings.new()
       global_commands = Settings.get_approved_commands(settings, :global)
-      assert global_commands["global cmd"] == true
+      assert "global cmd" in Map.get(global_commands, "action", [])
     end
 
     test "removes command from lower tiers when promoting to global" do
@@ -254,13 +253,13 @@ defmodule Services.ApprovalsTest do
       other_project = "#{@test_project}_other"
       Settings.set_project(other_project)
       settings = Settings.new()
-      _settings = Settings.set_command_approval(settings, other_project, "project2 cmd", true)
+      _settings = Settings.add_approved_command(settings, other_project, "action", "project2 cmd")
 
       Services.Approvals.reset()
 
       # Verify that the new project's approvals are available
-      assert Services.Approvals.approved?("project2 cmd")
-      refute Services.Approvals.approved?("project1 cmd")
+      assert Services.Approvals.approved?("action#project2 cmd")
+      refute Services.Approvals.approved?("action#project1 cmd")
 
       # Clean up
       Settings.delete(settings, other_project)

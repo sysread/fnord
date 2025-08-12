@@ -1,6 +1,12 @@
 ExUnit.start()
 
 # ------------------------------------------------------------------------------
+# Configure non-interactive mode for all tests
+# ------------------------------------------------------------------------------
+# Ensure quiet mode is enabled to prevent interactive prompts during tests
+Application.put_env(:fnord, :quiet, true)
+
+# ------------------------------------------------------------------------------
 # Start applications for any external dependencies used in tests
 # ------------------------------------------------------------------------------
 Application.ensure_all_started(:briefly)

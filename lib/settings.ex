@@ -178,6 +178,7 @@ defmodule Settings do
 
   @doc """
   Get approved commands for global or project scope.
+  Returns commands in the new nested format: {"tag": ["cmd1", "cmd2"]}.
   """
   @spec get_approved_commands(t, :global | binary) :: map()
   def get_approved_commands(settings, :global) do
@@ -186,77 +187,80 @@ defmodule Settings do
 
   def get_approved_commands(settings, project_name) when is_binary(project_name) do
     case get(settings, project_name) do
-      nil -> %{}
-      project_data -> Map.get(project_data, "approved_commands", %{})
+      nil ->
+        %{}
+
+      project_data ->
+        Map.get(project_data, "approved_commands", %{})
     end
   end
 
   @doc """
-  Set approval status for a command in global or project scope.
+  Add an approved command for a specific tag in global or project scope.
+  Uses the new nested format: {"tag": ["cmd1", "cmd2"]}.
   """
-  @spec set_command_approval(t, :global | binary, binary, boolean) :: t()
-  def set_command_approval(settings, :global, command, approved)
-      when is_binary(command) and is_boolean(approved) do
-    current_commands = get_approved_commands(settings, :global)
-    updated_commands = Map.put(current_commands, command, approved)
-    set(settings, "approved_commands", updated_commands)
-  end
+  @spec add_approved_command(t, :global | binary, binary, binary) :: t()
+  def add_approved_command(settings, scope, tag, command)
+      when is_binary(tag) and is_binary(command) do
+    commands_map = get_approved_commands(settings, scope)
+    current_list = Map.get(commands_map, tag, [])
+    updated_list = [command | current_list] |> Enum.uniq()
+    updated_map = Map.put(commands_map, tag, updated_list)
 
-  def set_command_approval(settings, project_name, command, approved)
-      when is_binary(project_name) and is_binary(command) and is_boolean(approved) do
-    project_data = get(settings, project_name, %{})
-    current_commands = Map.get(project_data, "approved_commands", %{})
-    updated_commands = Map.put(current_commands, command, approved)
-    updated_project_data = Map.put(project_data, "approved_commands", updated_commands)
-    set(settings, project_name, updated_project_data)
-  end
+    case scope do
+      :global ->
+        set(settings, "approved_commands", updated_map)
 
-  @doc """
-  Remove a command from approved commands list in global or project scope.
-  """
-  @spec remove_command_approval(t, :global | binary, binary) :: t()
-  def remove_command_approval(settings, :global, command) when is_binary(command) do
-    current_commands = get_approved_commands(settings, :global)
-    updated_commands = Map.delete(current_commands, command)
-    set(settings, "approved_commands", updated_commands)
-  end
-
-  def remove_command_approval(settings, project_name, command)
-      when is_binary(project_name) and is_binary(command) do
-    project_data = get(settings, project_name, %{})
-    current_commands = Map.get(project_data, "approved_commands", %{})
-    updated_commands = Map.delete(current_commands, command)
-    updated_project_data = Map.put(project_data, "approved_commands", updated_commands)
-    set(settings, project_name, updated_project_data)
-  end
-
-  @doc """
-  Get approval status for a command. Checks project scope first, then falls back to global.
-  """
-  @spec get_command_approval(t, binary, binary) :: {:ok, boolean} | {:error, :not_found}
-  def get_command_approval(settings, project_name, command)
-      when is_binary(project_name) and is_binary(command) do
-    project_commands = get_approved_commands(settings, project_name)
-    global_commands = get_approved_commands(settings, :global)
-
-    case {Map.get(project_commands, command), Map.get(global_commands, command)} do
-      {project_approval, _} when is_boolean(project_approval) -> {:ok, project_approval}
-      {nil, global_approval} when is_boolean(global_approval) -> {:ok, global_approval}
-      {nil, nil} -> {:error, :not_found}
+      project_name when is_binary(project_name) ->
+        project_data = get(settings, project_name, %{})
+        updated_project_data = Map.put(project_data, "approved_commands", updated_map)
+        set(settings, project_name, updated_project_data)
     end
   end
 
   @doc """
-  Get approval status for a command in global scope only.
+  Remove an approved command for a specific tag in global or project scope.
   """
-  @spec get_global_command_approval(t, binary) :: {:ok, boolean} | {:error, :not_found}
-  def get_global_command_approval(settings, command) when is_binary(command) do
-    global_commands = get_approved_commands(settings, :global)
+  @spec remove_approved_command(t, :global | binary, binary, binary) :: t()
+  def remove_approved_command(settings, scope, tag, command)
+      when is_binary(tag) and is_binary(command) do
+    commands_map = get_approved_commands(settings, scope)
 
-    case Map.get(global_commands, command) do
-      approval when is_boolean(approval) -> {:ok, approval}
-      nil -> {:error, :not_found}
+    case Map.get(commands_map, tag) do
+      nil ->
+        settings
+
+      current_list ->
+        updated_list = List.delete(current_list, command)
+
+        updated_map =
+          if Enum.empty?(updated_list) do
+            Map.delete(commands_map, tag)
+          else
+            Map.put(commands_map, tag, updated_list)
+          end
+
+        case scope do
+          :global ->
+            set(settings, "approved_commands", updated_map)
+
+          project_name when is_binary(project_name) ->
+            project_data = get(settings, project_name, %{})
+            updated_project_data = Map.put(project_data, "approved_commands", updated_map)
+            set(settings, project_name, updated_project_data)
+        end
     end
+  end
+
+  @doc """
+  Check if a command is approved for a specific tag.
+  """
+  @spec is_command_approved?(t, :global | binary, binary, binary) :: boolean()
+  def is_command_approved?(settings, scope, tag, command)
+      when is_binary(tag) and is_binary(command) do
+    commands_map = get_approved_commands(settings, scope)
+    tag_commands = Map.get(commands_map, tag, [])
+    command in tag_commands
   end
 
   defp slurp(settings) do

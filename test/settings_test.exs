@@ -98,101 +98,158 @@ defmodule SettingsTest do
       assert Settings.get_approved_commands(settings, :global) == commands
     end
 
-    test "set_command_approval/4 sets global command approval" do
+    test "add_approved_command/4 adds global command approval" do
       settings = Settings.new()
 
-      settings = Settings.set_command_approval(settings, :global, "git push", true)
-      assert Settings.get_approved_commands(settings, :global) == %{"git push" => true}
+      settings = Settings.add_approved_command(settings, :global, "shell_cmd", "git push")
+      approved_commands = Settings.get_approved_commands(settings, :global)
+      shell_commands = Map.get(approved_commands, "shell_cmd", [])
+      assert "git push" in shell_commands
 
-      settings = Settings.set_command_approval(settings, :global, "rm -rf", false)
-      expected = %{"git push" => true, "rm -rf" => false}
-      assert Settings.get_approved_commands(settings, :global) == expected
+      settings = Settings.add_approved_command(settings, :global, "shell_cmd", "rm -rf")
+      approved_commands = Settings.get_approved_commands(settings, :global)
+      shell_commands = Map.get(approved_commands, "shell_cmd", [])
+      assert "git push" in shell_commands
+      assert "rm -rf" in shell_commands
     end
 
-    test "set_command_approval/4 sets project command approval" do
+    test "add_approved_command/4 adds project command approval" do
       settings = Settings.new()
       settings = Settings.set(settings, "settings_test_project", %{"root" => "/test"})
 
       settings =
-        Settings.set_command_approval(settings, "settings_test_project", "make build", true)
+        Settings.add_approved_command(
+          settings,
+          "settings_test_project",
+          "shell_cmd",
+          "make build"
+        )
 
-      assert Settings.get_approved_commands(settings, "settings_test_project") == %{
-               "make build" => true
-             }
+      approved_commands = Settings.get_approved_commands(settings, "settings_test_project")
+      shell_commands = Map.get(approved_commands, "shell_cmd", [])
+      assert "make build" in shell_commands
 
       settings =
-        Settings.set_command_approval(settings, "settings_test_project", "docker run", false)
+        Settings.add_approved_command(
+          settings,
+          "settings_test_project",
+          "shell_cmd",
+          "docker run"
+        )
 
-      expected = %{"make build" => true, "docker run" => false}
-      assert Settings.get_approved_commands(settings, "settings_test_project") == expected
+      approved_commands = Settings.get_approved_commands(settings, "settings_test_project")
+      shell_commands = Map.get(approved_commands, "shell_cmd", [])
+      assert "make build" in shell_commands
+      assert "docker run" in shell_commands
     end
 
-    test "remove_command_approval/3 removes global command" do
+    test "remove_approved_command/4 removes global command" do
       settings = Settings.new()
-      settings = Settings.set_command_approval(settings, :global, "git push", true)
-      settings = Settings.set_command_approval(settings, :global, "rm -rf", false)
+      settings = Settings.add_approved_command(settings, :global, "shell_cmd", "git push")
+      settings = Settings.add_approved_command(settings, :global, "shell_cmd", "rm -rf")
 
-      settings = Settings.remove_command_approval(settings, :global, "git push")
-      assert Settings.get_approved_commands(settings, :global) == %{"rm -rf" => false}
+      settings = Settings.remove_approved_command(settings, :global, "shell_cmd", "git push")
+      approved_commands = Settings.get_approved_commands(settings, :global)
+      shell_commands = Map.get(approved_commands, "shell_cmd", [])
+      refute "git push" in shell_commands
+      assert "rm -rf" in shell_commands
     end
 
-    test "remove_command_approval/3 removes project command" do
+    test "remove_approved_command/4 removes project command" do
       settings = Settings.new()
       settings = Settings.set(settings, "settings_test_project", %{"root" => "/test"})
 
       settings =
-        Settings.set_command_approval(settings, "settings_test_project", "make build", true)
+        Settings.add_approved_command(
+          settings,
+          "settings_test_project",
+          "shell_cmd",
+          "make build"
+        )
 
       settings =
-        Settings.set_command_approval(settings, "settings_test_project", "docker run", false)
-
-      settings = Settings.remove_command_approval(settings, "settings_test_project", "make build")
-
-      assert Settings.get_approved_commands(settings, "settings_test_project") == %{
-               "docker run" => false
-             }
-    end
-
-    test "get_command_approval/3 returns project approval over global" do
-      settings = Settings.new()
-      settings = Settings.set_command_approval(settings, :global, "git push", false)
-      settings = Settings.set(settings, "settings_test_project", %{"root" => "/test"})
+        Settings.add_approved_command(
+          settings,
+          "settings_test_project",
+          "shell_cmd",
+          "docker run"
+        )
 
       settings =
-        Settings.set_command_approval(settings, "settings_test_project", "git push", true)
+        Settings.remove_approved_command(
+          settings,
+          "settings_test_project",
+          "shell_cmd",
+          "make build"
+        )
 
-      assert Settings.get_command_approval(settings, "settings_test_project", "git push") ==
-               {:ok, true}
+      approved_commands = Settings.get_approved_commands(settings, "settings_test_project")
+      shell_commands = Map.get(approved_commands, "shell_cmd", [])
+      refute "make build" in shell_commands
+      assert "docker run" in shell_commands
     end
 
-    test "get_command_approval/3 falls back to global when not set in project" do
+    test "is_command_approved?/4 checks project approval first" do
       settings = Settings.new()
-      settings = Settings.set_command_approval(settings, :global, "git push", true)
+      # Add to global but NOT to project to show project scope is checked first
+      settings = Settings.add_approved_command(settings, :global, "shell_cmd", "other_command")
       settings = Settings.set(settings, "settings_test_project", %{"root" => "/test"})
 
-      assert Settings.get_command_approval(settings, "settings_test_project", "git push") ==
-               {:ok, true}
+      # Add command only to project
+      settings =
+        Settings.add_approved_command(settings, "settings_test_project", "shell_cmd", "git push")
+
+      # Should find it in project scope
+      assert Settings.is_command_approved?(
+               settings,
+               "settings_test_project",
+               "shell_cmd",
+               "git push"
+             ) == true
+
+      # Should not find other command in project scope
+      assert Settings.is_command_approved?(
+               settings,
+               "settings_test_project",
+               "shell_cmd",
+               "other_command"
+             ) == false
     end
 
-    test "get_command_approval/3 returns error when command not found anywhere" do
+    test "is_command_approved?/4 works with global scope" do
+      settings = Settings.new()
+      settings = Settings.add_approved_command(settings, :global, "shell_cmd", "git push")
+      settings = Settings.set(settings, "settings_test_project", %{"root" => "/test"})
+
+      # Should find global approval
+      assert Settings.is_command_approved?(settings, :global, "shell_cmd", "git push") == true
+      # Should not find non-existent command
+      assert Settings.is_command_approved?(settings, :global, "shell_cmd", "unknown") == false
+    end
+
+    test "is_command_approved?/4 returns false when command not found" do
       settings = Settings.new()
       settings = Settings.set(settings, "settings_test_project", %{"root" => "/test"})
 
-      assert Settings.get_command_approval(settings, "settings_test_project", "unknown") ==
-               {:error, :not_found}
+      # Should return false for non-existent commands
+      assert Settings.is_command_approved?(
+               settings,
+               "settings_test_project",
+               "shell_cmd",
+               "unknown"
+             ) == false
+
+      assert Settings.is_command_approved?(settings, :global, "shell_cmd", "unknown") == false
     end
 
-    test "get_global_command_approval/2 returns global approval only" do
+    test "is_command_approved?/4 works correctly with global scope only" do
       settings = Settings.new()
-      settings = Settings.set_command_approval(settings, :global, "git push", true)
+      settings = Settings.add_approved_command(settings, :global, "shell_cmd", "git push")
 
-      assert Settings.get_global_command_approval(settings, "git push") == {:ok, true}
-    end
-
-    test "get_global_command_approval/2 returns error when not found" do
-      settings = Settings.new()
-
-      assert Settings.get_global_command_approval(settings, "unknown") == {:error, :not_found}
+      # Should find global approval
+      assert Settings.is_command_approved?(settings, :global, "shell_cmd", "git push") == true
+      # Should not find non-existent command
+      assert Settings.is_command_approved?(settings, :global, "shell_cmd", "unknown") == false
     end
 
     test "migration preserves existing approved_commands" do

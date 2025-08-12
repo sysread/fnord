@@ -1,10 +1,11 @@
 defmodule AI.Tools.Shell do
   @moduledoc """
-  A tool for executing shell commands.
+  A tool for executing shell commands with user approval.
 
-  Allows for the user to approve a command before it is executed, and provides
-  a mechanism to approve all future executions of the same command and
-  subcommands, regardless of arguments.
+  Delegates command approval logic to Services.Approvals, which provides
+  hierarchical approval scopes (session, project, global) with persistence.
+  Commands are parsed into approval bits that allow for granular approval
+  of command families and subcommands.
   """
 
   @behaviour AI.Tools
@@ -146,142 +147,8 @@ defmodule AI.Tools.Shell do
     AI.Agent.ShellCmdParser.get_response(%{shell_cmd: cmd})
   end
 
-  defp confirm(desc, _, "sh", args) do
-    full_cmd =
-      ["sh" | args]
-      |> Enum.join(" ")
-
-    options = [
-      "You son of a bitch, I'm in",
-      "Deny",
-      "Deny (with feedback)"
-    ]
-
-    UI.warning_banner("The AI agent would like to execute a shell command")
-
-    """
-    # Command
-    ```sh
-    #{full_cmd}
-    ```
-
-    # Description and Purpose
-    > #{desc}
-
-    # Approval
-    _Complex commands involving pipes, redirection, command substitution, and
-    other shell features cannot be approved for the entire session. You must
-    approve each command individually._
-    """
-    |> UI.choose(options)
-    |> case do
-      "Deny (with feedback)" ->
-        feedback = UI.prompt("Opine away:")
-
-        {:error,
-         """
-         The user declined to approve the command. They responded with:
-         #{feedback}
-         """}
-
-      "Deny" ->
-        {:error, "The user declined to approve the command."}
-
-      "You son of a bitch, I'm in" ->
-        {:ok, :approved}
-    end
-  end
-
   defp confirm(desc, approval_bits, cmd, args) do
-    full_cmd =
-      [cmd | args]
-      |> Enum.join(" ")
-
-    approval_str =
-      ["You son of a... for the whole session:" | approval_bits]
-      |> Enum.join(" ")
-
-    project_approval_str =
-      ["You son of a... for this project:" | approval_bits]
-      |> Enum.join(" ")
-
-    global_approval_str =
-      ["You son of a... globally:" | approval_bits]
-      |> Enum.join(" ")
-
-    command_key =
-      ["shell_cmd" | approval_bits]
-      |> Enum.join("#")
-
-    options = [
-      "You son of a bitch, I'm in",
-      approval_str,
-      project_approval_str,
-      global_approval_str,
-      "Deny",
-      "Deny (with feedback)"
-    ]
-
-    # Check if command is already approved using Services.Approvals
-    if Services.Approvals.approved?(command_key) do
-      {:ok, :approved}
-    else
-      """
-      The AI agent would like to execute a shell command.
-
-      # Command
-      ```sh
-      #{full_cmd}
-      ```
-
-      # Description and Purpose
-      > #{desc}
-
-      # Approval
-      You can approve this call only, or you can approve all future calls for
-      this command and its subcommands for:
-      - This session only (not saved)
-      - This project (saved persistently in project settings)
-      - All projects globally (saved persistently in global settings)
-      """
-      |> UI.choose(options)
-      |> case do
-        "Deny (with feedback)" ->
-          feedback = UI.prompt("Opine away:")
-
-          {:error,
-           """
-           The user declined to approve the command. They responded with:
-           #{feedback}
-           """}
-
-        "Deny" ->
-          {:error, "The user declined to approve the command."}
-
-        "You son of a bitch, I'm in" ->
-          {:ok, :approved}
-
-        ^approval_str ->
-          # Approve for session using Services.Approvals
-          Services.Approvals.approve(:session, command_key)
-          {:ok, :approved}
-
-        ^project_approval_str ->
-          # Approve for project using Services.Approvals
-          case Services.Approvals.approve(:project, command_key) do
-            :ok ->
-              {:ok, :approved}
-
-            {:error, :no_project} ->
-              {:error,
-               "Cannot approve for project: no project is currently set. Use 'fnord config set <project>' to set a project first."}
-          end
-
-        ^global_approval_str ->
-          # Approve globally using Services.Approvals
-          Services.Approvals.approve(:global, command_key)
-          {:ok, :approved}
-      end
-    end
+    full_cmd = [cmd | args] |> Enum.join(" ")
+    Services.Approvals.confirm_command(desc, approval_bits, full_cmd, tag: "shell_cmd")
   end
 end

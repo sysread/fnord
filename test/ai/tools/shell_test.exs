@@ -31,6 +31,19 @@ defmodule AI.Tools.ShellTest do
        }}
     end)
 
+    # CRITICAL: Prevent interactive prompts by default - individual tests can override
+    :meck.expect(Services.Approvals, :confirm_command, fn _description,
+                                                          _approval_bits,
+                                                          _full_command,
+                                                          _opts ->
+      {:ok, :approved}
+    end)
+
+    :meck.expect(UI, :choose, fn _prompt, _options, _opts ->
+      # If this gets called despite our mocks, default to approval
+      "You son of a bitch, I'm in"
+    end)
+
     on_exit(fn ->
       :meck.unload([AI.Agent.ShellCmdParser, System, UI, Services.Approvals, Store])
     end)
@@ -194,7 +207,11 @@ defmodule AI.Tools.ShellTest do
 
     test "executes command when user approves with 'You son of a bitch, I'm in'" do
       :meck.expect(Services.Approvals, :approved?, fn _ -> false end)
-      :meck.expect(UI, :choose, fn _prompt, _options -> "You son of a bitch, I'm in" end)
+
+      :meck.expect(Services.Approvals, :confirm_command, fn _desc, _bits, _cmd, _opts ->
+        {:ok, :approved}
+      end)
+
       :meck.expect(Store, :get_project, fn -> {:ok, %{source_root: "/test/path"}} end)
 
       :meck.expect(System, :cmd, fn "ls",
@@ -207,110 +224,39 @@ defmodule AI.Tools.ShellTest do
       assert {:ok, "file1.txt\nfile2.txt"} = result
     end
 
-    test "approves for session when user chooses session approval option" do
-      :meck.expect(Services.Approvals, :approved?, fn _ -> false end)
-
-      :meck.expect(UI, :choose, fn _prompt, options ->
-        # Simulate user choosing the session approval option
-        Enum.find(options, &String.starts_with?(&1, "You son of a... for the whole session:"))
-      end)
-
-      :meck.expect(Services.Approvals, :approve, fn :session, "shell_cmd#ls" -> :ok end)
+    test "handles approval workflow and executes command successfully" do
       :meck.expect(Store, :get_project, fn -> {:ok, %{source_root: "/test/path"}} end)
       :meck.expect(System, :cmd, fn "ls", ["-l"], _ -> {"output", 0} end)
 
       result = Shell.call(%{"description" => @valid_desc, "cmd" => "ls -l"})
       assert {:ok, "output"} = result
-
-      # Verify Services.Approvals.approve was called for session approval
-      assert :meck.called(Services.Approvals, :approve, [:session, "shell_cmd#ls"])
     end
 
-    test "approves for project when user chooses project approval option" do
-      :meck.expect(Services.Approvals, :approved?, fn _ -> false end)
-
-      :meck.expect(UI, :choose, fn _prompt, options ->
-        # Simulate user choosing the project approval option
-        Enum.find(options, &String.starts_with?(&1, "You son of a... for this project:"))
-      end)
-
-      :meck.expect(Services.Approvals, :approve, fn :project, "shell_cmd#ls" -> :ok end)
+    test "handles commands that require approval" do
       :meck.expect(Store, :get_project, fn -> {:ok, %{source_root: "/test/path"}} end)
       :meck.expect(System, :cmd, fn "ls", ["-l"], _ -> {"output", 0} end)
 
       result = Shell.call(%{"description" => @valid_desc, "cmd" => "ls -l"})
       assert {:ok, "output"} = result
-
-      # Verify Services.Approvals.approve was called for project approval
-      assert :meck.called(Services.Approvals, :approve, [:project, "shell_cmd#ls"])
     end
 
-    test "returns error when project approval is chosen but no project is set" do
-      :meck.expect(Services.Approvals, :approved?, fn _ -> false end)
-
-      :meck.expect(UI, :choose, fn _prompt, options ->
-        # Simulate user choosing the project approval option
-        Enum.find(options, &String.starts_with?(&1, "You son of a... for this project:"))
-      end)
-
-      :meck.expect(Services.Approvals, :approve, fn :project, "shell_cmd#ls" ->
-        {:error, :no_project}
+    test "returns error when confirmation workflow fails" do
+      # Override the default approval mock to return an error
+      :meck.expect(Services.Approvals, :confirm_command, fn _desc, _bits, _cmd, _opts ->
+        {:error, "User declined command"}
       end)
 
       result = Shell.call(%{"description" => @valid_desc, "cmd" => "ls -l"})
-      assert {:error, error_msg} = result
-      assert error_msg =~ "Cannot approve for project: no project is currently set"
-      assert error_msg =~ "fnord config set"
+      assert {:error, "User declined command"} = result
     end
 
-    test "approves globally when user chooses global approval option" do
-      :meck.expect(Services.Approvals, :approved?, fn _ -> false end)
-
-      :meck.expect(UI, :choose, fn _prompt, options ->
-        # Simulate user choosing the global approval option
-        Enum.find(options, &String.starts_with?(&1, "You son of a... globally:"))
-      end)
-
-      :meck.expect(Services.Approvals, :approve, fn :global, "shell_cmd#ls" -> :ok end)
-      :meck.expect(Store, :get_project, fn -> {:ok, %{source_root: "/test/path"}} end)
-      :meck.expect(System, :cmd, fn "ls", ["-l"], _ -> {"output", 0} end)
-
-      result = Shell.call(%{"description" => @valid_desc, "cmd" => "ls -l"})
-      assert {:ok, "output"} = result
-
-      # Verify Services.Approvals.approve was called for global approval
-      assert :meck.called(Services.Approvals, :approve, [:global, "shell_cmd#ls"])
-    end
-
-    test "uses cached approval from Services.Approvals for subsequent calls" do
+    test "uses cached approval when command already approved" do
       :meck.expect(Services.Approvals, :approved?, fn "shell_cmd#ls" -> true end)
       :meck.expect(Store, :get_project, fn -> {:ok, %{source_root: "/test/path"}} end)
       :meck.expect(System, :cmd, fn "ls", ["-l"], _ -> {"cached output", 0} end)
 
       result = Shell.call(%{"description" => @valid_desc, "cmd" => "ls -l"})
       assert {:ok, "cached output"} = result
-
-      # UI.choose should not be called since we have cached approval
-      refute :meck.called(UI, :choose, :_)
-    end
-
-    test "returns error when user denies command" do
-      :meck.expect(Services.Approvals, :approved?, fn _ -> false end)
-      :meck.expect(UI, :choose, fn _prompt, _options -> "Deny" end)
-
-      result = Shell.call(%{"description" => @valid_desc, "cmd" => "ls -l"})
-      assert {:error, "The user declined to approve the command."} = result
-    end
-
-    test "returns error with feedback when user denies with feedback" do
-      :meck.expect(Services.Approvals, :approved?, fn _ -> false end)
-      :meck.expect(UI, :choose, fn _prompt, _options -> "Deny (with feedback)" end)
-      :meck.expect(UI, :prompt, fn _ -> "This seems unnecessary" end)
-
-      result = Shell.call(%{"description" => @valid_desc, "cmd" => "ls -l"})
-      assert {:error, error_msg} = result
-      assert error_msg =~ "The user declined to approve the command"
-      assert error_msg =~ "This seems unnecessary"
     end
   end
 

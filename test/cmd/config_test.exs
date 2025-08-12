@@ -4,7 +4,7 @@ defmodule Cmd.ConfigTest do
   import ExUnit.CaptureIO
   import ExUnit.CaptureLog
 
-  # Enable logger output for error testing
+  # Enable logger output for error testing  
   setup do
     old_level = Logger.level()
     Logger.configure(level: :error)
@@ -15,8 +15,8 @@ defmodule Cmd.ConfigTest do
   describe "list command" do
     test "lists global configuration when no project specified" do
       settings = Settings.new()
-      settings = Settings.set_command_approval(settings, :global, "git push", true)
-      _settings = Settings.set_command_approval(settings, :global, "rm -rf", false)
+      settings = Settings.add_approved_command(settings, :global, "shell_cmd", "git push")
+      _settings = Settings.add_approved_command(settings, :global, "shell_cmd", "rm -rf")
 
       output =
         capture_io(fn ->
@@ -25,15 +25,16 @@ defmodule Cmd.ConfigTest do
 
       decoded = Jason.decode!(output)
       approved_commands = decoded["approved_commands"]
-      assert approved_commands["git push"] == true
-      assert approved_commands["rm -rf"] == false
+      shell_commands = Map.get(approved_commands, "shell_cmd", [])
+      assert "git push" in shell_commands
+      assert "rm -rf" in shell_commands
     end
 
     test "lists project configuration when project specified" do
       project = mock_project("config_test_project")
 
       settings = Settings.new()
-      _settings = Settings.set_command_approval(settings, project.name, "make build", true)
+      _settings = Settings.add_approved_command(settings, project.name, "shell_cmd", "make build")
 
       output =
         capture_io(fn ->
@@ -41,7 +42,9 @@ defmodule Cmd.ConfigTest do
         end)
 
       decoded = Jason.decode!(output)
-      assert Map.get(decoded, "approved_commands") == %{"make build" => true}
+      approved_commands = Map.get(decoded, "approved_commands", %{})
+      shell_commands = Map.get(approved_commands, "shell_cmd", [])
+      assert "make build" in shell_commands
     end
 
     test "shows error for nonexistent project" do
@@ -91,23 +94,22 @@ defmodule Cmd.ConfigTest do
     end
   end
 
-  describe "approved-commands list" do
+  describe "approvals list" do
     test "shows global approved commands when no project specified" do
       settings = Settings.new()
-      settings = Settings.set_command_approval(settings, :global, "git push", true)
-      _settings = Settings.set_command_approval(settings, :global, "rm -rf", false)
+      settings = Settings.add_approved_command(settings, :global, "shell_cmd", "git push")
+      _settings = Settings.add_approved_command(settings, :global, "shell_cmd", "rm -rf")
 
       output =
         capture_io(fn ->
-          Cmd.Config.run([], ["approved-commands", "list"], [])
+          Cmd.Config.run([], [:approvals, :list], [])
         end)
 
       assert output =~ "Global approved commands:"
-      # Check that both commands appear, regardless of order
-      assert output =~ "git push"
-      assert output =~ "rm -rf"
+      # Check that both commands appear in tag#command format
+      assert output =~ "shell_cmd#git push"
+      assert output =~ "shell_cmd#rm -rf"
       assert output =~ "✓ approved"
-      assert output =~ "✗ denied"
     end
 
     test "shows empty global commands" do
@@ -115,7 +117,7 @@ defmodule Cmd.ConfigTest do
 
       output =
         capture_io(fn ->
-          Cmd.Config.run([], ["approved-commands", "list"], [])
+          Cmd.Config.run([], [:approvals, :list], [])
         end)
 
       assert output =~ "Global approved commands:"
@@ -126,55 +128,54 @@ defmodule Cmd.ConfigTest do
       project = mock_project("config_test_project")
 
       settings = Settings.new()
-      settings = Settings.set_command_approval(settings, :global, "git push", true)
-      settings = Settings.set_command_approval(settings, :global, "rm -rf", false)
-      settings = Settings.set_command_approval(settings, project.name, "git push", false)
-      _settings = Settings.set_command_approval(settings, project.name, "make build", true)
+      settings = Settings.add_approved_command(settings, :global, "shell_cmd", "git push")
+      settings = Settings.add_approved_command(settings, :global, "shell_cmd", "rm -rf")
+      _settings = Settings.add_approved_command(settings, project.name, "shell_cmd", "make build")
 
       output =
         capture_io(fn ->
-          Cmd.Config.run([project: project.name], ["approved-commands", "list"], [])
+          Cmd.Config.run([project: project.name], [:approvals, :list], [])
         end)
 
       assert output =~ "Project 'config_test_project' approved commands:"
-      assert output =~ "make build: ✓ approved"
-      # The order of git push might vary - let's be more flexible
-      assert output =~ "git push"
-      assert output =~ "✗ denied"
+      assert output =~ "shell_cmd#make build: ✓ approved"
       assert output =~ "Inherited from global:"
-      assert output =~ "rm -rf: ✗ denied"
+      assert output =~ "shell_cmd#git push: ✓ approved"
+      assert output =~ "shell_cmd#rm -rf: ✓ approved"
     end
 
     test "shows project commands with empty project list" do
       project = mock_project("config_test_project")
 
       settings = Settings.new()
-      _settings = Settings.set_command_approval(settings, :global, "git push", true)
+      _settings = Settings.add_approved_command(settings, :global, "shell_cmd", "git push")
 
       output =
         capture_io(fn ->
-          Cmd.Config.run([project: project.name], ["approved-commands", "list"], [])
+          Cmd.Config.run([project: project.name], [:approvals, :list], [])
         end)
 
       assert output =~ "Project 'config_test_project' approved commands:"
       assert output =~ "(none)"
       assert output =~ "Inherited from global:"
-      assert output =~ "git push: ✓ approved"
+      assert output =~ "shell_cmd#git push: ✓ approved"
     end
   end
 
-  describe "approved-commands approve" do
+  describe "approvals approve" do
     test "approves global command when no project specified" do
       output =
         capture_io(fn ->
-          Cmd.Config.run([], ["approved-commands", "approve", "git push"], [])
+          Cmd.Config.run([command: "git push"], [:approvals, :approve], [])
         end)
 
-      assert output =~ "Command 'git push' approved globally."
+      assert output =~ "Command 'git push' approved globally with tag 'shell_cmd'."
 
       # Verify it was actually set
       settings = Settings.new()
-      assert Settings.get_approved_commands(settings, :global) == %{"git push" => true}
+      approved_commands = Settings.get_approved_commands(settings, :global)
+      shell_commands = Map.get(approved_commands, "shell_cmd", [])
+      assert "git push" in shell_commands
     end
 
     test "approves project command when project specified" do
@@ -183,93 +184,94 @@ defmodule Cmd.ConfigTest do
       output =
         capture_io(fn ->
           Cmd.Config.run(
-            [project: project.name],
-            ["approved-commands", "approve", "make build"],
+            [project: project.name, command: "make build"],
+            [:approvals, :approve],
             []
           )
         end)
 
-      assert output =~ "Command 'make build' approved for project 'config_test_project'."
+      assert output =~
+               "Command 'make build' approved for project 'config_test_project' with tag 'shell_cmd'."
 
       # Verify it was actually set
       settings = Settings.new()
-      assert Settings.get_approved_commands(settings, project.name) == %{"make build" => true}
+      approved_commands = Settings.get_approved_commands(settings, project.name)
+      shell_commands = Map.get(approved_commands, "shell_cmd", [])
+      assert "make build" in shell_commands
     end
   end
 
-  describe "approved-commands deny" do
-    test "denies global command when no project specified" do
+  describe "approvals deny" do
+    test "shows error message that deny was removed" do
       output =
-        capture_io(fn ->
-          Cmd.Config.run([], ["approved-commands", "deny", "rm -rf"], [])
+        capture_log(fn ->
+          Cmd.Config.run([command: "rm -rf"], [:approvals, :deny], [])
         end)
 
-      assert output =~ "Command 'rm -rf' denied globally."
-
-      # Verify it was actually set
-      settings = Settings.new()
-      assert Settings.get_approved_commands(settings, :global) == %{"rm -rf" => false}
+      assert output =~
+               "Deny functionality has been removed. Use 'remove' to remove approved commands."
     end
 
-    test "denies project command when project specified" do
+    test "shows error message for project deny as well" do
       project = mock_project("config_test_project")
 
       output =
-        capture_io(fn ->
-          Cmd.Config.run([project: project.name], ["approved-commands", "deny", "docker run"], [])
+        capture_log(fn ->
+          Cmd.Config.run([project: project.name, command: "docker run"], [:approvals, :deny], [])
         end)
 
-      assert output =~ "Command 'docker run' denied for project 'config_test_project'."
-
-      # Verify it was actually set
-      settings = Settings.new()
-      assert Settings.get_approved_commands(settings, project.name) == %{"docker run" => false}
+      assert output =~
+               "Deny functionality has been removed. Use 'remove' to remove approved commands."
     end
   end
 
-  describe "approved-commands remove" do
+  describe "approvals remove" do
     test "removes global command when no project specified" do
       settings = Settings.new()
-      settings = Settings.set_command_approval(settings, :global, "git push", true)
-      _settings = Settings.set_command_approval(settings, :global, "rm -rf", false)
+      settings = Settings.add_approved_command(settings, :global, "shell_cmd", "git push")
+      _settings = Settings.add_approved_command(settings, :global, "shell_cmd", "rm -rf")
 
       output =
         capture_io(fn ->
-          Cmd.Config.run([], ["approved-commands", "remove", "git push"], [])
+          Cmd.Config.run([command: "git push"], [:approvals, :remove], [])
         end)
 
-      assert output =~ "Command 'git push' removed from global approval list."
+      assert output =~ "Command 'git push' removed from global approval list for tag 'shell_cmd'."
 
       # Verify it was actually removed
       updated_settings = Settings.new()
-      assert Settings.get_approved_commands(updated_settings, :global) == %{"rm -rf" => false}
+      approved_commands = Settings.get_approved_commands(updated_settings, :global)
+      shell_commands = Map.get(approved_commands, "shell_cmd", [])
+      refute "git push" in shell_commands
+      assert "rm -rf" in shell_commands
     end
 
     test "removes project command when project specified" do
       project = mock_project("config_test_project")
 
       settings = Settings.new()
-      settings = Settings.set_command_approval(settings, project.name, "make build", true)
-      _settings = Settings.set_command_approval(settings, project.name, "docker run", false)
+      settings = Settings.add_approved_command(settings, project.name, "shell_cmd", "make build")
+      _settings = Settings.add_approved_command(settings, project.name, "shell_cmd", "docker run")
 
       output =
         capture_io(fn ->
           Cmd.Config.run(
-            [project: project.name],
-            ["approved-commands", "remove", "make build"],
+            [project: project.name, command: "make build"],
+            [:approvals, :remove],
             []
           )
         end)
 
       assert output =~
-               "Command 'make build' removed from project 'config_test_project' approval list."
+               "Command 'make build' removed from project 'config_test_project' approval list for tag 'shell_cmd'."
 
       # Verify it was actually removed
       updated_settings = Settings.new()
 
-      assert Settings.get_approved_commands(updated_settings, project.name) == %{
-               "docker run" => false
-             }
+      approved_commands = Settings.get_approved_commands(updated_settings, project.name)
+      shell_commands = Map.get(approved_commands, "shell_cmd", [])
+      refute "make build" in shell_commands
+      assert "docker run" in shell_commands
     end
   end
 

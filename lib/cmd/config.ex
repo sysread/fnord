@@ -40,9 +40,9 @@ defmodule Cmd.Config do
               ]
             ]
           ],
-          "approved-commands": [
-            name: "approved-commands",
-            about: "Manage approved commands",
+          approvals: [
+            name: "approvals",
+            about: "Manage command approvals",
             subcommands: [
               list: [
                 name: "list",
@@ -62,7 +62,14 @@ defmodule Cmd.Config do
                   ]
                 ],
                 options: [
-                  project: Cmd.project_arg()
+                  project: Cmd.project_arg(),
+                  tag: [
+                    value_name: "TAG",
+                    long: "--tag",
+                    short: "-t",
+                    help: "Tag for command categorization (default: shell_cmd)",
+                    required: false
+                  ]
                 ]
               ],
               deny: [
@@ -76,7 +83,14 @@ defmodule Cmd.Config do
                   ]
                 ],
                 options: [
-                  project: Cmd.project_arg()
+                  project: Cmd.project_arg(),
+                  tag: [
+                    value_name: "TAG",
+                    long: "--tag",
+                    short: "-t",
+                    help: "Tag for command categorization (default: shell_cmd)",
+                    required: false
+                  ]
                 ]
               ],
               remove: [
@@ -90,7 +104,14 @@ defmodule Cmd.Config do
                   ]
                 ],
                 options: [
-                  project: Cmd.project_arg()
+                  project: Cmd.project_arg(),
+                  tag: [
+                    value_name: "TAG",
+                    long: "--tag",
+                    short: "-t",
+                    help: "Tag for command categorization (default: shell_cmd)",
+                    required: false
+                  ]
                 ]
               ]
             ]
@@ -150,7 +171,7 @@ defmodule Cmd.Config do
     end
   end
 
-  def run(opts, ["approved-commands", "list"], _unknown) do
+  def run(opts, [:approvals, :list], _unknown) do
     settings = Settings.new()
 
     case opts[:project] do
@@ -161,9 +182,10 @@ defmodule Cmd.Config do
         if Enum.empty?(global_commands) do
           IO.puts("  (none)")
         else
-          Enum.each(global_commands, fn {command, approved} ->
-            status = if approved, do: "✓ approved", else: "✗ denied"
-            IO.puts("  #{command}: #{status}")
+          Enum.each(global_commands, fn {tag, command_list} ->
+            Enum.each(command_list, fn command ->
+              IO.puts("  #{tag}##{command}: ✓ approved")
+            end)
           end)
         end
 
@@ -179,9 +201,10 @@ defmodule Cmd.Config do
           if Enum.empty?(project_commands) do
             IO.puts("  (none)")
           else
-            Enum.each(project_commands, fn {command, approved} ->
-              status = if approved, do: "✓ approved", else: "✗ denied"
-              IO.puts("  #{command}: #{status}")
+            Enum.each(project_commands, fn {tag, command_list} ->
+              Enum.each(command_list, fn command ->
+                IO.puts("  #{tag}##{command}: ✓ approved")
+              end)
             end)
           end
 
@@ -189,16 +212,14 @@ defmodule Cmd.Config do
             IO.puts("")
             IO.puts("Inherited from global:")
 
-            Enum.each(global_commands, fn {command, approved} ->
-              case Map.get(project_commands, command) do
-                nil ->
-                  status = if approved, do: "✓ approved", else: "✗ denied"
-                  IO.puts("  #{command}: #{status}")
+            Enum.each(global_commands, fn {tag, command_list} ->
+              project_tag_commands = Map.get(project_commands, tag, [])
 
-                _ ->
-                  # Skip commands that are overridden at project level
-                  nil
-              end
+              Enum.each(command_list, fn command ->
+                unless command in project_tag_commands do
+                  IO.puts("  #{tag}##{command}: ✓ approved")
+                end
+              end)
             end)
           end
         else
@@ -207,60 +228,56 @@ defmodule Cmd.Config do
     end
   end
 
-  def run(opts, ["approved-commands", "approve", command], _unknown) do
+  def run(opts, [:approvals, :approve], _unknown) do
     settings = Settings.new()
+    # Arguments come through opts
+    command = opts[:command]
+    {tag, command_parts} = parse_command_for_approval(command, opts[:tag])
 
     case opts[:project] do
       nil ->
-        Settings.set_command_approval(settings, :global, command, true)
-        IO.puts("Command '#{command}' approved globally.")
+        Settings.add_approved_command(settings, :global, tag, command_parts)
+        IO.puts("Command '#{command}' approved globally with tag '#{tag}'.")
 
       project_name ->
         Settings.set_project(project_name)
 
         with {:ok, project} <- Store.get_project() do
-          Settings.set_command_approval(settings, project.name, command, true)
-          IO.puts("Command '#{command}' approved for project '#{project.name}'.")
+          Settings.add_approved_command(settings, project.name, tag, command_parts)
+
+          IO.puts(
+            "Command '#{command}' approved for project '#{project.name}' with tag '#{tag}'."
+          )
         else
           {:error, _} -> UI.error("Project not found")
         end
     end
   end
 
-  def run(opts, ["approved-commands", "deny", command], _unknown) do
-    settings = Settings.new()
-
-    case opts[:project] do
-      nil ->
-        Settings.set_command_approval(settings, :global, command, false)
-        IO.puts("Command '#{command}' denied globally.")
-
-      project_name ->
-        Settings.set_project(project_name)
-
-        with {:ok, project} <- Store.get_project() do
-          Settings.set_command_approval(settings, project.name, command, false)
-          IO.puts("Command '#{command}' denied for project '#{project.name}'.")
-        else
-          {:error, _} -> UI.error("Project not found")
-        end
-    end
+  def run(_opts, [:approvals, :deny], _unknown) do
+    UI.error("Deny functionality has been removed. Use 'remove' to remove approved commands.")
   end
 
-  def run(opts, ["approved-commands", "remove", command], _unknown) do
+  def run(opts, [:approvals, :remove], _unknown) do
     settings = Settings.new()
+    # Arguments come through opts
+    command = opts[:command]
+    {tag, command_parts} = parse_command_for_approval(command, opts[:tag])
 
     case opts[:project] do
       nil ->
-        Settings.remove_command_approval(settings, :global, command)
-        IO.puts("Command '#{command}' removed from global approval list.")
+        Settings.remove_approved_command(settings, :global, tag, command_parts)
+        IO.puts("Command '#{command}' removed from global approval list for tag '#{tag}'.")
 
       project_name ->
         Settings.set_project(project_name)
 
         with {:ok, project} <- Store.get_project() do
-          Settings.remove_command_approval(settings, project.name, command)
-          IO.puts("Command '#{command}' removed from project '#{project.name}' approval list.")
+          Settings.remove_approved_command(settings, project.name, tag, command_parts)
+
+          IO.puts(
+            "Command '#{command}' removed from project '#{project.name}' approval list for tag '#{tag}'."
+          )
         else
           {:error, _} -> UI.error("Project not found")
         end
@@ -273,5 +290,12 @@ defmodule Cmd.Config do
 
   def run(_opts, _subcommands, _unknown) do
     UI.error("Unknown subcommand. Use 'fnord help config' for help.")
+  end
+
+  # Parse command into tag and command parts for approval system
+  # Uses provided tag or defaults to "shell_cmd" to match shell tool behavior
+  defp parse_command_for_approval(command, tag) do
+    tag = tag || "shell_cmd"
+    {tag, command}
   end
 end
