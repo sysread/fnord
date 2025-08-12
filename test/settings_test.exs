@@ -279,12 +279,12 @@ defmodule SettingsTest do
     setup do
       # Override version for testing migration logic
       Application.put_env(:fnord, :test_version_override, "0.8.30")
-      
+
       on_exit(fn ->
         Application.delete_env(:fnord, :test_version_override)
       end)
     end
-    
+
     test "migrates old format to new nested format", %{home_dir: home_dir} do
       settings_path = Path.join(home_dir, ".fnord/settings.json")
       File.mkdir_p!(Path.dirname(settings_path))
@@ -391,11 +391,11 @@ defmodule SettingsTest do
 
       assert Settings.get(settings, "projects") == %{}
     end
-    
+
     test "migration is skipped when version is below threshold", %{home_dir: home_dir} do
       # Override version to be below migration threshold
       Application.put_env(:fnord, :test_version_override, "0.8.29")
-      
+
       settings_path = Path.join(home_dir, ".fnord/settings.json")
       File.mkdir_p!(Path.dirname(settings_path))
 
@@ -415,14 +415,14 @@ defmodule SettingsTest do
       # Verify migration did NOT happen (no version or projects key added)
       assert Settings.get(settings, "version", :not_found) == :not_found
       assert Settings.get(settings, "projects", :not_found) == :not_found
-      
+
       # Old format should still be accessible
       assert Settings.get(settings, "my_project") != nil
-      
+
       # Clean up the override
       Application.delete_env(:fnord, :test_version_override)
     end
-    
+
     test "migration is skipped with current production version (0.8.28)", %{home_dir: home_dir} do
       # Don't set any version override - use actual production version
       settings_path = Path.join(home_dir, ".fnord/settings.json")
@@ -447,7 +447,7 @@ defmodule SettingsTest do
       # Verify migration did NOT happen (no version or projects key added)
       assert Settings.get(settings, "version", :not_found) == :not_found
       assert Settings.get(settings, "projects", :not_found) == :not_found
-      
+
       # Old format should still be accessible
       assert Settings.get(settings, "my_project") != nil
     end
