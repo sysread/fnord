@@ -111,10 +111,11 @@ defmodule AI.Agent.Code.HunkFinder do
          {:ok, criteria} <- Map.fetch(opts, :criteria),
          {:ok, replacement} <- Map.fetch(opts, :replacement),
          {:ok, contents} <- File.read(file),
-         {:ok, name} <- AI.Agent.Nomenclater.get_response(%{}),
+         {:ok, name} <- Services.NamePool.checkout_name(),
          _ <- log_start(name, file, criteria, replacement),
          {:ok, hunk} <- find_hunk(file, contents, criteria, replacement) do
       log_success(name, hunk)
+      Services.NamePool.checkin_name(name)
       {:ok, hunk}
     else
       :error ->

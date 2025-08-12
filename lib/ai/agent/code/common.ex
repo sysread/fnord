@@ -43,7 +43,7 @@ defmodule AI.Agent.Code.Common do
         ) :: t
   def new(model, toolbox, system_prompt, user_prompt) do
     name =
-      with {:ok, name} <- AI.Agent.Nomenclater.get_response(%{}) do
+      with {:ok, name} <- Services.NamePool.checkout_name() do
         name
       else
         _ -> @default_name

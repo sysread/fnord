@@ -40,7 +40,7 @@ defmodule AI.Tools.Research do
         {:ok, args}
 
       :error ->
-        with {:ok, name} <- AI.Agent.Nomenclater.get_response(%{}) do
+        with {:ok, name} <- Services.NamePool.checkout_name() do
           args
           |> Map.put("name", name)
           |> then(&{:ok, &1})

@@ -52,7 +52,7 @@ defmodule AI.Tools.File.Spelunker do
       name =
         case Map.get(args, "name") do
           nil ->
-            case AI.Agent.Nomenclater.get_response(args) do
+            case Services.NamePool.checkout_name() do
               {:ok, generated_name} -> generated_name
               _ -> "file_spelunker"
             end

@@ -82,7 +82,7 @@ defmodule AI.Agent.Code.PatchMaker do
     with {:ok, file} <- Map.fetch(opts, :file),
          {:ok, hunk} <- Map.fetch(opts, :hunk),
          {:ok, replacement} <- Map.fetch(opts, :replacement),
-         {:ok, name} <- AI.Agent.Nomenclater.get_response(%{}),
+         {:ok, name} <- Services.NamePool.checkout_name(),
          _ <- log_start(name, replacement),
          {:ok, prompt} <- build_prompt(file, hunk, replacement),
          {:ok, response} <- get_completion(prompt) do

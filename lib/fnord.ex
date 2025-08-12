@@ -29,6 +29,11 @@ defmodule Fnord do
         max_connections: Application.get_env(:fnord, :workers, Cmd.default_workers())
       )
 
+      # Start the name pool service now that workers configuration is available.
+      # This service depends on the workers setting to determine batch allocation size,
+      # so it must be started after set_globals() parses CLI arguments.
+      Services.start_name_pool()
+
       # Require a project if the command needs it. As a rule, we make the
       # project option optional in the Cmd implementation, and then manually
       # require it here. That allows us to default to the project associated
