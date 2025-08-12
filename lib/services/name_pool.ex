@@ -79,7 +79,6 @@ defmodule Services.NamePool do
       chunk_size: chunk_size
     }
 
-    Logger.debug("NamePool started with chunk_size=#{chunk_size}")
     {:ok, state}
   end
 
