@@ -192,6 +192,9 @@ defmodule AI.Agent.Code.Common do
     - I may not like the style conventions, but the most important thing is consistency
     - Comments are for humans (and LLMs, apparently), and should walk the reader through the code, explaining why the feature behaves as it does.
       If the reader hides all of the code, the comments should still tell a complete story.
+      Comments should explain the flow of data and state through the module, not describe the process of what you're doing.
+      Never leave LLM-ish process comments that point out where changes were made or describe your implementation steps.
+      Comments should be "final form" - useful for future readers who need to understand the business logic and data flow.
     - There is a level of abstraction that is the "sweet spot" between DRY, KISS, YAGNI, and unnecessary dependency.
     - Magic is for Tim the Enchanter, not for code.
       That said, dev joy keeps the user happy.
