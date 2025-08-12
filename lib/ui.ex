@@ -392,13 +392,13 @@ defmodule UI do
     else
       inspect(detail, pretty: true, limit: :infinity)
     end
-    |> format_detail()
+    |> IO.ANSI.format(colorize?())
     |> IO.iodata_to_binary()
     |> String.trim()
     |> then(fn str ->
-      # If there are multiple lines, prefix with an empty line
-      # to ensure the string is displayed correctly.
       if String.contains?(str, "\n") do
+        # If there are multiple lines, prefix with an empty line to ensure the
+        # string is displayed correctly.
         "\n" <> str
       else
         str
