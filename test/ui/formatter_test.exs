@@ -49,7 +49,7 @@ defmodule UI.FormatterTest do
           assert UI.Formatter.format_output(input) == input
         end)
 
-      assert log =~ "Formatter command failed" or log =~ "Formatter command execution failed"
+      assert log =~ "Formatter command failed"
     end
 
     test "transforms multi-line ascii and preserves unicode characters" do

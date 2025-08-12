@@ -179,7 +179,7 @@ defmodule AI.Tools.File.Edit do
     # Display the colorized diff separately before the approval prompt
     if UI.colorize?() and is_list(diff_preview) do
       IO.puts("\nDiff preview:")
-      UI.format_and_display(diff_preview)
+      UI.say(diff_preview)
     end
 
     # Build a description of the change (without embedding the diff)

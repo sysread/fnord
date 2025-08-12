@@ -8,7 +8,7 @@ defmodule UI do
     UI.flush()
 
     msg
-    |> UI.Formatter.format_output()
+    |> format_detail()
     |> IO.puts()
   end
 
@@ -230,28 +230,8 @@ defmodule UI do
   # ----------------------------------------------------------------------------
   # Interactive prompts
   # ----------------------------------------------------------------------------
-  @doc """
-  Formats and displays content that can be either markdown (binary) or ANSI iodata.
-
-  - If content is a binary, treats it as markdown and passes it through the configured formatter
-  - If content is iodata (list), treats it as ANSI-formatted content and uses IO.ANSI.format
-  """
-  @spec format_and_display(binary | iodata) :: :ok
-  def format_and_display(content) when is_binary(content) do
-    content |> UI.Formatter.format_output() |> IO.puts()
-  end
-
-  def format_and_display(content) when is_list(content) do
-    content |> IO.ANSI.format(colorize?()) |> IO.puts()
-  end
-
-  def format_and_display(content) do
-    # Fallback for other types - convert to string and treat as markdown
-    content |> to_string() |> UI.Formatter.format_output() |> IO.puts()
-  end
-
   def choose(prompt, options, owl_opts \\ []) do
-    format_and_display(prompt)
+    format_detail(prompt)
 
     with_notification_timeout(
       fn ->
@@ -391,6 +371,19 @@ defmodule UI do
 
   def colorize?, do: is_tty?() && !quiet?()
 
+  defp format_detail(content) when is_binary(content) do
+    content |> UI.Formatter.format_output()
+  end
+
+  defp format_detail(content) when is_list(content) do
+    content |> IO.ANSI.format(colorize?())
+  end
+
+  defp format_detail(content) do
+    # Fallback for other types - convert to string and treat as markdown
+    content |> to_string() |> UI.Formatter.format_output()
+  end
+
   def clean_detail(nil), do: ""
 
   def clean_detail(detail) do
@@ -399,7 +392,7 @@ defmodule UI do
     else
       inspect(detail, pretty: true, limit: :infinity)
     end
-    |> IO.ANSI.format(colorize?())
+    |> format_detail()
     |> IO.iodata_to_binary()
     |> String.trim()
     |> then(fn str ->
