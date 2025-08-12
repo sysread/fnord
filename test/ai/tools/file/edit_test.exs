@@ -12,8 +12,10 @@ defmodule AI.Tools.File.EditTest do
 
     # Mock UI to prevent interactive behavior during tests
     :meck.new(UI, [:no_link, :passthrough])
-    :meck.expect(UI, :colorize?, fn -> false end)  # Force non-color mode in tests
-    :meck.expect(UI, :is_tty?, fn -> false end)   # Force non-TTY mode in tests
+    # Force non-color mode in tests
+    :meck.expect(UI, :colorize?, fn -> false end)
+    # Force non-TTY mode in tests
+    :meck.expect(UI, :is_tty?, fn -> false end)
 
     # Mock the approvals service to prevent interactive prompts during tests
     :meck.new(Services.Approvals, [:no_link, :passthrough])

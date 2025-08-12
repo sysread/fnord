@@ -17,8 +17,8 @@ defmodule Services.NamePoolTest do
     # Ensure clean process state by stopping and restarting the name pool
     if pid = Process.whereis(Services.NamePool) do
       GenServer.stop(pid)
-      # Wait a bit for the process to fully terminate
-      Process.sleep(10)
+      # UI.flush should be enough instead of Process.sleep
+      UI.flush()
     end
 
     # Start fresh name pool service
@@ -47,10 +47,10 @@ defmodule Services.NamePoolTest do
     test "uses configured chunk size from workers setting" do
       set_config(workers: 5)
 
-      # Stop and restart to pick up new config, with proper timing
+      # Stop and restart to pick up new config
       GenServer.stop(Services.NamePool)
-      # Give it time to fully stop
-      Process.sleep(20)
+      # UI.flush should be enough instead of Process.sleep
+      UI.flush()
       {:ok, _} = Services.NamePool.start_link()
 
       stats = Services.NamePool.pool_stats()
@@ -265,8 +265,8 @@ defmodule Services.NamePoolTest do
         |> Enum.map(fn _i ->
           Task.async(fn ->
             {:ok, name} = Services.NamePool.checkout_name()
-            # Small delay to increase chance of concurrency
-            Process.sleep(10)
+            # Small yield to increase chance of concurrency
+            :timer.sleep(0)
             Services.NamePool.checkin_name(name)
             name
           end)
@@ -290,10 +290,10 @@ defmodule Services.NamePoolTest do
     test "requests correct batch size" do
       set_config(workers: 8)
 
-      # Stop and restart to pick up new config, with proper timing
+      # Stop and restart to pick up new config
       GenServer.stop(Services.NamePool)
-      # Give it time to fully stop
-      Process.sleep(20)
+      # UI.flush should be enough instead of Process.sleep
+      UI.flush()
       {:ok, _} = Services.NamePool.start_link()
 
       :meck.new(AI.Agent.Nomenclater, [:passthrough])

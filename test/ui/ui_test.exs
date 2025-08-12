@@ -102,36 +102,16 @@ defmodule UI.UITest do
       :meck.unload(Notifier)
     end
 
-    test "sends notification after timeout but still returns result" do
+    test "cancels notification if function completes before timeout" do
       # Mock Notifier
       :meck.new(Notifier, [:no_link])
       :meck.expect(Notifier, :notify, fn _title, _message, _opts -> :ok end)
       :meck.expect(Notifier, :dismiss, fn _group -> :ok end)
 
-      # Function that completes after a small but predictable delay
-      delayed_func = fn ->
-        Process.sleep(10)
-        :delayed_result
-      end
-
-      result = UI.with_notification_timeout(delayed_func, "test message", 1)
-
-      assert result == :delayed_result
-      # Verify notification was sent
-      assert :meck.called(Notifier, :notify, ["Fnord", "test message", [urgency: "critical"]])
-
-      :meck.unload(Notifier)
-    end
-
-    test "cancels notification if function completes before timeout" do
-      # Mock Notifier
-      :meck.new(Notifier, [:no_link])
-      :meck.expect(Notifier, :notify, fn _title, _message, _opts -> :ok end)
-
       # Function that completes immediately
       fast_func = fn -> :fast_result end
 
-      result = UI.with_notification_timeout(fast_func, "test message", 100)
+      result = UI.with_notification_timeout(fast_func, "test message", 200)
 
       assert result == :fast_result
       # Verify notification was not sent
@@ -140,7 +120,7 @@ defmodule UI.UITest do
       :meck.unload(Notifier)
     end
 
-    test "dismisses notification when function completes after timeout" do
+    test "sends notification after timeout and dismisses it when function completes" do
       # Mock Notifier
       :meck.new(Notifier, [:no_link])
       :meck.expect(Notifier, :notify, fn _title, _message, _opts -> :ok end)
@@ -148,7 +128,7 @@ defmodule UI.UITest do
 
       # Function that completes after timeout
       delayed_func = fn ->
-        Process.sleep(10)
+        Process.sleep(2)
         :delayed_result
       end
 

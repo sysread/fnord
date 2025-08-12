@@ -31,7 +31,9 @@ defmodule Services.NamePool do
 
   @doc "Starts the name pool service"
   def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, opts, name: @name)
+    name = Keyword.get(opts, :name, @name)
+    init_opts = Keyword.drop(opts, [:name])
+    GenServer.start_link(__MODULE__, init_opts, name: name)
   end
 
   @doc """
@@ -40,28 +42,28 @@ defmodule Services.NamePool do
 
   Returns `{:ok, name}` or `{:error, reason}`.
   """
-  @spec checkout_name() :: {:ok, String.t()} | {:error, String.t()}
-  def checkout_name do
-    GenServer.call(@name, :checkout_name, 30_000)
+  @spec checkout_name(atom() | pid()) :: {:ok, String.t()} | {:error, String.t()}
+  def checkout_name(server \\ @name) do
+    GenServer.call(server, :checkout_name, 30_000)
   end
 
   @doc """
   Checks a name back into the pool for potential reuse. This is optional -
   names that are never checked back in will simply be lost when the session ends.
   """
-  @spec checkin_name(String.t()) :: :ok
-  def checkin_name(name) when is_binary(name) do
-    GenServer.cast(@name, {:checkin_name, name})
+  @spec checkin_name(String.t(), atom() | pid()) :: :ok
+  def checkin_name(name, server \\ @name) when is_binary(name) do
+    GenServer.cast(server, {:checkin_name, name})
   end
 
   @doc "Returns pool statistics for debugging/monitoring"
-  def pool_stats do
-    GenServer.call(@name, :pool_stats)
+  def pool_stats(server \\ @name) do
+    GenServer.call(server, :pool_stats)
   end
 
   @doc "Resets the pool state (mainly for testing)"
-  def reset do
-    GenServer.call(@name, :reset)
+  def reset(server \\ @name) do
+    GenServer.call(server, :reset)
   end
 
   # -----------------------------------------------------------------------------
