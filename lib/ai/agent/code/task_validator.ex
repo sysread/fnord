@@ -96,7 +96,7 @@ defmodule AI.Agent.Code.TaskValidator do
         requirements: requirements,
         change_summary: change_summary
       }) do
-    tasks = TaskServer.as_string(task_list_id, true)
+    tasks = Services.Task.as_string(task_list_id, true)
 
     request = """
     # Requirements

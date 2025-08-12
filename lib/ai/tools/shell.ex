@@ -222,8 +222,8 @@ defmodule AI.Tools.Shell do
       "Deny (with feedback)"
     ]
 
-    # Check if command is already approved using ApprovalsServer
-    if ApprovalsServer.approved?(command_key) do
+    # Check if command is already approved using Services.Approvals
+    if Services.Approvals.approved?(command_key) do
       {:ok, :approved}
     else
       """
@@ -262,13 +262,13 @@ defmodule AI.Tools.Shell do
           {:ok, :approved}
 
         ^approval_str ->
-          # Approve for session using ApprovalsServer
-          ApprovalsServer.approve(:session, command_key)
+          # Approve for session using Services.Approvals
+          Services.Approvals.approve(:session, command_key)
           {:ok, :approved}
 
         ^project_approval_str ->
-          # Approve for project using ApprovalsServer
-          case ApprovalsServer.approve(:project, command_key) do
+          # Approve for project using Services.Approvals
+          case Services.Approvals.approve(:project, command_key) do
             :ok ->
               {:ok, :approved}
 
@@ -278,8 +278,8 @@ defmodule AI.Tools.Shell do
           end
 
         ^global_approval_str ->
-          # Approve globally using ApprovalsServer
-          ApprovalsServer.approve(:global, command_key)
+          # Approve globally using Services.Approvals
+          Services.Approvals.approve(:global, command_key)
           {:ok, :approved}
       end
     end

@@ -59,7 +59,7 @@ defmodule AI.Tools.Coder do
       {:ok,
        """
        # Result
-       #{TaskServer.as_string(task_list_id, true)}
+       #{Services.Task.as_string(task_list_id, true)}
 
        # Change Summary
        #{change_summary}

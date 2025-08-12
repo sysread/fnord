@@ -1,4 +1,4 @@
-defmodule Once do
+defmodule Services.Once do
   @moduledoc """
   This module provides a mechanism to perform actions only once, using a unique
   key provided by the caller to determine whether the action has already been

@@ -216,7 +216,7 @@ defmodule Frobs do
         [frob | acc]
       else
         error ->
-          Once.warn("Frob '#{name}' could not be loaded: #{inspect(error)}")
+          Services.Once.warn("Frob '#{name}' could not be loaded: #{inspect(error)}")
           acc
       end
     end)
@@ -567,11 +567,11 @@ defmodule Frobs do
             true
 
           {"", _} ->
-            Once.warn("Frob #{frob.name} is not available.")
+            Services.Once.warn("Frob #{frob.name} is not available.")
             false
 
           {output, _} ->
-            Once.warn("Frob #{frob.name} is not available: #{String.trim(output)}")
+            Services.Once.warn("Frob #{frob.name} is not available: #{String.trim(output)}")
             false
         end
       end

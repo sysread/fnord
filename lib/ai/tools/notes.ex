@@ -46,6 +46,6 @@ defmodule AI.Tools.Notes do
 
   @impl AI.Tools
   def call(%{"question" => question}) do
-    {:ok, NotesServer.ask(question)}
+    {:ok, Services.Notes.ask(question)}
   end
 end

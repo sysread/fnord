@@ -76,7 +76,7 @@ defmodule AI.Agent.Coordinator do
          {:ok, project} <- Store.get_project() do
       followup? =
         conversation
-        |> ConversationServer.get_conversation()
+        |> Services.Conversation.get_conversation()
         |> Store.Project.Conversation.exists?()
 
       %__MODULE__{
@@ -110,7 +110,7 @@ defmodule AI.Agent.Coordinator do
       UI.debug("Testing mode enabled")
       get_test_response(state)
     else
-      NotesServer.ingest_user_msg(state.question)
+      Services.Notes.ingest_user_msg(state.question)
       perform_step(state)
     end
   end
@@ -282,7 +282,7 @@ defmodule AI.Agent.Coordinator do
 
   @spec get_completion(t, boolean) :: t | error
   defp get_completion(state, replay \\ false) do
-    msgs = ConversationServer.get_messages(state.conversation)
+    msgs = Services.Conversation.get_messages(state.conversation)
 
     AI.Completion.get(
       log_msgs: true,
@@ -295,7 +295,7 @@ defmodule AI.Agent.Coordinator do
     )
     |> case do
       {:ok, %{response: response, messages: new_msgs, usage: usage} = completion} ->
-        ConversationServer.replace_msgs(new_msgs, state.conversation)
+        Services.Conversation.replace_msgs(new_msgs, state.conversation)
 
         completion
         |> AI.Completion.tools_used()
@@ -525,7 +525,7 @@ defmodule AI.Agent.Coordinator do
     Artifacts from previous sessions within this conversation may be stale.
     """
     |> AI.Util.system_msg()
-    |> ConversationServer.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(state.conversation)
 
     state
   end
@@ -536,7 +536,7 @@ defmodule AI.Agent.Coordinator do
     |> String.replace("$$PROJECT$$", project)
     |> String.replace("$$GIT_INFO$$", git_info())
     |> AI.Util.system_msg()
-    |> ConversationServer.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(state.conversation)
 
     state
   end
@@ -546,7 +546,7 @@ defmodule AI.Agent.Coordinator do
     |> String.replace("$$PROJECT$$", project)
     |> String.replace("$$GIT_INFO$$", git_info())
     |> AI.Util.system_msg()
-    |> ConversationServer.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(state.conversation)
 
     state
   end
@@ -557,7 +557,7 @@ defmodule AI.Agent.Coordinator do
     |> String.replace("$$PROJECT$$", project)
     |> String.replace("$$GIT_INFO$$", git_info())
     |> AI.Util.system_msg()
-    |> ConversationServer.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(state.conversation)
 
     state
   end
@@ -567,7 +567,7 @@ defmodule AI.Agent.Coordinator do
     |> String.replace("$$PROJECT$$", project)
     |> String.replace("$$GIT_INFO$$", git_info())
     |> AI.Util.system_msg()
-    |> ConversationServer.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(state.conversation)
 
     state
   end
@@ -576,7 +576,7 @@ defmodule AI.Agent.Coordinator do
   defp user_msg(%{question: question} = state) do
     question
     |> AI.Util.user_msg()
-    |> ConversationServer.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(state.conversation)
 
     state
   end
@@ -585,7 +585,7 @@ defmodule AI.Agent.Coordinator do
   defp reminder_msg(%{question: question} = state) do
     "Remember the user's question: #{question}"
     |> AI.Util.system_msg()
-    |> ConversationServer.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(state.conversation)
 
     state
   end
@@ -594,7 +594,7 @@ defmodule AI.Agent.Coordinator do
   defp followup_msg(state) do
     @followup
     |> AI.Util.assistant_msg()
-    |> ConversationServer.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(state.conversation)
 
     state
   end
@@ -603,7 +603,7 @@ defmodule AI.Agent.Coordinator do
   defp begin_msg(state) do
     @begin
     |> AI.Util.assistant_msg()
-    |> ConversationServer.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(state.conversation)
 
     state
   end
@@ -612,7 +612,7 @@ defmodule AI.Agent.Coordinator do
   defp clarify_msg(state) do
     @clarify
     |> AI.Util.assistant_msg()
-    |> ConversationServer.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(state.conversation)
 
     state
   end
@@ -621,7 +621,7 @@ defmodule AI.Agent.Coordinator do
   defp refine_msg(state) do
     @refine
     |> AI.Util.assistant_msg()
-    |> ConversationServer.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(state.conversation)
 
     state
   end
@@ -630,7 +630,7 @@ defmodule AI.Agent.Coordinator do
   defp continue_msg(state) do
     @continue
     |> AI.Util.assistant_msg()
-    |> ConversationServer.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(state.conversation)
 
     state
   end
@@ -639,7 +639,7 @@ defmodule AI.Agent.Coordinator do
   defp execute_coding_phase(%{edit?: true} = state) do
     @coding_reminder
     |> AI.Util.system_msg()
-    |> ConversationServer.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(state.conversation)
 
     state
   end
@@ -650,7 +650,7 @@ defmodule AI.Agent.Coordinator do
   defp finalize_msg(state) do
     @finalize
     |> AI.Util.assistant_msg()
-    |> ConversationServer.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(state.conversation)
 
     state
   end
@@ -659,7 +659,7 @@ defmodule AI.Agent.Coordinator do
   defp template_msg(state) do
     @template
     |> AI.Util.assistant_msg()
-    |> ConversationServer.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(state.conversation)
 
     state
   end
@@ -672,7 +672,7 @@ defmodule AI.Agent.Coordinator do
     UI.begin_step("Cogitating")
 
     AI.Agent.Intuition.get_response(%{
-      msgs: ConversationServer.get_messages(state.conversation),
+      msgs: Services.Conversation.get_messages(state.conversation),
       memories: state.notes
     })
     |> case do
@@ -685,7 +685,7 @@ defmodule AI.Agent.Coordinator do
         </think>
         """
         |> AI.Util.assistant_msg()
-        |> ConversationServer.append_msg(state.conversation)
+        |> Services.Conversation.append_msg(state.conversation)
 
         state
 
@@ -702,17 +702,17 @@ defmodule AI.Agent.Coordinator do
   defp get_notes(%{question: question} = state) do
     # We want the initial notes to be extracted from the NotesServer before we
     # commit to the much slower process of consolidation.
-    notes = NotesServer.ask(question)
+    notes = Services.Notes.ask(question)
 
     # Then we consolidate the new notes from the last session. This is a
     # fire-and-forget, so it won't block the rest of the process.
-    NotesServer.consolidate()
+    Services.Notes.consolidate()
 
     # Add the notes as a message for the coordinating agent, so that it
     # can see relevant prior research before choosing how to proceed.
     "Prior research notes: #{notes}"
     |> AI.Util.system_msg()
-    |> ConversationServer.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(state.conversation)
 
     # Add notes to the state so that get_intuition/1 can access
     %{state | notes: notes}
@@ -720,7 +720,7 @@ defmodule AI.Agent.Coordinator do
 
   @spec save_notes(t) :: t
   defp save_notes(state) do
-    NotesServer.save()
+    Services.Notes.save()
     state
   end
 

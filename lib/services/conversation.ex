@@ -1,4 +1,4 @@
-defmodule ConversationServer do
+defmodule Services.Conversation do
   use GenServer
 
   alias Store.Project.Conversation

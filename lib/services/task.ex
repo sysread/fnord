@@ -1,4 +1,4 @@
-defmodule TaskServer do
+defmodule Services.Task do
   defstruct [
     :next_id,
     :lists

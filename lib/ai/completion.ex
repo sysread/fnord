@@ -282,7 +282,7 @@ defmodule AI.Completion do
 
     with {:ok, output} <- perform_tool_call(state, func, args_json) do
       if state.archive_notes do
-        NotesServer.ingest_research(func, args_json, output)
+        Services.Notes.ingest_research(func, args_json, output)
       end
 
       response = AI.Util.tool_msg(id, func, output)

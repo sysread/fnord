@@ -1,4 +1,4 @@
-defmodule ApprovalsServer do
+defmodule Services.Approvals do
   @moduledoc """
   Agent-based server for managing command approvals across different scopes.
   

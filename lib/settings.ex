@@ -90,7 +90,7 @@ defmodule Settings do
   @spec set_project(binary) :: :ok
   def set_project(project_name) do
     Application.put_env(:fnord, :project, project_name)
-    NotesServer.load_notes()
+    Services.Notes.load_notes()
     :ok
   end
 

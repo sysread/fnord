@@ -107,7 +107,7 @@ defmodule AI.Agent.Code.TaskImplementor do
 
   @impl AI.Agent
   def get_response(%{task_list_id: task_list_id, requirements: requirements}) do
-    tasks = TaskServer.as_string(task_list_id, true)
+    tasks = Services.Task.as_string(task_list_id, true)
 
     request = """
     # Requirements
@@ -134,7 +134,7 @@ defmodule AI.Agent.Code.TaskImplementor do
         {:ok,
          """
          # Work Completed
-         #{TaskServer.as_string(task_list_id, true)}
+         #{Services.Task.as_string(task_list_id, true)}
 
          # Report
          #{summary}
@@ -152,7 +152,7 @@ defmodule AI.Agent.Code.TaskImplementor do
 
   defp implement(%{error: nil, name: name} = state, invalid_format?) do
     with {:ok, task_list_id} <- Common.get_state(state, :task_list_id),
-         {:ok, task} <- TaskServer.peek_task(task_list_id) do
+         {:ok, task} <- Services.Task.peek_task(task_list_id) do
       UI.info("#{name} is working on a task", task.id)
 
       prompt = """
@@ -200,7 +200,7 @@ defmodule AI.Agent.Code.TaskImplementor do
               Common.report_task_outcome(task, "", outcome, new_tasks)
 
               # Mark the task as completed
-              TaskServer.complete_task(task_list_id, task.id, outcome)
+              Services.Task.complete_task(task_list_id, task.id, outcome)
 
               # If there are follow-up tasks, toss them on the stack
               Common.add_follow_up_tasks(task_list_id, new_tasks)
@@ -214,7 +214,7 @@ defmodule AI.Agent.Code.TaskImplementor do
               Common.report_task_outcome(task, error, outcome, new_tasks)
 
               # Mark the task as failed
-              TaskServer.fail_task(task_list_id, task.id, error)
+              Services.Task.fail_task(task_list_id, task.id, error)
 
               # Return the state with the error
               %{state | error: error}

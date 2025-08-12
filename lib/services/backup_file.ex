@@ -1,4 +1,4 @@
-defmodule BackupFileServer do
+defmodule Services.BackupFile do
   @moduledoc """
   GenServer that manages backup file creation for file editing operations with dual counter system.
 
@@ -100,6 +100,16 @@ defmodule BackupFileServer do
         UI.say("_Backup files not deleted. They may be removed at your convenience._")
       end
     end
+  end
+
+  @doc """
+  Delete all backup files created during this session.
+  """
+  @spec cleanup_backup_files() :: :ok
+  def cleanup_backup_files do
+    backup_files = get_session_backups()
+    cleanup_session_backups(backup_files)
+    reset()
   end
 
   # ----------------------------------------------------------------------------

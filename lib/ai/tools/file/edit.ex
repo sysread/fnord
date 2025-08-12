@@ -119,12 +119,12 @@ defmodule AI.Tools.File.Edit do
          {:ok, replacement} <- AI.Tools.get_arg(args, "replacement"),
          {:ok, project} <- Store.get_project(),
          absolute_file <- Store.Project.expand_path(file, project),
-         {:ok, backup_path} <- BackupFileServer.create_backup(absolute_file),
+         {:ok, backup_path} <- Services.BackupFile.create_backup(absolute_file),
          {:ok, hunk} <- find_hunk(file, criteria, replacement),
          {:ok, adjusted_replacement} <- adjust_replacement(file, hunk, replacement),
          :ok <- apply_changes(hunk, adjusted_replacement) do
       diff = build_diff(hunk, adjusted_replacement)
-      backup_files = BackupFileServer.get_session_backups()
+      backup_files = Services.BackupFile.get_session_backups()
 
       result = %{
         diff: diff,

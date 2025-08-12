@@ -226,10 +226,10 @@ defmodule AI.Agent.Code.Planner do
             %{state | error: error}
 
           {:ok, %{steps: steps}} ->
-            list_id = TaskServer.start_list()
+            list_id = Services.Task.start_list()
 
             Enum.each(steps, fn %{label: label, detail: detail} ->
-              TaskServer.add_task(list_id, label, detail)
+              Services.Task.add_task(list_id, label, detail)
             end)
 
             Common.put_state(state, :list_id, list_id)

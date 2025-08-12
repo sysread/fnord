@@ -9,11 +9,11 @@ defmodule Services do
   end
 
   defp start_internal_services do
-    Once.start_link()
-    NotesServer.start_link()
-    TaskServer.start_link()
+    Services.Once.start_link()
+    Services.Notes.start_link()
+    Services.Task.start_link()
     AI.Agent.Researcher.start_link()
-    BackupFileServer.start_link()
-    ApprovalsServer.start_link()
+    Services.BackupFile.start_link()
+    Services.Approvals.start_link()
   end
 end

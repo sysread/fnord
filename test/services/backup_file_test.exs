@@ -1,12 +1,12 @@
-defmodule BackupFileServerTest do
-  use Fnord.TestCase
+defmodule Services.BackupFileTest do
+  use Fnord.TestCase, async: false
 
   setup do
     project = mock_project("backup-server-test")
     File.mkdir_p!(project.source_root)
 
     # Reset backup server state for clean tests
-    BackupFileServer.reset()
+    Services.BackupFile.reset()
 
     {:ok, project: project}
   end
@@ -14,7 +14,7 @@ defmodule BackupFileServerTest do
   describe "start_link/0" do
     test "positive path" do
       # Server should already be started in test setup
-      assert Process.whereis(BackupFileServer) != nil
+      assert Process.whereis(Services.BackupFile) != nil
     end
   end
 
@@ -25,7 +25,7 @@ defmodule BackupFileServerTest do
       original_content = "test content"
       File.write!(test_file, original_content)
 
-      assert {:ok, backup_path} = BackupFileServer.create_backup(test_file)
+      assert {:ok, backup_path} = Services.BackupFile.create_backup(test_file)
 
       expected_backup = "#{test_file}.0.0.bak"
       assert backup_path == expected_backup
@@ -39,15 +39,15 @@ defmodule BackupFileServerTest do
       File.write!(test_file, "content")
 
       # First backup
-      assert {:ok, backup1} = BackupFileServer.create_backup(test_file)
+      assert {:ok, backup1} = Services.BackupFile.create_backup(test_file)
       assert backup1 == "#{test_file}.0.0.bak"
 
       # Second backup
-      assert {:ok, backup2} = BackupFileServer.create_backup(test_file)
+      assert {:ok, backup2} = Services.BackupFile.create_backup(test_file)
       assert backup2 == "#{test_file}.0.1.bak"
 
       # Third backup
-      assert {:ok, backup3} = BackupFileServer.create_backup(test_file)
+      assert {:ok, backup3} = Services.BackupFile.create_backup(test_file)
       assert backup3 == "#{test_file}.0.2.bak"
 
       assert File.exists?(backup1)
@@ -64,7 +64,7 @@ defmodule BackupFileServerTest do
       existing_backup = "#{test_file}.0.5.bak"
       File.write!(existing_backup, "old content")
 
-      assert {:ok, backup_path} = BackupFileServer.create_backup(test_file)
+      assert {:ok, backup_path} = Services.BackupFile.create_backup(test_file)
 
       # Should use global counter 1
       expected_backup = "#{test_file}.1.0.bak"
@@ -88,7 +88,7 @@ defmodule BackupFileServerTest do
       File.write!("#{test_file}.2.1.bak", "backup 2.1")
       File.write!("#{test_file}.1.0.bak", "backup 1.0")
 
-      assert {:ok, backup_path} = BackupFileServer.create_backup(test_file)
+      assert {:ok, backup_path} = Services.BackupFile.create_backup(test_file)
 
       # Should use global counter 3 (max 2 + 1)
       expected_backup = "#{test_file}.3.0.bak"
@@ -104,8 +104,8 @@ defmodule BackupFileServerTest do
       File.write!(file1, "content 1")
       File.write!(file2, "content 2")
 
-      assert {:ok, backup1} = BackupFileServer.create_backup(file1)
-      assert {:ok, backup2} = BackupFileServer.create_backup(file2)
+      assert {:ok, backup1} = Services.BackupFile.create_backup(file1)
+      assert {:ok, backup2} = Services.BackupFile.create_backup(file2)
 
       assert backup1 == "#{file1}.0.0.bak"
       assert backup2 == "#{file2}.0.0.bak"
@@ -116,7 +116,7 @@ defmodule BackupFileServerTest do
     test "fails when source file does not exist", %{project: project} do
       nonexistent_file = Path.join(project.source_root, "nonexistent.txt")
 
-      assert {:error, :source_file_not_found} = BackupFileServer.create_backup(nonexistent_file)
+      assert {:error, :source_file_not_found} = Services.BackupFile.create_backup(nonexistent_file)
     end
   end
 
@@ -125,7 +125,7 @@ defmodule BackupFileServerTest do
       project: project
     } do
       # Initially empty
-      assert BackupFileServer.get_session_backups() == []
+      assert Services.BackupFile.get_session_backups() == []
 
       # Create backups for different files
       file1 = Path.join(project.source_root, "file1.txt")
@@ -133,15 +133,15 @@ defmodule BackupFileServerTest do
       File.write!(file1, "content 1")
       File.write!(file2, "content 2")
 
-      assert {:ok, backup1} = BackupFileServer.create_backup(file1)
-      assert BackupFileServer.get_session_backups() == [backup1]
+      assert {:ok, backup1} = Services.BackupFile.create_backup(file1)
+      assert Services.BackupFile.get_session_backups() == [backup1]
 
-      assert {:ok, backup2} = BackupFileServer.create_backup(file2)
-      assert BackupFileServer.get_session_backups() == [backup2, backup1]
+      assert {:ok, backup2} = Services.BackupFile.create_backup(file2)
+      assert Services.BackupFile.get_session_backups() == [backup2, backup1]
 
       # Create another backup of file1
-      assert {:ok, backup3} = BackupFileServer.create_backup(file1)
-      session_backups = BackupFileServer.get_session_backups()
+      assert {:ok, backup3} = Services.BackupFile.create_backup(file1)
+      session_backups = Services.BackupFile.get_session_backups()
       assert length(session_backups) == 3
       # Most recent backup should be first
       assert List.first(session_backups) == backup3
@@ -159,18 +159,18 @@ defmodule BackupFileServerTest do
       File.write!(existing_backup, "old session content")
 
       # Current session should start empty
-      assert BackupFileServer.get_session_backups() == []
+      assert Services.BackupFile.get_session_backups() == []
 
       # Create backup in current session
-      assert {:ok, session_backup} = BackupFileServer.create_backup(test_file)
+      assert {:ok, session_backup} = Services.BackupFile.create_backup(test_file)
 
       # Should only return the current session backup, not the pre-existing one
-      assert BackupFileServer.get_session_backups() == [session_backup]
+      assert Services.BackupFile.get_session_backups() == [session_backup]
       assert session_backup != existing_backup
 
       # Verify the pre-existing backup still exists but isn't tracked
       assert File.exists?(existing_backup)
-      refute Enum.member?(BackupFileServer.get_session_backups(), existing_backup)
+      refute Enum.member?(Services.BackupFile.get_session_backups(), existing_backup)
     end
   end
 
@@ -180,18 +180,18 @@ defmodule BackupFileServerTest do
       test_file = Path.join(project.source_root, "test.txt")
       File.write!(test_file, "content")
 
-      BackupFileServer.create_backup(test_file)
-      BackupFileServer.create_backup(test_file)
+      Services.BackupFile.create_backup(test_file)
+      Services.BackupFile.create_backup(test_file)
 
-      assert length(BackupFileServer.get_session_backups()) == 2
+      assert length(Services.BackupFile.get_session_backups()) == 2
 
       # Reset should clear state
-      BackupFileServer.reset()
-      assert BackupFileServer.get_session_backups() == []
+      Services.BackupFile.reset()
+      assert Services.BackupFile.get_session_backups() == []
 
       # Next backup should detect existing files and increment global counter
       # Since we already have *.0.0.bak and *.0.1.bak files, it should use global counter 1
-      assert {:ok, backup} = BackupFileServer.create_backup(test_file)
+      assert {:ok, backup} = Services.BackupFile.create_backup(test_file)
       assert backup == "#{test_file}.1.0.bak"
     end
 
@@ -201,10 +201,10 @@ defmodule BackupFileServerTest do
       File.write!(test_file, "content")
 
       # Reset server state first 
-      BackupFileServer.reset()
+      Services.BackupFile.reset()
 
       # Should start from 0.0 for a file with no existing backups
-      assert {:ok, backup} = BackupFileServer.create_backup(test_file)
+      assert {:ok, backup} = Services.BackupFile.create_backup(test_file)
       assert backup == "#{test_file}.0.0.bak"
     end
   end
@@ -214,7 +214,7 @@ defmodule BackupFileServerTest do
       # Mock UI to capture calls (but none should be made)
       :meck.new(UI, [:passthrough])
 
-      BackupFileServer.offer_cleanup()
+      Services.BackupFile.offer_cleanup()
 
       # Verify no UI calls were made
       assert :meck.called(UI, :info, :_) == false
@@ -229,8 +229,8 @@ defmodule BackupFileServerTest do
       File.write!(test_file1, "content 1")
       File.write!(test_file2, "content 2")
 
-      {:ok, backup1} = BackupFileServer.create_backup(test_file1)
-      {:ok, backup2} = BackupFileServer.create_backup(test_file2)
+      {:ok, backup1} = Services.BackupFile.create_backup(test_file1)
+      {:ok, backup2} = Services.BackupFile.create_backup(test_file2)
 
       # Verify backup files exist
       assert File.exists?(backup1)
@@ -243,7 +243,7 @@ defmodule BackupFileServerTest do
       :meck.expect(UI, :info, fn _msg -> :ok end)
       :meck.expect(UI, :confirm, fn _prompt -> true end)
 
-      BackupFileServer.offer_cleanup()
+      Services.BackupFile.offer_cleanup()
 
       # Verify UI calls were made
       assert :meck.called(UI, :warning_banner, ["Backup files were created during this session"])
@@ -264,7 +264,7 @@ defmodule BackupFileServerTest do
       test_file = Path.join(project.source_root, "file.txt")
       File.write!(test_file, "content")
 
-      {:ok, backup_file} = BackupFileServer.create_backup(test_file)
+      {:ok, backup_file} = Services.BackupFile.create_backup(test_file)
       assert File.exists?(backup_file)
 
       # Mock UI functions - user declines deletion
@@ -273,7 +273,7 @@ defmodule BackupFileServerTest do
       :meck.expect(UI, :say, fn _msg -> :ok end)
       :meck.expect(UI, :confirm, fn _prompt -> false end)
 
-      BackupFileServer.offer_cleanup()
+      Services.BackupFile.offer_cleanup()
 
       # Verify UI calls were made
       assert :meck.called(UI, :warning_banner, ["Backup files were created during this session"])
@@ -295,7 +295,7 @@ defmodule BackupFileServerTest do
       test_file = Path.join(project.source_root, "file.txt")
       File.write!(test_file, "content")
 
-      {:ok, backup_file} = BackupFileServer.create_backup(test_file)
+      {:ok, backup_file} = Services.BackupFile.create_backup(test_file)
       assert File.exists?(backup_file)
 
       # Mock UI functions
@@ -310,7 +310,7 @@ defmodule BackupFileServerTest do
       :meck.new(File, [:passthrough])
       :meck.expect(File, :rm, fn _path -> {:error, :eacces} end)
 
-      BackupFileServer.offer_cleanup()
+      Services.BackupFile.offer_cleanup()
 
       # Verify UI calls were made
       assert :meck.called(UI, :warning_banner, ["Backup files were created during this session"])

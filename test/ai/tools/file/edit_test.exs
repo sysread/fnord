@@ -8,7 +8,7 @@ defmodule AI.Tools.File.EditTest do
     File.mkdir_p!(project.source_root)
 
     # Reset backup server state for clean tests
-    BackupFileServer.reset()
+    Services.BackupFile.reset()
 
     {:ok, project: project}
   end
@@ -373,9 +373,9 @@ defmodule AI.Tools.File.EditTest do
 
     test "fails when backup creation fails", %{project: _project} do
       # Mock backup server to return error
-      :meck.new(BackupFileServer, [:passthrough])
+      :meck.new(Services.BackupFile, [:passthrough])
 
-      :meck.expect(BackupFileServer, :create_backup, fn _file ->
+      :meck.expect(Services.BackupFile, :create_backup, fn _file ->
         {:error, :source_file_not_found}
       end)
 
@@ -387,7 +387,7 @@ defmodule AI.Tools.File.EditTest do
 
       assert {:error, :source_file_not_found} = Edit.call(args)
 
-      :meck.unload(BackupFileServer)
+      :meck.unload(Services.BackupFile)
     end
 
     test "fails when hunk finder fails", %{project: project} do

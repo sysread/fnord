@@ -79,7 +79,7 @@ defmodule Cmd.Ask do
 
     with {:ok, opts} <- validate(opts),
          {:ok, opts} <- maybe_fork_conversation(opts),
-         {:ok, pid} = ConversationServer.start_link(opts[:follow]),
+         {:ok, pid} = Services.Conversation.start_link(opts[:follow]),
          {:ok, usage, context, response} <- get_response(opts, pid),
          {:ok, conversation_id} <- save_conversation(pid) do
       end_time = System.monotonic_time(:second)
@@ -99,8 +99,8 @@ defmodule Cmd.Ask do
         UI.error("An error occurred while generating the response:\n\n#{other}")
     end
 
-    BackupFileServer.offer_cleanup()
-    NotesServer.join()
+    Services.BackupFile.offer_cleanup()
+    Services.Notes.join()
     :ok
   end
 
@@ -198,7 +198,7 @@ defmodule Cmd.Ask do
   end
 
   defp save_conversation(pid) do
-    with {:ok, conversation} <- ConversationServer.save(pid) do
+    with {:ok, conversation} <- Services.Conversation.save(pid) do
       UI.debug("Conversation saved to file", conversation.store_path)
       UI.report_step("Conversation saved", conversation.id)
       {:ok, conversation.id}

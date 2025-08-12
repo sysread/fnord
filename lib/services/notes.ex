@@ -1,4 +1,4 @@
-defmodule NotesServer do
+defmodule Services.Notes do
   use GenServer
 
   # -----------------------------------------------------------------------------
