@@ -12,6 +12,7 @@ defmodule Services.ApprovalsTest do
 
     # Clean up any existing project data
     settings = Settings.new()
+
     if Settings.get(settings, @test_project) do
       Settings.delete(settings, @test_project)
     end
@@ -34,14 +35,14 @@ defmodule Services.ApprovalsTest do
     test "loads existing global approvals from Settings" do
       # Stop current server and set up global approvals
       Agent.stop(Services.Approvals)
-      
+
       settings = Settings.new()
       settings = Settings.set_command_approval(settings, :global, "git push", true)
       _settings = Settings.set_command_approval(settings, :global, "rm -rf", false)
-      
+
       # Restart server to load from Settings
       {:ok, _pid} = Services.Approvals.start_link()
-      
+
       state = Services.Approvals.get_state()
       assert MapSet.member?(state.global, "git push")
       refute MapSet.member?(state.global, "rm -rf")
@@ -50,17 +51,17 @@ defmodule Services.ApprovalsTest do
     test "loads existing project approvals when project is set" do
       # Stop current server and set up project
       Agent.stop(Services.Approvals)
-      
+
       # Set project in application environment
       Settings.set_project(@test_project)
-      
+
       # Set up project approvals
       settings = Settings.new()
       _settings = Settings.set_command_approval(settings, @test_project, "make build", true)
-      
+
       # Restart server to load from Settings
       {:ok, _pid} = Services.Approvals.start_link()
-      
+
       # Verify project approval works (project is dynamically detected)
       assert Services.Approvals.approved?("make build")
     end
@@ -69,10 +70,10 @@ defmodule Services.ApprovalsTest do
       # Stop current server and clear project
       Agent.stop(Services.Approvals)
       Application.put_env(:fnord, :project, nil)
-      
+
       # Restart server
       {:ok, _pid} = Services.Approvals.start_link()
-      
+
       # Verify that project approvals fail when no project is set
       assert Services.Approvals.approve(:project, "test cmd") == {:error, :no_project}
     end
@@ -90,8 +91,9 @@ defmodule Services.ApprovalsTest do
 
     test "returns true for project approvals" do
       Settings.set_project(@test_project)
-      Services.Approvals.reset()  # Reload with project set
-      
+      # Reload with project set
+      Services.Approvals.reset()
+
       Services.Approvals.approve(:project, "project command")
       assert Services.Approvals.approved?("project command")
     end
@@ -104,13 +106,13 @@ defmodule Services.ApprovalsTest do
     test "hierarchical lookup works - global overrides project" do
       Settings.set_project(@test_project)
       Services.Approvals.reset()
-      
+
       # Add to both global and project
       Services.Approvals.approve(:global, "shared command")
-      
+
       # Should still be approved even though not in project tier
       assert Services.Approvals.approved?("shared command")
-      
+
       state = Services.Approvals.get_state()
       assert MapSet.member?(state.global, "shared command")
       # Project approvals are loaded dynamically, so we just verify it's still approved
@@ -120,10 +122,10 @@ defmodule Services.ApprovalsTest do
     test "hierarchical lookup works - project and session coexist" do
       Settings.set_project(@test_project)
       Services.Approvals.reset()
-      
+
       Services.Approvals.approve(:project, "project cmd")
       Services.Approvals.approve(:session, "session cmd")
-      
+
       assert Services.Approvals.approved?("project cmd")
       assert Services.Approvals.approved?("session cmd")
     end
@@ -132,7 +134,7 @@ defmodule Services.ApprovalsTest do
   describe "approve/2 session scope" do
     test "adds command to ephemeral tier" do
       Services.Approvals.approve(:session, "temp command")
-      
+
       state = Services.Approvals.get_state()
       assert MapSet.member?(state.ephemeral, "temp command")
       assert Services.Approvals.approved?("temp command")
@@ -140,7 +142,7 @@ defmodule Services.ApprovalsTest do
 
     test "session approvals are not persisted" do
       Services.Approvals.approve(:session, "temp command")
-      
+
       # Check that it's not in Settings
       settings = Settings.new()
       global_commands = Settings.get_approved_commands(settings, :global)
@@ -153,19 +155,19 @@ defmodule Services.ApprovalsTest do
       # Ensure no project is set
       Application.put_env(:fnord, :project, nil)
       Services.Approvals.reset()
-      
+
       assert Services.Approvals.approve(:project, "project cmd") == {:error, :no_project}
     end
 
     test "adds command to project tier and persists" do
       Settings.set_project(@test_project)
       Services.Approvals.reset()
-      
+
       assert Services.Approvals.approve(:project, "project cmd") == :ok
-      
+
       # Check that command is approved
       assert Services.Approvals.approved?("project cmd")
-      
+
       # Check persistence
       settings = Settings.new()
       project_commands = Settings.get_approved_commands(settings, @test_project)
@@ -175,12 +177,12 @@ defmodule Services.ApprovalsTest do
     test "removes command from session tier when promoting" do
       Settings.set_project(@test_project)
       Services.Approvals.reset()
-      
+
       # First add to session
       Services.Approvals.approve(:session, "cmd")
       state = Services.Approvals.get_state()
       assert MapSet.member?(state.ephemeral, "cmd")
-      
+
       # Then promote to project
       Services.Approvals.approve(:project, "cmd")
       state = Services.Approvals.get_state()
@@ -193,12 +195,12 @@ defmodule Services.ApprovalsTest do
   describe "approve/2 global scope" do
     test "adds command to global tier and persists" do
       Services.Approvals.approve(:global, "global cmd")
-      
+
       # Check in-memory state
       state = Services.Approvals.get_state()
       assert MapSet.member?(state.global, "global cmd")
       assert Services.Approvals.approved?("global cmd")
-      
+
       # Check persistence
       settings = Settings.new()
       global_commands = Settings.get_approved_commands(settings, :global)
@@ -208,16 +210,16 @@ defmodule Services.ApprovalsTest do
     test "removes command from lower tiers when promoting to global" do
       Settings.set_project(@test_project)
       Services.Approvals.reset()
-      
+
       # Add to project tier first
       Services.Approvals.approve(:project, "cmd")
-      
+
       # Verify it's approved at project level
       assert Services.Approvals.approved?("cmd")
-      
+
       # Promote to global
       Services.Approvals.approve(:global, "cmd")
-      
+
       state = Services.Approvals.get_state()
       assert MapSet.member?(state.global, "cmd")
       # Command should still be approved (now from global)
@@ -231,13 +233,13 @@ defmodule Services.ApprovalsTest do
       # Add some session approvals
       Services.Approvals.approve(:session, "temp1")
       Services.Approvals.approve(:session, "temp2")
-      
+
       state = Services.Approvals.get_state()
       assert MapSet.size(state.ephemeral) == 2
-      
+
       # Reset should clear session but keep persistent
       Services.Approvals.reset()
-      
+
       state = Services.Approvals.get_state()
       assert MapSet.size(state.ephemeral) == 0
     end
@@ -247,19 +249,19 @@ defmodule Services.ApprovalsTest do
       Settings.set_project(@test_project)
       Services.Approvals.reset()
       Services.Approvals.approve(:project, "project1 cmd")
-      
+
       # Switch to different project
       other_project = "#{@test_project}_other"
       Settings.set_project(other_project)
       settings = Settings.new()
       _settings = Settings.set_command_approval(settings, other_project, "project2 cmd", true)
-      
+
       Services.Approvals.reset()
-      
+
       # Verify that the new project's approvals are available
       assert Services.Approvals.approved?("project2 cmd")
       refute Services.Approvals.approved?("project1 cmd")
-      
+
       # Clean up
       Settings.delete(settings, other_project)
     end
@@ -268,7 +270,7 @@ defmodule Services.ApprovalsTest do
   describe "concurrent access" do
     test "handles multiple processes safely" do
       # Simulate concurrent approvals
-      tasks = 
+      tasks =
         1..10
         |> Enum.map(fn i ->
           Task.async(fn ->
@@ -276,12 +278,12 @@ defmodule Services.ApprovalsTest do
             Services.Approvals.approved?("concurrent_cmd_#{i}")
           end)
         end)
-      
+
       results = Task.await_many(tasks)
-      
+
       # All should return true
       assert Enum.all?(results)
-      
+
       # All commands should be approved
       state = Services.Approvals.get_state()
       assert MapSet.size(state.ephemeral) == 10

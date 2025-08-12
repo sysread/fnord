@@ -1,12 +1,12 @@
 defmodule Services.Approvals do
   @moduledoc """
   Agent-based server for managing command approvals across different scopes.
-  
+
   Manages command approvals in three tiers:
   - Ephemeral: Session-only approvals (not persisted)
   - Project: Project-specific approvals (persisted in Settings)
   - Global: Global approvals for all projects (persisted in Settings)
-  
+
   Uses MapSet union for hierarchical lookup where higher tiers override lower ones.
   Provides promotion paths from ephemeral → project/global → global.
   """
@@ -41,40 +41,45 @@ defmodule Services.Approvals do
   @spec approved?(String.t()) :: boolean
   def approved?(command) do
     command = to_string(command)
+
     Agent.get(__MODULE__, fn state ->
       # Load project approvals dynamically based on current project
-      current_project_approvals = 
+      current_project_approvals =
         case get_current_project() do
-          nil -> 
+          nil ->
             MapSet.new()
+
           project_name ->
             settings = Settings.new()
             project_commands = Settings.get_approved_commands(settings, project_name)
+
             project_commands
             |> Enum.filter(fn {_cmd, approved} -> approved end)
             |> Enum.map(fn {cmd, _approved} -> cmd end)
             |> MapSet.new()
         end
 
-      all_approved = 
+      all_approved =
         [state.global, current_project_approvals, state.ephemeral]
         |> Enum.reduce(MapSet.new(), &MapSet.union/2)
+
       MapSet.member?(all_approved, command)
     end)
   end
 
   @doc """
   Approves a command at the specified scope level.
-  
+
   - `:session` - Session-only approval (ephemeral, not persisted)
   - `:project` - Project-specific approval (persisted to Settings)
   - `:global` - Global approval for all projects (persisted to Settings)
-  
+
   When promoting to a higher tier, the command is removed from lower tiers.
   """
   @spec approve(:session | :project | :global, String.t()) :: :ok | {:error, :no_project}
   def approve(:session, command) do
     command = to_string(command)
+
     Agent.update(__MODULE__, fn state ->
       %{state | ephemeral: MapSet.put(state.ephemeral, command)}
     end)
@@ -82,6 +87,7 @@ defmodule Services.Approvals do
 
   def approve(:project, command) do
     command = to_string(command)
+
     Agent.get_and_update(__MODULE__, fn state ->
       # Check current project dynamically instead of relying on cached state
       case get_current_project() do
@@ -106,6 +112,7 @@ defmodule Services.Approvals do
 
   def approve(:global, command) do
     command = to_string(command)
+
     Agent.update(__MODULE__, fn state ->
       # Persist to Settings - need to use the returned value to ensure it's saved
       settings = Settings.new()
@@ -146,7 +153,8 @@ defmodule Services.Approvals do
 
     # Load global approvals
     global_commands = Settings.get_approved_commands(settings, :global)
-    global_approved = 
+
+    global_approved =
       global_commands
       |> Enum.filter(fn {_cmd, approved} -> approved end)
       |> Enum.map(fn {cmd, _approved} -> cmd end)

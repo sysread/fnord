@@ -22,12 +22,13 @@ defmodule AI.Tools.ShellTest do
       main_cmd = List.first(parts) || "unknown"
       args_str = List.last(parts) || ""
       args = if args_str == "", do: [], else: String.split(args_str, " ")
-      
-      {:ok, %{
-        "cmd" => main_cmd,
-        "args" => args,
-        "approval_bits" => [main_cmd]
-      }}
+
+      {:ok,
+       %{
+         "cmd" => main_cmd,
+         "args" => args,
+         "approval_bits" => [main_cmd]
+       }}
     end)
 
     on_exit(fn ->
@@ -74,7 +75,7 @@ defmodule AI.Tools.ShellTest do
     test "returns formatted request note" do
       args = %{"cmd" => "git status"}
       {title, body} = Shell.ui_note_on_request(args)
-      
+
       assert title == "Shell"
       assert body == "git status"
     end
@@ -84,9 +85,9 @@ defmodule AI.Tools.ShellTest do
     test "returns formatted result for short output" do
       args = %{"cmd" => "ls"}
       result = "file1.txt\nfile2.txt"
-      
+
       {title, body} = Shell.ui_note_on_result(args, result)
-      
+
       assert title == "Shell"
       assert body == "$ ls\nfile1.txt\nfile2.txt\n\n"
     end
@@ -94,9 +95,9 @@ defmodule AI.Tools.ShellTest do
     test "truncates long output with additional lines indicator" do
       args = %{"cmd" => "find"}
       long_result = Enum.join(1..15 |> Enum.map(&"line#{&1}"), "\n")
-      
+
       {title, body} = Shell.ui_note_on_result(args, long_result)
-      
+
       assert title == "Shell"
       assert body =~ "$ find"
       assert body =~ "line1"
@@ -110,24 +111,39 @@ defmodule AI.Tools.ShellTest do
     test "proper flow: read_args validates before call is invoked" do
       # Test the correct flow using AI.Tools.perform_tool_call
       toolbox = %{"shell_tool" => Shell}
-      
+
       # This should fail at read_args validation, before call/1 is reached
-      result = AI.Tools.perform_tool_call("shell_tool", %{"description" => @valid_desc, "cmd" => "ls | grep foo"}, toolbox)
-      assert {:error, "Only simple, direct commands are permitted: no pipes, logical operators, redirection, subshells, or command chaining."} = result
+      result =
+        AI.Tools.perform_tool_call(
+          "shell_tool",
+          %{"description" => @valid_desc, "cmd" => "ls | grep foo"},
+          toolbox
+        )
+
+      assert {:error,
+              "Only simple, direct commands are permitted: no pipes, logical operators, redirection, subshells, or command chaining."} =
+               result
     end
 
     test "proper flow: valid args go through read_args then call" do
       toolbox = %{"shell_tool" => Shell}
-      
+
       # Mock the AI parser and execution chain
       :meck.expect(AI.Agent.ShellCmdParser, :get_response, fn %{shell_cmd: "ls -l"} ->
         {:ok, %{"cmd" => "ls", "args" => ["-l"], "approval_bits" => ["ls"]}}
       end)
+
       :meck.expect(Services.Approvals, :approved?, fn _ -> true end)
       :meck.expect(Store, :get_project, fn -> {:ok, %{source_root: "/test"}} end)
       :meck.expect(System, :cmd, fn "ls", ["-l"], _ -> {"output", 0} end)
-      
-      result = AI.Tools.perform_tool_call("shell_tool", %{"description" => @valid_desc, "cmd" => "ls -l"}, toolbox)
+
+      result =
+        AI.Tools.perform_tool_call(
+          "shell_tool",
+          %{"description" => @valid_desc, "cmd" => "ls -l"},
+          toolbox
+        )
+
       assert {:ok, "output"} = result
     end
 
@@ -152,7 +168,7 @@ defmodule AI.Tools.ShellTest do
     end
 
     test "returns error when ShellCmdParser fails" do
-      :meck.expect(AI.Agent.ShellCmdParser, :get_response, fn _ -> 
+      :meck.expect(AI.Agent.ShellCmdParser, :get_response, fn _ ->
         {:error, "Parse failed"}
       end)
 
@@ -165,12 +181,14 @@ defmodule AI.Tools.ShellTest do
     setup do
       # Mock successful parsing
       :meck.expect(AI.Agent.ShellCmdParser, :get_response, fn %{shell_cmd: _} ->
-        {:ok, %{
-          "cmd" => "ls", 
-          "args" => ["-l"], 
-          "approval_bits" => ["ls"]
-        }}
+        {:ok,
+         %{
+           "cmd" => "ls",
+           "args" => ["-l"],
+           "approval_bits" => ["ls"]
+         }}
       end)
+
       :ok
     end
 
@@ -178,7 +196,10 @@ defmodule AI.Tools.ShellTest do
       :meck.expect(Services.Approvals, :approved?, fn _ -> false end)
       :meck.expect(UI, :choose, fn _prompt, _options -> "You son of a bitch, I'm in" end)
       :meck.expect(Store, :get_project, fn -> {:ok, %{source_root: "/test/path"}} end)
-      :meck.expect(System, :cmd, fn "ls", ["-l"], [stderr_to_stdout: true, parallelism: true, cd: "/test/path"] ->
+
+      :meck.expect(System, :cmd, fn "ls",
+                                    ["-l"],
+                                    [stderr_to_stdout: true, parallelism: true, cd: "/test/path"] ->
         {"file1.txt\nfile2.txt", 0}
       end)
 
@@ -188,45 +209,53 @@ defmodule AI.Tools.ShellTest do
 
     test "approves for session when user chooses session approval option" do
       :meck.expect(Services.Approvals, :approved?, fn _ -> false end)
-      :meck.expect(UI, :choose, fn _prompt, options -> 
+
+      :meck.expect(UI, :choose, fn _prompt, options ->
         # Simulate user choosing the session approval option
         Enum.find(options, &String.starts_with?(&1, "You son of a... for the whole session:"))
       end)
+
       :meck.expect(Services.Approvals, :approve, fn :session, "shell_cmd#ls" -> :ok end)
       :meck.expect(Store, :get_project, fn -> {:ok, %{source_root: "/test/path"}} end)
       :meck.expect(System, :cmd, fn "ls", ["-l"], _ -> {"output", 0} end)
 
       result = Shell.call(%{"description" => @valid_desc, "cmd" => "ls -l"})
       assert {:ok, "output"} = result
-      
+
       # Verify Services.Approvals.approve was called for session approval
       assert :meck.called(Services.Approvals, :approve, [:session, "shell_cmd#ls"])
     end
 
     test "approves for project when user chooses project approval option" do
       :meck.expect(Services.Approvals, :approved?, fn _ -> false end)
-      :meck.expect(UI, :choose, fn _prompt, options -> 
+
+      :meck.expect(UI, :choose, fn _prompt, options ->
         # Simulate user choosing the project approval option
         Enum.find(options, &String.starts_with?(&1, "You son of a... for this project:"))
       end)
+
       :meck.expect(Services.Approvals, :approve, fn :project, "shell_cmd#ls" -> :ok end)
       :meck.expect(Store, :get_project, fn -> {:ok, %{source_root: "/test/path"}} end)
       :meck.expect(System, :cmd, fn "ls", ["-l"], _ -> {"output", 0} end)
 
       result = Shell.call(%{"description" => @valid_desc, "cmd" => "ls -l"})
       assert {:ok, "output"} = result
-      
+
       # Verify Services.Approvals.approve was called for project approval
       assert :meck.called(Services.Approvals, :approve, [:project, "shell_cmd#ls"])
     end
 
     test "returns error when project approval is chosen but no project is set" do
       :meck.expect(Services.Approvals, :approved?, fn _ -> false end)
-      :meck.expect(UI, :choose, fn _prompt, options -> 
+
+      :meck.expect(UI, :choose, fn _prompt, options ->
         # Simulate user choosing the project approval option
         Enum.find(options, &String.starts_with?(&1, "You son of a... for this project:"))
       end)
-      :meck.expect(Services.Approvals, :approve, fn :project, "shell_cmd#ls" -> {:error, :no_project} end)
+
+      :meck.expect(Services.Approvals, :approve, fn :project, "shell_cmd#ls" ->
+        {:error, :no_project}
+      end)
 
       result = Shell.call(%{"description" => @valid_desc, "cmd" => "ls -l"})
       assert {:error, error_msg} = result
@@ -236,17 +265,19 @@ defmodule AI.Tools.ShellTest do
 
     test "approves globally when user chooses global approval option" do
       :meck.expect(Services.Approvals, :approved?, fn _ -> false end)
-      :meck.expect(UI, :choose, fn _prompt, options -> 
+
+      :meck.expect(UI, :choose, fn _prompt, options ->
         # Simulate user choosing the global approval option
         Enum.find(options, &String.starts_with?(&1, "You son of a... globally:"))
       end)
+
       :meck.expect(Services.Approvals, :approve, fn :global, "shell_cmd#ls" -> :ok end)
       :meck.expect(Store, :get_project, fn -> {:ok, %{source_root: "/test/path"}} end)
       :meck.expect(System, :cmd, fn "ls", ["-l"], _ -> {"output", 0} end)
 
       result = Shell.call(%{"description" => @valid_desc, "cmd" => "ls -l"})
       assert {:ok, "output"} = result
-      
+
       # Verify Services.Approvals.approve was called for global approval
       assert :meck.called(Services.Approvals, :approve, [:global, "shell_cmd#ls"])
     end
@@ -258,7 +289,7 @@ defmodule AI.Tools.ShellTest do
 
       result = Shell.call(%{"description" => @valid_desc, "cmd" => "ls -l"})
       assert {:ok, "cached output"} = result
-      
+
       # UI.choose should not be called since we have cached approval
       refute :meck.called(UI, :choose, :_)
     end
@@ -289,9 +320,17 @@ defmodule AI.Tools.ShellTest do
       # before they ever reach call/1, so the ShellCmdParser converting them
       # to "sh -c ..." format would never happen through normal AI.Tools flow
       toolbox = %{"shell_tool" => Shell}
-      result = AI.Tools.perform_tool_call("shell_tool", %{"description" => "Find files", "cmd" => "ls | grep foo"}, toolbox)
-      
-      assert {:error, "Only simple, direct commands are permitted: no pipes, logical operators, redirection, subshells, or command chaining."} = result
+
+      result =
+        AI.Tools.perform_tool_call(
+          "shell_tool",
+          %{"description" => "Find files", "cmd" => "ls | grep foo"},
+          toolbox
+        )
+
+      assert {:error,
+              "Only simple, direct commands are permitted: no pipes, logical operators, redirection, subshells, or command chaining."} =
+               result
     end
 
     test "theoretical sh command handling (if it could reach call/1)" do
@@ -300,12 +339,15 @@ defmodule AI.Tools.ShellTest do
       :meck.expect(AI.Agent.ShellCmdParser, :get_response, fn %{shell_cmd: "sh -c 'ls'"} ->
         {:ok, %{"cmd" => "sh", "args" => ["-c", "ls"], "approval_bits" => ["sh"]}}
       end)
+
       :meck.expect(UI, :warning_banner, fn _ -> :ok end)
-      :meck.expect(UI, :choose, fn _prompt, options -> 
+
+      :meck.expect(UI, :choose, fn _prompt, options ->
         # For shell commands, session approval is not offered
         refute Enum.any?(options, &String.contains?(&1, "session"))
         "You son of a bitch, I'm in"
       end)
+
       :meck.expect(Store, :get_project, fn -> {:ok, %{source_root: "/test/path"}} end)
       :meck.expect(System, :cmd, fn "sh", ["-c", "ls"], _ -> {"output", 0} end)
 
@@ -321,6 +363,7 @@ defmodule AI.Tools.ShellTest do
       :meck.expect(AI.Agent.ShellCmdParser, :get_response, fn %{shell_cmd: _} ->
         {:ok, %{"cmd" => "ls", "args" => ["-l"], "approval_bits" => ["ls"]}}
       end)
+
       :meck.expect(Services.Approvals, :approved?, fn _ -> true end)
       :ok
     end
@@ -328,6 +371,7 @@ defmodule AI.Tools.ShellTest do
     test "uses project source root as working directory when project available" do
       project = %{source_root: "/project/root"}
       :meck.expect(Store, :get_project, fn -> {:ok, project} end)
+
       :meck.expect(System, :cmd, fn "ls", ["-l"], opts ->
         assert opts[:cd] == "/project/root"
         {"output", 0}
@@ -340,6 +384,7 @@ defmodule AI.Tools.ShellTest do
     test "falls back to current working directory when no project" do
       current_dir = File.cwd!()
       :meck.expect(Store, :get_project, fn -> {:error, :no_project} end)
+
       :meck.expect(System, :cmd, fn "ls", ["-l"], opts ->
         assert opts[:cd] == current_dir
         {"output", 0}
@@ -375,7 +420,8 @@ defmodule AI.Tools.ShellTest do
 
     test "handles ErlangError :enoent (command not found)" do
       :meck.expect(Store, :get_project, fn -> {:ok, %{source_root: "/test"}} end)
-      :meck.expect(System, :cmd, fn _, _, _ -> 
+
+      :meck.expect(System, :cmd, fn _, _, _ ->
         raise ErlangError, reason: :enoent
       end)
 
@@ -385,7 +431,8 @@ defmodule AI.Tools.ShellTest do
 
     test "handles ErlangError :eaccess (permission denied)" do
       :meck.expect(Store, :get_project, fn -> {:ok, %{source_root: "/test"}} end)
-      :meck.expect(System, :cmd, fn _, _, _ -> 
+
+      :meck.expect(System, :cmd, fn _, _, _ ->
         raise ErlangError, reason: :eaccess
       end)
 
@@ -395,7 +442,8 @@ defmodule AI.Tools.ShellTest do
 
     test "handles other ErlangError reasons" do
       :meck.expect(Store, :get_project, fn -> {:ok, %{source_root: "/test"}} end)
-      :meck.expect(System, :cmd, fn _, _, _ -> 
+
+      :meck.expect(System, :cmd, fn _, _, _ ->
         raise ErlangError, reason: :emfile
       end)
 
@@ -407,7 +455,7 @@ defmodule AI.Tools.ShellTest do
   describe "spec/0" do
     test "returns valid tool specification" do
       spec = Shell.spec()
-      
+
       assert spec.type == "function"
       assert spec.function.name == "shell_tool"
       assert is_binary(spec.function.description)
@@ -421,7 +469,7 @@ defmodule AI.Tools.ShellTest do
     test "delegates to UI.is_tty?/0" do
       :meck.expect(UI, :is_tty?, fn -> true end)
       assert Shell.is_available?() == true
-      
+
       :meck.expect(UI, :is_tty?, fn -> false end)
       assert Shell.is_available?() == false
     end

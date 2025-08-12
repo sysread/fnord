@@ -147,8 +147,10 @@ defmodule Settings do
     with {:ok, project} <- get_selected_project() do
       # Validate that the project name is not a global config key
       unless is_valid_project_name?(project) do
-        raise ArgumentError, "Cannot use '#{project}' as project name - it conflicts with global configuration"
+        raise ArgumentError,
+              "Cannot use '#{project}' as project name - it conflicts with global configuration"
       end
+
       set(settings, project, data)
       data
     else
@@ -277,7 +279,7 @@ defmodule Settings do
   @spec get_projects(t()) :: %{binary() => map()}
   def get_projects(settings) do
     settings.data
-    |> Enum.filter(fn {key, value} -> 
+    |> Enum.filter(fn {key, value} ->
       is_valid_project_name?(key) and is_map(value) and Map.has_key?(value, "root")
     end)
     |> Map.new()
@@ -291,7 +293,7 @@ defmodule Settings do
   def is_valid_project_name?(name) when is_binary(name) do
     not Enum.member?(global_config_keys(), name)
   end
-  
+
   def is_valid_project_name?(_), do: false
 
   @doc """

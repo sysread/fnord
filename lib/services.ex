@@ -20,7 +20,7 @@ defmodule Services do
 
   @doc """
   Starts the name pool service separately from other services.
-  
+
   This service must be started AFTER set_globals() is called because it needs
   to read the configured workers setting to determine its batch allocation size.
   The workers setting is parsed from CLI arguments and set in set_globals().

@@ -84,7 +84,7 @@ defmodule UI.UITest do
       rescue
         _ -> :ok
       end
-      
+
       :ok
     end
 

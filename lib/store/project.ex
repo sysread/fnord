@@ -39,8 +39,10 @@ defmodule Store.Project do
   def save_settings(project, source_root \\ nil, exclude \\ nil) do
     # Validate that the project name is not a global config key
     unless Settings.is_valid_project_name?(project.name) do
-      raise ArgumentError, "Cannot use '#{project.name}' as project name - it conflicts with global configuration"
+      raise ArgumentError,
+            "Cannot use '#{project.name}' as project name - it conflicts with global configuration"
     end
+
     root =
       case source_root do
         nil -> project.source_root || raise("project root is required")

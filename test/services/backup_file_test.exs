@@ -116,7 +116,8 @@ defmodule Services.BackupFileTest do
     test "fails when source file does not exist", %{project: project} do
       nonexistent_file = Path.join(project.source_root, "nonexistent.txt")
 
-      assert {:error, :source_file_not_found} = Services.BackupFile.create_backup(nonexistent_file)
+      assert {:error, :source_file_not_found} =
+               Services.BackupFile.create_backup(nonexistent_file)
     end
   end
 

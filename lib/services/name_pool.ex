@@ -16,12 +16,12 @@ defmodule Services.NamePool do
   defmodule State do
     @moduledoc false
     @type t :: %__MODULE__{
-      available: [String.t()],
-      checked_out: MapSet.t(String.t()),
-      all_used: MapSet.t(String.t()),
-      chunk_size: pos_integer()
-    }
-    
+            available: [String.t()],
+            checked_out: MapSet.t(String.t()),
+            all_used: MapSet.t(String.t()),
+            chunk_size: pos_integer()
+          }
+
     defstruct available: [], checked_out: MapSet.new(), all_used: MapSet.new(), chunk_size: 12
   end
 
@@ -37,7 +37,7 @@ defmodule Services.NamePool do
   @doc """
   Checks out a name from the pool. If the pool is empty or running low,
   automatically allocates a new chunk of names.
-  
+
   Returns `{:ok, name}` or `{:error, reason}`.
   """
   @spec checkout_name() :: {:ok, String.t()} | {:error, String.t()}
@@ -71,14 +71,14 @@ defmodule Services.NamePool do
   @impl GenServer
   def init(_opts) do
     chunk_size = Application.get_env(:fnord, :workers, 12)
-    
+
     state = %State{
       available: [],
       checked_out: MapSet.new(),
       all_used: MapSet.new(),
       chunk_size: chunk_size
     }
-    
+
     Logger.debug("NamePool started with chunk_size=#{chunk_size}")
     {:ok, state}
   end
@@ -89,10 +89,12 @@ defmodule Services.NamePool do
       {:ok, updated_state} ->
         case updated_state.available do
           [name | remaining] ->
-            new_state = %{updated_state | 
-              available: remaining,
-              checked_out: MapSet.put(updated_state.checked_out, name)
+            new_state = %{
+              updated_state
+              | available: remaining,
+                checked_out: MapSet.put(updated_state.checked_out, name)
             }
+
             Logger.debug("Checked out name: #{name} (#{length(remaining)} remaining)")
             {:reply, {:ok, name}, new_state}
 
@@ -115,26 +117,25 @@ defmodule Services.NamePool do
       all_used_count: MapSet.size(state.all_used),
       chunk_size: state.chunk_size
     }
+
     {:reply, stats, state}
   end
 
   @impl GenServer
   def handle_call(:reset, _from, state) do
-    new_state = %{state | 
-      available: [],
-      checked_out: MapSet.new(),
-      all_used: MapSet.new()
-    }
+    new_state = %{state | available: [], checked_out: MapSet.new(), all_used: MapSet.new()}
     {:reply, :ok, new_state}
   end
 
   @impl GenServer
   def handle_cast({:checkin_name, name}, state) do
     if MapSet.member?(state.checked_out, name) do
-      new_state = %{state |
-        available: [name | state.available],
-        checked_out: MapSet.delete(state.checked_out, name)
+      new_state = %{
+        state
+        | available: [name | state.available],
+          checked_out: MapSet.delete(state.checked_out, name)
       }
+
       Logger.debug("Checked in name: #{name} (#{length(new_state.available)} available)")
       {:noreply, new_state}
     else
@@ -160,14 +161,17 @@ defmodule Services.NamePool do
   # Allocates a chunk of names from the nomenclater
   defp allocate_name_chunk(state) do
     used_names = MapSet.to_list(state.all_used)
-    
+
     case AI.Agent.Nomenclater.get_names(state.chunk_size, used_names) do
       {:ok, names} when is_list(names) ->
         Logger.info("Allocated #{length(names)} names to pool")
-        new_state = %{state | 
-          available: names ++ state.available,
-          all_used: MapSet.union(state.all_used, MapSet.new(names))
+
+        new_state = %{
+          state
+          | available: names ++ state.available,
+            all_used: MapSet.union(state.all_used, MapSet.new(names))
         }
+
         {:ok, new_state}
 
       {:error, reason} ->
