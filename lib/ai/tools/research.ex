@@ -116,8 +116,8 @@ defmodule AI.Tools.Research do
   end
 
   defp do_research(project, prompt) do
-    "/Users/jeff.ober/dev/fnord/fnord"
-    |> System.cmd(
+    System.cmd(
+      "fnord",
       ["ask", "--project", project, "--question", prompt],
       env: [
         {"LOGGER_LEVEL", "error"},

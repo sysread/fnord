@@ -71,6 +71,7 @@ defmodule AI.Agent.Researcher do
         |> case do
           {:ok, %{response: response}} -> {:ok, response}
           {:error, %{response: response}} -> {:error, response}
+          {:error, reason} -> {:error, reason}
         end
       after
         dec_depth()
