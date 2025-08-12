@@ -16,39 +16,33 @@ defmodule UI do
   # Inversion of the `detail` for notifications from Fnord Prefect itself
   # ----------------------------------------------------------------------------
   def feedback(:info, msg) do
-    Logger.info(
-      IO.ANSI.format(
-        [:green_background, "Fnord Prefect", :reset, ": ", italicize(msg), :reset],
-        colorize?()
-      )
-    )
+    feedback(msg, :green_background, :green)
   end
 
   def feedback(:warn, msg) do
-    Logger.info(
-      IO.ANSI.format(
-        [:yellow_background, "Fnord Prefect", :reset, ": ", italicize(msg), :reset],
-        colorize?()
-      )
-    )
+    feedback(msg, :yellow_background, :yellow)
   end
 
   def feedback(:error, msg) do
-    Logger.info(
-      IO.ANSI.format(
-        [:red_background, "Fnord Prefect", :reset, ": ", italicize(msg), :reset],
-        colorize?()
-      )
-    )
+    feedback(msg, :red_background, :red)
   end
 
   def feedback(:debug, msg) do
-    Logger.info(
-      IO.ANSI.format(
-        [:cyan_background, "Fnord Prefect", :reset, ": ", italicize(msg), :reset],
-        colorize?()
-      )
-    )
+    feedback(msg, :cyan_background, :cyan)
+  end
+
+  defp feedback(msg, label_codes, detail_codes) do
+    [
+      label_codes,
+      "Fnord Prefect",
+      :reset,
+      ": ",
+      detail_codes,
+      msg,
+      :reset
+    ]
+    |> IO.ANSI.format(colorize?())
+    |> Logger.info()
   end
 
   # ----------------------------------------------------------------------------
