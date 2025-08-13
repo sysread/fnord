@@ -82,8 +82,6 @@ defmodule AI.Agent.Code.PatchMaker do
     with {:ok, file} <- Map.fetch(opts, :file),
          {:ok, hunk} <- Map.fetch(opts, :hunk),
          {:ok, replacement} <- Map.fetch(opts, :replacement),
-         {:ok, name} <- Services.NamePool.checkout_name(),
-         _ <- log_start(name, replacement),
          {:ok, prompt} <- build_prompt(file, hunk, replacement),
          {:ok, response} <- get_completion(prompt) do
       response
@@ -93,7 +91,6 @@ defmodule AI.Agent.Code.PatchMaker do
           {:error, reason}
 
         {:ok, %{replacement: replacement}} ->
-          log_success(name, replacement)
           {:ok, trim_final_newline(replacement)}
 
         {:error, _} ->
@@ -169,13 +166,5 @@ defmodule AI.Agent.Code.PatchMaker do
     else
       text
     end
-  end
-
-  defp log_start(name, _replacement) do
-    UI.info("#{name} is conforming the replacement to the target site")
-  end
-
-  defp log_success(name, _replacement) do
-    UI.info("#{name} is SUCH a conformist")
   end
 end

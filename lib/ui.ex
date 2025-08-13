@@ -183,6 +183,37 @@ defmodule UI do
   # ----------------------------------------------------------------------------
   # TUI/Animated elements
   # ----------------------------------------------------------------------------
+  def spinner_start(args) do
+    if quiet?() do
+      args |> Keyword.get(:label, "Processing") |> begin_step()
+    else
+      Owl.Spinner.start(args)
+      Owl.Spinner.update_label(args)
+    end
+  end
+
+  def spinner_update(args) do
+    if quiet?() do
+      args |> Keyword.get(:label, "Processing") |> begin_step()
+    else
+      Owl.Spinner.update_label(args)
+    end
+  end
+
+  def spinner_stop(args) do
+    if quiet?() do
+      args
+      |> Keyword.get(:resolution, :ok)
+      |> case do
+        :ok -> args |> Keyword.get(:label, "Done") |> end_step()
+        :error -> args |> Keyword.get(:label, "Failed") |> end_step()
+        _ -> args |> Keyword.get(:label, "Stopped") |> end_step()
+      end
+    else
+      Owl.Spinner.stop(args)
+    end
+  end
+
   def spin(processing, func) do
     if quiet?() do
       begin_step(processing)

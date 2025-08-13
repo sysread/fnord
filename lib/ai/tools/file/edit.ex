@@ -31,37 +31,12 @@ defmodule AI.Tools.File.Edit do
   def read_args(args), do: {:ok, args}
 
   @impl AI.Tools
-  def ui_note_on_request(%{"file" => file, "find" => find, "replacement" => replacement}) do
-    {"Preparing file changes",
-     """
-     File: #{file}
-
-     Replacing:
-     ```
-     #{find}
-     ```
-
-     With:
-     ```
-     #{replacement}
-     ```
-     """}
+  def ui_note_on_request(%{"file" => file}) do
+    {"Preparing file changes", file}
   end
 
   @impl AI.Tools
-  def ui_note_on_result(%{"file" => file}, result) do
-    %{"diff" => diff, "backup" => backup} = Jason.decode!(result)
-
-    {"Changes applied",
-     """
-     File: #{file}
-     Backup created at: #{backup}
-     Changes:
-     ```
-     #{diff}
-     ```
-     """}
-  end
+  def ui_note_on_result(_args, _result), do: nil
 
   @impl AI.Tools
   def spec do
@@ -119,6 +94,7 @@ defmodule AI.Tools.File.Edit do
     with {:ok, file} <- AI.Tools.get_arg(args, "file"),
          {:ok, criteria} <- AI.Tools.get_arg(args, "find"),
          {:ok, replacement} <- AI.Tools.get_arg(args, "replacement"),
+         _ <- UI.spinner_start(id: :file_edit_tool, label: "Editing #{file}"),
          {:ok, project} <- Store.get_project(),
          absolute_file <- Store.Project.expand_path(file, project),
          {:ok, hunk} <- find_hunk(file, criteria, replacement),
@@ -129,6 +105,15 @@ defmodule AI.Tools.File.Edit do
          {:ok, backup} <- Services.BackupFile.create_backup(absolute_file),
          {:ok, _hunk} <- Hunk.apply_staged_changes(hunk) do
       {:ok, %{diff: diff, backup: backup}}
+    else
+      other ->
+        UI.spinner_stop(
+          id: :file_edit_tool,
+          resolution: :error,
+          label: "Failed to edit file"
+        )
+
+        other
     end
   end
 
@@ -137,24 +122,88 @@ defmodule AI.Tools.File.Edit do
   # ----------------------------------------------------------------------------
   @spec find_hunk(binary, binary, binary) :: {:ok, hunk} | {:error, term}
   defp find_hunk(file, criteria, replacement) do
+    UI.spinner_start(
+      id: :hunk_finder,
+      label: "Finding target hunk",
+      frames: [
+        ok: Owl.Data.tag("  ✔", :green),
+        error: Owl.Data.tag("  ✖", :red),
+        processing: ["  ⠋", "  ⠙", "  ⠹", "  ⠸", "  ⠼", "  ⠴", "  ⠦", "  ⠧", "  ⠇", "  ⠏"]
+      ]
+    )
+
     AI.Agent.Code.HunkFinder.get_response(%{
       file: file,
       criteria: criteria,
       replacement: replacement
     })
+    |> case do
+      {:ok, hunk} ->
+        UI.spinner_stop(
+          id: :hunk_finder,
+          resolution: :ok,
+          label: "Target hunk found"
+        )
+
+        {:ok, hunk}
+
+      {:error, reason} ->
+        UI.spinner_stop(
+          id: :hunk_finder,
+          resolution: :error,
+          label: "Failed to find target hunk"
+        )
+
+        {:error, reason}
+    end
   end
 
   @spec adjust_replacement(binary, hunk, binary) :: {:ok, binary} | {:error, term}
   defp adjust_replacement(file, hunk, replacement) do
+    UI.spinner_start(
+      id: :patch_maker,
+      label: "Adjusting replacement text to fit hunk",
+      frames: [
+        ok: Owl.Data.tag("  ✔", :green),
+        error: Owl.Data.tag("  ✖", :red),
+        processing: ["  ⠋", "  ⠙", "  ⠹", "  ⠸", "  ⠼", "  ⠴", "  ⠦", "  ⠧", "  ⠇", "  ⠏"]
+      ]
+    )
+
     AI.Agent.Code.PatchMaker.get_response(%{
       file: file,
       hunk: hunk,
       replacement: replacement
     })
+    |> case do
+      {:ok, adjusted_replacement} ->
+        UI.spinner_stop(
+          id: :patch_maker,
+          resolution: :ok,
+          label: "Replacement adapted"
+        )
+
+        {:ok, adjusted_replacement}
+
+      {:error, reason} ->
+        UI.spinner_stop(
+          id: :patch_maker,
+          resolution: :error,
+          label: "Failed to adapt replacement"
+        )
+
+        {:error, reason}
+    end
   end
 
   @spec confirm_edit(hunk, binary) :: {:ok, :approved} | {:error, term}
   defp confirm_edit(hunk, diff) do
+    UI.spinner_stop(
+      id: :file_edit_tool,
+      resolution: :ok,
+      label: "Changes to #{hunk} prepared"
+    )
+
     Services.Approvals.confirm(
       tag: "general",
       subject: "edit files",

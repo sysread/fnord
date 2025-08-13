@@ -111,11 +111,7 @@ defmodule AI.Agent.Code.HunkFinder do
          {:ok, criteria} <- Map.fetch(opts, :criteria),
          {:ok, replacement} <- Map.fetch(opts, :replacement),
          {:ok, contents} <- File.read(file),
-         {:ok, name} <- Services.NamePool.checkout_name(),
-         _ <- log_start(name, file, criteria, replacement),
          {:ok, hunk} <- find_hunk(file, contents, criteria, replacement) do
-      log_success(name, hunk)
-      Services.NamePool.checkin_name(name)
       {:ok, hunk}
     else
       :error ->
@@ -190,13 +186,5 @@ defmodule AI.Agent.Code.HunkFinder do
       {:error, %{response: response}} -> {:error, response}
       {:error, reason} -> {:error, reason}
     end
-  end
-
-  defp log_start(name, file, _criteria, _replacement) do
-    UI.info("#{name} is locating a righteous hunk", file)
-  end
-
-  defp log_success(name, hunk) do
-    UI.info("#{name} found their hunk!", "#{hunk.file}:#{hunk.start_line}-#{hunk.end_line}")
   end
 end

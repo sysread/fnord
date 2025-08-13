@@ -24,6 +24,8 @@ defmodule Services.Approvals do
 
     options = get_options(opts)
 
+    Owl.IO.puts("")
+
     detail
     |> Owl.Box.new(
       title: " PERMISSION REQUIRED ",
