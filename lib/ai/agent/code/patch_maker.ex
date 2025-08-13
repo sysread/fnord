@@ -131,7 +131,7 @@ defmodule AI.Agent.Code.PatchMaker do
 
   @spec build_prompt(binary, hunk, binary) :: {:ok, binary} | {:error, term}
   defp build_prompt(file, hunk, replacement) do
-    with {:ok, context} <- Hunk.with_context(hunk, @pre_anchor, @post_anchor) do
+    with {:ok, context} <- Hunk.change_context(hunk, 5, @pre_anchor, @post_anchor) do
       prompt = """
       # FILE
       `#{file}`

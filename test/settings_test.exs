@@ -64,103 +64,103 @@ defmodule SettingsTest do
     File.rm_rf!(default_dir)
   end
 
-  describe "approved_commands" do
-    test "migration adds approved_commands to global and project configs on spew" do
+  describe "approvals" do
+    test "migration adds approvals to global and project configs on spew" do
       settings = Settings.new()
 
-      # Add a project without approved_commands
+      # Add a project without approvals
       _settings =
         Settings.set(settings, "settings_test_project", %{"root" => "/test", "exclude" => []})
 
-      # Verify migration added approved_commands
+      # Verify migration added approvals
       updated_settings = Settings.new()
-      assert Settings.get(updated_settings, "approved_commands", :missing) == %{}
+      assert Settings.get(updated_settings, "approvals", :missing) == %{}
 
       project_data = Settings.get_project_data(updated_settings, "settings_test_project")
-      assert Map.get(project_data, "approved_commands") == %{}
+      assert Map.get(project_data, "approvals") == %{}
     end
 
-    test "get_approved_commands/2 returns empty map for global when not set" do
+    test "get_approvals/2 returns empty map for global when not set" do
       settings = Settings.new()
-      assert Settings.get_approved_commands(settings, :global) == %{}
+      assert Settings.get_approvals(settings, :global) == %{}
     end
 
-    test "get_approved_commands/2 returns empty map for project when not set" do
+    test "get_approvals/2 returns empty map for project when not set" do
       settings = Settings.new()
-      assert Settings.get_approved_commands(settings, "nonexistent") == %{}
+      assert Settings.get_approvals(settings, "nonexistent") == %{}
     end
 
-    test "get_approved_commands/2 returns existing commands" do
+    test "get_approvals/2 returns existing approvals" do
       settings = Settings.new()
-      commands = %{"git push" => true, "rm -rf" => false}
-      settings = Settings.set(settings, "approved_commands", commands)
+      approvals = %{"git push" => true, "rm -rf" => false}
+      settings = Settings.set(settings, "approvals", approvals)
 
-      assert Settings.get_approved_commands(settings, :global) == commands
+      assert Settings.get_approvals(settings, :global) == approvals
     end
 
-    test "add_approved_command/4 adds global command approval" do
+    test "add_approval/4 adds global approval approval" do
       settings = Settings.new()
 
-      settings = Settings.add_approved_command(settings, :global, "shell_cmd", "git push")
-      approved_commands = Settings.get_approved_commands(settings, :global)
-      shell_commands = Map.get(approved_commands, "shell_cmd", [])
-      assert "git push" in shell_commands
+      settings = Settings.add_approval(settings, :global, "shell_cmd", "git push")
+      approvals = Settings.get_approvals(settings, :global)
+      shell_approvals = Map.get(approvals, "shell_cmd", [])
+      assert "git push" in shell_approvals
 
-      settings = Settings.add_approved_command(settings, :global, "shell_cmd", "rm -rf")
-      approved_commands = Settings.get_approved_commands(settings, :global)
-      shell_commands = Map.get(approved_commands, "shell_cmd", [])
-      assert "git push" in shell_commands
-      assert "rm -rf" in shell_commands
+      settings = Settings.add_approval(settings, :global, "shell_cmd", "rm -rf")
+      approvals = Settings.get_approvals(settings, :global)
+      shell_approvals = Map.get(approvals, "shell_cmd", [])
+      assert "git push" in shell_approvals
+      assert "rm -rf" in shell_approvals
     end
 
-    test "add_approved_command/4 adds project command approval" do
+    test "add_approval/4 adds project approval approval" do
       settings = Settings.new()
       settings = Settings.set(settings, "settings_test_project", %{"root" => "/test"})
 
       settings =
-        Settings.add_approved_command(
+        Settings.add_approval(
           settings,
           "settings_test_project",
           "shell_cmd",
           "make build"
         )
 
-      approved_commands = Settings.get_approved_commands(settings, "settings_test_project")
-      shell_commands = Map.get(approved_commands, "shell_cmd", [])
-      assert "make build" in shell_commands
+      approvals = Settings.get_approvals(settings, "settings_test_project")
+      shell_approvals = Map.get(approvals, "shell_cmd", [])
+      assert "make build" in shell_approvals
 
       settings =
-        Settings.add_approved_command(
+        Settings.add_approval(
           settings,
           "settings_test_project",
           "shell_cmd",
           "docker run"
         )
 
-      approved_commands = Settings.get_approved_commands(settings, "settings_test_project")
-      shell_commands = Map.get(approved_commands, "shell_cmd", [])
-      assert "make build" in shell_commands
-      assert "docker run" in shell_commands
+      approvals = Settings.get_approvals(settings, "settings_test_project")
+      shell_approvals = Map.get(approvals, "shell_cmd", [])
+      assert "make build" in shell_approvals
+      assert "docker run" in shell_approvals
     end
 
-    test "remove_approved_command/4 removes global command" do
+    test "remove_approval/4 removes global approval" do
       settings = Settings.new()
-      settings = Settings.add_approved_command(settings, :global, "shell_cmd", "git push")
-      settings = Settings.add_approved_command(settings, :global, "shell_cmd", "rm -rf")
+      settings = Settings.add_approval(settings, :global, "shell_cmd", "git push")
+      settings = Settings.add_approval(settings, :global, "shell_cmd", "rm -rf")
 
-      settings = Settings.remove_approved_command(settings, :global, "shell_cmd", "git push")
-      approved_commands = Settings.get_approved_commands(settings, :global)
-      shell_commands = Map.get(approved_commands, "shell_cmd", [])
-      refute "git push" in shell_commands
-      assert "rm -rf" in shell_commands
+      settings = Settings.remove_approval(settings, :global, "shell_cmd", "git push")
+      approvals = Settings.get_approvals(settings, :global)
+      shell_approvals = Map.get(approvals, "shell_cmd", [])
+      refute "git push" in shell_approvals
+      assert "rm -rf" in shell_approvals
     end
 
-    test "remove_approved_command/4 removes project command" do
+    test "remove_approval/4 removes project approval" do
       settings = Settings.new()
       settings = Settings.set(settings, "settings_test_project", %{"root" => "/test"})
 
       settings =
-        Settings.add_approved_command(
+        Settings.add_approval(
           settings,
           "settings_test_project",
           "shell_cmd",
@@ -168,7 +168,7 @@ defmodule SettingsTest do
         )
 
       settings =
-        Settings.add_approved_command(
+        Settings.add_approval(
           settings,
           "settings_test_project",
           "shell_cmd",
@@ -176,88 +176,88 @@ defmodule SettingsTest do
         )
 
       settings =
-        Settings.remove_approved_command(
+        Settings.remove_approval(
           settings,
           "settings_test_project",
           "shell_cmd",
           "make build"
         )
 
-      approved_commands = Settings.get_approved_commands(settings, "settings_test_project")
-      shell_commands = Map.get(approved_commands, "shell_cmd", [])
-      refute "make build" in shell_commands
-      assert "docker run" in shell_commands
+      approvals = Settings.get_approvals(settings, "settings_test_project")
+      shell_approvals = Map.get(approvals, "shell_cmd", [])
+      refute "make build" in shell_approvals
+      assert "docker run" in shell_approvals
     end
 
-    test "is_command_approved?/4 checks project approval first" do
+    test "is_approved?/4 checks project approval first" do
       settings = Settings.new()
       # Add to global but NOT to project to show project scope is checked first
-      settings = Settings.add_approved_command(settings, :global, "shell_cmd", "other_command")
+      settings = Settings.add_approval(settings, :global, "shell_cmd", "other_approval")
       settings = Settings.set(settings, "settings_test_project", %{"root" => "/test"})
 
-      # Add command only to project
+      # Add approval only to project
       settings =
-        Settings.add_approved_command(settings, "settings_test_project", "shell_cmd", "git push")
+        Settings.add_approval(settings, "settings_test_project", "shell_cmd", "git push")
 
       # Should find it in project scope
-      assert Settings.is_command_approved?(
+      assert Settings.is_approved?(
                settings,
                "settings_test_project",
                "shell_cmd",
                "git push"
              ) == true
 
-      # Should not find other command in project scope
-      assert Settings.is_command_approved?(
+      # Should not find other approval in project scope
+      assert Settings.is_approved?(
                settings,
                "settings_test_project",
                "shell_cmd",
-               "other_command"
+               "other_approval"
              ) == false
     end
 
-    test "is_command_approved?/4 works with global scope" do
+    test "is_approved?/4 works with global scope" do
       settings = Settings.new()
-      settings = Settings.add_approved_command(settings, :global, "shell_cmd", "git push")
+      settings = Settings.add_approval(settings, :global, "shell_cmd", "git push")
       settings = Settings.set(settings, "settings_test_project", %{"root" => "/test"})
 
       # Should find global approval
-      assert Settings.is_command_approved?(settings, :global, "shell_cmd", "git push") == true
-      # Should not find non-existent command
-      assert Settings.is_command_approved?(settings, :global, "shell_cmd", "unknown") == false
+      assert Settings.is_approved?(settings, :global, "shell_cmd", "git push") == true
+      # Should not find non-existent approval
+      assert Settings.is_approved?(settings, :global, "shell_cmd", "unknown") == false
     end
 
-    test "is_command_approved?/4 returns false when command not found" do
+    test "is_approved?/4 returns false when approval not found" do
       settings = Settings.new()
       settings = Settings.set(settings, "settings_test_project", %{"root" => "/test"})
 
-      # Should return false for non-existent commands
-      assert Settings.is_command_approved?(
+      # Should return false for non-existent approvals
+      assert Settings.is_approved?(
                settings,
                "settings_test_project",
                "shell_cmd",
                "unknown"
              ) == false
 
-      assert Settings.is_command_approved?(settings, :global, "shell_cmd", "unknown") == false
+      assert Settings.is_approved?(settings, :global, "shell_cmd", "unknown") == false
     end
 
-    test "is_command_approved?/4 works correctly with global scope only" do
+    test "is_approved?/4 works correctly with global scope only" do
       settings = Settings.new()
-      settings = Settings.add_approved_command(settings, :global, "shell_cmd", "git push")
+      settings = Settings.add_approval(settings, :global, "shell_cmd", "git push")
 
       # Should find global approval
-      assert Settings.is_command_approved?(settings, :global, "shell_cmd", "git push") == true
-      # Should not find non-existent command
-      assert Settings.is_command_approved?(settings, :global, "shell_cmd", "unknown") == false
+      assert Settings.is_approved?(settings, :global, "shell_cmd", "git push") == true
+      # Should not find non-existent approval
+      assert Settings.is_approved?(settings, :global, "shell_cmd", "unknown") == false
     end
 
-    test "migration preserves existing approved_commands" do
+    test "migration preserves existing approvals" do
       settings = Settings.new()
       existing_global = %{"existing" => true}
-      existing_project = %{"root" => "/test", "approved_commands" => %{"project_cmd" => false}}
+      existing_project = %{"root" => "/test", "approvals" => %{"project_cmd" => false}}
 
-      settings = Settings.set(settings, "approved_commands", existing_global)
+      settings = Settings.set(settings, "approvals", existing_global)
       settings = Settings.set(settings, "settings_test_project", existing_project)
 
       # Trigger another migration
@@ -265,13 +265,13 @@ defmodule SettingsTest do
 
       # Verify existing data preserved
       updated_settings = Settings.new()
-      assert Settings.get_approved_commands(updated_settings, :global) == existing_global
+      assert Settings.get_approvals(updated_settings, :global) == existing_global
 
-      assert Settings.get_approved_commands(updated_settings, "settings_test_project") == %{
+      assert Settings.get_approvals(updated_settings, "settings_test_project") == %{
                "project_cmd" => false
              }
 
-      assert Settings.get_approved_commands(updated_settings, "another_project") == %{}
+      assert Settings.get_approvals(updated_settings, "another_project") == %{}
     end
   end
 
@@ -291,10 +291,10 @@ defmodule SettingsTest do
 
       # Create old format settings
       old_settings = %{
-        "approved_commands" => %{"shell_cmd" => ["git status"]},
+        "approvals" => %{"shell_cmd" => ["git status"]},
         "my_project" => %{
           "root" => "/test/project",
-          "approved_commands" => %{"project_cmd" => ["make build"]}
+          "approvals" => %{"project_cmd" => ["make build"]}
         },
         "another_project" => %{
           "root" => "/another/path",
@@ -309,14 +309,14 @@ defmodule SettingsTest do
 
       # Verify migration happened
       assert Settings.get(settings, "version") == "0.8.30"
-      assert Settings.get(settings, "approved_commands") == %{"shell_cmd" => ["git status"]}
+      assert Settings.get(settings, "approvals") == %{"shell_cmd" => ["git status"]}
 
       projects = Settings.get(settings, "projects")
       assert Map.has_key?(projects, "my_project")
       assert Map.has_key?(projects, "another_project")
 
       assert projects["my_project"]["root"] == "/test/project"
-      assert projects["my_project"]["approved_commands"] == %{"project_cmd" => ["make build"]}
+      assert projects["my_project"]["approvals"] == %{"project_cmd" => ["make build"]}
       assert projects["another_project"]["root"] == "/another/path"
       assert projects["another_project"]["exclude"] == ["node_modules"]
 
@@ -331,12 +331,12 @@ defmodule SettingsTest do
 
       # Create already-migrated settings
       migrated_settings = %{
-        "approved_commands" => %{"shell_cmd" => ["git status"]},
+        "approvals" => %{"shell_cmd" => ["git status"]},
         "version" => "0.8.30",
         "projects" => %{
           "my_project" => %{
             "root" => "/test/project",
-            "approved_commands" => %{"project_cmd" => ["make build"]}
+            "approvals" => %{"project_cmd" => ["make build"]}
           }
         }
       }
@@ -348,11 +348,11 @@ defmodule SettingsTest do
 
       # Verify settings unchanged
       assert Settings.get(settings, "version") == "0.8.30"
-      assert Settings.get(settings, "approved_commands") == %{"shell_cmd" => ["git status"]}
+      assert Settings.get(settings, "approvals") == %{"shell_cmd" => ["git status"]}
 
       projects = Settings.get(settings, "projects")
       assert projects["my_project"]["root"] == "/test/project"
-      assert projects["my_project"]["approved_commands"] == %{"project_cmd" => ["make build"]}
+      assert projects["my_project"]["approvals"] == %{"project_cmd" => ["make build"]}
     end
 
     test "migration handles empty settings file", %{home_dir: home_dir} do
@@ -366,17 +366,17 @@ defmodule SettingsTest do
 
       assert Settings.get(settings, "version") == "0.8.30"
       assert Settings.get(settings, "projects") == %{}
-      # ensure_approved_commands_exist adds this if not present
-      assert Settings.get(settings, "approved_commands") == %{}
+      # ensure_approvals_exist adds this if not present
+      assert Settings.get(settings, "approvals") == %{}
     end
 
-    test "migration preserves approved_commands without projects", %{home_dir: home_dir} do
+    test "migration preserves approvals without projects", %{home_dir: home_dir} do
       settings_path = Path.join(home_dir, ".fnord/settings.json")
       File.mkdir_p!(Path.dirname(settings_path))
 
-      # Create settings with only global approved_commands
+      # Create settings with only global approvals
       old_settings = %{
-        "approved_commands" => %{"shell_cmd" => ["git push", "rm -rf"]}
+        "approvals" => %{"shell_cmd" => ["git push", "rm -rf"]}
       }
 
       File.write!(settings_path, Jason.encode!(old_settings, pretty: true))
@@ -385,7 +385,7 @@ defmodule SettingsTest do
 
       assert Settings.get(settings, "version") == "0.8.30"
 
-      assert Settings.get(settings, "approved_commands") == %{
+      assert Settings.get(settings, "approvals") == %{
                "shell_cmd" => ["git push", "rm -rf"]
              }
 
@@ -401,7 +401,7 @@ defmodule SettingsTest do
 
       # Create old format settings
       old_settings = %{
-        "approved_commands" => %{"shell_cmd" => ["git status"]},
+        "approvals" => %{"shell_cmd" => ["git status"]},
         "my_project" => %{
           "root" => "/test/project"
         }
@@ -430,7 +430,7 @@ defmodule SettingsTest do
 
       # Create old format settings
       old_settings = %{
-        "approved_commands" => %{"shell_cmd" => ["git status"]},
+        "approvals" => %{"shell_cmd" => ["git status"]},
         "my_project" => %{
           "root" => "/test/project"
         }
@@ -460,8 +460,8 @@ defmodule SettingsTest do
 
       settings = Settings.set_project_data(settings, "test_project", project_data)
 
-      # The ensure_approved_commands_exist function adds approved_commands
-      expected_data = Map.put(project_data, "approved_commands", %{})
+      # The ensure_approvals_exist function adds approvals
+      expected_data = Map.put(project_data, "approvals", %{})
       assert Settings.get_project_data(settings, "test_project") == expected_data
       projects = Settings.get(settings, "projects")
       assert Map.get(projects, "test_project") == expected_data
@@ -474,8 +474,8 @@ defmodule SettingsTest do
       # Set in old format directly
       settings = Settings.set(settings, "old_project", project_data)
 
-      # The ensure_approved_commands_exist function adds approved_commands
-      expected_data = Map.put(project_data, "approved_commands", %{})
+      # The ensure_approvals_exist function adds approvals
+      expected_data = Map.put(project_data, "approvals", %{})
       assert Settings.get_project_data(settings, "old_project") == expected_data
     end
 
@@ -486,8 +486,8 @@ defmodule SettingsTest do
       updated_settings = Settings.set_project_data(settings, "new_project", project_data)
 
       projects = Settings.get(updated_settings, "projects")
-      # The ensure_approved_commands_exist function adds approved_commands
-      expected_data = Map.put(project_data, "approved_commands", %{})
+      # The ensure_approvals_exist function adds approvals
+      expected_data = Map.put(project_data, "approvals", %{})
       assert Map.get(projects, "new_project") == expected_data
       # Should not be at root level
       assert Settings.get(updated_settings, "new_project", :not_found) == :not_found

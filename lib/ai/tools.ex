@@ -289,22 +289,37 @@ defmodule AI.Tools do
     with {:ok, module} <- tool_module(tool, tools),
          {:ok, args} <- module.read_args(args),
          :ok <- validate_required_args(tool, args, tools) do
-      # Call the tool's function with the provided arguments
-      args
-      |> module.call()
-      # Convert results (or error) to a string for output
-      |> case do
-        # Binary responses
-        {:ok, response} when is_binary(response) -> {:ok, response}
-        {:error, reason} when is_binary(reason) -> {:error, reason}
-        # Structured responses
-        {:ok, response} -> Jason.encode(response)
-        {:error, reason} -> {:error, inspect(reason)}
-        # Empty responses
-        :ok -> {:ok, "#{tool} completed successfully"}
-        :error -> {:error, "#{tool} failed with an unknown error"}
-        # Frob errors
-        {:error, code, msg} -> {:error, "#{tool} failed with code #{code}: #{msg}"}
+      try do
+        # Call the tool's function with the provided arguments
+        args
+        |> module.call()
+        # Convert results (or error) to a string for output
+        |> case do
+          # Binary responses
+          {:ok, response} when is_binary(response) -> {:ok, response}
+          {:error, reason} when is_binary(reason) -> {:error, reason}
+          # Structured responses
+          {:ok, response} -> Jason.encode(response)
+          {:error, reason} -> {:error, inspect(reason)}
+          # Empty responses
+          :ok -> {:ok, "#{tool} completed successfully"}
+          :error -> {:error, "#{tool} failed with an unknown error"}
+          # Frob errors
+          {:error, code, msg} -> {:error, "#{tool} failed with code #{code}: #{msg}"}
+        end
+      rescue
+        e ->
+          formatted = Exception.format(:error, e, __STACKTRACE__)
+
+          {:error,
+           """
+           The tool `#{tool}` failed with an uncaught exception.
+           This is likely a bug in the application, not in how the LLM invoked the tool.
+
+           Please report this error to the developers of `fnord`:
+
+           #{formatted}
+           """}
       end
     end
   end

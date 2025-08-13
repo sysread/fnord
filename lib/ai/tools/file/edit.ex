@@ -49,16 +49,18 @@ defmodule AI.Tools.File.Edit do
   end
 
   @impl AI.Tools
-  def ui_note_on_result(%{"file" => file}, result) when is_binary(result) do
-    case Jason.decode(result) do
-      {:ok, %{"diff" => diff, "backup_file" => backup_file}} ->
-        IO.write(:stderr, diff)
-        {"File edited successfully", "#{file} (backup: #{Path.basename(backup_file)})"}
+  def ui_note_on_result(%{"file" => file}, result) do
+    %{"diff" => diff, "backup" => backup} = Jason.decode!(result)
 
-      _ ->
-        IO.write(:stderr, result)
-        {"File edited successfully", file}
-    end
+    {"Changes applied",
+     """
+     File: #{file}
+     Backup created at: #{backup}
+     Changes:
+     ```
+     #{diff}
+     ```
+     """}
   end
 
   @impl AI.Tools
@@ -121,28 +123,19 @@ defmodule AI.Tools.File.Edit do
          absolute_file <- Store.Project.expand_path(file, project),
          {:ok, hunk} <- find_hunk(file, criteria, replacement),
          {:ok, adjusted_replacement} <- adjust_replacement(file, hunk, replacement),
-         {:ok, :approved} <- confirm_edit(file, hunk, adjusted_replacement),
-         {:ok, backup_path} <- Services.BackupFile.create_backup(absolute_file),
-         :ok <- apply_changes(hunk, adjusted_replacement) do
-      diff = build_diff(hunk, adjusted_replacement)
-      backup_files = Services.BackupFile.get_session_backups()
-
-      result = %{
-        diff: diff,
-        backup_file: backup_path,
-        backup_files: backup_files
-      }
-
-      {:ok, result}
+         {:ok, hunk} <- Hunk.stage_changes(hunk, adjusted_replacement),
+         {:ok, diff} <- Hunk.build_diff(hunk),
+         {:ok, :approved} <- confirm_edit(hunk, diff),
+         {:ok, backup} <- Services.BackupFile.create_backup(absolute_file),
+         {:ok, _hunk} <- Hunk.apply_staged_changes(hunk) do
+      {:ok, %{diff: diff, backup: backup}}
     end
   end
 
   # ----------------------------------------------------------------------------
   # Internals
   # ----------------------------------------------------------------------------
-  @spec find_hunk(binary, binary, binary) ::
-          {:ok, hunk}
-          | {:error, term}
+  @spec find_hunk(binary, binary, binary) :: {:ok, hunk} | {:error, term}
   defp find_hunk(file, criteria, replacement) do
     AI.Agent.Code.HunkFinder.get_response(%{
       file: file,
@@ -151,9 +144,7 @@ defmodule AI.Tools.File.Edit do
     })
   end
 
-  @spec adjust_replacement(binary, hunk, binary) ::
-          {:ok, binary}
-          | {:error, term}
+  @spec adjust_replacement(binary, hunk, binary) :: {:ok, binary} | {:error, term}
   defp adjust_replacement(file, hunk, replacement) do
     AI.Agent.Code.PatchMaker.get_response(%{
       file: file,
@@ -162,68 +153,27 @@ defmodule AI.Tools.File.Edit do
     })
   end
 
-  defp apply_changes(hunk, replacement) do
-    Hunk.replace_in_file(hunk, replacement)
-  end
-
-  @spec confirm_edit(binary, hunk, binary) ::
-          {:ok, :approved}
-          | {:error, term}
-  defp confirm_edit(file, hunk, adjusted_replacement) do
-    # Build approval bits for hierarchical approval - use file path components
-    approval_bits = Path.split(file) |> Enum.reject(&(&1 == "."))
-
-    # Create a preview diff to show the user what will change
-    diff_preview = build_diff(hunk, adjusted_replacement)
-
-    # Display the colorized diff separately before the approval prompt
-    if UI.colorize?() and is_list(diff_preview) do
-      IO.puts("\nDiff preview:")
-      UI.say(diff_preview)
-    end
-
-    # Build a description of the change (without embedding the diff)
-    description = """
-    Edit file #{file}
-
-    Lines #{hunk.start_line}-#{hunk.end_line}
-    #{if not UI.colorize?(), do: "\n#{diff_preview}", else: ""}
-    """
-
-    # Use the approvals service with persistent: false (session-only approvals)
-    Services.Approvals.confirm_command(
-      description,
-      approval_bits,
-      "file_edit #{file}",
-      tag: "file_edit",
-      persistent: false
+  @spec confirm_edit(hunk, binary) :: {:ok, :approved} | {:error, term}
+  defp confirm_edit(hunk, diff) do
+    Services.Approvals.confirm(
+      tag: "general",
+      subject: "edit files",
+      persistent: false,
+      message: "Fnord wants to modify #{hunk}",
+      detail: colorize_diff(diff)
     )
   end
 
-  defp build_diff(hunk, replacement) do
-    colorize = UI.colorize?()
-
-    diff_iodata =
-      hunk.contents
-      |> TextDiff.format(
-        replacement,
-        color: colorize,
-        line_numbers: false,
-        format: [
-          gutter: [
-            eq: "   ",
-            del: " - ",
-            ins: " + ",
-            skip: "..."
-          ]
-        ]
-      )
-
-    # Don't convert to binary if colors are enabled - keep as iodata for ANSI formatting
-    if colorize do
-      diff_iodata
-    else
-      IO.iodata_to_binary(diff_iodata)
-    end
+  @spec colorize_diff(binary) :: Owl.Data.t()
+  def colorize_diff(diff) do
+    diff
+    |> String.split("\n")
+    |> Enum.map(fn line ->
+      cond do
+        String.starts_with?(line, "+") -> Owl.Data.tag(line <> "\n", [:white, :green_background])
+        String.starts_with?(line, "-") -> Owl.Data.tag(line <> "\n", [:white, :red_background])
+        true -> line <> "\n"
+      end
+    end)
   end
 end

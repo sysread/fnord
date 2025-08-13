@@ -43,7 +43,7 @@ defmodule Settings do
 
     if Version.compare(ver, "0.8.30") != :lt do
       data = File.read!(path) |> Jason.decode!()
-      globals = ["approved_commands", "projects", "version"]
+      globals = ["approvals", "projects", "version"]
       {projects, globals_map} = Enum.split_with(data, fn {k, _v} -> k not in globals end)
 
       if Map.has_key?(data, "projects") do
@@ -54,7 +54,7 @@ defmodule Settings do
           |> Map.new()
           |> Map.put("projects", Map.new(projects))
           |> Map.put("version", "0.8.30")
-          |> Map.put_new("approved_commands", %{})
+          |> Map.put_new("approvals", %{})
 
         File.write!(path, Jason.encode!(new_data, pretty: true))
       end
@@ -247,101 +247,101 @@ defmodule Settings do
   end
 
   @doc """
-  Get approved commands for global or project scope.
-  Returns commands in the new nested format: {"tag": ["cmd1", "cmd2"]}.
+  Get approvals for global or project scope.
+  Returns approvals in the format: `{"tag": ["foo", "bar"]}`
   """
-  @spec get_approved_commands(t, :global | binary) :: map()
-  def get_approved_commands(settings, :global) do
-    get(settings, "approved_commands", %{})
+  @spec get_approvals(t, :global | binary) :: map()
+  def get_approvals(settings, :global) do
+    get(settings, "approvals", %{})
   end
 
-  def get_approved_commands(settings, project_name) when is_binary(project_name) do
+  def get_approvals(settings, project_name) do
     case get_project_data(settings, project_name) do
       nil ->
         %{}
 
       project_data ->
-        Map.get(project_data, "approved_commands", %{})
+        Map.get(project_data, "approvals", %{})
     end
   end
 
   @doc """
-  Add an approved command for a specific tag in global or project scope.
-  Uses the new nested format: {"tag": ["cmd1", "cmd2"]}.
+  Add an approval for a specific tag in global or project scope.
+  Uses the new nested format: {"tag": ["foo", "bar"]}.
   """
-  @spec add_approved_command(t, :global | binary, binary, binary) :: t()
-  def add_approved_command(settings, scope, tag, command)
-      when is_binary(tag) and is_binary(command) do
-    commands_map = get_approved_commands(settings, scope)
-    current_list = Map.get(commands_map, tag, [])
-    updated_list = [command | current_list] |> Enum.uniq()
-    updated_map = Map.put(commands_map, tag, updated_list)
+  @spec add_approval(t, :global | binary, binary, binary) :: t()
+  def add_approval(settings, scope, tag, subject) do
+    subject_map = get_approvals(settings, scope)
+    current_list = Map.get(subject_map, tag, [])
+    updated_list = [subject | current_list] |> Enum.uniq()
+    updated_map = Map.put(subject_map, tag, updated_list)
 
     case scope do
       :global ->
-        set(settings, "approved_commands", updated_map)
+        set(settings, "approvals", updated_map)
 
       project_name when is_binary(project_name) ->
         project_data = get_project_data(settings, project_name) || %{}
-        updated_project_data = Map.put(project_data, "approved_commands", updated_map)
+        updated_project_data = Map.put(project_data, "approvals", updated_map)
         set_project_data(settings, project_name, updated_project_data)
     end
   end
 
   @doc """
-  Remove an approved command for a specific tag in global or project scope.
+  Remove an approval for a specific tag in global or project scope.
   """
-  @spec remove_approved_command(t, :global | binary, binary, binary) :: t()
-  def remove_approved_command(settings, scope, tag, command)
-      when is_binary(tag) and is_binary(command) do
-    commands_map = get_approved_commands(settings, scope)
+  @spec remove_approval(t, :global | binary, binary, binary) :: t()
+  def remove_approval(settings, scope, tag, subject) do
+    subject_map = get_approvals(settings, scope)
 
-    case Map.get(commands_map, tag) do
+    case Map.get(subject_map, tag) do
       nil ->
         settings
 
       current_list ->
-        updated_list = List.delete(current_list, command)
+        updated_list = List.delete(current_list, subject)
 
         updated_map =
           if Enum.empty?(updated_list) do
-            Map.delete(commands_map, tag)
+            Map.delete(subject_map, tag)
           else
-            Map.put(commands_map, tag, updated_list)
+            Map.put(subject_map, tag, updated_list)
           end
 
         case scope do
           :global ->
-            set(settings, "approved_commands", updated_map)
+            set(settings, "approvals", updated_map)
 
-          project_name when is_binary(project_name) ->
+          project_name ->
             project_data = get_project_data(settings, project_name) || %{}
-            updated_project_data = Map.put(project_data, "approved_commands", updated_map)
+            updated_project_data = Map.put(project_data, "approvals", updated_map)
             set_project_data(settings, project_name, updated_project_data)
         end
     end
   end
 
   @doc """
-  Check if a command is approved for a specific tag.
+  Check if something is approved under the specified tag.
   """
-  @spec is_command_approved?(t, :global | binary, binary, binary) :: boolean()
-  def is_command_approved?(settings, scope, tag, command)
-      when is_binary(tag) and is_binary(command) do
-    commands_map = get_approved_commands(settings, scope)
-    tag_commands = Map.get(commands_map, tag, [])
-    command in tag_commands
+  @spec is_approved?(t, :global | binary, binary, binary) :: boolean()
+  def is_approved?(settings, scope, tag, subject) do
+    subject_map = get_approvals(settings, scope)
+    tag_subject = Map.get(subject_map, tag, [])
+    subject in tag_subject
   end
 
   defp slurp(settings) do
     %Settings{
       settings
-      | data: File.read!(settings.path) |> Jason.decode!()
+      | data:
+          settings.path
+          |> File.read!()
+          |> Jason.decode!()
     }
   end
 
   defp spew(settings) do
-    settings = ensure_approved_commands_exist(settings)
+    settings = ensure_approvals_exist(settings)
     File.write!(settings.path, Jason.encode!(settings.data, pretty: true))
     settings
   end
@@ -367,7 +367,7 @@ defmodule Settings do
 
   @doc """
   Check if a given key represents a valid project name (not a global config key).
-  Returns false for global configuration keys like "approved_commands".
+  Returns false for global configuration keys like "approvals".
   """
   @spec is_valid_project_name?(binary()) :: boolean()
   def is_valid_project_name?(name) when is_binary(name) do
@@ -381,20 +381,20 @@ defmodule Settings do
   """
   @spec global_config_keys() :: [binary()]
   def global_config_keys() do
-    ["approved_commands", "projects", "version"]
+    ["approvals", "projects", "version"]
   end
 
   defp make_key(key) when is_atom(key), do: Atom.to_string(key)
   defp make_key(key), do: key
 
-  defp ensure_approved_commands_exist(settings) do
+  defp ensure_approvals_exist(settings) do
     data = settings.data
 
     data =
-      if Map.has_key?(data, "approved_commands") do
+      if Map.has_key?(data, "approvals") do
         data
       else
-        Map.put(data, "approved_commands", %{})
+        Map.put(data, "approvals", %{})
       end
 
     # Handle projects in new nested format
@@ -402,8 +402,8 @@ defmodule Settings do
 
     updated_projects_map =
       Enum.reduce(projects_map, projects_map, fn {project_name, project_data}, acc ->
-        if is_map(project_data) and not Map.has_key?(project_data, "approved_commands") do
-          updated_project_data = Map.put(project_data, "approved_commands", %{})
+        if is_map(project_data) and not Map.has_key?(project_data, "approvals") do
+          updated_project_data = Map.put(project_data, "approvals", %{})
           Map.put(acc, project_name, updated_project_data)
         else
           acc
@@ -416,10 +416,10 @@ defmodule Settings do
     data =
       Enum.reduce(data, data, fn
         {key, project_data}, acc
-        when is_map(project_data) and key not in ["approved_commands", "projects", "version"] ->
+        when is_map(project_data) and key not in ["approvals", "projects", "version"] ->
           if Map.has_key?(project_data, "root") and
-               not Map.has_key?(project_data, "approved_commands") do
-            updated_project_data = Map.put(project_data, "approved_commands", %{})
+               not Map.has_key?(project_data, "approvals") do
+            updated_project_data = Map.put(project_data, "approvals", %{})
             Map.put(acc, key, updated_project_data)
           else
             acc

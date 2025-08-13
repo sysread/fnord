@@ -1,33 +1,41 @@
 defmodule Hunk do
+  @moduledoc """
+  Represents a hunk of text from a file, defined by a range of lines. Provides
+  functionality to create, validate, stage, and apply changes to the hunk.
+  """
+
   defstruct [
     :file,
     :start_line,
     :end_line,
     :contents,
-    :hash
+    :hash,
+    :temp
   ]
 
-  @context_lines 10
-
+  @typedoc """
+  Represents a hunk of text from a file, defined by a range of lines. Lines are
+  1-based indices, inclusive.
+  """
   @type t :: %__MODULE__{
           file: binary,
           start_line: non_neg_integer,
           end_line: non_neg_integer,
           contents: binary,
-          hash: binary
+          hash: binary,
+          temp: binary | nil
         }
 
+  defimpl String.Chars, for: Hunk do
+    def to_string(%Hunk{file: file, start_line: start_line, end_line: end_line}) do
+      "#{file}:#{start_line}...#{end_line}"
+    end
+  end
+
   @doc """
-  Creates a new Hunk struct for the specified file and line range.
-  The file must exist, and the line range must be valid.
-  Returns `{:ok, hunk}` on success, or an error tuple on failure.
+  Creates a new `Hunk` struct for the specified file and line range. The
+  `start_line` and `end_line` are 1-based indices, inclusive.
   """
-  @spec new(binary, non_neg_integer, non_neg_integer) ::
-          {:ok, t}
-          | {:error, :invalid_start_line}
-          | {:error, :invalid_end_line}
-          | {:error, :end_line_exceeds_file_length}
-          | {:error, :file_not_found}
   def new(file, start_line, end_line) do
     with {:ok, hash} <- md5(file),
          {:ok, contents} <- find_contents(file, start_line, end_line) do
@@ -37,7 +45,8 @@ defmodule Hunk do
          start_line: start_line,
          end_line: end_line,
          contents: contents,
-         hash: hash
+         hash: hash,
+         temp: nil
        }}
     else
       {:error, :enoent} -> {:error, :file_not_found}
@@ -46,75 +55,7 @@ defmodule Hunk do
   end
 
   @doc """
-  Returns a snippet of the hunk's file with context around the hunk's contents.
-  The snippet includes the specified pre and post anchors, and a number of
-  context lines before and after the hunk.
-  """
-
-  @spec with_context(t, binary, binary, non_neg_integer) ::
-          {:ok, binary}
-          | {:error, :not_found}
-          | {:error, :file_not_found}
-          | {:error, File.posix()}
-  def with_context(hunk, pre_anchor, post_anchor, context_lines \\ @context_lines) do
-    hunk.file
-    |> File.read()
-    |> case do
-      # Keep a final newline to match expectations
-      {:ok, ""} ->
-        {:ok, pre_anchor <> post_anchor <> "\n"}
-
-      # Extra guard if the hunk is zero-length even when file later changed
-      {:ok, _file_contents} when hunk.contents == "" ->
-        {:ok, pre_anchor <> post_anchor <> "\n"}
-
-      {:ok, file_contents} ->
-        with {pos, _len} <- :binary.match(file_contents, hunk.contents) do
-          # Compute the starting line (0-based) of the match in the original file.
-          start_line_idx = :binary.matches(binary_part(file_contents, 0, pos), "\n") |> length()
-
-          lines = String.split(file_contents, "\n", trim: false)
-          from = max(start_line_idx - context_lines, 0)
-          to = min(start_line_idx + context_lines, length(lines) - 1)
-
-          # Slice context from the original file (no anchors yet).
-          snippet_lines = Enum.slice(lines, from, to - from + 1)
-
-          # Figure out where to insert anchors relative to the slice.
-          within_idx = start_line_idx - from
-
-          contents_line_count =
-            hunk.contents
-            |> String.split("\n", trim: false)
-            |> length()
-
-          # Insert anchors as standalone lines: pre before the first line of the hunk,
-          # post after the last line of the hunk.
-          snippet_lines =
-            snippet_lines
-            |> List.insert_at(within_idx, pre_anchor)
-            |> List.insert_at(within_idx + contents_line_count + 1, post_anchor)
-
-          snippet = Enum.join(snippet_lines, "\n")
-          # Ensure trailing newline to match the test's heredoc expectation.
-          snippet = if String.ends_with?(snippet, "\n"), do: snippet, else: snippet <> "\n"
-
-          {:ok, snippet}
-        else
-          :nomatch -> {:error, :not_found}
-        end
-
-      {:error, :enoent} ->
-        {:error, :file_not_found}
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
-  @doc """
-  Returns `true` if the hunk is stale, meaning the file's contents have changed
-  since the hunk was created.
+  Returns `true` if the file has changed since the `Hunk` was created.
   """
   def is_stale?(hunk) do
     case md5(hunk.file) do
@@ -124,9 +65,9 @@ defmodule Hunk do
   end
 
   @doc """
-  Returns `true` if the hunk is:
-  1. Not stale
-  2. Stale, but the contents at the line range have not changed
+  Returns `true` if the hunk is stale AND the file contents at the line range
+  have changed since the hunk was created, indicating that the line range no
+  longer represents what it did when the Hunk was created.
   """
   def is_valid?(hunk) do
     case is_stale?(hunk) do
@@ -142,62 +83,174 @@ defmodule Hunk do
   end
 
   @doc """
-  Replaces the contents of the hunk's file at the specified line range with
-  the provided replacement text. The replacement will completely replace all
-  content within the start and end lines, inclusive.
+  Returns `true` if the hunk is staged, meaning it has a temporary file
+  created for staging changes. See `stage_changes/2`.
   """
-  @spec replace_in_file(t, binary) ::
-          :ok
-          | {:error, :file_not_found}
-          | {:error, :invalid_hunk_contents}
-          | {:error, :hunk_is_stale}
-  def replace_in_file(hunk, replacement) do
-    cond do
-      !File.exists?(hunk.file) ->
-        {:error, :file_not_found}
+  def is_staged?(hunk) do
+    is_binary(hunk.temp)
+  end
 
-      !is_valid?(hunk) ->
-        {:error, :invalid_hunk_contents}
+  @doc """
+  Returns the contents of the hunk with `context_lines` lines of context before
+  and after the hunk. The `pre_anchor` and `post_anchor` are inserted between
+  the context and the hunk contents to provide a visual anchor for where
+  changes are to be applied.
+  """
+  def change_context(hunk, context_lines, pre_anchor, post_anchor) do
+    if is_valid?(hunk) do
+      with {:ok, contents} <- File.read(hunk.file) do
+        lines = String.split(contents, "\n", trim: false)
 
-      is_stale?(hunk) ->
-        {:error, :hunk_is_stale}
+        before_start_idx = max(hunk.start_line - context_lines - 1, 0)
+        lines_before = Enum.slice(lines, before_start_idx, context_lines)
 
-      true ->
-        with {:ok, contents} <- File.read(hunk.file) do
-          # Special-case: empty file & zero-length hunk → write replacement verbatim
-          if contents == "" and hunk.start_line == 0 and hunk.end_line == 0 do
-            File.write(hunk.file, replacement)
+        after_start_idx = hunk.end_line
+        lines_after = Enum.slice(lines, after_start_idx, context_lines)
+
+        pre_anchor_lines =
+          if pre_anchor != "" do
+            [pre_anchor]
           else
-            lines = String.split(contents, "\n")
-            # Clamp counts to avoid negative indices
-            before_count = max(hunk.start_line - 1, 0)
-            after_count = max(hunk.end_line, 0)
-
-            lines_before = Enum.take(lines, before_count)
-            lines_after = Enum.drop(lines, after_count)
-            lines_within = String.split(replacement, "\n")
-
-            new_contents =
-              [lines_before, lines_within, lines_after]
-              |> List.flatten()
-              |> Enum.join("\n")
-
-            File.write(hunk.file, new_contents)
+            []
           end
-        else
-          _ -> {:error, :file_not_found}
-        end
+
+        post_anchor_lines =
+          if post_anchor != "" do
+            [post_anchor]
+          else
+            []
+          end
+
+        within_lines =
+          lines
+          |> Enum.slice(
+            hunk.start_line - 1,
+            hunk.end_line - hunk.start_line + 1
+          )
+
+        context =
+          [
+            lines_before,
+            pre_anchor_lines,
+            within_lines,
+            post_anchor_lines,
+            lines_after,
+            # Ensure we end with a newline
+            [""]
+          ]
+          |> Enum.concat()
+          |> Enum.join("\n")
+
+        {:ok, context}
+      end
+    else
+      {:error, :stale}
     end
   end
 
-  # Internal Functions
-  @spec md5(binary) :: {:ok, binary} | {:error, term}
+  @doc """
+  Stages changes to the hunk by creating a temporary file with the specified
+  replacement content. The temporary file will contain the original file's
+  contents with the specified replacement applied within the specified line
+  range.
+  """
+  def stage_changes(hunk, replacement) do
+    with {:ok, temp} <- Briefly.create(),
+         {:ok, contents} <- File.read(hunk.file),
+         :ok <- File.write(temp, contents) do
+      # Special-case: empty file & zero-length hunk -> write replacement
+      # verbatim.
+      if contents == "" && hunk.start_line == 0 && hunk.end_line == 0 do
+        File.write(temp, replacement)
+      else
+        lines = String.split(contents, "\n")
+        # Clamp counts to avoid negative indices
+        before_count = max(hunk.start_line - 1, 0)
+        after_count = max(hunk.end_line, 0)
+
+        lines_before = Enum.take(lines, before_count)
+        lines_after = Enum.drop(lines, after_count)
+        lines_within = String.split(replacement, "\n")
+
+        new_contents =
+          [lines_before, lines_within, lines_after]
+          |> List.flatten()
+          |> Enum.join("\n")
+
+        File.write(temp, new_contents)
+      end
+
+      {:ok, %Hunk{hunk | temp: temp}}
+    end
+  end
+
+  @doc """
+  Builds a diff of the staged changes in the hunk. If the hunk is not staged,
+  it returns an error.
+  """
+  def build_diff(hunk) do
+    if is_staged?(hunk) do
+      "diff"
+      |> System.cmd(
+        [
+          "-u",
+          "-L",
+          "ORIGINAL",
+          "-L",
+          "MODIFIED",
+          hunk.file,
+          hunk.temp
+        ],
+        stderr_to_stdout: true
+      )
+      |> case do
+        {_, 0} ->
+          {:ok, "No differences found."}
+
+        {output, 1} ->
+          {:ok, String.trim_trailing(output)}
+
+        {error, code} ->
+          {:error, "diff command failed with code #{code}: #{String.trim_trailing(error)}"}
+      end
+    else
+      {:error, :not_staged}
+    end
+  end
+
+  @doc """
+  Applies the staged changes in the hunk to the original file. If the `hunk` is
+  not staged, it returns an error. After applying changes, the returned `hunk`
+  is no longer staged and should be considered stale.
+  """
+  def apply_staged_changes(hunk) do
+    if is_staged?(hunk) do
+      with {:ok, contents} <- File.read(hunk.temp),
+           :ok <- File.write(hunk.file, contents) do
+        # Clean up temporary file after applying changes. We don't actually
+        # care if it errors out. Briefly will handle cleanup on exit. This just
+        # tidies up the disk so they don't accumulate as badly.
+        File.rm(hunk.temp)
+        {:ok, %{hunk | temp: nil}}
+      end
+    else
+      {:error, :not_staged}
+    end
+  end
+
+  # ----------------------------------------------------------------------------
+  # Helpers
+  # ----------------------------------------------------------------------------
   defp md5(file) do
     with {:ok, contents} <- File.read(file) do
       :crypto.hash(:md5, contents)
       |> Base.encode16(case: :lower)
       |> then(&{:ok, &1})
     end
+  end
+
+  def find_contents(hunk) do
+    find_contents(hunk.file, hunk.start_line, hunk.end_line)
   end
 
   def find_contents(file, start_line, end_line) do

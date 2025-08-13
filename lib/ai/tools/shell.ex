@@ -29,10 +29,6 @@ defmodule AI.Tools.Shell do
         cmd == "" ->
           {:error, :missing_argument, "cmd"}
 
-        AI.Tools.Shell.Util.contains_disallowed_syntax?(cmd) ->
-          {:error,
-           "Only simple, direct commands are permitted: no pipes, logical operators, redirection, subshells, or command chaining."}
-
         true ->
           {:ok, %{"description" => desc, "cmd" => cmd}}
       end
@@ -149,13 +145,33 @@ defmodule AI.Tools.Shell do
 
   defp confirm(desc, approval_bits, cmd, args) do
     full_cmd = [cmd | args] |> Enum.join(" ")
+    subject = Enum.join(approval_bits, " ")
 
-    # Complex commands (like "sh -c ...") should not allow persistent approvals for security
-    persistent = cmd != "sh"
+    # Persistent approvals are not permitted for complex or arbitary shell
+    # commands. Only simple commands that can be resolved to a single
+    # executable (with subcommands) can be approved persistently.
+    persistent =
+      if match?(["sh" | _], approval_bits) do
+        false
+      else
+        true
+      end
 
-    Services.Approvals.confirm_command(desc, approval_bits, full_cmd,
+    Services.Approvals.confirm(
       tag: "shell_cmd",
-      persistent: persistent
+      subject: subject,
+      persistent: persistent,
+      message: """
+      Fnord wants to execute a shell command.
+
+      ## Purpose
+      _#{desc}_
+
+      ## Command
+      ```bash
+      #{full_cmd}
+      ```
+      """
     )
   end
 end

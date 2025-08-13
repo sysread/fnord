@@ -9,7 +9,7 @@ defmodule UI do
 
     msg
     |> format_detail()
-    |> IO.puts()
+    |> Owl.IO.puts()
   end
 
   # ----------------------------------------------------------------------------
@@ -230,20 +230,24 @@ defmodule UI do
   # ----------------------------------------------------------------------------
   # Interactive prompts
   # ----------------------------------------------------------------------------
-  def choose(prompt, options, owl_opts \\ []) do
-    format_detail(prompt)
-
-    with_notification_timeout(
-      fn ->
-        Owl.IO.select(options, owl_opts)
-      end,
-      "Fnord is waiting for your selection: #{prompt}"
-    )
+  def choose(label, options) do
+    if is_tty?() && !quiet?() do
+      with_notification_timeout(
+        fn -> Owl.IO.select(options, label: label) end,
+        "Fnord is waiting for your selection: #{label}"
+      )
+    else
+      {:error, :no_tty}
+    end
   end
 
   def prompt(prompt, owl_opts \\ []) do
-    prompt |> UI.Formatter.format_output() |> IO.puts()
-    Owl.IO.input(owl_opts)
+    if is_tty?() && !quiet?() do
+      prompt |> UI.Formatter.format_output() |> IO.puts()
+      Owl.IO.input(owl_opts)
+    else
+      {:error, :no_tty}
+    end
   end
 
   @spec confirm(binary) :: boolean

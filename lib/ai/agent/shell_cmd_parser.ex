@@ -30,6 +30,7 @@ defmodule AI.Agent.ShellCmdParser do
   - If the command is ambiguous or doesn't fit the above (e.g., missing executable), respond with an error.
   - If the command is obviously malformed or incomplete (e.g., missing or duplicated command or arguments, or contains only flags/options without a command), respond with an error.
   - If the command includes any of the following constructs, the "cmd" is "sh", and "args" is ["-c", "<entire_command>"]:
+    - Execution through ANY shell (e.g., `sh -c '...'`, `bash -c '...'`, `zsh -c '...'`)
     - redirection (`>`, `>>`, `<`, `2>`)
     - pipes (`|`)
     - subshells or command substitution (`$()`, `` ` ``)
