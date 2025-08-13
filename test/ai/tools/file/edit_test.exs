@@ -53,9 +53,7 @@ defmodule AI.Tools.File.EditTest do
       {:ok, :approved}
     end)
 
-    expected_bak = "#{file}.0.0.bak"
-
-    assert {:ok, %{diff: diff, backup: ^expected_bak}} =
+    assert {:ok, diff} =
              Edit.call(%{
                "file" => file,
                "find" => criteria,
@@ -64,6 +62,8 @@ defmodule AI.Tools.File.EditTest do
 
     assert diff =~ "-How now, brown cow?"
     assert diff =~ "+How now, brown bureaucrat?"
+
+    assert File.exists?(file <> ".0.0.bak")
 
     assert :meck.num_calls(AI.Agent.Code.HunkFinder, :get_response, :_) == 1
     assert :meck.num_calls(AI.Agent.Code.PatchMaker, :get_response, :_) == 1

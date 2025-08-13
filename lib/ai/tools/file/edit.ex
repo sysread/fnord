@@ -36,7 +36,9 @@ defmodule AI.Tools.File.Edit do
   end
 
   @impl AI.Tools
-  def ui_note_on_result(_args, _result), do: nil
+  def ui_note_on_result(%{"file" => file}, result) do
+    {"Changes to #{file} complete", result}
+  end
 
   @impl AI.Tools
   def spec do
@@ -102,9 +104,9 @@ defmodule AI.Tools.File.Edit do
          {:ok, hunk} <- Hunk.stage_changes(hunk, adjusted_replacement),
          {:ok, diff} <- Hunk.build_diff(hunk),
          {:ok, :approved} <- confirm_edit(hunk, diff),
-         {:ok, backup} <- Services.BackupFile.create_backup(absolute_file),
+         {:ok, _backup} <- Services.BackupFile.create_backup(absolute_file),
          {:ok, _hunk} <- Hunk.apply_staged_changes(hunk) do
-      {:ok, %{diff: diff, backup: backup}}
+      {:ok, diff}
     else
       other ->
         UI.spinner_stop(
