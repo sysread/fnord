@@ -68,7 +68,7 @@ defmodule Services.Approvals do
 
   def approve(:session, tag, subject, agent) do
     Agent.update(agent, fn state ->
-      MapSet.put(state.session, {tag, subject})
+      %{state | session: MapSet.put(state.session, {tag, subject})}
     end)
 
     {:ok, :approved}
@@ -79,7 +79,7 @@ defmodule Services.Approvals do
       Settings.new()
       |> Settings.add_approval(:global, tag, subject)
 
-      MapSet.put(state.globals, {tag, subject})
+      %{state | globals: MapSet.put(state.globals, {tag, subject})}
     end)
 
     {:ok, :approved}
