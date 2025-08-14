@@ -125,6 +125,12 @@ defmodule AI.Tools.File.Manage do
         NOT allow you to edit files directly. It only allows you to perform
         basic file operations like creating, deleting, or moving/renaming files
         and directories.
+
+        **NOTE**: Because tool calls are executed concurrently, pay special
+        attention to the order of operations. For example, you cannot create a
+        file and edit it in the same asynchronous batch of tool calls. Instead,
+        call the file_manage_tool first, wait for the response, and then call
+        the file_edit_tool to edit the file.
         """,
         parameters: %{
           type: "object",
