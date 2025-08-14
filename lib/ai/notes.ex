@@ -199,8 +199,8 @@ defmodule AI.Notes do
           facts -> %{state | new_facts: [facts | state.new_facts]}
         end
 
-      {:error, reason} ->
-        UI.warn("Failed to ingest user message: #{inspect(reason)}")
+      otherwise ->
+        log_failure(otherwise, "Failed to ingest user message")
         state
     end
   end
@@ -230,8 +230,8 @@ defmodule AI.Notes do
           facts -> %{state | new_facts: [facts | state.new_facts]}
         end
 
-      {:error, reason} ->
-        UI.error("Failed to ingest research: #{inspect(reason)}")
+      otherwise ->
+        log_failure(otherwise, "Failed to ingest research")
         state
     end
   end
@@ -260,14 +260,14 @@ defmodule AI.Notes do
               :ok ->
                 %{state | notes: notes, new_facts: []}
 
-              {:error, reason} ->
-                UI.error("Failed to save consolidated notes: #{inspect(reason)}")
+              otherwise ->
+                log_failure(otherwise, "Failed to save consolidated notes")
                 state
             end
         end
 
-      {:error, reason} ->
-        UI.error("Failed to consolidate notes: #{inspect(reason)}")
+      otherwise ->
+        log_failure(otherwise, "Failed to consolidate notes")
         state
     end
   end
@@ -297,8 +297,8 @@ defmodule AI.Notes do
           answer -> answer
         end
 
-      {:error, reason} ->
-        UI.error("[notes-server] failed to answer question", reason)
+      otherwise ->
+        log_failure(otherwise, "Failed to answer question")
         "Error processing request."
     end
   end
@@ -359,8 +359,8 @@ defmodule AI.Notes do
       {:error, :no_notes} ->
         ""
 
-      {:error, reason} ->
-        UI.error("Failed to load notes: #{inspect(reason)}")
+      otherwise ->
+        log_failure(otherwise, "Failed to load notes")
         ""
     end
   end
@@ -426,5 +426,13 @@ defmodule AI.Notes do
       {:ok, %{response: response}} -> {:ok, response}
       {:error, reason} -> {:error, reason}
     end
+  end
+
+  defp log_failure({:error, %{response: reason}}, of_what) do
+    UI.warn("#{of_what}: #{inspect(reason, pretty: true)}")
+  end
+
+  defp log_failure({:error, reason}, of_what) do
+    UI.warn("#{of_what}: #{inspect(reason, pretty: true)}")
   end
 end
