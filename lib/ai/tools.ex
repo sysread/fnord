@@ -289,6 +289,10 @@ defmodule AI.Tools do
     with {:ok, module} <- tool_module(tool, tools),
          {:ok, args} <- module.read_args(args),
          :ok <- validate_required_args(tool, args, tools) do
+      if System.get_env("FNORD_DEBUG_TOOLS") do
+        UI.debug("Performing tool call for <#{tool}> with args: #{inspect(args)}")
+      end
+
       try do
         # Call the tool's function with the provided arguments
         args
@@ -306,6 +310,8 @@ defmodule AI.Tools do
           :error -> {:error, "#{tool} failed with an unknown error"}
           # Frob errors
           {:error, code, msg} -> {:error, "#{tool} failed with code #{code}: #{msg}"}
+          # Others
+          otherwise -> {:error, "Unexpected result from tool <#{tool}>: #{inspect(otherwise)}"}
         end
       rescue
         e ->
