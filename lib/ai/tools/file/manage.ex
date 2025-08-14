@@ -8,13 +8,25 @@ defmodule AI.Tools.File.Manage do
   def is_available?, do: true
 
   @impl AI.Tools
-  def ui_note_on_request(%{"operation" => "create", "path" => path}), do: {"Creating file", path}
+  def ui_note_on_request(%{"operation" => "create", "is_directory" => true, "path" => path}) do
+    {"Creating dir", path}
+  end
+
+  def ui_note_on_request(%{"operation" => "create", "path" => path}) do
+    {"Creating file", path}
+  end
 
   def ui_note_on_request(%{"operation" => "replace", "path" => path}) do
     {"Overwriting file", path}
   end
 
-  def ui_note_on_request(%{"operation" => "delete", "path" => path}), do: {"Deleting file", path}
+  def ui_note_on_request(%{"operation" => "delete", "is_directory" => true, "path" => path}) do
+    {"Deleting dir", path}
+  end
+
+  def ui_note_on_request(%{"operation" => "delete", "path" => path}) do
+    {"Deleting file", path}
+  end
 
   def ui_note_on_request(%{"operation" => "move", "path" => path, "destination_path" => dest}) do
     {"Moving file", "#{path} -> #{dest}"}
@@ -23,27 +35,29 @@ defmodule AI.Tools.File.Manage do
   def ui_note_on_request(_), do: nil
 
   @impl AI.Tools
-  def ui_note_on_result(%{"operation" => "create", "path" => path}, {:ok, _}) do
+  def ui_note_on_result(%{"operation" => "create", "is_directory" => true, "path" => path}, _) do
+    {"Dir created", path}
+  end
+
+  def ui_note_on_result(%{"operation" => "create", "path" => path}, _) do
     {"File created", path}
   end
 
-  def ui_note_on_result(%{"operation" => "replace", "path" => path}, {:ok, _}) do
+  def ui_note_on_result(%{"operation" => "replace", "path" => path}, _) do
     {"File overwritten", path}
   end
 
-  def ui_note_on_result(%{"operation" => "delete", "path" => path}, {:ok, _}) do
+  def ui_note_on_result(%{"operation" => "delete", "is_directory" => true, "path" => path}, _) do
+    {"Dir deleted", path}
+  end
+
+  def ui_note_on_result(%{"operation" => "delete", "path" => path}, _) do
     {"File deleted", path}
   end
 
-  def ui_note_on_result(
-        %{"operation" => "move", "path" => path, "destination_path" => dest},
-        {:ok, _}
-      ) do
+  def ui_note_on_result(%{"operation" => "move", "path" => path, "destination_path" => dest}, _) do
     {"File moved", "#{path} -> #{dest}"}
   end
-
-  def ui_note_on_result(_args, {:error, reason}), do: {"File operation error", to_string(reason)}
-  def ui_note_on_result(_args, result), do: {"File operation result", result}
 
   @impl AI.Tools
   def read_args(%{"operation" => "create"} = args) do
