@@ -401,10 +401,18 @@ defmodule AI.Tools do
         e in ArgumentError ->
           UI.error(
             "AI.Tools.with_args/3 failed for <#{tool}> with args: #{inspect(args)}",
-            inspect(e)
+            Exception.format(:error, e, __STACKTRACE__)
           )
 
           {:error, :invalid_argument, e.message}
+
+        e ->
+          UI.error(
+            "AI.Tools.with_args/3 failed for <#{tool}> with args: #{inspect(args)}",
+            Exception.format(:error, e, __STACKTRACE__)
+          )
+
+          {:error, "An unexpected error occurred: #{inspect(e)}"}
       end
     end
   end
