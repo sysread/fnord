@@ -19,6 +19,8 @@ defmodule AI.Tools.Confirm do
         name: "confirm_tool",
         description: """
         Prompts the user for Yes/No confirmation via terminal.
+        As a rule, only use this tool when the user has requested that you wait for their approval on something.
+        Your code editing tools will automatically do that for the user.
 
         Blocks for user input if interactive.
         For automation or non-interactive runs, use the 'default' parameter.
