@@ -91,7 +91,6 @@ defmodule Fnord do
       Cmd.Replay,
       Cmd.Search,
       Cmd.Summary,
-      Cmd.Tool,
       Cmd.Torch,
       Cmd.Upgrade
     ]

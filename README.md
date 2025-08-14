@@ -286,27 +286,9 @@ mix escript.install github sysread/fnord
 - Delete a project: `fnord torch --project foo`
 
 
-## Tool usage
-
-All of the tool calls available to `fnord` are available for external use via the `tool` subcommand.
-
-```bash
-# List available tools
-fnord help tool
-
-# Get help for a specific tool
-fnord tool --tool file_search_tool --help
-
-# Call the tool
-fnord tool --tool file_search_tool --project blarg --query "some_function definition"
-fnord tool --tool file_info_tool --project blarg --file "path/to/some_module.ext" --question "What public functions are defined in this file?"
-```
-
-
 ## User integrations
 
 Users can create their own integrations, called frobs, that `fnord` can use as a tool call while researching.
-Just like built-in tools, these are usable through the `fnord tool` subcommand.
 
 ```bash
 # Create a new integration
