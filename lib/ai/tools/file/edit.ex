@@ -82,6 +82,7 @@ defmodule AI.Tools.File.Edit do
               description: """
               The replacement text.
               This will replace the entire matched text.
+              An empty string indicates that the entire matched section should be deleted.
               """
             }
           }

@@ -31,6 +31,7 @@ defmodule AI.Agent.Code.PatchMaker do
   - Maintain the intent of the replacement; do not add speculative code or prose.
   - The replacement will replace ALL lines of code within the hunk, starting from the first column of the first line and ending at the final column of the last line.
     You must ensure that the replacement lines fit neatly into the existing code structure without introducing syntax errors or misalignments.
+  - If the request specifies no `replacement` text, it indicates an intention to delete the entire section.
 
   If a clean fit cannot be achieved without guessing, return an error that states what additional detail is needed.
 
@@ -57,6 +58,7 @@ defmodule AI.Agent.Code.PatchMaker do
             type: "string",
             description: """
             The corrected replacement text that can be applied to the file.
+            If the replacement is an empty string, the entire hunk will be deleted.
             If `error` is set, this field MUST be an empty string.
             """
           },
