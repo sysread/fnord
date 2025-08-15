@@ -19,6 +19,8 @@ defmodule AI.CompletionAPI do
 
   @spec get(model, msgs, tools, response_format) :: response
   def get(model, msgs, tools \\ nil, response_format \\ nil) do
+    tracking_id = Services.ModelPerformanceTracker.begin_tracking(model)
+
     api_key = get_api_key!()
 
     response_format =
@@ -54,38 +56,51 @@ defmodule AI.CompletionAPI do
         end
       )
 
-    try do
-      Http.post_json(@endpoint, headers, payload)
-      |> case do
-        {:transport_error, error} ->
-          get_error(error)
+    result =
+      try do
+        Http.post_json(@endpoint, headers, payload)
+        |> case do
+          {:transport_error, error} ->
+            get_error(error)
 
-        {:http_error, error} ->
-          error
-          |> get_error()
-          |> case do
-            {:error, %{message: msg}} = error ->
-              UI.error("HTTP error while calling OpenAI API: #{msg}")
-              IO.inspect(payload.messages |> Enum.slice(-1, 1), label: "Last message sent")
-              error
+          {:http_error, error} ->
+            error
+            |> get_error()
+            |> case do
+              {:error, %{message: msg}} = error ->
+                UI.error("HTTP error while calling OpenAI API: #{msg}")
+                IO.inspect(payload.messages |> Enum.slice(-1, 1), label: "Last message sent")
+                error
 
-            error ->
-              error
-          end
+              error ->
+                error
+            end
 
-        {:ok, response} ->
-          get_response(response)
+          {:ok, response} ->
+            get_response(response, tracking_id)
+        end
+      rescue
+        e in Jason.DecodeError ->
+          {:error, %{http_status: 500, error: "JSON decode error: #{Exception.message(e)}"}}
+
+        e in RuntimeError ->
+          {:error, %{http_status: 500, error: "Runtime error: #{Exception.message(e)}"}}
+
+        e ->
+          {:error, %{http_status: 500, error: "Unexpected error: #{Exception.message(e)}"}}
       end
-    rescue
-      e in Jason.DecodeError ->
-        {:error, %{http_status: 500, error: "JSON decode error: #{Exception.message(e)}"}}
 
-      e in RuntimeError ->
-        {:error, %{http_status: 500, error: "Runtime error: #{Exception.message(e)}"}}
+    # Handle error cases for tracking
+    case result do
+      {:error, _} ->
+        Services.ModelPerformanceTracker.end_tracking(tracking_id, %{})
 
-      e ->
-        {:error, %{http_status: 500, error: "Unexpected error: #{Exception.message(e)}"}}
+      _ ->
+        # Success cases are already handled in get_response functions
+        :ok
     end
+
+    result
   end
 
   # -----------------------------------------------------------------------------
@@ -104,21 +119,30 @@ defmodule AI.CompletionAPI do
     end
   end
 
-  defp get_response(%{
-         "choices" => [%{"message" => response}],
-         "usage" => %{"total_tokens" => usage}
-       }) do
+  defp get_response(
+         %{
+           "choices" => [%{"message" => response}],
+           "usage" => usage
+         },
+         tracking_id
+       ) do
     response
     |> Map.put("usage", usage)
-    |> get_response()
+    |> get_response(tracking_id)
   end
 
-  defp get_response(%{"tool_calls" => tool_calls}) do
+  defp get_response(%{"tool_calls" => tool_calls}, tracking_id) do
+    # Track tool calls with empty usage data
+    Services.ModelPerformanceTracker.end_tracking(tracking_id, %{})
     {:ok, :tool, Enum.map(tool_calls, &get_tool_call/1)}
   end
 
-  defp get_response(%{"content" => response, "usage" => usage}) do
-    {:ok, :msg, response, usage}
+  defp get_response(%{"content" => response, "usage" => usage}, tracking_id) do
+    # Track the full usage data for performance metrics
+    Services.ModelPerformanceTracker.end_tracking(tracking_id, usage)
+    # Return total_tokens for backward compatibility
+    total_tokens = Map.get(usage, "total_tokens", 0)
+    {:ok, :msg, response, total_tokens}
   end
 
   defp get_tool_call(%{"id" => id, "function" => %{"name" => name, "arguments" => args}}) do

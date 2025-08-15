@@ -431,4 +431,16 @@ defmodule Settings do
 
     %Settings{settings | data: data}
   end
+
+  @doc """
+  Check if model performance debugging is enabled via environment variable.
+  """
+  @spec debug_models?() :: boolean()
+  def debug_models?() do
+    case System.get_env("FNORD_DEBUG_MODELS") do
+      nil -> false
+      "" -> false
+      _ -> true
+    end
+  end
 end

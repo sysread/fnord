@@ -67,6 +67,9 @@ defmodule Cmd.Ask do
 
   @impl Cmd
   def run(opts, _subcommands, _unknown) do
+    # Start a new performance tracking session
+    Services.ModelPerformanceTracker.start_session()
+
     opts =
       if opts[:edit] do
         UI.warning_banner("EDITING MODE ENABLED! THE AI CAN MODIFY FILES. YOU MUST BE NUTS.")
@@ -168,13 +171,27 @@ defmodule Cmd.Ask do
   # ----------------------------------------------------------------------------
   defp print_result(start_time, end_time, response, usage, context, conversation_id) do
     time_taken = end_time - start_time
-    pct_context_used = Float.round(usage / context * 100, 2)
+
+    pct_context_used =
+      if usage > 0 and context > 0 do
+        Float.round(usage / context * 100, 2)
+      else
+        0.0
+      end
 
     usage_str = Util.format_number(usage)
     context_str = Util.format_number(context)
 
     {:ok, project} = Store.get_project()
     %{new: new, stale: stale, deleted: deleted} = Store.Project.index_status(project)
+
+    # Generate model performance report only if debugging is enabled
+    performance_report =
+      if Settings.debug_models?() do
+        Services.ModelPerformanceTracker.generate_report()
+      else
+        ""
+      end
 
     UI.say("""
     #{response}
@@ -191,7 +208,7 @@ defmodule Cmd.Ask do
     - New:     #{Enum.count(new)}
     - Deleted: #{Enum.count(deleted)}
 
-    _Run `fnord index` to update the index._
+    _Run `fnord index` to update the index._#{performance_report}
     """)
 
     UI.flush()

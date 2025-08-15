@@ -16,6 +16,7 @@ defmodule Services do
     AI.Agent.Researcher.start_link()
     Services.BackupFile.start_link()
     Services.Approvals.start_link()
+    Services.ModelPerformanceTracker.start_link()
   end
 
   @doc """
