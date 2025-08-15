@@ -32,12 +32,12 @@ defmodule AI.Tools.File.Edit do
 
   @impl AI.Tools
   def ui_note_on_request(%{"file" => file}) do
-    {"Preparing file changes", file}
+    {"Preparing changes", file}
   end
 
   @impl AI.Tools
-  def ui_note_on_result(%{"file" => file}, result) do
-    {"Changes to #{file} complete", result}
+  def ui_note_on_result(%{"file" => file}, _result) do
+    {"Changes applied", file}
   end
 
   @impl AI.Tools
@@ -165,7 +165,7 @@ defmodule AI.Tools.File.Edit do
   defp adjust_replacement(file, hunk, replacement) do
     UI.spinner_start(
       id: :patch_maker,
-      label: "Adjusting replacement text to fit hunk",
+      label: "Conforming replacement to target",
       frames: [
         ok: Owl.Data.tag("  ✔", :green),
         error: Owl.Data.tag("  ✖", :red),
