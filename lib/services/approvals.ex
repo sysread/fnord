@@ -16,14 +16,30 @@ defmodule Services.Approvals do
     Agent.start_link(&init/0, opts)
   end
 
+  @doc """
+  Request approval for `tag` and `subject`. If already approved in session, project, or global scope,
+  returns `{:ok, :approved}` immediately without prompting UI. Otherwise prompts as before.
+  """
   def confirm(opts, agent \\ __MODULE__) do
+    # Extract required parameters
     message = Keyword.fetch!(opts, :message)
     detail = Keyword.fetch!(opts, :detail)
     tag = Keyword.fetch!(opts, :tag)
     subject = Keyword.fetch!(opts, :subject)
 
+    # Short-circuit: if already approved at any scope, return success without prompting
+    if is_approved?(tag, subject, agent) do
+      {:ok, :approved}
+    else
+      do_confirm(message, detail, opts, tag, subject, agent)
+    end
+  end
+
+  # Handles the actual prompt workflow when approval is not yet recorded
+  defp do_confirm(message, detail, opts, tag, subject, agent) do
     options = get_options(opts)
 
+    # Display permission box
     Owl.IO.puts("")
 
     detail
@@ -35,17 +51,26 @@ defmodule Services.Approvals do
     )
     |> Owl.IO.puts()
 
+    # Collect user choice and dispatch
     UI.choose(message, options)
-    |> case do
-      @opt_approve_once -> {:ok, :approved}
-      @opt_approve_session -> approve(:session, tag, subject, agent)
-      @opt_approve_project -> approve(:project, tag, subject, agent)
-      @opt_approve_global -> approve(:global, tag, subject, agent)
-      @opt_deny_feedback -> deny_with_feedback(subject)
-      @opt_deny -> deny(subject)
-      {:error, :no_tty} -> auto_deny(subject)
-    end
+    |> handle_response(tag, subject, agent)
   end
+
+  # Pattern-matched handlers for each response option
+  defp handle_response(@opt_approve_once, _tag, _subject, _agent), do: {:ok, :approved}
+
+  defp handle_response(@opt_approve_session, tag, subject, agent),
+    do: approve(:session, tag, subject, agent)
+
+  defp handle_response(@opt_approve_project, tag, subject, agent),
+    do: approve(:project, tag, subject, agent)
+
+  defp handle_response(@opt_approve_global, tag, subject, agent),
+    do: approve(:global, tag, subject, agent)
+
+  defp handle_response(@opt_deny_feedback, _tag, subject, _agent), do: deny_with_feedback(subject)
+  defp handle_response(@opt_deny, _tag, subject, _agent), do: deny(subject)
+  defp handle_response({:error, :no_tty}, _tag, subject, _agent), do: auto_deny(subject)
 
   def is_approved?(tag, subject, agent \\ __MODULE__) do
     is_approved?(nil, :project, tag, subject) or
