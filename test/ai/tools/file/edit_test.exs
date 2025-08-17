@@ -4,7 +4,6 @@ defmodule AI.Tools.File.EditTest do
   alias AI.Tools.File.Edit
 
   setup do
-    :meck.new(Services.Approvals, [:non_strict, :passthrough])
     :meck.new(AI.Agent.Code.HunkFinder, [:non_strict, :passthrough])
     :meck.new(AI.Agent.Code.PatchMaker, [:non_strict, :passthrough])
 

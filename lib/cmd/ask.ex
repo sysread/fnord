@@ -89,7 +89,11 @@ defmodule Cmd.Ask do
       if opts[:edit] do
         Services.Approvals.enable_auto_approval("general", "edit files")
         Services.Approvals.enable_auto_approval("general", "file operations")
-        UI.info("Auto-approval enabled for code edit and file-operations prompts")
+
+        UI.warning_banner("""
+        Auto-confirmation enabled for code edit and file-operations prompts.
+        You just auto-confirmed that, yes, you are indeed nuts.
+        """)
       else
         UI.warn("--yes has no effect unless you also pass --edit; ignoring")
       end
