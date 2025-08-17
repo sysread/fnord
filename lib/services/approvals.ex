@@ -17,8 +17,8 @@ defmodule Services.Approvals do
   end
 
   @doc """
-  Request approval for `tag` and `subject`. If already approved in session, project, or global scope,
-  returns `{:ok, :approved}` immediately without prompting UI. Otherwise prompts as before.
+  Request approval for `tag` and `subject`. If auto-approved, session, project, or global approved,
+  short-circuits without prompting UI. Otherwise prompts as before.
   """
   def confirm(opts, agent \\ __MODULE__) do
     # Extract required parameters
@@ -27,12 +27,23 @@ defmodule Services.Approvals do
     tag = Keyword.fetch!(opts, :tag)
     subject = Keyword.fetch!(opts, :subject)
 
-    # Short-circuit: if already approved at any scope, return success without prompting
-    if is_approved?(tag, subject, agent) do
+    # Auto-approve or bypass if already approved at any scope
+    if Agent.get(agent, fn state -> MapSet.member?(state.auto, {tag, subject}) end) or
+         is_approved?(tag, subject, agent) do
       {:ok, :approved}
     else
       do_confirm(message, detail, opts, tag, subject, agent)
     end
+  end
+
+  @doc """
+  During this session, auto-approve the given `{tag, subject}` pair and bypass any future prompts.
+  """
+  @spec enable_auto_approval(String.t(), String.t(), atom() | pid()) :: :ok
+  def enable_auto_approval(tag, subject, agent \\ __MODULE__) do
+    Agent.update(agent, fn state ->
+      %{state | auto: MapSet.put(state.auto, {tag, subject})}
+    end)
   end
 
   # Handles the actual prompt workflow when approval is not yet recorded
@@ -124,7 +135,8 @@ defmodule Services.Approvals do
 
     %{
       session: MapSet.new(),
-      globals: globals
+      globals: globals,
+      auto: MapSet.new()
     }
   end
 

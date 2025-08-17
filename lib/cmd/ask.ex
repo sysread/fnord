@@ -59,6 +59,12 @@ defmodule Cmd.Ask do
             short: "-e",
             help: "Permit the AI to edit files in the project",
             default: false
+          ],
+          yes: [
+            long: "--yes",
+            short: "-y",
+            help: "Automatically approve edit/manage prompts (requires --edit)",
+            default: false
           ]
         ]
       ]
@@ -77,6 +83,17 @@ defmodule Cmd.Ask do
       else
         Map.put(opts, :edit, false)
       end
+
+    # Handle --yes auto-approval flag
+    if opts[:yes] do
+      if opts[:edit] do
+        Services.Approvals.enable_auto_approval("general", "edit files")
+        Services.Approvals.enable_auto_approval("general", "file operations")
+        UI.info("Auto-approval enabled for code edit and file-operations prompts")
+      else
+        UI.warn("--yes has no effect unless you also pass --edit; ignoring")
+      end
+    end
 
     start_time = System.monotonic_time(:second)
 

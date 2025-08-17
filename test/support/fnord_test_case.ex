@@ -45,6 +45,18 @@ defmodule Fnord.TestCase do
       setup :set_mox_from_context
 
       setup do
+        on_exit(fn ->
+          try do
+            :meck.unload(Services.Approvals)
+          rescue
+            _ -> :ok
+          end
+        end)
+
+        :ok
+      end
+
+      setup do
         # Ensure no OpenAI API key is set in the environment. This prevents
         # test from accidentally reaching out onto the network.
         System.put_env("OPENAI_API_KEY", "")

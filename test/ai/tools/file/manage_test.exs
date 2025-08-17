@@ -4,11 +4,15 @@ defmodule AI.Tools.File.ManageTest do
   alias AI.Tools.File.Manage
 
   setup do
-    :meck.new(Services.Approvals, [:non_strict, :passthrough])
+    :meck.unload(Services.Approvals)
+  rescue
+    _ ->
+      :ok
+      :meck.new(Services.Approvals, [:non_strict, :passthrough])
 
-    project = mock_project("test-project")
-    File.mkdir_p!(project.source_root)
-    {:ok, project: project}
+      project = mock_project("test-project")
+      File.mkdir_p!(project.source_root)
+      {:ok, project: project}
   end
 
   describe "file create" do
