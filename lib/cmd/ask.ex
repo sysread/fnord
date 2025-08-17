@@ -185,14 +185,6 @@ defmodule Cmd.Ask do
     {:ok, project} = Store.get_project()
     %{new: new, stale: stale, deleted: deleted} = Store.Project.index_status(project)
 
-    # Generate model performance report only if debugging is enabled
-    performance_report =
-      if Settings.debug_models?() do
-        Services.ModelPerformanceTracker.generate_report()
-      else
-        ""
-      end
-
     UI.say("""
     #{response}
 
@@ -208,7 +200,7 @@ defmodule Cmd.Ask do
     - New:     #{Enum.count(new)}
     - Deleted: #{Enum.count(deleted)}
 
-    _Run `fnord index` to update the index._#{performance_report}
+    _Run `fnord index` to update the index._
     """)
 
     UI.flush()
