@@ -1,9 +1,11 @@
 defmodule AI.Tools.File.ManageTest do
-  use Fnord.TestCase
+  use Fnord.TestCase, async: false
 
   alias AI.Tools.File.Manage
 
   setup do
+    :meck.new(Services.Approvals, [:non_strict, :passthrough])
+
     project = mock_project("test-project")
     File.mkdir_p!(project.source_root)
     {:ok, project: project}
@@ -11,6 +13,7 @@ defmodule AI.Tools.File.ManageTest do
 
   describe "file create" do
     test "successfully creates a new file", %{project: project} do
+      :meck.expect(Services.Approvals, :confirm, fn _args -> {:ok, :approved} end)
       path = "foo/bar.txt"
       abs_path = Path.join(project.source_root, path)
       refute File.exists?(abs_path)
@@ -22,6 +25,7 @@ defmodule AI.Tools.File.ManageTest do
     end
 
     test "successfully creates a new file with initial contents", %{project: project} do
+      :meck.expect(Services.Approvals, :confirm, fn _args -> {:ok, :approved} end)
       path = "foo/bar.txt"
       abs_path = Path.join(project.source_root, path)
       refute File.exists?(abs_path)
@@ -52,6 +56,7 @@ defmodule AI.Tools.File.ManageTest do
 
   describe "replace" do
     test "successfully overwrites an existing file", %{project: project} do
+      :meck.expect(Services.Approvals, :confirm, fn _args -> {:ok, :approved} end)
       path = "bar.txt"
       abs_path = Path.join(project.source_root, path)
       refute File.exists?(abs_path)
@@ -78,6 +83,7 @@ defmodule AI.Tools.File.ManageTest do
 
   describe "file delete" do
     test "deletes an existing file", %{project: project} do
+      :meck.expect(Services.Approvals, :confirm, fn _args -> {:ok, :approved} end)
       path = "deleteme.txt"
       abs_path = Path.join(project.source_root, path)
       File.write!(abs_path, "data")
@@ -102,6 +108,7 @@ defmodule AI.Tools.File.ManageTest do
 
   describe "file move" do
     test "moves file within project", %{project: project} do
+      :meck.expect(Services.Approvals, :confirm, fn _args -> {:ok, :approved} end)
       src = "move_from.txt"
       dest = "dir/move_to.txt"
       abs_src = Path.join(project.source_root, src)

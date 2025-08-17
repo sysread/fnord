@@ -202,29 +202,31 @@ defmodule AI.Tools.File.Manage do
   end
 
   defp create_path(path, abs_path, true, _file_content) do
-    if File.exists?(abs_path) do
-      {:error, "Path already exists: #{path}"}
+    with false <- File.exists?(abs_path),
+         {:ok, :approved} <- confirm(:create, :dir, path),
+         :ok <- abs_path |> Path.dirname() |> File.mkdir_p() do
+      {:ok, "Created directory: #{path}"}
     else
-      abs_path
-      |> Path.dirname()
-      |> File.mkdir_p()
-      |> case do
-        :ok -> {:ok, "Created directory: #{path}"}
-        {:error, reason} -> {:error, "Failed to create directory #{path}: #{inspect(reason)}"}
-      end
+      true ->
+        {:error, "Path already exists: #{path}"}
+
+      {:error, reason} ->
+        {:error, "Failed to create directory #{path}: #{inspect(reason)}"}
     end
   end
 
   defp create_path(path, abs_path, false, file_content) do
-    if File.exists?(abs_path) do
-      {:error, "Path already exists: #{path}"}
+    with false <- File.exists?(abs_path),
+         {:ok, :approved} <- confirm(:create, :file, path),
+         :ok <- abs_path |> Path.dirname() |> File.mkdir_p(),
+         :ok <- File.write(abs_path, file_content) do
+      {:ok, "Created file: #{path}"}
     else
-      abs_path |> Path.dirname() |> File.mkdir_p!()
+      true ->
+        {:error, "Path already exists: #{path}"}
 
-      case File.write(abs_path, file_content) do
-        :ok -> {:ok, "Created file: #{path}"}
-        {:error, reason} -> {:error, "Failed to create file #{path}: #{inspect(reason)}"}
-      end
+      {:error, reason} ->
+        {:error, "Failed to create file #{path}: #{inspect(reason)}"}
     end
   end
 
@@ -237,41 +239,44 @@ defmodule AI.Tools.File.Manage do
         {:error, "Cannot replace a directory with a file: #{path}"}
 
       true ->
-        abs_path
-        |> File.write(file_content)
-        |> case do
-          :ok -> {:ok, "Replaced file contents: #{path}"}
-          {:error, reason} -> {:error, "Failed to replace file #{path}: #{inspect(reason)}"}
+        with {:ok, :approved} <- confirm(:replace, :na, path),
+             :ok <- File.write(abs_path, file_content) do
+          {:ok, "Replaced file contents: #{path}"}
+        else
+          {:error, reason} ->
+            {:error, "Failed to replace file #{path}: #{inspect(reason)}"}
         end
     end
   end
 
   defp delete_path(path, abs_path, true) do
-    if File.exists?(abs_path) do
-      abs_path
-      |> File.rm_rf()
-      |> case do
-        {:ok, _} ->
-          {:ok, "Deleted directory: #{path}"}
-
-        {:error, _posix, reason} ->
-          {:error, "Failed to delete directory #{path}: #{inspect(reason)}"}
-      end
+    with true <- File.exists?(abs_path),
+         {:ok, :approved} <- confirm(:delete, :dir, path),
+         {:ok, _} <- File.rm_rf(abs_path) do
+      {:ok, "Deleted directory: #{path}"}
     else
-      {:error, "File does not exist: #{path}"}
+      false ->
+        {:error, "File does not exist: #{path}"}
+
+      {:error, _posix, reason} ->
+        {:error, "Failed to delete directory #{path}: #{inspect(reason)}"}
+
+      {:error, reason} ->
+        {:error, "Failed to delete directory #{path}: #{inspect(reason)}"}
     end
   end
 
   defp delete_path(path, abs_path, false) do
-    if File.exists?(abs_path) do
-      abs_path
-      |> File.rm()
-      |> case do
-        :ok -> {:ok, "Deleted file: #{path}"}
-        {:error, reason} -> {:error, "Failed to delete file #{path}: #{inspect(reason)}"}
-      end
+    with true <- File.exists?(abs_path),
+         {:ok, :approved} <- confirm(:delete, :file, path),
+         :ok <- File.rm(abs_path) do
+      {:ok, "Deleted file: #{path}"}
     else
-      {:error, "File does not exist: #{path}"}
+      false ->
+        {:error, "File does not exist: #{path}"}
+
+      {:error, reason} ->
+        {:error, "Failed to delete file #{path}: #{inspect(reason)}"}
     end
   end
 
@@ -292,15 +297,44 @@ defmodule AI.Tools.File.Manage do
         {:error, "Destination path already exists: #{dest_path}"}
 
       true ->
-        File.mkdir_p!(Path.dirname(dest))
-
-        case File.rename(abs_path, dest) do
-          :ok ->
-            {:ok, "Moved #{path} -> #{dest_path}"}
-
+        with :ok <- File.mkdir_p(Path.dirname(dest)),
+             {:ok, :approved} <- confirm(:move, path, dest_path),
+             :ok <- File.rename(abs_path, dest) do
+          {:ok, "Moved #{path} -> #{dest_path}"}
+        else
           {:error, reason} ->
             {:error, "Failed to move (#{path} to #{dest_path}): #{inspect(reason)}"}
         end
     end
+  end
+
+  defp confirm(:create, :file, path), do: confirm("Fnord wants to create a file", path)
+  defp confirm(:create, :dir, path), do: confirm("Fnord wants to create a directory", path)
+
+  defp confirm(:delete, :file, path), do: confirm("Fnord wants to delete a file", path)
+  defp confirm(:delete, :dir, path), do: confirm("Fnord wants to delete a directory", path)
+
+  defp confirm(:replace, :na, path) do
+    confirm("Fnord wants to overwrite the contents of a file", path)
+  end
+
+  defp confirm(:move, path, dest) do
+    confirm(
+      "Fnord wants to move a file",
+      """
+      From: #{path}
+        To: #{dest}
+      """
+    )
+  end
+
+  defp confirm(msg, detail) do
+    Services.Approvals.confirm(
+      tag: "general",
+      subject: "file operations",
+      persistent: false,
+      message: msg,
+      detail: detail
+    )
   end
 end
