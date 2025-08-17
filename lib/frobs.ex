@@ -310,7 +310,12 @@ defmodule Frobs do
 
           @impl AI.Tools
           def ui_note_on_request(args) do
-            {"Calling frob `#{@tool_name}`", Jason.encode!(args, pretty: true)}
+            if Map.keys(args) == [] do
+              "Calling frob `#{@tool_name}`"
+            else
+              args = Map.new(args, fn {k, v} -> {k, inspect(v)} end)
+              {"Calling frob `#{@tool_name}`", Jason.encode!(args, pretty: true)}
+            end
           end
 
           @impl AI.Tools
