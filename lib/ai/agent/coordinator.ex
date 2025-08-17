@@ -363,6 +363,7 @@ defmodule AI.Agent.Coordinator do
     - Double check whether there are unit tests or docs that need to be updated
     - For small fixups, go ahead and make the changes yourself
     - For larger changes, invoke the tool again to take corrective action
+    - Clean up any artifacts resulting from changes in direction (coding is messy; it happens!)
   """
 
   @singleton """
