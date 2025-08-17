@@ -90,7 +90,7 @@ defmodule Cmd.Ask do
         Services.Approvals.enable_auto_approval("general", "edit files")
         Services.Approvals.enable_auto_approval("general", "file operations")
         UI.warning_banner("AUTO-CONFIRMATION ENABLED FOR CODE EDIT AND FILE-OPERATIONS PROMPTS.")
-        UI.warning_banner("ALL YOU'VE REALLY AUTO-CONFIRMED THAT YOU ARE INDEED NUTS.")
+        UI.warning_banner("ALL YOU'VE *REALLY* AUTO-CONFIRMED IS THAT YOU ARE INDEED NUTS.")
       else
         UI.warn("--yes has no effect unless you also pass --edit; ignoring")
       end
