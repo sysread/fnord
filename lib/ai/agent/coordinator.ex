@@ -485,10 +485,11 @@ defmodule AI.Agent.Coordinator do
 
   @template """
   Respond in beautifully formatted and well-organized markdown.
-    - Make use of markdown headers for organization
-    - Use lists, bold, italics, and underlines **liberally* to highlight key points
-    - Include code blocks for code examples
-    - Use inline code formatting for file names, components, and other symbols
+  - Make use of markdown headers for organization
+  - Use lists, bold, italics, and underlines **liberally* to highlight key points
+  - Include code blocks for code examples
+  - Use inline code formatting for file names, components, and other symbols
+  - ALWAYS format structured text and code symbols within inline or block code formatting! (e.g. '`' or '```')
 
   Follow these rules:
   - You are talking to a programmer: **NEVER use smart quotes, apostrophes, or emdashes**
