@@ -719,16 +719,18 @@ defmodule AI.Agent.Coordinator do
     %{state | notes: notes}
   end
 
-  @spec save_notes(t) :: t
-  defp save_notes(state) do
+  @spec save_notes(any) :: any
+  defp save_notes(passthrough) do
     Services.Notes.save()
-    state
+    passthrough
   end
 
   # -----------------------------------------------------------------------------
   # MOTD
   # -----------------------------------------------------------------------------
-  @spec get_motd(t) :: t
+  @spec get_motd(t | {:error, any}) :: t | {:error, any}
+  defp get_motd({:error, reason}), do: {:error, reason}
+
   defp get_motd(state) do
     with {:ok, motd} <- AI.Agent.MOTD.get_response(%{prompt: state.question}) do
       %{state | last_response: state.last_response <> "\n\n" <> motd}
