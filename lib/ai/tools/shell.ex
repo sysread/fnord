@@ -157,18 +157,19 @@ defmodule AI.Tools.Shell do
         true
       end
 
+    msg = [
+      Owl.Data.tag("Execute a shell command:", [:green, :bright]),
+      "\n\n",
+      "  shell> ",
+      Owl.Data.tag(full_cmd, [:black, :red_background])
+    ]
+
     Services.Approvals.confirm(
       tag: "shell_cmd",
       subject: subject,
       persistent: persistent,
       detail: desc,
-      message: """
-      Fnord wants to execute a shell command:
-
-      ```sh
-      #{full_cmd}
-      ```
-      """
+      message: msg
     )
   end
 end

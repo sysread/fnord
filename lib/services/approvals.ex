@@ -27,12 +27,15 @@ defmodule Services.Approvals do
     tag = Keyword.fetch!(opts, :tag)
     subject = Keyword.fetch!(opts, :subject)
 
-    # Auto-approve or bypass if already approved at any scope
-    if Agent.get(agent, fn state -> MapSet.member?(state.auto, {tag, subject}) end) or
-         is_approved?(tag, subject, agent) do
+    # Display the information box regardless of pre-approval status so that the
+    # user can see what is actions are being requested.
+    print_info_box(message, detail, tag, subject)
+
+    # Bypass if already approved at any scope
+    if is_approved?(tag, subject, agent) do
       {:ok, :approved}
     else
-      do_confirm(message, detail, opts, tag, subject, agent)
+      do_confirm(opts, tag, subject, agent)
     end
   end
 
@@ -47,31 +50,36 @@ defmodule Services.Approvals do
   end
 
   # Handles the actual prompt workflow when approval is not yet recorded
-  defp do_confirm(message, detail, opts, tag, subject, agent) do
+  defp do_confirm(opts, tag, subject, agent) do
     options = get_options(opts)
 
-    # Display permission box
-    Owl.IO.puts("")
+    # Collect user choice and dispatch
+    IO.puts("")
 
-    scope = """
-    ## Persistent approval scope
-    **Tag:** #{tag}
-    **Subject:** #{subject}
-    """
+    "Approve this request?"
+    |> UI.choose(options)
+    |> handle_response(tag, subject, agent)
+  end
 
-    [detail, scope]
-    |> Enum.join("\n\n")
+  defp print_info_box(message, detail, tag, subject) do
+    IO.puts("")
+
+    [
+      Owl.Data.tag("# Purpose\n\n", [:cyan, :bright]),
+      "#{detail}\n\n",
+      Owl.Data.tag("# Approval Scope\n\n", [:cyan, :bright]),
+      "#{tag} :: #{subject}\n\n",
+      Owl.Data.tag("# Details\n\n", [:cyan, :bright]),
+      message
+    ]
     |> Owl.Box.new(
-      title: " PERMISSION REQUIRED ",
+      title: " PERMISSION REQUEST ",
       min_width: 80,
       padding: 1,
-      horizontal_align: :left
+      horizontal_align: :left,
+      border_tag: [:red, :bright]
     )
     |> Owl.IO.puts()
-
-    # Collect user choice and dispatch
-    UI.choose(message, options)
-    |> handle_response(tag, subject, agent)
   end
 
   # Pattern-matched handlers for each response option
@@ -93,8 +101,8 @@ defmodule Services.Approvals do
   def is_approved?(tag, subject, agent \\ __MODULE__) do
     is_approved?(nil, :project, tag, subject) or
       Agent.get(agent, fn state ->
-        is_approved?(state, :session, tag, subject) or
-          is_approved?(state, :global, tag, subject)
+        [:pre, :session, :global]
+        |> Enum.any?(&is_approved?(state, &1, tag, subject))
       end)
   end
 
@@ -145,6 +153,10 @@ defmodule Services.Approvals do
       globals: globals,
       auto: MapSet.new()
     }
+  end
+
+  defp is_approved?(state, :pre, tag, subject) do
+    MapSet.member?(state.auto, {tag, subject})
   end
 
   defp is_approved?(state, :session, tag, subject) do

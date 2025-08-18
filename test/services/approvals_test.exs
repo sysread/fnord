@@ -17,7 +17,11 @@ defmodule Services.ApprovalsTest do
     end)
 
     assert {:ok, :approved} = Approvals.approve(:session, @approval_tag, @approval_subject)
-    assert {:ok, :approved} = Approvals.confirm(@opts)
+
+    _ =
+      ExUnit.CaptureIO.capture_io(fn ->
+        assert {:ok, :approved} = Approvals.confirm(@opts)
+      end)
 
     :meck.unload(UI)
   end
@@ -32,7 +36,11 @@ defmodule Services.ApprovalsTest do
     end)
 
     assert {:ok, :approved} = Approvals.approve(:project, @approval_tag, @approval_subject)
-    assert {:ok, :approved} = Approvals.confirm(@opts)
+
+    _ =
+      ExUnit.CaptureIO.capture_io(fn ->
+        assert {:ok, :approved} = Approvals.confirm(@opts)
+      end)
 
     :meck.unload(UI)
   end
@@ -51,7 +59,7 @@ defmodule Services.ApprovalsTest do
       end)
 
     # Verify that the permission dialog was rendered before auto-deny
-    assert captured_output =~ "PERMISSION REQUIRED"
+    assert captured_output =~ "PERMISSION REQUEST"
     assert captured_output =~ @detail
 
     :meck.unload(UI)
@@ -73,7 +81,7 @@ defmodule Services.ApprovalsTest do
       end)
 
     # Verify that the permission dialog was rendered before auto-deny
-    assert captured_output =~ "PERMISSION REQUIRED"
+    assert captured_output =~ "PERMISSION REQUEST"
     assert captured_output =~ @detail
 
     :meck.unload(UI)
