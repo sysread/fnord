@@ -68,6 +68,6 @@ defmodule AI.Tools.Confirm do
   def ui_note_on_request(_), do: "User confirmation requested"
 
   @impl AI.Tools
-  def ui_note_on_result(%{"message" => msg}, true), do: {"Accepted", msg}
-  def ui_note_on_result(%{"message" => msg}, false), do: {"Declined", msg}
+  def ui_note_on_result(%{"message" => msg}, "true"), do: {"Accepted", msg}
+  def ui_note_on_result(%{"message" => msg}, "false"), do: {"Declined", msg}
 end
