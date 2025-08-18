@@ -248,6 +248,9 @@ defmodule AI.Completion do
   # OpenAI-compatible message grouping, refactor here.
   # -----------------------------------------------------------------------------
   defp handle_tool_calls(%{tool_call_requests: tool_calls} = state) do
+    # Deduplicate tool call requests by function name and arguments (canonicalized)
+    tool_calls = Enum.uniq_by(tool_calls, &dedupe_key/1)
+
     {async_calls, serial_calls} =
       Enum.split_with(tool_calls, fn req ->
         AI.Tools.is_async?(req.function.name, state.toolbox)
@@ -271,6 +274,18 @@ defmodule AI.Completion do
 
     %{state | tool_call_requests: [], messages: messages}
   end
+
+  @spec dedupe_key(map()) :: {String.t(), String.t()} | nil
+  defp dedupe_key(%{function: %{name: func, arguments: args_json}}) when is_binary(args_json) do
+    case Jason.decode(args_json) do
+      # Re-encode to get consistent ordering
+      {:ok, decoded} -> {func, inspect(decoded, custom_options: [sort_maps: true])}
+      # Fallback to raw string if not valid JSON
+      _ -> {func, args_json}
+    end
+  end
+
+  defp dedupe_key(_), do: nil
 
   @spec handle_tool_call(t, AI.Util.tool_call()) :: {
           :ok,

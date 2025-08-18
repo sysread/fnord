@@ -319,7 +319,8 @@ defmodule AI.CompletionTest do
            [
              %{id: 1, function: %{name: "test_tool_sync", arguments: "{}"}},
              %{id: 2, function: %{name: "test_tool", arguments: "{}"}},
-             %{id: 3, function: %{name: "test_tool_sync", arguments: "{}"}}
+             %{id: 3, function: %{name: "test_tool_sync", arguments: "{\"dummy\":true}"}},
+             %{id: 3, function: %{name: "test_tool_sync", arguments: "{\"dummy\":true}"}}
            ]}
         end
       end)
@@ -339,6 +340,10 @@ defmodule AI.CompletionTest do
         |> Enum.map(& &1.tool_call_id)
 
       assert tool_call_ids_in_order == [2, 1, 3]
+
+      # Final assistant message after tool calls
+      assert List.last(state.messages).role == "assistant"
+      assert List.last(state.messages).content == "final response"
     end
 
     test "Completion.get/1 handles unknown tool requests gracefully" do
@@ -369,6 +374,43 @@ defmodule AI.CompletionTest do
 
       assert List.last(state.messages).role == "assistant"
       assert List.last(state.messages).content == "final assistant response"
+    end
+
+    test "deduplicates identical tool calls within a single batch and preserves order" do
+      # First API.get returns duplicated tool calls, second returns final assistant message
+      :meck.expect(AI.CompletionAPI, :get, fn _model, msgs, _specs, _res_fmt ->
+        if Enum.any?(msgs, fn msg -> Map.has_key?(msg, :tool_calls) end) do
+          {:ok, :msg, "done", 0}
+        else
+          calls = [
+            %{id: 1, function: %{name: "test_tool", arguments: ~s({"b":2,"a":1})}},
+            %{id: 2, function: %{name: "test_tool_sync", arguments: "{}"}},
+            %{id: 3, function: %{name: "test_tool", arguments: ~s({"a":1,"b":2})}}
+          ]
+
+          {:ok, :tool, calls}
+        end
+      end)
+
+      user_msg = %{role: "user", content: "invoke tools"}
+
+      assert {:ok, state} =
+               AI.Completion.get(
+                 model: AI.Model.new("dummy", 0),
+                 messages: [user_msg],
+                 toolbox: %{"test_tool" => TestTool, "test_tool_sync" => TestToolSync}
+               )
+
+      # Only unique calls should be executed in order
+      executed =
+        state.messages
+        |> Enum.filter(&(&1.role == "tool"))
+        |> Enum.map(&{&1.tool_call_id, &1.name})
+
+      assert executed == [{1, "test_tool"}, {2, "test_tool_sync"}]
+      # Final assistant message
+      assert List.last(state.messages).role == "assistant"
+      assert List.last(state.messages).content == "done"
     end
   end
 end
