@@ -57,12 +57,9 @@ defmodule Fnord.MixProject do
       {:jason, "~> 1.4"},
       {:meck, "~> 1.0", only: [:test], runtime: false},
       {:mox, "~> 1.2", only: [:test], runtime: false},
-      {:number, "~> 1.0.5"},
       {:optimus, "~> 0.2"},
       {:owl, "~> 0.12"},
-      {:text_diff, "~> 0.1.0"},
-      {:uniq, "~> 0.1"},
-      {:yaml_elixir, "~> 2.11"}
+      {:uniq, "~> 0.1"}
     ]
   end
 end
