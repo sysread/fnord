@@ -14,12 +14,14 @@ defmodule AI.Agent.Nomenclater do
 
   Fun name themes:
   - Widgets from `Zork!`
-  - Klingon names, especially with dramatic epithets
-  - Dungeons & Dragons
+  - Klingons, especially with dramatic epithets
+  - Dungeons & Dragons characters (e.g. "Sylvaris Strongbow", "Bramdir Ironvein", "Garrick Brightblade")
   - NPC or "unnamed cast" names (e.g. "NPC 1", "Villager", "Guard 3")
   - The Electronic Ghost of <well-known deceased person>
   - My Little Pony names (the new series, _of course_)
   - Characters from SF novels (especially James Schmitz and his contemporaries)
+
+  Try to spread names across different themes.
   """
 
   @response_format %{
