@@ -8,12 +8,18 @@ defmodule AI.Tools.File.Contents do
   def is_available?, do: true
 
   @impl AI.Tools
-  def ui_note_on_request(%{"file" => file, "line_numbers" => true}) do
-    {"Retrieving file +ln", file}
+  def ui_note_on_request(%{"line_numbers" => true} = args) do
+    {"Read +ln", ui_note_file_ref(args)}
   end
 
-  def ui_note_on_request(%{"file" => file}) do
-    {"Retrieving file -ln", file}
+  def ui_note_on_request(args) do
+    {"Read -ln", ui_note_file_ref(args)}
+  end
+
+  defp ui_note_file_ref(%{"file" => file} = args) do
+    start_line = Map.get(args, "start_line", 1)
+    end_line = Map.get(args, "end_line", -1)
+    "#{file}:#{start_line}...#{end_line}"
   end
 
   @impl AI.Tools
@@ -58,6 +64,26 @@ defmodule AI.Tools.File.Contents do
               type: "boolean",
               description: "If true (default), prefix each line with its 1-based line number.",
               default: true
+            },
+            start_line: %{
+              type: "integer",
+              description: """
+              The 1-based line number to start from. If not provided, defaults
+              to the first line. If start_line is outside of the range of lines
+              in the file, it will be ignored and the first line of the file
+              will be used.
+              """,
+              default: 1
+            },
+            end_line: %{
+              type: "integer",
+              description: """
+              The 1-based line number to end at. If not provided, defaults to
+              the last line of the file. If end_line is outside of the range of
+              lines in the file, it will be ignored and the last line of the
+              file will be used.
+              """,
+              default: nil
             }
           }
         }
@@ -68,11 +94,14 @@ defmodule AI.Tools.File.Contents do
   @impl AI.Tools
   def call(%{"file" => file} = args) do
     line_numbers = Map.get(args, "line_numbers", true)
+    start_line = Map.get(args, "start_line", 1)
+    end_line = Map.get(args, "end_line", nil)
 
     with {:ok, content} <- AI.Tools.get_file_contents(file) do
       output =
         content
         |> maybe_number_lines(line_numbers)
+        |> maybe_splice_lines(start_line, end_line)
         |> wrap_content(file)
 
       {:ok, output}
@@ -98,6 +127,31 @@ defmodule AI.Tools.File.Contents do
     #{text}
     ```
     """
+  end
+
+  @spec maybe_splice_lines(String.t(), integer() | nil, integer() | nil) :: String.t()
+  defp maybe_splice_lines(text, nil, nil), do: text
+  defp maybe_splice_lines(text, 1, nil), do: text
+
+  # Line numbers are 1-based, so we adjust accordingly
+  defp maybe_splice_lines(text, start_line, end_line) do
+    lines = String.split(text, "\n")
+    start_index = max(start_line - 1, 0)
+
+    end_index =
+      if end_line do
+        min(end_line - 1, length(lines) - 1)
+      else
+        length(lines) - 1
+      end
+
+    if start_index <= end_index do
+      lines
+      |> Enum.slice(start_index..end_index)
+      |> Enum.join("\n")
+    else
+      text
+    end
   end
 
   defp maybe_number_lines(text, true), do: Util.numbered_lines(text, "\t")
