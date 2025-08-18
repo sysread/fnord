@@ -172,6 +172,8 @@ defmodule AI.Completion do
 
   @spec handle_response({:ok, any} | {:error, any}, t) :: response
   defp handle_response({:ok, :msg, response, usage}, state) do
+    state = maybe_compact(state)
+
     {:ok,
      %{
        state
@@ -400,5 +402,29 @@ defmodule AI.Completion do
       :tool_call_error,
       {tool, args_json, {:error, reason}}
     )
+  end
+
+  defp maybe_compact(%{usage: 0} = state), do: state
+
+  defp maybe_compact(%{usage: usage, model: %{context: context}, messages: messages} = state) do
+    used_pct = Float.round(usage / context * 100, 1)
+
+    if used_pct > 80 do
+      UI.info(
+        "Compacting conversation",
+        "Context used: #{used_pct}% (#{usage}/#{context} tokens)"
+      )
+
+      with {:ok, [new_msg]} <- AI.Agent.Compactor.get_response(%{messages: messages}) do
+        new_tokens = AI.PretendTokenizer.guesstimate_tokens(new_msg.content)
+        %{state | messages: [new_msg], usage: new_tokens}
+      else
+        {:error, reason} ->
+          UI.warn("Failed to compact conversation", inspect(reason, pretty: true))
+          state
+      end
+    else
+      state
+    end
   end
 end
