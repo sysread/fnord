@@ -36,7 +36,7 @@ defmodule AI.Tools.Shell do
   end
 
   @impl AI.Tools
-  def ui_note_on_request(%{"cmd" => cmd}), do: {"Shell", cmd}
+  def ui_note_on_request(%{"cmd" => cmd}), do: {"Shell", "# $ #{cmd}"}
 
   @impl AI.Tools
   def ui_note_on_result(%{"cmd" => cmd}, result) do
@@ -57,7 +57,7 @@ defmodule AI.Tools.Shell do
 
     {"Shell",
      """
-     $ #{cmd}
+     # $ #{cmd}
      #{result_str}
      #{additional}
      """}
