@@ -66,9 +66,13 @@ defmodule Services.Approvals do
 
     [
       Owl.Data.tag("# Purpose\n\n", [:cyan, :bright]),
-      "#{detail}\n\n",
+      detail,
+      "\n\n",
       Owl.Data.tag("# Approval Scope\n\n", [:cyan, :bright]),
-      "#{tag} :: #{subject}\n\n",
+      tag,
+      " :: ",
+      subject,
+      "\n\n",
       Owl.Data.tag("# Details\n\n", [:cyan, :bright]),
       message
     ]
