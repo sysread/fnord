@@ -53,7 +53,14 @@ defmodule Services.Approvals do
     # Display permission box
     Owl.IO.puts("")
 
-    detail
+    scope = """
+    ## Persistent approval scope
+    **Tag:** #{tag}
+    **Subject:** #{subject}
+    """
+
+    [detail, scope]
+    |> Enum.join("\n\n")
     |> Owl.Box.new(
       title: " PERMISSION REQUIRED ",
       min_width: 80,
