@@ -161,14 +161,11 @@ defmodule AI.Tools.Shell do
       tag: "shell_cmd",
       subject: subject,
       persistent: persistent,
+      detail: desc,
       message: """
-      Fnord wants to execute a shell command.
+      Fnord wants to execute a shell command:
 
-      ## Purpose
-      _#{desc}_
-
-      ## Command
-      ```bash
+      ```sh
       #{full_cmd}
       ```
       """
