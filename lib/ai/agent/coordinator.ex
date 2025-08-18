@@ -43,7 +43,7 @@ defmodule AI.Agent.Coordinator do
 
   @type error :: {:error, binary | atom | :testing}
 
-  @model AI.Model.smart()
+  @model AI.Model.large_context()
 
   @behaviour AI.Agent
 
