@@ -177,7 +177,7 @@ defmodule AI.Tools do
     "file_contents_tool" => AI.Tools.File.Contents,
     "file_info_tool" => AI.Tools.File.Info,
     "file_list_tool" => AI.Tools.File.List,
-    "file_outline_tool" => AI.Tools.File.Outline,
+    "file_notes_tool" => AI.Tools.File.Notes,
     "file_reindex_tool" => AI.Tools.File.Reindex,
     "file_search_tool" => AI.Tools.File.Search,
     "file_spelunker_tool" => AI.Tools.File.Spelunker,
