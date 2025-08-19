@@ -48,7 +48,7 @@ defmodule AI.Agent.Spelunker do
         AI.Tools.File.List,
         AI.Tools.File.Info,
         AI.Tools.File.Contents,
-        AI.Tools.File.Outline
+        AI.Tools.File.Notes
       ],
       messages: [
         AI.Util.system_msg(@prompt),
