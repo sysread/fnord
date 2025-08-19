@@ -20,7 +20,8 @@ defmodule AI.Agent.Coordinator do
     :steps,
     :usage,
     :context,
-    :notes
+    :notes,
+    :coder_tool_used
   ]
 
   @type t :: %__MODULE__{
@@ -38,7 +39,8 @@ defmodule AI.Agent.Coordinator do
           steps: list(atom),
           usage: non_neg_integer,
           context: non_neg_integer,
-          notes: binary | nil
+          notes: binary | nil,
+          coder_tool_used: boolean
         }
 
   @type error :: {:error, binary | atom | :testing}
@@ -94,7 +96,8 @@ defmodule AI.Agent.Coordinator do
         steps: [],
         usage: 0,
         context: @model.context,
-        notes: nil
+        notes: nil,
+        coder_tool_used: false
       }
     end
   end
@@ -297,16 +300,22 @@ defmodule AI.Agent.Coordinator do
       {:ok, %{response: response, messages: new_msgs, usage: usage} = completion} ->
         Services.Conversation.replace_msgs(new_msgs, state.conversation)
 
-        completion
-        |> AI.Completion.tools_used()
+        tools_used = AI.Completion.tools_used(completion)
+
+        tools_used
         |> Enum.map(fn {tool, count} -> "- #{tool}: #{count} invocation(s)" end)
         |> Enum.join("\n")
         |> then(&UI.debug("Tools used", &1))
 
+        coder_tool_used =
+          state.coder_tool_used ||
+            Map.has_key?(tools_used, "coder_tool")
+
         %{
           state
           | usage: usage,
-            last_response: response
+            last_response: response,
+            coder_tool_used: coder_tool_used
         }
         |> log_usage()
         |> log_response()
@@ -464,12 +473,20 @@ defmodule AI.Agent.Coordinator do
   """
 
   @coding_reminder """
-  Reminder: the user has enabled your coding capabilities.
-  Did the user ask you to make changes to the code base on their behalf?
-  Double check their question to ensure you have performed all of the tasks they requested of you.
-  Double check the changes that were made to ensure that they are correct and that you have not introduced any bugs.
-  Use any locally enabled tool_calls (or fall back on the `shell_tool`) to run the test suite, check for compilation errors, run linters, static analysis, and so on, to ensure you've provided the user with the best experience possible.
-  When making changes to the user's code, your job is NOT done until tests pass and you have personally verified the changes using your tools.
+  WARNING: The user passed --edit to enable coding capabilities, but you have not yet used the `coder_tool` this session.
+
+  The user explicitly enabled edit mode, which suggests they want you to make changes to the code base.
+  Review their question carefully to determine if they are asking you to make changes.
+
+  If they ARE asking for code changes:
+  - Use the coder_tool to implement the requested changes
+  - Verify the changes are correct and complete
+
+  If they are NOT asking for code changes:
+  - This is fine - sometimes users enable edit mode preemptively
+  - Continue with your research/response as normal
+
+  Remember: when making changes to the user's code, your job is NOT done until tests pass and you have personally verified the changes using your tools.
   """
 
   @finalize """
@@ -638,7 +655,7 @@ defmodule AI.Agent.Coordinator do
   end
 
   @spec execute_coding_phase(t) :: t
-  defp execute_coding_phase(%{edit?: true} = state) do
+  defp execute_coding_phase(%{edit?: true, coder_tool_used: false} = state) do
     @coding_reminder
     |> AI.Util.system_msg()
     |> Services.Conversation.append_msg(state.conversation)
