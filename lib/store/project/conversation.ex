@@ -164,13 +164,15 @@ defmodule Store.Project.Conversation do
   """
   @spec question(t) :: {:ok, binary} | {:error, :no_question}
   def question(conversation) do
-    with {:ok, _ts, msgs} <- read(conversation) do
-      msgs
-      |> Enum.find(&(Map.get(&1, :role) == "user"))
-      |> case do
-        nil -> {:error, :no_question}
-        msg -> Map.fetch(msg, :content)
-      end
+    case read(conversation) do
+      {:ok, _timestamp, msgs} ->
+        case Enum.find(msgs, &(Map.get(&1, :role) == "user")) do
+          nil -> {:error, :no_question}
+          msg -> Map.fetch(msg, :content)
+        end
+
+      _ ->
+        {:error, :no_question}
     end
   end
 
