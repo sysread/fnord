@@ -105,6 +105,8 @@ defmodule AI.Tools.Shell do
   end
 
   @impl AI.Tools
+  # Intercept disallowed shell syntax early and return an explicit error tuple
+  # for clarity and consistency, rather than allowing a bare boolean to bubble up.
   def call(args) do
     with {:ok, desc} <- AI.Tools.get_arg(args, "description"),
          {:ok, cmd} <- AI.Tools.get_arg(args, "cmd"),
@@ -112,6 +114,9 @@ defmodule AI.Tools.Shell do
          {:ok, %{"cmd" => cmd, "args" => args, "approval_bits" => bits}} <- validate(cmd),
          {:ok, :approved} <- confirm(desc, bits, cmd, args) do
       call_shell_cmd(cmd, args)
+    else
+      true -> {:error, "Command contains disallowed shell syntax"}
+      other -> other
     end
   end
 
