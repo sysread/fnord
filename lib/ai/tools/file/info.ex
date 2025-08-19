@@ -121,7 +121,11 @@ defmodule AI.Tools.File.Info do
       with {:ok, content} <- AI.Tools.get_file_contents(file),
            numbered = Util.numbered_lines(content),
            {:ok, response} <- get_agent_response(file, question, numbered) do
-        response
+        # Add backup note if applicable
+        case Services.BackupFile.describe_backup(file) do
+          nil -> response
+          desc -> "#{desc}\n\n#{response}"
+        end
       else
         {:error, reason} ->
           """

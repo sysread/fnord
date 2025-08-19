@@ -327,4 +327,90 @@ defmodule Services.BackupFileTest do
       :meck.unload(File)
     end
   end
+
+  describe "is_backup_file?/1" do
+    test "returns true for valid backup files" do
+      assert Services.BackupFile.is_backup_file?("file.txt.0.0.bak")
+      assert Services.BackupFile.is_backup_file?("file.txt.123.456.bak")
+      assert Services.BackupFile.is_backup_file?("/path/to/file.txt.1.2.bak")
+      assert Services.BackupFile.is_backup_file?("../relative/path/file.ex.99.0.bak")
+    end
+
+    test "returns false for invalid backup files" do
+      refute Services.BackupFile.is_backup_file?("file.txt")
+      refute Services.BackupFile.is_backup_file?("file.txt.bak")
+      refute Services.BackupFile.is_backup_file?("file.txt.0.bak")
+      refute Services.BackupFile.is_backup_file?("file.txt.bak.0.0")
+      refute Services.BackupFile.is_backup_file?("file.txt.a.0.bak")
+      refute Services.BackupFile.is_backup_file?("file.txt.0.b.bak")
+      refute Services.BackupFile.is_backup_file?("file.txt.0.0.backup")
+    end
+  end
+
+  describe "is_session_backup?/1" do
+    test "returns true for backups created in current session", %{project: project} do
+      test_file = Path.join(project.source_root, "test.txt")
+      File.write!(test_file, "content")
+
+      {:ok, backup_path} = Services.BackupFile.create_backup(test_file)
+
+      assert Services.BackupFile.is_session_backup?(backup_path)
+      assert Services.BackupFile.is_session_backup?(Path.relative_to_cwd(backup_path))
+    end
+
+    test "returns false for backups not in current session", %{project: project} do
+      test_file = Path.join(project.source_root, "test.txt")
+      File.write!(test_file, "content")
+
+      # Create an existing backup file manually (simulating previous session)
+      existing_backup = "#{test_file}.0.0.bak"
+      File.write!(existing_backup, "old content")
+
+      refute Services.BackupFile.is_session_backup?(existing_backup)
+    end
+
+    test "returns false for non-backup files" do
+      refute Services.BackupFile.is_session_backup?("regular_file.txt")
+      refute Services.BackupFile.is_session_backup?("file.bak")
+    end
+
+    test "handles errors gracefully when project not available" do
+      # Mock Store.get_project to return error
+      :meck.new(Store, [:passthrough])
+      :meck.expect(Store, :get_project, fn -> {:error, :no_project} end)
+
+      refute Services.BackupFile.is_session_backup?("any_file.0.0.bak")
+
+      :meck.unload(Store)
+    end
+  end
+
+  describe "describe_backup/1" do
+    test "returns backup description for session backups", %{project: project} do
+      test_file = Path.join(project.source_root, "test.txt")
+      File.write!(test_file, "content")
+
+      {:ok, backup_path} = Services.BackupFile.create_backup(test_file)
+
+      assert Services.BackupFile.describe_backup(backup_path) ==
+               "[fnord backup file (created this session)]"
+    end
+
+    test "returns backup description for non-session backups", %{project: project} do
+      test_file = Path.join(project.source_root, "test.txt")
+      File.write!(test_file, "content")
+
+      # Create an existing backup file manually (simulating previous session)
+      existing_backup = "#{test_file}.0.0.bak"
+      File.write!(existing_backup, "old content")
+
+      assert Services.BackupFile.describe_backup(existing_backup) == "[fnord backup file]"
+    end
+
+    test "returns nil for non-backup files" do
+      assert Services.BackupFile.describe_backup("regular_file.txt") == nil
+      assert Services.BackupFile.describe_backup("file.bak") == nil
+      assert Services.BackupFile.describe_backup("file.0.bak") == nil
+    end
+  end
 end

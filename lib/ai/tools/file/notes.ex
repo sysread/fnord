@@ -45,7 +45,7 @@ defmodule AI.Tools.File.Notes do
               type: "string",
               description: """
               The absolute file path to the code file in the project. This
-              parameter MUST be a **confirmed file** in the repository, as
+              parameter must be an *indexed file* in the repository, as
               returned by the file_list_tool or the file_search_tool.
               """
             }

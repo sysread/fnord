@@ -121,9 +121,15 @@ defmodule AI.Tools.File.Contents do
   end
 
   defp wrap_content(text, file) do
+    backup_note =
+      case Services.BackupFile.describe_backup(file) do
+        nil -> ""
+        desc -> "#{desc}\n"
+      end
+
     """
     [file_contents_tool] Contents of #{file}:
-    ```
+    #{backup_note}```
     #{text}
     ```
     """

@@ -112,6 +112,48 @@ defmodule Services.BackupFile do
     reset()
   end
 
+  @doc """
+  Checks if a file path represents a backup file created by fnord.
+  Returns true if the filename matches the pattern: filename.X.Y.bak
+  """
+  @spec is_backup_file?(binary) :: boolean
+  def is_backup_file?(path) do
+    basename = Path.basename(path)
+    String.match?(basename, ~r/\.\d+\.\d+\.bak$/)
+  end
+
+  @doc """
+  Checks if a backup file was created during the current session.
+  Returns true if the file exists in the current session's backup list.
+  """
+  @spec is_session_backup?(binary) :: boolean
+  def is_session_backup?(path) do
+    with {:ok, project} <- Store.get_project() do
+      absolute_path = Store.Project.expand_path(path, project)
+      absolute_path in get_session_backups()
+    else
+      _ -> false
+    end
+  end
+
+  @doc """
+  Returns a descriptive note for backup files, or nil for non-backup files.
+  Includes session information if the backup was created this session.
+  """
+  @spec describe_backup(binary) :: binary | nil
+  def describe_backup(path) do
+    if is_backup_file?(path) do
+      session_note =
+        if is_session_backup?(path),
+          do: " (created this session)",
+          else: ""
+
+      "[fnord backup file#{session_note}]"
+    else
+      nil
+    end
+  end
+
   # ----------------------------------------------------------------------------
   # Private Functions
   # ----------------------------------------------------------------------------
