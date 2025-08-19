@@ -22,6 +22,7 @@ defmodule AI.Agent.Code.TaskImplementor do
   - Errors should be handled gracefully, but dovetail into existing patterns.
   If at any time you identify critical issues or unintended consequences, report them as `followUpTasks` that must be investigated.
   If at any time you determine that the change has unmet dependencies (e.g. using a function that does not yet exist), report them as `followUpTasks` that must be investigated, and respond with an `error` report detailing the issue.
+  Use the `notify_tool` regularly to convey your reasoning, findings, and progress.
   """
 
   @response_format %{

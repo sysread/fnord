@@ -22,6 +22,7 @@ defmodule AI.Agent.Code.TaskValidator do
   - You can also use the `shell_tool` to test the behavior of the code in a more interactive way, such as evaluating commands with interpreted languages or running scripts.
   - It is perfectly acceptable to create test scripts or temporary files to explore the new functionality, so long as they are removed before returning the result.
   Identify compilers, interpreters, linters, formatters, and other tools that can be leveraged to verify the completeness and correctness of the implementation.
+  Use the `notify_tool` regularly to convey your reasoning, findings, and progress.
 
   ## Validate
   Use the tool calls at your disposal to verify that the implementation is correct.
@@ -32,6 +33,7 @@ defmodule AI.Agent.Code.TaskValidator do
   If you notice any tech debt left as part of the implementation, report it as a `followUpTask` to be resolved.
   If you identify a significant bug or issue that prevents you from completing verification, report it as a `followUpTask`.
   It will be addressed and you will be given the opportunity to re-verify once it is resolved.
+  Use the `notify_tool` regularly to convey your reasoning, findings, and progress.
   """
 
   @response_format %{
