@@ -83,7 +83,7 @@ defmodule Cmd.Index do
   def run_as_tool_call(opts) do
     # Ensure we restore the global `:quiet` flag after indexing so that
     # UI output returns to its previous formatting mode.
-    original_quiet = Application.get_env(:fnord, :quiet)
+    original_quiet = Application.get_env(:fnord, :quiet, false)
 
     try do
       if opts[:quiet] do

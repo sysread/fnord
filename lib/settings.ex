@@ -131,8 +131,9 @@ defmodule Settings do
   Set the quiet mode for UI output.
   """
   @spec set_quiet(boolean) :: :ok
-  def set_quiet(quiet) when is_boolean(quiet) do
-    Application.put_env(:fnord, :quiet, quiet)
+  def set_quiet(quiet) do
+    # Force quiet mode to be a boolean
+    Application.put_env(:fnord, :quiet, !!quiet)
     :ok
   end
 
