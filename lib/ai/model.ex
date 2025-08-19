@@ -50,6 +50,18 @@ defmodule AI.Model do
     %AI.Model{model: "gpt-4.1", context: 1_000_000, reasoning: :none}
   end
 
+  def large_context(:smart) do
+    %AI.Model{model: "gpt-4.1", context: 1_000_000, reasoning: :none}
+  end
+
+  def large_context(:balanced) do
+    %AI.Model{model: "gpt-4.1-mini", context: 1_000_000, reasoning: :none}
+  end
+
+  def large_context(:fast) do
+    %AI.Model{model: "gpt-4.1-nano", context: 1_000_000, reasoning: :none}
+  end
+
   @spec reasoning(reasoning_level) :: t
   def reasoning(level) do
     %AI.Model{model: "o4-mini", context: 200_000, reasoning: level}
