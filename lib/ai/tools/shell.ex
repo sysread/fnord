@@ -8,6 +8,9 @@ defmodule AI.Tools.Shell do
   of command families and subcommands.
   """
 
+  @default_timeout_ms 30_000
+  @max_timeout_ms 300_000
+
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -17,26 +20,10 @@ defmodule AI.Tools.Shell do
   def is_available?, do: UI.is_tty?()
 
   @impl AI.Tools
-  def read_args(args) do
-    with {:ok, desc} <- AI.Tools.get_arg(args, "description"),
-         {:ok, cmd} <- AI.Tools.get_arg(args, "cmd") do
-      cmd = String.trim(cmd)
-
-      cond do
-        desc == "" ->
-          {:error, :missing_argument, "description"}
-
-        cmd == "" ->
-          {:error, :missing_argument, "cmd"}
-
-        true ->
-          {:ok, %{"description" => desc, "cmd" => cmd}}
-      end
-    end
-  end
+  def read_args(args), do: {:ok, args}
 
   @impl AI.Tools
-  def ui_note_on_request(%{"cmd" => cmd}), do: {"Shell", "# $ #{cmd}"}
+  def ui_note_on_request(%{"cmd" => cmd}), do: {"Shell", "$ #{cmd}"}
 
   @impl AI.Tools
   def ui_note_on_result(%{"cmd" => cmd}, result) do
@@ -57,7 +44,7 @@ defmodule AI.Tools.Shell do
 
     {"Shell",
      """
-     # $ #{cmd}
+     $ #{cmd}
      #{result_str}
      #{additional}
      """}
@@ -91,12 +78,20 @@ defmodule AI.Tools.Shell do
               type: "string",
               description: """
               Explain to the user what the command does and why it is needed.
-              This will be displayed to the user in the approval dialog."
+              This will be displayed to the user in the approval dialog.
               """
             },
             cmd: %{
               type: "string",
               description: "The complete command to execute."
+            },
+            timeout_ms: %{
+              type: "integer",
+              description: """
+              Optional execution timeout in milliseconds.
+              Defaults to #{@default_timeout_ms}.
+              Must be > 0 and ≤ #{@max_timeout_ms}.
+              """
             }
           }
         }
@@ -107,20 +102,25 @@ defmodule AI.Tools.Shell do
   @impl AI.Tools
   # Intercept disallowed shell syntax early and return an explicit error tuple
   # for clarity and consistency, rather than allowing a bare boolean to bubble up.
-  def call(args) do
-    with {:ok, desc} <- AI.Tools.get_arg(args, "description"),
-         {:ok, cmd} <- AI.Tools.get_arg(args, "cmd"),
+  def call(opts) do
+    with {:ok, desc} <- AI.Tools.get_arg(opts, "description"),
+         {:ok, cmd} <- AI.Tools.get_arg(opts, "cmd"),
          false <- AI.Tools.Shell.Util.contains_disallowed_syntax?(cmd),
-         {:ok, %{"cmd" => cmd, "args" => args, "approval_bits" => bits}} <- validate(cmd),
-         {:ok, :approved} <- confirm(desc, bits, cmd, args) do
-      call_shell_cmd(cmd, args)
+         {:ok, cmd, system_args, bits} <- validate_cmd(cmd),
+         {:ok, :approved} <- confirm(desc, bits, cmd, system_args) do
+      timeout_ms =
+        opts
+        |> Map.get("timeout_ms", @default_timeout_ms)
+        |> validate_timeout()
+
+      call_shell_cmd(cmd, system_args, timeout_ms)
     else
       true -> {:error, "Command contains disallowed shell syntax"}
       other -> other
     end
   end
 
-  defp call_shell_cmd(cmd, args) do
+  def call_shell_cmd(cmd, args, timeout_ms) do
     cwd =
       with {:ok, project} <- Store.get_project() do
         project.source_root
@@ -128,24 +128,67 @@ defmodule AI.Tools.Shell do
         _ -> File.cwd!()
       end
 
-    try do
-      System.cmd(cmd, args, stderr_to_stdout: true, parallelism: true, cd: cwd)
-      |> case do
-        {output, 0} -> {:ok, String.trim_trailing(output)}
-        {output, _} -> {:error, String.trim_trailing(output)}
-      end
-    rescue
-      e in ErlangError ->
-        case e.reason do
-          :enoent -> {:error, "Command not found: #{cmd}"}
-          :eaccess -> {:error, "Permission denied: #{cmd}"}
-          other -> {:error, "Posix error: #{Atom.to_string(other)}"}
+    task =
+      Task.async(fn ->
+        try do
+          System.cmd(cmd, args,
+            stderr_to_stdout: true,
+            parallelism: true,
+            cd: cwd
+          )
+        rescue
+          e in ErlangError ->
+            case e.reason do
+              :enoent -> {:error, "Command not found: #{cmd}"}
+              :eaccess -> {:error, "Permission denied: #{cmd}"}
+              other -> {:error, "Posix error: #{Atom.to_string(other)}"}
+            end
         end
+      end)
+
+    case Task.yield(task, timeout_ms) || Task.shutdown(task) do
+      # Executed successfully or not; some commands, like grep, exit non-zero
+      # for non-matches, but that is not an *error*.
+      {:ok, {out, exit_code}} ->
+        {:ok,
+         """
+         Command: `#{cmd} #{Enum.join(args, " ")}`
+         Exit Status: `#{exit_code}`
+
+         Output:
+
+         #{String.trim_trailing(out)}
+         """}
+
+      # The command process exited due to an error or signal
+      {:exit, reason} ->
+        {:error, "Command process exited: #{inspect(reason)}"}
+
+      # Timeout reached, kill the process
+      nil ->
+        UI.debug("Command timed out after #{timeout_ms} ms")
+        {:error, "Command timed out after #{timeout_ms} ms"}
     end
   end
 
-  defp validate(cmd) do
+  defp validate_cmd(cmd) do
     AI.Agent.ShellCmdParser.get_response(%{shell_cmd: cmd})
+    |> case do
+      {:ok, %{"cmd" => cmd, "args" => system_args, "approval_bits" => bits}} ->
+        {:ok, cmd, system_args, bits}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp validate_timeout(val) do
+    cond do
+      !is_integer(val) -> @default_timeout_ms
+      val <= 0 -> @default_timeout_ms
+      val > @max_timeout_ms -> @max_timeout_ms
+      true -> val
+    end
   end
 
   defp confirm(desc, approval_bits, cmd, args) do
