@@ -81,13 +81,21 @@ defmodule Cmd.Index do
   the `file_reindex_tool` tool.
   """
   def run_as_tool_call(opts) do
-    # Set global options like quiet mode for UI behavior
-    if opts[:quiet] do
-      Settings.set_quiet(true)
-    end
+    # Ensure we restore the global `:quiet` flag after indexing so that
+    # UI output returns to its previous formatting mode.
+    original_quiet = Application.get_env(:fnord, :quiet)
 
-    with {:ok, idx} <- new(opts) do
-      perform_task({:ok, idx})
+    try do
+      if opts[:quiet] do
+        Settings.set_quiet(true)
+      end
+
+      with {:ok, idx} <- new(opts) do
+        perform_task({:ok, idx})
+      end
+    after
+      # Restore previous quiet setting regardless of indexing outcome
+      Settings.set_quiet(original_quiet)
     end
   end
 
