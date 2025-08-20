@@ -45,6 +45,12 @@ defmodule AI.Tools.File.Edit do
       function: %{
         name: "file_edit_tool",
         description: """
+        Edits a file in the project by applying a series of changes. An LLM
+        agent will apply each change in sequence, ensuring that the requested
+        change dovetails into the existing contents.
+
+        NOTE: This tool CANNOT create new files! Instead, use the
+        `file_manage_tool` to create the file, then use this tool to edit it.
         """,
         parameters: %{
           type: "object",
