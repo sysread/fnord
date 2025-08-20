@@ -168,14 +168,9 @@ defmodule AI.Agent.Code.Patcher do
         response
         |> Jason.decode()
         |> case do
-          {:error, reason} ->
-            error_response(change, reason)
-
-          {:ok, %{"error" => reason}} ->
-            error_response(change, reason)
-
           {:ok,
            %{
+             "error" => "",
              "start_line" => start_line,
              "end_line" => end_line,
              "replacement" => replacement
@@ -183,6 +178,12 @@ defmodule AI.Agent.Code.Patcher do
             %{state | changes: remaining}
             |> replace_contents(start_line, end_line, replacement)
             |> apply_changes()
+
+          {:ok, %{"error" => reason}} ->
+            error_response(change, reason)
+
+          {:error, reason} ->
+            error_response(change, reason)
         end
     end
   end

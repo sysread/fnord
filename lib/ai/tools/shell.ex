@@ -23,7 +23,7 @@ defmodule AI.Tools.Shell do
   def read_args(args), do: {:ok, args}
 
   @impl AI.Tools
-  def ui_note_on_request(%{"cmd" => cmd}), do: {"Shell", "$ #{cmd}"}
+  def ui_note_on_request(%{"cmd" => cmd}), do: {cmd, "..."}
 
   @impl AI.Tools
   def ui_note_on_result(%{"cmd" => cmd}, result) do
@@ -42,9 +42,8 @@ defmodule AI.Tools.Shell do
         {Enum.join(lines, "\n"), ""}
       end
 
-    {"Shell",
+    {cmd,
      """
-     $ #{cmd}
      #{result_str}
      #{additional}
      """}
@@ -52,6 +51,11 @@ defmodule AI.Tools.Shell do
 
   @impl AI.Tools
   def spec do
+    allowed =
+      AI.Tools.Shell.Allowed.preapproved_cmds()
+      |> Enum.map(&"- #{&1}")
+      |> Enum.join("\n")
+
     %{
       type: "function",
       function: %{
@@ -61,14 +65,8 @@ defmodule AI.Tools.Shell do
         execution of this command before it is run. The user may optionally
         approve the command for the entire session.
 
-        The following commands are always allowed without approval:
-        - `ls`
-        - `pwd`
-        - `find`
-        - `cat`
-        - `rg`
-        - `ag`
-        - `grep` (although take care, since it varies between bsd/macOS and GNU/Linux)
+        The following commands (if present) are always allowed without approval:
+        #{allowed}
         """,
         parameters: %{
           type: "object",
@@ -106,14 +104,19 @@ defmodule AI.Tools.Shell do
     with {:ok, desc} <- AI.Tools.get_arg(opts, "description"),
          {:ok, cmd} <- AI.Tools.get_arg(opts, "cmd"),
          false <- AI.Tools.Shell.Util.contains_disallowed_syntax?(cmd),
-         {:ok, cmd, system_args, bits} <- validate_cmd(cmd),
-         {:ok, :approved} <- confirm(desc, bits, cmd, system_args) do
+         {:ok, cmd, system_args, approval_bits} <- validate_cmd(cmd) do
       timeout_ms =
         opts
         |> Map.get("timeout_ms", @default_timeout_ms)
         |> validate_timeout()
 
-      call_shell_cmd(cmd, system_args, timeout_ms)
+      if AI.Tools.Shell.Allowed.allowed?(cmd, approval_bits) do
+        call_shell_cmd(cmd, system_args, timeout_ms)
+      else
+        with {:ok, :approved} <- confirm(desc, approval_bits, cmd, system_args) do
+          call_shell_cmd(cmd, system_args, timeout_ms)
+        end
+      end
     else
       true -> {:error, "Command contains disallowed shell syntax"}
       other -> other
@@ -122,20 +125,24 @@ defmodule AI.Tools.Shell do
 
   def call_shell_cmd(cmd, args, timeout_ms) do
     cwd =
-      with {:ok, project} <- Store.get_project() do
-        project.source_root
+      case Store.get_project() do
+        {:ok, project} -> project.source_root
+        _ -> nil
+      end
+
+    base_opts = [stderr_to_stdout: true, parallelism: true]
+
+    opts =
+      if is_binary(cwd) and cwd != "" do
+        [{:cd, cwd} | base_opts]
       else
-        _ -> File.cwd!()
+        base_opts
       end
 
     task =
       Task.async(fn ->
         try do
-          System.cmd(cmd, args,
-            stderr_to_stdout: true,
-            parallelism: true,
-            cd: cwd
-          )
+          System.cmd(cmd, args, opts)
         rescue
           e in ErlangError ->
             case e.reason do
@@ -147,8 +154,6 @@ defmodule AI.Tools.Shell do
       end)
 
     case Task.yield(task, timeout_ms) || Task.shutdown(task) do
-      # Executed successfully or not; some commands, like grep, exit non-zero
-      # for non-matches, but that is not an *error*.
       {:ok, {out, exit_code}} ->
         {:ok,
          """
@@ -160,11 +165,9 @@ defmodule AI.Tools.Shell do
          #{String.trim_trailing(out)}
          """}
 
-      # The command process exited due to an error or signal
       {:exit, reason} ->
         {:error, "Command process exited: #{inspect(reason)}"}
 
-      # Timeout reached, kill the process
       nil ->
         UI.debug("Command timed out after #{timeout_ms} ms")
         {:error, "Command timed out after #{timeout_ms} ms"}
