@@ -114,6 +114,8 @@ defmodule AI.Accumulator do
         completion_args: Keyword.get(opts, :completion_args, [])
       }
       |> reduce()
+    else
+      :error -> {:error, :missing_required_option}
     end
   end
 

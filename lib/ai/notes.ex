@@ -188,7 +188,7 @@ defmodule AI.Notes do
     The user said:
     > #{msg_text}
     """
-    |> completion(@user)
+    |> complete(@user)
     |> case do
       {:ok, response} ->
         response
@@ -219,7 +219,7 @@ defmodule AI.Notes do
     The result of the tool call was:
     #{inspect(result, pretty: true)}
     """
-    |> completion(@research)
+    |> complete(@research)
     |> case do
       {:ok, response} ->
         response
@@ -236,39 +236,33 @@ defmodule AI.Notes do
     end
   end
 
-  @spec consolidate(t) :: t
+  @spec consolidate(t) :: {:ok, t} | {:error, binary}
   def consolidate(state) do
     """
     Please reorganize and consolidate the following project notes according to the specified guidelines.
     -----
     #{state.notes}
     """
-    |> completion(@consolidate)
+    |> accumulate(@consolidate)
     |> case do
       {:ok, response} ->
         response
         |> clean_notes_string()
         |> case do
           {:error, :empty_string} ->
-            UI.debug("Notes Consolidation Agent returned an empty string")
-            state
+            {:error, "Notes Consolidation Agent returned an empty string"}
 
           {:ok, notes} ->
             notes
             |> Store.Project.Notes.write()
             |> case do
-              :ok ->
-                %{state | notes: notes, new_facts: []}
-
-              otherwise ->
-                log_failure(otherwise, "Failed to save consolidated notes")
-                state
+              :ok -> {:ok, %{state | notes: notes, new_facts: []}}
+              otherwise -> otherwise
             end
         end
 
       otherwise ->
-        log_failure(otherwise, "Failed to consolidate notes")
-        state
+        otherwise
     end
   end
 
@@ -287,7 +281,7 @@ defmodule AI.Notes do
        Please answer the following question based on the existing notes and new facts:
        #{question}
        """)
-    |> completion(@ask)
+    |> complete(@ask)
     |> case do
       {:ok, response} ->
         response
@@ -411,8 +405,8 @@ defmodule AI.Notes do
     |> Enum.join("\n")
   end
 
-  @spec completion(binary, mini_agent) :: {:ok, binary} | {:error, any}
-  defp completion(input, agent) do
+  @spec complete(binary, mini_agent) :: {:ok, binary} | {:error, any}
+  defp complete(input, agent) do
     AI.Completion.get(
       log_messages: false,
       log_tool_calls: false,
@@ -421,6 +415,20 @@ defmodule AI.Notes do
         AI.Util.system_msg(agent.prompt),
         AI.Util.user_msg(input)
       ]
+    )
+    |> case do
+      {:ok, %{response: response}} -> {:ok, response}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @spec accumulate(binary, mini_agent) :: {:ok, binary} | {:error, any}
+  defp accumulate(input, agent) do
+    AI.Accumulator.get_response(
+      model: agent.model,
+      prompt: agent.prompt,
+      input: input,
+      question: "Please consolidate the following notes according to the specified guidelines."
     )
     |> case do
       {:ok, %{response: response}} -> {:ok, response}

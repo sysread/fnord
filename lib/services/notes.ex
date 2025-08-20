@@ -113,9 +113,17 @@ defmodule Services.Notes do
 
   def handle_cast(:consolidate, state) do
     if AI.Notes.has_new_facts?(state) do
-      result = AI.Notes.consolidate(state)
-      UI.debug("[notes-server]", "consolidated existing research notes")
-      {:noreply, result}
+      state
+      |> AI.Notes.consolidate()
+      |> case do
+        {:ok, result} ->
+          UI.info("[notes-server]", "consolidated existing research notes")
+          {:noreply, result}
+
+        {:error, reason} ->
+          UI.error("[notes-server]", "failed to consolidate notes: #{reason}")
+          {:noreply, state}
+      end
     else
       UI.debug("[notes-server]", "no new notes; skipping consolidation")
       {:noreply, state}
