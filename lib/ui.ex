@@ -31,8 +31,6 @@ defmodule UI do
     feedback(msg, :cyan_background, :cyan)
   end
 
-  # ༺
-  # ༻
   defp feedback(msg, label_codes, detail_codes) do
     [
       label_codes,

@@ -98,7 +98,65 @@ defmodule AI.Tools.File.Edit do
   def call(args) do
     with {:ok, file} <- AI.Tools.get_arg(args, "file"),
          {:ok, changes} <- read_changes(args),
-         {:ok, project} <- Store.get_project(),
+         {:ok, result} <- do_edits_with_spinner(file, changes) do
+      {:ok, result}
+    end
+  end
+
+  # ----------------------------------------------------------------------------
+  # Internals
+  # ----------------------------------------------------------------------------
+  defp do_edits_with_spinner(file, changes) do
+    start_spinner(file)
+
+    try do
+      do_edits(file, changes)
+    rescue
+      error ->
+        stop_spinner(:error)
+
+        {:error,
+         """
+         An error occurred while applying changes to the file, but it's not your fault.
+         This is an internal application error.
+         Please report it to the developers.
+
+         Error message:
+         #{Exception.message(error)}
+
+         Stack trace:
+         ```
+         #{Exception.format_stacktrace(__STACKTRACE__)}
+         ```
+         """}
+    else
+      result ->
+        stop_spinner(:ok)
+        result
+    end
+  end
+
+  defp start_spinner(file) do
+    if UI.colorize?() do
+      Owl.Spinner.start(
+        id: :file_edit_tool,
+        labels: [
+          ok: "Changes applied to #{file}",
+          error: "Failed to apply changes to #{file}",
+          processing: "Applying changes to #{file}"
+        ]
+      )
+    end
+  end
+
+  defp stop_spinner(resolution) do
+    if UI.colorize?() do
+      Owl.Spinner.stop(id: :file_edit_tool, resolution: resolution)
+    end
+  end
+
+  defp do_edits(file, changes) do
+    with {:ok, project} <- Store.get_project(),
          absolute_file <- Store.Project.expand_path(file, project),
          {:ok, contents} <- apply_changes(absolute_file, changes),
          {:ok, staged} <- stage_changes(contents),
@@ -115,9 +173,6 @@ defmodule AI.Tools.File.Edit do
     end
   end
 
-  # ----------------------------------------------------------------------------
-  # Internals
-  # ----------------------------------------------------------------------------
   defp apply_changes(file, changes) do
     AI.Agent.Code.Patcher.get_response(%{file: file, changes: changes})
   end
@@ -174,10 +229,20 @@ defmodule AI.Tools.File.Edit do
 
   defp read_changes(opts) do
     with {:ok, changes} <- AI.Tools.get_arg(opts, "changes") do
-      changes
-      |> Enum.map(& &1["change"])
-      |> Enum.map(&String.trim/1)
-      |> then(&{:ok, &1})
+      try do
+        changes
+        |> Enum.map(& &1["change"])
+        |> Enum.map(&String.trim/1)
+        |> then(&{:ok, &1})
+      rescue
+        _ in FunctionClauseError ->
+          {:error,
+           """
+           Invalid changes format.
+           Expected a list of objects with a "change" key.
+           Each change is expected to be a string.
+           """}
+      end
     end
   end
 end
