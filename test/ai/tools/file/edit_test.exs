@@ -4,10 +4,8 @@ defmodule AI.Tools.File.EditTest do
   alias AI.Tools.File.Edit
 
   setup do
-    :meck.new(AI.Agent.Code.HunkFinder, [:non_strict, :passthrough])
-    :meck.new(AI.Agent.Code.PatchMaker, [:non_strict, :passthrough])
-
     project = mock_project("edit-test")
+    :meck.new(AI.Agent.Code.Patcher, [:non_strict, :passthrough])
 
     {:ok, project: project}
   end
@@ -20,21 +18,19 @@ defmodule AI.Tools.File.EditTest do
       How now, brown cow? 
       """)
 
-    criteria = "How now, brown cow?"
-    replacement = "How now, brown bureaucrat?"
+    :meck.expect(AI.Agent.Code.Patcher, :get_response, fn args ->
+      assert args[:file] == file
 
-    :meck.expect(AI.Agent.Code.HunkFinder, :get_response, fn args ->
-      assert args.file == file
-      assert ^criteria = args.criteria
-      assert ^replacement = args.replacement
-      Hunk.new(file, 3, 3)
-    end)
+      assert args[:changes] == [
+               ~s{Replace the word "cow" with "bureaucrat" in the final sentence.}
+             ]
 
-    :meck.expect(AI.Agent.Code.PatchMaker, :get_response, fn args ->
-      assert args.file == file
-      assert %Hunk{file: ^file, start_line: 3, end_line: 3} = args.hunk
-      assert ^replacement = args.replacement
-      {:ok, replacement}
+      {:ok,
+       """
+       This is an example file.
+       It contains some text that we will edit.
+       How now, brown bureaucrat?
+       """}
     end)
 
     :meck.expect(Services.Approvals, :confirm, fn args ->
@@ -43,7 +39,7 @@ defmodule AI.Tools.File.EditTest do
       assert {:ok, message} = Keyword.fetch(args, :message)
       assert {:ok, detail} = Keyword.fetch(args, :detail)
 
-      assert message =~ "Fnord wants to modify #{file}:3...3"
+      assert message =~ "Fnord wants to modify #{file}"
 
       detail = detail |> Owl.Data.untag() |> to_string()
       assert detail =~ "-How now, brown cow?"
@@ -52,20 +48,26 @@ defmodule AI.Tools.File.EditTest do
       {:ok, :approved}
     end)
 
-    assert {:ok, diff} =
+    assert {:ok, result} =
              Edit.call(%{
                "file" => file,
-               "find" => criteria,
-               "replacement" => replacement
+               "changes" => [
+                 %{
+                   "change" => """
+                   Replace the word "cow" with "bureaucrat" in the final sentence.
+                   """
+                 }
+               ]
              })
 
-    assert diff =~ "-How now, brown cow?"
-    assert diff =~ "+How now, brown bureaucrat?"
+    assert result.diff =~ "-How now, brown cow?"
+    assert result.diff =~ "+How now, brown bureaucrat?"
+    assert result.file == file
+    assert result.backup_file == file <> ".0.0.bak"
 
-    assert File.exists?(file <> ".0.0.bak")
+    assert File.exists?(result.backup_file)
 
-    assert :meck.num_calls(AI.Agent.Code.HunkFinder, :get_response, :_) == 1
-    assert :meck.num_calls(AI.Agent.Code.PatchMaker, :get_response, :_) == 1
+    assert :meck.num_calls(AI.Agent.Code.Patcher, :get_response, :_) == 1
     assert :meck.num_calls(Services.Approvals, :confirm, :_) == 1
   end
 end

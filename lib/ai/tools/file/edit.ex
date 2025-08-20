@@ -8,12 +8,10 @@ defmodule AI.Tools.File.Edit do
   # ----------------------------------------------------------------------------
   # Types
   # ----------------------------------------------------------------------------
-  @type hunk :: Hunk.t()
-
   @type edit_result :: %{
-          diff: binary,
+          file: binary,
           backup_file: binary,
-          backup_files: [binary]
+          diff: binary
         }
 
   # ----------------------------------------------------------------------------
@@ -47,43 +45,47 @@ defmodule AI.Tools.File.Edit do
       function: %{
         name: "file_edit_tool",
         description: """
-        A tool for editing files by replacing specific sections of text. This
-        tool uses an LLM agent to perform a "fuzzy match" against your
-        selection criteria (`find`) within the contents of `file`. It then
-        inserts the provided `replacement` text in place of the matched
-        section, adjusting as necessary to preserve the original formatting and
-        indentation.
         """,
         parameters: %{
           type: "object",
-          required: ["file", "find", "replacement"],
+          required: ["file", "changes"],
+          additionalProperties: false,
           properties: %{
             file: %{
               type: "string",
               description: "Path (relative to project root) of the file to edit."
             },
-            find: %{
-              type: "string",
-              description: """
-              Describe the section to replace.
-              Depending on the context, this could be:
-              - The exact text to match
-              - A description of the code to match with concrete anchors
-              If the criteria is too ambiguous, the tool will fail with an error.
+            changes: %{
+              type: "array",
+              items: %{
+                type: "object",
+                description: """
+                A list of changes to apply to the file.
+                Steps are ordered logically, with each building on the previous.
+                They will be applied in sequence.
+                """,
+                required: ["change"],
+                additionalProperties: false,
+                properties: %{
+                  change: %{
+                    type: "string",
+                    description: """
+                    Clear, specific instructions for the changes to make. The
+                    instructions must be concise and unambiguous.
 
-              Matching is done by an LLM agent and is resolved to complete
-              lines of text in the source `file`. The ENTIRE matched section,
-              starting from column 0 of the first line and ending at the final
-              column of the last line, will be replaced IN FULL.
-              """
-            },
-            replacement: %{
-              type: "string",
-              description: """
-              The replacement text.
-              This will replace the entire matched text.
-              An empty string indicates that the entire matched section should be deleted.
-              """
+                    Clearly define the section(s) of the file to modify. Provide
+                    unambiguous "anchors" that identify the exact location of the
+                    change.
+
+                    For example:
+                    - "Immediately after the declaration of the `main` function, add the following code block: ..."
+                    - "Replace the entire contents of the `calculate` function with: ..."
+                    - "At the top of the file, insert the following imports, ensuring they are properly formatted and ordered: ..."
+                    - "Add a new function at the end of the module named `blarg` with the following contents: ..."
+                    """
+                  }
+                }
+              }
             }
           }
         }
@@ -95,123 +97,56 @@ defmodule AI.Tools.File.Edit do
   @impl AI.Tools
   def call(args) do
     with {:ok, file} <- AI.Tools.get_arg(args, "file"),
-         {:ok, criteria} <- AI.Tools.get_arg(args, "find"),
-         {:ok, replacement} <- AI.Tools.get_arg(args, "replacement"),
-         _ <- UI.spinner_start(id: :file_edit_tool, label: "Editing #{file}"),
+         {:ok, changes} <- read_changes(args),
          {:ok, project} <- Store.get_project(),
          absolute_file <- Store.Project.expand_path(file, project),
-         {:ok, hunk} <- find_hunk(file, criteria, replacement),
-         {:ok, adjusted_replacement} <- adjust_replacement(file, hunk, replacement),
-         {:ok, hunk} <- Hunk.stage_changes(hunk, adjusted_replacement),
-         {:ok, diff} <- Hunk.build_diff(hunk),
-         {:ok, :approved} <- confirm_edit(hunk, diff),
-         {:ok, _backup} <- Services.BackupFile.create_backup(absolute_file),
-         {:ok, _hunk} <- Hunk.apply_staged_changes(hunk) do
-      {:ok, diff}
-    else
-      other ->
-        UI.spinner_stop(
-          id: :file_edit_tool,
-          resolution: :error,
-          label: "Failed to edit file"
-        )
-
-        other
+         {:ok, contents} <- apply_changes(absolute_file, changes),
+         {:ok, staged} <- stage_changes(contents),
+         {:ok, diff} <- build_diff(absolute_file, staged),
+         {:ok, :approved} <- confirm_edit(file, diff),
+         {:ok, backup_file} <- backup_file(absolute_file),
+         :ok <- commit_changes(absolute_file, staged) do
+      {:ok,
+       %{
+         file: file,
+         backup_file: backup_file,
+         diff: diff
+       }}
     end
   end
 
   # ----------------------------------------------------------------------------
   # Internals
   # ----------------------------------------------------------------------------
-  @spec find_hunk(binary, binary, binary) :: {:ok, hunk} | {:error, term}
-  defp find_hunk(file, criteria, replacement) do
-    UI.spinner_start(
-      id: :hunk_finder,
-      label: "Finding target hunk",
-      frames: [
-        ok: Owl.Data.tag("  ✔", :green),
-        error: Owl.Data.tag("  ✖", :red),
-        processing: ["  ⠋", "  ⠙", "  ⠹", "  ⠸", "  ⠼", "  ⠴", "  ⠦", "  ⠧", "  ⠇", "  ⠏"]
-      ]
-    )
+  defp apply_changes(file, changes) do
+    AI.Agent.Code.Patcher.get_response(%{file: file, changes: changes})
+  end
 
-    AI.Agent.Code.HunkFinder.get_response(%{
-      file: file,
-      criteria: criteria,
-      replacement: replacement
-    })
-    |> case do
-      {:ok, hunk} ->
-        UI.spinner_stop(
-          id: :hunk_finder,
-          resolution: :ok,
-          label: "Target hunk found"
-        )
-
-        {:ok, hunk}
-
-      {:error, reason} ->
-        UI.spinner_stop(
-          id: :hunk_finder,
-          resolution: :error,
-          label: "Failed to find target hunk"
-        )
-
-        {:error, reason}
+  defp stage_changes(contents) do
+    with {:ok, temp} <- Briefly.create(),
+         :ok <- File.write(temp, contents) do
+      {:ok, temp}
     end
   end
 
-  @spec adjust_replacement(binary, hunk, binary) :: {:ok, binary} | {:error, term}
-  defp adjust_replacement(file, hunk, replacement) do
-    UI.spinner_start(
-      id: :patch_maker,
-      label: "Conforming replacement to target",
-      frames: [
-        ok: Owl.Data.tag("  ✔", :green),
-        error: Owl.Data.tag("  ✖", :red),
-        processing: ["  ⠋", "  ⠙", "  ⠹", "  ⠸", "  ⠼", "  ⠴", "  ⠦", "  ⠧", "  ⠇", "  ⠏"]
-      ]
+  defp build_diff(file, staged) do
+    System.cmd("diff", ["-u", "-L", "ORIGINAL", "-L", "MODIFIED", file, staged],
+      stderr_to_stdout: true
     )
-
-    AI.Agent.Code.PatchMaker.get_response(%{
-      file: file,
-      hunk: hunk,
-      replacement: replacement
-    })
     |> case do
-      {:ok, adjusted_replacement} ->
-        UI.spinner_stop(
-          id: :patch_maker,
-          resolution: :ok,
-          label: "Replacement adapted"
-        )
-
-        {:ok, adjusted_replacement}
-
-      {:error, reason} ->
-        UI.spinner_stop(
-          id: :patch_maker,
-          resolution: :error,
-          label: "Failed to adapt replacement"
-        )
-
-        {:error, reason}
+      {output, 1} -> {:ok, String.trim_trailing(output)}
+      {_, 0} -> {:error, "no changes were made to the file"}
+      {error, code} -> {:error, "diff exited #{code}: #{error}"}
     end
   end
 
-  @spec confirm_edit(hunk, binary) :: {:ok, :approved} | {:error, term}
-  defp confirm_edit(hunk, diff) do
-    UI.spinner_stop(
-      id: :file_edit_tool,
-      resolution: :ok,
-      label: "Changes to #{hunk} prepared"
-    )
-
+  @spec confirm_edit(binary, binary) :: {:ok, :approved} | {:error, term}
+  defp confirm_edit(file, diff) do
     Services.Approvals.confirm(
       tag: "general",
       subject: "edit files",
       persistent: false,
-      message: "Fnord wants to modify #{hunk}",
+      message: "Fnord wants to modify #{file}",
       detail: colorize_diff(diff)
     )
   end
@@ -227,5 +162,22 @@ defmodule AI.Tools.File.Edit do
         true -> line <> "\n"
       end
     end)
+  end
+
+  defp backup_file(file) do
+    Services.BackupFile.create_backup(file)
+  end
+
+  defp commit_changes(file, staged) do
+    File.cp(staged, file)
+  end
+
+  defp read_changes(opts) do
+    with {:ok, changes} <- AI.Tools.get_arg(opts, "changes") do
+      changes
+      |> Enum.map(& &1["change"])
+      |> Enum.map(&String.trim/1)
+      |> then(&{:ok, &1})
+    end
   end
 end
