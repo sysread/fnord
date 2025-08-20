@@ -179,6 +179,16 @@ defmodule AI.Agent.Code.Patcher do
             |> replace_contents(start_line, end_line, replacement)
             |> apply_changes()
 
+          {:ok,
+           %{
+             "start_line" => start_line,
+             "end_line" => end_line,
+             "replacement" => replacement
+           }} ->
+            %{state | changes: remaining}
+            |> replace_contents(start_line, end_line, replacement)
+            |> apply_changes()
+
           {:ok, %{"error" => reason}} ->
             error_response(change, reason)
 
