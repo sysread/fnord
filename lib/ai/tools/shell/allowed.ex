@@ -21,21 +21,29 @@ defmodule AI.Tools.Shell.Allowed do
   """
 
   @allowed_commands %{
-    # always-allowed commands (no subcommands)
+    # Common utilities
+    "ag" => :all,
+    "cat" => :all,
+    "diff" => :all,
+    "grep" => :all,
+    "head" => :all,
+    "jq" => :all,
     "ls" => :all,
     "pwd" => :all,
-    "cat" => :all,
-    "tac" => :all,
-    "head" => :all,
-    "tail" => :all,
     "rg" => :all,
-    "ag" => :all,
-    "grep" => :all,
+    "tac" => :all,
+    "tail" => :all,
+    "touch" => :all,
     "tree" => :all,
-    "diff" => :all,
 
-    # commands with allowed subcommands only
-    "git" => ["log", "diff", "status", "branch", "tag"]
+    # Git
+    "git" => [
+      "log",
+      "diff",
+      "status",
+      "branch",
+      "tag"
+    ]
   }
 
   @type allowed_cmds_map :: %{String.t() => :all | [String.t()]}
