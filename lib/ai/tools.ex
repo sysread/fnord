@@ -180,18 +180,10 @@ defmodule AI.Tools do
     "file_reindex_tool" => AI.Tools.File.Reindex,
     "file_search_tool" => AI.Tools.File.Search,
     "file_spelunker_tool" => AI.Tools.File.Spelunker,
-    "git_diff_branch_tool" => AI.Tools.Git.DiffBranch,
-    "git_grep_tool" => AI.Tools.Git.Grep,
-    "git_list_branches_tool" => AI.Tools.Git.ListBranches,
-    "git_log_tool" => AI.Tools.Git.Log,
-    "git_pickaxe_tool" => AI.Tools.Git.Pickaxe,
-    "git_show_tool" => AI.Tools.Git.Show,
-    "git_unstaged_changes_tool" => AI.Tools.Git.UnstagedChanges,
     "list_projects_tool" => AI.Tools.ListProjects,
     "notify_tool" => AI.Tools.Notify,
     "prior_research" => AI.Tools.Notes,
     "research_tool" => AI.Tools.Research,
-    "ripgrep_search" => AI.Tools.Ripgrep,
     "troubleshooter_tool" => AI.Tools.Troubleshooter
   }
 

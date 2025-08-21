@@ -6,6 +6,22 @@ defmodule AI.Tools.File.ManageTest do
   setup do
     project = mock_project("test-project")
     File.mkdir_p!(project.source_root)
+    
+    # Set up Services.Approvals mock for file manage tests
+    try do
+      :meck.new(Services.Approvals, [:non_strict, :passthrough])
+    rescue
+      _ -> :ok
+    end
+    
+    on_exit(fn ->
+      try do
+        :meck.unload(Services.Approvals)
+      rescue
+        _ -> :ok
+      end
+    end)
+    
     {:ok, project: project}
   end
 

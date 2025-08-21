@@ -6,6 +6,21 @@ defmodule AI.Tools.File.EditTest do
   setup do
     project = mock_project("edit-test")
     :meck.new(AI.Agent.Code.Patcher, [:non_strict, :passthrough])
+    
+    # Set up Services.Approvals mock for file edit tests
+    try do
+      :meck.new(Services.Approvals, [:non_strict, :passthrough])
+    rescue
+      _ -> :ok
+    end
+    
+    on_exit(fn ->
+      try do
+        :meck.unload(Services.Approvals)
+      rescue
+        _ -> :ok
+      end
+    end)
 
     {:ok, project: project}
   end

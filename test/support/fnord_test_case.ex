@@ -44,30 +44,6 @@ defmodule Fnord.TestCase do
       setup :verify_on_exit!
       setup :set_mox_from_context
 
-      # ----------------------------------------------------------------------------
-      # Ensure Services.Approvals meck mock is in place for all tests
-      # ----------------------------------------------------------------------------
-      setup do
-        try do
-          :meck.new(Services.Approvals, [:non_strict, :passthrough])
-        rescue
-          _ -> :ok
-        end
-
-        :ok
-      end
-
-      setup do
-        on_exit(fn ->
-          try do
-            :meck.unload(Services.Approvals)
-          rescue
-            _ -> :ok
-          end
-        end)
-
-        :ok
-      end
 
       setup do
         # Ensure no OpenAI API key is set in the environment. This prevents

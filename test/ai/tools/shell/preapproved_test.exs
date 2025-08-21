@@ -101,6 +101,7 @@ defmodule AI.Tools.Shell.PreapprovedTest do
     assert Allowed.allowed?("cat", ["cat", "file.txt"])
     assert Allowed.allowed?("ls", ["ls"])
     assert Allowed.allowed?("git", ["git", "status"])
+    assert Allowed.allowed?("git", ["git", "merge-base", "main", "feature"])
     assert Allowed.allowed?("pwd", ["pwd"])
 
     # These should NOT be allowed (security test)

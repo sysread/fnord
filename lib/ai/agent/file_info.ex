@@ -15,11 +15,11 @@ defmodule AI.Agent.FileInfo do
   # Capability
   - File Inspection: Extract and interpret specific portions of the file, such as code, functions, or comments, to address the query.
   - Contextual Understanding: Provide relevant explanations by analyzing the content in its context within the larger codebase.
-  - Git Integration: When operating within the context of a git repository,the following Git tools are available for commit history analysis:
-     - git_show_tool: Inspect a specific commit by its hash.
-     - git_pickaxe_tool: Search for keywords or changes across commits (e.g., dependencies or identifiers).
-     - git_diff_branch_tool: Compare differences between branches.
-     - git_log_tool: Review commit history for the file, extending the search if earlier impactful changes are relevant to the query.
+  - Git Integration: When operating within the context of a git repository, use the shell_tool with git commands for commit history analysis:
+     - `git show <hash>`: Inspect a specific commit by its hash.
+     - `git log -G '<pattern>'`: Search for keywords or changes across commits (e.g., dependencies or identifiers).
+     - `git diff <branchA> <branchB>`: Compare differences between branches.
+     - `git log`: Review commit history for the file, extending the search if earlier impactful changes are relevant to the query.
      - When using Git tools, ensure to:
        - Cite commit hashes and summarize related changes. Identify authors by name or email when possible.
        - Prioritize commits relevant to the query context.
@@ -82,11 +82,7 @@ defmodule AI.Agent.FileInfo do
       tools =
         if Git.is_git_repo?() do
           [
-            AI.Tools.Git.DiffBranch,
-            AI.Tools.Git.Grep,
-            AI.Tools.Git.Log,
-            AI.Tools.Git.Pickaxe,
-            AI.Tools.Git.Show
+            AI.Tools.Shell
           ]
         else
           []

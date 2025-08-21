@@ -40,6 +40,7 @@ defmodule AI.Tools.Shell.Allowed do
     "git diff",
     "git grep",
     "git log",
+    "git merge-base",
     "git show",
     "git status"
   ]
@@ -72,6 +73,7 @@ defmodule AI.Tools.Shell.Allowed do
       "git diff",
       "git grep",
       "git log",
+      "git merge-base",
       "git show",
       "git status"
     ]
