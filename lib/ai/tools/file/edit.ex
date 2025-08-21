@@ -205,7 +205,7 @@ defmodule AI.Tools.File.Edit do
   defp confirm_edit(file, diff) do
     Services.Approvals.confirm(
       tag: "general",
-      subject: "edit files",
+      subject: "m/^edit files$/",
       persistent: false,
       message: "Fnord wants to modify #{file}",
       detail: colorize_diff(diff)

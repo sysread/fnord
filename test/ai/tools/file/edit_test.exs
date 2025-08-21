@@ -35,7 +35,7 @@ defmodule AI.Tools.File.EditTest do
 
     :meck.expect(Services.Approvals, :confirm, fn args ->
       assert {:ok, "general"} = Keyword.fetch(args, :tag)
-      assert {:ok, "edit files"} = Keyword.fetch(args, :subject)
+      assert {:ok, "m/^edit files$/"} = Keyword.fetch(args, :subject)
       assert {:ok, message} = Keyword.fetch(args, :message)
       assert {:ok, detail} = Keyword.fetch(args, :detail)
 

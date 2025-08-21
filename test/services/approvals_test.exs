@@ -202,6 +202,18 @@ defmodule Services.ApprovalsTest do
       refute Approvals.is_approved?("shell_cmd", "npm install")
     end
 
+    test "exact matching with anchored regex patterns" do
+      # File operations require exact subject matching to prevent overly broad approvals
+      assert {:ok, :approved} = Approvals.approve(:session, "general", "m/^edit files$/")
+
+      # Should match exact string
+      assert Approvals.is_approved?("general", "edit files")
+
+      # Should NOT match with additional text
+      refute Approvals.is_approved?("general", "edit files with more")
+      refute Approvals.is_approved?("general", "prefix edit files")
+    end
+
     test "all pattern examples from help text work with Elixir regex" do
       # Get the pattern examples used in help text
       pattern_examples = [

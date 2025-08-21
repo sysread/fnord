@@ -331,7 +331,7 @@ defmodule AI.Tools.File.Manage do
   defp confirm(msg, detail) do
     Services.Approvals.confirm(
       tag: "general",
-      subject: "file operations",
+      subject: "m/^file operations$/",
       persistent: false,
       message: msg,
       detail: detail

@@ -73,8 +73,14 @@ defmodule AI.Tools.Shell do
         This tool does not support complex shell syntax, such as pipes, redirection, or command substitution.
         It only supports simple commands with arguments.
 
-        The following commands and subcommands (if present) are always allowed without approval:
+        The following commands are preapproved and will execute without requiring user approval:
+
         #{allowed}
+
+        Notes:
+        - Single commands (like "ls", "cat", "grep") allow any arguments: "ls -la", "cat file.txt", etc.
+        - Git commands allow only the listed subcommands with any arguments: "git log --oneline", "git status -s", etc.
+        - Unlisted commands like "rm", "git push", "docker run" will require user approval.
 
         Example usage:
         ```json
@@ -193,7 +199,7 @@ defmodule AI.Tools.Shell do
       end)
 
     case Task.yield(task, timeout_ms) || Task.shutdown(task) do
-      {:ok, {out, exit_code}} ->
+      {:ok, {out, exit_code}} when is_binary(out) ->
         {:ok,
          """
          Command: `#{cmd} #{Enum.join(args, " ")}`
@@ -203,6 +209,9 @@ defmodule AI.Tools.Shell do
 
          #{String.trim_trailing(out)}
          """}
+
+      {:ok, {:error, message}} ->
+        {:error, message}
 
       {:exit, reason} ->
         {:error, "Command process exited: #{inspect(reason)}"}

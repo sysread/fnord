@@ -1,84 +1,113 @@
 defmodule AI.Tools.Shell.Allowed do
   @moduledoc """
-  Flexible, map-based allow-list of allowed commands and subcommands.
+  Pattern-based allow-list of allowed commands and subcommands.
 
   This module defines a single source of truth for which shell commands
   and subcommands are authorized for execution. To extend the allow-list,
-  update the `@allowed_commands` map.
+  update the `@allowed_patterns` list.
 
-  Data structure:
-    %{
-      "cmd" => :all | ["sub1", "sub2"],
-      "docker" => ["run", "ps"],
-      "echo" => :all,
-      ...
-    }
+  Patterns can be:
+    - Exact strings: "ls", "pwd"
+    - Regex patterns: "m/git .*/", "m/docker (build|ps)/"
 
   Functions:
-    * allowed_commands/0    - Returns the map of commands to allowed subcommands
+    * allowed_patterns/0    - Returns the list of allowed patterns
     * preapproved_cmds/0    - Returns a flat list of all approved invocations
     * allowed?/2            - Checks if a parsed command is authorized
   """
 
-  @allowed_commands %{
-    # Common utilities
-    "ag" => :all,
-    "cat" => :all,
-    "diff" => :all,
-    "fgrep" => :all,
-    "grep" => :all,
-    "head" => :all,
-    "jq" => :all,
-    "ls" => :all,
-    "nl" => :all,
-    "pwd" => :all,
-    "rg" => :all,
-    "tac" => :all,
-    "tail" => :all,
-    "touch" => :all,
-    "tree" => :all,
-    "wc" => :all,
+  @allowed_patterns [
+    # Common utilities (allow all usage)
+    "ag",
+    "cat",
+    "diff",
+    "fgrep",
+    "grep",
+    "head",
+    "jq",
+    "ls",
+    "nl",
+    "pwd",
+    "rg",
+    "tac",
+    "tail",
+    "touch",
+    "tree",
+    "wc",
 
-    # Git
-    "git" => [
-      "log",
-      "diff",
-      "status",
-      "branch",
-      "tag"
-    ]
-  }
+    # Git (specific subcommands only)
+    "git branch",
+    "git diff",
+    "git grep",
+    "git log",
+    "git show",
+    "git status"
+  ]
 
-  @type allowed_cmds_map :: %{String.t() => :all | [String.t()]}
-
-  @spec allowed_commands() :: allowed_cmds_map
-  def allowed_commands, do: @allowed_commands
+  @spec allowed_patterns() :: [String.t()]
+  def allowed_patterns, do: @allowed_patterns
 
   @spec preapproved_cmds() :: [String.t()]
   def preapproved_cmds do
-    @allowed_commands
-    |> Enum.flat_map(fn
-      {cmd, :all} -> [cmd]
-      {cmd, subs} when is_list(subs) -> Enum.map(subs, &"#{cmd} #{&1}")
-    end)
+    [
+      # Common utilities (examples)
+      "ag",
+      "cat",
+      "diff",
+      "fgrep",
+      "grep",
+      "head",
+      "jq",
+      "ls",
+      "nl",
+      "pwd",
+      "rg",
+      "tac",
+      "tail",
+      "touch",
+      "tree",
+      "wc",
+      # Git specific subcommands
+      "git branch",
+      "git diff",
+      "git grep",
+      "git log",
+      "git show",
+      "git status"
+    ]
   end
 
   @spec allowed?(String.t(), [String.t()]) :: boolean()
   def allowed?(full_cmd, approval_bits) when is_binary(full_cmd) and is_list(approval_bits) do
-    exe = Path.basename(full_cmd)
+    subject = Enum.join(approval_bits, " ")
 
-    case Map.fetch(@allowed_commands, exe) do
-      {:ok, :all} ->
-        true
+    Enum.any?(@allowed_patterns, fn pattern ->
+      matches_pattern?(pattern, subject)
+    end)
+  end
 
-      {:ok, subs} when is_list(subs) ->
-        case approval_bits do
-          [_exe, sub | _] -> sub in subs
-          _ -> false
-        end
+  # Check if a subject matches an allowed pattern
+  defp matches_pattern?(pattern, subject) do
+    if String.starts_with?(pattern, "m/") and String.ends_with?(pattern, "/") do
+      # It's a regex pattern - extract the pattern between m/ and /
+      raw_pattern = String.slice(pattern, 2..-2//1)
 
-      :error ->
-        false
+      # Anchor pattern to match from start of string
+      anchored_pattern = "^" <> raw_pattern
+
+      case Regex.compile(anchored_pattern) do
+        {:ok, regex} -> Regex.match?(regex, subject)
+        _ -> false
+      end
+    else
+      # Plain string becomes prefix pattern allowing additional arguments
+      escaped_pattern = Regex.escape(pattern)
+      regex_pattern = "^#{escaped_pattern}(\\s.*|$)"
+
+      case Regex.compile(regex_pattern) do
+        {:ok, regex} -> Regex.match?(regex, subject)
+        _ -> false
+      end
     end
   end
 end
