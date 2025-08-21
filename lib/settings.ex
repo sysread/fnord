@@ -327,8 +327,33 @@ defmodule Settings do
   @spec is_approved?(t, :global | binary, binary, binary) :: boolean()
   def is_approved?(settings, scope, tag, subject) do
     subject_map = get_approvals(settings, scope)
-    tag_subject = Map.get(subject_map, tag, [])
-    subject in tag_subject
+    tag_subjects = Map.get(subject_map, tag, [])
+
+    # First check for exact match (fast path)
+    if subject in tag_subjects do
+      true
+    else
+      # Check for pattern matches
+      Enum.any?(tag_subjects, fn approved_subject ->
+        matches_pattern?(approved_subject, subject)
+      end)
+    end
+  end
+
+  # Check if a subject matches an approved pattern
+  defp matches_pattern?(approved_subject, actual_subject) do
+    if String.starts_with?(approved_subject, "m/") and String.ends_with?(approved_subject, "/") do
+      # It's a regex pattern - extract the pattern between m/ and /
+      pattern = String.slice(approved_subject, 2..-2//1)
+
+      case Regex.compile(pattern) do
+        {:ok, regex} -> Regex.match?(regex, actual_subject)
+        _ -> false
+      end
+    else
+      # Plain string match (backward compatible)
+      approved_subject == actual_subject
+    end
   end
 
   defp slurp(settings) do
