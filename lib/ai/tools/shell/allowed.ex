@@ -25,16 +25,19 @@ defmodule AI.Tools.Shell.Allowed do
     "ag" => :all,
     "cat" => :all,
     "diff" => :all,
+    "fgrep" => :all,
     "grep" => :all,
     "head" => :all,
     "jq" => :all,
     "ls" => :all,
+    "nl" => :all,
     "pwd" => :all,
     "rg" => :all,
     "tac" => :all,
     "tail" => :all,
     "touch" => :all,
     "tree" => :all,
+    "wc" => :all,
 
     # Git
     "git" => [
