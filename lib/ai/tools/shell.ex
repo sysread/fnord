@@ -23,10 +23,13 @@ defmodule AI.Tools.Shell do
   def read_args(args), do: {:ok, args}
 
   @impl AI.Tools
-  def ui_note_on_request(%{"cmd" => cmd}), do: {cmd, "..."}
+  def ui_note_on_request(%{"command" => cmd, "params" => params}) do
+    full_cmd = [cmd | params] |> Enum.join(" ")
+    {full_cmd, "..."}
+  end
 
   @impl AI.Tools
-  def ui_note_on_result(%{"cmd" => cmd}, result) do
+  def ui_note_on_result(%{"command" => cmd, "params" => params}, result) do
     lines = String.split(result, ~r/\r\n|\n/)
 
     {result_str, additional} =
@@ -42,7 +45,9 @@ defmodule AI.Tools.Shell do
         {Enum.join(lines, "\n"), ""}
       end
 
-    {cmd,
+    full_cmd = [cmd | params] |> Enum.join(" ")
+
+    {full_cmd,
      """
      #{result_str}
      #{additional}
@@ -61,16 +66,38 @@ defmodule AI.Tools.Shell do
       function: %{
         name: "shell_tool",
         description: """
-        Executes shell commands and returns the output. The user must approve
-        execution of this command before it is run. The user may optionally
-        approve the command for the entire session.
+        Executes shell commands and returns the output.
+        The user must approve execution of this command before it is run.
+        The user may optionally approve the command for the entire session.
 
-        The following commands (if present) are always allowed without approval:
+        This tool does not support complex shell syntax, such as pipes, redirection, or command substitution.
+        It only supports simple commands with arguments.
+
+        The following commands and subcommands (if present) are always allowed without approval:
         #{allowed}
+
+        Example usage:
+        ```json
+        {
+          "description": "List files in the current directory",
+          "command": "ls",
+          "params": ["-l", "-a"],
+          "timeout_ms": 5000
+        }
+        ```
+
+        ```json
+        {
+          "description": "Display the contents of a file",
+          "command": "git",
+          "params": ["log", "--oneline", "-n", "10"],
+          "timeout_ms": 10000
+        }
+        ```
         """,
         parameters: %{
           type: "object",
-          required: ["description", "cmd"],
+          required: ["description", "command", "params"],
           properties: %{
             description: %{
               type: "string",
@@ -79,9 +106,20 @@ defmodule AI.Tools.Shell do
               This will be displayed to the user in the approval dialog.
               """
             },
-            cmd: %{
+            command: %{
               type: "string",
-              description: "The complete command to execute."
+              description: """
+              The base command/executable to run (e.g., 'git', 'ls', 'cat').
+              This should be a single command without any arguments or flags.
+              Spaces are NOT allowed in the command name.
+              """
+            },
+            params: %{
+              type: "array",
+              items: %{type: "string"},
+              description: """
+              Array of parameters/arguments to pass to the command.
+              """
             },
             timeout_ms: %{
               type: "integer",
@@ -102,19 +140,20 @@ defmodule AI.Tools.Shell do
   # for clarity and consistency, rather than allowing a bare boolean to bubble up.
   def call(opts) do
     with {:ok, desc} <- AI.Tools.get_arg(opts, "description"),
-         {:ok, cmd} <- AI.Tools.get_arg(opts, "cmd"),
-         false <- AI.Tools.Shell.Util.contains_disallowed_syntax?(cmd),
-         {:ok, cmd, system_args, approval_bits} <- validate_cmd(cmd) do
+         {:ok, cmd} <- AI.Tools.get_arg(opts, "command"),
+         {:ok, params} <- AI.Tools.get_arg(opts, "params"),
+         false <- contains_disallowed_syntax_in_params?([cmd | params]),
+         {:ok, approval_bits} <- generate_approval_bits(cmd, params) do
       timeout_ms =
         opts
         |> Map.get("timeout_ms", @default_timeout_ms)
         |> validate_timeout()
 
       if AI.Tools.Shell.Allowed.allowed?(cmd, approval_bits) do
-        call_shell_cmd(cmd, system_args, timeout_ms)
+        call_shell_cmd(cmd, params, timeout_ms)
       else
-        with {:ok, :approved} <- confirm(desc, approval_bits, cmd, system_args) do
-          call_shell_cmd(cmd, system_args, timeout_ms)
+        with {:ok, :approved} <- confirm(desc, approval_bits, cmd, params) do
+          call_shell_cmd(cmd, params, timeout_ms)
         end
       end
     else
@@ -174,14 +213,32 @@ defmodule AI.Tools.Shell do
     end
   end
 
-  defp validate_cmd(cmd) do
-    AI.Agent.ShellCmdParser.get_response(%{shell_cmd: cmd})
-    |> case do
-      {:ok, %{"cmd" => cmd, "args" => system_args, "approval_bits" => bits}} ->
-        {:ok, cmd, system_args, bits}
+  defp contains_disallowed_syntax_in_params?(cmd_parts) do
+    # Check each part for disallowed syntax
+    Enum.any?(cmd_parts, &AI.Tools.Shell.Util.contains_disallowed_syntax?/1)
+  end
 
-      {:error, reason} ->
-        {:error, reason}
+  defp generate_approval_bits(cmd, params) do
+    # Use OptionParser to intelligently separate positional args from flags
+    try do
+      case OptionParser.parse([cmd | params], strict: []) do
+        {_opts, positional, _invalid} ->
+          # Take the command and first positional arg (if any) as approval bits
+          approval_bits =
+            case positional do
+              # Just the command
+              [_cmd] -> [cmd]
+              # Command + subcommand/first arg
+              [_cmd, subcommand | _] -> [cmd, subcommand]
+              # Fallback to just command
+              _ -> [cmd]
+            end
+
+          {:ok, approval_bits}
+      end
+    catch
+      # If OptionParser fails for any reason, fall back to just the command
+      _ -> {:ok, [cmd]}
     end
   end
 
