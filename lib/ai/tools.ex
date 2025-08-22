@@ -190,7 +190,6 @@ defmodule AI.Tools do
 
   @rw_tools %{
     "file_edit_tool" => AI.Tools.File.Edit,
-    "file_manage_tool" => AI.Tools.File.Manage
   }
 
   @coding_tools %{

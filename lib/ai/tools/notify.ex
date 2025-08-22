@@ -30,7 +30,7 @@ defmodule AI.Tools.Notify do
         - "I am looking up the latest information on the topic." (info)
         - "Interesting! I learned that $SomeComponent is actually performing the validation itself!" (info)
         - "This is taking longer than expected due to unexpected findings." (warn)
-        - "The file_manage_tool is giving me problems, trying to work around it." (error)
+        - "The shell command is taking longer than expected, working on it." (error)
         """,
         parameters: %{
           type: "object",
