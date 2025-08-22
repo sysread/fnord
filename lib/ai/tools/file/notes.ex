@@ -59,16 +59,9 @@ defmodule AI.Tools.File.Notes do
   def call(args) do
     with {:ok, file} <- Map.fetch(args, "file"),
          {:ok, entry} <- AI.Tools.get_entry(file),
-         {:ok, summary} = Store.Project.Entry.read_summary(entry),
-         {:ok, outline} = Store.Project.Entry.read_outline(entry) do
-      {:ok,
-       """
-       # Summary
-       #{summary}
-
-       # Outline
-       #{outline}
-       """}
+         {:ok, summary} <- Store.Project.Entry.read_summary(entry),
+         {:ok, outline} <- Store.Project.Entry.read_outline(entry) do
+      {:ok, format_notes(summary, outline)}
     else
       :error ->
         {:error, "Missing required parameter: file."}
@@ -78,6 +71,20 @@ defmodule AI.Tools.File.Notes do
 
       {:error, :enoent} ->
         {:error, "File path not found. Please verify the correct path."}
+
+      {:error, reason} ->
+        {:error, "Unable to load notes: #{inspect(reason)}"}
     end
+  end
+
+  # Formats summary and outline
+  defp format_notes(summary, outline) do
+    """
+    # Summary
+    #{summary}
+
+    # Outline
+    #{outline}
+    """
   end
 end
