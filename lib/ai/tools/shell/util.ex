@@ -190,6 +190,10 @@ defmodule AI.Tools.Shell.Util do
 
   defp contains_dangerous_unquoted_pattern?(part) do
     # Check for dangerous shell patterns in unquoted text using regex
-    Regex.match?(~r/\||&&|\|\||;|>|<|`|\$\(|(?<!\&)\&(?!\&)|<\(|>\(/, part)
+    # Includes both ASCII operators and Unicode homoglyphs that look identical
+    ascii_pattern = ~r/\||&&|\|\||;|>|<|`|\$\(|(?<!\&)\&(?!\&)|<\(|>\(/
+    unicode_homoglyph_pattern = ~r/[；｜＆＞＜]/u
+    
+    Regex.match?(ascii_pattern, part) or Regex.match?(unicode_homoglyph_pattern, part)
   end
 end
