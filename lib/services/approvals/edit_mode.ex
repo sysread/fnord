@@ -68,7 +68,7 @@ defmodule Services.Approvals.EditMode do
     options = get_options(opts)
 
     # Collect user choice and dispatch
-    IO.puts("")
+    newline()
 
     "Approve this request?"
     |> UI.choose(options)
@@ -85,7 +85,7 @@ defmodule Services.Approvals.EditMode do
   end
 
   defp do_print_info_box(message, detail, tag, subject) do
-    IO.puts("")
+    newline()
 
     pattern_help =
       pattern_examples()
@@ -400,5 +400,11 @@ defmodule Services.Approvals.EditMode do
 
      This was automatically denied because the user is not in an interactive session.
      """}
+  end
+
+  defp newline do
+    unless UI.quiet?() do
+      IO.puts("")
+    end
   end
 end

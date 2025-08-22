@@ -7,6 +7,8 @@ defmodule Services.ApprovalsReadOnlyTest do
   setup do
     # Use the ReadOnlyMode implementation for these tests
     Application.put_env(:fnord, :approvals_impl, Services.Approvals.ReadOnlyMode)
+    # Ensure quiet mode is set to prevent test output
+    Application.put_env(:fnord, :quiet, true)
     # Restart the approvals service to pick up the new implementation
     try do
       GenServer.stop(Services.Approvals, :normal)

@@ -34,9 +34,9 @@ defmodule AI.Tools.Shell.PreapprovedTest do
     end)
 
     assert {:ok, result} =
-             Shell.call(%{"description" => "list", "command" => "ls", "params" => ["-la"]})
+             Shell.call(%{"description" => "list", "command" => "ls -la"})
 
-    assert result =~ "Command: `'ls' '-la'`"
+    assert result =~ "Command: `ls -la`"
   end
 
   test "git log skips approval" do
@@ -45,9 +45,9 @@ defmodule AI.Tools.Shell.PreapprovedTest do
     end)
 
     assert {:ok, result} =
-             Shell.call(%{"description" => "git log", "command" => "git", "params" => ["log"]})
+             Shell.call(%{"description" => "git log", "command" => "git log"})
 
-    assert result =~ "Command: `'git' 'log'`"
+    assert result =~ "Command: `git log`"
   end
 
   test "git log with extra args skips approval" do
@@ -59,11 +59,10 @@ defmodule AI.Tools.Shell.PreapprovedTest do
     assert {:ok, result} =
              Shell.call(%{
                "description" => "git log with args",
-               "command" => "git",
-               "params" => ["log", "--oneline", "-10"]
+               "command" => "git log --oneline -10"
              })
 
-    assert result =~ "Command: `'git' 'log' '--oneline' '-10'`"
+    assert result =~ "Command: `git log --oneline -10`"
   end
 
   test "git remote still asks approval" do
@@ -72,7 +71,7 @@ defmodule AI.Tools.Shell.PreapprovedTest do
     end)
 
     assert {:ok, _} =
-             Shell.call(%{"description" => "remote", "command" => "git", "params" => ["remote"]})
+             Shell.call(%{"description" => "remote", "command" => "git remote"})
   end
 
   test "malicious commands that start with allowed command names are blocked" do
@@ -85,8 +84,7 @@ defmodule AI.Tools.Shell.PreapprovedTest do
     assert {:ok, output} =
              Shell.call(%{
                "description" => "malicious",
-               "command" => "catastrophe",
-               "params" => []
+               "command" => "catastrophe"
              })
 
     # Should show command not found in output and non-zero exit code
@@ -145,5 +143,45 @@ defmodule AI.Tools.Shell.PreapprovedTest do
     # Test with commands that have arguments
     assert Allowed.allowed?("cat", ["cat", "/etc/passwd"])
     refute Allowed.allowed?("concatenate", ["concatenate", "files"])
+  end
+
+  test "complex commands require manual approval" do
+    # Mock to expect manual approval for complex commands
+    :meck.expect(Services.Approvals, :confirm, fn opts ->
+      # Verify it's asking for approval with the right parameters
+      assert Keyword.get(opts, :tag) == "shell_cmd"
+      # Complex commands can't be pre-approved
+      assert Keyword.get(opts, :persistent) == false
+      {:ok, :approved}
+    end)
+
+    # Test complex command with pipe
+    assert {:ok, result} =
+             Shell.call(%{
+               "description" => "list and filter",
+               "command" => "ls -la | grep test"
+             })
+
+    assert result =~ "Command: `ls -la | grep test`"
+
+    {:ok, tmp} = Briefly.create()
+
+    # Test complex command with redirect  
+    assert {:ok, result} =
+             Shell.call(%{
+               "description" => "save output",
+               "command" => "ls > #{tmp}/files.txt"
+             })
+
+    assert result =~ "Command: `ls > #{tmp}/files.txt`"
+
+    # Test complex command with command chaining
+    assert {:ok, result} =
+             Shell.call(%{
+               "description" => "multiple commands",
+               "command" => "pwd && ls"
+             })
+
+    assert result =~ "Command: `pwd && ls`"
   end
 end

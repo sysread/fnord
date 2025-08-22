@@ -13,6 +13,7 @@ defmodule Services.ApprovalsTest do
   setup do
     # Use the EditMode implementation for these tests
     Application.put_env(:fnord, :approvals_impl, Services.Approvals.EditMode)
+
     # Restart the approvals service to pick up the new implementation
     try do
       GenServer.stop(Services.Approvals, :normal)
@@ -32,11 +33,7 @@ defmodule Services.ApprovalsTest do
     end)
 
     assert {:ok, :approved} = Approvals.approve(:session, @approval_tag, @approval_subject)
-
-    _ =
-      ExUnit.CaptureIO.capture_io(fn ->
-        assert {:ok, :approved} = Approvals.confirm(@opts)
-      end)
+    assert {:ok, :approved} = Approvals.confirm(@opts)
 
     :meck.unload(UI)
   end
@@ -51,11 +48,7 @@ defmodule Services.ApprovalsTest do
     end)
 
     assert {:ok, :approved} = Approvals.approve(:project, @approval_tag, @approval_subject)
-
-    _ =
-      ExUnit.CaptureIO.capture_io(fn ->
-        assert {:ok, :approved} = Approvals.confirm(@opts)
-      end)
+    assert {:ok, :approved} = Approvals.confirm(@opts)
 
     :meck.unload(UI)
   end
@@ -66,6 +59,7 @@ defmodule Services.ApprovalsTest do
     :meck.expect(UI, :choose, fn _, _ -> {:error, :no_tty} end)
 
     assert {:error, msg} = Approvals.confirm(@opts)
+
     # The error message should still indicate denial and include the subject
     assert msg =~ "> #{@approval_subject}"
     assert msg =~ "automatically denied"
