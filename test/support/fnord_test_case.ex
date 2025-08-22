@@ -18,6 +18,7 @@ defmodule Fnord.TestCase do
   #    globally in a setup block below
   # ----------------------------------------------------------------------------
   Mox.defmock(MockIndexer, for: Indexer)
+  Mox.defmock(MockApprovals, for: Services.Approvals)
 
   using do
     quote do
@@ -44,7 +45,6 @@ defmodule Fnord.TestCase do
       setup :verify_on_exit!
       setup :set_mox_from_context
 
-
       setup do
         # Ensure no OpenAI API key is set in the environment. This prevents
         # test from accidentally reaching out onto the network.
@@ -66,6 +66,12 @@ defmodule Fnord.TestCase do
         # AI-generated summaries and so whatnot.
         set_config(:indexer, MockIndexer)
         Mox.stub_with(MockIndexer, StubIndexer)
+        :ok
+      end
+
+      setup do
+        # Globally override approvals implementation with test stub
+        Application.put_env(:fnord, :approvals_impl, Services.Approvals.TestStub)
         :ok
       end
 

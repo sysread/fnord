@@ -24,7 +24,7 @@ defmodule AI.Tools.Shell do
 
   @impl AI.Tools
   def ui_note_on_request(%{"command" => cmd, "params" => params}) do
-    full_cmd = [cmd | params] |> Enum.join(" ")
+    full_cmd = shell_escape([cmd | params])
     {full_cmd, "..."}
   end
 
@@ -45,7 +45,7 @@ defmodule AI.Tools.Shell do
         {Enum.join(lines, "\n"), ""}
       end
 
-    full_cmd = [cmd | params] |> Enum.join(" ")
+    full_cmd = shell_escape([cmd | params])
 
     {full_cmd,
      """
@@ -187,7 +187,11 @@ defmodule AI.Tools.Shell do
     task =
       Task.async(fn ->
         try do
-          System.cmd(cmd, args, opts)
+          # Wrap command in sh to prevent stdin hanging
+          # Use proper shell escaping to handle spaces and special chars
+          full_cmd = shell_escape([cmd | args])
+          wrapped_cmd = "#{full_cmd} < /dev/null"
+          System.cmd("sh", ["-c", wrapped_cmd], opts)
         rescue
           e in ErlangError ->
             case e.reason do
@@ -202,7 +206,7 @@ defmodule AI.Tools.Shell do
       {:ok, {out, exit_code}} when is_binary(out) ->
         {:ok,
          """
-         Command: `#{cmd} #{Enum.join(args, " ")}`
+         Command: `#{shell_escape([cmd | args])}`
          Exit Status: `#{exit_code}`
 
          Output:
@@ -260,8 +264,21 @@ defmodule AI.Tools.Shell do
     end
   end
 
+  # Properly escape shell arguments to prevent injection and handle spaces/special chars
+  defp shell_escape(args) when is_list(args) do
+    args
+    |> Enum.map(&shell_escape_arg/1)
+    |> Enum.join(" ")
+  end
+
+  # POSIX-safe shell argument escaping using the single quote trick
+  # Handles ALL edge cases by ending quote, escaping single quote, restarting quote
+  defp shell_escape_arg(arg) when is_binary(arg) do
+    "'" <> String.replace(arg, "'", "'\\''") <> "'"
+  end
+
   defp confirm(desc, approval_bits, cmd, args) do
-    full_cmd = [cmd | args] |> Enum.join(" ")
+    full_cmd = shell_escape([cmd | args])
     subject = Enum.join(approval_bits, " ")
 
     # Persistent approvals are not permitted for complex or arbitary shell

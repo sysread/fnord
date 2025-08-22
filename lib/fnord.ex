@@ -29,10 +29,9 @@ defmodule Fnord do
         max_connections: Application.get_env(:fnord, :workers, Cmd.default_workers())
       )
 
-      # Start the name pool service now that workers configuration is available.
-      # This service depends on the workers setting to determine batch allocation size,
-      # so it must be started after set_globals() parses CLI arguments.
-      Services.start_name_pool()
+      # Start services that depend on CLI configuration now that it's available.
+      # These services depend on settings parsed from CLI arguments in set_globals().
+      Services.start_config_dependent_services()
 
       # Require a project if the command needs it. As a rule, we make the
       # project option optional in the Cmd implementation, and then manually
@@ -138,8 +137,14 @@ defmodule Fnord do
       )
 
     logger_level =
-      System.get_env("LOGGER_LEVEL", "info")
-      |> String.to_existing_atom()
+      case System.get_env("LOGGER_LEVEL", "info") do
+        level when level in ~w[emergency alert critical error warning notice info debug] ->
+          String.to_existing_atom(level)
+
+        invalid ->
+          IO.warn("Invalid LOGGER_LEVEL '#{invalid}', defaulting to :info")
+          :info
+      end
 
     :ok = :logger.set_primary_config(:level, logger_level)
   end
@@ -164,6 +169,9 @@ defmodule Fnord do
 
       {:project, project} when is_binary(project) ->
         Settings.set_project(project)
+
+      {:edit, edit_mode} ->
+        Settings.set_edit_mode(edit_mode)
 
       _ ->
         :ok

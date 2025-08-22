@@ -15,18 +15,17 @@ defmodule Services do
     Services.Task.start_link()
     AI.Agent.Researcher.start_link()
     Services.BackupFile.start_link()
-    Services.Approvals.start_link()
     Services.ModelPerformanceTracker.start_link()
   end
 
   @doc """
-  Starts the name pool service separately from other services.
+  Starts services that depend on CLI configuration.
 
-  This service must be started AFTER set_globals() is called because it needs
-  to read the configured workers setting to determine its batch allocation size.
-  The workers setting is parsed from CLI arguments and set in set_globals().
+  These services must be started AFTER set_globals() is called because they need
+  to read configuration settings parsed from CLI arguments in set_globals().
   """
-  def start_name_pool do
+  def start_config_dependent_services do
     Services.NamePool.start_link()
+    Services.Approvals.start_link()
   end
 end

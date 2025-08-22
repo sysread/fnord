@@ -147,6 +147,23 @@ defmodule Settings do
   end
 
   @doc """
+  Set edit mode for the application.
+  """
+  @spec set_edit_mode(boolean) :: :ok
+  def set_edit_mode(edit_mode) do
+    Application.put_env(:fnord, :edit_mode, !!edit_mode)
+    :ok
+  end
+
+  @doc """
+  Get current edit mode setting.
+  """
+  @spec get_edit_mode() :: boolean
+  def get_edit_mode() do
+    Application.get_env(:fnord, :edit_mode, false)
+  end
+
+  @doc """
   Check if the --project option is set.
   """
   def project_is_set?() do

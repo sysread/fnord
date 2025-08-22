@@ -76,6 +76,11 @@ defmodule AI.Agent.Coordinator do
          {:ok, question} <- Map.fetch(opts, :question),
          {:ok, replay} <- Map.fetch(opts, :replay),
          {:ok, project} <- Store.get_project() do
+      Settings.set_edit_mode(edit?)
+      # Restart approvals service to pick up edit mode setting
+      GenServer.stop(Services.Approvals, :normal)
+      {:ok, _pid} = Services.Approvals.start_link()
+
       followup? =
         conversation
         |> Services.Conversation.get_conversation()

@@ -184,18 +184,17 @@ defmodule AI.Tools do
     "notify_tool" => AI.Tools.Notify,
     "prior_research" => AI.Tools.Notes,
     "research_tool" => AI.Tools.Research,
+    "shell_tool" => AI.Tools.Shell,
     "troubleshooter_tool" => AI.Tools.Troubleshooter
   }
 
   @rw_tools %{
     "file_edit_tool" => AI.Tools.File.Edit,
-    "file_manage_tool" => AI.Tools.File.Manage,
-    "shell_tool" => AI.Tools.Shell
+    "file_manage_tool" => AI.Tools.File.Manage
   }
 
   @coding_tools %{
-    "coder_tool" => AI.Tools.Coder,
-    "shell_tool" => AI.Tools.Shell
+    "coder_tool" => AI.Tools.Coder
   }
 
   # ----------------------------------------------------------------------------

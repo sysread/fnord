@@ -36,7 +36,7 @@ defmodule AI.Tools.Shell.PreapprovedTest do
     assert {:ok, result} =
              Shell.call(%{"description" => "list", "command" => "ls", "params" => ["-la"]})
 
-    assert result =~ "Command: `ls -la`"
+    assert result =~ "Command: `'ls' '-la'`"
   end
 
   test "git log skips approval" do
@@ -47,7 +47,7 @@ defmodule AI.Tools.Shell.PreapprovedTest do
     assert {:ok, result} =
              Shell.call(%{"description" => "git log", "command" => "git", "params" => ["log"]})
 
-    assert result =~ "Command: `git log`"
+    assert result =~ "Command: `'git' 'log'`"
   end
 
   test "git log with extra args skips approval" do
@@ -63,7 +63,7 @@ defmodule AI.Tools.Shell.PreapprovedTest do
                "params" => ["log", "--oneline", "-10"]
              })
 
-    assert result =~ "Command: `git log --oneline -10`"
+    assert result =~ "Command: `'git' 'log' '--oneline' '-10'`"
   end
 
   test "git remote still asks approval" do
@@ -81,16 +81,16 @@ defmodule AI.Tools.Shell.PreapprovedTest do
       {:ok, :approved}
     end)
 
-    # This should require approval (not be preapproved) and then fail because command doesn't exist
-    assert {:error, error_msg} =
+    # This should require approval (not be preapproved) and then execute but show command doesn't exist
+    assert {:ok, output} =
              Shell.call(%{
                "description" => "malicious",
                "command" => "catastrophe",
                "params" => []
              })
 
-    # Should get command not found error since 'catastrophe' doesn't exist
-    assert error_msg =~ "Command not found" or error_msg =~ "Posix error"
+    # Should show command not found in output and non-zero exit code
+    assert output =~ "command not found" and output =~ "Exit Status: `127`"
   end
 
   test "allowed command patterns work correctly" do

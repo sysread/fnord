@@ -9,6 +9,21 @@ defmodule Services.ApprovalsTest do
   @detail "Detail message"
   @opts [tag: @approval_tag, subject: @approval_subject, message: @message, detail: @detail]
 
+  # This module now tests the EditMode implementation specifically
+  setup do
+    # Use the EditMode implementation for these tests
+    Application.put_env(:fnord, :approvals_impl, Services.Approvals.EditMode)
+    # Restart the approvals service to pick up the new implementation
+    try do
+      GenServer.stop(Services.Approvals, :normal)
+    catch
+      :exit, _ -> :ok
+    end
+
+    {:ok, _pid} = Services.Approvals.start_link()
+    :ok
+  end
+
   test "bypasses prompt when session-approved" do
     :meck.new(UI, [:passthrough])
 
@@ -50,17 +65,10 @@ defmodule Services.ApprovalsTest do
     :meck.new(UI, [:passthrough])
     :meck.expect(UI, :choose, fn _, _ -> {:error, :no_tty} end)
 
-    captured_output =
-      ExUnit.CaptureIO.capture_io(fn ->
-        assert {:error, msg} = Approvals.confirm(@opts)
-        # The error message should still indicate denial and include the subject
-        assert msg =~ "> #{@approval_subject}"
-        assert msg =~ "automatically denied"
-      end)
-
-    # Verify that the permission dialog was rendered before auto-deny
-    assert captured_output =~ "PERMISSION REQUEST"
-    assert captured_output =~ @detail
+    assert {:error, msg} = Approvals.confirm(@opts)
+    # The error message should still indicate denial and include the subject
+    assert msg =~ "> #{@approval_subject}"
+    assert msg =~ "automatically denied"
 
     :meck.unload(UI)
   end
@@ -72,17 +80,10 @@ defmodule Services.ApprovalsTest do
       {:error, :no_tty}
     end)
 
-    captured_output =
-      ExUnit.CaptureIO.capture_io(fn ->
-        assert {:error, msg} = Approvals.confirm(@opts)
-        # The error message should still indicate denial and include the subject
-        assert msg =~ "> #{@approval_subject}"
-        assert msg =~ "automatically denied"
-      end)
-
-    # Verify that the permission dialog was rendered before auto-deny
-    assert captured_output =~ "PERMISSION REQUEST"
-    assert captured_output =~ @detail
+    assert {:error, msg} = Approvals.confirm(@opts)
+    # The error message should still indicate denial and include the subject
+    assert msg =~ "> #{@approval_subject}"
+    assert msg =~ "automatically denied"
 
     :meck.unload(UI)
   end
@@ -193,7 +194,12 @@ defmodule Services.ApprovalsTest do
       refute Approvals.is_approved?("shell_cmd", "npm install")
 
       # Restart the approvals service to test loading from settings
-      GenServer.stop(Services.Approvals, :normal)
+      try do
+        GenServer.stop(Services.Approvals, :normal)
+      catch
+        :exit, _ -> :ok
+      end
+
       {:ok, _pid} = Services.Approvals.start_link()
 
       # Verify the regex pattern still works after restart

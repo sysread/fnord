@@ -287,7 +287,11 @@ defmodule UI do
   def prompt(prompt, owl_opts \\ []) do
     if is_tty?() && !quiet?() do
       prompt |> UI.Formatter.format_output() |> IO.puts()
-      Owl.IO.input(owl_opts)
+
+      with_notification_timeout(
+        fn -> Owl.IO.input(owl_opts) end,
+        "Fnord is waiting for your input: #{String.slice(prompt, 0..50)}"
+      )
     else
       {:error, :no_tty}
     end
