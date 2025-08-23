@@ -345,6 +345,16 @@ defmodule UI do
     end
   end
 
+  def box(contents, opts) do
+    unless UI.quiet?() do
+      Owl.IO.puts("")
+
+      contents
+      |> Owl.Box.new(opts)
+      |> Owl.IO.puts()
+    end
+  end
+
   # ----------------------------------------------------------------------------
   # Notification timeout for interactive prompts
   # ----------------------------------------------------------------------------

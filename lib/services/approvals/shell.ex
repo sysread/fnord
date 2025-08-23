@@ -18,8 +18,6 @@ defmodule Services.Approvals.ShellWorkflow do
 
   @impl Workflow
   def confirm(state, {cmd, purpose}) do
-    UI.newline()
-
     [
       Owl.Data.tag("# Approval Scope ", [:red_background, :black, :bright]),
       "\n\nshell :: #{cmd}\n\n",
@@ -31,14 +29,13 @@ defmodule Services.Approvals.ShellWorkflow do
       "\n\n",
       purpose
     ]
-    |> Owl.Box.new(
+    |> UI.box(
       title: " Shell Command ",
       min_width: 80,
       padding: 1,
       horizontal_align: :left,
       border_tag: [:red, :bright]
     )
-    |> Owl.IO.puts()
 
     cond do
       approved?(state, cmd) -> {:approved, state}

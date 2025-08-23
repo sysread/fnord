@@ -18,8 +18,6 @@ defmodule Services.Approvals.Edit do
 
   @impl Workflow
   def confirm(state, {file, diff}) do
-    UI.newline()
-
     [
       Owl.Data.tag("# Scope ", [:red_background, :black, :bright]),
       "\n\nedit :: all files\n\n",
@@ -27,14 +25,13 @@ defmodule Services.Approvals.Edit do
       "\n\n",
       diff
     ]
-    |> Owl.Box.new(
+    |> UI.box(
       title: " Edit #{file} ",
       min_width: 80,
       padding: 1,
       horizontal_align: :left,
       border_tag: [:red, :bright]
     )
-    |> Owl.IO.puts()
 
     cond do
       !edit?() -> {:denied, @not_edit_mode, state}
