@@ -18,7 +18,7 @@ defmodule Fnord.TestCase do
   #    globally in a setup block below
   # ----------------------------------------------------------------------------
   Mox.defmock(MockIndexer, for: Indexer)
-  Mox.defmock(MockApprovals, for: Services.Approvals)
+  Mox.defmock(MockApprovals, for: Services.Approvals.Workflow)
 
   using do
     quote do
@@ -69,12 +69,6 @@ defmodule Fnord.TestCase do
         :ok
       end
 
-      setup do
-        # Globally override approvals implementation with test stub
-        Application.put_env(:fnord, :approvals_impl, Services.Approvals.TestStub)
-        :ok
-      end
-
       # -------------------------------------------------------------------------
       # Ensure all temp dirs created by this test process are cleaned up when
       # the process exits.
@@ -112,6 +106,7 @@ defmodule Fnord.TestCase do
       # -----------------------------------------------------------------------------
       setup do
         Services.start_all()
+        Services.start_config_dependent_services()
         :ok
       end
     end

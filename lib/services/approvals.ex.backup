@@ -1,0 +1,345 @@
+defmodule Services.Approvals do
+  use GenServer
+
+  # ----------------------------------------------------------------------------
+  # Types
+  # ----------------------------------------------------------------------------
+  defstruct [
+    :session
+  ]
+
+  @type scope :: :session | :project | :global
+  @type kind :: :edit | :shell
+
+  @type t :: %__MODULE__{
+          session: [Regex.t()]
+        }
+
+  # ----------------------------------------------------------------------------
+  # Globals
+  # ----------------------------------------------------------------------------
+  @approve "Approve"
+  @session "Approve for this session"
+  @project "Approve for the project"
+  @global "Approve globally"
+
+  @customize "Customize"
+
+  @deny "Deny"
+  @deny_feedback "Deny with feedback"
+
+  @no_feedback "The user denied the request."
+
+  @not_edit_mode """
+  The application is not running in edit mode.
+  The user must pass --edit to enable edit mode.
+  """
+
+  @no_tty """
+  The application is not running in an interactive terminal.
+  The user cannot respond to prompts, so they were unable to approve or deny the request.
+  """
+
+  # ----------------------------------------------------------------------------
+  # Client API
+  # ----------------------------------------------------------------------------
+  def start_link(opts \\ []) do
+    name = Keyword.get(opts, :name, __MODULE__)
+    GenServer.start_link(__MODULE__, nil, name: name)
+  end
+
+  def approved?(:edit), do: edit?() && auto?()
+
+  def approved?(:shell, pattern) do
+    GenServer.call(__MODULE__, {:approved?, :shell, pattern})
+  end
+
+  def confirm(:edit, file, diff) do
+    GenServer.call(__MODULE__, {:confirm, :edit, file, diff}, :infinity)
+  end
+
+  def confirm(:shell, cmd, purpose) do
+    GenServer.call(__MODULE__, {:confirm, :shell, cmd, purpose}, :infinity)
+  end
+
+  # ----------------------------------------------------------------------------
+  # Server API
+  # ----------------------------------------------------------------------------
+  @impl GenServer
+  def init(_) do
+    {:ok, %__MODULE__{session: []}}
+  end
+
+  @impl GenServer
+  def handle_call({:approved?, :shell, pattern}, _from, state) do
+    {:reply, is_approved?(state, :shell, pattern), state}
+  end
+
+  @impl GenServer
+  def handle_call({:confirm, :edit, file, diff}, _from, state) do
+    state
+    |> confirm_edit(file, diff)
+    |> case do
+      {:approved, new_state} -> {:reply, {:ok, :approved}, new_state}
+      {:denied, reason, new_state} -> {:reply, {:denied, reason}, new_state}
+      {:error, reason, new_state} -> {:reply, {:error, reason}, new_state}
+    end
+  end
+
+  @impl GenServer
+  def handle_call({:confirm, :shell, cmd, purpose}, _from, state) do
+    state
+    |> confirm_shell(cmd, purpose)
+    |> case do
+      {:approved, new_state} -> {:reply, {:ok, :approved}, new_state}
+      {:denied, reason, new_state} -> {:reply, {:denied, reason}, new_state}
+    end
+  end
+
+  # ----------------------------------------------------------------------------
+  # Common
+  # ----------------------------------------------------------------------------
+  defp interactive?(), do: UI.is_tty?()
+
+  defp get_feedback() do
+    "Feedback:"
+    |> UI.prompt()
+    |> then(&"The user denied the request with the following feedback: #{&1}")
+  end
+
+  # ----------------------------------------------------------------------------
+  # Edit workflow
+  # ----------------------------------------------------------------------------
+  defp edit?, do: Settings.get_edit_mode()
+  defp auto?, do: edit?() && Settings.get_auto_approve()
+
+  defp confirm_edit(state, file, diff) do
+    UI.newline()
+
+    [
+      Owl.Data.tag("# Scope ", [:red_background, :black, :bright]),
+      "\n\nedit :: all files\n\n",
+      Owl.Data.tag("# Changes ", [:red_background, :black, :bright]),
+      "\n\n#{diff}"
+    ]
+    |> Owl.Box.new(
+      title: " Edit #{file} ",
+      min_width: 80,
+      padding: 1,
+      horizontal_align: :left,
+      border_tag: [:red, :bright]
+    )
+    |> Owl.IO.puts()
+
+    cond do
+      !edit?() -> {:denied, @not_edit_mode, state}
+      auto?() -> {:approved, state}
+      !interactive?() -> {:error, @no_tty, state}
+      true -> prompt(state, :edit)
+    end
+  end
+
+  defp prompt(state, :edit) do
+    options = [
+      @approve,
+      @session,
+      @deny,
+      @deny_feedback
+    ]
+
+    "Approve this request?"
+    |> UI.choose(options)
+    |> handle_response(state, :edit)
+  end
+
+  defp handle_response(@approve, state, :edit) do
+    {:approved, state}
+  end
+
+  defp handle_response(@session, state, :edit) do
+    Settings.set_auto_approve(true)
+    {:approved, state}
+  end
+
+  defp handle_response(@deny, state, :edit) do
+    {:denied, @no_feedback, state}
+  end
+
+  defp handle_response(@deny_feedback, state, :edit) do
+    {:denied, get_feedback(), state}
+  end
+
+  # ----------------------------------------------------------------------------
+  # Shell workflow
+  # ----------------------------------------------------------------------------
+  defp is_approved?(%{session: session}, :shell, cmd) do
+    session
+    |> Enum.any?(&Regex.match?(&1, cmd))
+    |> case do
+      true -> true
+      false -> Settings.new() |> Settings.Approvals.approved?("shell", cmd)
+    end
+  end
+
+  defp confirm_shell(state, cmd, purpose) do
+    UI.newline()
+
+    [
+      Owl.Data.tag("# Approval Scope ", [:red_background, :black, :bright]),
+      "\n\n",
+      "shell :: #{cmd}",
+      "\n\n",
+      Owl.Data.tag(
+        "Persistent approval includes variants starting with the same prefix.",
+        [:italic]
+      ),
+      "\n\n",
+      Owl.Data.tag("# Purpose ", [:red_background, :black, :bright]),
+      "\n\n",
+      purpose
+    ]
+    |> Owl.Box.new(
+      title: " Shell Command ",
+      min_width: 80,
+      padding: 1,
+      horizontal_align: :left,
+      border_tag: [:red, :bright]
+    )
+    |> Owl.IO.puts()
+
+    cond do
+      is_approved?(state, :shell, cmd) -> {:approved, state}
+      !interactive?() -> {:denied, @no_tty, state}
+      true -> prompt(state, :shell, cmd)
+    end
+  end
+
+  defp prompt(state, :shell, cmd) do
+    options = [
+      @approve,
+      @customize,
+      @deny,
+      @deny_feedback
+    ]
+
+    "Approve this request?"
+    |> UI.choose(options)
+    |> handle_response(state, :shell, cmd)
+  end
+
+  defp handle_response(@deny, state, :shell, _cmd) do
+    {:denied, @no_feedback, state}
+  end
+
+  defp handle_response(@deny_feedback, state, :shell, _cmd) do
+    {:denied, get_feedback(), state}
+  end
+
+  defp handle_response(@approve, state, :shell, _cmd) do
+    {:approved, state}
+  end
+
+  defp handle_response(@customize, state, :shell, cmd) do
+    UI.newline()
+
+    [
+      Owl.Data.tag("# Instructions ", [:green_background, :black, :bright]),
+      "\n\n",
+      """
+      Customize the regular expression used to approve this command. The
+      default pattern matches commands starting with the given command,
+      including any additional arguments.
+
+      Fnord uses PCRE-compatible syntax (https://hexdocs.pm/elixir/Regex.html)
+
+      """,
+      Owl.Data.tag("# Note ", [:green_background, :black, :bright]),
+      "\n\n",
+      Owl.Data.tag(
+        "Complex shell commands that include pipes, redirection, subshells, or other compound operators always require explicit user consent.",
+        [:italic]
+      ),
+      "\n\n",
+      Owl.Data.tag("# Default ", [:green_background, :black, :bright]),
+      "\n\n",
+      Owl.Data.tag("    #{cmd_to_pattern(cmd)} ", [:light_black_background, :yellow, :bright])
+    ]
+    |> Owl.Box.new(
+      title: " Customize Shell Command Approval ",
+      min_width: 80,
+      padding: 1,
+      horizontal_align: :left,
+      border_tag: [:green, :bright]
+    )
+    |> Owl.IO.puts()
+
+    get_shell_pattern(state, cmd)
+  end
+
+  defp get_shell_pattern(state, cmd) do
+    case UI.prompt("Customize approval: ", optional: true) do
+      nil ->
+        confirm_shell(state, cmd, "User exited customization.")
+
+      "" ->
+        confirm_shell(state, cmd, "User exited customization.")
+
+      pattern ->
+        case Regex.compile(pattern) do
+          {:ok, re} ->
+            approve_shell_pattern(state, Regex.source(re))
+
+          {:error, reason} ->
+            UI.error("Invalid regular expression", reason)
+            get_shell_pattern(state, cmd)
+        end
+    end
+  end
+
+  defp approve_shell_pattern(state, pattern) do
+    "Choose the scope of your approved shell command pattern: `#{pattern}`"
+    |> UI.choose([
+      @session,
+      @project,
+      @global
+    ])
+    |> approve_shell_pattern(state, :shell, pattern)
+  end
+
+  defp approve_shell_pattern(@session, state, :shell, cmd) do
+    approve_session(state, :shell, cmd)
+  end
+
+  defp approve_shell_pattern(@project, state, :shell, cmd) do
+    Settings.new()
+    |> Settings.Approvals.approve(:project, "shell", cmd_to_pattern(cmd))
+
+    {:approved, state}
+  end
+
+  defp approve_shell_pattern(@global, state, :shell, cmd) do
+    Settings.new()
+    |> Settings.Approvals.approve(:global, "shell", cmd_to_pattern(cmd))
+
+    {:approved, state}
+  end
+
+  defp approve_session(%{session: session} = state, :shell, cmd) do
+    session
+    |> Enum.concat([cmd |> cmd_to_pattern() |> Regex.compile!()])
+    |> Enum.sort()
+    |> Enum.uniq()
+    |> then(fn patterns ->
+      {:approved, %{state | session: patterns}}
+    end)
+  end
+
+  defp cmd_to_pattern(cmd) do
+    cmd =
+      cmd
+      |> String.trim_leading()
+      |> Regex.escape()
+
+    "^#{cmd}(?=\s|$)"
+  end
+end

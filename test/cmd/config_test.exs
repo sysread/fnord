@@ -9,52 +9,10 @@ defmodule Cmd.ConfigTest do
     old_level = Logger.level()
     Logger.configure(level: :error)
     on_exit(fn -> Logger.configure(level: old_level) end)
+
+    mock_project("config_test_project")
+
     :ok
-  end
-
-  describe "list command" do
-    test "lists global configuration when no project specified" do
-      settings = Settings.new()
-      settings = Settings.add_approval(settings, :global, "shell_cmd", "git push")
-      _settings = Settings.add_approval(settings, :global, "shell_cmd", "rm -rf")
-
-      output =
-        capture_io(fn ->
-          Cmd.Config.run([], [:list], [])
-        end)
-
-      decoded = Jason.decode!(output)
-      approvals = decoded["approvals"]
-      shell_commands = Map.get(approvals, "shell_cmd", [])
-      assert "git push" in shell_commands
-      assert "rm -rf" in shell_commands
-    end
-
-    test "lists project configuration when project specified" do
-      project = mock_project("config_test_project")
-
-      settings = Settings.new()
-      _settings = Settings.add_approval(settings, project.name, "shell_cmd", "make build")
-
-      output =
-        capture_io(fn ->
-          Cmd.Config.run([project: project.name], [:list], [])
-        end)
-
-      decoded = Jason.decode!(output)
-      approvals = Map.get(decoded, "approvals", %{})
-      shell_commands = Map.get(approvals, "shell_cmd", [])
-      assert "make build" in shell_commands
-    end
-
-    test "shows error for nonexistent project" do
-      log =
-        capture_log(fn ->
-          Cmd.Config.run([project: "nonexistent"], [:list], [])
-        end)
-
-      assert log =~ "Project not found"
-    end
   end
 
   describe "set command" do

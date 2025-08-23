@@ -6,31 +6,8 @@ defmodule Services.Approvals.TestStub do
   specific behaviors as needed.
   """
 
-  @behaviour Services.Approvals
+  @behaviour Services.Approvals.Workflow
 
-  @impl Services.Approvals
-  def init do
-    # Simple empty state for tests
-    %{}
-  end
-
-  @impl Services.Approvals
-  def confirm(_opts, state) do
-    {{:ok, :approved}, state}
-  end
-
-  @impl Services.Approvals
-  def is_approved?(_tag, _subject, state) do
-    {true, state}
-  end
-
-  @impl Services.Approvals
-  def approve(_scope, _tag, _subject, state) do
-    {{:ok, :approved}, state}
-  end
-
-  @impl Services.Approvals
-  def enable_auto_approval(_tag, _subject, state) do
-    {{:ok, :approved}, state}
-  end
+  @impl Services.Approvals.Workflow
+  def confirm(_opts, state), do: {:approved, state}
 end

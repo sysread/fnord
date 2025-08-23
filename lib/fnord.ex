@@ -173,6 +173,9 @@ defmodule Fnord do
       {:edit, edit_mode} ->
         Settings.set_edit_mode(edit_mode)
 
+      {:yes, yes} ->
+        Settings.set_auto_approve(yes)
+
       _ ->
         :ok
     end)

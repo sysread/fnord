@@ -42,6 +42,7 @@ defmodule AI.Tools.Coder do
               - Purpose of the change
               - Concrete functionality to be implemented
               - Clear acceptance criteria
+              - Never use the term "refactor"; the LLM *will* misinterpret it as a license to rewrite everything
               """
             }
           }

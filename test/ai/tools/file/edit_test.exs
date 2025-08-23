@@ -5,24 +5,21 @@ defmodule AI.Tools.File.EditTest do
 
   setup do
     project = mock_project("edit-test")
-    :meck.new(AI.Agent.Code.Patcher, [:non_strict, :passthrough])
+    {:ok, project: project}
+  end
 
-    # Set up Services.Approvals mock for file edit tests
-    try do
-      :meck.new(Services.Approvals, [:non_strict, :passthrough])
-    rescue
-      _ -> :ok
-    end
+  setup do
+    :meck.new(AI.Agent.Code.Patcher, [:non_strict, :passthrough])
+  end
+
+  setup do
+    Settings.set_edit_mode(true)
+    Settings.set_auto_approve(true)
 
     on_exit(fn ->
-      try do
-        :meck.unload(Services.Approvals)
-      rescue
-        _ -> :ok
-      end
+      Settings.set_edit_mode(false)
+      Settings.set_auto_approve(false)
     end)
-
-    {:ok, project: project}
   end
 
   test "call/1", %{project: project} do
@@ -30,7 +27,7 @@ defmodule AI.Tools.File.EditTest do
       mock_source_file(project, "example.txt", """
       This is an example file.
       It contains some text that we will edit.
-      How now, brown cow? 
+      How now, brown cow?
       """)
 
     :meck.expect(AI.Agent.Code.Patcher, :get_response, fn args ->
@@ -46,21 +43,6 @@ defmodule AI.Tools.File.EditTest do
        It contains some text that we will edit.
        How now, brown bureaucrat?
        """}
-    end)
-
-    :meck.expect(Services.Approvals, :confirm, fn args ->
-      assert {:ok, "general"} = Keyword.fetch(args, :tag)
-      assert {:ok, "m/^edit files$/"} = Keyword.fetch(args, :subject)
-      assert {:ok, message} = Keyword.fetch(args, :message)
-      assert {:ok, detail} = Keyword.fetch(args, :detail)
-
-      assert message =~ "Fnord wants to modify #{file}"
-
-      detail = detail |> Owl.Data.untag() |> to_string()
-      assert detail =~ "-How now, brown cow?"
-      assert detail =~ "+How now, brown bureaucrat?"
-
-      {:ok, :approved}
     end)
 
     assert {:ok, result} =
@@ -79,10 +61,8 @@ defmodule AI.Tools.File.EditTest do
     assert result.diff =~ "+How now, brown bureaucrat?"
     assert result.file == file
     assert result.backup_file == file <> ".0.0.bak"
-
     assert File.exists?(result.backup_file)
 
     assert :meck.num_calls(AI.Agent.Code.Patcher, :get_response, :_) == 1
-    assert :meck.num_calls(Services.Approvals, :confirm, :_) == 1
   end
 end

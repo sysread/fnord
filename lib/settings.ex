@@ -1,9 +1,12 @@
 defmodule Settings do
   defstruct [:path, :data]
 
-  @type t :: %__MODULE__{}
+  @type t :: %__MODULE__{
+          path: binary,
+          data: map
+        }
 
-  @spec new() :: t()
+  @spec new() :: t
   def new() do
     cleanup_default_project_dir()
     path = settings_file()
@@ -89,7 +92,7 @@ defmodule Settings do
   @doc """
   Get a value from the settings store.
   """
-  @spec get(t, binary, any()) :: any()
+  @spec get(t, binary, any) :: any
   def get(settings, key, default \\ nil) do
     key = make_key(key)
     Map.get(settings.data, key, default)
@@ -98,7 +101,7 @@ defmodule Settings do
   @doc """
   Set a value in the settings store.
   """
-  @spec set(t, binary, any()) :: t()
+  @spec set(t, binary, any) :: t
   def set(settings, key, value) do
     key = make_key(key)
 
@@ -109,7 +112,7 @@ defmodule Settings do
   @doc """
   Delete a value from the settings store.
   """
-  @spec delete(t, binary) :: t()
+  @spec delete(t, binary) :: t
   def delete(settings, key) do
     key = make_key(key)
 
@@ -120,9 +123,14 @@ defmodule Settings do
   @doc """
   Set the project name for the --project option.
   """
-  @spec set_project(binary) :: :ok
+  @spec set_project(atom | binary) :: :ok
+  def set_project(project_name) when is_atom(project_name) do
+    project_name |> Atom.to_string() |> set_project()
+  end
+
   def set_project(project_name) do
     Application.put_env(:fnord, :project, project_name)
+    UI.debug("Project selected", project_name)
     Services.Notes.load_notes()
     :ok
   end
@@ -164,6 +172,24 @@ defmodule Settings do
   end
 
   @doc """
+  Set auto-approve mode for the application. In this mode, file edits
+  are automatically approved without user confirmation.
+  """
+  @spec set_auto_approve(boolean) :: :ok
+  def set_auto_approve(auto_approve) do
+    Application.put_env(:fnord, :auto_approve, !!auto_approve)
+    :ok
+  end
+
+  @doc """
+  Get current auto-approve setting.
+  """
+  @spec get_auto_approve() :: boolean
+  def get_auto_approve() do
+    Application.get_env(:fnord, :auto_approve, false)
+  end
+
+  @doc """
   Check if the --project option is set.
   """
   def project_is_set?() do
@@ -174,7 +200,7 @@ defmodule Settings do
   Get the project specified with --project. If the project name is not set, an
   error tuple is returned.
   """
-  @spec get_selected_project() :: {:ok, binary} | {:error, :project_not_set}
+  @spec get_selected_project :: {:ok, binary} | {:error, :project_not_set}
   def get_selected_project() do
     Application.get_env(:fnord, :project)
     |> case do
@@ -183,7 +209,7 @@ defmodule Settings do
     end
   end
 
-  @spec get_project(t) :: {:ok, map()} | {:error, :project_not_found}
+  @spec get_project(t) :: {:ok, map} | {:error, :project_not_found}
   def get_project(settings) do
     with {:ok, project} <- get_selected_project() do
       case get_project_data(settings, project) do
@@ -196,17 +222,22 @@ defmodule Settings do
   @doc """
   Get project data from the settings, handling both old and new format.
   """
-  @spec get_project_data(t, binary) :: map() | nil
+  @spec get_project_data(t, binary) :: map | nil
   def get_project_data(settings, project_name) do
     projects_map = get(settings, "projects", %{})
 
     case Map.get(projects_map, project_name) do
+      # Old style project data in the root of the settings object
       nil -> get(settings, project_name, nil)
       data -> data
     end
+    |> case do
+      nil -> nil
+      data -> Map.put(data, "name", project_name)
+    end
   end
 
-  @spec set_project(t, map()) :: map()
+  @spec set_project(t, map) :: map
   def set_project(settings, data) do
     with {:ok, project} <- get_selected_project() do
       # Validate that the project name is not a global config key
@@ -225,7 +256,7 @@ defmodule Settings do
   @doc """
   Set project data in the settings using the new nested format.
   """
-  @spec set_project_data(t, binary, map()) :: t()
+  @spec set_project_data(t, binary, map) :: t
   def set_project_data(settings, project_name, data) do
     projects_map = get(settings, "projects", %{})
     updated_projects_map = Map.put(projects_map, project_name, data)
@@ -235,7 +266,7 @@ defmodule Settings do
   @doc """
   Delete project data from the settings, handling both old and new format.
   """
-  @spec delete_project_data(t, binary) :: t()
+  @spec delete_project_data(t, binary) :: t
   def delete_project_data(settings, project_name) do
     # Delete from new nested format
     projects_map = get(settings, "projects", %{})
@@ -257,119 +288,10 @@ defmodule Settings do
   @spec get_root(t) :: {:ok, binary} | {:error, :not_found}
   def get_root(settings) do
     settings
-    |> get_project()
+    |> get_project
     |> case do
       {:ok, %{"root" => root}} -> {:ok, Path.absname(root)}
       {:error, _} -> {:error, :not_found}
-    end
-  end
-
-  @doc """
-  Get approvals for global or project scope.
-  Returns approvals in the format: `{"tag": ["foo", "bar"]}`
-  """
-  @spec get_approvals(t, :global | binary) :: map()
-  def get_approvals(settings, :global) do
-    get(settings, "approvals", %{})
-  end
-
-  def get_approvals(settings, project_name) do
-    case get_project_data(settings, project_name) do
-      nil ->
-        %{}
-
-      project_data ->
-        Map.get(project_data, "approvals", %{})
-    end
-  end
-
-  @doc """
-  Add an approval for a specific tag in global or project scope.
-  Uses the new nested format: {"tag": ["foo", "bar"]}.
-  """
-  @spec add_approval(t, :global | binary, binary, binary) :: t()
-  def add_approval(settings, scope, tag, subject) do
-    subject_map = get_approvals(settings, scope)
-    current_list = Map.get(subject_map, tag, [])
-    updated_list = [subject | current_list] |> Enum.uniq()
-    updated_map = Map.put(subject_map, tag, updated_list)
-
-    case scope do
-      :global ->
-        set(settings, "approvals", updated_map)
-
-      project_name when is_binary(project_name) ->
-        project_data = get_project_data(settings, project_name) || %{}
-        updated_project_data = Map.put(project_data, "approvals", updated_map)
-        set_project_data(settings, project_name, updated_project_data)
-    end
-  end
-
-  @doc """
-  Remove an approval for a specific tag in global or project scope.
-  """
-  @spec remove_approval(t, :global | binary, binary, binary) :: t()
-  def remove_approval(settings, scope, tag, subject) do
-    subject_map = get_approvals(settings, scope)
-
-    case Map.get(subject_map, tag) do
-      nil ->
-        settings
-
-      current_list ->
-        updated_list = List.delete(current_list, subject)
-
-        updated_map =
-          if Enum.empty?(updated_list) do
-            Map.delete(subject_map, tag)
-          else
-            Map.put(subject_map, tag, updated_list)
-          end
-
-        case scope do
-          :global ->
-            set(settings, "approvals", updated_map)
-
-          project_name ->
-            project_data = get_project_data(settings, project_name) || %{}
-            updated_project_data = Map.put(project_data, "approvals", updated_map)
-            set_project_data(settings, project_name, updated_project_data)
-        end
-    end
-  end
-
-  @doc """
-  Check if something is approved under the specified tag.
-  """
-  @spec is_approved?(t, :global | binary, binary, binary) :: boolean()
-  def is_approved?(settings, scope, tag, subject) do
-    subject_map = get_approvals(settings, scope)
-    tag_subjects = Map.get(subject_map, tag, [])
-
-    # First check for exact match (fast path)
-    if subject in tag_subjects do
-      true
-    else
-      # Check for pattern matches
-      Enum.any?(tag_subjects, fn approved_subject ->
-        matches_pattern?(approved_subject, subject)
-      end)
-    end
-  end
-
-  # Check if a subject matches an approved pattern
-  defp matches_pattern?(approved_subject, actual_subject) do
-    if String.starts_with?(approved_subject, "m/") and String.ends_with?(approved_subject, "/") do
-      # It's a regex pattern - extract the pattern between m/ and /
-      pattern = String.slice(approved_subject, 2..-2//1)
-
-      case Regex.compile(pattern) do
-        {:ok, regex} -> Regex.match?(regex, actual_subject)
-        _ -> false
-      end
-    else
-      # Plain string match (backward compatible)
-      approved_subject == actual_subject
     end
   end
 
@@ -390,10 +312,10 @@ defmodule Settings do
   end
 
   @doc """
-  Get all project configurations, filtering out global configuration keys.
+  Get all project configurations.
   Returns a map of project_name => project_config.
   """
-  @spec get_projects(t()) :: %{binary() => map()}
+  @spec get_projects(t) :: %{binary => map}
   def get_projects(settings) do
     projects_map = get(settings, "projects", %{})
 
@@ -412,7 +334,7 @@ defmodule Settings do
   Check if a given key represents a valid project name (not a global config key).
   Returns false for global configuration keys like "approvals".
   """
-  @spec is_valid_project_name?(binary()) :: boolean()
+  @spec is_valid_project_name?(binary) :: boolean
   def is_valid_project_name?(name) when is_binary(name) do
     not Enum.member?(global_config_keys(), name)
   end
@@ -422,7 +344,7 @@ defmodule Settings do
   @doc """
   Get the list of global configuration keys that should not be treated as project names.
   """
-  @spec global_config_keys() :: [binary()]
+  @spec global_config_keys() :: [binary]
   def global_config_keys() do
     ["approvals", "projects", "version"]
   end
@@ -478,7 +400,7 @@ defmodule Settings do
   @doc """
   Check if model performance debugging is enabled via environment variable.
   """
-  @spec debug_models?() :: boolean()
+  @spec debug_models?() :: boolean
   def debug_models?() do
     case System.get_env("FNORD_DEBUG_MODELS") do
       nil -> false

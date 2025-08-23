@@ -12,6 +12,10 @@ defmodule UI do
     |> Owl.IO.puts()
   end
 
+  def puts(msg) do
+    Owl.IO.puts(msg)
+  end
+
   # ----------------------------------------------------------------------------
   # Inversion of the `detail` for notifications from Fnord Prefect itself
   # ----------------------------------------------------------------------------
@@ -286,7 +290,7 @@ defmodule UI do
 
   def prompt(prompt, owl_opts \\ []) do
     if is_tty?() && !quiet?() do
-      prompt |> UI.Formatter.format_output() |> IO.puts()
+      owl_opts = Keyword.put(owl_opts, :label, prompt)
 
       with_notification_timeout(
         fn -> Owl.IO.input(owl_opts) end,
@@ -332,6 +336,12 @@ defmodule UI do
         )
 
         false
+    end
+  end
+
+  def newline do
+    unless UI.quiet?() do
+      IO.puts("")
     end
   end
 

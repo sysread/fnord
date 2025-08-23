@@ -46,28 +46,26 @@ defmodule Cmd.Config do
   end
 
   @impl Cmd
-  def run(opts, [:list], _unknown) do
+  def run(_opts, [:list], _unknown) do
     settings = Settings.new()
 
-    case opts[:project] do
-      nil ->
-        global_config = %{
-          "approvals" => Settings.get_approvals(settings, :global)
-        }
+    global = %{
+      "approvals" => Settings.Approvals.get_approvals(settings, :global)
+    }
 
-        global_config |> Jason.encode!(pretty: true) |> IO.puts()
+    with {:ok, project} <- Store.get_project() do
+      case Settings.get_project_data(settings, project.name) do
+        nil ->
+          UI.error("Project not found")
 
-      project_name ->
-        Settings.set_project(project_name)
-
-        with {:ok, project} <- Store.get_project() do
-          case Settings.get_project_data(settings, project.name) do
-            nil -> UI.error("Project not found")
-            config -> config |> Jason.encode!(pretty: true) |> IO.puts()
-          end
-        else
-          {:error, _} -> UI.error("Project not found")
-        end
+        config ->
+          global
+          |> Map.merge(config)
+          |> Jason.encode!(pretty: true)
+          |> IO.puts()
+      end
+    else
+      {:error, _} -> UI.error("Project not found")
     end
   end
 

@@ -17,7 +17,7 @@ defmodule AI.Tools.Shell do
   def async?, do: false
 
   @impl AI.Tools
-  def is_available?, do: UI.is_tty?()
+  def is_available?, do: true
 
   @impl AI.Tools
   def read_args(args), do: {:ok, args}
@@ -111,7 +111,7 @@ defmodule AI.Tools.Shell do
             command: %{
               type: "string",
               description: """
-              The complete shell command to execute. Can be simple (e.g., 'ls -la') 
+              The complete shell command to execute. Can be simple (e.g., 'ls -la')
               or complex (e.g., 'find . -name "*.ex" | grep -v test').
               Complex commands with pipes, redirects, etc. will require manual approval.
               """
@@ -139,9 +139,9 @@ defmodule AI.Tools.Shell do
         |> Map.get("timeout_ms", @default_timeout_ms)
         |> validate_timeout()
 
-      # Check for complex shell operators that require manual approval
-      if contains_complex_operators?(command) do
-        # Complex commands bypass all pre-approval and go to manual confirmation
+      # Check for dangerous syntax that always requires manual approval
+      if AI.Tools.Shell.Util.contains_disallowed_syntax?(command) do
+        # Dangerous commands always require manual confirmation (bypass all pre-approvals)
         with {:ok, :approved} <- confirm_complex_command(desc, command) do
           call_shell_cmd_string(command, timeout_ms)
         end
@@ -227,11 +227,6 @@ defmodule AI.Tools.Shell do
   end
 
   # Check if command contains complex shell operators that require manual approval
-  defp contains_complex_operators?(command) do
-    complex_operators = [";", "&&", "||", "|", ">", ">>", "<", "$(", "`", "&"]
-    Enum.any?(complex_operators, &String.contains?(command, &1))
-  end
-
   # Parse simple command into cmd and args
   defp parse_simple_command(command) do
     case String.split(command, ~r/\s+/, parts: :infinity, trim: true) do
@@ -379,43 +374,12 @@ defmodule AI.Tools.Shell do
 
   # Confirmation for complex commands (no pre-approval possible)
   defp confirm_complex_command(desc, command) do
-    msg = [
-      Owl.Data.tag("Execute a complex shell command:", [:yellow, :bright]),
-      "\n\n",
-      "  shell> ",
-      Owl.Data.tag(command, [:black, :red_background]),
-      "\n\n",
-      Owl.Data.tag("⚠️  Complex command detected - no pre-approval available", [:yellow])
-    ]
-
-    Services.Approvals.confirm(
-      tag: "shell_cmd",
-      subject: command,
-      # Complex commands cannot be pre-approved
-      persistent: false,
-      detail: desc,
-      message: msg
-    )
+    Services.Approvals.confirm({command, desc}, Services.Approvals.Shell)
   end
 
   # Confirmation for simple commands (existing approval logic)
   defp confirm_simple_command(desc, cmd, args) do
-    full_cmd = shell_escape([cmd | args])
-    subject = Enum.join([cmd | args], " ")
-
-    msg = [
-      Owl.Data.tag("Execute a shell command:", [:green, :bright]),
-      "\n\n",
-      "  shell> ",
-      Owl.Data.tag(full_cmd, [:black, :red_background])
-    ]
-
-    Services.Approvals.confirm(
-      tag: "shell_cmd",
-      subject: subject,
-      persistent: true,
-      detail: desc,
-      message: msg
-    )
+    command = Enum.join([cmd | args], " ")
+    Services.Approvals.confirm({command, desc}, Services.Approvals.Shell)
   end
 end

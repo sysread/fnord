@@ -203,13 +203,7 @@ defmodule AI.Tools.File.Edit do
 
   @spec confirm_edit(binary, binary) :: {:ok, :approved} | {:error, term}
   defp confirm_edit(file, diff) do
-    Services.Approvals.confirm(
-      tag: "general",
-      subject: "m/^edit files$/",
-      persistent: false,
-      message: "Fnord wants to modify #{file}",
-      detail: colorize_diff(diff)
-    )
+    Services.Approvals.confirm({file, colorize_diff(diff)}, Services.Approvals.Edit)
   end
 
   @spec colorize_diff(binary) :: Owl.Data.t()
