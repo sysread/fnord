@@ -1,22 +1,24 @@
 defmodule Services.Approvals.Edit do
   @behaviour Services.Approvals.Workflow
-  alias Services.Approvals.Workflow
+
+  @approve "Approve"
+  @session "Approve for this session"
+  @deny "Deny"
+  @deny_feedback "Deny with feedback"
+
+  @no_feedback "The user denied the request."
 
   @not_edit_mode """
   The application is not running in edit mode.
   The user must pass --edit to enable edit mode.
   """
+
   @no_tty """
   The application is not running in an interactive terminal.
   The user cannot respond to prompts, so they were unable to approve or deny the request.
   """
-  @approve "Approve"
-  @session "Approve for this session"
-  @deny "Deny"
-  @deny_feedback "Deny with feedback"
-  @no_feedback "The user denied the request."
 
-  @impl Workflow
+  @impl Services.Approvals.Workflow
   def confirm(state, {file, diff}) do
     [
       Owl.Data.tag("# Scope ", [:red_background, :black, :bright]),

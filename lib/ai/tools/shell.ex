@@ -54,7 +54,7 @@ defmodule AI.Tools.Shell do
   @impl AI.Tools
   def spec do
     allowed =
-      AI.Tools.Shell.Allowed.preapproved_cmds()
+      Services.Approvals.Shell.preapproved_cmds()
       |> Enum.map(&"- #{&1}")
       |> Enum.join("\n")
 
@@ -149,14 +149,8 @@ defmodule AI.Tools.Shell do
         # Simple commands use the existing approval logic
         case parse_simple_command(command) do
           {:ok, cmd, args} ->
-            approval_bits = [cmd | args]
-
-            if AI.Tools.Shell.Allowed.allowed?(cmd, approval_bits) do
+            with {:ok, :approved} <- confirm_simple_command(desc, cmd, args) do
               call_shell_cmd_string(command, timeout_ms)
-            else
-              with {:ok, :approved} <- confirm_simple_command(desc, cmd, args) do
-                call_shell_cmd_string(command, timeout_ms)
-              end
             end
 
           {:error, reason} ->

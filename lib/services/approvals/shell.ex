@@ -1,22 +1,54 @@
-defmodule Services.Approvals.ShellWorkflow do
+defmodule Services.Approvals.Shell do
   @behaviour Services.Approvals.Workflow
-  alias Services.Approvals.Workflow
 
   @approve "Approve"
   @customize "Customize"
   @deny "Deny"
   @deny_feedback "Deny with feedback"
-  @no_feedback "The user denied the request."
+
   @session "Approve for this session"
   @project "Approve for the project"
   @global "Approve globally"
+
+  @no_feedback "The user denied the request."
 
   @no_tty """
   The application is not running in an interactive terminal.
   The user cannot respond to prompts, so they were unable to approve or deny the request.
   """
 
-  @impl Workflow
+  @preapproved [
+    # Common utilities
+    "ag",
+    "cat",
+    "diff",
+    "fgrep",
+    "grep",
+    "head",
+    "jq",
+    "ls",
+    "nl",
+    "pwd",
+    "rg",
+    "tac",
+    "tail",
+    "touch",
+    "tree",
+    "wc",
+
+    # Git specific subcommands
+    "git branch",
+    "git diff",
+    "git grep",
+    "git log",
+    "git merge-base",
+    "git show",
+    "git status"
+  ]
+
+  @preapproved_re Enum.map(@preapproved, &"^#{&1}(?=\\s|$)")
+
+  @impl Services.Approvals.Workflow
   def confirm(state, {cmd, purpose}) do
     [
       Owl.Data.tag("# Approval Scope ", [:red_background, :black, :bright]),
@@ -46,11 +78,19 @@ defmodule Services.Approvals.ShellWorkflow do
 
   def approved?(%{session: session} = _state, cmd) do
     cond do
+      preapproved?(cmd) -> true
       Enum.any?(session, &Regex.match?(&1, cmd)) -> true
       Settings.new() |> Settings.Approvals.approved?("shell", cmd) -> true
       true -> false
     end
   end
+
+  defp preapproved?(cmd) do
+    @preapproved_re
+    |> Enum.map(&Regex.match?(&1, cmd))
+  end
+
+  def preapproved_cmds, do: @preapproved
 
   defp prompt(state, cmd) do
     case UI.choose("Approve this request?", [@approve, @customize, @deny, @deny_feedback]) do
