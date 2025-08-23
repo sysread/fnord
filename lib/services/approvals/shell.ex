@@ -46,8 +46,6 @@ defmodule Services.Approvals.Shell do
     "git status"
   ]
 
-  @preapproved_re Enum.map(@preapproved, &"^#{&1}(?=\\s|$)")
-
   @impl Services.Approvals.Workflow
   def confirm(state, {cmd, purpose}) do
     [
@@ -86,7 +84,9 @@ defmodule Services.Approvals.Shell do
   end
 
   defp preapproved?(cmd) do
-    @preapproved_re
+    @preapproved
+    |> Enum.map(&cmd_to_pattern/1)
+    |> Enum.map(&Regex.compile!/1)
     |> Enum.map(&Regex.match?(&1, cmd))
   end
 
