@@ -129,9 +129,19 @@ defmodule AI.Agent.Code.Planner do
   Incidentally, this ia also good practice for biological programmers, as it reduces the surface area for bugs and makes writing unit tests much simpler.
 
   Compare the current state of the code with your solution.
-  The implementation will result from a "cascade" of changes, where each layers on top of the previous one.
-  What atomic steps can you take to get from the current state to your solution?
-  Pay special attention to ordering the changes in a logical fashion.
+  Break the change down into a series of logical dependencies, just as you would when writing a program in prolog.
+  Each step builds on the previous, resulting in a cascade of changes that, once implemented, will result in the desired state.
+
+  Coding LLMs have difficulty when assumptions do not match the actual state of the code:
+  - Include enough context about the change that the LLM can make informed
+    decisions if adaptations are needed.
+  - Identify assumptions about the expected state of the code at each step; the
+    LLM is able to add follow-up tasks when it finds that the assumptions do
+    not match reality.
+  - For each step, it may help to summarize the previous work leading up to the
+    current step, what the next steps will be, as well as how they logically
+    depend on this step (with clear instructions about the scope of *this*
+    step).
 
   Each task must have:
   - A single, concrete goal
