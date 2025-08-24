@@ -45,12 +45,18 @@ defmodule AI.Tools.File.Edit do
       function: %{
         name: "file_edit_tool",
         description: """
-        Edits a file in the project by applying a series of changes. An LLM
-        agent will apply each change in sequence, ensuring that the requested
-        change dovetails into the existing contents.
+        Perform atomic, well-anchored edits to a single file.
 
-        NOTE: This tool CANNOT create new files! Instead, use the
-        `file_manage_tool` to create the file, then use this tool to edit it.
+        Use for:
+        - One-off line or block replacements
+        - Clear, unambiguous, file-local changes
+        - Fast, low-risk operations
+
+        NOT for system-wide, architectural, or ambiguous edits. Escalate to
+        `coder_tool` for those!
+
+        NOTE: This tool CANNOT create new files! Instead, use the `shell_tool`
+        to create the file, then use this tool to edit it.
         """,
         parameters: %{
           type: "object",

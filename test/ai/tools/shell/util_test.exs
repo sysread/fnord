@@ -20,7 +20,8 @@ defmodule AI.Tools.Shell.UtilTest do
         # double quote escaped in double quotes
         "echo \"\\\"\"",
         "echo '$()'",
-        "echo '`uname`'"
+        "echo '`uname`'",
+        "echo \"foo` bar\""
       ],
       fn cmd ->
         assert Util.contains_disallowed_syntax?(cmd) == false,

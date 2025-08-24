@@ -799,7 +799,9 @@ defmodule AI.Agent.Coordinator do
   # -----------------------------------------------------------------------------
   @spec get_tools(t) :: AI.Tools.toolbox()
   defp get_tools(%{edit?: true}) do
-    AI.Tools.all_tools() |> AI.Tools.with_coding_tools()
+    AI.Tools.all_tools()
+    |> AI.Tools.with_rw_tools()
+    |> AI.Tools.with_coding_tools()
   end
 
   defp get_tools(_), do: AI.Tools.all_tools()

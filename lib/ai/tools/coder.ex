@@ -27,8 +27,15 @@ defmodule AI.Tools.Coder do
       function: %{
         name: "coder_tool",
         description: """
-        Researches, plans, implements, and verifies changes to the code base.
-        It is the responsibility of the Coordinating Agent to verify that the changes meet their needs once implemented.
+        AI-powered, multi-phase code change orchestration.
+
+        Use for:
+        - Architectural refactoring
+        - Changes spanning multiple files or modules
+        - Any ambiguous or partially-specified requirement
+        - Tasks demanding robust planning and post-edit validation
+
+        NOT for quick, precise, atomic line edits; use `file_edit_tool` for those!
         """,
         parameters: %{
           type: "object",
