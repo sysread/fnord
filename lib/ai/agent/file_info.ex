@@ -80,7 +80,7 @@ defmodule AI.Agent.FileInfo do
       """
 
       tools =
-        if Git.is_git_repo?() do
+        if GitCli.is_git_repo?() do
           [
             AI.Tools.Shell
           ]

@@ -528,19 +528,8 @@ defmodule AI.Agent.Coordinator do
   Respond NOW with your findings.
   """
 
-  @spec git_info() :: binary
-  defp git_info() do
-    with {:ok, root} <- Git.git_root(),
-         {:ok, branch} <- Git.current_branch() do
-      """
-      You are working in a git repository.
-      The current branch is `#{branch}`.
-      The git root is `#{root}`.
-      """
-    else
-      {:error, :not_a_git_repo} -> "Note: this project is not under git version control."
-    end
-  end
+  @spec git_info() :: String.t()
+  defp git_info(), do: GitCli.git_info()
 
   @spec new_session_msg(t) :: t
   defp new_session_msg(state) do

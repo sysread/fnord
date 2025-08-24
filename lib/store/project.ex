@@ -349,12 +349,7 @@ defmodule Store.Project do
         |> Map.new(&{&1, true})
       end
 
-    excluded =
-      with {:ok, git_ignored_files} <- Git.ignored_files(project.source_root) do
-        Map.merge(user_excluded, git_ignored_files)
-      else
-        {:error, _} -> user_excluded
-      end
+    excluded = Map.merge(user_excluded, GitCli.ignored_files(project.source_root))
 
     {%{project | exclude_cache: excluded}, excluded}
   end
