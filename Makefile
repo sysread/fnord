@@ -9,18 +9,18 @@ help: ## Display this help message
 
 .PHONY: compile
 compile: ## Compile the project
-	@echo "-----"
 	mix compile --all-warnings --warnings-as-errors
+	@echo
 
 .PHONY: test
 test: ## Run tests
-	@echo "-----"
 	mix test
+	@echo
 
 .PHONY: dialyzer
 dialyzer: ## Run Dialyzer
-	@echo "-----"
 	MIX_ENV=dev mix dialyzer
+	@echo
 
 .PHONY: check
 check: compile test dialyzer ## Run all checks

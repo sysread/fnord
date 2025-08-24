@@ -68,9 +68,16 @@ defmodule Services.Approvals.Shell do
     )
 
     cond do
-      approved?(state, cmd) -> {:approved, state}
-      !UI.is_tty?() -> {:denied, @no_tty, state}
-      true -> prompt(state, cmd)
+      approved?(state, cmd) ->
+        UI.info("Shell Command", "Either pre-approved or already approved for this session.")
+        {:approved, state}
+
+      !UI.is_tty?() ->
+        UI.error("Shell Command", @no_tty)
+        {:denied, @no_tty, state}
+
+      true ->
+        prompt(state, cmd)
     end
   end
 

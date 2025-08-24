@@ -36,10 +36,20 @@ defmodule Services.Approvals.Edit do
     )
 
     cond do
-      !edit?() -> {:denied, @not_edit_mode, state}
-      auto?() -> {:approved, state}
-      !interactive?() -> {:error, @no_tty, state}
-      true -> prompt(state)
+      !edit?() ->
+        UI.warn("Edit #{file}", @not_edit_mode)
+        {:denied, @not_edit_mode, state}
+
+      auto?() ->
+        UI.info("Edit #{file}", "Auto-approved (either --yes passed or approved for session)")
+        {:approved, state}
+
+      !interactive?() ->
+        UI.error("Edit #{file}", @no_tty)
+        {:error, @no_tty, state}
+
+      true ->
+        prompt(state)
     end
   end
 
