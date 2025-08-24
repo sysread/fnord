@@ -19,28 +19,28 @@ defmodule UI do
   # ----------------------------------------------------------------------------
   # Inversion of the `detail` for notifications from Fnord Prefect itself
   # ----------------------------------------------------------------------------
-  def feedback(:info, msg) do
-    feedback(msg, :green_background, :green)
+  def feedback(:info, name, msg) do
+    feedback(name, msg, :green_background, :green)
   end
 
-  def feedback(:warn, msg) do
-    feedback(msg, :yellow_background, :yellow)
+  def feedback(:warn, name, msg) do
+    feedback(name, msg, :yellow_background, :yellow)
   end
 
-  def feedback(:error, msg) do
-    feedback(msg, :red_background, :red)
+  def feedback(:error, name, msg) do
+    feedback(name, msg, :red_background, :red)
   end
 
-  def feedback(:debug, msg) do
-    feedback(msg, :cyan_background, :cyan)
+  def feedback(:debug, name, msg) do
+    feedback(name, msg, :cyan_background, :cyan)
   end
 
-  defp feedback(msg, label_codes, detail_codes) do
+  defp feedback(name, msg, label_codes, detail_codes) do
     [
       label_codes,
       :bright,
       "༺  ",
-      "Fnord Prefect",
+      name,
       " ༻ ",
       :reset,
       ": ",

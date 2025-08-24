@@ -39,10 +39,14 @@ defmodule AI.Completion.Output do
   end
 
   def log_tool_call_error(_state, tool, args_json, reason) do
+    pretty_args =
+      args_json
+      |> Jason.decode!()
+      |> Jason.encode!(pretty: true)
+
     UI.warn("""
     Tool call failed:
-    - Tool: #{tool}
-    - Args: #{args_json}
+    #{tool} :: #{pretty_args}
 
     #{reason}
     """)

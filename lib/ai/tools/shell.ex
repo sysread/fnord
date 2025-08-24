@@ -213,7 +213,7 @@ defmodule AI.Tools.Shell do
         {:error, "Command process exited: #{inspect(reason)}"}
 
       nil ->
-        UI.debug("Command timed out after #{timeout_ms} ms")
+        UI.debug(Enum.join([cmd | args], " "), "Command timed out after #{timeout_ms} ms")
         {:error, "Command timed out after #{timeout_ms} ms"}
     end
   end

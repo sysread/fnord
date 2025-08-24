@@ -66,10 +66,10 @@ defmodule AI.Tools.Notify do
     with {:ok, level} <- AI.Tools.get_arg(args, "level"),
          {:ok, message} <- AI.Tools.get_arg(args, "message") do
       case level do
-        "info" -> UI.feedback(:info, message)
-        "warn" -> UI.feedback(:warn, message)
-        "error" -> UI.feedback(:error, message)
-        "debug" -> UI.feedback(:debug, message)
+        "info" -> UI.feedback(:info, "Fnord Prefect", message)
+        "warn" -> UI.feedback(:warn, "Fnord Prefect", message)
+        "error" -> UI.feedback(:error, "Fnord Prefect", message)
+        "debug" -> UI.feedback(:debug, "Fnord Prefect", message)
       end
     end
   end
