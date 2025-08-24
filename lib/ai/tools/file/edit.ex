@@ -55,8 +55,8 @@ defmodule AI.Tools.File.Edit do
         NOT for system-wide, architectural, or ambiguous edits. Escalate to
         `coder_tool` for those!
 
-        NOTE: This tool CANNOT create new files! Instead, use the `shell_tool`
-        to create the file, then use this tool to edit it.
+        NOTE: This tool will FAIL if the file does not exist. Use the
+        `shell_tool` to create the file first.
         """,
         parameters: %{
           type: "object",
@@ -141,10 +141,6 @@ defmodule AI.Tools.File.Edit do
          #{Exception.format_stacktrace(__STACKTRACE__)}
          ```
          """}
-    else
-      result ->
-        stop_spinner(:ok)
-        result
     end
   end
 
@@ -153,9 +149,9 @@ defmodule AI.Tools.File.Edit do
       Owl.Spinner.start(
         id: :file_edit_tool,
         labels: [
-          ok: "Changes applied to #{file}",
-          error: "Failed to apply changes to #{file}",
-          processing: "Applying changes to #{file}"
+          ok: "Changes ready for #{file}",
+          error: "Failed to make changes to #{file}",
+          processing: "Preparing changes for #{file}"
         ]
       )
     end
@@ -209,6 +205,7 @@ defmodule AI.Tools.File.Edit do
 
   @spec confirm_edit(binary, binary) :: {:ok, :approved} | {:error, term}
   defp confirm_edit(file, diff) do
+    stop_spinner(:ok)
     Services.Approvals.confirm({file, colorize_diff(diff)}, Services.Approvals.Edit)
   end
 
