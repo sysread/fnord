@@ -2,7 +2,7 @@ defmodule AI.Tools.Notify do
   @behaviour AI.Tools
 
   @impl AI.Tools
-  def async?, do: true
+  def async?, do: false
 
   @impl AI.Tools
   def is_available?, do: true
@@ -65,7 +65,7 @@ defmodule AI.Tools.Notify do
   def call(args) do
     with {:ok, level} <- AI.Tools.get_arg(args, "level"),
          {:ok, message} <- AI.Tools.get_arg(args, "message") do
-      name = Map.get(args, "name", Services.NamePool.default_name())
+      name = get_name()
 
       case level do
         "info" -> UI.feedback(:info, name, message)
@@ -73,6 +73,14 @@ defmodule AI.Tools.Notify do
         "error" -> UI.feedback(:error, name, message)
         "debug" -> UI.feedback(:debug, name, message)
       end
+    end
+  end
+
+  defp get_name do
+    with {:ok, name} <- Services.NamePool.get_name_by_pid(self()) do
+      name
+    else
+      _ -> Services.NamePool.default_name()
     end
   end
 end

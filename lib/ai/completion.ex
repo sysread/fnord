@@ -26,6 +26,7 @@ defmodule AI.Completion do
     :log_tool_calls,
     :archive_notes,
     :replay_conversation,
+    :name,
     :usage,
     :messages,
     :tool_call_requests,
@@ -41,6 +42,7 @@ defmodule AI.Completion do
           log_tool_calls: boolean(),
           archive_notes: boolean(),
           replay_conversation: boolean(),
+          name: String.t() | nil,
           usage: integer(),
           messages: list(AI.Util.msg()),
           tool_call_requests: list(),
@@ -67,6 +69,7 @@ defmodule AI.Completion do
     with {:ok, model} <- Keyword.fetch(opts, :model),
          {:ok, messages} <- Keyword.fetch(opts, :messages) do
       response_format = Keyword.get(opts, :response_format, nil)
+      name? = Keyword.get(opts, :name?, false)
 
       toolbox =
         opts
@@ -86,6 +89,13 @@ defmodule AI.Completion do
 
       archive? = Keyword.get(opts, :archive_notes, false)
 
+      name =
+        if name? do
+          Services.NamePool.checkout_name()
+        else
+          Services.NamePool.default_name()
+        end
+
       state = %__MODULE__{
         model: model,
         response_format: response_format,
@@ -95,6 +105,7 @@ defmodule AI.Completion do
         log_tool_calls: log_tool_calls,
         archive_notes: archive?,
         replay_conversation: replay,
+        name: name,
         usage: 0,
         messages: messages,
         tool_call_requests: [],

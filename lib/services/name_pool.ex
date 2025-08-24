@@ -107,28 +107,32 @@ defmodule Services.NamePool do
   @impl GenServer
 
   def handle_call(:checkout_name, {caller_pid, _ref}, state) do
-    case ensure_names_available(state) do
-      {:ok, updated_state} ->
-        case updated_state.available do
-          [name | remaining] ->
-            new_state = %{
-              updated_state
-              | available: remaining,
-                checked_out: MapSet.put(updated_state.checked_out, name),
-                pid_to_name: Map.put(updated_state.pid_to_name, caller_pid, name),
-                name_to_pid: Map.put(updated_state.name_to_pid, name, caller_pid)
-            }
+    if Map.has_key?(state.pid_to_name, caller_pid) do
+      {:reply, {:ok, Map.get(state.pid_to_name, caller_pid)}, state}
+    else
+      case ensure_names_available(state) do
+        {:ok, updated_state} ->
+          case updated_state.available do
+            [name | remaining] ->
+              new_state = %{
+                updated_state
+                | available: remaining,
+                  checked_out: MapSet.put(updated_state.checked_out, name),
+                  pid_to_name: Map.put(updated_state.pid_to_name, caller_pid, name),
+                  name_to_pid: Map.put(updated_state.name_to_pid, name, caller_pid)
+              }
 
-            {:reply, {:ok, name}, new_state}
+              {:reply, {:ok, name}, new_state}
 
-          [] ->
-            UI.error("Unable to allocate names from pool")
-            {:reply, {:error, "No names available"}, updated_state}
-        end
+            [] ->
+              UI.error("Unable to allocate names from pool")
+              {:reply, {:error, "No names available"}, updated_state}
+          end
 
-      {:error, reason} ->
-        UI.error("Failed to ensure names available", reason)
-        {:reply, {:error, reason}, state}
+        {:error, reason} ->
+          UI.error("Failed to ensure names available", reason)
+          {:reply, {:error, reason}, state}
+      end
     end
   end
 
