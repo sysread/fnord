@@ -1,11 +1,14 @@
 defmodule Services.NamePool do
   @moduledoc """
-  A service that manages a pool of AI agent names, batch-allocating them from 
-  the nomenclater for efficiency. Names can be checked out and optionally 
+  A service that manages a pool of AI agent names, batch-allocating them from
+  the nomenclater for efficiency. Names can be checked out and optionally
   checked back in for reuse within the same session.
 
-  The pool allocates names in chunks sized to the configured workers setting
-  to maximize API efficiency without overwhelming the connection pool.
+  Each checked-out name is now associated with the caller's `pid`, and you can
+  retrieve it via `get_name_by_pid/1`.
+
+  The pool allocates names in chunks sized to the configured workers setting to
+  maximize API efficiency without overwhelming the connection pool.
   """
 
   use GenServer
@@ -16,13 +19,17 @@ defmodule Services.NamePool do
           available: [String.t()],
           checked_out: MapSet.t(String.t()),
           all_used: MapSet.t(String.t()),
-          chunk_size: pos_integer()
+          chunk_size: pos_integer(),
+          pid_to_name: %{optional(pid()) => String.t()},
+          name_to_pid: %{optional(String.t()) => pid()}
         }
 
   defstruct available: [],
             checked_out: MapSet.new(),
             all_used: MapSet.new(),
-            chunk_size: 12
+            chunk_size: 12,
+            pid_to_name: %{},
+            name_to_pid: %{}
 
   # -----------------------------------------------------------------------------
   # Public API
@@ -68,6 +75,15 @@ defmodule Services.NamePool do
     GenServer.call(server, :reset)
   end
 
+  @doc """
+  Returns `{:ok, name}` if the given `pid` has a checked‐out name,
+  or `{:error, :not_found}` otherwise.
+  """
+  @spec get_name_by_pid(pid(), atom() | pid()) :: {:ok, String.t()} | {:error, :not_found}
+  def get_name_by_pid(pid, server \\ @name) when is_pid(pid) do
+    GenServer.call(server, {:get_name_by_pid, pid})
+  end
+
   # -----------------------------------------------------------------------------
   # GenServer Callbacks
   # -----------------------------------------------------------------------------
@@ -80,14 +96,17 @@ defmodule Services.NamePool do
       available: [],
       checked_out: MapSet.new(),
       all_used: MapSet.new(),
-      chunk_size: chunk_size
+      chunk_size: chunk_size,
+      pid_to_name: %{},
+      name_to_pid: %{}
     }
 
     {:ok, state}
   end
 
   @impl GenServer
-  def handle_call(:checkout_name, _from, state) do
+
+  def handle_call(:checkout_name, {caller_pid, _ref}, state) do
     case ensure_names_available(state) do
       {:ok, updated_state} ->
         case updated_state.available do
@@ -95,7 +114,9 @@ defmodule Services.NamePool do
             new_state = %{
               updated_state
               | available: remaining,
-                checked_out: MapSet.put(updated_state.checked_out, name)
+                checked_out: MapSet.put(updated_state.checked_out, name),
+                pid_to_name: Map.put(updated_state.pid_to_name, caller_pid, name),
+                name_to_pid: Map.put(updated_state.name_to_pid, name, caller_pid)
             }
 
             {:reply, {:ok, name}, new_state}
@@ -125,17 +146,40 @@ defmodule Services.NamePool do
 
   @impl GenServer
   def handle_call(:reset, _from, state) do
-    new_state = %{state | available: [], checked_out: MapSet.new(), all_used: MapSet.new()}
+    new_state = %{
+      state
+      | available: [],
+        checked_out: MapSet.new(),
+        all_used: MapSet.new(),
+        pid_to_name: %{},
+        name_to_pid: %{}
+    }
+
     {:reply, :ok, new_state}
+  end
+
+  @impl GenServer
+  def handle_call({:get_name_by_pid, pid}, _from, state) do
+    case Map.fetch(state.pid_to_name, pid) do
+      {:ok, name} ->
+        {:reply, {:ok, name}, state}
+
+      :error ->
+        {:reply, {:error, :not_found}, state}
+    end
   end
 
   @impl GenServer
   def handle_cast({:checkin_name, name}, state) do
     if MapSet.member?(state.checked_out, name) do
+      pid = Map.get(state.name_to_pid, name)
+
       new_state = %{
         state
         | available: [name | state.available],
-          checked_out: MapSet.delete(state.checked_out, name)
+          checked_out: MapSet.delete(state.checked_out, name),
+          pid_to_name: Map.delete(state.pid_to_name, pid),
+          name_to_pid: Map.delete(state.name_to_pid, name)
       }
 
       {:noreply, new_state}
