@@ -39,6 +39,13 @@ defmodule AI.Tools.File.Search do
         "user authentication" to find files related to user login, regardless
         of whether they contain that exact phrase.
 
+        If you are looking for an exact pattern, your best bet is to use grep
+        or a similar command via the `shell_tool`. This tool is optimized for
+        identifying content when you are not sure what you are looking for. For
+        example, you can search for "user authentication" or "ETL pipeline" or
+        "feature flags" to find files related to those topics, even if the
+        exact terms do not appear in the file names or contents.
+
         Note that this tool does not have access to historical data or commit
         messages. It only searches the most recently indexed version of the
         project.
