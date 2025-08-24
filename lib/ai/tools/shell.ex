@@ -200,10 +200,8 @@ defmodule AI.Tools.Shell do
       {:ok, {out, exit_code}} when is_binary(out) ->
         {:ok,
          """
-         Command: `#{shell_escape([cmd | args])}`
-         Exit Status: `#{exit_code}`
-
-         Output:
+         #$ #{shell_escape([cmd | args])}
+         $?=#{exit_code}
 
          #{String.trim_trailing(out)}
          """}
