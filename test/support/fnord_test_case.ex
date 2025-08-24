@@ -69,6 +69,11 @@ defmodule Fnord.TestCase do
         :ok
       end
 
+      setup do
+        # Instruct Services.NamePool to always return the default name.
+        set_config(:nomenclater, :fake)
+      end
+
       # -------------------------------------------------------------------------
       # Ensure all temp dirs created by this test process are cleaned up when
       # the process exits.

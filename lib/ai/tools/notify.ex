@@ -65,11 +65,13 @@ defmodule AI.Tools.Notify do
   def call(args) do
     with {:ok, level} <- AI.Tools.get_arg(args, "level"),
          {:ok, message} <- AI.Tools.get_arg(args, "message") do
+      name = Map.get(args, "name", Services.NamePool.default_name())
+
       case level do
-        "info" -> UI.feedback(:info, "Fnord Prefect", message)
-        "warn" -> UI.feedback(:warn, "Fnord Prefect", message)
-        "error" -> UI.feedback(:error, "Fnord Prefect", message)
-        "debug" -> UI.feedback(:debug, "Fnord Prefect", message)
+        "info" -> UI.feedback(:info, name, message)
+        "warn" -> UI.feedback(:warn, name, message)
+        "error" -> UI.feedback(:error, name, message)
+        "debug" -> UI.feedback(:debug, name, message)
       end
     end
   end

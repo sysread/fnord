@@ -12,21 +12,24 @@ defmodule Services.NamePool do
 
   @name __MODULE__
 
-  defmodule State do
-    @moduledoc false
-    @type t :: %__MODULE__{
-            available: [String.t()],
-            checked_out: MapSet.t(String.t()),
-            all_used: MapSet.t(String.t()),
-            chunk_size: pos_integer()
-          }
+  @type t :: %__MODULE__{
+          available: [String.t()],
+          checked_out: MapSet.t(String.t()),
+          all_used: MapSet.t(String.t()),
+          chunk_size: pos_integer()
+        }
 
-    defstruct available: [], checked_out: MapSet.new(), all_used: MapSet.new(), chunk_size: 12
-  end
+  defstruct available: [],
+            checked_out: MapSet.new(),
+            all_used: MapSet.new(),
+            chunk_size: 12
 
   # -----------------------------------------------------------------------------
   # Public API
   # -----------------------------------------------------------------------------
+  @default_name "Fnord Prefect"
+
+  def default_name, do: @default_name
 
   @doc "Starts the name pool service"
   def start_link(opts \\ []) do
@@ -73,7 +76,7 @@ defmodule Services.NamePool do
   def init(_opts) do
     chunk_size = Application.get_env(:fnord, :workers, 12)
 
-    state = %State{
+    state = %__MODULE__{
       available: [],
       checked_out: MapSet.new(),
       all_used: MapSet.new(),
@@ -157,21 +160,39 @@ defmodule Services.NamePool do
 
   # Allocates a chunk of names from the nomenclater
   defp allocate_name_chunk(state) do
-    used_names = MapSet.to_list(state.all_used)
+    Application.get_env(:fnord, :nomenclater, :real)
+    |> case do
+      :fake ->
+        total_names = MapSet.size(state.all_used) + state.chunk_size
 
-    case AI.Agent.Nomenclater.get_names(state.chunk_size, used_names) do
-      {:ok, names} when is_list(names) ->
-        new_state = %{
-          state
-          | available: names ++ state.available,
-            all_used: MapSet.union(state.all_used, MapSet.new(names))
-        }
+        names =
+          1..total_names
+          |> Enum.map(&"NPC ##{&1}")
 
-        {:ok, new_state}
+        {:ok,
+         %{
+           state
+           | available: names ++ state.available,
+             all_used: MapSet.union(state.all_used, MapSet.new(names))
+         }}
 
-      {:error, reason} ->
-        UI.error("Failed to make up names for your agents", reason)
-        {:error, reason}
+      :real ->
+        used_names = MapSet.to_list(state.all_used)
+
+        case AI.Agent.Nomenclater.get_names(state.chunk_size, used_names) do
+          {:ok, names} when is_list(names) ->
+            new_state = %{
+              state
+              | available: names ++ state.available,
+                all_used: MapSet.union(state.all_used, MapSet.new(names))
+            }
+
+            {:ok, new_state}
+
+          {:error, reason} ->
+            UI.error("Failed to make up names for your agents", reason)
+            {:error, reason}
+        end
     end
   end
 end
