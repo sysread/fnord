@@ -88,8 +88,8 @@ defmodule AI.Agent.Code.Planner do
   """
 
   @spec research(t) :: t
-  defp research(%{error: nil, name: name} = state) do
-    UI.info("#{name} is investigating a change request")
+  defp research(%{error: nil} = state) do
+    UI.info("Investigating a change request")
     Common.get_completion(state, @research_prompt)
   end
 
@@ -109,8 +109,8 @@ defmodule AI.Agent.Code.Planner do
   """
 
   @spec visualize(t) :: t
-  defp visualize(%{error: nil, name: name} = state) do
-    UI.info("#{name} is brainstorming")
+  defp visualize(%{error: nil} = state) do
+    UI.info("Brainstorming")
     Common.get_completion(state, @visualize_prompt)
   end
 
@@ -211,8 +211,8 @@ defmodule AI.Agent.Code.Planner do
   @spec plan(t) :: t
   defp plan(state, invalid_format? \\ false)
 
-  defp plan(%{error: nil, name: name} = state, invalid_format?) do
-    UI.info("#{name} is identifying steps required to reach the desired state", state.request)
+  defp plan(%{error: nil} = state, invalid_format?) do
+    UI.info("Planning steps to reach desired state", state.request)
 
     prompt =
       if invalid_format? do

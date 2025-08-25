@@ -97,6 +97,12 @@ defmodule AI.Agent.Nomenclater do
       |> Enum.join("\n")
 
     AI.Completion.get(
+      # This is the AI model to use for name generation and is called by
+      # Services.NamePool's genserver. If the completion were to set `name?:
+      # true` (the default), it can cause deadlock in the genserver, because
+      # AI.Completion will call the genserver to get a name, and if there is no
+      # name available, it will call this agent to generate the next batch.
+      name?: false,
       model: @model,
       response_format: @response_format,
       messages: [

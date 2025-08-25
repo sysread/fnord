@@ -1,5 +1,5 @@
 defmodule AI.Tools.Shell.CommandInjectionTest do
-  use Fnord.TestCase, async: true
+  use Fnord.TestCase
   alias AI.Tools.Shell.Util
 
   describe "command injection detection" do

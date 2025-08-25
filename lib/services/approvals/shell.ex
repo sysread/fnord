@@ -48,35 +48,34 @@ defmodule Services.Approvals.Shell do
 
   @impl Services.Approvals.Workflow
   def confirm(state, {cmd, purpose}) do
-    [
-      Owl.Data.tag("# Approval Scope ", [:red_background, :black, :bright]),
-      "\n\nshell :: #{cmd}\n\n",
-      Owl.Data.tag("Persistent approval includes variants starting with the same prefix.", [
-        :italic
-      ]),
-      "\n\n",
-      Owl.Data.tag("# Purpose ", [:red_background, :black, :bright]),
-      "\n\n",
-      purpose
-    ]
-    |> UI.box(
-      title: " Shell Command ",
-      min_width: 80,
-      padding: 1,
-      horizontal_align: :left,
-      border_tag: [:red, :bright]
-    )
-
     cond do
       approved?(state, cmd) ->
-        UI.info("Shell Command", "Either pre-approved or already approved for this session.")
         {:approved, state}
 
       !UI.is_tty?() ->
-        UI.error("Shell Command", @no_tty)
+        UI.error("Shell", @no_tty)
         {:denied, @no_tty, state}
 
       true ->
+        [
+          Owl.Data.tag("# Approval Scope ", [:red_background, :black, :bright]),
+          "\n\nshell :: #{cmd}\n\n",
+          Owl.Data.tag("Persistent approval includes variants starting with the same prefix.", [
+            :italic
+          ]),
+          "\n\n",
+          Owl.Data.tag("# Purpose ", [:red_background, :black, :bright]),
+          "\n\n",
+          purpose
+        ]
+        |> UI.box(
+          title: " Shell ",
+          min_width: 80,
+          padding: 1,
+          horizontal_align: :left,
+          border_tag: [:red, :bright]
+        )
+
         prompt(state, cmd)
     end
   end
@@ -158,7 +157,7 @@ defmodule Services.Approvals.Shell do
   end
 
   defp choose_scope(state, pattern) do
-    UI.choose("Choose the scope of your approved shell command pattern: `#{pattern}`", [
+    UI.choose("Choose the scope of your approved shell command pattern: #{pattern}", [
       @session,
       @project,
       @global

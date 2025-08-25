@@ -58,9 +58,16 @@ defmodule AI.Completion do
   @spec get(Keyword.t()) :: response
   def get(opts) do
     with {:ok, state} <- new(opts) do
-      state
-      |> AI.Completion.Output.replay_conversation()
-      |> send_request()
+      result =
+        state
+        |> AI.Completion.Output.replay_conversation()
+        |> send_request()
+
+      if Keyword.get(opts, :name?, true) do
+        Services.NamePool.checkin_name(state.name)
+      end
+
+      result
     end
   end
 
@@ -69,7 +76,7 @@ defmodule AI.Completion do
     with {:ok, model} <- Keyword.fetch(opts, :model),
          {:ok, messages} <- Keyword.fetch(opts, :messages) do
       response_format = Keyword.get(opts, :response_format, nil)
-      name? = Keyword.get(opts, :name?, false)
+      name? = Keyword.get(opts, :name?, true)
 
       toolbox =
         opts
@@ -89,11 +96,11 @@ defmodule AI.Completion do
 
       archive? = Keyword.get(opts, :archive_notes, false)
 
-      name =
+      {:ok, name} =
         if name? do
           Services.NamePool.checkout_name()
         else
-          Services.NamePool.default_name()
+          {:ok, Services.NamePool.default_name()}
         end
 
       state = %__MODULE__{

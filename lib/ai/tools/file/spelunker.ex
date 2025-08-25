@@ -9,12 +9,11 @@ defmodule AI.Tools.File.Spelunker do
 
   @impl AI.Tools
   def ui_note_on_request(%{
-        "name" => name,
         "start_file" => start_file,
         "symbol" => symbol,
         "goal" => goal
       }) do
-    {"#{name} is spelunking the code",
+    {"Spelunking the code",
      """
 
      Start file: #{start_file}
@@ -26,14 +25,13 @@ defmodule AI.Tools.File.Spelunker do
   @impl AI.Tools
   def ui_note_on_result(
         %{
-          "name" => name,
           "start_file" => start_file,
           "symbol" => symbol,
           "goal" => goal
         },
         result
       ) do
-    {"#{name} finished spelunking",
+    {"Finished spelunking",
      """
 
      Start file: #{start_file}
@@ -49,24 +47,11 @@ defmodule AI.Tools.File.Spelunker do
     with {:ok, symbol} <- read_symbol(args),
          {:ok, start_file} <- read_start_file(args),
          {:ok, goal} <- read_goal(args) do
-      name =
-        case Map.get(args, "name") do
-          nil ->
-            case Services.NamePool.checkout_name() do
-              {:ok, generated_name} -> generated_name
-              _ -> "file_spelunker"
-            end
-
-          provided_name ->
-            provided_name
-        end
-
       {:ok,
        %{
          "symbol" => symbol,
          "start_file" => start_file,
-         "goal" => goal,
-         "name" => name
+         "goal" => goal
        }}
     end
   end

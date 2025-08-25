@@ -1,6 +1,4 @@
 defmodule AI.Tools.File.Info do
-  @default_name "Johnny D'Fault"
-
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -10,13 +8,13 @@ defmodule AI.Tools.File.Info do
   def is_available?, do: true
 
   @impl AI.Tools
-  def ui_note_on_request(%{"files" => files, "question" => question, "name" => name}) do
-    {"#{name} is considering #{Enum.join(files, ", ")}", question}
+  def ui_note_on_request(%{"files" => files, "question" => question}) do
+    {"Considering #{Enum.join(files, ", ")}", question}
   end
 
   @impl AI.Tools
-  def ui_note_on_result(%{"files" => files, "question" => question, "name" => name}, result) do
-    {"#{name} finished considerable considerations",
+  def ui_note_on_result(%{"files" => files, "question" => question}, result) do
+    {"Finished considerable considerations",
      """
      # Files
      #{Enum.join(files, ", ")}
@@ -30,34 +28,7 @@ defmodule AI.Tools.File.Info do
   end
 
   @impl AI.Tools
-  def read_args(args) do
-    with {:ok, files} <- get_files(args),
-         {:ok, question} <- get_question(args) do
-      args
-      |> Map.put("files", files)
-      |> Map.put("question", question)
-      |> Map.fetch("name")
-      |> case do
-        {:ok, _name} ->
-          {:ok, args}
-
-        :error ->
-          with {:ok, name} <- Services.NamePool.checkout_name() do
-            args
-            |> Map.put("name", name)
-            |> then(&{:ok, &1})
-          else
-            _ -> {:ok, args |> Map.put("name", @default_name)}
-          end
-      end
-    end
-  end
-
-  defp get_files(%{"files" => files}), do: {:ok, files}
-  defp get_files(_args), do: AI.Tools.required_arg_error("files")
-
-  defp get_question(%{"question" => question}), do: {:ok, question}
-  defp get_question(_args), do: AI.Tools.required_arg_error("question")
+  def read_args(args), do: {:ok, args}
 
   @impl AI.Tools
   def spec() do

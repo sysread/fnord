@@ -1,6 +1,5 @@
 defmodule AI.Agent.Code.Common do
   defstruct [
-    :name,
     :model,
     :toolbox,
     :request,
@@ -9,8 +8,6 @@ defmodule AI.Agent.Code.Common do
     :messages,
     :internal
   ]
-
-  @default_name "Ari Doneyet"
 
   @type task :: Services.Task.task()
   @type new_task :: %{label: binary, detail: binary}
@@ -21,7 +18,6 @@ defmodule AI.Agent.Code.Common do
   implementation.
   """
   @type t :: %__MODULE__{
-          name: binary,
           model: AI.Model.t(),
           toolbox: AI.Tools.toolbox(),
           request: binary,
@@ -42,15 +38,7 @@ defmodule AI.Agent.Code.Common do
           user_prompt :: binary
         ) :: t
   def new(model, toolbox, system_prompt, user_prompt) do
-    name =
-      with {:ok, name} <- Services.NamePool.checkout_name() do
-        name
-      else
-        _ -> @default_name
-      end
-
     %__MODULE__{
-      name: name,
       model: model,
       toolbox: toolbox,
       request: user_prompt,
@@ -223,7 +211,7 @@ defmodule AI.Agent.Code.Common do
   @spec report_task_stack(state :: t) :: any
   def report_task_stack(state) do
     with {:ok, task_list_id} <- get_state(state, :task_list_id) do
-      UI.info("#{state.name} is working", Services.Task.as_string(task_list_id))
+      UI.info("Working", Services.Task.as_string(task_list_id))
     end
   end
 

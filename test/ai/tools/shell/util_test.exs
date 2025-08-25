@@ -1,5 +1,5 @@
 defmodule AI.Tools.Shell.UtilTest do
-  use Fnord.TestCase, async: true
+  use Fnord.TestCase
 
   alias AI.Tools.Shell.Util
 

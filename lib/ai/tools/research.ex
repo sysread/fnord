@@ -1,6 +1,4 @@
 defmodule AI.Tools.Research do
-  @default_name "Lauren Falbak-Completionfeld"
-
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -10,16 +8,16 @@ defmodule AI.Tools.Research do
   def is_available?, do: true
 
   @impl AI.Tools
-  def ui_note_on_request(%{"name" => name, "prompt" => prompt} = args) do
+  def ui_note_on_request(%{"prompt" => prompt} = args) do
     project = get_project(args)
-    {"#{name} is researching in #{project}", prompt}
+    {"Rsearching in #{project}", prompt}
   end
 
   @impl AI.Tools
-  def ui_note_on_result(%{"name" => name, "prompt" => prompt} = args, result) do
+  def ui_note_on_result(%{"prompt" => prompt} = args, result) do
     project = get_project(args)
 
-    {"#{name} has completed research in #{project}",
+    {"Research completed in #{project}",
      """
      # Request
      #{prompt}
@@ -30,25 +28,7 @@ defmodule AI.Tools.Research do
   end
 
   @impl AI.Tools
-  def read_args(args) do
-    args
-    # Give the researcher a name so we can connect the response to the message
-    # emitted when the research task is assigned.
-    |> Map.fetch("name")
-    |> case do
-      {:ok, _name} ->
-        {:ok, args}
-
-      :error ->
-        with {:ok, name} <- Services.NamePool.checkout_name() do
-          args
-          |> Map.put("name", name)
-          |> then(&{:ok, &1})
-        else
-          _ -> {:ok, args |> Map.put("name", @default_name)}
-        end
-    end
-  end
+  def read_args(args), do: {:ok, args}
 
   @impl AI.Tools
   def spec() do

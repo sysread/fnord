@@ -23,12 +23,12 @@ defmodule AI.Tools.Shell do
   def read_args(args), do: {:ok, args}
 
   @impl AI.Tools
-  def ui_note_on_request(%{"command" => command}) do
-    {command, "..."}
+  def ui_note_on_request(%{"command" => cmd, "description" => desc}) do
+    {"shell> #{cmd}", desc}
   end
 
   @impl AI.Tools
-  def ui_note_on_result(%{"command" => command}, result) do
+  def ui_note_on_result(%{"command" => cmd}, result) do
     lines = String.split(result, ~r/\r\n|\n/)
 
     {result_str, additional} =
@@ -44,7 +44,7 @@ defmodule AI.Tools.Shell do
         {Enum.join(lines, "\n"), ""}
       end
 
-    {command,
+    {"shell> #{cmd}",
      """
      #{result_str}
      #{additional}
@@ -200,9 +200,9 @@ defmodule AI.Tools.Shell do
       {:ok, {out, exit_code}} when is_binary(out) ->
         {:ok,
          """
-         #$ #{shell_escape([cmd | args])}
-         $?=#{exit_code}
-
+         shell> #{shell_escape([cmd | args])}
+         ...$?> #{exit_code}
+         ------
          #{String.trim_trailing(out)}
          """}
 
@@ -277,11 +277,9 @@ defmodule AI.Tools.Shell do
         {out, exit_code} when is_binary(out) ->
           {:ok,
            """
-           Command: `#{command}`
-           Exit Status: `#{exit_code}`
-
-           Output:
-
+           shell> #{command}
+           ...$?> #{exit_code}
+           ------
            #{String.trim_trailing(out)}
            """}
 
@@ -315,11 +313,8 @@ defmodule AI.Tools.Shell do
         {:ok, {out, exit_code}} when is_binary(out) ->
           {:ok,
            """
-           Command: `#{command}`
-           Exit Status: `#{exit_code}`
-
-           Output:
-
+           shell> #{command}
+           ...$?> #{exit_code}
            #{String.trim_trailing(out)}
            """}
 

@@ -90,7 +90,8 @@ defmodule Services.NamePool do
 
   @impl GenServer
   def init(_opts) do
-    chunk_size = Application.get_env(:fnord, :workers, 12)
+    chunk_size =
+      Application.get_env(:fnord, :workers, 12)
 
     state = %__MODULE__{
       available: [],
@@ -211,10 +212,11 @@ defmodule Services.NamePool do
     Application.get_env(:fnord, :nomenclater, :real)
     |> case do
       :fake ->
-        total_names = MapSet.size(state.all_used) + state.chunk_size
+        start_num = MapSet.size(state.all_used) + 1
+        end_num = start_num + state.chunk_size - 1
 
         names =
-          1..total_names
+          start_num..end_num
           |> Enum.map(&"NPC ##{&1}")
 
         {:ok,
