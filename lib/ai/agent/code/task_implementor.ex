@@ -159,7 +159,7 @@ defmodule AI.Agent.Code.TaskImplementor do
   defp implement(%{error: nil} = state, invalid_format?) do
     with {:ok, task_list_id} <- Common.get_state(state, :task_list_id),
          {:ok, task} <- Services.Task.peek_task(task_list_id) do
-      UI.info("Working on a task", task.id)
+      UI.report_from(state.agent.name, "Working on a task", task.id)
 
       prompt = """
       Here are the details of your current task.
@@ -203,7 +203,7 @@ defmodule AI.Agent.Code.TaskImplementor do
           |> case do
             {:ok, %{error: "", outcome: outcome, followUpTasks: new_tasks}} ->
               # Report the outcome to the user
-              Common.report_task_outcome(task, "", outcome, new_tasks)
+              Common.report_task_outcome(state, task, "", outcome, new_tasks)
 
               # Mark the task as completed
               Services.Task.complete_task(task_list_id, task.id, outcome)
@@ -217,7 +217,7 @@ defmodule AI.Agent.Code.TaskImplementor do
 
             {:ok, %{error: error, outcome: outcome, followUpTasks: new_tasks}} ->
               # Report the error to the user
-              Common.report_task_outcome(task, error, outcome, new_tasks)
+              Common.report_task_outcome(state, task, error, outcome, new_tasks)
 
               # Mark the task as failed
               Services.Task.fail_task(task_list_id, task.id, error)

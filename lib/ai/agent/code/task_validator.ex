@@ -135,7 +135,7 @@ defmodule AI.Agent.Code.TaskValidator do
 
   defp verify(%{error: nil} = state, invalid_format?) do
     with {:ok, task_list_id} <- Common.get_state(state, :task_list_id) do
-      UI.info("Validating changes")
+      UI.report_from(state.agent.name, "Validating changes")
 
       prompt = "Please perform manual validation (QA) of the changes made to the code base."
 
@@ -162,14 +162,15 @@ defmodule AI.Agent.Code.TaskValidator do
           |> case do
             {:ok, %{followUpTasks: []}} ->
               # Report the outcome of QA
-              UI.info("Completed validation", "No issues identified")
+              UI.report_from(state.agent.name, "Validation complete", "No issues identified")
 
               # All good, we're done!
               %{state | error: nil}
 
             {:ok, %{followUpTasks: new_tasks}} ->
               # Report the outcome of QA
-              UI.info(
+              UI.report_from(
+                state.agent.name,
                 "Identified issues during validation",
                 Common.format_new_tasks(new_tasks)
               )

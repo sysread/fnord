@@ -216,7 +216,7 @@ defmodule AI.Agent.Code.Common do
   @spec report_task_stack(state :: t) :: any
   def report_task_stack(state) do
     with {:ok, task_list_id} <- get_state(state, :task_list_id) do
-      UI.info("Working", Services.Task.as_string(task_list_id))
+      UI.report_from(state.agent.name, "Working", Services.Task.as_string(task_list_id))
     end
   end
 
@@ -232,13 +232,15 @@ defmodule AI.Agent.Code.Common do
   end
 
   @spec report_task_outcome(
+          state :: t,
           task :: task,
           error :: binary,
           outcome :: binary,
           follow_up_tasks :: list(new_task)
         ) :: :ok
-  def report_task_outcome(task, "", outcome, follow_up_tasks) do
-    UI.info(
+  def report_task_outcome(state, task, "", outcome, follow_up_tasks) do
+    UI.report_from(
+      state.agent.name,
       "Task completed",
       """
       # Task
@@ -253,8 +255,9 @@ defmodule AI.Agent.Code.Common do
     )
   end
 
-  def report_task_outcome(task, error, outcome, follow_up_tasks) do
-    UI.error(
+  def report_task_outcome(state, task, error, outcome, follow_up_tasks) do
+    UI.report_from(
+      state.agent.name,
       "Task implementation failed",
       """
       # Task
