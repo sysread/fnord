@@ -67,6 +67,9 @@ defmodule AI.Tools.Shell do
         The user must approve execution of this command before it is run.
         The user may optionally approve simple commands for the entire session.
 
+        It is essential to remember that you cannot launch interactive commands!
+        Commands that require user input or interaction will fail after a timeout, resulting in a poor experience for the user.
+
         Supports both simple commands and complex shell syntax:
         - Simple commands: "ls -la", "git log --oneline" (can be pre-approved)
         - Complex commands: "ls | grep foo", "find . -name '*.ex' | head -10" (require manual approval)
