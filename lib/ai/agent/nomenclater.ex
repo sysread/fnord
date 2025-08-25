@@ -17,9 +17,13 @@ defmodule AI.Agent.Nomenclater do
   - NPC, "Labcoat #3", and other "unnamed cast" names (e.g. "NPC 1", "Villager", "Guard 3")
   - The Electronic Ghost of <well-known deceased person in software>
   - Widgets from `Zork!`
+  - The BofH
+  - Dream creatures and Nightmares from the Dreaming in Sandman (e.g. "The Corinthian", "Fiddler's Green", "Merv Pumpkinhead")
   - Characters from SF novels (especially James Schmitz and his contemporaries)
   - My Little Pony names (the new series, _of course_)
   - D&D characters (e.g. "Sylvaris Strongbow", "Bramdir Ironvein", "Garrick Brightblade")
+  - Wile E. Coyote, Programming Genius
+  - The Ghost of <famous deceased programmer>
 
   Try to spread names across different themes.
   """
