@@ -58,16 +58,13 @@ defmodule AI.Completion do
   @spec get(Keyword.t()) :: response
   def get(opts) do
     with {:ok, state} <- new(opts) do
-      result =
-        state
-        |> AI.Completion.Output.replay_conversation()
-        |> send_request()
-
-      if Keyword.get(opts, :name?, true) do
-        Services.NamePool.checkin_name(state.name)
-      end
-
-      result
+      # Note: we do not check the "name" back in. It is associated with this
+      # process' pid. If the agent calls `AI.Completion.get/1` again, it will
+      # get the same name, maintaining continuity between multiple completion
+      # steps.
+      state
+      |> AI.Completion.Output.replay_conversation()
+      |> send_request()
     end
   end
 
