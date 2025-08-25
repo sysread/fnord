@@ -18,7 +18,8 @@ defmodule AI.CompletionTest do
 
       assert {:ok, state} = AI.Completion.new(opts)
       assert state.model == "test-model"
-      assert state.messages == [%{role: "user", content: "yo"}]
+      # The first message is implicitly added by AI.Completion. It is the agent's name.
+      assert [_, %{role: "user", content: "yo"}] = state.messages
       assert state.log_msgs == false
       assert state.replay_conversation == true
       assert is_list(state.specs)
@@ -95,7 +96,8 @@ defmodule AI.CompletionTest do
       model = AI.Model.new("fake", 42)
       assert {:ok, state} = AI.Completion.new_from_conversation(conv, model: model)
       assert state.model == model
-      assert state.messages == messages
+      # The first message is implicitly added by AI.Completion. It is the agent's name.
+      assert [_ | ^messages] = state.messages
     end
   end
 
