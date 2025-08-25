@@ -182,7 +182,9 @@ defmodule AI.Tools.File.Edit do
   end
 
   defp apply_changes(file, changes) do
-    AI.Agent.Code.Patcher.get_response(%{file: file, changes: changes})
+    AI.Agent.Code.Patcher
+    |> AI.Agent.new()
+    |> AI.Agent.get_response(%{file: file, changes: changes})
   end
 
   defp stage_changes(contents) do
