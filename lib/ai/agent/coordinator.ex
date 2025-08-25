@@ -181,7 +181,9 @@ defmodule AI.Agent.Coordinator do
     }
   end
 
-  @spec perform_step(t) :: t
+  @spec perform_step(t | {:error, term}) :: t
+  defp perform_step({:error, _} = error), do: error
+
   defp perform_step(%{replay: replay, steps: [:followup | steps]} = state) do
     UI.debug("Performing abbreviated research")
 
