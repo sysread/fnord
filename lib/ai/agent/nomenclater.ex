@@ -127,9 +127,14 @@ defmodule AI.Agent.Nomenclater do
           %{"names" => %{"names" => names}} when is_list(names) ->
             process_names(names, count, used_names, attempt)
 
+          # Same as above, but stupider
+          %{"names" => %{"values" => names}} when is_list(names) ->
+            process_names(names, count, used_names, attempt)
+
           # Handle any other unexpected structure
           decoded ->
-            {:error, "Unexpected response format: #{inspect(decoded)}"}
+            UI.warn("Unexpected response format", inspect(decoded, pretty: true))
+            get_name_batch(count, used_names, attempt + 1)
         end
 
       {:error, %{response: response}} ->

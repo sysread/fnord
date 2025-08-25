@@ -100,6 +100,8 @@ defmodule AI.Completion do
           {:ok, Services.NamePool.default_name()}
         end
 
+      messages = [AI.Util.system_msg("Your name is #{name}.") | messages]
+
       state = %__MODULE__{
         model: model,
         response_format: response_format,
