@@ -29,26 +29,7 @@ defmodule AI.Tools.Shell do
 
   @impl AI.Tools
   def ui_note_on_result(%{"command" => cmd}, result) do
-    lines = String.split(result, ~r/\r\n|\n/)
-
-    {result_str, additional} =
-      if length(lines) > 10 do
-        {first_lines, _rest} = Enum.split(lines, 10)
-        remaining = length(lines) - 10
-
-        {
-          Enum.join(first_lines, "\n"),
-          UI.italicize("...plus #{remaining} additional lines")
-        }
-      else
-        {Enum.join(lines, "\n"), ""}
-      end
-
-    {"shell> #{cmd}",
-     """
-     #{result_str}
-     #{additional}
-     """}
+    {"shell> #{cmd}", result}
   end
 
   @impl AI.Tools

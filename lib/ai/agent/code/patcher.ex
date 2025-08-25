@@ -108,12 +108,14 @@ defmodule AI.Agent.Code.Patcher do
   # Internals
   # ----------------------------------------------------------------------------
   defstruct [
+    :agent,
     :file,
     :changes,
     :contents
   ]
 
   @type t :: %__MODULE__{
+          agent: AI.Agent.t(),
           file: binary,
           changes: list(binary),
           contents: binary
@@ -121,11 +123,13 @@ defmodule AI.Agent.Code.Patcher do
 
   @spec new(map) :: {:ok, t} | {:error, binary}
   defp new(opts) do
-    with {:ok, file} <- required_arg(opts, :file),
+    with {:ok, agent} <- required_arg(opts, :agent),
+         {:ok, file} <- required_arg(opts, :file),
          {:ok, changes} <- required_arg(opts, :changes),
          {:ok, contents} <- File.read(file) do
       {:ok,
        %__MODULE__{
+         agent: agent,
          file: file,
          changes: changes,
          contents: contents
@@ -142,11 +146,10 @@ defmodule AI.Agent.Code.Patcher do
   defp apply_changes(%{changes: [change | remaining], contents: contents} = state) do
     numbered = Util.numbered_lines(contents)
 
-    AI.Completion.get(
+    AI.Agent.get_completion(state.agent,
       model: @model,
       response_format: @response_format,
       log_msgs: false,
-      log_tool_calls: false,
       messages: [
         AI.Util.system_msg(@prompt),
         AI.Util.user_msg("""
@@ -205,6 +208,7 @@ defmodule AI.Agent.Code.Patcher do
 
   defp replace_contents(%{contents: contents} = state, start_line, end_line, replacement) do
     lines = String.split(contents, "\n")
+
     # Clamp counts to avoid negative indices
     before_count = max(start_line - 1, 0)
     after_count = max(end_line, 0)

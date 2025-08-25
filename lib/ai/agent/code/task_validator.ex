@@ -94,6 +94,7 @@ defmodule AI.Agent.Code.TaskValidator do
 
   @impl AI.Agent
   def get_response(%{
+        agent: agent,
         task_list_id: task_list_id,
         requirements: requirements,
         change_summary: change_summary
@@ -116,7 +117,8 @@ defmodule AI.Agent.Code.TaskValidator do
       AI.Tools.all_tools()
       |> AI.Tools.with_rw_tools()
 
-    Common.new(@model, tools, @prompt, request)
+    agent
+    |> Common.new(@model, tools, @prompt, request)
     |> Common.put_state(:task_list_id, task_list_id)
     |> Common.put_state(:requirements, requirements)
     |> verify()

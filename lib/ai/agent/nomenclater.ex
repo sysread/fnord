@@ -55,48 +55,71 @@ defmodule AI.Agent.Nomenclater do
       }
     }
   }
+
   # -----------------------------------------------------------------------------
   # Behaviour implementation
   # -----------------------------------------------------------------------------
   @behaviour AI.Agent
 
   @impl AI.Agent
-  def get_response(_opts) do
-    # Use batch system with count of 1 for compatibility
-    # No used names context available at this level
-    case get_names(1, []) do
-      {:ok, [name]} -> {:ok, name}
-      {:error, reason} -> {:error, reason}
+  def get_response(opts) do
+    opts
+    |> new()
+    |> get_name_batch()
+    |> case do
+      %{error: nil, names: names} -> {:ok, names}
+      %{error: error} -> {:error, error}
     end
   end
 
-  @doc """
-  Gets a batch of unique names efficiently. This is the primary interface for
-  name generation, used by the Services.NamePool.
+  # ----------------------------------------------------------------------------
+  # Internal state
+  # ----------------------------------------------------------------------------
+  defstruct [
+    :agent,
+    :want,
+    :used,
+    :error,
+    :attempt,
+    :names
+  ]
 
-  ## Parameters
-  - count: Number of names to generate
-  - used_names: List of names already in use (defaults to empty list)
-  """
-  @spec get_names(pos_integer(), [String.t()]) :: {:ok, [String.t()]} | {:error, String.t()}
-  def get_names(count, used_names \\ [])
-      when is_integer(count) and count > 0 and is_list(used_names) do
-    get_name_batch(count, used_names)
+  @type t :: %__MODULE__{
+          agent: AI.Agent.t(),
+          want: pos_integer(),
+          used: [binary],
+          error: nil | binary,
+          attempt: non_neg_integer(),
+          names: nil | [binary]
+        }
+
+  defp new(opts) do
+    with {:ok, agent} <- Map.fetch(opts, :agent),
+         {:ok, count} <- Map.fetch(opts, :want),
+         {:ok, used} <- Map.fetch(opts, :used) do
+      %__MODULE__{
+        agent: agent,
+        want: count,
+        used: used,
+        attempt: 1
+      }
+    else
+      :error -> %__MODULE__{error: "Missing required options"}
+    end
   end
 
-  defp get_name_batch(count, used_names, attempt \\ 1)
-
-  defp get_name_batch(count, _used_names, attempt) when attempt > @max_attempts do
-    {:error, "Failed to generate #{count} unique names after #{@max_attempts} attempts."}
+  defp get_name_batch(%{attempt: attempt} = state) when attempt > @max_attempts do
+    %{state | error: "Exceeded maximum attempts to generate names"}
   end
 
-  defp get_name_batch(count, used_names, attempt) do
-    existing_names =
-      used_names
+  defp get_name_batch(state) do
+    used =
+      state.used
       |> Enum.map(&"- #{&1}")
       |> Enum.join("\n")
 
-    AI.Completion.get(
+    state.agent
+    |> AI.Agent.get_completion(
       # This is the AI model to use for name generation and is called by
       # Services.NamePool's genserver. If the completion were to set `name?:
       # true` (the default), it can cause deadlock in the genserver, because
@@ -109,9 +132,9 @@ defmodule AI.Agent.Nomenclater do
         AI.Util.system_msg(@prompt),
         AI.Util.user_msg("""
         These names are already in use:
-        #{existing_names}
+        #{used}
 
-        Please provide #{count} unique first names for AI agents.
+        Please provide #{state.want} unique first names for AI agents.
         Ensure all names in the list are different from each other and from the existing names.
         """)
       ]
@@ -121,34 +144,34 @@ defmodule AI.Agent.Nomenclater do
         case Jason.decode!(response) do
           # Handle normal case
           %{"names" => names} when is_list(names) ->
-            process_names(names, count, used_names, attempt)
+            process_names(state, names)
 
           # Handle nested case (sometimes AI returns nested structure)
           %{"names" => %{"names" => names}} when is_list(names) ->
-            process_names(names, count, used_names, attempt)
+            process_names(state, names)
 
           # Same as above, but stupider
           %{"names" => %{"values" => names}} when is_list(names) ->
-            process_names(names, count, used_names, attempt)
+            process_names(state, names)
 
           # Handle any other unexpected structure
           decoded ->
             UI.warn("Unexpected response format", inspect(decoded, pretty: true))
-            get_name_batch(count, used_names, attempt + 1)
+            get_name_batch(%{state | attempt: state.attempt + 1})
         end
 
       {:error, %{response: response}} ->
-        {:error, response}
+        %{state | error: response}
 
       {:error, _reason} ->
-        get_name_batch(count, used_names, attempt + 1)
+        get_name_batch(%{state | attempt: state.attempt + 1})
     end
   end
 
   # Helper function to process names from JSON response
-  defp process_names(names, count, used_names, attempt) do
+  defp process_names(state, names) do
     # Filter out any names that already exist (content validation)
-    existing = MapSet.new(used_names)
+    existing = MapSet.new(state.used)
 
     unique_names =
       names
@@ -157,13 +180,13 @@ defmodule AI.Agent.Nomenclater do
       |> Enum.uniq()
 
     # If we didn't get enough unique names, retry with updated used_names
-    if length(unique_names) < count do
-      updated_used_names = used_names ++ unique_names
-      get_name_batch(count - length(unique_names), updated_used_names, attempt + 1)
+    if length(unique_names) < state.want do
+      used = state.used ++ unique_names
+      get_name_batch(%{state | used: used, attempt: state.attempt + 1})
     else
       # Take exactly what we need and return them
-      final_names = Enum.take(unique_names, count)
-      {:ok, final_names}
+      names = Enum.take(unique_names, state.want)
+      %{state | names: names}
     end
   end
 end

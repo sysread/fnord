@@ -117,7 +117,9 @@ defmodule AI.Tools.File.Spelunker do
     with {:ok, symbol} <- Map.fetch(args, "symbol"),
          {:ok, start_file} <- Map.fetch(args, "start_file"),
          {:ok, goal} <- Map.fetch(args, "goal") do
-      AI.Agent.Spelunker.get_response(%{
+      AI.Agent.Spelunker
+      |> AI.Agent.new()
+      |> AI.Agent.get_response(%{
         symbol: symbol,
         start_file: start_file,
         goal: goal

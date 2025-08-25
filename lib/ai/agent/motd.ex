@@ -33,7 +33,8 @@ defmodule AI.Agent.MOTD do
 
   @impl AI.Agent
   def get_response(opts) do
-    with {:ok, user_prompt} <- Map.fetch(opts, :prompt) do
+    with {:ok, agent} <- Map.fetch(opts, :agent),
+         {:ok, user_prompt} <- Map.fetch(opts, :prompt) do
       user_prompt = """
       This was the user's prompt:
 
@@ -44,7 +45,7 @@ defmodule AI.Agent.MOTD do
       Create your MOTD based on the topic of the prompt.
       """
 
-      AI.Completion.get(
+      AI.Agent.get_completion(agent,
         log_msgs: false,
         log_tool_calls: false,
         model: @model,

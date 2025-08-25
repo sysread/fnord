@@ -1,4 +1,6 @@
 defmodule AI.Completion.Output do
+  @max_tool_lines 10
+
   # -----------------------------------------------------------------------------
   # UI integration
   # -----------------------------------------------------------------------------
@@ -8,43 +10,49 @@ defmodule AI.Completion.Output do
     end
   end
 
-  def log_assistant_msg(state, msg) do
+  def log_assistant_msg(%{name: nil} = state, msg) do
     if state.log_msgs do
       UI.info("Assistant", msg)
     end
   end
 
+  def log_assistant_msg(%{name: name} = state, msg) do
+    if state.log_msgs do
+      UI.info(name, msg)
+    end
+  end
+
   def log_tool_call(state, step) do
     if state.log_tool_calls do
-      UI.info(step)
+      UI.report_from(state.name, step)
     end
   end
 
   def log_tool_call(state, step, msg) do
     if state.log_tool_calls do
-      UI.info(step, msg)
+      UI.report_from(state.name, step, Util.truncate(msg, @max_tool_lines))
     end
   end
 
   def log_tool_call_result(state, step) do
     if state.log_tool_calls do
-      UI.debug(step)
+      UI.report_from(state.name, step)
     end
   end
 
   def log_tool_call_result(state, step, msg) do
     if state.log_tool_calls do
-      UI.debug(step, msg)
+      UI.report_from(state.name, step, Util.truncate(msg, @max_tool_lines))
     end
   end
 
-  def log_tool_call_error(_state, tool, args_json, reason) do
+  def log_tool_call_error(state, tool, args_json, reason) do
     pretty_args =
       args_json
       |> Jason.decode!()
       |> Jason.encode!(pretty: true)
 
-    UI.warn("""
+    UI.warn(state.name, """
     Tool call failed:
     #{tool} :: #{pretty_args}
 

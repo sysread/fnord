@@ -1,5 +1,6 @@
 defmodule AI.Agent.Code.Common do
   defstruct [
+    :agent,
     :model,
     :toolbox,
     :request,
@@ -18,6 +19,7 @@ defmodule AI.Agent.Code.Common do
   implementation.
   """
   @type t :: %__MODULE__{
+          agent: AI.Agent.t(),
           model: AI.Model.t(),
           toolbox: AI.Tools.toolbox(),
           request: binary,
@@ -32,13 +34,15 @@ defmodule AI.Agent.Code.Common do
   list includes the system prompt and the user prompt, as provided.
   """
   @spec new(
+          agent :: AI.Agent.t(),
           model :: AI.Model.t(),
           toolbox :: AI.Tools.toolbox(),
           system_prompt :: binary,
           user_prompt :: binary
         ) :: t
-  def new(model, toolbox, system_prompt, user_prompt) do
+  def new(agent, model, toolbox, system_prompt, user_prompt) do
     %__MODULE__{
+      agent: agent,
       model: model,
       toolbox: toolbox,
       request: user_prompt,
@@ -133,7 +137,8 @@ defmodule AI.Agent.Code.Common do
           keep_prompt? :: boolean
         ) :: t
   def get_completion(state, prompt, response_format \\ nil, keep_prompt? \\ false) do
-    AI.Completion.get(
+    state.agent
+    |> AI.Agent.get_completion(
       model: state.model,
       toolbox: state.toolbox,
       messages: state.messages ++ [AI.Util.system_msg(prompt)],

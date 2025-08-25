@@ -10,7 +10,7 @@ defmodule AI.Tools.Research do
   @impl AI.Tools
   def ui_note_on_request(%{"prompt" => prompt} = args) do
     project = get_project(args)
-    {"Rsearching in #{project}", prompt}
+    {"Requesting research in #{project}", prompt}
   end
 
   @impl AI.Tools
@@ -92,7 +92,9 @@ defmodule AI.Tools.Research do
   end
 
   defp do_research(prompt) do
-    AI.Agent.Researcher.get_response(%{prompt: prompt})
+    AI.Agent.Researcher
+    |> AI.Agent.new()
+    |> AI.Agent.get_response(%{prompt: prompt})
   end
 
   defp do_research(project, prompt) do

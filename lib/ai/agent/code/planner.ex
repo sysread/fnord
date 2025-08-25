@@ -24,12 +24,13 @@ defmodule AI.Agent.Code.Planner do
   @behaviour AI.Agent
 
   @impl AI.Agent
-  def get_response(%{request: request}) do
+  def get_response(%{agent: agent, request: request}) do
     tools =
       AI.Tools.all_tools()
       |> AI.Tools.with_rw_tools()
 
-    Common.new(@model, tools, @prompt, request)
+    agent
+    |> Common.new(@model, tools, @prompt, request)
     |> research()
     |> visualize()
     |> plan()

@@ -73,7 +73,7 @@ defmodule AI.Completion do
     with {:ok, model} <- Keyword.fetch(opts, :model),
          {:ok, messages} <- Keyword.fetch(opts, :messages) do
       response_format = Keyword.get(opts, :response_format, nil)
-      name? = Keyword.get(opts, :name?, true)
+      name = Keyword.get(opts, :name, nil)
 
       toolbox =
         opts
@@ -92,14 +92,6 @@ defmodule AI.Completion do
       log_tool_calls = Keyword.get(opts, :log_tool_calls, !quiet?)
 
       archive? = Keyword.get(opts, :archive_notes, false)
-
-      {:ok, name} =
-        if name? do
-          Services.NamePool.checkout_name()
-        else
-          {:ok, Services.NamePool.default_name()}
-        end
-
       messages = [AI.Util.system_msg("Your name is #{name}.") | messages]
 
       state = %__MODULE__{
@@ -142,7 +134,7 @@ defmodule AI.Completion do
   the most recent round of the conversation, starting from the most recent user
   message.
   """
-  @spec tools_used(t) :: %{String.t() => non_neg_integer()}
+  @spec tools_used(t) :: %{binary => non_neg_integer()}
   def tools_used(%{messages: messages}) do
     # Find the index of the most recent user message in the conversation
     last_user_index =
@@ -432,10 +424,16 @@ defmodule AI.Completion do
         "Context used: #{used_pct}% (#{usage}/#{context} tokens)"
       )
 
-      with {:ok, [new_msg]} <- AI.Agent.Compactor.get_response(%{messages: messages}) do
-        new_tokens = AI.PretendTokenizer.guesstimate_tokens(new_msg.content)
-        %{state | messages: [new_msg], usage: new_tokens}
-      else
+      # Any agents triggered directly by AI.Completion must set `named?: false`
+      # to avoid circular dependency with Services.NamePool.
+      AI.Agent.Compactor
+      |> AI.Agent.new(named?: false)
+      |> AI.Agent.get_response(%{messages: messages})
+      |> case do
+        {:ok, [new_msg]} ->
+          new_tokens = AI.PretendTokenizer.guesstimate_tokens(new_msg.content)
+          %{state | messages: [new_msg], usage: new_tokens}
+
         {:error, reason} ->
           UI.warn("Failed to compact conversation", inspect(reason, pretty: true))
           state

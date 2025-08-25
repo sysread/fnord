@@ -167,27 +167,57 @@ defmodule AI.Agent.Intuition do
     """
   }
 
+  # ----------------------------------------------------------------------------
+  # Behaviour implementation
+  # ----------------------------------------------------------------------------
   @impl AI.Agent
   def get_response(opts) do
-    with {:ok, msgs} <- get_arg(opts, :msgs),
-         {:ok, memories} <- get_arg(opts, :memories),
-         {:ok, perception} <- get_perception(msgs) do
-      get_drive_reactions(perception, memories)
-    end
-  end
-
-  defp get_arg(opts, key) do
     opts
-    |> Map.fetch(key)
-    |> case do
-      {:ok, value} -> {:ok, value}
-      :error -> {:error, "Missing required argument: #{key}"}
+    |> new()
+    |> get_perception()
+    |> get_drive_reactions()
+    |> get_subconscious_union()
+  end
+
+  # -----------------------------------------------------------------------------
+  # Internal state
+  # -----------------------------------------------------------------------------
+  defstruct [
+    :agent,
+    :msgs,
+    :memories,
+    :error,
+    :perception,
+    :reactions
+  ]
+
+  @type t :: %__MODULE__{
+          agent: AI.Agent.t(),
+          msgs: list(AI.Util.msg()),
+          memories: nil | binary,
+          error: nil | term,
+          perception: nil | binary,
+          reactions: nil | list(binary)
+        }
+
+  @spec new(map) :: t
+  defp new(%{agent: agent} = opts) do
+    with {:ok, msgs} <- get_arg(opts, :msgs),
+         {:ok, memories} <- get_arg(opts, :memories) do
+      %__MODULE__{
+        agent: agent,
+        msgs: msgs,
+        memories: memories
+      }
+    else
+      {:error, reason} -> %__MODULE__{agent: agent, error: reason}
     end
   end
 
-  defp get_perception(msgs) do
+  @spec get_perception(t) :: t
+  defp get_perception(%{error: nil} = state) do
     transcript =
-      msgs
+      state.msgs
       |> Enum.filter(fn
         %{role: "user"} -> true
         %{role: "assistant", content: c} when is_binary(c) -> true
@@ -207,32 +237,41 @@ defmodule AI.Agent.Intuition do
     |> case do
       {:ok, %{response: response}} ->
         log(:perception, response)
-        {:ok, response}
+        %{state | perception: response}
 
       {:error, reason} ->
-        {:error, reason}
+        %{state | error: reason}
     end
   end
 
-  defp get_drive_reactions(perception, memories) do
+  defp get_perception(state), do: state
+
+  @spec get_drive_reactions(t) :: t
+  defp get_drive_reactions(%{error: nil} = state) do
     @drives
     |> Map.keys()
-    |> Util.async_stream(&get_drive_reaction(&1, perception, memories))
+    |> Util.async_stream(&get_drive_reaction(state, &1))
     |> Enum.flat_map(fn
       {:ok, {:ok, response}} -> [response]
       _ -> []
     end)
-    |> get_subconscious_union()
+    |> then(&%{state | reactions: &1})
   end
 
-  defp get_drive_reaction(drive, perception, memories) do
+  defp get_drive_reactions(state), do: state
+
+  @spec get_drive_reaction(t, binary) :: {:ok, binary} | {:error, binary}
+  defp get_drive_reaction(%{error: nil} = state, drive) do
     messages = [
       AI.Util.system_msg("#{@drive_base_prompt}\n#{@drives[drive]}"),
-      AI.Util.assistant_msg("# My memories about this project:\n#{memories}"),
-      AI.Util.user_msg("# My perception of the discussion:\n#{perception}")
+      AI.Util.assistant_msg("# My memories about this project:\n#{state.memories}"),
+      AI.Util.user_msg("# My perception of the discussion:\n#{state.perception}")
     ]
 
-    AI.Completion.get(model: @model, messages: messages)
+    AI.Agent.get_completion(state.agent,
+      model: @model,
+      messages: messages
+    )
     |> case do
       {:ok, %{response: response}} ->
         log(drive, response)
@@ -243,13 +282,17 @@ defmodule AI.Agent.Intuition do
     end
   end
 
-  defp get_subconscious_union(reactions) do
+  @spec get_subconscious_union(t) :: {:ok, binary} | t
+  defp get_subconscious_union(%{error: nil} = state) do
     messages = [
       AI.Util.system_msg(@synthesis),
-      AI.Util.assistant_msg(Enum.join(reactions, "\n"))
+      AI.Util.assistant_msg(Enum.join(state.reactions, "\n"))
     ]
 
-    AI.Completion.get(model: @model, messages: messages)
+    AI.Agent.get_completion(state.agent,
+      model: @model,
+      messages: messages
+    )
     |> case do
       {:ok, %{response: response}} ->
         {:ok, response}
@@ -258,6 +301,8 @@ defmodule AI.Agent.Intuition do
         {:error, "Error synthesizing subconscious reaction: #{inspect(reason)}"}
     end
   end
+
+  defp get_subconscious_union(state), do: state
 
   defp log(:perception, msg) do
     UI.report_step("Perception", UI.italicize(msg))
@@ -277,6 +322,15 @@ defmodule AI.Agent.Intuition do
     |> case do
       nil -> false
       value -> String.downcase(value) in ["true", "1", "yes"]
+    end
+  end
+
+  defp get_arg(opts, key) do
+    opts
+    |> Map.fetch(key)
+    |> case do
+      {:ok, value} -> {:ok, value}
+      :error -> {:error, "Missing required argument: #{key}"}
     end
   end
 end

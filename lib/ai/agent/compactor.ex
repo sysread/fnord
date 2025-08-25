@@ -18,10 +18,11 @@ defmodule AI.Agent.Compactor do
     raise "Refusing to compact a compaction prompt"
   end
 
-  def get_response(%{messages: messages}) do
+  def get_response(%{messages: messages} = opts) do
     transcript = AI.Util.research_transcript(messages)
 
-    AI.Completion.get(
+    opts.agent
+    |> AI.Agent.get_completion(
       model: @model,
       messages: [
         AI.Util.system_msg(@system_prompt),

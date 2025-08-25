@@ -41,7 +41,8 @@ defmodule AI.Agent.Spelunker do
   # Private functions
   # -----------------------------------------------------------------------------
   defp build_response(opts) do
-    AI.Completion.get(
+    opts.agent
+    |> AI.Agent.get_completion(
       model: @model,
       toolbox: [
         AI.Tools.File.Search,

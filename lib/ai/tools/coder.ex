@@ -79,20 +79,26 @@ defmodule AI.Tools.Coder do
   end
 
   defp plan(requirements) do
-    AI.Agent.Code.Planner.get_response(%{
+    AI.Agent.Code.Planner
+    |> AI.Agent.new()
+    |> AI.Agent.get_response(%{
       request: requirements
     })
   end
 
   defp implement(requirements, task_list_id) do
-    AI.Agent.Code.TaskImplementor.get_response(%{
+    AI.Agent.Code.TaskImplementor
+    |> AI.Agent.new()
+    |> AI.Agent.get_response(%{
       task_list_id: task_list_id,
       requirements: requirements
     })
   end
 
   defp validate(requirements, task_list_id, change_summary) do
-    AI.Agent.Code.TaskValidator.get_response(%{
+    AI.Agent.Code.TaskValidator
+    |> AI.Agent.new()
+    |> AI.Agent.get_response(%{
       task_list_id: task_list_id,
       requirements: requirements,
       change_summary: change_summary

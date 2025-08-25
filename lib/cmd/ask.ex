@@ -169,18 +169,33 @@ defmodule Cmd.Ask do
   # ----------------------------------------------------------------------------
   # Agent response
   # ----------------------------------------------------------------------------
+  @spec get_response(map, pid) ::
+          {:ok, non_neg_integer, non_neg_integer, binary}
+          | {:error, any}
   defp get_response(opts, conversation_server) do
-    with {:ok, %{usage: usage, context: context, last_response: response}} <-
-           AI.Agent.Coordinator.get_response_state(%{
-             conversation: conversation_server,
-             edit: opts.edit,
-             rounds: opts.rounds,
-             question: opts.question,
-             replay: Map.get(opts, :replay, false),
-             yes: Map.get(opts, :yes, false)
-           }) do
-      {:ok, usage, context, response}
+    opts
+    |> get_agent_response(conversation_server)
+    |> case do
+      {:ok, %{usage: usage, context: context, last_response: res}} ->
+        {:ok, usage, context, res}
+
+      {:error, reason} ->
+        {:error, reason}
     end
+  end
+
+  @spec get_agent_response(map, pid) :: {:ok, map} | {:error, any}
+  defp get_agent_response(opts, conversation_server) do
+    AI.Agent.Coordinator
+    |> AI.Agent.new()
+    |> AI.Agent.get_response(%{
+      conversation: conversation_server,
+      edit: opts.edit,
+      rounds: opts.rounds,
+      question: opts.question,
+      replay: Map.get(opts, :replay, false),
+      yes: Map.get(opts, :yes, false)
+    })
   end
 
   # ----------------------------------------------------------------------------

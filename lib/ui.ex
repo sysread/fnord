@@ -56,6 +56,46 @@ defmodule UI do
   # ----------------------------------------------------------------------------
   # Step reporting and logging
   # ----------------------------------------------------------------------------
+  def report_from(nil, msg), do: info(msg)
+
+  def report_from(name, msg) do
+    Logger.info(
+      IO.ANSI.format(
+        [
+          :cyan,
+          "⦑ #{name} ⦒ ",
+          :reset,
+          :green,
+          msg,
+          :reset
+        ],
+        colorize?()
+      )
+    )
+  end
+
+  def report_from(nil, msg, detail), do: info(msg, detail)
+
+  def report_from(name, msg, detail) do
+    Logger.info(
+      IO.ANSI.format(
+        [
+          :yellow,
+          "⦑ #{name} ⦒ ",
+          :reset,
+          :green,
+          msg,
+          :reset,
+          ": ",
+          :cyan,
+          clean_detail(detail),
+          :reset
+        ],
+        colorize?()
+      )
+    )
+  end
+
   def report_step(msg), do: info(msg)
   def report_step(msg, detail), do: info(msg, detail)
 

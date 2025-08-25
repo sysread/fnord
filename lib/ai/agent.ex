@@ -7,21 +7,93 @@ defmodule AI.Agent do
   agent system.
   """
 
-  @doc """
-  Process instructions and return a response using the agent's specialized
-  capabilities.
-  """
+  # ----------------------------------------------------------------------------
+  # Behavior Callbacks
+  # ----------------------------------------------------------------------------
   @callback get_response(map) :: {:ok, any} | {:error, any}
 
-  @spec get_response(module, map) :: {:ok, any} | {:error, any}
-  def get_response(agent_module, args) do
-    if load_agent(agent_module) && is_agent(agent_module) do
-      agent_module.get_response(args)
+  # ----------------------------------------------------------------------------
+  # Public API
+  # ----------------------------------------------------------------------------
+  defstruct [
+    :name,
+    :impl
+  ]
+
+  @type t :: %__MODULE__{
+          name: nil | binary,
+          impl: module
+        }
+
+  @doc """
+  Create a new agent instance.
+
+  If `:named?` is set to `false`, the agent will not be assigned a name. This
+  is intended specifically for `AI.Agent.Nomenclater`, which does the naming on
+  behalf of `Services.NamePool`, which can't be used directly by `Nomenclater`
+  because that would create a circular dependency.
+  """
+  @spec new(module, keyword) :: t
+  def new(impl, opts \\ []) do
+    with :ok <- validate_agent_module(impl),
+         {:ok, name} <- get_name(opts) do
+      %__MODULE__{
+        name: name,
+        impl: impl
+      }
     else
-      {:error, "Agent module #{inspect(agent_module)} does not implement get_response/1"}
+      {:error, reason} -> raise "Failed to create agent: #{inspect(reason)}"
     end
   end
 
-  defp load_agent(mod), do: Code.ensure_loaded?(mod)
-  defp is_agent(mod), do: function_exported?(mod, :get_response, 1)
+  @doc """
+  Delegate to the agent implementation's `get_response/1` function. Includes
+  the agent in the args map.
+  """
+  @spec get_response(t, map) :: {:ok, any} | {:error, any}
+  def get_response(agent, args) do
+    args
+    |> Map.put(:agent, agent)
+    |> agent.impl.get_response()
+  end
+
+  @doc """
+  Delegate to `AI.Completion.get/1` with the agent's name included in the args.
+  Intended to be called by implementors of `AI.Agent` when they need to
+  generate completions as part of their response processing.
+  """
+  @spec get_completion(t, keyword) :: {:ok, AI.Completion.t()} | {:error, any}
+  def get_completion(agent, args) do
+    args
+    |> Keyword.put(:name, agent.name)
+    |> AI.Completion.get()
+  end
+
+  @doc """
+  Delegate to `AI.Completion.tools_used/1` to extract the tools used from a
+  completion.
+  """
+  @spec tools_used(AI.Completion.t()) :: %{binary => non_neg_integer()}
+  def tools_used(completion) do
+    AI.Completion.tools_used(completion)
+  end
+
+  # ----------------------------------------------------------------------------
+  # Private functions
+  # ----------------------------------------------------------------------------
+  defp validate_agent_module(mod) do
+    cond do
+      !Code.ensure_loaded?(mod) -> {:error, :module_not_found}
+      !function_exported?(mod, :__info__, 1) -> {:error, :not_a_module}
+      true -> :ok
+    end
+  end
+
+  defp get_name(opts) do
+    if Keyword.get(opts, :named?, true) do
+      Services.NamePool.checkout_name()
+    else
+      {:ok, Services.NamePool.default_name()}
+    end
+  end
 end

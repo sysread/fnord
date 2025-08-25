@@ -38,8 +38,10 @@ defmodule AI.Agent.TroubleshooterTest do
       assert is_binary(opts.prompt)
 
       # Test that it can be called with valid prompt (without network calls)
-      result = Troubleshooter.get_response(opts)
-      assert {:ok, "Mocked successful response"} = result
+      assert {:ok, "Mocked successful response"} =
+               Troubleshooter
+               |> AI.Agent.new()
+               |> AI.Agent.get_response(opts)
     end
 
     test "has access to troubleshooting tools" do

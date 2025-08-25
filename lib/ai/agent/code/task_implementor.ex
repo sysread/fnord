@@ -107,7 +107,11 @@ defmodule AI.Agent.Code.TaskImplementor do
   @behaviour AI.Agent
 
   @impl AI.Agent
-  def get_response(%{task_list_id: task_list_id, requirements: requirements}) do
+  def get_response(%{
+        agent: agent,
+        task_list_id: task_list_id,
+        requirements: requirements
+      }) do
     tasks = Services.Task.as_string(task_list_id, true)
 
     request = """
@@ -125,7 +129,8 @@ defmodule AI.Agent.Code.TaskImplementor do
       AI.Tools.all_tools()
       |> AI.Tools.with_rw_tools()
 
-    Common.new(@model, tools, @prompt, request)
+    agent
+    |> Common.new(@model, tools, @prompt, request)
     |> Common.put_state(:task_list_id, task_list_id)
     |> Common.put_state(:requirements, requirements)
     |> implement()

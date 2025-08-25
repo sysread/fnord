@@ -9,6 +9,7 @@ defmodule AI.Agent.Coordinator do
   """
 
   defstruct [
+    :agent,
     :rounds,
     :edit?,
     :replay,
@@ -25,6 +26,9 @@ defmodule AI.Agent.Coordinator do
   ]
 
   @type t :: %__MODULE__{
+          # Agent
+          agent: AI.Agent.t(),
+
           # User opts
           rounds: non_neg_integer,
           edit?: boolean,
@@ -51,13 +55,6 @@ defmodule AI.Agent.Coordinator do
 
   @impl AI.Agent
   def get_response(opts) do
-    with {:ok, %{last_response: response}} <- get_response_state(opts) do
-      {:ok, response}
-    end
-  end
-
-  @spec get_response_state(map) :: {:ok, t} | error
-  def get_response_state(opts) do
     opts
     |> new()
     |> select_steps()
@@ -70,12 +67,19 @@ defmodule AI.Agent.Coordinator do
 
   @spec new(map) :: t
   defp new(opts) do
-    with {:ok, conversation} <- Map.fetch(opts, :conversation),
+    with {:ok, agent} <- Map.fetch(opts, :agent),
+         {:ok, conversation} <- Map.fetch(opts, :conversation),
          {:ok, edit?} <- Map.fetch(opts, :edit),
          {:ok, rounds} <- Map.fetch(opts, :rounds),
          {:ok, question} <- Map.fetch(opts, :question),
          {:ok, replay} <- Map.fetch(opts, :replay),
          {:ok, project} <- Store.get_project() do
+      UI.feedback(
+        :info,
+        agent.name,
+        "Greetings, biological substrate. I am #{agent.name}, and I shall research on your behalf."
+      )
+
       Settings.set_edit_mode(edit?)
       # Restart approvals service to pick up edit mode setting
       GenServer.stop(Services.Approvals, :normal)
@@ -87,6 +91,9 @@ defmodule AI.Agent.Coordinator do
         |> Store.Project.Conversation.exists?()
 
       %__MODULE__{
+        # Agent
+        agent: agent,
+
         # User opts
         rounds: rounds,
         edit?: edit?,
@@ -292,7 +299,7 @@ defmodule AI.Agent.Coordinator do
   defp get_completion(state, replay \\ false) do
     msgs = Services.Conversation.get_messages(state.conversation)
 
-    AI.Completion.get(
+    AI.Agent.get_completion(state.agent,
       log_msgs: true,
       log_tool_calls: true,
       archive_notes: true,
@@ -305,7 +312,7 @@ defmodule AI.Agent.Coordinator do
       {:ok, %{response: response, messages: new_msgs, usage: usage} = completion} ->
         Services.Conversation.replace_msgs(new_msgs, state.conversation)
 
-        tools_used = AI.Completion.tools_used(completion)
+        tools_used = AI.Agent.tools_used(completion)
 
         tools_used
         |> Enum.map(fn {tool, count} -> "- #{tool}: #{count} invocation(s)" end)
@@ -684,7 +691,9 @@ defmodule AI.Agent.Coordinator do
   defp get_intuition(state) do
     UI.begin_step("Cogitating")
 
-    AI.Agent.Intuition.get_response(%{
+    AI.Agent.Intuition
+    |> AI.Agent.new(named?: false)
+    |> AI.Agent.get_response(%{
       msgs: Services.Conversation.get_messages(state.conversation),
       memories: state.notes
     })
@@ -744,9 +753,13 @@ defmodule AI.Agent.Coordinator do
   defp get_motd({:error, reason}), do: {:error, reason}
 
   defp get_motd(state) do
-    with {:ok, motd} <- AI.Agent.MOTD.get_response(%{prompt: state.question}) do
-      %{state | last_response: state.last_response <> "\n\n" <> motd}
-    else
+    AI.Agent.MOTD
+    |> AI.Agent.new(named?: false)
+    |> AI.Agent.get_response(%{prompt: state.question})
+    |> case do
+      {:ok, motd} ->
+        %{state | last_response: state.last_response <> "\n\n" <> motd}
+
       {:error, reason} ->
         UI.error("Failed to retrieve MOTD: #{inspect(reason)}")
         state
@@ -764,7 +777,7 @@ defmodule AI.Agent.Coordinator do
   defp log_response(%{last_response: thought} = state) do
     # "Reasoning" models often leave the <think> tags in the response.
     thought = String.replace(thought, ~r/<think>(.*)<\/think>/, "\\1")
-    UI.debug("Considering", thought)
+    UI.debug("Considering", Util.truncate(thought, 25))
     state
   end
 
@@ -847,7 +860,7 @@ defmodule AI.Agent.Coordinator do
       |> AI.Tools.with_coding_tools()
       |> AI.Tools.with_rw_tools()
 
-    AI.Completion.get(
+    AI.Agent.get_completion(state.agent,
       log_msgs: true,
       log_tool_calls: true,
       model: AI.Model.fast(),
@@ -864,7 +877,7 @@ defmodule AI.Agent.Coordinator do
       UI.say(msg)
 
       response
-      |> AI.Completion.tools_used()
+      |> AI.Agent.tools_used()
       |> Enum.each(fn {tool, count} ->
         UI.report_step(tool, "called #{count} time(s)")
       end)

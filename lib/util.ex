@@ -321,4 +321,34 @@ defmodule Util do
       {output, _} -> {:error, output}
     end
   end
+
+  @doc """
+  Truncates the input string to a maximum number of lines. If the input has
+  more lines than `max_lines`, it keeps the first `max_lines` lines and appends
+  a message indicating how many additional lines were omitted. If the input has
+  `max_lines` or fewer lines, it returns the input unchanged.
+  """
+  @spec truncate(binary, non_neg_integer) :: binary
+  def truncate(input, max_lines) do
+    lines = String.split(input, ~r/\r\n|\n/)
+    max_lines = max(max_lines, 1)
+
+    {result_str, additional} =
+      if length(lines) > max_lines do
+        {first_lines, _rest} = Enum.split(lines, 10)
+        remaining = length(lines) - 10
+
+        {
+          Enum.join(first_lines, "\n"),
+          UI.italicize("...plus #{remaining} additional lines")
+        }
+      else
+        {Enum.join(lines, "\n"), ""}
+      end
+
+    """
+    #{result_str}
+    #{additional}
+    """
+  end
 end

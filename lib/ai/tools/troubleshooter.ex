@@ -89,6 +89,8 @@ defmodule AI.Tools.Troubleshooter do
 
   @impl AI.Tools
   def call(%{"problem" => problem}) do
-    AI.Agent.Troubleshooter.get_response(%{prompt: problem})
+    AI.Agent.Troubleshooter
+    |> AI.Agent.new()
+    |> AI.Agent.get_response(%{prompt: problem})
   end
 end

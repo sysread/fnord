@@ -36,7 +36,8 @@ defmodule AI.Agent.Researcher do
 
   @impl AI.Agent
   def get_response(opts) do
-    with {:ok, prompt} <- Map.fetch(opts, :prompt) do
+    with {:ok, agent} <- Map.fetch(opts, :agent),
+         {:ok, prompt} <- Map.fetch(opts, :prompt) do
       can_recurse? =
         inc_depth()
         |> case do
@@ -60,7 +61,7 @@ defmodule AI.Agent.Researcher do
         end
 
       try do
-        AI.Completion.get(
+        AI.Agent.get_completion(agent,
           model: @model,
           toolbox: tools,
           messages: [

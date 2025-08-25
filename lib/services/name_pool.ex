@@ -229,7 +229,14 @@ defmodule Services.NamePool do
       :real ->
         used_names = MapSet.to_list(state.all_used)
 
-        case AI.Agent.Nomenclater.get_names(state.chunk_size, used_names) do
+        AI.Agent.Nomenclater
+        # `named?: false` prevents circular dependency with ourselves
+        |> AI.Agent.new(named?: false)
+        |> AI.Agent.get_response(%{
+          want: state.chunk_size,
+          used: used_names
+        })
+        |> case do
           {:ok, names} when is_list(names) ->
             new_state = %{
               state

@@ -409,7 +409,6 @@ defmodule AI.Notes do
   defp complete(input, agent) do
     AI.Completion.get(
       log_messages: false,
-      log_tool_calls: false,
       model: agent.model,
       messages: [
         AI.Util.system_msg(agent.prompt),

@@ -117,7 +117,9 @@ defmodule AI.Tools.File.Info do
           {:ok, String.t()}
           | {:error, any()}
   defp get_agent_response(file, question, content) do
-    AI.Agent.FileInfo.get_response(%{
+    AI.Agent.FileInfo
+    |> AI.Agent.new()
+    |> AI.Agent.get_response(%{
       file: file,
       question: question,
       content: content

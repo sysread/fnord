@@ -61,11 +61,12 @@ defmodule AI.Agent.Troubleshooter do
   # ----------------------------------------------------------------------------
   @impl AI.Agent
   def get_response(opts) do
-    with {:ok, prompt} <- Map.fetch(opts, :prompt) do
+    with {:ok, agent} <- Map.fetch(opts, :agent),
+         {:ok, prompt} <- Map.fetch(opts, :prompt) do
       # Get all tools including frobs, but prioritize troubleshooting tools
       tools = get_troubleshooting_tools()
 
-      AI.Completion.get(
+      AI.Agent.get_completion(agent,
         model: @model,
         toolbox: tools,
         messages: [
