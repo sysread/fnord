@@ -151,10 +151,10 @@ defmodule AI.Agent.Code.TaskImplementor do
   # ----------------------------------------------------------------------------
   defp implement(state, invalid_format? \\ false)
 
-  defp implement(%{error: nil, name: name} = state, invalid_format?) do
+  defp implement(%{error: nil} = state, invalid_format?) do
     with {:ok, task_list_id} <- Common.get_state(state, :task_list_id),
          {:ok, task} <- Services.Task.peek_task(task_list_id) do
-      UI.info("#{name} is working on a task", task.id)
+      UI.info("Working on a task", task.id)
 
       prompt = """
       Here are the details of your current task.
