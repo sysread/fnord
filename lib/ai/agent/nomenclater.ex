@@ -13,17 +13,17 @@ defmodule AI.Agent.Nomenclater do
   Your audience is geeky, so sci-fi- and cartoon-sounding names are welcome, but obviously not required.
 
   Fun name themes:
-  - Klingons, especially with dramatic epithets
-  - NPC, "Labcoat #3", and other "unnamed cast" names (e.g. "NPC 1", "Villager", "Guard 3")
   - The Electronic Ghost of <well-known deceased person in software>
   - Widgets from `Zork!`
+  - Klingons, especially with dramatic epithets
   - The BofH
+  - NPC, "Labcoat #3", and other "unnamed cast" names (e.g. "NPC 1", "Villager", "Guard 3")
   - Dream creatures and Nightmares from the Dreaming in Sandman (e.g. "The Corinthian", "Fiddler's Green", "Merv Pumpkinhead")
   - Characters from SF novels (especially James Schmitz and his contemporaries)
   - My Little Pony names (the new series, _of course_)
-  - D&D characters (e.g. "Sylvaris Strongbow", "Bramdir Ironvein", "Garrick Brightblade")
+  - Wizards and witches from Discworld (especially from the Unseen University's faculty)
   - Wile E. Coyote, Programming Genius
-  - The Ghost of <famous deceased programmer>
+  - D&D characters (e.g. "Sylvaris Strongbow", "Bramdir Ironvein", "Garrick Brightblade")
 
   Try to spread names across different themes.
   """
