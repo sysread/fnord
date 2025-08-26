@@ -46,41 +46,18 @@ defmodule Services.Approvals.Shell do
     "git status"
   ]
 
+  def preapproved_cmds, do: @preapproved
+
   @impl Services.Approvals.Workflow
   def confirm(state, {cmd, purpose}) do
-    cond do
-      approved?(state, cmd) ->
-        {:approved, state}
-
-      !UI.is_tty?() ->
-        UI.error("Shell", @no_tty)
-        {:denied, @no_tty, state}
-
-      true ->
-        [
-          Owl.Data.tag("# Approval Scope ", [:red_background, :black, :bright]),
-          "\n\nshell :: #{cmd}\n\n",
-          Owl.Data.tag("Persistent approval includes variants starting with the same prefix.", [
-            :italic
-          ]),
-          "\n\n",
-          Owl.Data.tag("# Purpose ", [:red_background, :black, :bright]),
-          "\n\n",
-          purpose
-        ]
-        |> UI.box(
-          title: " Shell ",
-          min_width: 80,
-          padding: 1,
-          horizontal_align: :left,
-          border_tag: [:red, :bright]
-        )
-
-        prompt(state, cmd)
+    if Services.Approvals.Shell.Util.contains_risky_syntax?(cmd) do
+      confirm(state, :complex, cmd, purpose)
+    else
+      confirm(state, :simple, cmd, purpose)
     end
   end
 
-  def approved?(%{session: session} = _state, cmd) do
+  defp approved?(%{session: session} = _state, cmd) do
     cond do
       preapproved?(cmd) -> true
       Enum.any?(session, &Regex.match?(&1, cmd)) -> true
@@ -96,9 +73,80 @@ defmodule Services.Approvals.Shell do
     |> Enum.map(&Regex.match?(&1, cmd))
   end
 
-  def preapproved_cmds, do: @preapproved
+  defp confirm(state, :complex, cmd, purpose) do
+    cond do
+      !UI.is_tty?() ->
+        UI.error("Shell", @no_tty)
+        {:denied, @no_tty, state}
 
-  defp prompt(state, cmd) do
+      true ->
+        [
+          Owl.Data.tag("# Approval Scope ", [:red_background, :black, :bright]),
+          "\n\nshell :: #{cmd}\n\n",
+          Owl.Data.tag(
+            "Persistent approval is not possible for commands with compound operators.",
+            [:italic, :yellow, :bright]
+          ),
+          "\n\n",
+          Owl.Data.tag("# Purpose ", [:red_background, :black, :bright]),
+          "\n\n",
+          purpose
+        ]
+        |> UI.box(
+          title: " Shell ",
+          min_width: 80,
+          padding: 1,
+          horizontal_align: :left,
+          border_tag: [:red, :bright]
+        )
+
+        prompt(state, :complex, cmd)
+    end
+  end
+
+  defp confirm(state, :simple, cmd, purpose) do
+    cond do
+      approved?(state, cmd) ->
+        {:approved, state}
+
+      !UI.is_tty?() ->
+        UI.error("Shell", @no_tty)
+        {:denied, @no_tty, state}
+
+      true ->
+        [
+          Owl.Data.tag("# Approval Scope ", [:red_background, :black, :bright]),
+          "\n\nshell :: #{cmd}\n\n",
+          Owl.Data.tag(
+            "Persistent approval includes variants starting with the same prefix.",
+            [:italic]
+          ),
+          "\n\n",
+          Owl.Data.tag("# Purpose ", [:red_background, :black, :bright]),
+          "\n\n",
+          purpose
+        ]
+        |> UI.box(
+          title: " Shell ",
+          min_width: 80,
+          padding: 1,
+          horizontal_align: :left,
+          border_tag: [:red, :bright]
+        )
+
+        prompt(state, :simple, cmd)
+    end
+  end
+
+  defp prompt(state, :complex, _cmd) do
+    case UI.choose("Approve this request?", [@approve, @deny, @deny_feedback]) do
+      @approve -> {:approved, state}
+      @deny -> {:denied, @no_feedback, state}
+      @deny_feedback -> {:denied, get_feedback(), state}
+    end
+  end
+
+  defp prompt(state, :simple, cmd) do
     case UI.choose("Approve this request?", [@approve, @customize, @deny, @deny_feedback]) do
       @approve -> {:approved, state}
       @deny -> {:denied, @no_feedback, state}

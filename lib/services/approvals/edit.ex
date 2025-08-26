@@ -72,7 +72,6 @@ defmodule Services.Approvals.Edit do
     end
   end
 
-  # local helpers
   defp edit?, do: Settings.get_edit_mode()
   defp auto?, do: edit?() && Settings.get_auto_approve()
   defp interactive?(), do: UI.is_tty?()

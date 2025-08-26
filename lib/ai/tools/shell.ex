@@ -117,211 +117,75 @@ defmodule AI.Tools.Shell do
   @impl AI.Tools
   def call(opts) do
     with {:ok, desc} <- AI.Tools.get_arg(opts, "description"),
-         {:ok, command} <- AI.Tools.get_arg(opts, "command") do
-      timeout_ms =
-        opts
-        |> Map.get("timeout_ms", @default_timeout_ms)
-        |> validate_timeout()
-
-      # Check for dangerous syntax that always requires manual approval
-      if AI.Tools.Shell.Util.contains_disallowed_syntax?(command) do
-        # Dangerous commands always require manual confirmation (bypass all pre-approvals)
-        with {:ok, :approved} <- confirm_complex_command(desc, command) do
-          call_shell_cmd_string(command, timeout_ms)
-        end
-      else
-        # Simple commands use the existing approval logic
-        case parse_simple_command(command) do
-          {:ok, cmd, args} ->
-            with {:ok, :approved} <- confirm_simple_command(desc, cmd, args) do
-              call_shell_cmd_string(command, timeout_ms)
-            end
-
-          {:error, reason} ->
-            {:error, reason}
-        end
-      end
+         {:ok, command} <- AI.Tools.get_arg(opts, "command"),
+         timeout_ms <- validate_timeout(opts),
+         {:ok, project} <- Store.get_project(),
+         {:ok, :approved} <- confirm(desc, command) do
+      call_shell_cmd(command, timeout_ms, project.source_root)
     else
       other -> other
     end
   end
 
-  def call_shell_cmd(cmd, args, timeout_ms) do
-    cwd =
-      case Store.get_project() do
-        {:ok, project} -> project.source_root
-        _ -> nil
-      end
-
-    base_opts = [stderr_to_stdout: true, parallelism: true]
-
-    opts =
-      if is_binary(cwd) and cwd != "" do
-        [{:cd, cwd} | base_opts]
+  defp call_shell_cmd(command, timeout_ms, root) do
+    command =
+      if needs_stdin_redirect?(command) do
+        "#{command} < /dev/null"
       else
-        base_opts
+        command
       end
 
-    task =
-      Task.async(fn ->
-        try do
-          # Wrap command in sh to prevent stdin hanging
-          # Use proper shell escaping to handle spaces and special chars
-          full_cmd = shell_escape([cmd | args])
-          wrapped_cmd = "#{full_cmd} < /dev/null"
-          System.cmd("sh", ["-c", wrapped_cmd], opts)
-        rescue
-          e in ErlangError ->
-            case e.reason do
-              :enoent -> {:error, "Command not found: #{cmd}"}
-              :eaccess -> {:error, "Permission denied: #{cmd}"}
-              other -> {:error, "Posix error: #{Atom.to_string(other)}"}
-            end
-        end
-      end)
-
-    case Task.yield(task, timeout_ms) || Task.shutdown(task) do
-      {:ok, {out, exit_code}} when is_binary(out) ->
+    Task.async(fn ->
+      try do
+        System.cmd("sh", ["-c", command],
+          stderr_to_stdout: true,
+          parallelism: true,
+          cd: root
+        )
+      rescue
+        e in ErlangError ->
+          case e.reason do
+            :enoent -> {:error, "Command not found"}
+            :eaccess -> {:error, "Permission denied"}
+            other -> {:error, "Posix error: #{Atom.to_string(other)}"}
+          end
+      end
+    end)
+    |> run_with_timeout(timeout_ms)
+    |> case do
+      {:ok, exit_code, out} ->
         {:ok,
          """
-         shell> #{shell_escape([cmd | args])}
+         shell> #{command}
          ...$?> #{exit_code}
-         ------
          #{String.trim_trailing(out)}
          """}
 
-      {:ok, {:error, message}} ->
+      {:error, message} ->
+        UI.debug(command, message)
         {:error, message}
-
-      {:exit, reason} ->
-        {:error, "Command process exited: #{inspect(reason)}"}
-
-      nil ->
-        UI.debug(Enum.join([cmd | args], " "), "Command timed out after #{timeout_ms} ms")
-        {:error, "Command timed out after #{timeout_ms} ms"}
     end
   end
 
-  # Check if command contains complex shell operators that require manual approval
-  # Parse simple command into cmd and args
-  defp parse_simple_command(command) do
-    case String.split(command, ~r/\s+/, parts: :infinity, trim: true) do
-      [] ->
-        {:error, "Empty command"}
-
-      [cmd] ->
-        {:ok, cmd, []}
-
-      [cmd | args] ->
-        {:ok, cmd, args}
+  defp run_with_timeout(task, timeout_ms) do
+    case Task.yield(task, timeout_ms) || Task.shutdown(task) do
+      {:ok, {out, exit_code}} -> {:ok, exit_code, out}
+      {:exit, reason} -> {:error, "Command process existed: #{inspect(reason)}"}
+      nil -> {:error, "Command timed out after #{timeout_ms} ms"}
     end
   end
 
-  # Execute command string directly
-  def call_shell_cmd_string(command, timeout_ms) do
-    cwd =
-      case Store.get_project() do
-        {:ok, project} -> project.source_root
-        _ -> nil
-      end
-
-    base_opts = [stderr_to_stdout: true, parallelism: true]
-
-    opts =
-      if is_binary(cwd) and cwd != "" do
-        [{:cd, cwd} | base_opts]
-      else
-        base_opts
-      end
-
-    # During tests, run synchronously to avoid output capture issues
-    # In production, use Task.async for timeout support
-    if Application.get_env(:fnord, :test_mode, false) do
-      # Synchronous execution for tests
-      result =
-        try do
-          final_command =
-            if needs_stdin_redirect?(command) do
-              "#{command} < /dev/null"
-            else
-              command
-            end
-
-          System.cmd("sh", ["-c", final_command], opts)
-        rescue
-          e in ErlangError ->
-            case e.reason do
-              :enoent -> {:error, "Command not found"}
-              :eaccess -> {:error, "Permission denied"}
-              other -> {:error, "Posix error: #{Atom.to_string(other)}"}
-            end
-        end
-
-      case result do
-        {out, exit_code} when is_binary(out) ->
-          {:ok,
-           """
-           shell> #{command}
-           ...$?> #{exit_code}
-           ------
-           #{String.trim_trailing(out)}
-           """}
-
-        {:error, message} ->
-          {:error, message}
-      end
-    else
-      # Asynchronous execution with timeout for production
-      task =
-        Task.async(fn ->
-          try do
-            final_command =
-              if needs_stdin_redirect?(command) do
-                "#{command} < /dev/null"
-              else
-                command
-              end
-
-            System.cmd("sh", ["-c", final_command], opts)
-          rescue
-            e in ErlangError ->
-              case e.reason do
-                :enoent -> {:error, "Command not found"}
-                :eaccess -> {:error, "Permission denied"}
-                other -> {:error, "Posix error: #{Atom.to_string(other)}"}
-              end
-          end
-        end)
-
-      case Task.yield(task, timeout_ms) || Task.shutdown(task) do
-        {:ok, {out, exit_code}} when is_binary(out) ->
-          {:ok,
-           """
-           shell> #{command}
-           ...$?> #{exit_code}
-           #{String.trim_trailing(out)}
-           """}
-
-        {:ok, {:error, message}} ->
-          {:error, message}
-
-        {:exit, reason} ->
-          {:error, "Command process exited: #{inspect(reason)}"}
-
-        nil ->
-          UI.debug("Command timed out after #{timeout_ms} ms")
-          {:error, "Command timed out after #{timeout_ms} ms"}
-      end
-    end
-  end
-
-  # Determine if command needs stdin redirect
   defp needs_stdin_redirect?(command) do
-    # Don't add stdin redirect if command already has input handling
-    not (String.contains?(command, "<") or String.contains?(command, "|"))
+    cond do
+      String.contains?(command, "<") -> false
+      String.contains?(command, "|") -> false
+      true -> true
+    end
   end
 
-  defp validate_timeout(val) do
+  defp validate_timeout(opts) do
+    val = Map.get(opts, :timeout_ms, @default_timeout_ms)
+
     cond do
       !is_integer(val) -> @default_timeout_ms
       val <= 0 -> @default_timeout_ms
@@ -330,27 +194,7 @@ defmodule AI.Tools.Shell do
     end
   end
 
-  # Properly escape shell arguments to prevent injection and handle spaces/special chars
-  defp shell_escape(args) when is_list(args) do
-    args
-    |> Enum.map(&shell_escape_arg/1)
-    |> Enum.join(" ")
-  end
-
-  # POSIX-safe shell argument escaping using the single quote trick
-  # Handles ALL edge cases by ending quote, escaping single quote, restarting quote
-  defp shell_escape_arg(arg) when is_binary(arg) do
-    "'" <> String.replace(arg, "'", "'\\''") <> "'"
-  end
-
-  # Confirmation for complex commands (no pre-approval possible)
-  defp confirm_complex_command(desc, command) do
-    Services.Approvals.confirm({command, desc}, Services.Approvals.Shell)
-  end
-
-  # Confirmation for simple commands (existing approval logic)
-  defp confirm_simple_command(desc, cmd, args) do
-    command = Enum.join([cmd | args], " ")
+  defp confirm(desc, command) do
     Services.Approvals.confirm({command, desc}, Services.Approvals.Shell)
   end
 end

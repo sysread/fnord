@@ -1,7 +1,7 @@
-defmodule AI.Tools.Shell.UtilTest do
+defmodule Services.Approvals.Shell.UtilTest do
   use Fnord.TestCase
 
-  alias AI.Tools.Shell.Util
+  alias Services.Approvals.Shell.Util
 
   test "accepts simple valid commands" do
     Enum.each(
@@ -24,7 +24,7 @@ defmodule AI.Tools.Shell.UtilTest do
         "echo \"foo` bar\""
       ],
       fn cmd ->
-        assert Util.contains_disallowed_syntax?(cmd) == false,
+        assert Util.contains_risky_syntax?(cmd) == false,
                "should accept: #{cmd}"
       end
     )
@@ -56,7 +56,7 @@ defmodule AI.Tools.Shell.UtilTest do
         "echo foo&"
       ],
       fn bad_cmd ->
-        assert Util.contains_disallowed_syntax?(bad_cmd) == true,
+        assert Util.contains_risky_syntax?(bad_cmd) == true,
                "should reject: #{bad_cmd}"
       end
     )
@@ -84,7 +84,7 @@ defmodule AI.Tools.Shell.UtilTest do
         "echo 'foo > bar < baz | qux'"
       ],
       fn cmd ->
-        assert Util.contains_disallowed_syntax?(cmd) == false,
+        assert Util.contains_risky_syntax?(cmd) == false,
                "should accept quoted: #{cmd}"
       end
     )
@@ -97,7 +97,7 @@ defmodule AI.Tools.Shell.UtilTest do
         # Removed problematic case with unbalanced quotes: "echo 'abc \" | &&' \" && '"
       ],
       fn cmd ->
-        assert Util.contains_disallowed_syntax?(cmd) == false,
+        assert Util.contains_risky_syntax?(cmd) == false,
                "should accept: #{cmd}"
       end
     )
@@ -111,7 +111,7 @@ defmodule AI.Tools.Shell.UtilTest do
       {"'foo' | bar", true}
     ]
     |> Enum.each(fn {cmd, should_error} ->
-      result = Util.contains_disallowed_syntax?(cmd)
+      result = Util.contains_risky_syntax?(cmd)
 
       if should_error do
         assert result == true, "should reject: #{cmd}"
@@ -128,7 +128,7 @@ defmodule AI.Tools.Shell.UtilTest do
         "echo \"`uname`\""
       ],
       fn cmd ->
-        assert Util.contains_disallowed_syntax?(cmd) == true,
+        assert Util.contains_risky_syntax?(cmd) == true,
                "should reject: #{cmd}"
       end
     )
@@ -141,7 +141,7 @@ defmodule AI.Tools.Shell.UtilTest do
         "bar >(foo)"
       ],
       fn cmd ->
-        assert Util.contains_disallowed_syntax?(cmd) == true,
+        assert Util.contains_risky_syntax?(cmd) == true,
                "should reject: #{cmd}"
       end
     )
@@ -154,7 +154,7 @@ defmodule AI.Tools.Shell.UtilTest do
         "echo \"foo \\&\\& bar\""
       ],
       fn cmd ->
-        assert Util.contains_disallowed_syntax?(cmd) == false,
+        assert Util.contains_risky_syntax?(cmd) == false,
                "should accept: #{cmd}"
       end
     )
@@ -167,7 +167,7 @@ defmodule AI.Tools.Shell.UtilTest do
         "echo foo \\; bar"
       ],
       fn cmd ->
-        assert Util.contains_disallowed_syntax?(cmd) == true,
+        assert Util.contains_risky_syntax?(cmd) == true,
                "should reject: #{cmd}"
       end
     )
@@ -180,7 +180,7 @@ defmodule AI.Tools.Shell.UtilTest do
         "echo \"\\\\\""
       ],
       fn cmd ->
-        assert Util.contains_disallowed_syntax?(cmd) == false,
+        assert Util.contains_risky_syntax?(cmd) == false,
                "should accept: #{cmd}"
       end
     )
@@ -188,30 +188,30 @@ defmodule AI.Tools.Shell.UtilTest do
 
   test "edge-case commands" do
     # Multiline with backslash continuation should be rejected
-    assert Util.contains_disallowed_syntax?("ls \\\n-lah") == true
+    assert Util.contains_risky_syntax?("ls \\\n-lah") == true
 
     # Literal embedded newlines should be rejected
-    assert Util.contains_disallowed_syntax?("ls\n-lah") == true
+    assert Util.contains_risky_syntax?("ls\n-lah") == true
 
     # Unicode zero-width space between tokens should be rejected
-    assert Util.contains_disallowed_syntax?("ls\u200B-lah") == true
+    assert Util.contains_risky_syntax?("ls\u200B-lah") == true
 
     # Unicode inside quotes should be accepted
-    assert Util.contains_disallowed_syntax?("echo 'héllo \u200B こんにちは'") == false
+    assert Util.contains_risky_syntax?("echo 'héllo \u200B こんにちは'") == false
 
     # Unbalanced quotes should be rejected
-    assert Util.contains_disallowed_syntax?("echo 'foo") == true
+    assert Util.contains_risky_syntax?("echo 'foo") == true
 
     # Here-document syntax should be rejected
-    assert Util.contains_disallowed_syntax?("cat <<EOF\nfoo | bar\nEOF") == true
+    assert Util.contains_risky_syntax?("cat <<EOF\nfoo | bar\nEOF") == true
 
     # Octal/hex escape for special char should be rejected
-    assert Util.contains_disallowed_syntax?("echo $'\\x7c'") == true
+    assert Util.contains_risky_syntax?("echo $'\\x7c'") == true
 
     # Unusual whitespace should be accepted
-    assert Util.contains_disallowed_syntax?("   echo   'ok'   ") == false
+    assert Util.contains_risky_syntax?("   echo   'ok'   ") == false
 
     # NUL byte in the middle should be rejected
-    assert Util.contains_disallowed_syntax?("ls\0-lah") == true
+    assert Util.contains_risky_syntax?("ls\0-lah") == true
   end
 end

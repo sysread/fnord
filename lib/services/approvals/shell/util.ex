@@ -1,9 +1,8 @@
-defmodule AI.Tools.Shell.Util do
+defmodule Services.Approvals.Shell.Util do
   @moduledoc """
-  Utilities for secure shell command syntax validation.
-
-  Detects potentially dangerous or disallowed patterns in a shell command, for
-  use in preventing command injection and related vulnerabilities.
+  Utilities for secure shell command syntax validation. Detects potentially
+  dangerous or risky patterns in a shell command, for use in preventing
+  command injection and related vulnerabilities.
   """
 
   @ascii_pattern ~r/\||&&|\|\||;|>|<|`|\$\(|(?<!&)&(?!&)|<\(|>\(/u
@@ -11,25 +10,24 @@ defmodule AI.Tools.Shell.Util do
   @zero_width_space <<0x200B::utf8>>
 
   @doc """
-  Returns true if any disallowed or dangerous shell syntax is detected:
-    - Pipes, redirection, background, logical operators
-    - Command or process substitution
-    - Newlines, NUL bytes, or zero-width space in unquoted segments
-    - Unbalanced quotes
+  Returns true if any risky or dangerous shell syntax is detected:
+  - Pipes, redirection, background, logical operators
+  - Command or process substitution
+  - Newlines, NUL bytes, or zero-width space in unquoted segments
+  - Unbalanced quotes
 
   Example:
+    iex> contains_risky_syntax?("ls -l")
+    false
 
-      iex> contains_disallowed_syntax?("ls -l")
-      false
+    iex> contains_risky_syntax?("ls | grep foo")
+    true
 
-      iex> contains_disallowed_syntax?("ls | grep foo")
-      true
-
-      iex> contains_disallowed_syntax?("echo 'safe | quoted'")
-      false
+    iex> contains_risky_syntax?("echo 'safe | quoted'")
+    false
   """
-  @spec contains_disallowed_syntax?(binary()) :: boolean()
-  def contains_disallowed_syntax?(cmd) when is_binary(cmd) do
+  @spec contains_risky_syntax?(binary()) :: boolean()
+  def contains_risky_syntax?(cmd) when is_binary(cmd) do
     with {:ok, parts} <- extract_unquoted_parts(cmd),
          false <- has_dangerous_characters?(cmd),
          false <- has_command_substitution_in_double_quotes?(cmd),
@@ -44,8 +42,6 @@ defmodule AI.Tools.Shell.Util do
   # ----------------------------------------------------------------------------
   # Unquoted segment extraction
   # ----------------------------------------------------------------------------
-  @spec extract_unquoted_parts(binary()) ::
-          {:ok, [binary()]} | {:error, :unbalanced_quotes}
   defp extract_unquoted_parts(str), do: do_extract(str, [], :unquoted, [])
 
   defp do_extract(<<>>, acc, :unquoted, current) do

@@ -1,14 +1,15 @@
-defmodule AI.Tools.Shell.CommandInjectionTest do
+defmodule Services.Approvals.Shell.CommandInjectionTest do
   use Fnord.TestCase
-  alias AI.Tools.Shell.Util
+
+  alias Services.Approvals.Shell.Util
 
   describe "command injection detection" do
     test "semicolon injection should be detected" do
       # Test the specific vulnerability mentioned in the security review
       injection_cmd = "ls /tmp; echo HACKED"
 
-      assert Util.contains_disallowed_syntax?(injection_cmd) == true,
-             "Command '#{injection_cmd}' should be detected as containing disallowed syntax"
+      assert Util.contains_risky_syntax?(injection_cmd) == true,
+             "Command '#{injection_cmd}' should be detected as containing risky syntax"
     end
 
     test "safe commands should not be flagged" do
@@ -20,7 +21,7 @@ defmodule AI.Tools.Shell.CommandInjectionTest do
       ]
 
       for cmd <- safe_commands do
-        assert Util.contains_disallowed_syntax?(cmd) == false,
+        assert Util.contains_risky_syntax?(cmd) == false,
                "Safe command '#{cmd}' should not be flagged as dangerous"
       end
     end
@@ -44,8 +45,8 @@ defmodule AI.Tools.Shell.CommandInjectionTest do
       ]
 
       for cmd <- dangerous_commands do
-        assert Util.contains_disallowed_syntax?(cmd) == true,
-               "Dangerous command '#{cmd}' should be detected as containing disallowed syntax"
+        assert Util.contains_risky_syntax?(cmd) == true,
+               "Dangerous command '#{cmd}' should be detected as containing risky syntax"
       end
     end
 
@@ -54,8 +55,8 @@ defmodule AI.Tools.Shell.CommandInjectionTest do
       # and allow injection after the < /dev/null gets appended
       bypass_cmd = "cat /etc/passwd < /dev/null; rm -rf ~"
 
-      assert Util.contains_disallowed_syntax?(bypass_cmd) == true,
-             "Command '#{bypass_cmd}' should be detected as containing disallowed syntax due to semicolon injection"
+      assert Util.contains_risky_syntax?(bypass_cmd) == true,
+             "Command '#{bypass_cmd}' should be detected as containing risky syntax due to semicolon injection"
     end
 
     test "needs_stdin_redirect logic can be bypassed" do
@@ -66,7 +67,7 @@ defmodule AI.Tools.Shell.CommandInjectionTest do
       # But it contains semicolon injection that would execute after < /dev/null is appended
       injection_without_redirect = "echo test; rm important_file"
 
-      assert Util.contains_disallowed_syntax?(injection_without_redirect) == true,
+      assert Util.contains_risky_syntax?(injection_without_redirect) == true,
              "Command '#{injection_without_redirect}' should be detected due to semicolon injection"
     end
   end
@@ -91,8 +92,8 @@ defmodule AI.Tools.Shell.CommandInjectionTest do
       ]
 
       for cmd <- commands_needing_stdin_redirect do
-        # These should all be caught by disallowed syntax checking
-        assert Util.contains_disallowed_syntax?(cmd) == true,
+        # These should all be caught by risky syntax checking
+        assert Util.contains_risky_syntax?(cmd) == true,
                "Command '#{cmd}' should be detected as dangerous despite not having redirect operators"
       end
     end
@@ -111,7 +112,7 @@ defmodule AI.Tools.Shell.CommandInjectionTest do
       ]
 
       for cmd <- commands_with_redirects do
-        assert Util.contains_disallowed_syntax?(cmd) == true,
+        assert Util.contains_risky_syntax?(cmd) == true,
                "Command '#{cmd}' should be detected as dangerous due to multiple operators"
       end
     end
@@ -134,7 +135,7 @@ defmodule AI.Tools.Shell.CommandInjectionTest do
       ]
 
       for cmd <- bypass_attempts do
-        assert Util.contains_disallowed_syntax?(cmd) == true,
+        assert Util.contains_risky_syntax?(cmd) == true,
                "Command with zero-width space '#{inspect(cmd)}' should be detected as dangerous"
       end
     end
@@ -157,7 +158,7 @@ defmodule AI.Tools.Shell.CommandInjectionTest do
       ]
 
       for cmd <- homoglyph_attempts do
-        result = Util.contains_disallowed_syntax?(cmd)
+        result = Util.contains_risky_syntax?(cmd)
 
         assert result == true,
                "Unicode homoglyph '#{cmd}' should be detected as dangerous (currently: #{result})"
@@ -178,7 +179,7 @@ defmodule AI.Tools.Shell.CommandInjectionTest do
       ]
 
       for cmd <- advanced_operators do
-        result = Util.contains_disallowed_syntax?(cmd)
+        result = Util.contains_risky_syntax?(cmd)
 
         # Most of these should be detected by existing patterns
         case cmd do
@@ -217,7 +218,7 @@ defmodule AI.Tools.Shell.CommandInjectionTest do
       ]
 
       for cmd <- allowlist_bypass_attempts do
-        result = Util.contains_disallowed_syntax?(cmd)
+        result = Util.contains_risky_syntax?(cmd)
 
         assert result == true,
                "Allowlist bypass attempt '#{cmd}' should be detected as dangerous (result: #{result})"
@@ -235,7 +236,7 @@ defmodule AI.Tools.Shell.CommandInjectionTest do
       ]
 
       for cmd <- safe_allowed_commands do
-        result = Util.contains_disallowed_syntax?(cmd)
+        result = Util.contains_risky_syntax?(cmd)
 
         assert result == false,
                "Safe allowed command '#{cmd}' should not be flagged (result: #{result})"
@@ -251,7 +252,7 @@ defmodule AI.Tools.Shell.CommandInjectionTest do
       ]
 
       for cmd <- quoted_commands_with_operators do
-        result = Util.contains_disallowed_syntax?(cmd)
+        result = Util.contains_risky_syntax?(cmd)
         # The implementation might be sophisticated enough to parse quotes correctly
         # Let's document the actual behavior rather than assume
         if result do
