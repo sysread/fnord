@@ -52,7 +52,8 @@ defmodule AI.Completion.Output do
       |> Jason.decode!()
       |> Jason.encode!(pretty: true)
 
-    UI.warn(state.name, """
+    name = state.name || "Assistant"
+    UI.warn(name, """
     Tool call failed:
     #{tool} :: #{pretty_args}
 
