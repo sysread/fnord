@@ -80,7 +80,7 @@ defmodule UI do
     Logger.info(
       IO.ANSI.format(
         [
-          :yellow,
+          :cyan,
           "⦑ #{name} ⦒ ",
           :reset,
           :green,
