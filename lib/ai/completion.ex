@@ -52,7 +52,7 @@ defmodule AI.Completion do
   @type response ::
           {:ok, t}
           | {:error, t}
-          | {:error, :api_unavailable}
+          | {:error, binary}
           | {:error, :context_length_exceeded}
 
   @spec get(Keyword.t()) :: response
@@ -202,8 +202,12 @@ defmodule AI.Completion do
     {:error, :context_length_exceeded}
   end
 
-  defp handle_response({:error, :api_unavailable}, _state) do
-    {:error, :api_unavailable}
+  defp handle_response({:error, :api_unavailable, reason}, _state) do
+    {:error,
+     """
+     The OpenAI API is currently unavailable. Please try again later.
+     Error message: #{reason}
+     """}
   end
 
   defp handle_response({:error, %{http_status: http_status, code: code, message: msg}}, state) do

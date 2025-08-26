@@ -14,7 +14,7 @@ defmodule AI.CompletionAPI do
           msg_response
           | tool_response
           | {:error, map}
-          | {:error, :api_unavailable}
+          | {:error, :api_unavailable, any}
           | {:error, :context_length_exceeded}
 
   @spec get(model, msgs, tools, response_format) :: response
@@ -152,9 +152,9 @@ defmodule AI.CompletionAPI do
   defp get_error(:closed), do: {:error, "Connection closed"}
   defp get_error(:timeout), do: {:error, "Connection timed out"}
 
-  defp get_error({502, _}), do: {:error, :api_unavailable}
-  defp get_error({503, _}), do: {:error, :api_unavailable}
-  defp get_error({504, _}), do: {:error, :api_unavailable}
+  defp get_error({502, reason}), do: {:error, :api_unavailable, reason}
+  defp get_error({503, reason}), do: {:error, :api_unavailable, reason}
+  defp get_error({504, reason}), do: {:error, :api_unavailable, reason}
 
   defp get_error({http_status, json_error_string}) do
     json_error_string
