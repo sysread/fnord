@@ -156,4 +156,149 @@ defmodule UtilTest do
       assert stderr =~ "Hex API request error: :timeout"
     end
   end
+
+  describe "truncate/2" do
+    setup do
+      # Ensure no leftover environment variable
+      System.delete_env("FNORD_LOGGER_LINES")
+      :ok
+    end
+
+    test "falls back to argument when env var unset" do
+      # input has 4 lines, argument is 2
+      input = Enum.map(1..4, &"line#{&1}") |> Enum.join("\n")
+      result = Util.truncate(input, 2) |> String.trim()
+      # should keep only the first 2 lines, omit the rest
+      assert String.split(result, "\n") == ["line1", "line2", "...plus 2 additional lines"]
+    end
+
+    test "uses valid positive FNORD_LOGGER_LINES over argument" do
+      # input has 5 lines, env var set to 3, argument is 1
+      input = Enum.map(1..5, &"l#{&1}") |> Enum.join("\n")
+      System.put_env("FNORD_LOGGER_LINES", "3")
+      result = Util.truncate(input, 1) |> String.trim()
+      lines = String.split(result, "\n")
+      # first 3 lines from env var
+      assert Enum.slice(lines, 0, 3) == ["l1", "l2", "l3"]
+      # omission message indicates 2 remaining
+      assert List.last(lines) =~ ~r/...plus 2 additional lines/
+      System.delete_env("FNORD_LOGGER_LINES")
+    end
+
+    test "invalid FNORD_LOGGER_LINES falls back to positive argument" do
+      # input has 3 lines, env var "foo" invalid, argument 1
+      input = Enum.map(1..3, &"x#{&1}") |> Enum.join("\n")
+      System.put_env("FNORD_LOGGER_LINES", "foo")
+      result = Util.truncate(input, 1) |> String.trim()
+      # should use argument = 1, omit 2 lines
+      assert String.split(result, "\n") == ["x1", "...plus 2 additional lines"]
+      System.delete_env("FNORD_LOGGER_LINES")
+    end
+
+    test "falls back to argument when FNORD_LOGGER_LINES is negative" do
+      # input has 5 lines, env var set to "-2", argument is 3
+      input = Enum.map(1..5, &"l#{&1}") |> Enum.join("\n")
+      System.put_env("FNORD_LOGGER_LINES", "-2")
+      result = Util.truncate(input, 3) |> String.trim()
+      lines = String.split(result, "\n")
+      # first 3 lines from argument
+      assert Enum.slice(lines, 0, 3) == ["l1", "l2", "l3"]
+      # omission message indicates 2 remaining
+      assert List.last(lines) =~ ~r/...plus 2 additional lines/
+      System.delete_env("FNORD_LOGGER_LINES")
+    end
+
+    test "invalid env and non-positive argument falls back to default 50" do
+      # generate 60 lines
+      input = Enum.map(1..60, &"z#{&1}") |> Enum.join("\n")
+      System.put_env("FNORD_LOGGER_LINES", "0")
+      # argument 0 is non-positive; default is 50
+      result = Util.truncate(input, 0) |> String.trim()
+      lines = String.split(result, "\n")
+      # 50 kept + 1 omission line = 51 elements
+      assert length(lines) == 51
+      # omission should mention 10 remaining
+      assert List.last(lines) =~ ~r/...plus 10 additional lines/
+      System.delete_env("FNORD_LOGGER_LINES")
+    end
+
+    test "falls back to default 50 when argument is negative and env var unset" do
+      # generate 60 lines
+      input = Enum.map(1..60, &"z#{&1}") |> Enum.join("\n")
+      # FNORD_LOGGER_LINES unset by setup
+      result = Util.truncate(input, -5) |> String.trim()
+      lines = String.split(result, "\n")
+      # default 50 kept + 1 omission line = 51 elements
+      assert length(lines) == 51
+      # omission should mention 10 remaining
+      assert List.last(lines) =~ ~r/...plus 10 additional lines/
+    end
+
+    test "no truncation when input shorter than limit" do
+      input = "a\nb\nc"
+      assert Util.truncate(input, 5) |> String.trim() == input
+    end
+
+    test "no truncation when input exactly equals limit" do
+      input = Enum.map(1..4, &"n#{&1}") |> Enum.join("\n")
+      assert Util.truncate(input, 4) |> String.trim() == input
+    end
+
+    test "handles mixed CRLF and LF line endings" do
+      input = "r1\r\n r2\n r3\r\n r4"
+      result = Util.truncate(input, 2) |> String.trim()
+      assert String.split(result, "\n") == ["r1", " r2", "...plus 2 additional lines"]
+    end
+
+    test "empty input returns empty" do
+      assert Util.truncate("", 3) |> String.trim() == ""
+    end
+
+    test "env var overrides even when argument is larger" do
+      input = Enum.map(1..5, &"L#{&1}") |> Enum.join("\n")
+      System.put_env("FNORD_LOGGER_LINES", "3")
+
+      assert String.split(Util.truncate(input, 5) |> String.trim(), "\n") == [
+               "L1",
+               "L2",
+               "L3",
+               "...plus 2 additional lines"
+             ]
+
+      System.delete_env("FNORD_LOGGER_LINES")
+    end
+
+    test "blank FNORD_LOGGER_LINES falls back to argument" do
+      input = "a\nb\nc"
+      System.put_env("FNORD_LOGGER_LINES", "")
+
+      assert String.split(Util.truncate(input, 2) |> String.trim(), "\n") == [
+               "a",
+               "b",
+               "...plus 1 additional lines"
+             ]
+
+      System.delete_env("FNORD_LOGGER_LINES")
+    end
+
+    test "partial parse \"3.5\" of FNORD_LOGGER_LINES ignores suffix" do
+      input = "x\nx\nx\nx"
+      System.put_env("FNORD_LOGGER_LINES", "3.5")
+
+      assert String.split(Util.truncate(input, 3) |> String.trim(), "\n") == [
+               "x",
+               "x",
+               "x",
+               "...plus 1 additional lines"
+             ]
+
+      System.delete_env("FNORD_LOGGER_LINES")
+    end
+
+    test "omission message appears when exactly one line is omitted" do
+      input = "1\n2\n3"
+      [_, _, omission] = String.split(Util.truncate(input, 2) |> String.trim(), "\n")
+      assert omission =~ "...plus 1 additional lines"
+    end
+  end
 end

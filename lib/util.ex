@@ -322,6 +322,38 @@ defmodule Util do
     end
   end
 
+  @default_limit 50
+
+  defp fallback_limit(n) when is_integer(n) and n > 0, do: n
+  defp fallback_limit(_), do: @default_limit
+
+  defp determine_line_limit(max_lines) do
+    System.get_env("FNORD_LOGGER_LINES")
+    |> case do
+      val when is_binary(val) ->
+        case Integer.parse(val) do
+          {parsed, ""} when parsed > 0 -> parsed
+          _ -> fallback_limit(max_lines)
+        end
+
+      _ ->
+        fallback_limit(max_lines)
+    end
+  end
+
+  defp build_omission(remaining) when remaining > 0 do
+    UI.italicize("...plus #{remaining} additional lines")
+  end
+
+  defp do_truncate(lines, limit) do
+    if length(lines) <= limit do
+      Enum.join(lines, "\n")
+    else
+      {first, rest} = Enum.split(lines, limit)
+      (first ++ [build_omission(length(rest))]) |> Enum.join("\n")
+    end
+  end
+
   @doc """
   Truncates the input string to a maximum number of lines. If the input has
   more lines than `max_lines`, it keeps the first `max_lines` lines and appends
@@ -330,25 +362,8 @@ defmodule Util do
   """
   @spec truncate(binary, non_neg_integer) :: binary
   def truncate(input, max_lines) do
-    lines = String.split(input, ~r/\r\n|\n/)
-    max_lines = max(max_lines, 1)
-
-    {result_str, additional} =
-      if length(lines) > max_lines do
-        {first_lines, _rest} = Enum.split(lines, 10)
-        remaining = length(lines) - 10
-
-        {
-          Enum.join(first_lines, "\n"),
-          UI.italicize("...plus #{remaining} additional lines")
-        }
-      else
-        {Enum.join(lines, "\n"), ""}
-      end
-
-    """
-    #{result_str}
-    #{additional}
-    """
+    limit = determine_line_limit(max_lines)
+    lines = String.split(input, ~r/\r\n|\n/, trim: false)
+    do_truncate(lines, limit)
   end
 end
