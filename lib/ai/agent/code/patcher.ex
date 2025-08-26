@@ -126,7 +126,7 @@ defmodule AI.Agent.Code.Patcher do
     with {:ok, agent} <- required_arg(opts, :agent),
          {:ok, file} <- required_arg(opts, :file),
          {:ok, changes} <- required_arg(opts, :changes),
-         {:ok, contents} <- File.read(file) do
+         {:ok, contents} <- AI.Tools.get_file_contents(file) do
       {:ok,
        %__MODULE__{
          agent: agent,
