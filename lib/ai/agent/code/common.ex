@@ -196,6 +196,9 @@ defmodule AI.Agent.Code.Common do
     - Features should be organized to be separate from each other.
       Integration points call into features.
       Features are NEVER sprinkled across the code base.
+    - NEVER assume that a given library is available!
+      ALWAYS check that the library is present.
+      Never add new libraries that the user did not expressly request or approve.
     """
   end
 

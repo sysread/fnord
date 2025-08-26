@@ -35,6 +35,11 @@ defmodule AI.Agent.Code.Patcher do
   3. You MUST ensure that the indentation is correct and consistent, paying special attention to whitespace (e.g. tabs vs spaces).
   4. You MUST ensure that the syntax of the replacement is correct and that it can be applied to the file without syntax errors.
   5. Do NOT include the prefixed line numbers in the replacement text.
+
+  # Validation
+  After making a change, you MUST use the tools available to the project or
+  language ecosystem to validate that the change is correct and does not
+  introduce syntax errors or other issues.
   """
 
   @response_format %{
@@ -146,10 +151,16 @@ defmodule AI.Agent.Code.Patcher do
   defp apply_changes(%{changes: [change | remaining], contents: contents} = state) do
     numbered = Util.numbered_lines(contents)
 
+    tools =
+      %{"shell_tool" => AI.Tools.Shell}
+      |> Map.merge(Frobs.module_map())
+
     AI.Agent.get_completion(state.agent,
       model: @model,
       response_format: @response_format,
       log_msgs: false,
+      log_tool_calls: true,
+      toolbox: tools,
       messages: [
         AI.Util.system_msg(@prompt),
         AI.Util.user_msg("""

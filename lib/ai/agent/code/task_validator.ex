@@ -27,6 +27,8 @@ defmodule AI.Agent.Code.TaskValidator do
   ## Validate
   Use the tool calls at your disposal to verify that the implementation is correct.
   If you have tools that can run unit tests, use them to verify that the implementation works as expected.
+  Seek out tools that can be used to lint, format, or statically analyze the code to identify potential issues.
+  Try to identify how unit tests can be run, and if possible, run them to verify that the implementation is correct.
   Note that you can perform temporary edits of the code to printf-debug, **so long as you remove them before returning the result.**
   If you identify any bugs, report them as `followUpTasks` that must be resolved.
   If there are no tests for this change and there is no way to verify the implementation, report this as a `followUpTask` to be resolved.
