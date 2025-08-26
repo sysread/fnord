@@ -87,7 +87,7 @@ defmodule UI do
           msg,
           :reset,
           ": ",
-          :cyan,
+          :light_black,
           clean_detail(detail),
           :reset
         ],
