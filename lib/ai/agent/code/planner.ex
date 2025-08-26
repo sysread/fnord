@@ -210,51 +210,72 @@ defmodule AI.Agent.Code.Planner do
   }
 
   @spec plan(t) :: t
-  defp plan(state, invalid_format? \\ false)
+  defp plan(state)
 
-  defp plan(%{error: nil} = state, invalid_format?) do
+  defp plan(%{error: :invalid_response_format} = state) do
+    state
+    |> do_planning("""
+    #{@plan_prompt}
+    -----
+    Your previous response was not in the correct format.
+    Pay special attention to required fields and data types.
+    Please adhere to the specified JSON schema.
+    Try your response again, ensuring it matches the required format.
+    """)
+  end
+
+  defp plan(%{error: nil} = state) do
+    state
+    |> do_planning(@plan_prompt)
+    |> case do
+      %{error: nil} = state -> state
+      state -> plan(state)
+    end
+  end
+
+  defp plan(state), do: state
+
+  @spec do_planning(t, binary) :: t
+  defp do_planning(state, prompt) do
     UI.report_from(state.agent.name, "Planning steps to reach desired state", state.request)
-
-    prompt =
-      if invalid_format? do
-        """
-        #{@plan_prompt}
-        -----
-        Your previous response was not in the correct format.
-        Pay special attention to required fields and data types.
-        Please adhere to the specified JSON schema.
-        Try your response again, ensuring it matches the required format.
-        """
-      else
-        @plan_prompt
-      end
 
     state
     |> Common.get_completion(prompt, @plan_response_format)
     |> case do
+      # No upstream errors
       %{error: nil, response: response} ->
         response
         |> Jason.decode(keys: :atoms)
         |> case do
+          # JSON parsing error
           {:error, reason} ->
             %{state | error: reason}
 
+          # LLM reported a logical error in planning
           {:ok, %{error: error}} ->
             %{state | error: error}
 
+          # Valid plan
           {:ok, %{steps: steps}} ->
             list_id = Services.Task.start_list()
             Common.put_state(state, :list_id, list_id)
             Common.add_tasks(list_id, steps)
+            state
 
+          # Invalid format
           _ ->
-            plan(state, true)
+            UI.debug("Silly LLM!", """
+            Invalid response format from planning step:
+
+            #{response}
+            """)
+
+            %{state | error: :invalid_response_format}
         end
 
+      # Upstream error
       state ->
         state
     end
   end
-
-  defp plan(state, _), do: state
 end
