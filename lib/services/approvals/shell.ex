@@ -2,7 +2,7 @@ defmodule Services.Approvals.Shell do
   @behaviour Services.Approvals.Workflow
 
   @approve "Approve"
-  @customize "Customize"
+  @persistent "Approve persistently"
   @deny "Deny"
   @deny_feedback "Deny with feedback"
 
@@ -116,11 +116,11 @@ defmodule Services.Approvals.Shell do
   # Prompt + persistence
   # -------------------------
   defp prompt(state, stages) do
-    case UI.choose("Approve this request?", [@approve, @customize, @deny, @deny_feedback]) do
+    case UI.choose("Approve this request?", [@approve, @persistent, @deny, @deny_feedback]) do
       @approve -> {:approved, state}
       @deny -> {:denied, @no_feedback, state}
       @deny_feedback -> {:denied, get_feedback(), state}
-      @customize -> customize(state, stages)
+      @persistent -> customize(state, stages)
     end
   end
 
