@@ -320,7 +320,10 @@ defmodule UI do
   def choose(label, options) do
     if is_tty?() && !quiet?() do
       with_notification_timeout(
-        fn -> Owl.IO.select(options, label: label) end,
+        fn ->
+          UI.flush()
+          Owl.IO.select(options, label: label)
+        end,
         "Fnord is waiting for your selection: #{label}"
       )
     else
@@ -333,7 +336,10 @@ defmodule UI do
       owl_opts = Keyword.put(owl_opts, :label, prompt)
 
       with_notification_timeout(
-        fn -> Owl.IO.input(owl_opts) end,
+        fn ->
+          UI.flush()
+          Owl.IO.input(owl_opts)
+        end,
         "Fnord is waiting for your input: #{String.slice(prompt, 0..50)}"
       )
     else
@@ -353,11 +359,11 @@ defmodule UI do
         yes = if default == true, do: "Y", else: "y"
         no = if default == false, do: "N", else: "n"
 
-        flush()
-        IO.write(:stderr, UI.Formatter.format_output("#{msg} (#{yes}/#{no}) "))
-
         with_notification_timeout(
           fn ->
+            flush()
+            IO.write(:stderr, UI.Formatter.format_output("#{msg} (#{yes}/#{no}) "))
+
             case IO.gets("") do
               "y\n" -> true
               "Y\n" -> true
