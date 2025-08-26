@@ -47,6 +47,9 @@ defmodule AI.Tools.File.Edit do
         description: """
         Perform atomic, well-anchored edits to a single file.
 
+        This is the best tool for simple changes that do not require extensive
+        planning, coordination, or span many files.
+
         Use for:
         - One-off line or block replacements
         - Clear, unambiguous, file-local changes

@@ -29,6 +29,9 @@ defmodule AI.Tools.Coder do
         description: """
         AI-powered, multi-phase code change orchestration.
 
+        This tool is for large, complex code changes that span many files.
+        Use this tool for "epics", not "stories".
+
         Use for:
         - Architectural refactoring
         - Changes spanning multiple files or modules
