@@ -78,8 +78,12 @@ defmodule AI.Tools.Shell do
               type: "array",
               description: """
               A list of commands to execute in sequence, where the output of each command is piped as input to the next.
+              Commands are *piped* to each other, NOT run sequentially and independently.
+              You must perform multiple too calls to run independent commands.
 
-              For example, to use `grep` to filter the output of `ls`, you would provide two commands:
+              Example:
+
+              - Equivalent to `ls -l -a -h | grep some_pattern`:
               ```json
               [
                 {"command": "ls", "args": ["-l", "-a", "-h"]},
