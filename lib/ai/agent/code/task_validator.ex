@@ -6,7 +6,7 @@ defmodule AI.Agent.Code.TaskValidator do
   # ----------------------------------------------------------------------------
   @type t :: Common.t()
 
-  @model AI.Model.reasoning(:high)
+  @model AI.Model.reasoning(:medium)
 
   @prompt """
   Review the implementation of the task and ensure that it meets the acceptance criteria.
@@ -171,12 +171,12 @@ defmodule AI.Agent.Code.TaskValidator do
               # Report the outcome of QA
               UI.report_from(
                 state.agent.name,
-                "Identified issues during validation",
+                "The solution is incomplete. New tasks added to the stack.",
                 Common.format_new_tasks(new_tasks)
               )
 
               # Push the new tasks onto the stack
-              Common.add_follow_up_tasks(task_list_id, new_tasks)
+              Common.add_tasks(task_list_id, new_tasks)
               Common.report_task_stack(state)
 
               # Pass control back to the Coordinating Agent

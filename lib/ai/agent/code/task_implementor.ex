@@ -3,7 +3,7 @@ defmodule AI.Agent.Code.TaskImplementor do
 
   @type t :: Common.t()
 
-  @model AI.Model.reasoning(:high)
+  @model AI.Model.reasoning(:medium)
 
   @prompt """
   You are the Code Task Implementor, an AI agent within a larger system.
@@ -209,7 +209,7 @@ defmodule AI.Agent.Code.TaskImplementor do
               Services.Task.complete_task(task_list_id, task.id, outcome)
 
               # If there are follow-up tasks, toss them on the stack
-              Common.add_follow_up_tasks(task_list_id, new_tasks)
+              Common.add_tasks(task_list_id, new_tasks)
               Common.report_task_stack(state)
 
               # Then, recurse to handle the next task.

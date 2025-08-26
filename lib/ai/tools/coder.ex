@@ -1,4 +1,9 @@
 defmodule AI.Tools.Coder do
+  @max_steps 4
+
+  # ----------------------------------------------------------------------------
+  # Behaviour Implementation
+  # ----------------------------------------------------------------------------
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -64,47 +69,155 @@ defmodule AI.Tools.Coder do
   @impl AI.Tools
   def call(args) do
     with {:ok, requirements} <- AI.Tools.get_arg(args, "requirements"),
-         {:ok, task_list_id} <- plan(requirements),
-         {:ok, change_summary} <- implement(requirements, task_list_id),
-         {:ok, :validated} <- validate(requirements, task_list_id, change_summary) do
-      {:ok,
-       """
-       # Result
-       #{Services.Task.as_string(task_list_id, true)}
-
-       # Change Summary
-       #{change_summary}
-
-       # Outcome
-       All changes have been successfully implemented and validated.
-       """}
+         {:ok, state} <- code_stuff(requirements) do
+      {:ok, summarize_outcome(state)}
     end
   end
 
-  defp plan(requirements) do
+  # ----------------------------------------------------------------------------
+  # Internal State
+  # ----------------------------------------------------------------------------
+  defstruct [
+    :requirements,
+    :steps,
+    :task_list_id,
+    :changes
+  ]
+
+  @type t :: %__MODULE__{
+          # Requirements for the overall change
+          requirements: binary,
+
+          # Number of *implementation* steps taken
+          steps: non_neg_integer,
+
+          # ID of the task list managing this change
+          task_list_id: binary,
+
+          # Summary of changes made, one per implementation step
+          changes: [binary]
+        }
+
+  defp code_stuff(requirements) do
+    %__MODULE__{
+      requirements: requirements,
+      steps: 0,
+      changes: []
+    }
+    |> plan()
+  end
+
+  defp plan(state) do
     AI.Agent.Code.Planner
     |> AI.Agent.new()
     |> AI.Agent.get_response(%{
-      request: requirements
+      request: state.requirements
     })
+    |> case do
+      {:ok, task_list_id} ->
+        %{state | task_list_id: task_list_id}
+        |> implement()
+
+      other ->
+        other
+    end
   end
 
-  defp implement(requirements, task_list_id) do
+  defp implement(state) do
     AI.Agent.Code.TaskImplementor
     |> AI.Agent.new()
     |> AI.Agent.get_response(%{
-      task_list_id: task_list_id,
-      requirements: requirements
+      task_list_id: state.task_list_id,
+      requirements: state.requirements
     })
+    |> case do
+      {:ok, changes} ->
+        %{state | steps: state.steps + 1, changes: [changes | state.changes]}
+        |> validate()
+
+      other ->
+        other
+    end
   end
 
-  defp validate(requirements, task_list_id, change_summary) do
+  defp validate(%{steps: steps} = state) when steps >= @max_steps do
+    {:ok, state}
+  end
+
+  defp validate(state) do
     AI.Agent.Code.TaskValidator
     |> AI.Agent.new()
     |> AI.Agent.get_response(%{
-      task_list_id: task_list_id,
-      requirements: requirements,
-      change_summary: change_summary
+      task_list_id: state.task_list_id,
+      requirements: state.requirements,
+      change_summary: state.changes |> Enum.join("\n")
     })
+    |> case do
+      {:ok, :validated} ->
+        {:ok, state}
+
+      {:error, :issues_identified} ->
+        [latest | prior] = state.changes
+
+        latest = """
+        #{latest}
+
+        Note: Validation identified problems with this iteration.
+        """
+
+        %{state | changes: [latest | prior]}
+        |> implement()
+
+      other ->
+        other
+    end
+  end
+
+  defp summarize_changes(%{changes: changes}) do
+    changes
+    |> Enum.reverse()
+    |> Enum.with_index(1)
+    |> Enum.map(fn {change, idx} -> "## Step #{idx}\n#{change}" end)
+    |> Enum.join("\n\n")
+  end
+
+  defp summarize_outcome(%{steps: steps} = state) when steps >= @max_steps do
+    """
+    # Result
+    #{Services.Task.as_string(state.task_list_id, true)}
+
+    # Change Summary
+    Changes were applied in #{state.steps} implementation steps.
+
+    #{summarize_changes(state)}
+
+    # Outcome
+    The change was not completed because it exceeded the maximum number of
+    implementation steps (#{@max_steps}).
+
+    This is likely due to overly broad or ambiguous requirements or a
+    logical inconsistency in the requested change.
+
+    The changes made here were not reverted! You must review the current
+    state of the code to understand what has been done so far.
+
+    Once you have refined the requirements, you can re-run the tool to
+    continue the work.
+    """
+  end
+
+  defp summarize_outcome(state) do
+    """
+    # Result
+    #{Services.Task.as_string(state.task_list_id, true)}
+
+    # Change Summary
+    Changes were applied in #{state.steps} implementation steps.
+
+    #{summarize_changes(state)}
+
+    # Outcome
+    All changes have been successfully implemented and validated.
+    """
   end
 end

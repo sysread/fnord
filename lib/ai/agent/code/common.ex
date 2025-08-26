@@ -202,15 +202,15 @@ defmodule AI.Agent.Code.Common do
   # ----------------------------------------------------------------------------
   # Helpers
   # ----------------------------------------------------------------------------
-  @spec add_follow_up_tasks(Services.Task.list_id(), list(new_task)) :: :ok
-  def add_follow_up_tasks(list_id, new_tasks) do
-    Enum.each(new_tasks, &add_follow_up_task(list_id, &1))
+  @spec add_tasks(Services.Task.list_id(), list(new_task)) :: :ok
+  def add_tasks(list_id, new_tasks) do
+    Enum.each(new_tasks, &add_task(list_id, &1))
     :ok
   end
 
-  @spec add_follow_up_task(Services.Task.list_id(), new_task) :: any
-  def add_follow_up_task(list_id, %{label: label, detail: detail}) do
-    Services.Task.push_task(list_id, label, detail)
+  @spec add_task(Services.Task.list_id(), new_task) :: any
+  def add_task(list_id, %{label: label, detail: detail}) do
+    Services.Task.add_task(list_id, label, detail)
   end
 
   @spec report_task_stack(state :: t) :: any
