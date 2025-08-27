@@ -237,7 +237,12 @@ defmodule AI.Agent.Code.TaskImplementor do
       end
     else
       {:error, :empty} ->
-        UI.report_from(state.agent.name, "No tasks remaining", "No more tasks in the current task list.")
+        UI.report_from(
+          state.agent.name,
+          "No tasks remaining",
+          "No more tasks in the current task list."
+        )
+
         state
 
       {:error, :not_found} ->

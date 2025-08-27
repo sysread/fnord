@@ -168,17 +168,28 @@ defmodule AI.Agent.Code.TaskValidator do
                 "The solution is incomplete. New tasks added to the stack.",
                 Common.format_new_tasks(new_tasks)
               )
+
               Common.add_tasks(task_list_id, new_tasks)
               Common.report_task_stack(state)
               %{state | error: :issues_identified}
 
             {:error, reason} ->
-              UI.report_from(state.agent.name, "Validation failed — invalid response format", "JSON decode error: #{inspect(reason)}\n\n#{state.response}")
+              UI.report_from(
+                state.agent.name,
+                "Validation failed — invalid response format",
+                "JSON decode error: #{inspect(reason)}\n\n#{state.response}"
+              )
+
               %{state | error: reason}
 
             _ ->
               if invalid_format? do
-                UI.report_from(state.agent.name, "Validation failed", "Agent repeatedly returned invalid format")
+                UI.report_from(
+                  state.agent.name,
+                  "Validation failed",
+                  "Agent repeatedly returned invalid format"
+                )
+
                 %{state | error: :invalid_response_format}
               else
                 verify(state, true)
@@ -186,7 +197,12 @@ defmodule AI.Agent.Code.TaskValidator do
           end
 
         state ->
-          UI.report_from(state.agent.name, "Validation failed", "#{inspect(state.error)}\n\n#{state.response || "<no response>"}")
+          UI.report_from(
+            state.agent.name,
+            "Validation failed",
+            "#{inspect(state.error)}\n\n#{state.response || "<no response>"}"
+          )
+
           state
       end
     else
