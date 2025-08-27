@@ -151,10 +151,14 @@ defmodule AI.Tools.Shell do
         run_pipeline(rest, timeout_ms, root, out)
 
       {out, code} ->
-        {:error,
+        # Some commands exit non-zero even when behaving as expected, like
+        # grep. In this case, we still want to return the output, but in a true
+        # shell pipeline, it would still stop processing the rest of the
+        # commands.
+        {:ok,
          """
-         Error: Command failed with exit code #{code}.
          Command: #{format_command(command)}
+         Exit code: #{code}
          Output:
          #{out}
          """}
