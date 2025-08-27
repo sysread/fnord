@@ -49,12 +49,16 @@ defmodule AI.Tools.Shell do
         The user must approve execution of this command before it is run.
         It is essential to remember that you cannot launch interactive commands!
         Commands that require user input or interaction will fail after a timeout, resulting in a poor experience for the user.
-        Individual commands may not include redirection, piping, command substitution, or other complex shell operators.
+        Individual commands may not include redirection, pipes, command substitution, or other complex shell operators.
 
         IMPORTANT: This uses elixir's System.cmd/3 to execute commands.
                    It *will* `cd` into the project's source root before executing commands.
                    Some commands DO behave differently without a tty.
                    For example, `rg` REQUIRES a path argument when not run in a tty.
+
+        IMPORTANT: Commands are `|`'d together as a pipeline.
+                   Commands are NOT run sequentially and independently!
+                   If you need to run independent commands, you must make multiple tool calls.
 
         The following simple commands are preapproved and will execute without requiring user approval:
         #{allowed}
