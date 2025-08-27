@@ -30,7 +30,8 @@ defmodule AI.Completion do
     :usage,
     :messages,
     :tool_call_requests,
-    :response
+    :response,
+    :compact?
   ]
 
   @type t :: %__MODULE__{
@@ -46,7 +47,8 @@ defmodule AI.Completion do
           usage: integer(),
           messages: list(AI.Util.msg()),
           tool_call_requests: list(),
-          response: String.t() | nil
+          response: String.t() | nil,
+          compact?: bool
         }
 
   @type response ::
@@ -74,6 +76,7 @@ defmodule AI.Completion do
          {:ok, messages} <- Keyword.fetch(opts, :messages) do
       response_format = Keyword.get(opts, :response_format, nil)
       name = Keyword.get(opts, :name, nil)
+      compact? = Keyword.get(opts, :compact, true)
 
       toolbox =
         opts
@@ -107,7 +110,8 @@ defmodule AI.Completion do
         usage: 0,
         messages: messages,
         tool_call_requests: [],
-        response: nil
+        response: nil,
+        compact?: compact?
       }
 
       {:ok, state}
@@ -198,8 +202,14 @@ defmodule AI.Completion do
     |> send_request()
   end
 
-  defp handle_response({:error, :context_length_exceeded}, _state) do
-    {:error, :context_length_exceeded}
+  defp handle_response({:error, :context_length_exceeded}, state) do
+    if state.compact? do
+      state
+      |> maybe_compact(true)
+      |> send_request()
+    else
+      {:error, :context_length_exceeded}
+    end
   end
 
   defp handle_response({:error, :api_unavailable, reason}, _state) do
@@ -448,33 +458,45 @@ defmodule AI.Completion do
     )
   end
 
-  defp maybe_compact(%{usage: 0} = state), do: state
+  defp maybe_compact(state, force \\ false)
 
-  defp maybe_compact(%{usage: usage, model: %{context: context}, messages: messages} = state) do
+  defp maybe_compact(%{usage: 0} = state, false), do: state
+
+  defp maybe_compact(state, true) do
+    state |> compact()
+  end
+
+  defp maybe_compact(%{usage: usage, model: %{context: context}} = state, false) do
     used_pct = Float.round(usage / context * 100, 1)
 
     if used_pct > 80 do
-      UI.info(
-        "Compacting conversation",
-        "Context used: #{used_pct}% (#{usage}/#{context} tokens)"
-      )
-
-      # Any agents triggered directly by AI.Completion must set `named?: false`
-      # to avoid circular dependency with Services.NamePool.
-      AI.Agent.Compactor
-      |> AI.Agent.new(named?: false)
-      |> AI.Agent.get_response(%{messages: messages})
-      |> case do
-        {:ok, [new_msg]} ->
-          new_tokens = AI.PretendTokenizer.guesstimate_tokens(new_msg.content)
-          %{state | messages: [new_msg], usage: new_tokens}
-
-        {:error, reason} ->
-          UI.warn("Failed to compact conversation", inspect(reason, pretty: true))
-          state
-      end
+      state |> compact()
     else
       state
+    end
+  end
+
+  defp compact(%{usage: usage, model: %{context: context}, messages: messages} = state) do
+    used_pct = Float.round(usage / context * 100, 1)
+
+    UI.info(
+      "Compacting conversation",
+      "Context used: #{used_pct}% (#{usage}/#{context} tokens)"
+    )
+
+    # Any agents triggered directly by AI.Completion must set `named?: false`
+    # to avoid circular dependency with Services.NamePool.
+    AI.Agent.Compactor
+    |> AI.Agent.new(named?: false)
+    |> AI.Agent.get_response(%{messages: messages})
+    |> case do
+      {:ok, [new_msg]} ->
+        new_tokens = AI.PretendTokenizer.guesstimate_tokens(new_msg.content)
+        %{state | messages: [new_msg], usage: new_tokens}
+
+      {:error, reason} ->
+        UI.warn("Failed to compact conversation", inspect(reason, pretty: true))
+        state
     end
   end
 end
