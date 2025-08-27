@@ -198,6 +198,8 @@ defmodule AI.Accumulator do
 
     args =
       acc.completion_args
+      # Auto-compaction could bork the accumulator
+      |> Keyword.put(:compact?, false)
       |> Keyword.put(:model, acc.model)
       |> Keyword.put(:toolbox, acc.toolbox)
       |> Keyword.put(:messages, [
