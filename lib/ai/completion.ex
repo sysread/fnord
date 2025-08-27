@@ -76,7 +76,7 @@ defmodule AI.Completion do
          {:ok, messages} <- Keyword.fetch(opts, :messages) do
       response_format = Keyword.get(opts, :response_format, nil)
       name = Keyword.get(opts, :name, nil)
-      compact? = Keyword.get(opts, :compact, true)
+      compact? = Keyword.get(opts, :compact?, true)
 
       toolbox =
         opts
