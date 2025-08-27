@@ -21,6 +21,7 @@ defmodule AI.Agent.Compactor do
   [
     Present a timeline of the conversation, listing each message with its role and a brief summary of its content.
     Messages at the end of the conversation should include WAY more detail than those at the beginning.
+    Don't waste space with formatting or JSON; just use plain text.
   ]
 
   # Continuation Context
