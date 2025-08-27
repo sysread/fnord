@@ -48,11 +48,25 @@ defmodule AI.Completion.Output do
 
   def log_tool_call_error(state, tool, args_json, reason) do
     pretty_args =
-      args_json
-      |> Jason.decode!()
-      |> Jason.encode!(pretty: true)
+      cond do
+        is_binary(args_json) ->
+          case Jason.decode(args_json) do
+            {:ok, decoded} ->
+              case Jason.encode(decoded, pretty: true) do
+                {:ok, json} -> json
+                _ -> inspect(decoded, pretty: true)
+              end
+
+            _ ->
+              args_json
+          end
+
+        true ->
+          inspect(args_json, pretty: true)
+      end
 
     name = state.name || "Assistant"
+
     UI.warn(name, """
     Tool call failed:
     #{tool} :: #{pretty_args}

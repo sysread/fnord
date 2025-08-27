@@ -202,30 +202,24 @@ defmodule AI.Agent.Code.TaskImplementor do
           |> Jason.decode(keys: :atoms)
           |> case do
             {:ok, %{error: "", outcome: outcome, followUpTasks: new_tasks}} ->
-              # Report the outcome to the user
               Common.report_task_outcome(state, task, "", outcome, new_tasks)
-
-              # Mark the task as completed
               Services.Task.complete_task(task_list_id, task.id, outcome)
-
-              # If there are follow-up tasks, toss them on the stack
               Common.add_tasks(task_list_id, new_tasks)
               Common.report_task_stack(state)
-
-              # Then, recurse to handle the next task.
               implement(state)
 
             {:ok, %{error: error, outcome: outcome, followUpTasks: new_tasks}} ->
-              # Report the error to the user
               Common.report_task_outcome(state, task, error, outcome, new_tasks)
-
-              # Mark the task as failed
               Services.Task.fail_task(task_list_id, task.id, error)
-
-              # Return the state with the error
               %{state | error: error}
 
             {:error, reason} ->
+              UI.report_from(
+                state.agent.name,
+                "Invalid task response",
+                "JSON decode error: #{inspect(reason)}\n\n#{state.response}"
+              )
+
               %{state | error: reason}
 
             _ ->
@@ -233,11 +227,22 @@ defmodule AI.Agent.Code.TaskImplementor do
           end
 
         state ->
+          UI.report_from(
+            state.agent.name,
+            "Model error",
+            "task=#{task.id}\n#{inspect(state.error)}\n\n#{state.response || "<no response>"}"
+          )
+
           state
       end
     else
-      {:error, :empty} -> state
-      {:error, :not_found} -> state
+      {:error, :empty} ->
+        UI.report_from(state.agent.name, "No tasks remaining", "No more tasks in the current task list.")
+        state
+
+      {:error, :not_found} ->
+        UI.warn("Task list not found for agent #{state.agent.name}")
+        %{state | error: :task_list_not_found}
     end
   end
 

@@ -275,9 +275,33 @@ defmodule AI.Completion do
     messages =
       async_calls
       |> Util.async_stream(&handle_tool_call(state, &1))
-      |> Enum.reduce(state.messages, fn
-        {:ok, {:ok, req, res}}, acc -> acc ++ [req, res]
-        _, acc -> acc
+      |> Enum.reduce(state.messages, fn result, acc ->
+        case result do
+          {:ok, {:ok, req, res}} ->
+            acc ++ [req, res]
+
+          {:ok, other} ->
+            UI.report_from(
+              state.name,
+              "Async tool call returned unexpected result",
+              inspect(other, pretty: true)
+            )
+
+            acc
+
+          {:exit, reason} ->
+            UI.report_from(state.name, "Async tool call crashed", inspect(reason, pretty: true))
+            acc
+
+          other ->
+            UI.report_from(
+              state.name,
+              "Async tool call produced unknown result",
+              inspect(other, pretty: true)
+            )
+
+            acc
+        end
       end)
 
     # Now handle all remaining requests serially and append
@@ -410,10 +434,17 @@ defmodule AI.Completion do
 
   @spec oopsie(t, binary, binary, any) :: any
   defp oopsie(state, tool, args_json, reason) do
+    safe_reason =
+      if is_binary(reason) do
+        reason
+      else
+        inspect(reason, pretty: true)
+      end
+
     AI.Completion.Output.on_event(
       state,
       :tool_call_error,
-      {tool, args_json, {:error, reason}}
+      {tool, args_json, {:error, safe_reason}}
     )
   end
 

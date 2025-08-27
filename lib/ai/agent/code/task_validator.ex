@@ -155,43 +155,38 @@ defmodule AI.Agent.Code.TaskValidator do
           prompt
         end
 
-      state
-      |> Common.get_completion(prompt, @response_format)
-      |> case do
+      case Common.get_completion(state, prompt, @response_format) do
         %{error: nil, response: response} = state ->
-          response
-          |> Jason.decode(keys: :atoms)
-          |> case do
+          case Jason.decode(response, keys: :atoms) do
             {:ok, %{followUpTasks: []}} ->
-              # Report the outcome of QA
               UI.report_from(state.agent.name, "Validation complete", "No issues identified")
-
-              # All good, we're done!
               %{state | error: nil}
 
             {:ok, %{followUpTasks: new_tasks}} ->
-              # Report the outcome of QA
               UI.report_from(
                 state.agent.name,
                 "The solution is incomplete. New tasks added to the stack.",
                 Common.format_new_tasks(new_tasks)
               )
-
-              # Push the new tasks onto the stack
               Common.add_tasks(task_list_id, new_tasks)
               Common.report_task_stack(state)
-
-              # Pass control back to the Coordinating Agent
               %{state | error: :issues_identified}
 
             {:error, reason} ->
+              UI.report_from(state.agent.name, "Validation failed — invalid response format", "JSON decode error: #{inspect(reason)}\n\n#{state.response}")
               %{state | error: reason}
 
             _ ->
-              verify(state, true)
+              if invalid_format? do
+                UI.report_from(state.agent.name, "Validation failed", "Agent repeatedly returned invalid format")
+                %{state | error: :invalid_response_format}
+              else
+                verify(state, true)
+              end
           end
 
         state ->
+          UI.report_from(state.agent.name, "Validation failed", "#{inspect(state.error)}\n\n#{state.response || "<no response>"}")
           state
       end
     else

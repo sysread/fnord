@@ -91,7 +91,17 @@ defmodule AI.Agent.Code.Planner do
   @spec research(t) :: t
   defp research(%{error: nil} = state) do
     UI.report_from(state.agent.name, "Investigating a change request")
-    Common.get_completion(state, @research_prompt)
+    state = Common.get_completion(state, @research_prompt)
+
+    if state.error do
+      UI.report_from(
+        state.agent.name,
+        "Research failed",
+        "#{inspect(state.error)}\n\n#{state.response || "<no response>"}"
+      )
+    end
+
+    state
   end
 
   # ----------------------------------------------------------------------------
@@ -110,12 +120,21 @@ defmodule AI.Agent.Code.Planner do
   """
 
   @spec visualize(t) :: t
+  @spec visualize(t) :: t
   defp visualize(%{error: nil} = state) do
     UI.report_from(state.agent.name, "Brainstorming solutions")
-    Common.get_completion(state, @visualize_prompt)
-  end
+    state = Common.get_completion(state, @visualize_prompt)
 
-  defp visualize(state), do: state
+    if state.error do
+      UI.report_from(
+        state.agent.name,
+        "Visualization failed",
+        "#{inspect(state.error)}\n\n#{state.response || "<no response>"}"
+      )
+    end
+
+    state
+  end
 
   # ----------------------------------------------------------------------------
   # Plan
@@ -243,31 +262,39 @@ defmodule AI.Agent.Code.Planner do
     |> Common.get_completion(prompt, @plan_response_format)
     |> case do
       # No upstream errors
+      # No upstream errors
       %{error: nil, response: response} ->
-        response
-        |> Jason.decode(keys: :atoms)
-        |> case do
-          # JSON parsing error
+        case Jason.decode(response, keys: :atoms) do
           {:error, reason} ->
+            UI.report_from(
+              state.agent.name,
+              "Planning failed",
+              "JSON decode error: #{inspect(reason)}\n\n#{state.response}"
+            )
+
             %{state | error: reason}
 
-          # LLM reported a logical error in planning
           {:ok, %{error: error}} ->
+            UI.report_from(
+              state.agent.name,
+              "Planning failed",
+              "#{inspect(error)}\n\n#{state.response}"
+            )
+
             %{state | error: error}
 
-          # Valid plan
           {:ok, %{steps: steps}} ->
             list_id = Services.Task.start_list()
-            Common.put_state(state, :list_id, list_id)
+            state = Common.put_state(state, :list_id, list_id)
             Common.add_tasks(list_id, steps)
             state
 
-          # Invalid format
           _ ->
             UI.debug("Silly LLM!", """
             Invalid response format from planning step:
 
             #{response}
+
             """)
 
             %{state | error: :invalid_response_format}
@@ -275,6 +302,12 @@ defmodule AI.Agent.Code.Planner do
 
       # Upstream error
       state ->
+        UI.report_from(
+          state.agent.name,
+          "Planning failed",
+          "#{inspect(state.error)}\n\n#{state.response || "<no response>"}"
+        )
+
         state
     end
   end

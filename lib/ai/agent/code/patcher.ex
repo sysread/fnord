@@ -203,8 +203,37 @@ defmodule AI.Agent.Code.Patcher do
             |> replace_contents(start_line, end_line, replacement)
             |> apply_changes()
 
+          # The LLM often barfs out the correct response, but inside a "patch" key.
+          {:ok,
+           %{
+             "patch" => %{
+               "error" => "",
+               "start_line" => start_line,
+               "end_line" => end_line,
+               "replacement" => replacement
+             }
+           }} ->
+            %{state | changes: remaining}
+            |> replace_contents(start_line, end_line, replacement)
+            |> apply_changes()
+
+          {:ok,
+           %{
+             "patch" => %{
+               "start_line" => start_line,
+               "end_line" => end_line,
+               "replacement" => replacement
+             }
+           }} ->
+            %{state | changes: remaining}
+            |> replace_contents(start_line, end_line, replacement)
+            |> apply_changes()
+
           {:ok, %{"error" => reason}} ->
             error_response(change, reason)
+
+          {:ok, _other} ->
+            apply_changes(state)
 
           {:error, reason} ->
             error_response(change, reason)
