@@ -55,7 +55,7 @@ defmodule AI.Completion do
           {:ok, t}
           | {:error, t}
           | {:error, binary}
-          | {:error, :context_length_exceeded}
+          | {:error, :context_length_exceeded, non_neg_integer}
 
   @spec get(Keyword.t()) :: response
   def get(opts) do
@@ -202,13 +202,13 @@ defmodule AI.Completion do
     |> send_request()
   end
 
-  defp handle_response({:error, :context_length_exceeded}, state) do
+  defp handle_response({:error, :context_length_exceeded, usage}, state) do
     if state.compact? do
-      state
+      %{state | usage: usage}
       |> maybe_compact(true)
       |> send_request()
     else
-      {:error, :context_length_exceeded}
+      {:error, :context_length_exceeded, usage}
     end
   end
 
@@ -463,25 +463,27 @@ defmodule AI.Completion do
   defp maybe_compact(%{usage: 0} = state, false), do: state
 
   defp maybe_compact(state, true) do
-    state |> compact()
+    compact(state)
   end
 
   defp maybe_compact(%{usage: usage, model: %{context: context}} = state, false) do
     used_pct = Float.round(usage / context * 100, 1)
 
     if used_pct > 80 do
-      state |> compact()
+      compact(state)
     else
       state
     end
   end
 
-  defp compact(%{usage: usage, model: %{context: context}, messages: messages} = state) do
-    used_pct = Float.round(usage / context * 100, 1)
+  defp compact(%{usage: usage, model: model, messages: messages} = state) do
+    used_pct = Float.round(usage / model.context * 100, 1)
+    context = model.context |> Util.format_number()
+    used = usage |> Util.format_number()
 
     UI.info(
       "Compacting conversation",
-      "Context used: #{used_pct}% (#{usage}/#{context} tokens)"
+      "Context: #{used_pct}% (#{used}/#{context} tokens)"
     )
 
     # Any agents triggered directly by AI.Completion must set `named?: false`

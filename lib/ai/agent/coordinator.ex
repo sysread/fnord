@@ -319,7 +319,10 @@ defmodule AI.Agent.Coordinator do
         tools_used
         |> Enum.map(fn {tool, count} -> "- #{tool}: #{count} invocation(s)" end)
         |> Enum.join("\n")
-        |> then(&UI.debug("Tools used", &1))
+        |> then(fn
+          "" -> UI.debug("Tools used", "None")
+          some -> UI.debug("Tools used", some)
+        end)
 
         coder_tool_used =
           state.coder_tool_used ||
@@ -335,7 +338,12 @@ defmodule AI.Agent.Coordinator do
         |> log_response()
 
       {:error, %{response: response}} ->
+        UI.error("Derp. Completion failed.", response)
         {:error, response}
+
+      {:error, reason} ->
+        UI.error("Derp. Completion failed.", reason)
+        {:error, reason}
     end
   end
 
@@ -518,7 +526,7 @@ defmodule AI.Agent.Coordinator do
   - Include a list of relevant files if appropriate.
   - Code examples are always useful and should be functional and complete.
 
-  THS IS IT.
+  THIS IS IT.
   Your research is complete!
   Respond NOW with your findings.
   """
@@ -666,7 +674,7 @@ defmodule AI.Agent.Coordinator do
   @spec template_msg(t) :: t
   defp template_msg(state) do
     @template
-    |> AI.Util.assistant_msg()
+    |> AI.Util.system_msg()
     |> Services.Conversation.append_msg(state.conversation)
 
     state

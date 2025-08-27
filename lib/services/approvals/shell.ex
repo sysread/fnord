@@ -41,6 +41,7 @@ defmodule Services.Approvals.Shell do
     "git grep",
     "git log",
     "git merge-base",
+    "git rev-list",
     "git show",
     "git status"
   ]
@@ -95,15 +96,11 @@ defmodule Services.Approvals.Shell do
   # ----------------------------------------------------------------------------
   defp approved?(%{session: session}, prefix) do
     preapproved?(prefix) or
-      Enum.any?(session, &Regex.match?(&1, prefix)) or
+      Enum.any?(session, &(&1 == prefix)) or
       Settings.new() |> Settings.Approvals.approved?("shell", prefix)
   end
 
-  defp preapproved?(prefix) do
-    @preapproved
-    |> Enum.map(&Regex.compile!("^" <> Regex.escape(&1) <> "$"))
-    |> Enum.any?(&Regex.match?(&1, prefix))
-  end
+  defp preapproved?(prefix), do: prefix in @preapproved
 
   # ----------------------------------------------------------------------------
   # Display
@@ -152,35 +149,31 @@ defmodule Services.Approvals.Shell do
 
   defp customize(state, stages) do
     Enum.reduce(stages, {:approved, state}, fn prefix, {:approved, acc_state} ->
-      {:approved, new_state} = choose_scope(acc_state, prefix_to_pattern(prefix))
+      {:approved, new_state} = choose_scope(acc_state, prefix)
       {:approved, new_state}
     end)
   end
 
-  defp choose_scope(state, pattern) do
-    UI.choose("Choose approval scope for: #{pattern}", [@session, @project, @global])
-    |> approve_scope(state, pattern)
+  defp choose_scope(state, prefix) do
+    UI.choose("Choose approval scope for: #{prefix}", [@session, @project, @global])
+    |> approve_scope(state, prefix)
   end
 
-  defp approve_scope(@session, %{session: session} = state, pattern) do
-    case Regex.compile(pattern) do
-      {:ok, re} ->
-        patterns = session |> Enum.concat([re]) |> Enum.uniq()
-        {:approved, %{state | session: patterns}}
-
-      {:error, reason} ->
-        UI.error("Invalid regular expression", reason)
-        choose_scope(state, pattern)
-    end
+  defp approve_scope(@session, %{session: session} = state, prefix) do
+    # store plain prefixes in-memory for this session
+    prefixes = session |> Enum.concat([prefix]) |> Enum.uniq()
+    {:approved, %{state | session: prefixes}}
   end
 
-  defp approve_scope(@project, state, pattern) do
-    Settings.new() |> Settings.Approvals.approve(:project, "shell", pattern)
+  defp approve_scope(@project, state, prefix) do
+    # persist plain prefix; Settings will compile to regex on load
+    Settings.new() |> Settings.Approvals.approve(:project, "shell", prefix)
     {:approved, state}
   end
 
-  defp approve_scope(@global, state, pattern) do
-    Settings.new() |> Settings.Approvals.approve(:global, "shell", pattern)
+  defp approve_scope(@global, state, prefix) do
+    # persist plain prefix; Settings will compile to regex on load
+    Settings.new() |> Settings.Approvals.approve(:global, "shell", prefix)
     {:approved, state}
   end
 
@@ -202,10 +195,6 @@ defmodule Services.Approvals.Shell do
     else
       cmd
     end
-  end
-
-  defp prefix_to_pattern(prefix) do
-    "^" <> Regex.escape(prefix) <> "$"
   end
 
   defp get_feedback() do

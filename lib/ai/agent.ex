@@ -42,7 +42,8 @@ defmodule AI.Agent do
         impl: impl
       }
     else
-      {:error, reason} -> raise "Failed to create agent: #{inspect(reason)}"
+      {:error, reason} ->
+        raise "Failed to create agent: #{inspect(reason)}"
     end
   end
 

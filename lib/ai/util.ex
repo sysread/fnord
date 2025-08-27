@@ -1,4 +1,6 @@
 defmodule AI.Util do
+  @max_msg_length 10_485_760
+
   @role_system "developer"
   @role_user "user"
   @role_assistant "assistant"
@@ -74,19 +76,19 @@ defmodule AI.Util do
     tool_call_args = build_tool_call_args(msgs)
 
     msgs
-    # Remove the first message, which is the orchestrating agent's system prompt
-    |> Enum.drop(1)
+    # Drop all messages until the first user message
+    |> Enum.drop_while(&(&1.role != @role_user))
     # Convert messages into text
     |> Enum.reduce([], fn
       %{role: @role_user, content: content}, acc ->
-        ["User Query: #{content}" | acc]
+        ["# USER:\n#{content}" | acc]
 
       %{role: @role_assistant, content: content}, acc when is_binary(content) ->
         # Ignore <think> messages, which are used to indicate the assistant is thinking
-        if String.starts_with?(content, "<think>") && String.ends_with?(content, "</think>") do
+        if String.starts_with?(content, "<think>") do
           acc
         else
-          [content | acc]
+          ["# ASSISTANT:\n#{content}" | acc]
         end
 
       # May be present in older conversations.
@@ -100,6 +102,8 @@ defmodule AI.Util do
         args = tool_call_args[id] |> Jason.encode!()
 
         text = """
+        # TOOL CALL
+
         Performed research using the tool, `#{name}`, with the following arguments:
         `#{args}`
 
@@ -152,10 +156,8 @@ defmodule AI.Util do
   """
   @spec system_msg(binary) :: content_msg
   def system_msg(msg) do
-    %{
-      role: @role_system,
-      content: msg
-    }
+    %{role: @role_system, content: msg}
+    |> validate_msg_length()
   end
 
   @doc """
@@ -163,10 +165,8 @@ defmodule AI.Util do
   """
   @spec user_msg(binary) :: content_msg
   def user_msg(msg) do
-    %{
-      role: @role_user,
-      content: msg
-    }
+    %{role: @role_user, content: msg}
+    |> validate_msg_length()
   end
 
   @doc """
@@ -174,10 +174,8 @@ defmodule AI.Util do
   """
   @spec assistant_msg(binary) :: content_msg
   def assistant_msg(msg) do
-    %{
-      role: @role_assistant,
-      content: msg
-    }
+    %{role: @role_assistant, content: msg}
+    |> validate_msg_length()
   end
 
   @doc """
@@ -228,4 +226,17 @@ defmodule AI.Util do
       ]
     }
   end
+
+  defp validate_msg_length(%{content: content} = msg) when is_binary(content) do
+    if byte_size(content) > @max_msg_length do
+      warning = "(msg truncated due to size)"
+      wlen = byte_size(warning)
+      max = @max_msg_length - wlen
+      %{msg | content: String.slice(content, 0, max) <> warning}
+    else
+      msg
+    end
+  end
+
+  defp validate_msg_length(msg), do: msg
 end

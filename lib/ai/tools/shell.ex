@@ -51,6 +51,11 @@ defmodule AI.Tools.Shell do
         Commands that require user input or interaction will fail after a timeout, resulting in a poor experience for the user.
         Individual commands may not include redirection, piping, command substitution, or other complex shell operators.
 
+        IMPORTANT: This uses elixir's System.cmd/3 to execute commands.
+                   It *will* `cd` into the project's source root before executing commands.
+                   Some commands DO behave differently without a tty.
+                   For example, `rg` REQUIRES a path argument when not run in a tty.
+
         The following simple commands are preapproved and will execute without requiring user approval:
         #{allowed}
         """,

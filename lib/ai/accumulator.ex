@@ -70,7 +70,7 @@ defmodule AI.Accumulator do
   Your input will be in the format:
   ```
   # Question / Goal
-  [user question or goal]
+  [user question or goal, if any]
 
   # Accumulated Response
   [your accumulated response]
@@ -88,8 +88,8 @@ defmodule AI.Accumulator do
   def get_response(opts \\ []) do
     with {:ok, model} <- Keyword.fetch(opts, :model),
          {:ok, prompt} <- Keyword.fetch(opts, :prompt),
-         {:ok, input} <- Keyword.fetch(opts, :input),
-         {:ok, question} <- Keyword.fetch(opts, :question) do
+         {:ok, input} <- Keyword.fetch(opts, :input) do
+      question = Keyword.get(opts, :question, nil)
       line_numbers = Keyword.get(opts, :line_numbers, false)
 
       input =
@@ -126,13 +126,21 @@ defmodule AI.Accumulator do
     #{acc.prompt}
     """
 
-    user_prompt = """
-    # Question / Goal
-    #{acc.question}
+    user_prompt =
+      if is_nil(acc.question) or acc.question == "" do
+        """
+        # Accumulated Response
+        #{acc.buffer}
+        """
+      else
+        """
+        # Question / Goal
+        #{acc.question}
 
-    # Accumulated Response
-    #{acc.buffer}
-    """
+        # Accumulated Response
+        #{acc.buffer}
+        """
+      end
 
     args =
       acc.completion_args
@@ -214,15 +222,21 @@ defmodule AI.Accumulator do
       {:ok, %{response: response}} ->
         {:ok, %{acc | splitter: splitter, buffer: response}}
 
-      {:error, :context_length_exceeded} ->
+      {:error, :context_length_exceeded, usage} ->
         # Context length exceeded error handling:
         # Back off and retry with smaller fraction only if frac >= @backoff_threshold
         # If frac < @backoff_threshold, do not retry further and return error.
         if frac >= @backoff_threshold do
-          UI.warn("Context length exceeded, backing off to fraction #{frac - @backoff_step}")
+          UI.warn(
+            "Context length exceeded (#{usage} tokens used), backing off to fraction #{frac - @backoff_step}"
+          )
+
           process_chunk(acc, frac - @backoff_step)
         else
-          UI.error("Context length exceeded, unable to back off further. THIS. IS. SPARTA!")
+          UI.error(
+            "Context length exceeded (#{usage} tokens used), unable to back off further. THIS. IS. SPARTA!"
+          )
+
           {:error, "context window length exceeded: unable to back off further to fit the input"}
         end
 

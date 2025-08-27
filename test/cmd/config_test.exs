@@ -160,15 +160,6 @@ defmodule Cmd.ConfigTest do
       assert log =~ "Missing --kind"
     end
 
-    test "rejects invalid regex" do
-      log =
-        capture_log(fn ->
-          Cmd.Config.run(%{kind: "k", global: true}, [:approve], ["["])
-        end)
-
-      assert log =~ "Invalid regex"
-    end
-
     test "errors with both --global and --project" do
       log =
         capture_log(fn ->

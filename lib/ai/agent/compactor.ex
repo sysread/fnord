@@ -1,16 +1,34 @@
 defmodule AI.Agent.Compactor do
   @behaviour AI.Agent
 
-  @model AI.Model.large_context()
+  @model AI.Model.large_context(:balanced)
+  @max_attempts 3
 
   @system_prompt """
-  You are a conversation summarization assistant. Given a sequence of chat
-  messages, compress the conversation into a concise summary that retains key
-  details, decisions, and context necessary for future interactions. Preserve
-  speaker attributions and important facts, remove redundancy, and format the
-  output as a list of messages compatible with the original schema. Respond
-  ONLY with the text summary, without any additional commentary or
-  explanations.
+  You are an AI Agent in a larger system.
+  You will be presented with a transcript of a conversation between a user and an AI assistant, along with any research the assistant has done.
+  Your task: Reformat into compact meeting minutes while preserving all content needed for context.
+  Do not use smart quotes, smart apostrophes, emojis, or other special characters.
+  Use the following output template:
+
+  # Original User Prompt
+  [full text of the original user prompt]
+
+  # Research and Responses
+  [outline of facts, findings, and conclusions from the research portions of the conversation]
+
+  # Conversation Timeline
+  [
+    Present a timeline of the conversation, listing each message with its role and a brief summary of its content.
+    Messages at the end of the conversation should include WAY more detail than those at the beginning.
+  ]
+
+  # Continuation Context
+  [
+    What was the assistant doing before the conversation grew too long?
+    Your response will form the complete prompt for the LLM's next response.
+    This section MUST guarantee that the LLM continues exactly where it left off.
+  ]
   """
 
   @impl AI.Agent
@@ -19,32 +37,90 @@ defmodule AI.Agent.Compactor do
   end
 
   def get_response(%{messages: messages} = opts) do
-    transcript = AI.Util.research_transcript(messages)
+    attempts = Map.get(opts, :attempts, 0)
 
-    opts.agent
-    |> AI.Agent.get_completion(
+    transcript =
+      transcript(messages, [])
+      |> Jason.encode!(pretty: true)
+
+    original_length = byte_size(transcript)
+
+    AI.Completion.get(
       model: @model,
+      prompt: @system_prompt,
       messages: [
         AI.Util.system_msg(@system_prompt),
-        AI.Util.user_msg(transcript)
+        AI.Util.system_msg("""
+        The complete message transcript in JSON format:
+        ```json
+        #{transcript}
+        ```
+
+        Your output MUST use the specified template and include ALL sections.
+        """)
       ]
     )
     |> case do
       {:ok, %{response: response}} ->
-        """
-        This is a compacted summary of the conversation you have been having
-        with the user. It is designed to help you retain important context
-        and decisions without overwhelming your context window with excessive
-        detail.
+        summary =
+          """
+          Summary of conversation and research thus far:
+          #{response}
+          """
 
-        ## Summary
-        #{response}
-        """
-        |> AI.Util.system_msg()
-        |> then(&{:ok, [&1]})
+        new_length = byte_size(summary)
+        difference = original_length - new_length
+        percent = difference / original_length * 100.0
 
-      {:error, %{response: response}} ->
-        {:error, response}
+        UI.info("""
+        Compaction results:
+          Original: #{Util.format_number(original_length)} bytes
+         Compacted: #{Util.format_number(new_length)} bytes
+           Savings: #{percent}% (#{Util.format_number(difference)} bytes)
+        """)
+
+        if new_length >= original_length * 0.65 and attempts < @max_attempts do
+          UI.warn(
+            "Compaction insufficient",
+            "Attempting another pass (#{attempts + 1}/#{@max_attempts})"
+          )
+
+          get_response(%{messages: messages, attempts: attempts + 1})
+        else
+          UI.debug("Compacted conversation", summary)
+
+          summary
+          |> AI.Util.system_msg()
+          |> then(&{:ok, [&1]})
+        end
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
+
+  defp transcript([], acc), do: Enum.reverse(acc)
+
+  defp transcript([%{role: "system"} | rest], acc), do: transcript(rest, acc)
+  defp transcript([%{role: "developer"} | rest], acc), do: transcript(rest, acc)
+  defp transcript([%{role: "tool", name: "notify_tool"} | rest], acc), do: transcript(rest, acc)
+
+  defp transcript([%{role: "tool", name: name, content: content} | rest], acc) do
+    transcript(rest, [%{role: "tool", name: name, content: content} | acc])
+  end
+
+  defp transcript([%{role: "assistant", content: nil} | rest], acc), do: transcript(rest, acc)
+
+  defp transcript([%{role: "assistant", content: content} = msg | rest], acc)
+       when is_binary(content) do
+    if String.starts_with?(content, "<think>") do
+      # skip internal reasoning
+      transcript(rest, acc)
+    else
+      # include assistant message
+      transcript(rest, [msg | acc])
+    end
+  end
+
+  defp transcript([msg | rest], acc), do: transcript(rest, [msg | acc])
 end

@@ -15,7 +15,7 @@ defmodule AI.CompletionAPI do
           | tool_response
           | {:error, map}
           | {:error, :api_unavailable, any}
-          | {:error, :context_length_exceeded}
+          | {:error, :context_length_exceeded, non_neg_integer}
 
   @spec get(model, msgs, tools, response_format) :: response
   def get(model, msgs, tools \\ nil, response_format \\ nil) do
@@ -81,13 +81,34 @@ defmodule AI.CompletionAPI do
         end
       rescue
         e in Jason.DecodeError ->
-          {:error, %{http_status: 500, error: "JSON decode error: #{Exception.message(e)}"}}
+          {:error,
+           %{
+             http_status: 500,
+             error: """
+             JSON decode error: #{Exception.message(e)}
+             #{Exception.format_stacktrace(__STACKTRACE__)}
+             """
+           }}
 
         e in RuntimeError ->
-          {:error, %{http_status: 500, error: "Runtime error: #{Exception.message(e)}"}}
+          {:error,
+           %{
+             http_status: 500,
+             error: """
+             Runtime error: #{Exception.message(e)}
+             #{Exception.format_stacktrace(__STACKTRACE__)}
+             """
+           }}
 
         e ->
-          {:error, %{http_status: 500, error: "Unexpected error: #{Exception.message(e)}"}}
+          {:error,
+           %{
+             http_status: 500,
+             error: """
+             Unexpected error: #{Exception.message(e)}
+             #{Exception.format_stacktrace(__STACKTRACE__)}
+             """
+           }}
       end
 
     # Handle error cases for tracking
@@ -160,8 +181,13 @@ defmodule AI.CompletionAPI do
     json_error_string
     |> Jason.decode()
     |> case do
-      {:ok, %{"error" => %{"code" => "context_length_exceeded"}}} ->
-        {:error, :context_length_exceeded}
+      {:ok, %{"error" => %{"message" => msg, "code" => "context_length_exceeded"}}} ->
+        ~r/Your messages resulted in (\d+) tokens/
+        |> Regex.run(msg)
+        |> case do
+          nil -> {:error, :context_length_exceeded, -1}
+          [_, used] -> {:error, :context_length_exceeded, String.to_integer(used)}
+        end
 
       {:ok, %{"error" => %{"code" => code, "message" => msg}}} ->
         {:error,
