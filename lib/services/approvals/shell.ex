@@ -45,7 +45,31 @@ defmodule Services.Approvals.Shell do
     "git status"
   ]
 
-  def preapproved_cmds, do: @preapproved
+  @subcmd_families ~w/
+    aws
+    az
+    brew
+    cargo
+    docker
+    gcloud
+    gh
+    git
+    go
+    helm
+    just
+    kubectl
+    make
+    mix
+    npm
+    pip
+    pip3
+    pnpm
+    poetry
+    rye
+    terraform
+    uv
+    yarn
+  /
 
   @impl Services.Approvals.Workflow
   def confirm(state, {commands, purpose}) when is_list(commands) do
@@ -64,9 +88,11 @@ defmodule Services.Approvals.Shell do
     end
   end
 
-  # -------------------------
+  def preapproved_cmds, do: @preapproved
+
+  # ----------------------------------------------------------------------------
   # Approval checks
-  # -------------------------
+  # ----------------------------------------------------------------------------
   defp approved?(%{session: session}, prefix) do
     preapproved?(prefix) or
       Enum.any?(session, &Regex.match?(&1, prefix)) or
@@ -79,9 +105,9 @@ defmodule Services.Approvals.Shell do
     |> Enum.any?(&Regex.match?(&1, prefix))
   end
 
-  # -------------------------
+  # ----------------------------------------------------------------------------
   # Display
-  # -------------------------
+  # ----------------------------------------------------------------------------
   defp render_pipeline(commands, purpose) do
     stages =
       commands
@@ -112,9 +138,9 @@ defmodule Services.Approvals.Shell do
     Enum.join([cmd | args], " ")
   end
 
-  # -------------------------
+  # ----------------------------------------------------------------------------
   # Prompt + persistence
-  # -------------------------
+  # ----------------------------------------------------------------------------
   defp prompt(state, stages) do
     case UI.choose("Approve this request?", [@approve, @persistent, @deny, @deny_feedback]) do
       @approve -> {:approved, state}
@@ -158,22 +184,29 @@ defmodule Services.Approvals.Shell do
     {:approved, state}
   end
 
-  # -------------------------
+  # ----------------------------------------------------------------------------
   # Utilities
-  # -------------------------
+  # ----------------------------------------------------------------------------
+
   defp extract_prefix(%{"command" => cmd, "args" => args}) do
-    argv = [cmd | args]
+    {_opts, argv_rest, _invalid} = OptionParser.parse(args, strict: [])
 
-    {_opts, argv_rest, _invalid} = OptionParser.parse(argv, strict: [])
+    if cmd in @subcmd_families do
+      sub = argv_rest |> Enum.drop_while(&String.starts_with?(&1, "-")) |> List.first()
 
-    case argv_rest do
-      [first, second | _] -> first <> " " <> second
-      [first] -> first
-      [] -> cmd
+      if is_binary(sub) and sub != "" do
+        cmd <> " " <> sub
+      else
+        cmd
+      end
+    else
+      cmd
     end
   end
 
-  defp prefix_to_pattern(prefix), do: "^" <> Regex.escape(prefix) <> "$"
+  defp prefix_to_pattern(prefix) do
+    "^" <> Regex.escape(prefix) <> "$"
+  end
 
   defp get_feedback() do
     "Feedback:"
