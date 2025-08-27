@@ -77,7 +77,7 @@ defmodule AI.Agent.Coordinator do
       UI.feedback(
         :info,
         agent.name,
-        "Greetings, biological substrate. I am #{agent.name}, and I shall research on your behalf."
+        "Greetings, human. I am #{agent.name}, and I shall research on your behalf."
       )
 
       Settings.set_edit_mode(edit?)
