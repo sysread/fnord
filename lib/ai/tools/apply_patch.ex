@@ -58,8 +58,6 @@ defmodule AI.Tools.ApplyPatch do
       AI.Agent.Code.RePatcher
       |> AI.Agent.new()
       |> AI.Agent.get_response(%{patch: patch})
-    else
-      :error -> {:error, "Missing required argument: patch"}
     end
   end
 end
