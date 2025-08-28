@@ -119,6 +119,7 @@ defmodule AI.Tools.Shell do
                       An individual argument or option for the command.
                       This value does not require any special escaping.
                       The code executing it will handle proper shell escaping.
+                      Environmental variables (e.g. `$HOME`) will NOT be expanded.
                       """
                     }
                   }
@@ -154,12 +155,15 @@ defmodule AI.Tools.Shell do
   end
 
   defp run_pipeline([command | rest], timeout_ms, root, input) do
-    shell_out(command, timeout_ms, root, input)
+    command = special_case(command)
+
+    command
+    |> shell_out(timeout_ms, root, input)
     |> case do
-      {out, 0} ->
+      {:ok, {out, 0}} ->
         run_pipeline(rest, timeout_ms, root, out)
 
-      {out, code} ->
+      {:ok, {out, code}} ->
         # Some commands exit non-zero even when behaving as expected, like
         # grep. In this case, we still want to return the output, but in a true
         # shell pipeline, it would still stop processing the rest of the
@@ -171,13 +175,35 @@ defmodule AI.Tools.Shell do
          Output:
          #{out}
          """}
+
+      {:error, :not_found} ->
+        {:ok, "Command not found: #{command["command"]}"}
+
+      {:error, :timeout} ->
+        {:ok,
+         """
+         Command: #{format_command(command)}
+         Error: timed out after #{timeout_ms} ms
+
+         Remember that interactive commands will always time out.
+         Some commands behave differently outside of an interactive shell.
+         For example, `rg` REQUIRES a path argument when not run within a tty.
+         """}
     end
   end
 
   defp shell_out(%{"command" => command, "args" => args}, timeout_ms, root, nil) do
-    run_with_timeout(timeout_ms, fn ->
-      System.cmd(command, args, cd: root, stderr_to_stdout: true)
-    end)
+    command
+    |> System.find_executable()
+    |> case do
+      nil ->
+        {:error, :not_found}
+
+      path ->
+        run_with_timeout(timeout_ms, fn ->
+          {:ok, System.cmd(path, args, cd: root, stderr_to_stdout: true)}
+        end)
+    end
   end
 
   defp shell_out(%{"command" => command, "args" => args}, timeout_ms, root, stdin) do
@@ -191,7 +217,7 @@ defmodule AI.Tools.Shell do
         timeout_ms,
         fn ->
           try do
-            System.cmd(runner, [tmp, command | args], cd: root, stderr_to_stdout: true)
+            {:ok, System.cmd(runner, [tmp, command | args], cd: root, stderr_to_stdout: true)}
           after
             # normal completion cleanup
             File.rm(tmp)
@@ -206,6 +232,38 @@ defmodule AI.Tools.Shell do
       )
     end
   end
+
+  # -----------------------------------------------------------------------------
+  # LLMs *love* `rg`, but they often forget to provide a path argument, even
+  # when it's explicitly called out in the tool spec. This special case adds
+  # the project's source_root as a path argument if no other path-like
+  # arguments are provided. If the LLM provides a pattern arg that *looks* like
+  # a path, and no other path-like args, we can't do anything sensible, since
+  # we don't know *which* arg they borked, so we just let the command fail.
+  # -----------------------------------------------------------------------------
+  defp special_case(%{"command" => "rg", "args" => args} = cmd) do
+    args
+    # Filter out options, leaving only positional args
+    |> Enum.filter(fn arg -> not String.starts_with?(arg, "-") end)
+    # See if any of the positional args look like a path (contain a dot or slash)
+    |> Enum.filter(fn arg -> String.starts_with?(arg, ".") or String.starts_with?(arg, "/") end)
+    # If no positional args look like a path, add the project's source_root to search current dir
+    |> case do
+      # None found.
+      [] ->
+        with {:ok, project} <- Store.get_project() do
+          %{"command" => "rg", "args" => args ++ [project.source_root]}
+        else
+          # This shouldn't be possible, but if it does happen, just return as-is
+          _ -> cmd
+        end
+
+      _ ->
+        cmd
+    end
+  end
+
+  defp special_case(cmd), do: cmd
 
   defp chmod_600(path) do
     # Ensure stdin temp is not world/group readable regardless of umask

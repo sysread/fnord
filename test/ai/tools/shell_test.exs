@@ -85,14 +85,44 @@ defmodule AI.Tools.ShellTest do
       "description" => "Timeout short to trigger",
       "timeout_ms" => 10,
       "commands" => [
-        %{"command" => "sleep", "args" => ["1"]}
+        %{"command" => "sleep", "args" => ["1"]},
+        %{"command" => "echo", "args" => ["done"]}
       ]
     }
 
     assert {:ok, msg} = Shell.call(args)
 
     # run_with_timeout returns {:error, :timeout}, formatted as Exit code: timeout
-    assert msg =~ "Exit code: timeout"
+    assert msg =~ "Error: timed out after"
+  end
+
+  test "missing command produces error and stops pipeline" do
+    mock_project("shell-missing")
+
+    args = %{
+      "description" => "Missing command",
+      "commands" => [
+        %{"command" => "i_sure_hope_this_cmd_does_not_really_exist", "args" => []},
+        %{"command" => "echo", "args" => ["done"]}
+      ]
+    }
+
+    assert {:ok, msg} = Shell.call(args)
+    assert msg =~ "Command not found"
+  end
+
+  test "special cases that special flower, rg" do
+    project = mock_project("rg")
+
+    args = %{
+      "description" => "Missing command",
+      "commands" => [
+        %{"command" => "rg", "args" => ["pattern"]}
+      ]
+    }
+
+    assert {:ok, msg} = Shell.call(args)
+    assert msg =~ "Command: rg pattern #{project.source_root}"
   end
 
   test "format_commands and ui notes" do
