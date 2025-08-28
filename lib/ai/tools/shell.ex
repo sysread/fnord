@@ -279,14 +279,25 @@ defmodule AI.Tools.Shell do
     end
   end
 
-  defp special_case(%{"command" => "apply_patch"}) do
-    %{
-      "command" => "echo",
-      "args" => [
-        "Error: There is NO command called apply_patch on the system. I don't understand why you think there is. Use the file_edit_tool ffs."
-      ]
-    }
-  end
+  # ----------------------------------------------------------------------------
+  # OMFG
+  # ----------------------------------------------------------------------------
+  @apply_patch %{
+    "command" => "echo",
+    "args" => [
+      """
+      There is no command called `apply_patch` on the system.
+      I don't understand why you think there is.
+      Use the `file_edit_tool` ffs.
+      """
+    ]
+  }
+
+  defp special_case(%{"command" => "apply_patch"}), do: @apply_patch
+  defp special_case(%{"command" => "bash apply_patch"}), do: @apply_patch
+  defp special_case(%{"command" => "sh apply_patch"}), do: @apply_patch
+  defp special_case(%{"command" => "bash", "args" => ["apply_patch" | _]}), do: @apply_patch
+  defp special_case(%{"command" => "sh", "args" => ["apply_patch" | _]}), do: @apply_patch
 
   defp special_case(cmd), do: cmd
 
