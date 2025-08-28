@@ -211,7 +211,7 @@ defmodule AI.Tools.File.Edit do
   @spec confirm_edit(binary, binary) :: {:ok, :approved} | {:error, term}
   defp confirm_edit(file, diff) do
     stop_spinner(:ok)
-    Services.Approvals.confirm({file, colorize_diff(diff)}, Services.Approvals.Edit)
+    Services.Approvals.confirm({file, colorize_diff(diff)}, :edit)
   end
 
   @spec colorize_diff(binary) :: Owl.Data.t()

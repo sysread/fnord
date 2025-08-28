@@ -3,27 +3,6 @@ defmodule AI.Tools.ShellTest do
 
   alias AI.Tools.Shell
 
-  setup do
-    # By default, stub approvals to always approve so tests don't depend on TTY
-    :meck.new(Services.Approvals.Shell, [:passthrough])
-
-    on_exit(fn ->
-      try do
-        :meck.unload(Services.Approvals.Shell)
-      rescue
-        _ -> :ok
-      catch
-        _, _ -> :ok
-      end
-    end)
-
-    :meck.expect(Services.Approvals.Shell, :confirm, fn state, _args ->
-      {:approved, state}
-    end)
-
-    :ok
-  end
-
   test "preapproved pipeline: cat -> wc -l counts lines in files" do
     project = mock_project("shell-preapproved")
     mock_source_file(project, "file1.txt", "hello\n")

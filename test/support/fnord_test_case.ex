@@ -64,9 +64,17 @@ defmodule Fnord.TestCase do
         # Globally override the configured Indexer with our stub because the
         # Indexer uses an external service to generate embeddings and
         # AI-generated summaries and so whatnot.
-        set_config(:indexer, MockIndexer)
         Mox.stub_with(MockIndexer, StubIndexer)
-        :ok
+        set_config(:indexer, MockIndexer)
+      end
+
+      setup do
+        Mox.stub_with(MockApprovals, StubApprovals)
+
+        set_config(:approvals, %{
+          edit: MockApprovals,
+          shell: MockApprovals
+        })
       end
 
       setup do

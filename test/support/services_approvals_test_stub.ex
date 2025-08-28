@@ -1,4 +1,4 @@
-defmodule Services.Approvals.TestStub do
+defmodule StubApprovals do
   @moduledoc """
   Test stub implementation for Services.Approvals.Workflow.
 

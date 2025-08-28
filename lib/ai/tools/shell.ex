@@ -145,7 +145,7 @@ defmodule AI.Tools.Shell do
   end
 
   defp confirm(commands, purpose) do
-    Services.Approvals.confirm({commands, purpose}, Services.Approvals.Shell)
+    Services.Approvals.confirm({commands, purpose}, :shell)
   end
 
   defp run_pipeline(commands, timeout_ms, root, input \\ nil)

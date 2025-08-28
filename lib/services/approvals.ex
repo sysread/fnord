@@ -9,6 +9,14 @@ defmodule Services.Approvals do
   @type t :: %__MODULE__{session: [Regex.t()]}
 
   # ----------------------------------------------------------------------------
+  # Globals
+  # ----------------------------------------------------------------------------
+  @default_impl %{
+    edit: Services.Approvals.Edit,
+    shell: Services.Approvals.Shell
+  }
+
+  # ----------------------------------------------------------------------------
   # Client API
   # ----------------------------------------------------------------------------
   def start_link(opts \\ []) do
@@ -16,12 +24,12 @@ defmodule Services.Approvals do
     GenServer.start_link(__MODULE__, nil, name: name)
   end
 
-  @spec confirm(term, module) ::
+  @spec confirm(term, atom) ::
           {:ok, :approved}
           | {:denied, binary}
           | {:error, binary}
-  def confirm(args, impl) do
-    GenServer.call(__MODULE__, {:confirm, impl, args}, :infinity)
+  def confirm(args, kind) do
+    GenServer.call(__MODULE__, {:confirm, kind, args}, :infinity)
   end
 
   # ----------------------------------------------------------------------------
@@ -33,11 +41,21 @@ defmodule Services.Approvals do
   end
 
   @impl GenServer
-  def handle_call({:confirm, impl, args}, _from, state) do
+  def handle_call({:confirm, kind, args}, _from, state) do
+    impl = impl_for(kind)
+
     case impl.confirm(state, args) do
       {:approved, new_state} -> {:reply, {:ok, :approved}, new_state}
       {:denied, reason, new_state} -> {:reply, {:denied, reason}, new_state}
       {:error, reason, new_state} -> {:reply, {:error, reason}, new_state}
     end
+  end
+
+  # ----------------------------------------------------------------------------
+  # Internals
+  # ----------------------------------------------------------------------------
+  defp impl_for(kind) do
+    Application.get_env(:fnord, :approvals, @default_impl)
+    |> Map.fetch!(kind)
   end
 end
