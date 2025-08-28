@@ -266,19 +266,15 @@ defmodule AI.Agent.Code.Patcher do
   end
 
   @spec error_response(binary, any) :: {:error, binary}
-  defp error_response(change, reason) when is_binary(reason) do
+  defp error_response(change, reason) do
     {:error,
      """
      The following change could not be applied:
      #{change}
 
      The AI Agent returned an error:
-     #{reason}
+     #{inspect(reason, pretty: true, limit: :infinity)}
      """}
-  end
-
-  defp error_response(change, reason) do
-    error_response(change, inspect(reason, pretty: true, limit: :infinity))
   end
 
   @spec required_arg(map, atom) :: {:ok, any} | {:error, binary}
