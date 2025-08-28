@@ -15,6 +15,7 @@ defmodule AI.Agent.Code.TaskImplementor do
   You will be given tasks to implement, one at a time, along with the overall requirements for the project.
   You will be asked to implement each task, in order, one at a time.
   Implement the current task (ONLY):
+  - Use the `file_edit_tool` to make changes to the codebase.
   - Do not make any changes outside the scope of what was explicitly requested.
   - Ensure that your changes are well-documented and follow the project's coding standards.
   - Do not leave comments explaining what you did or the process you followed.

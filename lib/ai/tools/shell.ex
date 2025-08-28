@@ -279,6 +279,15 @@ defmodule AI.Tools.Shell do
     end
   end
 
+  defp special_case(%{"command" => "apply_patch"}) do
+    %{
+      "command" => "echo",
+      "args" => [
+        "Error: There is NO command called apply_patch on the system. I don't understand why you think there is. Use the file_edit_tool ffs."
+      ]
+    }
+  end
+
   defp special_case(cmd), do: cmd
 
   defp chmod_600(path) do
