@@ -25,13 +25,29 @@ defmodule Cmd.Conversations do
   end
 
   @impl Cmd
+  def run(%{prune: days} = opts, _subcommands, _unknown) when is_integer(days) do
+    with {:ok, project} <- Store.get_project() do
+      case prune(opts, project) do
+        :ok -> :ok
+        {:error, :cancelled} -> UI.error("Operation cancelled.")
+        {:error, :invalid_prune_value} -> UI.error("Invalid --prune value: #{days}")
+      end
+    else
+      {:error, :project_not_set} ->
+        UI.error("No project selected; use --project or run in a project directory.")
+    end
+  end
+
+  @impl Cmd
   def run(opts, _subcommands, _unknown) do
     with {:ok, project} <- Store.get_project(),
-         :ok <- prune(opts, project),
          :ok <- display(opts, project) do
       :ok
     else
-      {:error, :cancelled} -> UI.error("Operation cancelled.")
+      {:error, :project_not_set} ->
+        UI.error(
+          "No project selected; please specify --project or run inside a project directory."
+        )
     end
   end
 
@@ -55,23 +71,13 @@ defmodule Cmd.Conversations do
 
     if to_delete == [] do
       UI.info("No conversations to prune.")
+      :ok
     else
       UI.info("Preparing to delete the following conversations:")
 
       to_delete
       |> Enum.each(fn conversation ->
-        timestamp = Store.Project.Conversation.timestamp(conversation)
-        question = get_question(conversation)
-
-        [
-          [:cyan, conversation.id, :reset],
-          " [",
-          [:yellow, DateTime.to_iso8601(timestamp), :reset],
-          "]: ",
-          [:light_black, question, :reset]
-        ]
-        |> IO.ANSI.format()
-        |> UI.info()
+        UI.info(conversation.id)
       end)
 
       if UI.confirm("Confirm deletion of the listed conversations. This action cannot be undone.") do
