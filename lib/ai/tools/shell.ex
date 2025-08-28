@@ -1,5 +1,5 @@
 defmodule AI.Tools.Shell do
-  @default_timeout_ms 30_000
+  @default_timeout_ms 5_000
   @max_timeout_ms 300_000
 
   @runner """
@@ -166,8 +166,10 @@ defmodule AI.Tools.Shell do
   end
 
   defp not_apply_patch(commands) do
-    with {:ok, json} <- Jason.encode(commands) do
+    with {:ok, json} <- Jason.encode(commands, pretty: true) do
       if String.contains?(json, "apply_patch") do
+        UI.debug("LLM tried to use apply_patch via shell_tool. AGAIN.", json)
+
         {:denied,
          """
          There is no command called `apply_patch` on the system.

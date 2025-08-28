@@ -189,6 +189,7 @@ defmodule AI.Tools do
   }
 
   @rw_tools %{
+    "apply_patch" => AI.Tools.Shell.ApplyPatch,
     "file_edit_tool" => AI.Tools.File.Edit
   }
 
