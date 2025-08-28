@@ -153,11 +153,9 @@ defmodule AI.Tools.Shell do
     with {:ok, desc} <- AI.Tools.get_arg(opts, "description"),
          {:ok, commands} <- AI.Tools.get_arg(opts, "commands"),
          timeout_ms <- validate_timeout(opts),
-         {:ok, commands} <- not_apply_patch(commands),
          {:ok, project} <- Store.get_project(),
-         {:ok, :approved} <- confirm(commands, desc),
-         {:ok, output} <- run_pipeline(commands, timeout_ms, project.source_root) do
-      {:ok, output}
+         {:ok, :approved} <- confirm(commands, desc) do
+      route(commands, timeout_ms, project.source_root)
     end
   end
 
@@ -165,22 +163,38 @@ defmodule AI.Tools.Shell do
     Services.Approvals.confirm({commands, purpose}, :shell)
   end
 
-  defp not_apply_patch(commands) do
-    with {:ok, json} <- Jason.encode(commands, pretty: true) do
-      if String.contains?(json, "apply_patch") do
-        UI.debug("LLM tried to use apply_patch via shell_tool. AGAIN.", json)
+  defp route(commands, timeout_ms, root) do
+    commands
+    |> Jason.encode(pretty: true)
+    |> case do
+      {:ok, json} ->
+        # Ok, so we can fudge things this way, but the shell_tool is available
+        # outside of edit mode, so we need to double-check that the user
+        # actually wants to allow editing before we let them do it.
+        is_apply_patch? = String.contains?(json, "apply_patch")
+        is_edit_mode? = Settings.get_edit_mode()
 
-        {:denied,
-         """
-         There is no command called `apply_patch` on the system.
-         I don't understand why you think there is.
-         Use the `file_edit_tool` ffs.
-         """}
-      else
-        {:ok, commands}
-      end
-    else
-      _ -> {:ok, commands}
+        cond do
+          is_edit_mode? and is_apply_patch? ->
+            AI.Tools.ApplyPatch.call(%{
+              "patch" => """
+              The LLM actually tried to call a non-existent `apply_patch` command
+              via the `shell_tool`. This was it's tool call, intended to be piped
+              together in the shell. Please do your best with it.
+
+              #{json}
+              """
+            })
+
+          is_apply_patch? and not is_edit_mode? ->
+            {:denied, "Cannot edit files; the user did not pass --edit."}
+
+          true ->
+            run_pipeline(commands, timeout_ms, root)
+        end
+
+      _ ->
+        run_pipeline(commands, timeout_ms, root)
     end
   end
 
