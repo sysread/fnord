@@ -293,13 +293,17 @@ defmodule AI.Tools.Shell do
     ]
   }
 
-  defp special_case(%{"command" => "apply_patch"}), do: @apply_patch
-  defp special_case(%{"command" => "bash apply_patch"}), do: @apply_patch
-  defp special_case(%{"command" => "sh apply_patch"}), do: @apply_patch
-  defp special_case(%{"command" => "bash", "args" => ["apply_patch" | _]}), do: @apply_patch
-  defp special_case(%{"command" => "sh", "args" => ["apply_patch" | _]}), do: @apply_patch
-
-  defp special_case(cmd), do: cmd
+  defp special_case(cmd) do
+    with {:ok, json} <- Jason.encode(cmd) do
+      if String.contains?(json, "apply_patch") do
+        @apply_patch
+      else
+        cmd
+      end
+    else
+      _ -> cmd
+    end
+  end
 
   defp chmod_600(path) do
     # Ensure stdin temp is not world/group readable regardless of umask
