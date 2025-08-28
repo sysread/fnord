@@ -117,7 +117,7 @@ defmodule Services.Approvals.Shell do
     cond do
       !is_binary(cmd) -> {:error, "command must be a string"}
       !is_list(args) -> {:error, "args must be a list"}
-      Enum.all?(args, &is_binary/1) -> {:error, "all args must be strings"}
+      !Enum.all?(args, &is_binary/1) -> {:error, "all args must be strings"}
       true -> :ok
     end
   end
