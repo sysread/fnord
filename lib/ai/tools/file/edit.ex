@@ -113,7 +113,7 @@ defmodule AI.Tools.File.Edit do
   def call(args) do
     with {:ok, file} <- AI.Tools.get_arg(args, "file"),
          {:ok, changes} <- read_changes(args),
-         {:ok, result} <- do_edits_with_spinner(file, changes) do
+         {:ok, result} <- do_edits(file, changes) do
       {:ok, result}
     end
   end
@@ -121,15 +121,25 @@ defmodule AI.Tools.File.Edit do
   # ----------------------------------------------------------------------------
   # Internals
   # ----------------------------------------------------------------------------
-  defp do_edits_with_spinner(file, changes) do
-    start_spinner(file)
-
+  defp do_edits(file, changes) do
     try do
-      do_edits(file, changes)
+      with {:ok, project} <- Store.get_project(),
+           absolute_file <- Store.Project.expand_path(file, project),
+           {:ok, contents} <- apply_changes(absolute_file, changes),
+           {:ok, staged} <- stage_changes(contents),
+           {:ok, diff} <- build_diff(absolute_file, staged),
+           {:ok, :approved} <- confirm_edit(file, diff),
+           {:ok, backup_file} <- backup_file(absolute_file),
+           :ok <- commit_changes(absolute_file, staged) do
+        {:ok,
+         %{
+           file: file,
+           backup_file: backup_file,
+           diff: diff
+         }}
+      end
     rescue
       error ->
-        stop_spinner(:error)
-
         {:error,
          """
          An error occurred while applying changes to the file, but it's not your fault.
@@ -144,43 +154,6 @@ defmodule AI.Tools.File.Edit do
          #{Exception.format_stacktrace(__STACKTRACE__)}
          ```
          """}
-    end
-  end
-
-  defp start_spinner(file) do
-    if UI.colorize?() do
-      Owl.Spinner.start(
-        id: :file_edit_tool,
-        labels: [
-          ok: "Changes ready for #{file}",
-          error: "Failed to make changes to #{file}",
-          processing: "Preparing changes for #{file}"
-        ]
-      )
-    end
-  end
-
-  defp stop_spinner(resolution) do
-    if UI.colorize?() do
-      Owl.Spinner.stop(id: :file_edit_tool, resolution: resolution)
-    end
-  end
-
-  defp do_edits(file, changes) do
-    with {:ok, project} <- Store.get_project(),
-         absolute_file <- Store.Project.expand_path(file, project),
-         {:ok, contents} <- apply_changes(absolute_file, changes),
-         {:ok, staged} <- stage_changes(contents),
-         {:ok, diff} <- build_diff(absolute_file, staged),
-         {:ok, :approved} <- confirm_edit(file, diff),
-         {:ok, backup_file} <- backup_file(absolute_file),
-         :ok <- commit_changes(absolute_file, staged) do
-      {:ok,
-       %{
-         file: file,
-         backup_file: backup_file,
-         diff: diff
-       }}
     end
   end
 
@@ -210,7 +183,6 @@ defmodule AI.Tools.File.Edit do
 
   @spec confirm_edit(binary, binary) :: {:ok, :approved} | {:error, term}
   defp confirm_edit(file, diff) do
-    stop_spinner(:ok)
     Services.Approvals.confirm({file, colorize_diff(diff)}, :edit)
   end
 
