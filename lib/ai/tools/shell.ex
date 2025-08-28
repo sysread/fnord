@@ -46,6 +46,8 @@ defmodule AI.Tools.Shell do
         description: """
         Executes a series of shell commands, each piped to the next, and returns the final output.
 
+        ALWAYS prefer a built-in tool call over this tool when available.
+
         The user must approve execution of this command before it is run.
         It is essential to remember that you cannot launch interactive commands!
         Commands that require user input or interaction will fail after a timeout, resulting in a poor experience for the user.
