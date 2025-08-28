@@ -1,6 +1,7 @@
 defmodule Services.Approvals.Shell do
-  @behaviour Services.Approvals.Workflow
-
+  # ----------------------------------------------------------------------------
+  # Globals
+  # ----------------------------------------------------------------------------
   @approve "Approve"
   @persistent "Approve persistently"
   @deny "Deny"
@@ -72,24 +73,56 @@ defmodule Services.Approvals.Shell do
     yarn
   /
 
+  def preapproved_cmds, do: @preapproved
+
+  # ----------------------------------------------------------------------------
+  # Behaviour implementation
+  # ----------------------------------------------------------------------------
+  @behaviour Services.Approvals.Workflow
+
   @impl Services.Approvals.Workflow
   def confirm(state, {commands, purpose}) when is_list(commands) do
-    stages = Enum.map(commands, &extract_prefix/1)
+    with :ok <- validate_commands(commands) do
+      stages = Enum.map(commands, &extract_prefix/1)
 
-    if Enum.all?(stages, &approved?(state, &1)) do
-      {:approved, state}
-    else
-      if !UI.is_tty?() do
-        UI.error("Shell", @no_tty)
-        {:denied, @no_tty, state}
+      if Enum.all?(stages, &approved?(state, &1)) do
+        {:approved, state}
       else
-        render_pipeline(commands, purpose)
-        prompt(state, stages)
+        if !UI.is_tty?() do
+          UI.error("Shell", @no_tty)
+          {:denied, @no_tty, state}
+        else
+          render_pipeline(commands, purpose)
+          prompt(state, stages)
+        end
       end
+    else
+      {:error, reason} -> {:denied, reason, state}
     end
   end
 
-  def preapproved_cmds, do: @preapproved
+  # ----------------------------------------------------------------------------
+  # Input validation
+  # ----------------------------------------------------------------------------
+  defp validate_commands([]), do: :ok
+
+  defp validate_commands([cmd | rest]) do
+    with :ok <- validate_command(cmd),
+         :ok <- validate_commands(rest) do
+      :ok
+    end
+  end
+
+  defp validate_command(%{"command" => cmd, "args" => args}) do
+    cond do
+      !is_binary(cmd) -> {:error, "command must be a string"}
+      !is_list(args) -> {:error, "args must be a list"}
+      Enum.all?(args, &is_binary/1) -> {:error, "all args must be strings"}
+      true -> :ok
+    end
+  end
+
+  defp validate_command(_), do: {:error, "expected object with keys 'command' and 'args'"}
 
   # ----------------------------------------------------------------------------
   # Approval checks

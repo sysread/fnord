@@ -279,7 +279,10 @@ defmodule AI.Tools do
          {:ok, args} <- module.read_args(args),
          :ok <- validate_required_args(tool, args, tools) do
       if System.get_env("FNORD_DEBUG_TOOLS") do
-        UI.debug("Performing tool call for <#{tool}> with args: #{inspect(args)}")
+        UI.debug("Performing tool call", """
+        # #{tool}
+        #{inspect(args, pretty: true)}
+        """)
       end
 
       try do
@@ -289,18 +292,34 @@ defmodule AI.Tools do
         # Convert results (or error) to a string for output
         |> case do
           # Binary responses
-          {:ok, response} when is_binary(response) -> {:ok, response}
-          {:error, reason} when is_binary(reason) -> {:error, reason}
+          {:ok, response} when is_binary(response) ->
+            {:ok, response}
+
+          {:error, reason} when is_binary(reason) ->
+            {:error, reason}
+
           # Structured responses
-          {:ok, response} -> Jason.encode(response)
-          {:error, reason} -> {:error, inspect(reason)}
+          {:ok, response} ->
+            Jason.encode(response)
+
+          {:error, reason} ->
+            {:error, inspect(reason, pretty: true)}
+
           # Empty responses
-          :ok -> {:ok, "#{tool} completed successfully"}
-          :error -> {:error, "#{tool} failed with an unknown error"}
+          :ok ->
+            {:ok, "#{tool} completed successfully"}
+
+          :error ->
+            {:error, "#{tool} failed with an unknown error"}
+
           # Frob errors
-          {:error, code, msg} -> {:error, "#{tool} failed with code #{code}: #{msg}"}
+          {:error, code, msg} ->
+            {:error, "#{tool} failed with code #{code}: #{msg}"}
+
           # Others
-          otherwise -> {:error, "Unexpected result from tool <#{tool}>: #{inspect(otherwise)}"}
+          otherwise ->
+            {:error,
+             "Unexpected result from tool <#{tool}>:\n#{inspect(otherwise, pretty: true)}"}
         end
       rescue
         e ->
@@ -331,9 +350,15 @@ defmodule AI.Tools do
         module.ui_note_on_request(processed_args)
       rescue
         e ->
-          UI.error(
-            "Error logging tool call request for <#{tool}> (args: #{inspect(args)})",
-            inspect(e)
+          UI.debug(
+            "Error logging tool call request",
+            """
+            # #{tool}
+            #{inspect(args, pretty: true)}
+
+            # Error
+            #{Exception.format(:error, e, __STACKTRACE__)}
+            """
           )
 
           nil
@@ -343,9 +368,15 @@ defmodule AI.Tools do
         nil
 
       error ->
-        UI.error(
-          "Error logging tool call request for <#{tool}> (args: #{inspect(args)})",
-          inspect(error)
+        UI.debug(
+          "Error logging tool call request",
+          """
+          # #{tool}
+          #{inspect(args, pretty: true)}
+
+          # Error
+          #{inspect(error, pretty: true)}
+          """
         )
 
         nil
@@ -363,9 +394,20 @@ defmodule AI.Tools do
       rescue
         e in ArgumentError ->
           {
-            "Error logging tool call result for <#{tool}> (args: #{inspect(args)})",
-            inspect(e)
+            "Error logging tool call result",
+            """
+            # #{tool}
+            #{inspect(args, pretty: true)}
+
+            # Result
+            #{inspect(result, pretty: true)}
+
+            # Error
+            #{Exception.format(:error, e, __STACKTRACE__)}
+            """
           }
+
+          nil
       end
     end
   end
@@ -394,20 +436,32 @@ defmodule AI.Tools do
         fun.(args)
       rescue
         e in ArgumentError ->
-          UI.error(
-            "AI.Tools.with_args/3 failed for <#{tool}> with args: #{inspect(args)}",
-            Exception.format(:error, e, __STACKTRACE__)
+          UI.debug(
+            "AI.Tools.with_args/3 error",
+            """
+            # #{tool}
+            #{inspect(args, pretty: true)}
+
+            # Error
+            #{Exception.format(:error, e, __STACKTRACE__)}
+            """
           )
 
           {:error, :invalid_argument, e.message}
 
         e ->
-          UI.error(
-            "AI.Tools.with_args/3 failed for <#{tool}> with args: #{inspect(args)}",
-            Exception.format(:error, e, __STACKTRACE__)
+          UI.debug(
+            "AI.Tools.with_args/3 error",
+            """
+            # #{tool}
+            #{inspect(args, pretty: true)}
+
+            # Error
+            #{Exception.format(:error, e, __STACKTRACE__)}
+            """
           )
 
-          {:error, "An unexpected error occurred: #{inspect(e)}"}
+          {:error, "An unexpected error occurred:\n#{inspect(e)}"}
       end
     end
   end

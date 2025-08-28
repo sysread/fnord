@@ -26,6 +26,10 @@ defmodule AI.Tools.Shell do
     {"shell> #{command}", desc}
   end
 
+  def ui_note_on_request(other) do
+    {"shell", "Invalid JSON args: #{inspect(other)}"}
+  end
+
   @impl AI.Tools
   def ui_note_on_result(%{"commands" => commands}, result) do
     command = format_commands(commands)
@@ -53,16 +57,26 @@ defmodule AI.Tools.Shell do
         Commands that require user input or interaction will fail after a timeout, resulting in a poor experience for the user.
         Individual commands may not include redirection, pipes, command substitution, or other complex shell operators.
 
-        IMPORTANT: This uses elixir's System.cmd/3 to execute commands.
-                   It *will* `cd` into the project's source root before executing commands.
-                   Some commands DO behave differently without a tty.
-                   For example, `rg` REQUIRES a path argument when not run in a tty.
+        Note: There is NO command called "apply_patch" on the system.
+              I don't understand why you think there is.
 
-        IMPORTANT: Commands are `|`'d together as a pipeline.
-                   Commands are NOT run sequentially and independently!
-                   If you need to run independent commands, you must make multiple tool calls.
+        IMPORTANT: `sed`, `awk`, `find`, and other tools with the potential to
+                   modify files ALL require explicit user approval on every
+                   invocation. As a rule, if you can use a built-in tool to
+                   accomplish the same thing, that is preferable, as the user
+                   may not be babysitting this process.
 
-        The following simple commands are preapproved and will execute without requiring user approval:
+        IMPORTANT: Commands are PIPED (`|`) together! Commands are NOT run
+                   sequentially and independently! If you need to run
+                   independent commands, you must make multiple tool calls.
+
+        IMPORTANT: This uses elixir's System.cmd/3 to execute commands. It
+                   *will* `cd` into the project's source root before executing
+                   commands. Some commands DO behave differently without a tty.
+                   For example, `rg` REQUIRES a path argument when not run in a
+                   tty.
+
+        The following commands are preapproved and will execute without requiring user approval:
         #{allowed}
         """,
         parameters: %{
