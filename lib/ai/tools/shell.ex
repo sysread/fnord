@@ -153,6 +153,7 @@ defmodule AI.Tools.Shell do
     with {:ok, desc} <- AI.Tools.get_arg(opts, "description"),
          {:ok, commands} <- AI.Tools.get_arg(opts, "commands"),
          timeout_ms <- validate_timeout(opts),
+         {:ok, commands} <- not_apply_patch(commands),
          {:ok, project} <- Store.get_project(),
          {:ok, :approved} <- confirm(commands, desc),
          {:ok, output} <- run_pipeline(commands, timeout_ms, project.source_root) do
@@ -162,6 +163,23 @@ defmodule AI.Tools.Shell do
 
   defp confirm(commands, purpose) do
     Services.Approvals.confirm({commands, purpose}, :shell)
+  end
+
+  defp not_apply_patch(commands) do
+    with {:ok, json} <- Jason.encode(commands) do
+      if String.contains?(json, "apply_patch") do
+        {:denied,
+         """
+         There is no command called `apply_patch` on the system.
+         I don't understand why you think there is.
+         Use the `file_edit_tool` ffs.
+         """}
+      else
+        {:ok, commands}
+      end
+    else
+      _ -> {:ok, commands}
+    end
   end
 
   defp run_pipeline(commands, timeout_ms, root, input \\ nil)
@@ -279,31 +297,7 @@ defmodule AI.Tools.Shell do
     end
   end
 
-  # ----------------------------------------------------------------------------
-  # OMFG
-  # ----------------------------------------------------------------------------
-  @apply_patch %{
-    "command" => "echo",
-    "args" => [
-      """
-      There is no command called `apply_patch` on the system.
-      I don't understand why you think there is.
-      Use the `file_edit_tool` ffs.
-      """
-    ]
-  }
-
-  defp special_case(cmd) do
-    with {:ok, json} <- Jason.encode(cmd) do
-      if String.contains?(json, "apply_patch") do
-        @apply_patch
-      else
-        cmd
-      end
-    else
-      _ -> cmd
-    end
-  end
+  defp special_case(cmd), do: cmd
 
   defp chmod_600(path) do
     # Ensure stdin temp is not world/group readable regardless of umask
