@@ -112,4 +112,3 @@ defmodule Cmd.ConversationsTest do
     :meck.unload(UI)
   end
 end
-
