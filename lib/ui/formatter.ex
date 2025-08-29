@@ -28,28 +28,35 @@ defmodule UI.Formatter do
         formatter ->
           shell = System.get_env("SHELL") || "/bin/sh"
 
-          with {:ok, tmpfile} <- Briefly.create(),
-               :ok <- File.write(tmpfile, input) do
-            Task.async(fn ->
-              System.cmd(shell, ["-c", "cat #{tmpfile} | #{formatter}"], stderr_to_stdout: true)
-            end)
-            |> Task.await(@timeout_ms)
-            |> case do
-              {output, 0} ->
-                output
+          try do
+            with {:ok, tmpfile} <- Briefly.create(),
+                 :ok <- File.write(tmpfile, input) do
+              Task.async(fn ->
+                System.cmd(shell, ["-c", "cat #{tmpfile} | #{formatter}"], stderr_to_stdout: true)
+              end)
+              |> Task.await(@timeout_ms)
+              |> case do
+                {output, 0} ->
+                  output
 
-              {_, exit_code} ->
-                Logger.warning("Formatter command failed: #{formatter} (exit code: #{exit_code})")
-                input
+                {_, exit_code} ->
+                  Logger.warning(
+                    "Formatter command failed: #{formatter} (exit code: #{exit_code})"
+                  )
 
-              nil ->
-                Logger.warning("Formatter command failed: #{formatter}")
+                  input
+
+                nil ->
+                  Logger.warning("Formatter command failed: #{formatter}")
+                  input
+              end
+            else
+              {:error, reason} ->
+                Logger.warning("'#{formatter}' error: #{inspect(reason, pretty: true)}")
                 input
             end
-          else
-            {:error, reason} ->
-              Logger.warning("'#{formatter}' error: #{inspect(reason, pretty: true)}")
-              input
+          after
+            Briefly.cleanup()
           end
       end
     end
