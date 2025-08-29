@@ -137,6 +137,16 @@ defmodule AI.Tools.File.Edit do
            backup_file: backup_file,
            diff: diff
          }}
+      else
+        :enoent ->
+          {:error,
+           """
+           #{file} does not exist.
+           #Use the `shell_tool` to create it first with `touch`.
+           """}
+
+        other ->
+          other
       end
     rescue
       error ->

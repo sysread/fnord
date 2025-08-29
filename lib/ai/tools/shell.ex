@@ -179,7 +179,7 @@ defmodule AI.Tools.Shell do
 
         cond do
           is_read_file? ->
-            UI.info("DERP", "The LLM attempted to read a file via sed. Re-routing.")
+            UI.info("Oof", "The LLM tried to read a file with sed. Rerouting.")
 
             [start_line, end_line, file] =
               Regex.run(~r/^sed -n (\d+),(\d+)p (.+)$/, json, capture: :all_but_first)
@@ -192,7 +192,7 @@ defmodule AI.Tools.Shell do
             })
 
           is_edit_mode? and is_apply_patch? ->
-            UI.info("DERP", "The LLM attempted to apply a patch via shell_tool. Re-routing.")
+            UI.info("Oof", "The LLM attempted to apply a patch with the shell_tool. Rerouting.")
 
             AI.Tools.ApplyPatch.call(%{
               "patch" => """
