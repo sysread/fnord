@@ -46,6 +46,10 @@ defmodule UI.Formatter do
                 Logger.warning("Formatter command failed: #{formatter}")
                 input
             end
+          else
+            {:error, reason} ->
+              Logger.warning("'#{formatter}' error: #{inspect(reason, pretty: true)}")
+              input
           end
       end
     end
