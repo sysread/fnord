@@ -16,9 +16,24 @@ defmodule Cmd.Config.MCP do
         |> Jason.encode!(pretty: true)
         |> IO.puts()
 
-      true ->
-        if opts[:project], do: Settings.set_project(opts[:project])
+      # project scope explicitly via --project
+      opts[:project] ->
+        # verify project configuration exists in settings
+        case Settings.get_project_data(settings, opts[:project]) do
+          nil ->
+            UI.error("Project not specified or not found")
 
+          _proj_data ->
+            # activate project context and print config
+            Settings.set_project(opts[:project])
+
+            Settings.MCP.get_config(settings, :project)
+            |> Jason.encode!(pretty: true)
+            |> IO.puts()
+        end
+
+      # default to current project in settings
+      true ->
         case Settings.get_selected_project() do
           {:ok, _proj} ->
             Settings.MCP.get_config(settings, :project)

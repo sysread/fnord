@@ -87,13 +87,19 @@ defmodule Cmd.Config.Approvals do
   end
 
   defp build_approve(settings, scope, kind, pattern) do
-    try do
-      new_settings = Settings.Approvals.approve(settings, scope, kind, pattern)
-      patterns = Settings.Approvals.get_approvals(new_settings, scope, kind)
-      {:ok, %{kind => patterns}}
-    rescue
-      e in Regex.CompileError ->
-        {:error, "Invalid regex: #{e.message}"}
+    # validate that the pattern is a valid regex
+    case Regex.compile(pattern) do
+      {:error, reason} ->
+        # reason is a tuple {message, position}
+        msg = elem(reason, 0)
+        msg_str = to_string(msg)
+        {:error, "Invalid regex: #{msg_str}"}
+      {:ok, _regex} ->
+        # add the approved prefix and output updated patterns
+        new_settings = Settings.Approvals.approve(settings, scope, kind, pattern)
+        patterns = Settings.Approvals.get_approvals(new_settings, scope, kind)
+        {:ok, %{kind => patterns}}
     end
   end
+
 end
