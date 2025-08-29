@@ -111,14 +111,10 @@ defmodule AI.Tools.File.Edit do
   @spec call(map) :: {:ok, edit_result} | {:error, term}
   @impl AI.Tools
   def call(args) do
-    try do
-      with {:ok, file} <- AI.Tools.get_arg(args, "file"),
-           {:ok, changes} <- read_changes(args),
-           {:ok, result} <- do_edits(file, changes) do
-        {:ok, result}
-      end
-    after
-      Briefly.cleanup()
+    with {:ok, file} <- AI.Tools.get_arg(args, "file"),
+         {:ok, changes} <- read_changes(args),
+         {:ok, result} <- do_edits(file, changes) do
+      {:ok, result}
     end
   end
 

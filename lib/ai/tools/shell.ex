@@ -281,33 +281,29 @@ defmodule AI.Tools.Shell do
   end
 
   defp shell_out(%{"command" => command, "args" => args}, timeout_ms, root, stdin) do
-    try do
-      with {:ok, tmp} <- Briefly.create(),
-           :ok <- File.write(tmp, stdin, [:binary]),
-           :ok <- chmod_600(tmp),
-           {:ok, runner} <- Briefly.create(),
-           :ok <- File.write(runner, @runner),
-           :ok <- File.chmod(runner, 0o700) do
-        run_with_timeout(
-          timeout_ms,
-          fn ->
-            try do
-              {:ok, System.cmd(runner, [tmp, command | args], cd: root, stderr_to_stdout: true)}
-            after
-              # normal completion cleanup
-              File.rm(tmp)
-              File.rm(runner)
-            end
-          end,
-          on_timeout: fn ->
-            # timeout cleanup fallback
+    with {:ok, tmp} <- Briefly.create(),
+         :ok <- File.write(tmp, stdin, [:binary]),
+         :ok <- chmod_600(tmp),
+         {:ok, runner} <- Briefly.create(),
+         :ok <- File.write(runner, @runner),
+         :ok <- File.chmod(runner, 0o700) do
+      run_with_timeout(
+        timeout_ms,
+        fn ->
+          try do
+            {:ok, System.cmd(runner, [tmp, command | args], cd: root, stderr_to_stdout: true)}
+          after
+            # normal completion cleanup
             File.rm(tmp)
             File.rm(runner)
           end
-        )
-      end
-    after
-      Briefly.cleanup()
+        end,
+        on_timeout: fn ->
+          # timeout cleanup fallback
+          File.rm(tmp)
+          File.rm(runner)
+        end
+      )
     end
   end
 
