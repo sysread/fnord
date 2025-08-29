@@ -153,9 +153,8 @@ defmodule AI.Tools.Shell do
     with {:ok, desc} <- AI.Tools.get_arg(opts, "description"),
          {:ok, commands} <- AI.Tools.get_arg(opts, "commands"),
          timeout_ms <- validate_timeout(opts),
-         {:ok, project} <- Store.get_project(),
-         {:ok, :approved} <- confirm(commands, desc) do
-      route(commands, timeout_ms, project.source_root)
+         {:ok, project} <- Store.get_project() do
+      route(commands, desc, timeout_ms, project.source_root)
     end
   end
 
@@ -163,7 +162,10 @@ defmodule AI.Tools.Shell do
     Services.Approvals.confirm({commands, purpose}, :shell)
   end
 
-  defp route(commands, timeout_ms, root) do
+  # ----------------------------------------------------------------------------
+  # The fact that this function exists at all is so, *so* frustrating.
+  # ----------------------------------------------------------------------------
+  defp route(commands, desc, timeout_ms, root) do
     commands
     |> Jason.encode(pretty: true)
     |> case do
@@ -173,9 +175,25 @@ defmodule AI.Tools.Shell do
         # actually wants to allow editing before we let them do it.
         is_apply_patch? = String.contains?(json, "apply_patch")
         is_edit_mode? = Settings.get_edit_mode()
+        is_read_file? = Regex.match?(~r/^sed -n \d+,\d+p /, json)
 
         cond do
+          is_read_file? ->
+            UI.info("DERP", "The LLM attempted to read a file via sed. Re-routing.")
+
+            [start_line, end_line, file] =
+              Regex.run(~r/^sed -n (\d+),(\d+)p (.+)$/, json, capture: :all_but_first)
+
+            AI.Tools.File.Contents.call(%{
+              "file" => file,
+              "line_numbers" => true,
+              "start_line" => String.to_integer(start_line),
+              "end_line" => String.to_integer(end_line)
+            })
+
           is_edit_mode? and is_apply_patch? ->
+            UI.info("DERP", "The LLM attempted to apply a patch via shell_tool. Re-routing.")
+
             AI.Tools.ApplyPatch.call(%{
               "patch" => """
               The LLM actually tried to call a non-existent `apply_patch` command
@@ -190,11 +208,17 @@ defmodule AI.Tools.Shell do
             {:denied, "Cannot edit files; the user did not pass --edit."}
 
           true ->
-            run_pipeline(commands, timeout_ms, root)
+            run_as_shell_commands(commands, desc, timeout_ms, root)
         end
 
       _ ->
-        run_pipeline(commands, timeout_ms, root)
+        run_as_shell_commands(commands, desc, timeout_ms, root)
+    end
+  end
+
+  defp run_as_shell_commands(commands, desc, timeout_ms, root) do
+    with {:ok, :approved} <- confirm(commands, desc) do
+      run_pipeline(commands, timeout_ms, root)
     end
   end
 
