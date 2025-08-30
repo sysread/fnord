@@ -94,6 +94,7 @@ defmodule Cmd.Config.Approvals do
         msg = elem(reason, 0)
         msg_str = to_string(msg)
         {:error, "Invalid regex: #{msg_str}"}
+
       {:ok, _regex} ->
         # add the approved prefix and output updated patterns
         new_settings = Settings.Approvals.approve(settings, scope, kind, pattern)
@@ -101,5 +102,4 @@ defmodule Cmd.Config.Approvals do
         {:ok, %{kind => patterns}}
     end
   end
-
 end

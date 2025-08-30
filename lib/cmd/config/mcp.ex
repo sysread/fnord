@@ -128,6 +128,15 @@ defmodule Cmd.Config.MCP do
     end
   end
 
+  def run(opts, [:mcp, :test], _unknown) do
+    if opts[:project], do: Settings.set_project(opts[:project])
+    Services.MCP.start()
+
+    Services.MCP.test()
+    |> Jason.encode!(pretty: true)
+    |> IO.puts()
+  end
+
   # ----------------------------------------------------------------------------
   # Helpers
   # ----------------------------------------------------------------------------

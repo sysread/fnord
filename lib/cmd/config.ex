@@ -284,6 +284,21 @@ defmodule Cmd.Config do
                     required: false
                   ]
                 ]
+              ],
+              test: [
+                name: "test",
+                about: "Validate configured MCP servers and show discovered tools",
+                options: [
+                  project: Cmd.project_arg()
+                ],
+                flags: [
+                  global: [
+                    long: "--global",
+                    short: "-g",
+                    help: "Use global scope",
+                    required: false
+                  ]
+                ]
               ]
             ]
           ]
