@@ -4,6 +4,7 @@ defmodule Services.MCPTest do
   setup do
     # Stub effective_config to simulate two servers
     :meck.new(Settings.MCP, [:non_strict])
+
     :meck.expect(Settings.MCP, :effective_config, fn _settings ->
       %{"enabled" => true, "servers" => %{"srv1" => %{}, "srv2" => %{}}}
     end)
@@ -23,10 +24,11 @@ defmodule Services.MCPTest do
     # Stub Hermes.Client.Base to simulate successful responses
     :meck.new(Hermes.Client.Base, [:non_strict, :passthrough])
 
-    tools_resp = Hermes.MCP.Response.from_json_rpc(%{
-      "result" => %{"tools" => [%{"name" => "toolX", "description" => "descX"}]},
-      "id" => "1"
-    })
+    tools_resp =
+      Hermes.MCP.Response.from_json_rpc(%{
+        "result" => %{"tools" => [%{"name" => "toolX", "description" => "descX"}]},
+        "id" => "1"
+      })
 
     :meck.expect(Hermes.Client.Base, :list_tools, fn _instance ->
       {:ok, tools_resp}

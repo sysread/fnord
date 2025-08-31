@@ -118,7 +118,6 @@ defmodule Services.MCP do
       # Hermes.Base shape
       %{} = info -> {:ok, info}
       nil -> {:error, :not_initialized}
-
       # Stubbed shapes
       {:ok, %{} = info} -> {:ok, info}
       {:error, %Error{reason: reason}} -> {:error, reason}
@@ -128,6 +127,6 @@ defmodule Services.MCP do
 
   @spec tool_blurb(tool :: map()) :: map()
   defp tool_blurb(tool) do
-    %{"name" => tool["name"], "description" => Map.get(tool, "description", "")}  
+    %{"name" => tool["name"], "description" => Map.get(tool, "description", "")}
   end
 end
