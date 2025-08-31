@@ -175,22 +175,8 @@ defmodule AI.Tools.Shell do
         # actually wants to allow editing before we let them do it.
         is_apply_patch? = String.contains?(json, "apply_patch")
         is_edit_mode? = Settings.get_edit_mode()
-        is_read_file? = Regex.match?(~r/^sed -n \d+,\d+p /, json)
 
         cond do
-          is_read_file? ->
-            UI.info("Oof", "The LLM tried to read a file with sed. Rerouting.")
-
-            [start_line, end_line, file] =
-              Regex.run(~r/^sed -n (\d+),(\d+)p (.+)$/, json, capture: :all_but_first)
-
-            AI.Tools.File.Contents.call(%{
-              "file" => file,
-              "line_numbers" => true,
-              "start_line" => String.to_integer(start_line),
-              "end_line" => String.to_integer(end_line)
-            })
-
           is_edit_mode? and is_apply_patch? ->
             UI.info("Oof", "The LLM attempted to apply a patch with the shell_tool. Rerouting.")
 
@@ -213,6 +199,33 @@ defmodule AI.Tools.Shell do
 
       _ ->
         run_as_shell_commands(commands, desc, timeout_ms, root)
+    end
+  end
+
+  # ----------------------------------------------------------------------------
+  # This one is also super annoying since the file_contents_tool is already
+  # available, and sed can be used to modify files, so we don't want to
+  # auto-approve it.
+  # ----------------------------------------------------------------------------
+  defp run_as_shell_commands(
+         [%{"command" => "sed", "args" => ["-n", range, file]}],
+         _desc,
+         _timeout_ms,
+         _root
+       ) do
+    UI.info("Oof", "The LLM tried to read a file with sed. Rerouting.")
+
+    [start_line, end_line] = Regex.run(~r/^(\d+),(\d+)p$/, range, capture: :all_but_first)
+
+    AI.Tools.File.Contents.call(%{
+      "file" => file,
+      "line_numbers" => true,
+      "start_line" => String.to_integer(start_line),
+      "end_line" => String.to_integer(end_line)
+    })
+    |> case do
+      {:ok, content} -> {:ok, {content, 0}}
+      {:error, reason} -> {:ok, {"Error reading file #{file}: #{reason}", 1}}
     end
   end
 
