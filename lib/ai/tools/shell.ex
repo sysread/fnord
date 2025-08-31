@@ -346,7 +346,15 @@ defmodule AI.Tools.Shell do
 
   defp run_with_timeout(timeout, fun, opts \\ []) do
     on_timeout = Keyword.get(opts, :on_timeout, fn -> :ok end)
-    task = Task.async(fn -> fun.() end)
+
+    task =
+      Task.async(fn ->
+        try do
+          fun.()
+        rescue
+          e -> {:error, e}
+        end
+      end)
 
     case Task.yield(task, timeout) || Task.shutdown(task, :brutal_kill) do
       {:ok, result} ->

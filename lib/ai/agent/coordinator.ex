@@ -301,6 +301,15 @@ defmodule AI.Agent.Coordinator do
   defp get_completion(state, replay \\ false) do
     msgs = Services.Conversation.get_messages(state.conversation)
 
+    # Save the current conversation to the store, so that it is available in
+    # case of a crash during the completion process.
+    with {:ok, conversation} <- Services.Conversation.save(state.conversation) do
+      UI.report_step("Conversation state saved", conversation.id)
+    else
+      {:error, reason} ->
+        UI.error("Failed to save conversation state", inspect(reason))
+    end
+
     AI.Agent.get_completion(state.agent,
       log_msgs: true,
       log_tool_calls: true,
