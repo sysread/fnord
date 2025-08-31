@@ -392,4 +392,8 @@ defmodule AI.Tools.Shell do
     [command | args]
     |> Enum.join(" ")
   end
+
+  defp format_command(invalid_format) do
+    "Invalid command format: #{inspect(invalid_format, pretty: true)}"
+  end
 end
