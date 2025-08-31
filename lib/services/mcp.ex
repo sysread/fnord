@@ -58,26 +58,29 @@ defmodule Services.MCP do
   defp safe_list_tools(server) do
     instance = MCPSup.instance_name(server)
 
-    case client_mod().list_tools(instance) do
-      # Hermes.Base returns {:ok, Response.t()}
-      {:ok, %Response{} = resp} ->
-        result = Response.get_result(resp)
-        tools = Map.get(result, "tools", [])
-        {:ok, tools}
+    try do
+      case client_mod().list_tools(instance) do
+        {:ok, %Response{} = resp} ->
+          result = Response.get_result(resp)
+          tools = Map.get(result, "tools", [])
+          {:ok, tools}
 
-      # Some stubs might return {:ok, list}
-      {:ok, tools} when is_list(tools) ->
-        {:ok, tools}
+        {:ok, tools} when is_list(tools) ->
+          {:ok, tools}
 
-      # Or {:ok, map} where map contains "tools"
-      {:ok, %{"tools" => tools}} when is_list(tools) ->
-        {:ok, tools}
+        {:ok, %{"tools" => tools}} when is_list(tools) ->
+          {:ok, tools}
 
-      {:error, %Error{reason: reason}} ->
-        {:error, reason}
+        {:error, %Error{reason: reason}} ->
+          {:error, reason}
 
-      {:error, reason} ->
-        {:error, reason}
+        {:error, reason} ->
+          {:error, reason}
+      end
+    rescue
+      e -> {:error, Exception.message(e)}
+    catch
+      :exit, reason -> {:error, reason}
     end
   end
 
@@ -114,14 +117,18 @@ defmodule Services.MCP do
   defp safe_get_info(server) do
     instance = MCPSup.instance_name(server)
 
-    case client_mod().get_server_info(instance) do
-      # Hermes.Base shape
-      %{} = info -> {:ok, info}
-      nil -> {:error, :not_initialized}
-      # Stubbed shapes
-      {:ok, %{} = info} -> {:ok, info}
-      {:error, %Error{reason: reason}} -> {:error, reason}
-      {:error, reason} -> {:error, reason}
+    try do
+      case client_mod().get_server_info(instance) do
+        %{} = info -> {:ok, info}
+        nil -> {:error, :not_initialized}
+        {:ok, %{} = info} -> {:ok, info}
+        {:error, %Error{reason: reason}} -> {:error, reason}
+        {:error, reason} -> {:error, reason}
+      end
+    rescue
+      e -> {:error, Exception.message(e)}
+    catch
+      :exit, reason -> {:error, reason}
     end
   end
 
