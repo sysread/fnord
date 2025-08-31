@@ -143,4 +143,98 @@ defmodule Cmd.ConfigMCPTest do
       assert log =~ "Server 'nope' not found"
     end
   end
+
+  describe "mcp commands via opts[:name]" do
+    test "add via opts" do
+      out =
+        capture_io(fn ->
+          MCP.run(
+            %{global: true, name: "srv", transport: "stdio", command: "foo"},
+            [:mcp, :add],
+            []
+          )
+        end)
+
+      assert {:ok, %{"srv" => _}} = Jason.decode(out)
+    end
+
+    test "error when no server name" do
+      log =
+        capture_log(fn ->
+          MCP.run(%{global: true}, [:mcp, :add], [])
+        end)
+
+      assert log =~ "Server name is required"
+    end
+
+    test "update via opts" do
+      # seed initial server for update
+      capture_io(fn ->
+        MCP.run(
+          %{global: true, name: "foo", transport: "stdio", command: "initial"},
+          [:mcp, :add],
+          []
+        )
+      end)
+
+      out =
+        capture_io(fn ->
+          MCP.run(
+            %{global: true, name: "foo", transport: "stdio", command: "updated"},
+            [:mcp, :update],
+            []
+          )
+        end)
+
+      assert {:ok, %{"foo" => %{"command" => "updated"}}} = Jason.decode(out)
+    end
+
+    test "error when no server name for update" do
+      log =
+        capture_log(fn ->
+          MCP.run(
+            %{global: true, transport: "stdio", command: "foo"},
+            [:mcp, :update],
+            []
+          )
+        end)
+
+      assert log =~ "Server name is required"
+    end
+
+    test "remove via opts" do
+      # seed server for removal
+      capture_io(fn ->
+        MCP.run(
+          %{global: true, name: "foo", transport: "stdio", command: "init"},
+          [:mcp, :add],
+          []
+        )
+      end)
+
+      out =
+        capture_io(fn ->
+          MCP.run(
+            %{global: true, name: "foo"},
+            [:mcp, :remove],
+            []
+          )
+        end)
+
+      assert {:ok, %{}} = Jason.decode(out)
+    end
+
+    test "error when no server name for remove" do
+      log =
+        capture_log(fn ->
+          MCP.run(
+            %{global: true},
+            [:mcp, :remove],
+            []
+          )
+        end)
+
+      assert log =~ "Server name is required"
+    end
+  end
 end

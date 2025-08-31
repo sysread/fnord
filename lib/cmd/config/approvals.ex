@@ -1,5 +1,6 @@
 defmodule Cmd.Config.Approvals do
   @moduledoc false
+  alias Cmd.Config.Utils
 
   @spec run(map(), list(), list()) :: :ok
   def run(opts, [:approvals], _unknown) do
@@ -27,7 +28,8 @@ defmodule Cmd.Config.Approvals do
     end
   end
 
-  def run(opts, [:approve], [pattern]) do
+  # Unified approve entry
+  def run(opts, [:approve], args) do
     cond do
       opts[:global] && opts[:project] ->
         UI.error("Cannot use both --global and --project.")
@@ -36,18 +38,24 @@ defmodule Cmd.Config.Approvals do
         UI.error("Missing --kind option.")
 
       true ->
-        scope = if opts[:global], do: :global, else: :project
-        if scope == :project && opts[:project], do: Settings.set_project(opts[:project])
-        settings = Settings.new()
-
-        case build_approve(settings, scope, opts[:kind], pattern) do
-          {:ok, data} ->
-            data
-            |> Jason.encode!(pretty: true)
-            |> IO.puts()
-
+        case Utils.require_key(opts, args, :pattern, "Pattern") do
           {:error, msg} ->
             UI.error(msg)
+
+          {:ok, pattern} ->
+            scope = if opts[:global], do: :global, else: :project
+            if scope == :project && opts[:project], do: Settings.set_project(opts[:project])
+            settings = Settings.new()
+
+            case build_approve(settings, scope, opts[:kind], pattern) do
+              {:ok, data} ->
+                data
+                |> Jason.encode!(pretty: true)
+                |> IO.puts()
+
+              {:error, err} ->
+                UI.error(err)
+            end
         end
     end
   end

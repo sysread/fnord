@@ -84,4 +84,24 @@ defmodule Cmd.ConfigApprovalsTest do
       assert log =~ "Invalid regex"
     end
   end
+
+  describe "approve via opts[:pattern]" do
+    test "adds to global when pattern in opts" do
+      out =
+        capture_io(fn ->
+          Approvals.run(%{kind: "shell", global: true, pattern: "x.*"}, [:approve], [])
+        end)
+
+      assert {:ok, %{"shell" => ["x.*"]}} = Jason.decode(out)
+    end
+
+    test "error when no pattern provided" do
+      log =
+        capture_log(fn ->
+          Approvals.run(%{kind: "shell"}, [:approve], [])
+        end)
+
+      assert log =~ "Pattern is required"
+    end
+  end
 end

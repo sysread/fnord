@@ -1,5 +1,6 @@
 defmodule Cmd.Config.MCP do
   @moduledoc false
+  alias Cmd.Config.Utils
 
   @spec run(map(), list(), list()) :: :ok
   def run(opts, [:mcp, :list], _unknown) do
@@ -68,73 +69,26 @@ defmodule Cmd.Config.MCP do
     |> IO.puts()
   end
 
-  def run(opts, [:mcp, :add], [name]) do
-    if opts[:project], do: Settings.set_project(opts[:project])
-    raw_cfg = build_server_config_from_opts(opts)
-    settings = Settings.new()
-    scope = if opts[:global], do: :global, else: :project
-
-    case Settings.MCP.add_server(settings, scope, name, raw_cfg) do
-      {:ok, updated} ->
-        scfg = Settings.MCP.list_servers(updated, scope)[name]
-
-        %{name => scfg}
-        |> Jason.encode!(pretty: true)
-        |> IO.puts()
-
-      {:error, :exists} ->
-        UI.error("Server '#{name}' already exists")
-
-      {:error, msg} ->
-        UI.error(msg)
-    end
-  end
-
-  def run(opts, [:mcp, :update], [name]) do
-    if opts[:project], do: Settings.set_project(opts[:project])
-    raw_cfg = build_server_config_from_opts(opts)
-    settings = Settings.new()
-    scope = if opts[:global], do: :global, else: :project
-
-    case Settings.MCP.update_server(settings, scope, name, raw_cfg) do
-      {:ok, updated} ->
-        scfg = Settings.MCP.list_servers(updated, scope)[name]
-
-        %{name => scfg}
-        |> Jason.encode!(pretty: true)
-        |> IO.puts()
-
-      {:error, :not_found} ->
-        UI.error("Server '#{name}' not found")
-
-      {:error, msg} ->
-        UI.error(msg)
-    end
-  end
-
-  def run(opts, [:mcp, :remove], [name]) do
-    if opts[:project], do: Settings.set_project(opts[:project])
-    settings = Settings.new()
-    scope = if opts[:global], do: :global, else: :project
-
-    case Settings.MCP.remove_server(settings, scope, name) do
-      {:ok, new_settings} ->
-        Settings.MCP.list_servers(new_settings, scope)
-        |> Jason.encode!(pretty: true)
-        |> IO.puts()
-
-      {:error, :not_found} ->
-        UI.error("Server '#{name}' not found")
-    end
-  end
-
-  def run(opts, [:mcp, :test], _unknown) do
+  def run(opts, [:mcp, :check], _unknown) do
     if opts[:project], do: Settings.set_project(opts[:project])
     Services.MCP.start()
 
     Services.MCP.test()
     |> Jason.encode!(pretty: true)
     |> IO.puts()
+  end
+
+  # Unified entry for add, update, remove
+  def run(opts, [:mcp, action], args) when action in [:add, :update, :remove] do
+    if opts[:project], do: Settings.set_project(opts[:project])
+
+    case Utils.require_key(opts, args, :name, "Server name") do
+      {:error, msg} ->
+        UI.error(msg)
+
+      {:ok, name} ->
+        do_mcp_action(opts, action, name)
+    end
   end
 
   # ----------------------------------------------------------------------------
@@ -166,5 +120,59 @@ defmodule Cmd.Config.MCP do
         _ -> acc
       end
     end)
+  end
+
+  # Internal dispatcher for MCP add/update/remove actions
+  defp do_mcp_action(opts, :add, name) do
+    raw = build_server_config_from_opts(opts)
+    settings = Settings.new()
+    scope = if opts[:global], do: :global, else: :project
+
+    case Settings.MCP.add_server(settings, scope, name, raw) do
+      {:ok, upd} ->
+        %{name => Settings.MCP.list_servers(upd, scope)[name]}
+        |> Jason.encode!(pretty: true)
+        |> IO.puts()
+
+      {:error, :exists} ->
+        UI.error("Server '#{name}' already exists")
+
+      {:error, err} ->
+        UI.error(err)
+    end
+  end
+
+  defp do_mcp_action(opts, :update, name) do
+    raw = build_server_config_from_opts(opts)
+    settings = Settings.new()
+    scope = if opts[:global], do: :global, else: :project
+
+    case Settings.MCP.update_server(settings, scope, name, raw) do
+      {:ok, upd} ->
+        %{name => Settings.MCP.list_servers(upd, scope)[name]}
+        |> Jason.encode!(pretty: true)
+        |> IO.puts()
+
+      {:error, :not_found} ->
+        UI.error("Server '#{name}' not found")
+
+      {:error, err} ->
+        UI.error(err)
+    end
+  end
+
+  defp do_mcp_action(opts, :remove, name) do
+    settings = Settings.new()
+    scope = if opts[:global], do: :global, else: :project
+
+    case Settings.MCP.remove_server(settings, scope, name) do
+      {:ok, upd} ->
+        Settings.MCP.list_servers(upd, scope)
+        |> Jason.encode!(pretty: true)
+        |> IO.puts()
+
+      {:error, :not_found} ->
+        UI.error("Server '#{name}' not found")
+    end
   end
 end

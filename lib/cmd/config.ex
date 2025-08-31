@@ -285,8 +285,8 @@ defmodule Cmd.Config do
                   ]
                 ]
               ],
-              test: [
-                name: "test",
+              check: [
+                name: "check",
                 about: "Validate configured MCP servers and show discovered tools",
                 options: [
                   project: Cmd.project_arg()
@@ -356,29 +356,15 @@ defmodule Cmd.Config do
   end
 
   @impl Cmd
-  def run(opts, [:approvals], unknown), do: Cmd.Config.Approvals.run(opts, [:approvals], unknown)
-
-  @impl Cmd
+  def run(opts, [:approvals], args), do: Cmd.Config.Approvals.run(opts, [:approvals], args)
   def run(opts, [:approve], args), do: Cmd.Config.Approvals.run(opts, [:approve], args)
-
-  @impl Cmd
-  def run(opts, [:mcp, :list], unknown), do: Cmd.Config.MCP.run(opts, [:mcp, :list], unknown)
-
-  @impl Cmd
-  def run(opts, [:mcp, :enable], unknown), do: Cmd.Config.MCP.run(opts, [:mcp, :enable], unknown)
-
-  @impl Cmd
-  def run(opts, [:mcp, :disable], unknown),
-    do: Cmd.Config.MCP.run(opts, [:mcp, :disable], unknown)
-
-  @impl Cmd
+  def run(opts, [:mcp, :list], args), do: Cmd.Config.MCP.run(opts, [:mcp, :list], args)
+  def run(opts, [:mcp, :enable], args), do: Cmd.Config.MCP.run(opts, [:mcp, :enable], args)
+  def run(opts, [:mcp, :disable], args), do: Cmd.Config.MCP.run(opts, [:mcp, :disable], args)
   def run(opts, [:mcp, :add], args), do: Cmd.Config.MCP.run(opts, [:mcp, :add], args)
-
-  @impl Cmd
   def run(opts, [:mcp, :update], args), do: Cmd.Config.MCP.run(opts, [:mcp, :update], args)
-
-  @impl Cmd
   def run(opts, [:mcp, :remove], args), do: Cmd.Config.MCP.run(opts, [:mcp, :remove], args)
+  def run(opts, [:mcp, :check], args), do: Cmd.Config.MCP.run(opts, [:mcp, :check], args)
 
   def run(_opts, [], _unknown) do
     UI.error("No subcommand specified. Use 'fnord help config' for help.")
