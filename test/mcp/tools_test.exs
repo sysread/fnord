@@ -3,16 +3,16 @@ defmodule MCP.ToolsTest do
   use Fnord.TestCase, async: false
 
   setup do
-    # Stub MCP.FnordClient.call_tool/4 with meck
-    :meck.new(MCP.FnordClient, [:non_strict, :passthrough])
+    # Stub Hermes.Client.Base.call_tool/4 with meck
+    :meck.new(Hermes.Client.Base, [:non_strict, :passthrough])
 
-    :meck.expect(MCP.FnordClient, :call_tool, fn instance, "foo", args, opts ->
+    :meck.expect(Hermes.Client.Base, :call_tool, fn instance, "foo", args, opts ->
       {:ok, %{instance: instance, received: args, opts: opts}}
     end)
 
     on_exit(fn ->
       try do
-        :meck.unload(MCP.FnordClient)
+        :meck.unload(Hermes.Client.Base)
       catch
         _, _ -> :ok
       end

@@ -63,7 +63,7 @@ defmodule MCP.Tools do
         timeout = min(Map.get(@spec_data, "timeout_ms", 30_000), 300_000)
         instance = MCP.Supervisor.instance_name(@server)
 
-        case MCP.FnordClient.call_tool(instance, @tool, args, timeout: timeout) do
+        case Hermes.Client.Base.call_tool(instance, @tool, args, timeout: timeout) do
           {:ok, res} -> {:ok, res}
           {:error, reason} -> {:error, reason}
         end

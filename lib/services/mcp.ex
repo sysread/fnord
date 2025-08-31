@@ -6,9 +6,13 @@ defmodule Services.MCP do
   alias Services.Once
   alias MCP.Tools
   alias UI
+  alias Hermes.Client.Base, as: MCPBase
+  alias Hermes.MCP.Response
+  alias Hermes.MCP.Error
 
-  @doc false
-  defp client_mod, do: Application.get_env(:fnord, :mcp_client_mod, MCP.FnordClient)
+  # Allow tests to override the client implementation via application env.
+  # Default to Hermes.Client.Base (direct client API) in production.
+  defp client_mod, do: Application.get_env(:fnord, :mcp_client_mod, MCPBase)
 
   @spec start() :: :ok
   def start do
@@ -50,10 +54,31 @@ defmodule Services.MCP do
     end)
   end
 
+  # Robustly list tools for a server, supporting both Hermes.Base and stubbed return shapes.
   defp safe_list_tools(server) do
-    server
-    |> MCPSup.instance_name()
-    |> client_mod().list_tools()
+    instance = MCPSup.instance_name(server)
+
+    case client_mod().list_tools(instance) do
+      # Hermes.Base returns {:ok, Response.t()}
+      {:ok, %Response{} = resp} ->
+        result = Response.get_result(resp)
+        tools = Map.get(result, "tools", [])
+        {:ok, tools}
+
+      # Some stubs might return {:ok, list}
+      {:ok, tools} when is_list(tools) ->
+        {:ok, tools}
+
+      # Or {:ok, map} where map contains "tools"
+      {:ok, %{"tools" => tools}} when is_list(tools) ->
+        {:ok, tools}
+
+      {:error, %Error{reason: reason}} ->
+        {:error, reason}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   @spec test() :: map()
@@ -85,13 +110,24 @@ defmodule Services.MCP do
     %{status: "ok", servers: servers}
   end
 
-  defp tool_blurb(tool) do
-    %{"name" => tool["name"], "description" => Map.get(tool, "description", "")}
+  # Retrieve server info; Hermes.Base returns a map or nil, stubs may return {:ok, map} | {:error, reason}
+  defp safe_get_info(server) do
+    instance = MCPSup.instance_name(server)
+
+    case client_mod().get_server_info(instance) do
+      # Hermes.Base shape
+      %{} = info -> {:ok, info}
+      nil -> {:error, :not_initialized}
+
+      # Stubbed shapes
+      {:ok, %{} = info} -> {:ok, info}
+      {:error, %Error{reason: reason}} -> {:error, reason}
+      {:error, reason} -> {:error, reason}
+    end
   end
 
-  defp safe_get_info(server) do
-    server
-    |> MCPSup.instance_name()
-    |> client_mod().get_server_info()
+  @spec tool_blurb(tool :: map()) :: map()
+  defp tool_blurb(tool) do
+    %{"name" => tool["name"], "description" => Map.get(tool, "description", "")}  
   end
 end

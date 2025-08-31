@@ -4,7 +4,6 @@ defmodule Services.MCPTest do
   setup do
     # Stub effective_config to simulate two servers
     :meck.new(Settings.MCP, [:non_strict])
-
     :meck.expect(Settings.MCP, :effective_config, fn _settings ->
       %{"enabled" => true, "servers" => %{"srv1" => %{}, "srv2" => %{}}}
     end)
@@ -21,19 +20,29 @@ defmodule Services.MCPTest do
   end
 
   test "test/0 returns success for all servers when client returns ok" do
-    # Define a stub client that always returns success
-    defmodule StubClientSuccess do
-      def list_tools(_instance) do
-        {:ok, [%{"name" => "toolX", "description" => "descX"}]}
-      end
+    # Stub Hermes.Client.Base to simulate successful responses
+    :meck.new(Hermes.Client.Base, [:non_strict, :passthrough])
 
-      def get_server_info(_instance) do
-        {:ok, %{"uptime" => 42}}
-      end
-    end
+    tools_resp = Hermes.MCP.Response.from_json_rpc(%{
+      "result" => %{"tools" => [%{"name" => "toolX", "description" => "descX"}]},
+      "id" => "1"
+    })
 
-    # Configure Services.MCP to use our stub client
-    set_config(:mcp_client_mod, StubClientSuccess)
+    :meck.expect(Hermes.Client.Base, :list_tools, fn _instance ->
+      {:ok, tools_resp}
+    end)
+
+    :meck.expect(Hermes.Client.Base, :get_server_info, fn _instance ->
+      %{"uptime" => 42}
+    end)
+
+    on_exit(fn ->
+      try do
+        :meck.unload(Hermes.Client.Base)
+      catch
+        _, _ -> :ok
+      end
+    end)
 
     result = Services.MCP.test()
 
@@ -47,13 +56,24 @@ defmodule Services.MCPTest do
   end
 
   test "test/0 reports error when client returns error" do
-    # Define a stub client that returns errors
-    defmodule StubClientError do
-      def list_tools(_instance), do: {:error, "list_error"}
-      def get_server_info(_instance), do: {:error, "info_error"}
-    end
+    # Stub Hermes.Client.Base to simulate error responses
+    :meck.new(Hermes.Client.Base, [:non_strict, :passthrough])
 
-    set_config(:mcp_client_mod, StubClientError)
+    :meck.expect(Hermes.Client.Base, :list_tools, fn _instance ->
+      {:error, "list_error"}
+    end)
+
+    :meck.expect(Hermes.Client.Base, :get_server_info, fn _instance ->
+      {:error, "info_error"}
+    end)
+
+    on_exit(fn ->
+      try do
+        :meck.unload(Hermes.Client.Base)
+      catch
+        _, _ -> :ok
+      end
+    end)
 
     result = Services.MCP.test()
 
