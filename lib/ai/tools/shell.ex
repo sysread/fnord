@@ -266,45 +266,66 @@ defmodule AI.Tools.Shell do
     end
   end
 
-  defp shell_out(%{"command" => command, "args" => args}, timeout_ms, root, nil) do
-    command
+  defp find_executable(command) do
+    cond do
+      String.starts_with?(command, "/") -> Path.expand(command)
+      String.starts_with?(command, "~") -> Path.expand(command)
+      true -> command
+    end
     |> System.find_executable()
     |> case do
-      nil ->
+      nil -> {:error, :not_found}
+      path -> {:ok, path}
+    end
+  end
+
+  defp shell_out(%{"command" => command, "args" => args}, timeout_ms, root, nil) do
+    command
+    |> find_executable()
+    |> case do
+      {:error, :not_found} ->
         {:error, :not_found}
 
-      path ->
+      {:ok, cmd} ->
         run_with_timeout(timeout_ms, fn ->
-          {:ok, System.cmd(path, args, cd: root, stderr_to_stdout: true)}
+          {:ok, System.cmd(cmd, args, cd: root, stderr_to_stdout: true)}
         end)
     end
   end
 
   defp shell_out(%{"command" => command, "args" => args}, timeout_ms, root, stdin) do
-    Util.Temp.with_tmp(stdin, fn tmp ->
-      with :ok <- chmod_600(tmp),
-           {:ok, runner} <- Briefly.create(),
-           :ok <- File.write(runner, @runner),
-           :ok <- File.chmod(runner, 0o700) do
-        run_with_timeout(
-          timeout_ms,
-          fn ->
-            try do
-              {:ok, System.cmd(runner, [tmp, command | args], cd: root, stderr_to_stdout: true)}
-            after
-              # normal completion cleanup
-              File.rm(tmp)
-              File.rm(runner)
-            end
-          end,
-          on_timeout: fn ->
-            # timeout cleanup fallback
-            File.rm(tmp)
-            File.rm(runner)
+    command
+    |> find_executable()
+    |> case do
+      {:error, :not_found} ->
+        {:error, :not_found}
+
+      {:ok, cmd} ->
+        Util.Temp.with_tmp(stdin, fn tmp ->
+          with :ok <- chmod_600(tmp),
+               {:ok, runner} <- Briefly.create(),
+               :ok <- File.write(runner, @runner),
+               :ok <- File.chmod(runner, 0o700) do
+            run_with_timeout(
+              timeout_ms,
+              fn ->
+                try do
+                  {:ok, System.cmd(runner, [tmp, cmd | args], cd: root, stderr_to_stdout: true)}
+                after
+                  # normal completion cleanup
+                  File.rm(tmp)
+                  File.rm(runner)
+                end
+              end,
+              on_timeout: fn ->
+                # timeout cleanup fallback
+                File.rm(tmp)
+                File.rm(runner)
+              end
+            )
           end
-        )
-      end
-    end)
+        end)
+    end
   end
 
   # -----------------------------------------------------------------------------
