@@ -52,8 +52,8 @@ defmodule FrobsTest do
       assert result =~ "Hello, TestUser"
 
       # Test the UI helpers
-      assert {"Calling frob `hello_test`", _details} = mod.ui_note_on_request(args)
-      assert {"Frob `hello_test` result", _details} = mod.ui_note_on_result(args, result)
+      assert {"Calling frob 'hello_test'", _details} = mod.ui_note_on_request(args)
+      assert {"Frob 'hello_test' result", _details} = mod.ui_note_on_result(args, result)
     end
   end
 

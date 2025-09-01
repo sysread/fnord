@@ -4,16 +4,16 @@ defmodule Frobs do
   external actions that can be executed by the LLM while researching the user's
   query.
 
-  Frobs are stored in `$HOME/.fnord/tools/$frob_name` and are composed of:
-  - `registry.json`:  A JSON file that registers the frob for the user's projects
-  - `spec.json`:      A JSON file that defines the tool call's calling semantics
-  - `main`:           A script or binary that performs the action
-  - `available`:      A script or binary that exits non-zero if the frob is not
+  Frobs are stored in '$HOME/.fnord/tools/$frob_name' and are composed of:
+  - 'registry.json':  A JSON file that registers the frob for the user's projects
+  - 'spec.json':      A JSON file that defines the tool call's calling semantics
+  - 'main':           A script or binary that performs the action
+  - 'available':      A script or binary that exits non-zero if the frob is not
                       available in the current context (e.g. dependencies,
                       environment, etc.)
 
-  The `registry.json` file contains the following fields:
-  ```json
+  The 'registry.json' file contains the following fields:
+  '''json
   {
     // When true, the frob is available to all projects and the "projects"
     // field is ignored.
@@ -23,13 +23,13 @@ defmodule Frobs do
     // available. Superseded by the "global" field when set to true.
     "projects": ["my_project", "other_project"]
   }
-  ```
+  '''
 
-  The "name" field in `spec.json` is used to register the frob with the LLM.
+  The "name" field in 'spec.json' is used to register the frob with the LLM.
   This name must match the frob's directory name.
 
   If desired, the user can add a lib/util/etc directory to hold any utility or
-  helper code to be used by `main`.
+  helper code to be used by 'main'.
 
   Fnord communicates run-time information to the frob via environment variables:
   - FNORD_PROJECT     # The name of the currently selected project
@@ -311,10 +311,10 @@ defmodule Frobs do
           @impl AI.Tools
           def ui_note_on_request(args) do
             if Map.keys(args) == [] do
-              "Calling frob `#{@tool_name}`"
+              "Calling frob '#{@tool_name}'"
             else
               args = Map.new(args, fn {k, v} -> {k, inspect(v)} end)
-              {"Calling frob `#{@tool_name}`", Jason.encode!(args, pretty: true)}
+              {"Calling frob '#{@tool_name}'", Jason.encode!(args, pretty: true)}
             end
           end
 
@@ -322,21 +322,26 @@ defmodule Frobs do
           def ui_note_on_result(_args, result) when is_binary(result) do
             lines = String.split(result, ~r/\r\n|\n/)
 
-            if length(lines) > 10 do
-              {first_lines, _rest} = Enum.split(lines, 10)
-              remaining = length(lines) - 10
+            cond do
+              length(lines) > 10 ->
+                {first_lines, _rest} = Enum.split(lines, 10)
+                remaining = length(lines) - 10
 
-              truncated =
-                Enum.join(first_lines, "\n") <> "\n...plus #{remaining} additional lines"
+                truncated =
+                  Enum.join(first_lines, "\n") <> "\n...plus #{remaining} additional lines"
 
-              {"Frob `#{@tool_name}` result", truncated}
-            else
-              {"Frob `#{@tool_name}` result", result}
+                {"Frob '#{@tool_name}' result", truncated}
+
+              String.trim(result) == "" ->
+                {"Frob '#{@tool_name}' result", "<no output>"}
+
+              true ->
+                {"Frob '#{@tool_name}' result", result}
             end
           end
 
           def ui_note_on_result(_args, result) do
-            {"Frob `#{@tool_name}` result", inspect(result, pretty: true, limit: :infinity)}
+            {"Frob '#{@tool_name}' result", inspect(result, pretty: true, limit: :infinity)}
           end
 
           @impl AI.Tools
