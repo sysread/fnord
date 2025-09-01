@@ -11,6 +11,7 @@ Application.put_env(:fnord, :quiet, true)
 # ------------------------------------------------------------------------------
 Application.ensure_all_started(:briefly)
 Application.ensure_all_started(:mox)
+Application.ensure_all_started(:meck)
 
 # ------------------------------------------------------------------------------
 # Require all elixir files in test/support

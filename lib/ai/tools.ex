@@ -209,6 +209,7 @@ defmodule AI.Tools do
   def all_tools() do
     @tools
     |> Map.merge(Frobs.module_map())
+    |> Map.merge(MCP.Tools.module_map())
     |> Enum.filter(fn {_name, mod} -> mod.is_available?() end)
     |> Map.new()
   end
@@ -419,7 +420,7 @@ defmodule AI.Tools do
       module.spec()
       |> Map.get(:function)
       |> Map.get(:parameters)
-      |> Map.get(:required)
+      |> Map.get("required", [])
       |> check_required_args(args)
     end
   end
@@ -571,6 +572,10 @@ defmodule AI.Tools do
   # ----------------------------------------------------------------------------
   # Private Functions
   # ----------------------------------------------------------------------------
+  defp check_required_args(nil, _args) do
+    :ok
+  end
+
   defp check_required_args([], _args) do
     :ok
   end

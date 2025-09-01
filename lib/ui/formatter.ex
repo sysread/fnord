@@ -28,8 +28,7 @@ defmodule UI.Formatter do
         formatter ->
           shell = System.get_env("SHELL") || "/bin/sh"
 
-          with {:ok, tmpfile} <- Briefly.create(),
-               :ok <- File.write(tmpfile, input) do
+          Util.Temp.with_tmp(input, fn tmpfile ->
             Task.async(fn ->
               System.cmd(shell, ["-c", "cat #{tmpfile} | #{formatter}"], stderr_to_stdout: true)
             end)
@@ -46,7 +45,7 @@ defmodule UI.Formatter do
                 Logger.warning("Formatter command failed: #{formatter}")
                 input
             end
-          end
+          end)
       end
     end
   end

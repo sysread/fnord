@@ -10,6 +10,7 @@ defmodule Services do
 
   defp start_internal_services do
     # Start core services that don't depend on CLI configuration
+    {:ok, _} = Registry.start_link(keys: :unique, name: MCP.ClientRegistry)
     Services.Once.start_link()
     Services.Notes.start_link()
     Services.Task.start_link()
@@ -27,5 +28,7 @@ defmodule Services do
   def start_config_dependent_services do
     Services.NamePool.start_link()
     Services.Approvals.start_link()
+    Services.MCP.start()
+    :ok
   end
 end

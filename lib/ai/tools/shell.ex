@@ -175,24 +175,10 @@ defmodule AI.Tools.Shell do
         # actually wants to allow editing before we let them do it.
         is_apply_patch? = String.contains?(json, "apply_patch")
         is_edit_mode? = Settings.get_edit_mode()
-        is_read_file? = Regex.match?(~r/^sed -n \d+,\d+p /, json)
 
         cond do
-          is_read_file? ->
-            UI.info("DERP", "The LLM attempted to read a file via sed. Re-routing.")
-
-            [start_line, end_line, file] =
-              Regex.run(~r/^sed -n (\d+),(\d+)p (.+)$/, json, capture: :all_but_first)
-
-            AI.Tools.File.Contents.call(%{
-              "file" => file,
-              "line_numbers" => true,
-              "start_line" => String.to_integer(start_line),
-              "end_line" => String.to_integer(end_line)
-            })
-
           is_edit_mode? and is_apply_patch? ->
-            UI.info("DERP", "The LLM attempted to apply a patch via shell_tool. Re-routing.")
+            UI.info("Oof", "The LLM attempted to apply a patch with the shell_tool. Rerouting.")
 
             AI.Tools.ApplyPatch.call(%{
               "patch" => """
@@ -213,6 +199,33 @@ defmodule AI.Tools.Shell do
 
       _ ->
         run_as_shell_commands(commands, desc, timeout_ms, root)
+    end
+  end
+
+  # ----------------------------------------------------------------------------
+  # This one is also super annoying since the file_contents_tool is already
+  # available, and sed can be used to modify files, so we don't want to
+  # auto-approve it.
+  # ----------------------------------------------------------------------------
+  defp run_as_shell_commands(
+         [%{"command" => "sed", "args" => ["-n", range, file]}],
+         _desc,
+         _timeout_ms,
+         _root
+       ) do
+    UI.info("Oof", "The LLM tried to read a file with sed. Rerouting.")
+
+    [start_line, end_line] = Regex.run(~r/^(\d+),(\d+)p$/, range, capture: :all_but_first)
+
+    AI.Tools.File.Contents.call(%{
+      "file" => file,
+      "line_numbers" => true,
+      "start_line" => String.to_integer(start_line),
+      "end_line" => String.to_integer(end_line)
+    })
+    |> case do
+      {:ok, content} -> {:ok, {content, 0}}
+      {:error, reason} -> {:ok, {"Error reading file #{file}: #{reason}", 1}}
     end
   end
 
@@ -266,44 +279,65 @@ defmodule AI.Tools.Shell do
     end
   end
 
-  defp shell_out(%{"command" => command, "args" => args}, timeout_ms, root, nil) do
-    command
+  defp find_executable(command) do
+    cond do
+      String.starts_with?(command, "/") -> Path.expand(command)
+      String.starts_with?(command, "~") -> Path.expand(command)
+      true -> command
+    end
     |> System.find_executable()
     |> case do
-      nil ->
+      nil -> {:error, :not_found}
+      path -> {:ok, path}
+    end
+  end
+
+  defp shell_out(%{"command" => command, "args" => args}, timeout_ms, root, nil) do
+    command
+    |> find_executable()
+    |> case do
+      {:error, :not_found} ->
         {:error, :not_found}
 
-      path ->
+      {:ok, cmd} ->
         run_with_timeout(timeout_ms, fn ->
-          {:ok, System.cmd(path, args, cd: root, stderr_to_stdout: true)}
+          {:ok, System.cmd(cmd, args, cd: root, stderr_to_stdout: true)}
         end)
     end
   end
 
   defp shell_out(%{"command" => command, "args" => args}, timeout_ms, root, stdin) do
-    with {:ok, tmp} <- Briefly.create(),
-         :ok <- File.write(tmp, stdin, [:binary]),
-         :ok <- chmod_600(tmp),
-         {:ok, runner} <- Briefly.create(),
-         :ok <- File.write(runner, @runner),
-         :ok <- File.chmod(runner, 0o700) do
-      run_with_timeout(
-        timeout_ms,
-        fn ->
-          try do
-            {:ok, System.cmd(runner, [tmp, command | args], cd: root, stderr_to_stdout: true)}
-          after
-            # normal completion cleanup
-            File.rm(tmp)
-            File.rm(runner)
+    command
+    |> find_executable()
+    |> case do
+      {:error, :not_found} ->
+        {:error, :not_found}
+
+      {:ok, cmd} ->
+        Util.Temp.with_tmp(stdin, fn tmp ->
+          with :ok <- chmod_600(tmp),
+               {:ok, runner} <- Briefly.create(),
+               :ok <- File.write(runner, @runner),
+               :ok <- File.chmod(runner, 0o700) do
+            run_with_timeout(
+              timeout_ms,
+              fn ->
+                try do
+                  {:ok, System.cmd(runner, [tmp, cmd | args], cd: root, stderr_to_stdout: true)}
+                after
+                  # normal completion cleanup
+                  File.rm(tmp)
+                  File.rm(runner)
+                end
+              end,
+              on_timeout: fn ->
+                # timeout cleanup fallback
+                File.rm(tmp)
+                File.rm(runner)
+              end
+            )
           end
-        end,
-        on_timeout: fn ->
-          # timeout cleanup fallback
-          File.rm(tmp)
-          File.rm(runner)
-        end
-      )
+        end)
     end
   end
 
@@ -346,7 +380,15 @@ defmodule AI.Tools.Shell do
 
   defp run_with_timeout(timeout, fun, opts \\ []) do
     on_timeout = Keyword.get(opts, :on_timeout, fn -> :ok end)
-    task = Task.async(fn -> fun.() end)
+
+    task =
+      Task.async(fn ->
+        try do
+          fun.()
+        rescue
+          e -> {:error, e}
+        end
+      end)
 
     case Task.yield(task, timeout) || Task.shutdown(task, :brutal_kill) do
       {:ok, result} ->
@@ -383,5 +425,9 @@ defmodule AI.Tools.Shell do
   defp format_command(%{"command" => command, "args" => args}) do
     [command | args]
     |> Enum.join(" ")
+  end
+
+  defp format_command(invalid_format) do
+    "Invalid command format: #{inspect(invalid_format, pretty: true)}"
   end
 end

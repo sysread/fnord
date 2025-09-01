@@ -83,6 +83,206 @@ defmodule Cmd.Config do
                 required: false
               ]
             ]
+          ],
+          mcp: [
+            name: "mcp",
+            about: "Manage MCP server configuration",
+            subcommands: [
+              list: [
+                name: "list",
+                about: "List MCP config (global, project, or effective merge)",
+                options: [
+                  project: Cmd.project_arg()
+                ],
+                flags: [
+                  global: [
+                    long: "--global",
+                    short: "-g",
+                    help: "Use global scope",
+                    required: false
+                  ],
+                  effective: [
+                    long: "--effective",
+                    short: "-e",
+                    help: "Show merged effective config",
+                    required: false
+                  ]
+                ]
+              ],
+              add: [
+                name: "add",
+                about: "Add an MCP server (global or project)",
+                args: [
+                  name: [value_name: "NAME", help: "Server identifier", required: true]
+                ],
+                options: [
+                  project: Cmd.project_arg(),
+                  transport: [
+                    value_name: "TRANSPORT",
+                    long: "--transport",
+                    short: "-t",
+                    help: "Transport type (stdio|streamable_http|websocket)",
+                    default: "stdio"
+                  ],
+                  command: [
+                    value_name: "CMD",
+                    long: "--command",
+                    short: "-c",
+                    help: "Command for stdio transport",
+                    required: false
+                  ],
+                  arg: [
+                    value_name: "ARG",
+                    long: "--arg",
+                    short: "-a",
+                    help: "Argument for stdio transport (repeatable)",
+                    required: false,
+                    multiple: true
+                  ],
+                  base_url: [
+                    value_name: "URL",
+                    long: "--base-url",
+                    short: "-u",
+                    help: "Base URL for HTTP/WebSocket transports",
+                    required: false
+                  ],
+                  header: [
+                    value_name: "HEADER",
+                    long: "--header",
+                    short: "-h",
+                    help: "Header for HTTP/WebSocket transports (KEY=VALUE, repeatable)",
+                    required: false,
+                    multiple: true
+                  ],
+                  env: [
+                    value_name: "ENV",
+                    long: "--env",
+                    short: "-e",
+                    help: "Environment variable for stdio transport (KEY=VALUE, repeatable)",
+                    required: false,
+                    multiple: true
+                  ],
+                  timeout_ms: [
+                    value_name: "MS",
+                    long: "--timeout-ms",
+                    short: "-T",
+                    help: "Timeout in milliseconds",
+                    required: false
+                  ]
+                ],
+                flags: [
+                  global: [
+                    long: "--global",
+                    short: "-g",
+                    help: "Add server to global configuration",
+                    required: false
+                  ]
+                ]
+              ],
+              update: [
+                name: "update",
+                about: "Update an MCP server configuration",
+                args: [
+                  name: [value_name: "NAME", help: "Server identifier", required: true]
+                ],
+                options: [
+                  project: Cmd.project_arg(),
+                  transport: [
+                    value_name: "TRANSPORT",
+                    long: "--transport",
+                    short: "-t",
+                    help: "Transport type (stdio|streamable_http|websocket)",
+                    default: "stdio"
+                  ],
+                  command: [
+                    value_name: "CMD",
+                    long: "--command",
+                    short: "-c",
+                    help: "Command for stdio transport",
+                    required: false
+                  ],
+                  arg: [
+                    value_name: "ARG",
+                    long: "--arg",
+                    short: "-a",
+                    help: "Argument for stdio transport (repeatable)",
+                    required: false,
+                    multiple: true
+                  ],
+                  base_url: [
+                    value_name: "URL",
+                    long: "--base-url",
+                    short: "-u",
+                    help: "Base URL for HTTP/WebSocket transports",
+                    required: false
+                  ],
+                  header: [
+                    value_name: "HEADER",
+                    long: "--header",
+                    short: "-h",
+                    help: "Header for HTTP/WebSocket transports (KEY=VALUE, repeatable)",
+                    required: false,
+                    multiple: true
+                  ],
+                  env: [
+                    value_name: "ENV",
+                    long: "--env",
+                    short: "-e",
+                    help: "Environment variable for stdio transport (KEY=VALUE, repeatable)",
+                    required: false,
+                    multiple: true
+                  ],
+                  timeout_ms: [
+                    value_name: "MS",
+                    long: "--timeout-ms",
+                    short: "-T",
+                    help: "Timeout in milliseconds",
+                    required: false
+                  ]
+                ],
+                flags: [
+                  global: [
+                    long: "--global",
+                    short: "-g",
+                    help: "Update server in global configuration",
+                    required: false
+                  ]
+                ]
+              ],
+              remove: [
+                name: "remove",
+                about: "Remove an MCP server (global or project)",
+                args: [
+                  name: [value_name: "NAME", help: "Server identifier", required: true]
+                ],
+                options: [
+                  project: Cmd.project_arg()
+                ],
+                flags: [
+                  global: [
+                    long: "--global",
+                    short: "-g",
+                    help: "Remove server from global configuration",
+                    required: false
+                  ]
+                ]
+              ],
+              check: [
+                name: "check",
+                about: "Validate configured MCP servers and show discovered tools",
+                options: [
+                  project: Cmd.project_arg()
+                ],
+                flags: [
+                  global: [
+                    long: "--global",
+                    short: "-g",
+                    help: "Use global scope",
+                    required: false
+                  ]
+                ]
+              ]
+            ]
           ]
         ]
       ]
@@ -138,56 +338,13 @@ defmodule Cmd.Config do
   end
 
   @impl Cmd
-  def run(opts, [:approvals], _unknown) do
-    cond do
-      opts[:global] && opts[:project] ->
-        build_list()
-        |> Jason.encode!(pretty: true)
-        |> IO.puts()
-
-      opts[:global] ->
-        build_list(:global)
-        |> Jason.encode!(pretty: true)
-        |> IO.puts()
-
-      true ->
-        case Settings.get_selected_project() do
-          {:ok, _proj} ->
-            build_list(:project)
-            |> Jason.encode!(pretty: true)
-            |> IO.puts()
-
-          {:error, _} ->
-            UI.error("Project not specified or not found")
-        end
-    end
-  end
-
-  @impl Cmd
-  def run(opts, [:approve], [pattern]) do
-    cond do
-      opts[:global] && opts[:project] ->
-        UI.error("Cannot use both --global and --project.")
-
-      is_nil(opts[:kind]) ->
-        UI.error("Missing --kind option.")
-
-      true ->
-        scope = if opts[:global], do: :global, else: :project
-        if scope == :project && opts[:project], do: Settings.set_project(opts[:project])
-        settings = Settings.new()
-
-        case build_approve(settings, scope, opts[:kind], pattern) do
-          {:ok, data} ->
-            data
-            |> Jason.encode!(pretty: true)
-            |> IO.puts()
-
-          {:error, msg} ->
-            UI.error(msg)
-        end
-    end
-  end
+  def run(opts, [:approvals], args), do: Cmd.Config.Approvals.run(opts, [:approvals], args)
+  def run(opts, [:approve], args), do: Cmd.Config.Approvals.run(opts, [:approve], args)
+  def run(opts, [:mcp, :list], args), do: Cmd.Config.MCP.run(opts, [:mcp, :list], args)
+  def run(opts, [:mcp, :add], args), do: Cmd.Config.MCP.run(opts, [:mcp, :add], args)
+  def run(opts, [:mcp, :update], args), do: Cmd.Config.MCP.run(opts, [:mcp, :update], args)
+  def run(opts, [:mcp, :remove], args), do: Cmd.Config.MCP.run(opts, [:mcp, :remove], args)
+  def run(opts, [:mcp, :check], args), do: Cmd.Config.MCP.run(opts, [:mcp, :check], args)
 
   def run(_opts, [], _unknown) do
     UI.error("No subcommand specified. Use 'fnord help config' for help.")
@@ -195,47 +352,5 @@ defmodule Cmd.Config do
 
   def run(_opts, _subcommands, _unknown) do
     UI.error("Unknown subcommand. Use 'fnord help config' for help.")
-  end
-
-  defp build_list(:global) do
-    Settings.new()
-    |> Settings.Approvals.get_approvals(:global)
-  end
-
-  defp build_list(:project) do
-    Settings.new()
-    |> Settings.Approvals.get_approvals(:project)
-  end
-
-  defp build_list() do
-    global = build_list(:global)
-    project = build_list(:project)
-
-    Enum.concat([
-      Map.keys(global),
-      Map.keys(project)
-    ])
-    |> Enum.uniq()
-    |> Enum.map(fn kind ->
-      {
-        kind,
-        %{
-          global: Map.get(global, kind, []),
-          project: Map.get(project, kind, [])
-        }
-      }
-    end)
-    |> Enum.into(%{})
-  end
-
-  defp build_approve(settings, scope, kind, pattern) do
-    try do
-      new_settings = Settings.Approvals.approve(settings, scope, kind, pattern)
-      patterns = Settings.Approvals.get_approvals(new_settings, scope, kind)
-      {:ok, %{kind => patterns}}
-    rescue
-      e in Regex.CompileError ->
-        {:error, "Invalid regex: #{e.message}"}
-    end
   end
 end

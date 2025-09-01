@@ -133,7 +133,12 @@ defmodule Services.Approvals.Shell do
       Settings.new() |> Settings.Approvals.approved?("shell", prefix)
   end
 
-  defp preapproved?(prefix), do: prefix in @preapproved
+  defp preapproved?(prefix) do
+    cond do
+      prefix in @preapproved -> true
+      true -> false
+    end
+  end
 
   # ----------------------------------------------------------------------------
   # Display

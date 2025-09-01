@@ -1,4 +1,6 @@
 defmodule Settings.Approvals do
+  alias Settings.Approvals.RegexMatcher
+
   @type settings :: Settings.t()
   @type scope :: :project | :global
   @type kind :: binary
@@ -78,32 +80,18 @@ defmodule Settings.Approvals do
 
   @spec approved?(settings, kind, subject) :: boolean
   def approved?(settings, kind, subject) do
+    # Check both global and project scopes for any matching regex pattern
     [:global, :project]
     |> Enum.any?(&approved?(settings, &1, kind, subject))
   end
 
-  @spec approved?(settings, scope, kind, subject) :: boolean
   def approved?(settings, :global, kind, subject) do
-    settings
-    |> get_approvals(:global, kind)
-    |> Enum.map(&prefix_to_regex(&1))
-    |> Enum.any?(&Regex.match?(&1, subject))
+    get_approvals(settings, :global, kind)
+    |> Enum.any?(&RegexMatcher.matches?(&1, subject))
   end
 
   def approved?(settings, :project, kind, subject) do
-    settings
-    |> get_approvals(:project, kind)
-    |> Enum.map(&prefix_to_regex(&1))
-    |> Enum.any?(&Regex.match?(&1, subject))
-  end
-
-  def prefix_to_pattern(prefix) do
-    "^" <> Regex.escape(prefix) <> "(?=\\s|$)"
-  end
-
-  def prefix_to_regex(prefix) do
-    prefix
-    |> prefix_to_pattern()
-    |> Regex.compile!()
+    get_approvals(settings, :project, kind)
+    |> Enum.any?(&RegexMatcher.matches?(&1, subject))
   end
 end

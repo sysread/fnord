@@ -56,4 +56,16 @@ defmodule Services.Once do
 
     :ok
   end
+
+  @doc """
+  Run the given zero-arity function only once per unique key.
+  Subsequent calls with the same key will be ignored.
+  """
+  @spec run(term(), (-> any())) :: any() | :ignore
+  def run(key, fun) when is_function(fun, 0) do
+    case set(key) do
+      true -> fun.()
+      false -> :ignore
+    end
+  end
 end

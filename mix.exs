@@ -53,6 +53,7 @@ defmodule Fnord.MixProject do
       {:clipboard, "~> 0.2.1"},
       {:dialyxir, "~> 1.4.5", only: [:dev], runtime: false},
       {:ex_doc, ">= 0.0.0", only: [:dev], runtime: false},
+      {:hermes_mcp, "~> 0.14"},
       {:httpoison, "~> 2.2.1"},
       {:jason, "~> 1.4"},
       {:meck, "~> 1.0", only: [:test], runtime: false},

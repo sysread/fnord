@@ -172,6 +172,7 @@ defmodule AI.CompletionAPI do
 
   defp get_error(:closed), do: {:error, "Connection closed"}
   defp get_error(:timeout), do: {:error, "Connection timed out"}
+  defp get_error(:invalid_json_response), do: {:error, "Invalid JSON response"}
 
   defp get_error({502, reason}), do: {:error, :api_unavailable, reason}
   defp get_error({503, reason}), do: {:error, :api_unavailable, reason}
@@ -212,4 +213,6 @@ defmodule AI.CompletionAPI do
          }}
     end
   end
+
+  defp get_error(other), do: {:error, inspect(other, pretty: true)}
 end

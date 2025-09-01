@@ -20,7 +20,7 @@ defmodule AI.Tools.File.Edit do
   @behaviour AI.Tools
 
   @impl AI.Tools
-  def async?, do: true
+  def async?, do: false
 
   @impl AI.Tools
   def is_available?, do: true
@@ -126,11 +126,7 @@ defmodule AI.Tools.File.Edit do
       with {:ok, project} <- Store.get_project(),
            absolute_file <- Store.Project.expand_path(file, project),
            {:ok, contents} <- apply_changes(absolute_file, changes),
-           {:ok, staged} <- stage_changes(contents),
-           {:ok, diff} <- build_diff(absolute_file, staged),
-           {:ok, :approved} <- confirm_edit(file, diff),
-           {:ok, backup_file} <- backup_file(absolute_file),
-           :ok <- commit_changes(absolute_file, staged) do
+           {:ok, diff, backup_file} <- stage_changes(absolute_file, contents) do
         {:ok,
          %{
            file: file,
@@ -157,17 +153,21 @@ defmodule AI.Tools.File.Edit do
     end
   end
 
+  defp stage_changes(file, contents) do
+    Util.Temp.with_tmp(contents, fn temp ->
+      with {:ok, diff} <- build_diff(file, temp),
+           {:ok, :approved} <- confirm_edit(file, diff),
+           {:ok, backup_file} <- backup_file(file),
+           :ok <- commit_changes(file, temp) do
+        {:ok, diff, backup_file}
+      end
+    end)
+  end
+
   defp apply_changes(file, changes) do
     AI.Agent.Code.Patcher
     |> AI.Agent.new()
     |> AI.Agent.get_response(%{file: file, changes: changes})
-  end
-
-  defp stage_changes(contents) do
-    with {:ok, temp} <- Briefly.create(),
-         :ok <- File.write(temp, contents) do
-      {:ok, temp}
-    end
   end
 
   defp build_diff(file, staged) do

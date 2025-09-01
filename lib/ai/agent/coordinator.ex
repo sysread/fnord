@@ -121,6 +121,11 @@ defmodule AI.Agent.Coordinator do
     |> Enum.join(" | ")
     |> then(&UI.info("Available frobs", &1))
 
+    MCP.Tools.module_map()
+    |> Map.keys()
+    |> Enum.join(" | ")
+    |> then(&UI.info("Available MCP tools", &1))
+
     if is_testing?(state) do
       UI.debug("Testing mode enabled")
       get_test_response(state)
@@ -300,6 +305,15 @@ defmodule AI.Agent.Coordinator do
   @spec get_completion(t, boolean) :: t | error
   defp get_completion(state, replay \\ false) do
     msgs = Services.Conversation.get_messages(state.conversation)
+
+    # Save the current conversation to the store, so that it is available in
+    # case of a crash during the completion process.
+    with {:ok, conversation} <- Services.Conversation.save(state.conversation) do
+      UI.report_step("Conversation state saved", conversation.id)
+    else
+      {:error, reason} ->
+        UI.error("Failed to save conversation state", inspect(reason))
+    end
 
     AI.Agent.get_completion(state.agent,
       log_msgs: true,
