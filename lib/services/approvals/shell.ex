@@ -2,6 +2,10 @@ defmodule Services.Approvals.Shell do
   # ----------------------------------------------------------------------------
   # Globals
   # ----------------------------------------------------------------------------
+  @type state :: Services.Approvals.Workflow.state()
+  @type decision :: Services.Approvals.Workflow.decision()
+  @type args :: {String.t(), list(map), String.t()}
+
   @approve "Approve"
   @persistent "Approve persistently"
   @deny "Deny"
@@ -18,7 +22,7 @@ defmodule Services.Approvals.Shell do
   The user cannot respond to prompts, so they were unable to approve or deny the request.
   """
 
-  @preapproved [
+  @ro_cmd [
     "ag",
     "cat",
     "diff",
@@ -47,6 +51,19 @@ defmodule Services.Approvals.Shell do
     "git status"
   ]
 
+  @rw_cmd [
+    "mkdir",
+    "touch",
+    "cp",
+    "mv",
+    "rm",
+    "sed",
+    "awk",
+    "patch",
+    "truncate",
+    "tr"
+  ]
+
   @subcmd_families ~w/
     aws
     az
@@ -73,7 +90,13 @@ defmodule Services.Approvals.Shell do
     yarn
   /
 
-  def preapproved_cmds, do: @preapproved
+  def preapproved_cmds do
+    if edit?() and auto?() do
+      @ro_cmd ++ @rw_cmd
+    else
+      @ro_cmd
+    end
+  end
 
   # ----------------------------------------------------------------------------
   # Behaviour implementation
@@ -81,7 +104,8 @@ defmodule Services.Approvals.Shell do
   @behaviour Services.Approvals.Workflow
 
   @impl Services.Approvals.Workflow
-  def confirm(state, {commands, purpose}) when is_list(commands) do
+  @spec confirm(state, args) :: decision
+  def confirm(state, {op, commands, purpose}) when is_list(commands) do
     with :ok <- validate_commands(commands) do
       stages = Enum.map(commands, &extract_prefix/1)
 
@@ -92,7 +116,7 @@ defmodule Services.Approvals.Shell do
           UI.error("Shell", @no_tty)
           {:denied, @no_tty, state}
         else
-          render_pipeline(commands, purpose)
+          render_pipeline(op, commands, purpose)
           prompt(state, stages)
         end
       end
@@ -135,7 +159,7 @@ defmodule Services.Approvals.Shell do
 
   defp preapproved?(prefix) do
     cond do
-      prefix in @preapproved -> true
+      prefix in preapproved_cmds() -> true
       true -> false
     end
   end
@@ -143,7 +167,7 @@ defmodule Services.Approvals.Shell do
   # ----------------------------------------------------------------------------
   # Display
   # ----------------------------------------------------------------------------
-  defp render_pipeline(commands, purpose) do
+  defp render_pipeline(op, commands, purpose) do
     stages =
       commands
       |> Enum.map(&format_stage/1)
@@ -151,9 +175,15 @@ defmodule Services.Approvals.Shell do
       |> Enum.map(fn {cmd, i} -> "#{i}. #{cmd}" end)
       |> Enum.join("\n\n")
 
+    op_msg =
+      case op do
+        "|" -> "Pipeline of Commands"
+        "&&" -> "Chained Commands"
+      end
+
     [
       Owl.Data.tag("# Approval Scope ", [:red_background, :black, :bright]),
-      "\n\nPipeline of commands:\n\n",
+      "\n\n#{op_msg}:\n\n",
       stages,
       "\n\n",
       Owl.Data.tag("# Purpose ", [:red_background, :black, :bright]),
@@ -240,4 +270,7 @@ defmodule Services.Approvals.Shell do
     |> UI.prompt()
     |> then(&"The user denied the request with the following feedback: #{&1}")
   end
+
+  defp edit?, do: Settings.get_edit_mode()
+  defp auto?, do: edit?() && Settings.get_auto_approve()
 end

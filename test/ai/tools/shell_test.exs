@@ -53,7 +53,7 @@ defmodule AI.Tools.ShellTest do
     }
 
     assert {:ok, msg} = Shell.call(args)
-    assert msg =~ "Exit code: 1"
+    assert msg =~ "Exit status: 1"
     assert msg =~ "grep -q pattern data.txt"
   end
 

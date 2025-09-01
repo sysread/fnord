@@ -9,6 +9,9 @@ defmodule AI.Tools.Shell do
   exec "$@" < "$tmp"
   """
 
+  # ----------------------------------------------------------------------------
+  # Behaviour implementation
+  # ----------------------------------------------------------------------------
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -21,8 +24,9 @@ defmodule AI.Tools.Shell do
   def read_args(args), do: {:ok, args}
 
   @impl AI.Tools
-  def ui_note_on_request(%{"commands" => commands, "description" => desc}) do
-    command = format_commands(commands)
+  def ui_note_on_request(%{"commands" => commands, "description" => desc} = args) do
+    op = Map.get(args, "operator", "|")
+    command = format_commands(op, commands)
     {"shell> #{command}", desc}
   end
 
@@ -31,8 +35,9 @@ defmodule AI.Tools.Shell do
   end
 
   @impl AI.Tools
-  def ui_note_on_result(%{"commands" => commands}, result) do
-    command = format_commands(commands)
+  def ui_note_on_result(%{"commands" => commands} = args, result) do
+    op = Map.get(args, "operator", "|")
+    command = format_commands(op, commands)
     {"shell> #{command}", result}
   end
 
@@ -48,7 +53,7 @@ defmodule AI.Tools.Shell do
       function: %{
         name: "shell_tool",
         description: """
-        Executes a series of shell commands, each piped to the next, and returns the final output.
+        Executes a series of shell commands, and returns the mixed STDOUT and STDERR output.
 
         ALWAYS prefer a built-in tool call over this tool when available.
 
@@ -65,10 +70,6 @@ defmodule AI.Tools.Shell do
                    invocation. As a rule, if you can use a built-in tool to
                    accomplish the same thing, that is preferable, as the user
                    may not be babysitting this process.
-
-        IMPORTANT: Commands are PIPED (`|`) together! Commands are NOT run
-                   sequentially and independently! If you need to run
-                   independent commands, you must make multiple tool calls.
 
         IMPORTANT: This uses elixir's System.cmd/3 to execute commands. It
                    *will* `cd` into the project's source root before executing
@@ -99,12 +100,19 @@ defmodule AI.Tools.Shell do
               Must be > 0 and ≤ #{@max_timeout_ms}.
               """
             },
+            operator: %{
+              type: "string",
+              enum: ["|", "&&"],
+              description: """
+              Optionally specifies whether commands are piped together (`|`) or
+              run sequentially (&&). By default, commands are piped.
+              """
+            },
             commands: %{
               type: "array",
               description: """
-              A list of commands to execute in sequence, where the output of each command is piped as input to the next.
-              Commands are *piped* to each other, NOT run sequentially and independently.
-              You must perform multiple too calls to run independent commands.
+              A list of commands to execute either piped together or run in
+              sequence, depending on the value of the `operator` argument.
 
               Example:
 
@@ -154,18 +162,19 @@ defmodule AI.Tools.Shell do
          {:ok, commands} <- AI.Tools.get_arg(opts, "commands"),
          timeout_ms <- validate_timeout(opts),
          {:ok, project} <- Store.get_project() do
-      route(commands, desc, timeout_ms, project.source_root)
+      Map.get(opts, "operator", "|")
+      |> route(commands, desc, timeout_ms, project.source_root)
     end
   end
 
-  defp confirm(commands, purpose) do
-    Services.Approvals.confirm({commands, purpose}, :shell)
-  end
+  # ----------------------------------------------------------------------------
+  # Internals
+  # ----------------------------------------------------------------------------
 
   # ----------------------------------------------------------------------------
   # The fact that this function exists at all is so, *so* frustrating.
   # ----------------------------------------------------------------------------
-  defp route(commands, desc, timeout_ms, root) do
+  defp route(op, commands, desc, timeout_ms, root) do
     commands
     |> Jason.encode(pretty: true)
     |> case do
@@ -194,11 +203,11 @@ defmodule AI.Tools.Shell do
             {:denied, "Cannot edit files; the user did not pass --edit."}
 
           true ->
-            run_as_shell_commands(commands, desc, timeout_ms, root)
+            run_as_shell_commands(op, commands, desc, timeout_ms, root)
         end
 
       _ ->
-        run_as_shell_commands(commands, desc, timeout_ms, root)
+        run_as_shell_commands(op, commands, desc, timeout_ms, root)
     end
   end
 
@@ -207,14 +216,7 @@ defmodule AI.Tools.Shell do
   # available, and sed can be used to modify files, so we don't want to
   # auto-approve it.
   # ----------------------------------------------------------------------------
-  defp run_as_shell_commands(
-         [%{"command" => "sed", "args" => ["-n", range, file]}],
-         _desc,
-         _timeout_ms,
-         _root
-       ) do
-    UI.info("Oof", "The LLM tried to read a file with sed. Rerouting.")
-
+  defp run_as_shell_commands(_, [%{"command" => "sed", "args" => ["-n", range, file]}], _, _, _) do
     [start_line, end_line] = Regex.run(~r/^(\d+),(\d+)p$/, range, capture: :all_but_first)
 
     AI.Tools.File.Contents.call(%{
@@ -229,52 +231,78 @@ defmodule AI.Tools.Shell do
     end
   end
 
-  defp run_as_shell_commands(commands, desc, timeout_ms, root) do
-    with {:ok, :approved} <- confirm(commands, desc) do
-      run_pipeline(commands, timeout_ms, root)
+  defp run_as_shell_commands(_, [%{"command" => "echo", "args" => [msg]}], _, _, _) do
+    AI.Tools.Notify.call(%{"level" => "info", "message" => msg})
+    {:ok, {"#{msg}\n", 0}}
+  end
+
+  defp run_as_shell_commands(op, commands, desc, timeout_ms, root) do
+    {op, commands, desc}
+    |> Services.Approvals.confirm(:shell)
+    |> case do
+      {:ok, :approved} -> run_pipeline(op, commands, timeout_ms, root)
+      other -> other
     end
   end
 
-  defp run_pipeline(commands, timeout_ms, root, input \\ nil)
+  defp run_pipeline(op, commands, timeout_ms, root, acc \\ nil)
+  defp run_pipeline(_, [], _, _, acc), do: {:ok, acc || "(no output)"}
 
-  defp run_pipeline([], _timeout_ms, _root, input) do
-    {:ok, input || "(no output)"}
-  end
+  defp run_pipeline(op, [command | rest], timeout_ms, root, acc) do
+    input =
+      case op do
+        "|" -> acc
+        "&&" -> nil
+      end
 
-  defp run_pipeline([command | rest], timeout_ms, root, input) do
-    command = special_case(command)
+    command =
+      command
+      |> special_case()
 
     command
     |> shell_out(timeout_ms, root, input)
     |> case do
-      {:ok, {out, 0}} ->
-        run_pipeline(rest, timeout_ms, root, out)
-
-      {:ok, {out, code}} ->
-        # Some commands exit non-zero even when behaving as expected, like
-        # grep. In this case, we still want to return the output, but in a true
-        # shell pipeline, it would still stop processing the rest of the
-        # commands.
-        {:ok,
-         """
-         Command: #{format_command(command)}
-         Exit code: #{code}
-         Output:
-         #{out}
-         """}
-
       {:error, :not_found} ->
-        {:ok, "Command not found: #{command["command"]}"}
+        {:ok, "Command not found: #{format_command(command)}"}
 
       {:error, :timeout} ->
         {:ok,
          """
          Command: #{format_command(command)}
          Error: timed out after #{timeout_ms} ms
-
          Remember that interactive commands will always time out.
          Some commands behave differently outside of an interactive shell.
-         For example, `rg` REQUIRES a path argument when not run within a tty.
+         """}
+
+      {:ok, {out, 0}} ->
+        case op do
+          "|" ->
+            run_pipeline(op, rest, timeout_ms, root, out)
+
+          "&&" ->
+            acc = """
+            #{acc}
+
+            $ #{format_command(command)}
+            #{out}
+            """
+
+            run_pipeline(op, rest, timeout_ms, root, acc)
+        end
+
+      # Some commands exit non-zero even when behaving as expected, like grep.
+      # In this case, we still want to return the output, but in a true shell
+      # pipeline, it would still stop processing the rest of the commands.
+      {:ok, {out, code}} ->
+        {:ok,
+         """
+         #{acc}
+
+         -----
+         Command: #{format_command(command)}
+         Exit status: #{code}
+         Output:
+         #{out}
          """}
     end
   end
@@ -416,10 +444,10 @@ defmodule AI.Tools.Shell do
     end
   end
 
-  defp format_commands(commands) do
+  defp format_commands(op, commands) do
     commands
     |> Enum.map(&format_command/1)
-    |> Enum.join(" | ")
+    |> Enum.join(" #{op} ")
   end
 
   defp format_command(%{"command" => command, "args" => args}) do
