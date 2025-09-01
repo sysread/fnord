@@ -121,6 +121,11 @@ defmodule AI.Agent.Coordinator do
     |> Enum.join(" | ")
     |> then(&UI.info("Available frobs", &1))
 
+    MCP.Tools.module_map()
+    |> Map.keys()
+    |> Enum.join(" | ")
+    |> then(&UI.info("Available MCP tools", &1))
+
     if is_testing?(state) do
       UI.debug("Testing mode enabled")
       get_test_response(state)

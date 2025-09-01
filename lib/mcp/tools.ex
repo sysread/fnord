@@ -79,13 +79,63 @@ defmodule MCP.Tools do
       def read_args(args), do: {:ok, args}
 
       @impl true
+      def ui_note_on_request(args) do
+        tool_name = Map.get(@spec_data.function, :name, @tool)
+        case Map.keys(args) do
+          [] -> "Calling #{tool_name}"
+          keys -> "Calling #{tool_name} with #{Enum.join(keys, ", ")}"
+        end
+      end
+
+      @impl true
+      def ui_note_on_result(_args, result) do
+        case result do
+          {:ok, data} when is_map(data) ->
+            case Map.get(data, "content") do
+              [%{"text" => text}] when is_binary(text) -> 
+                if String.length(text) > 100 do
+                  {"Result", String.slice(text, 0, 97) <> "..."}
+                else
+                  {"Result", text}
+                end
+              content when is_list(content) -> 
+                {"Result", "#{length(content)} items"}
+              _ -> 
+                {"Result", "Success"}
+            end
+          {:ok, text} when is_binary(text) -> 
+            if String.length(text) > 100 do
+              {"Result", String.slice(text, 0, 97) <> "..."}
+            else
+              {"Result", text}
+            end
+          {:error, reason} -> 
+            {"Error", inspect(reason)}
+          _ -> 
+            nil
+        end
+      end
+
+      @impl true
       def call(args) do
         timeout = min(Map.get(@spec_data, "timeout_ms", 30_000), 300_000)
-        instance = MCP.Supervisor.instance_name(@server)
+        supervisor = MCP.Supervisor.instance_name(@server)
 
-        case Hermes.Client.Base.call_tool(instance, @tool, args, timeout: timeout) do
-          {:ok, res} -> {:ok, res}
-          {:error, reason} -> {:error, reason}
+        # Get the client process from the supervisor
+        try do
+          children = Supervisor.which_children(supervisor)
+          case List.keyfind(children, Hermes.Client.Base, 0) do
+            {Hermes.Client.Base, client_pid, _, _} when is_pid(client_pid) ->
+              case Hermes.Client.Base.call_tool(client_pid, @tool, args, timeout: timeout) do
+                {:ok, %Hermes.MCP.Response{result: result}} -> {:ok, result}
+                {:ok, res} -> {:ok, res}
+                {:error, reason} -> {:error, reason}
+              end
+            _ ->
+              {:error, "MCP client not available"}
+          end
+        catch
+          :exit, _ -> {:error, "MCP client not available"}
         end
       end
     end
