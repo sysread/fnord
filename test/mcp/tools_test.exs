@@ -23,7 +23,7 @@ defmodule MCP.ToolsTest do
 
   test "register_server_tools defines dynamic modules and call works" do
     tool_specs = [
-      %{"name" => "foo", "description" => "desc", "parameters" => %{"a" => "b"}}
+      %{"name" => "foo", "description" => "desc", "inputSchema" => %{"a" => "b"}}
     ]
 
     # Register dynamic tool modules for server "srv"
@@ -36,10 +36,14 @@ defmodule MCP.ToolsTest do
 
     assert Code.ensure_loaded?(mod)
 
+    # The spec now follows OpenAI function calling format
     expected_spec = %{
-      "name" => "srv:foo",
-      "description" => "desc",
-      "parameters" => %{"a" => "b"}
+      type: "function",
+      function: %{
+        name: "srv_foo",
+        description: "desc",
+        parameters: %{"a" => "b", "required" => []}
+      }
     }
 
     assert function_exported?(mod, :spec, 0)

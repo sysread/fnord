@@ -13,18 +13,14 @@ defmodule MCP.Supervisor do
   @impl true
   def init(_opts) do
     settings = Settings.new()
-    cfg = Settings.MCP.effective_config(settings)
+    servers = Settings.MCP.effective_config(settings)
 
     children =
-      if cfg["enabled"] do
-        Enum.map(cfg["servers"], fn {server, scfg} ->
-          {kind, t_opts} = Transport.map(scfg)
-          spec_opts = [name: instance_name(server), transport: {kind, t_opts}]
-          Supervisor.child_spec({FnordClient, spec_opts}, id: {:mcp, server})
-        end)
-      else
-        []
-      end
+      Enum.map(servers, fn {server, scfg} ->
+        {kind, t_opts} = Transport.map(scfg)
+        spec_opts = [name: instance_name(server), transport: {kind, t_opts}]
+        Supervisor.child_spec({FnordClient, spec_opts}, id: {:mcp, server})
+      end)
 
     Supervisor.init(children, strategy: :one_for_one)
   end

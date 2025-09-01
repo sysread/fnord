@@ -3,7 +3,7 @@ defmodule MCP.FnordClient do
 
   use Hermes.Client,
     name: "fnord",
-    version: Util.get_running_version(),
-    protocol_version: "2024-11-05",
+    version: "1.0.0",
+    protocol_version: "2025-03-26",
     capabilities: [:roots]
 end

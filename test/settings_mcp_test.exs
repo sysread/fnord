@@ -4,21 +4,10 @@ defmodule SettingsMCPTest do
   alias Settings.MCP
 
   describe "default configuration" do
-    test "global get_config returns disabled with no servers" do
+    test "global get_config returns empty map with no servers" do
       settings = Settings.new()
-      assert MCP.get_config(settings, :global) == %{"enabled" => false, "servers" => %{}}
+      assert MCP.get_config(settings, :global) == %{}
       assert MCP.list_servers(settings, :global) == %{}
-    end
-
-    test "enabled?/enable/disable toggles flag" do
-      settings = Settings.new()
-      refute MCP.enabled?(settings, :global)
-
-      settings2 = MCP.enable(settings, :global)
-      assert MCP.enabled?(settings2, :global)
-
-      settings3 = MCP.disable(settings2, :global)
-      refute MCP.enabled?(settings3, :global)
     end
   end
 

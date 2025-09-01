@@ -109,36 +109,6 @@ defmodule Cmd.Config do
                   ]
                 ]
               ],
-              enable: [
-                name: "enable",
-                about: "Enable MCP server scope",
-                options: [
-                  project: Cmd.project_arg()
-                ],
-                flags: [
-                  global: [
-                    long: "--global",
-                    short: "-g",
-                    help: "Enable global MCP configuration",
-                    required: false
-                  ]
-                ]
-              ],
-              disable: [
-                name: "disable",
-                about: "Disable MCP server scope",
-                options: [
-                  project: Cmd.project_arg()
-                ],
-                flags: [
-                  global: [
-                    long: "--global",
-                    short: "-g",
-                    help: "Disable global MCP configuration",
-                    required: false
-                  ]
-                ]
-              ],
               add: [
                 name: "add",
                 about: "Add an MCP server (global or project)",
@@ -152,17 +122,19 @@ defmodule Cmd.Config do
                     long: "--transport",
                     short: "-t",
                     help: "Transport type (stdio|streamable_http|websocket)",
-                    required: true
+                    default: "stdio"
                   ],
                   command: [
                     value_name: "CMD",
                     long: "--command",
+                    short: "-c",
                     help: "Command for stdio transport",
                     required: false
                   ],
                   arg: [
                     value_name: "ARG",
                     long: "--arg",
+                    short: "-a",
                     help: "Argument for stdio transport (repeatable)",
                     required: false,
                     multiple: true
@@ -170,12 +142,14 @@ defmodule Cmd.Config do
                   base_url: [
                     value_name: "URL",
                     long: "--base-url",
+                    short: "-u",
                     help: "Base URL for HTTP/WebSocket transports",
                     required: false
                   ],
                   header: [
                     value_name: "HEADER",
                     long: "--header",
+                    short: "-h",
                     help: "Header for HTTP/WebSocket transports (KEY=VALUE, repeatable)",
                     required: false,
                     multiple: true
@@ -183,6 +157,7 @@ defmodule Cmd.Config do
                   env: [
                     value_name: "ENV",
                     long: "--env",
+                    short: "-e",
                     help: "Environment variable for stdio transport (KEY=VALUE, repeatable)",
                     required: false,
                     multiple: true
@@ -190,6 +165,7 @@ defmodule Cmd.Config do
                   timeout_ms: [
                     value_name: "MS",
                     long: "--timeout-ms",
+                    short: "-T",
                     help: "Timeout in milliseconds",
                     required: false
                   ]
@@ -216,17 +192,19 @@ defmodule Cmd.Config do
                     long: "--transport",
                     short: "-t",
                     help: "Transport type (stdio|streamable_http|websocket)",
-                    required: true
+                    default: "stdio"
                   ],
                   command: [
                     value_name: "CMD",
                     long: "--command",
+                    short: "-c",
                     help: "Command for stdio transport",
                     required: false
                   ],
                   arg: [
                     value_name: "ARG",
                     long: "--arg",
+                    short: "-a",
                     help: "Argument for stdio transport (repeatable)",
                     required: false,
                     multiple: true
@@ -234,12 +212,14 @@ defmodule Cmd.Config do
                   base_url: [
                     value_name: "URL",
                     long: "--base-url",
+                    short: "-u",
                     help: "Base URL for HTTP/WebSocket transports",
                     required: false
                   ],
                   header: [
                     value_name: "HEADER",
                     long: "--header",
+                    short: "-h",
                     help: "Header for HTTP/WebSocket transports (KEY=VALUE, repeatable)",
                     required: false,
                     multiple: true
@@ -247,6 +227,7 @@ defmodule Cmd.Config do
                   env: [
                     value_name: "ENV",
                     long: "--env",
+                    short: "-e",
                     help: "Environment variable for stdio transport (KEY=VALUE, repeatable)",
                     required: false,
                     multiple: true
@@ -254,6 +235,7 @@ defmodule Cmd.Config do
                   timeout_ms: [
                     value_name: "MS",
                     long: "--timeout-ms",
+                    short: "-T",
                     help: "Timeout in milliseconds",
                     required: false
                   ]
@@ -359,8 +341,6 @@ defmodule Cmd.Config do
   def run(opts, [:approvals], args), do: Cmd.Config.Approvals.run(opts, [:approvals], args)
   def run(opts, [:approve], args), do: Cmd.Config.Approvals.run(opts, [:approve], args)
   def run(opts, [:mcp, :list], args), do: Cmd.Config.MCP.run(opts, [:mcp, :list], args)
-  def run(opts, [:mcp, :enable], args), do: Cmd.Config.MCP.run(opts, [:mcp, :enable], args)
-  def run(opts, [:mcp, :disable], args), do: Cmd.Config.MCP.run(opts, [:mcp, :disable], args)
   def run(opts, [:mcp, :add], args), do: Cmd.Config.MCP.run(opts, [:mcp, :add], args)
   def run(opts, [:mcp, :update], args), do: Cmd.Config.MCP.run(opts, [:mcp, :update], args)
   def run(opts, [:mcp, :remove], args), do: Cmd.Config.MCP.run(opts, [:mcp, :remove], args)

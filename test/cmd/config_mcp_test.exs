@@ -1,5 +1,5 @@
 defmodule Cmd.ConfigMCPTest do
-  use Fnord.TestCase
+  use Fnord.TestCase, async: false
   import ExUnit.CaptureIO
   import ExUnit.CaptureLog
   alias Cmd.Config.MCP
@@ -18,18 +18,9 @@ defmodule Cmd.ConfigMCPTest do
   end
 
   describe "mcp list" do
-    test "effective on empty prints disabled/empty" do
-      out = capture_io(fn -> MCP.run(%{effective: true}, [:mcp, :list], []) end)
-      assert {:ok, %{"enabled" => false, "servers" => %{}}} = Jason.decode(out)
-    end
-
-    test "global scope list reflects Settings.MCP.get_config/1" do
-      out1 = capture_io(fn -> MCP.run(%{global: true}, [:mcp, :list], []) end)
-      assert {:ok, %{"enabled" => false, "servers" => %{}}} = Jason.decode(out1)
-      # toggle
-      capture_io(fn -> MCP.run(%{global: true}, [:mcp, :enable], []) end)
-      out2 = capture_io(fn -> MCP.run(%{global: true}, [:mcp, :list], []) end)
-      assert {:ok, %{"enabled" => true, "servers" => %{}}} = Jason.decode(out2)
+    test "global scope list shows empty servers by default" do
+      out = capture_io(fn -> MCP.run(%{global: true}, [:mcp, :list], []) end)
+      assert {:ok, %{}} = Jason.decode(out)
     end
 
     test "project scope without project set errors" do
@@ -41,33 +32,16 @@ defmodule Cmd.ConfigMCPTest do
       mock_project("p")
       Settings.set_project("p")
       out = capture_io(fn -> MCP.run(%{}, [:mcp, :list], []) end)
-      assert {:ok, %{"enabled" => false, "servers" => %{}}} = Jason.decode(out)
+      assert {:ok, %{}} = Jason.decode(out)
     end
   end
 
-  describe "mcp enable/disable" do
-    test "toggle global" do
-      en = capture_io(fn -> MCP.run(%{global: true}, [:mcp, :enable], []) end)
-      dis = capture_io(fn -> MCP.run(%{global: true}, [:mcp, :disable], []) end)
-      assert {:ok, %{"enabled" => true, "servers" => %{}}} = Jason.decode(en)
-      assert {:ok, %{"enabled" => false, "servers" => %{}}} = Jason.decode(dis)
-    end
-
-    test "toggle project" do
-      mock_project("x")
-      Settings.set_project("x")
-      en = capture_io(fn -> MCP.run(%{}, [:mcp, :enable], []) end)
-      assert {:ok, %{"enabled" => true, "servers" => %{}}} = Jason.decode(en)
-      dis = capture_io(fn -> MCP.run(%{}, [:mcp, :disable], []) end)
-      assert {:ok, %{"enabled" => false, "servers" => %{}}} = Jason.decode(dis)
-    end
-  end
 
   describe "mcp add" do
     test "happy-path adds stdio server with defaults" do
       out =
         capture_io(fn ->
-          MCP.run(%{global: true, transport: "stdio", command: "foo"}, [:mcp, :add], ["srv"])
+          MCP.run(%{global: true, command: "foo"}, [:mcp, :add], ["srv"])
         end)
 
       assert {:ok, %{"srv" => cfg}} = Jason.decode(out)
@@ -77,14 +51,27 @@ defmodule Cmd.ConfigMCPTest do
       assert cfg["env"] == %{}
     end
 
+    test "adds server with args and env" do
+      out =
+        capture_io(fn ->
+          MCP.run(%{global: true, command: "uvx", arg: ["mcp-server-time"], env: ["DEBUG=1"]}, [:mcp, :add], ["time"])
+        end)
+
+      assert {:ok, %{"time" => cfg}} = Jason.decode(out)
+      assert cfg["transport"] == "stdio"
+      assert cfg["command"] == "uvx"
+      assert cfg["args"] == ["mcp-server-time"]
+      assert cfg["env"] == %{"DEBUG" => "1"}
+    end
+
     test "duplicate add returns error" do
       capture_io(fn ->
-        MCP.run(%{global: true, transport: "stdio", command: "foo"}, [:mcp, :add], ["srv"])
+        MCP.run(%{global: true, command: "foo"}, [:mcp, :add], ["srv"])
       end)
 
       log =
         capture_log(fn ->
-          MCP.run(%{global: true, transport: "stdio", command: "foo"}, [:mcp, :add], ["srv"])
+          MCP.run(%{global: true, command: "foo"}, [:mcp, :add], ["srv"])
         end)
 
       assert log =~ "Server 'srv' already exists"
@@ -95,7 +82,7 @@ defmodule Cmd.ConfigMCPTest do
     setup do
       # add initial server
       capture_io(fn ->
-        MCP.run(%{global: true, transport: "stdio", command: "initial"}, [:mcp, :add], ["foo"])
+        MCP.run(%{global: true, command: "initial"}, [:mcp, :add], ["foo"])
       end)
 
       :ok
@@ -104,7 +91,7 @@ defmodule Cmd.ConfigMCPTest do
     test "update non-existent errors" do
       log =
         capture_log(fn ->
-          MCP.run(%{global: true, transport: "stdio", command: "bar"}, [:mcp, :update], ["nope"])
+          MCP.run(%{global: true, command: "bar"}, [:mcp, :update], ["nope"])
         end)
 
       assert log =~ "Server 'nope' not found"
@@ -113,12 +100,20 @@ defmodule Cmd.ConfigMCPTest do
     test "update existing server" do
       out =
         capture_io(fn ->
-          MCP.run(%{global: true, transport: "stdio", command: "updated"}, [:mcp, :update], [
-            "foo"
-          ])
+          MCP.run(%{global: true, command: "updated"}, [:mcp, :update], ["foo"])
         end)
 
       assert {:ok, %{"foo" => %{"command" => "updated"}}} = Jason.decode(out)
+    end
+
+    test "update with additional env vars" do
+      out =
+        capture_io(fn ->
+          MCP.run(%{global: true, command: "initial", env: ["DEBUG=1", "VERBOSE=true"]}, [:mcp, :update], ["foo"])
+        end)
+
+      assert {:ok, %{"foo" => cfg}} = Jason.decode(out)
+      assert cfg["env"] == %{"DEBUG" => "1", "VERBOSE" => "true"}
     end
   end
 
@@ -126,7 +121,7 @@ defmodule Cmd.ConfigMCPTest do
     setup do
       # seed server for removal tests
       capture_io(fn ->
-        MCP.run(%{global: true, transport: "stdio", command: "one"}, [:mcp, :add], ["one"])
+        MCP.run(%{global: true, command: "one"}, [:mcp, :add], ["one"])
       end)
 
       :ok
@@ -144,21 +139,60 @@ defmodule Cmd.ConfigMCPTest do
     end
   end
 
-  describe "mcp commands via opts[:name]" do
-    test "add via opts" do
-      out =
-        capture_io(fn ->
-          MCP.run(
-            %{global: true, name: "srv", transport: "stdio", command: "foo"},
-            [:mcp, :add],
-            []
-          )
-        end)
+  describe "mcp check" do
+    setup do
+      # Mock Services.MCP to avoid actually starting MCP processes
+      :meck.new(Services.MCP, [:non_strict])
+      :meck.expect(Services.MCP, :start, fn -> :ok end)
+      :meck.expect(Services.MCP, :test, fn ->
+        %{
+          "status" => "ok",
+          "servers" => %{
+            "test_server" => %{
+              "status" => "ok",
+              "server_info" => %{"name" => "test_server-server", "status" => "running"},
+              "tools" => %{"status" => "error", "error" => ":not_started"}
+            }
+          }
+        }
+      end)
 
-      assert {:ok, %{"srv" => _}} = Jason.decode(out)
+      on_exit(fn ->
+        try do
+          :meck.unload(Services.MCP)
+        catch
+          _, _ -> :ok
+        end
+      end)
+
+      # add server for check testing (but don't expect it to actually connect)
+      capture_io(fn ->
+        MCP.run(%{global: true, command: "echo", arg: ["hello"]}, [:mcp, :add], ["test_server"])
+      end)
+      
+      :ok
     end
 
-    test "error when no server name" do
+    test "check shows server status" do
+      # This will try to connect but fail gracefully - we're just testing the command structure
+      out = capture_io(fn -> MCP.run(%{global: true}, [:mcp, :check], []) end)
+      assert {:ok, %{"status" => "ok", "servers" => servers}} = Jason.decode(out)
+      assert Map.has_key?(servers, "test_server")
+    end
+
+    test "check with project scope" do
+      # Mock empty response for project scope
+      :meck.expect(Services.MCP, :test, fn -> %{"status" => "ok", "servers" => %{}} end)
+      
+      mock_project("check_test")
+      Settings.set_project("check_test")
+      out = capture_io(fn -> MCP.run(%{}, [:mcp, :check], []) end)
+      assert {:ok, %{"status" => "ok", "servers" => %{}}} = Jason.decode(out)
+    end
+  end
+
+  describe "server name handling" do
+    test "error when no server name for add" do
       log =
         capture_log(fn ->
           MCP.run(%{global: true}, [:mcp, :add], [])
@@ -167,71 +201,19 @@ defmodule Cmd.ConfigMCPTest do
       assert log =~ "Server name is required"
     end
 
-    test "update via opts" do
-      # seed initial server for update
-      capture_io(fn ->
-        MCP.run(
-          %{global: true, name: "foo", transport: "stdio", command: "initial"},
-          [:mcp, :add],
-          []
-        )
-      end)
-
-      out =
-        capture_io(fn ->
-          MCP.run(
-            %{global: true, name: "foo", transport: "stdio", command: "updated"},
-            [:mcp, :update],
-            []
-          )
-        end)
-
-      assert {:ok, %{"foo" => %{"command" => "updated"}}} = Jason.decode(out)
-    end
-
     test "error when no server name for update" do
       log =
         capture_log(fn ->
-          MCP.run(
-            %{global: true, transport: "stdio", command: "foo"},
-            [:mcp, :update],
-            []
-          )
+          MCP.run(%{global: true, command: "foo"}, [:mcp, :update], [])
         end)
 
       assert log =~ "Server name is required"
     end
 
-    test "remove via opts" do
-      # seed server for removal
-      capture_io(fn ->
-        MCP.run(
-          %{global: true, name: "foo", transport: "stdio", command: "init"},
-          [:mcp, :add],
-          []
-        )
-      end)
-
-      out =
-        capture_io(fn ->
-          MCP.run(
-            %{global: true, name: "foo"},
-            [:mcp, :remove],
-            []
-          )
-        end)
-
-      assert {:ok, %{}} = Jason.decode(out)
-    end
-
     test "error when no server name for remove" do
       log =
         capture_log(fn ->
-          MCP.run(
-            %{global: true},
-            [:mcp, :remove],
-            []
-          )
+          MCP.run(%{global: true}, [:mcp, :remove], [])
         end)
 
       assert log =~ "Server name is required"

@@ -29,6 +29,6 @@ defmodule Services do
     Services.NamePool.start_link()
     Services.Approvals.start_link()
     Services.MCP.start()
-    :ok = Services.MCP.start()
+    :ok
   end
 end

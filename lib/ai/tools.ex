@@ -209,6 +209,7 @@ defmodule AI.Tools do
   def all_tools() do
     @tools
     |> Map.merge(Frobs.module_map())
+    |> Map.merge(MCP.Tools.module_map())
     |> Enum.filter(fn {_name, mod} -> mod.is_available?() end)
     |> Map.new()
   end

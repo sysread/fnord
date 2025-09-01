@@ -7,10 +7,7 @@ defmodule Settings.MCP do
 
   Configuration format:
 
-  "mcp_servers": %{  
-    "enabled" => boolean,
-    "servers" => %{server_name => server_config}
-  }
+  "mcp_servers": %{server_name => server_config}
 
   server_config fields:
     - "transport": "stdio" | "streamable_http" | "websocket"
@@ -32,24 +29,30 @@ defmodule Settings.MCP do
 
   @typedoc "Configuration for an individual MCP server"
   @type server_config :: map()
-  @typedoc "Full MCP configuration"
+  @typedoc "Full MCP configuration - map of server names to configs"
   @type config :: map()
-  @doc "Retrieve MCP configuration for the given scope without writing defaults"
+  @doc "Retrieve MCP server configurations for the given scope"
   @spec get_config(settings(), scope()) :: config()
   def get_config(settings, :global) do
     raw = Settings.get(settings, "mcp_servers", %{})
-    normalize(raw)
+    extract_servers(raw)
   end
 
   def get_config(settings, :project) do
     case Settings.get_project(settings) do
       {:ok, project} ->
-        normalize(Map.get(project, "mcp_servers", %{}))
+        raw = Map.get(project, "mcp_servers", %{})
+        extract_servers(raw)
 
       _ ->
-        %{"enabled" => false, "servers" => %{}}
+        %{}
     end
   end
+
+  # Extract servers from either old format {"enabled": _, "servers": _} or new flat format
+  defp extract_servers(%{"servers" => servers}) when is_map(servers), do: servers
+  defp extract_servers(config) when is_map(config), do: config
+  defp extract_servers(_), do: %{}
 
   @doc "Set MCP configuration for the given scope"
   @spec set_config(settings, scope, map()) :: settings
@@ -72,39 +75,19 @@ defmodule Settings.MCP do
   # Fallback for unexpected scope
   def set_config(settings, _scope, _cfg), do: settings
 
-  @doc "Return true if MCP is enabled in the given scope"
-  @spec enabled?(settings, scope) :: boolean
-
-  def enabled?(settings, scope), do: get_config(settings, scope)["enabled"]
-
-  @doc "Enable MCP for the given scope"
-  @spec enable(settings, scope) :: settings
-  def enable(settings, scope) do
-    cfg = get_config(settings, scope)
-    set_config(settings, scope, Map.put(cfg, "enabled", true))
-  end
-
-  @doc "Disable MCP for the given scope"
-  @spec disable(settings, scope) :: settings
-  def disable(settings, scope) do
-    cfg = get_config(settings, scope)
-    set_config(settings, scope, Map.put(cfg, "enabled", false))
-  end
 
   @doc "List configured MCP servers by name for the given scope"
   @spec list_servers(settings, scope) :: map()
-  def list_servers(settings, scope), do: get_config(settings, scope)["servers"]
+  def list_servers(settings, scope), do: get_config(settings, scope)
 
   @doc "Add a new MCP server configuration"
   @spec add_server(settings, scope, String.t(), map()) :: {:ok, settings} | {:error, any}
   def add_server(settings, scope, name, raw_cfg) do
     with {:ok, cfg} <- validate_server_config(raw_cfg),
-         existing <- get_config(settings, scope)["servers"],
+         existing <- get_config(settings, scope),
          false <- Map.has_key?(existing, name) do
       servers = Map.put(existing, name, cfg)
-      enabled = get_config(settings, scope)["enabled"]
-      new_cfg = %{"enabled" => enabled, "servers" => servers}
-      {:ok, set_config(settings, scope, new_cfg)}
+      {:ok, set_config(settings, scope, servers)}
     else
       true -> {:error, :exists}
       {:error, msg} -> {:error, msg}
@@ -115,12 +98,10 @@ defmodule Settings.MCP do
   @spec update_server(settings, scope, String.t(), map()) :: {:ok, settings} | {:error, any}
   def update_server(settings, scope, name, raw_cfg) do
     with {:ok, cfg} <- validate_server_config(raw_cfg),
-         existing <- get_config(settings, scope)["servers"],
+         existing <- get_config(settings, scope),
          true <- Map.has_key?(existing, name) do
       servers = Map.put(existing, name, cfg)
-      enabled = get_config(settings, scope)["enabled"]
-      new_cfg = %{"enabled" => enabled, "servers" => servers}
-      {:ok, set_config(settings, scope, new_cfg)}
+      {:ok, set_config(settings, scope, servers)}
     else
       false -> {:error, :not_found}
       {:error, msg} -> {:error, msg}
@@ -130,13 +111,11 @@ defmodule Settings.MCP do
   @doc "Remove an existing MCP server configuration"
   @spec remove_server(settings, scope, String.t()) :: {:ok, settings} | {:error, any}
   def remove_server(settings, scope, name) do
-    existing = get_config(settings, scope)["servers"]
+    existing = get_config(settings, scope)
 
     if Map.has_key?(existing, name) do
       servers = Map.delete(existing, name)
-      enabled = get_config(settings, scope)["enabled"]
-      new_cfg = %{"enabled" => enabled, "servers" => servers}
-      {:ok, set_config(settings, scope, new_cfg)}
+      {:ok, set_config(settings, scope, servers)}
     else
       {:error, :not_found}
     end
@@ -147,20 +126,9 @@ defmodule Settings.MCP do
   def effective_config(settings) do
     g = get_config(settings, :global)
     p = get_config(settings, :project)
-
-    %{
-      "enabled" => p["enabled"] || g["enabled"],
-      "servers" => Map.merge(g["servers"], p["servers"])
-    }
+    Map.merge(g, p)
   end
 
-  # Normalize raw MCP configuration, ensuring expected shape
-  defp normalize(%{"enabled" => enabled, "servers" => servers})
-       when is_boolean(enabled) and is_map(servers) do
-    %{"enabled" => enabled, "servers" => servers}
-  end
-
-  defp normalize(_), do: %{"enabled" => false, "servers" => %{}}
 
   @spec validate_server_config(map()) :: {:ok, map()} | {:error, String.t()}
   defp validate_server_config(%{"transport" => t} = cfg)

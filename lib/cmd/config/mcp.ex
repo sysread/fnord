@@ -47,27 +47,6 @@ defmodule Cmd.Config.MCP do
     end
   end
 
-  def run(opts, [:mcp, :enable], _unknown) do
-    if opts[:project], do: Settings.set_project(opts[:project])
-    settings = Settings.new()
-    scope = if opts[:global], do: :global, else: :project
-    updated = Settings.MCP.enable(settings, scope)
-
-    Settings.MCP.get_config(updated, scope)
-    |> Jason.encode!(pretty: true)
-    |> IO.puts()
-  end
-
-  def run(opts, [:mcp, :disable], _unknown) do
-    if opts[:project], do: Settings.set_project(opts[:project])
-    settings = Settings.new()
-    scope = if opts[:global], do: :global, else: :project
-    updated = Settings.MCP.disable(settings, scope)
-
-    Settings.MCP.get_config(updated, scope)
-    |> Jason.encode!(pretty: true)
-    |> IO.puts()
-  end
 
   def run(opts, [:mcp, :check], _unknown) do
     if opts[:project], do: Settings.set_project(opts[:project])
@@ -97,7 +76,7 @@ defmodule Cmd.Config.MCP do
   @spec build_server_config_from_opts(map()) :: map()
   defp build_server_config_from_opts(opts) do
     %{}
-    |> Map.put("transport", opts[:transport])
+    |> maybe_put("transport", opts[:transport] || "stdio")
     |> maybe_put("command", opts[:command])
     |> maybe_put("args", opts[:arg] || [])
     |> maybe_put("base_url", opts[:base_url])
