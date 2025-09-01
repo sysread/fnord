@@ -177,6 +177,18 @@ defmodule Store.Project.Conversation do
   end
 
   @doc """
+  Returns the number of messages in the conversation. If the conversation does
+  not exist, returns 0.
+  """
+  @spec num_messages(t) :: non_neg_integer()
+  def num_messages(conversation) do
+    case read(conversation) do
+      {:ok, _timestamp, msgs} -> length(msgs)
+      _ -> 0
+    end
+  end
+
+  @doc """
   Deletes the conversation from the store. If the conversation does not exist,
   returns an error tuple.
   """

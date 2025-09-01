@@ -111,7 +111,8 @@ defmodule Cmd.Conversations do
             id: conversation.id,
             timestamp: Store.Project.Conversation.timestamp(conversation),
             file: conversation.store_path,
-            question: get_question(conversation)
+            question: get_question(conversation),
+            length: Store.Project.Conversation.num_messages(conversation)
           }
         end)
         |> Jason.encode!(pretty: true)
