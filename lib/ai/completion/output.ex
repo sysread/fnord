@@ -125,10 +125,21 @@ defmodule AI.Completion.Output do
     # Make a lookup for tool call args by id
     tool_call_args = build_tool_call_args(messages)
 
+    # The toolbox isn't stored in the saved conversation, so we pass the
+    # complete toolbox while replaying.
+    all_tools =
+      AI.Tools.all_tools()
+      |> AI.Tools.with_rw_tools()
+      |> AI.Tools.with_coding_tools()
+
     messages
     # Skip the first message, which is the system prompt for the agent
     |> Enum.drop(1)
-    |> Enum.each(fn msg -> replay_msg(state, msg, tool_call_args) end)
+    |> Enum.each(fn msg ->
+      state
+      |> Map.put(:toolbox, all_tools)
+      |> replay_msg(msg, tool_call_args)
+    end)
 
     state
   end
@@ -151,11 +162,20 @@ defmodule AI.Completion.Output do
     # Make a lookup for tool call args by id
     tool_call_args = build_tool_call_args(messages)
 
+    # The toolbox isn't stored in the saved conversation, so we pass the
+    # complete toolbox while replaying.
+    all_tools =
+      AI.Tools.all_tools()
+      |> AI.Tools.with_rw_tools()
+      |> AI.Tools.with_coding_tools()
+
     messages
     # Skip the first message, which is the system prompt for the agent
     |> Enum.drop(1)
     |> Enum.each(fn msg ->
-      replay_msg(state, msg, tool_call_args)
+      state
+      |> Map.put(:toolbox, all_tools)
+      |> replay_msg(msg, tool_call_args)
     end)
 
     UI.flush()
