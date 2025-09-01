@@ -12,7 +12,7 @@ defmodule MCP.Tools do
   @spec register_server_tools(String.t(), [map()]) :: :ok
   def register_server_tools(server, tools) when is_binary(server) and is_list(tools) do
     ensure_started()
-    
+
     Enum.each(tools, fn tool_spec ->
       name = tool_spec["name"]
       mod = module_name(server, name)
@@ -39,10 +39,10 @@ defmodule MCP.Tools do
   # Construct default spec metadata for the dynamic tool module
   defp default_spec(server, tool_spec) do
     input_schema = Map.get(tool_spec, "inputSchema", %{})
-    
+
     # Ensure the parameters have a required field (even if empty)
     parameters = Map.put_new(input_schema, "required", [])
-    
+
     %{
       type: "function",
       function: %{
@@ -81,6 +81,7 @@ defmodule MCP.Tools do
       @impl true
       def ui_note_on_request(args) do
         tool_name = Map.get(@spec_data.function, :name, @tool)
+
         case Map.keys(args) do
           [] -> "Calling #{tool_name}"
           keys -> "Calling #{tool_name} with #{Enum.join(keys, ", ")}"
@@ -92,26 +93,31 @@ defmodule MCP.Tools do
         case result do
           {:ok, data} when is_map(data) ->
             case Map.get(data, "content") do
-              [%{"text" => text}] when is_binary(text) -> 
+              [%{"text" => text}] when is_binary(text) ->
                 if String.length(text) > 100 do
                   {"Result", String.slice(text, 0, 97) <> "..."}
                 else
                   {"Result", text}
                 end
-              content when is_list(content) -> 
+
+              content when is_list(content) ->
                 {"Result", "#{length(content)} items"}
-              _ -> 
+
+              _ ->
                 {"Result", "Success"}
             end
-          {:ok, text} when is_binary(text) -> 
+
+          {:ok, text} when is_binary(text) ->
             if String.length(text) > 100 do
               {"Result", String.slice(text, 0, 97) <> "..."}
             else
               {"Result", text}
             end
-          {:error, reason} -> 
+
+          {:error, reason} ->
             {"Error", inspect(reason)}
-          _ -> 
+
+          _ ->
             nil
         end
       end
@@ -124,6 +130,7 @@ defmodule MCP.Tools do
         # Get the client process from the supervisor
         try do
           children = Supervisor.which_children(supervisor)
+
           case List.keyfind(children, Hermes.Client.Base, 0) do
             {Hermes.Client.Base, client_pid, _, _} when is_pid(client_pid) ->
               case Hermes.Client.Base.call_tool(client_pid, @tool, args, timeout: timeout) do
@@ -131,6 +138,7 @@ defmodule MCP.Tools do
                 {:ok, res} -> {:ok, res}
                 {:error, reason} -> {:error, reason}
               end
+
             _ ->
               {:error, "MCP client not available"}
           end

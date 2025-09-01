@@ -75,7 +75,6 @@ defmodule Settings.MCP do
   # Fallback for unexpected scope
   def set_config(settings, _scope, _cfg), do: settings
 
-
   @doc "List configured MCP servers by name for the given scope"
   @spec list_servers(settings, scope) :: map()
   def list_servers(settings, scope), do: get_config(settings, scope)
@@ -128,7 +127,6 @@ defmodule Settings.MCP do
     p = get_config(settings, :project)
     Map.merge(g, p)
   end
-
 
   @spec validate_server_config(map()) :: {:ok, map()} | {:error, String.t()}
   defp validate_server_config(%{"transport" => t} = cfg)

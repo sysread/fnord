@@ -36,7 +36,6 @@ defmodule Cmd.ConfigMCPTest do
     end
   end
 
-
   describe "mcp add" do
     test "happy-path adds stdio server with defaults" do
       out =
@@ -54,7 +53,11 @@ defmodule Cmd.ConfigMCPTest do
     test "adds server with args and env" do
       out =
         capture_io(fn ->
-          MCP.run(%{global: true, command: "uvx", arg: ["mcp-server-time"], env: ["DEBUG=1"]}, [:mcp, :add], ["time"])
+          MCP.run(
+            %{global: true, command: "uvx", arg: ["mcp-server-time"], env: ["DEBUG=1"]},
+            [:mcp, :add],
+            ["time"]
+          )
         end)
 
       assert {:ok, %{"time" => cfg}} = Jason.decode(out)
@@ -109,7 +112,11 @@ defmodule Cmd.ConfigMCPTest do
     test "update with additional env vars" do
       out =
         capture_io(fn ->
-          MCP.run(%{global: true, command: "initial", env: ["DEBUG=1", "VERBOSE=true"]}, [:mcp, :update], ["foo"])
+          MCP.run(
+            %{global: true, command: "initial", env: ["DEBUG=1", "VERBOSE=true"]},
+            [:mcp, :update],
+            ["foo"]
+          )
         end)
 
       assert {:ok, %{"foo" => cfg}} = Jason.decode(out)
@@ -144,6 +151,7 @@ defmodule Cmd.ConfigMCPTest do
       # Mock Services.MCP to avoid actually starting MCP processes
       :meck.new(Services.MCP, [:non_strict])
       :meck.expect(Services.MCP, :start, fn -> :ok end)
+
       :meck.expect(Services.MCP, :test, fn ->
         %{
           "status" => "ok",
@@ -169,7 +177,7 @@ defmodule Cmd.ConfigMCPTest do
       capture_io(fn ->
         MCP.run(%{global: true, command: "echo", arg: ["hello"]}, [:mcp, :add], ["test_server"])
       end)
-      
+
       :ok
     end
 
@@ -183,7 +191,7 @@ defmodule Cmd.ConfigMCPTest do
     test "check with project scope" do
       # Mock empty response for project scope
       :meck.expect(Services.MCP, :test, fn -> %{"status" => "ok", "servers" => %{}} end)
-      
+
       mock_project("check_test")
       Settings.set_project("check_test")
       out = capture_io(fn -> MCP.run(%{}, [:mcp, :check], []) end)

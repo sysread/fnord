@@ -10,12 +10,12 @@ defmodule Services.MCP do
   @spec start() :: :ok
   def start do
     # Configure Hermes MCP logging to reduce debug output
-    Application.put_env(:hermes_mcp, :logging, [
+    Application.put_env(:hermes_mcp, :logging,
       client_events: :info,
       server_events: :info,
       transport_events: :warning,
       protocol_messages: :warning
-    ])
+    )
 
     servers = MCPSettings.effective_config(Settings.new())
 
@@ -46,7 +46,11 @@ defmodule Services.MCP do
           UI.warn(
             Jason.encode!(
               %{
-                mcp_discovery_error: %{server: server, transport: cfg["transport"], error: inspect(reason)}
+                mcp_discovery_error: %{
+                  server: server,
+                  transport: cfg["transport"],
+                  error: inspect(reason)
+                }
               },
               pretty: true
             )
@@ -63,7 +67,7 @@ defmodule Services.MCP do
     case Process.whereis(instance) do
       nil ->
         {:error, :not_started}
-      
+
       pid when is_pid(pid) ->
         if Process.alive?(pid) do
           # Process is alive, attempt to discover tools via the client module
@@ -73,21 +77,23 @@ defmodule Services.MCP do
             :timer.sleep(1000)
             # The instance is a supervisor, we need to find the client process
             children = Supervisor.which_children(instance)
-            
+
             # Find the Hermes.Client.Base child process
             case List.keyfind(children, Hermes.Client.Base, 0) do
               {Hermes.Client.Base, client_pid, _, _} when is_pid(client_pid) ->
                 result = Hermes.Client.Base.list_tools(client_pid)
+
                 case result do
                   {:ok, %Hermes.MCP.Response{result: %{"tools" => tools}}} -> {:ok, tools}
                   {:ok, _response} -> {:ok, []}
                   {:error, reason} -> {:error, reason}
                 end
+
               _ ->
                 {:ok, []}
             end
           rescue
-            _ -> 
+            _ ->
               # Tools discovery failed, likely due to timing or client not ready
               # Return empty list for now - tools may be discovered later
               {:ok, []}
@@ -141,7 +147,7 @@ defmodule Services.MCP do
     case Process.whereis(instance) do
       nil ->
         {:error, :not_started}
-      
+
       pid when is_pid(pid) ->
         if Process.alive?(pid) do
           {:ok, %{"name" => "#{server}-server", "status" => "running"}}
@@ -158,12 +164,13 @@ defmodule Services.MCP do
     case Process.whereis(instance) do
       nil ->
         {:error, :not_started}
-      
+
       pid when is_pid(pid) ->
         if Process.alive?(pid) do
           # Try to get capabilities from the client state
           try do
             children = Supervisor.which_children(instance)
+
             case List.keyfind(children, Hermes.Client.Base, 0) do
               {Hermes.Client.Base, client_pid, _, _} when is_pid(client_pid) ->
                 # Try to get server capabilities from the client
@@ -171,6 +178,7 @@ defmodule Services.MCP do
                   caps when is_map(caps) -> {:ok, caps}
                   nil -> {:ok, %{}}
                 end
+
               _ ->
                 {:ok, %{}}
             end

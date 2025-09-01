@@ -5,6 +5,7 @@ ExUnit.start()
 # ------------------------------------------------------------------------------
 # Ensure quiet mode is enabled to prevent interactive prompts during tests
 Application.put_env(:fnord, :quiet, true)
+Application.put_env(:fnord, :http_retry_skip_sleep, true)
 
 # ------------------------------------------------------------------------------
 # Start applications for any external dependencies used in tests

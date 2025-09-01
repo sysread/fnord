@@ -23,25 +23,25 @@ defmodule Services.MCPTest do
   test "test/0 returns success for all servers when client returns ok" do
     # Mock Services.MCP.test() directly instead of all the underlying complexity
     :meck.new(Services.MCP, [:non_strict, :passthrough])
-    
+
     expected_result = %{
       status: "ok",
       servers: %{
         "srv1" => %{
-          status: "ok", 
+          status: "ok",
           server_info: %{"name" => "srv1-server", "status" => "running"},
           capabilities: %{"tools" => true},
           tools: [%{"name" => "toolX", "description" => "descX"}]
         },
         "srv2" => %{
           status: "ok",
-          server_info: %{"name" => "srv2-server", "status" => "running"}, 
+          server_info: %{"name" => "srv2-server", "status" => "running"},
           capabilities: %{"tools" => true},
           tools: [%{"name" => "toolX", "description" => "descX"}]
         }
       }
     }
-    
+
     :meck.expect(Services.MCP, :test, fn -> expected_result end)
 
     on_exit(fn ->
@@ -66,7 +66,7 @@ defmodule Services.MCPTest do
   test "test/0 reports error when client returns error" do
     # Mock Services.MCP.test() directly for error case
     :meck.new(Services.MCP, [:non_strict, :passthrough])
-    
+
     expected_result = %{
       status: "ok",
       servers: %{
@@ -77,14 +77,14 @@ defmodule Services.MCPTest do
           capabilities: %{}
         },
         "srv2" => %{
-          status: "error", 
+          status: "error",
           error: "\"list_error\"",
           server_info: %{"name" => "srv2-server", "status" => "running"},
           capabilities: %{}
         }
       }
     }
-    
+
     :meck.expect(Services.MCP, :test, fn -> expected_result end)
 
     on_exit(fn ->

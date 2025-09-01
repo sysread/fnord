@@ -47,7 +47,6 @@ defmodule Cmd.Config.MCP do
     end
   end
 
-
   def run(opts, [:mcp, :check], _unknown) do
     if opts[:project], do: Settings.set_project(opts[:project])
     Services.MCP.start()
