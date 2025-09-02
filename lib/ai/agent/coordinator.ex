@@ -116,15 +116,8 @@ defmodule AI.Agent.Coordinator do
 
   @spec consider(t) :: t | error
   defp consider(state) do
-    Frobs.list()
-    |> Enum.map(& &1.name)
-    |> Enum.join(" | ")
-    |> then(&UI.info("Available frobs", &1))
-
-    MCP.Tools.module_map()
-    |> Map.keys()
-    |> Enum.join(" | ")
-    |> then(&UI.info("Available MCP tools", &1))
+    log_available_frobs()
+    log_available_mcp_tools()
 
     if is_testing?(state) do
       UI.debug("Testing mode enabled")
@@ -807,6 +800,26 @@ defmodule AI.Agent.Coordinator do
     end
 
     state
+  end
+
+  defp log_available_frobs do
+    Frobs.list()
+    |> Enum.map(& &1.name)
+    |> Enum.join(" | ")
+    |> case do
+      "" -> UI.info("Available frobs", "None")
+      some -> UI.info("Available frobs", some)
+    end
+  end
+
+  defp log_available_mcp_tools do
+    MCP.Tools.module_map()
+    |> Map.keys()
+    |> Enum.join(" | ")
+    |> case do
+      "" -> UI.info("Available MCP tools", "None")
+      some -> UI.info("Available MCP tools", some)
+    end
   end
 
   # -----------------------------------------------------------------------------
