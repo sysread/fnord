@@ -43,6 +43,8 @@ defmodule AI.Tools.Shell do
 
   @impl AI.Tools
   def spec do
+    os = :os.type() |> IO.inspect(pretty: true)
+
     allowed =
       Services.Approvals.Shell.preapproved_cmds()
       |> Enum.map(&"- #{&1}")
@@ -62,9 +64,6 @@ defmodule AI.Tools.Shell do
         Commands that require user input or interaction will fail after a timeout, resulting in a poor experience for the user.
         Individual commands may not include redirection, pipes, command substitution, or other complex shell operators.
 
-        Note: There is NO command called "apply_patch" on the system.
-              I don't understand why you think there is.
-
         IMPORTANT: `sed`, `awk`, `find`, and other tools with the potential to
                    modify files ALL require explicit user approval on every
                    invocation. As a rule, if you can use a built-in tool to
@@ -76,6 +75,8 @@ defmodule AI.Tools.Shell do
                    commands. Some commands DO behave differently without a tty.
                    For example, `rg` REQUIRES a path argument when not run in a
                    tty.
+
+        For commands that vary based on OS, the current OS is: #{os}
 
         The following commands are preapproved and will execute without requiring user approval:
         #{allowed}
