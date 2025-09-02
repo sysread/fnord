@@ -456,7 +456,10 @@ defmodule AI.Tools.Shell do
   end
 
   defp format_command(%{"command" => command, "args" => args}) do
-    [command | args]
+    [
+      command
+      | Enum.map(args, &~s("#{&1}"))
+    ]
     |> Enum.join(" ")
   end
 
