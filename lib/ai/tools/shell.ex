@@ -446,9 +446,13 @@ defmodule AI.Tools.Shell do
   end
 
   defp format_commands(op, commands) do
-    commands
-    |> Enum.map(&format_command/1)
-    |> Enum.join(" #{op} ")
+    try do
+      commands
+      |> Enum.map(&format_command/1)
+      |> Enum.join(" #{op} ")
+    rescue
+      _ -> "Invalid command list: #{inspect(commands, pretty: true)}"
+    end
   end
 
   defp format_command(%{"command" => command, "args" => args}) do
