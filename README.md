@@ -8,7 +8,7 @@
 - [Getting Started](#getting-started)
 - [Tool usage](#tool-usage)
 - [User integrations](#user-integrations)
-- [Writing code (EXPERIMENTAL)](#writing-code)
+- [Writing code](#writing-code)
 - [Copyright and License](#copyright-and-license)
 
 
@@ -19,7 +19,7 @@ It can be used to generate on-demand tutorials, playbooks, and documentation for
 
 ## Why `fnord`?
 
-AI-powered tools are limited by to the data built into their training data. **RAG (Retrieval-Augmented Generation)** using tool calls can supplement the training data with information, such as your code base, to provide more accurate and relevant answers to your questions.
+AI-powered tools are limited to the data built into their training data. **RAG (Retrieval-Augmented Generation)** using tool calls can supplement the training data with information, such as your code base, to provide more accurate and relevant answers to your questions.
 But even with RAG, the AI still runs up against the **context window**. This is the conversational "memory" of the AI, often making use of an "attention mechanism" to keep it focused on the current instructions, but causing it to lose track of details earlier in the conversation.
 If you've ever pasted multiple files into ChatGPT or worked with it iteratively on a piece of code, you've probably seen this in action. It may forget constraints you defined earlier in the conversation or hallucinate entities and functions that don't exist in any of the files you've shown it.
 `fnord` attempts to mitigate this with cleverly designed tool calls that allow the LLM to ask _other_ agents to perform tasks on its behalf. For example, it can generate a prompt to ask another agent to read through a file and retrieve specific details it needs, like a single function definition, the declaration of an interface, or whether a specific function behaves in a certain way. This keeps the entire file out of the "coordinating" agent's context window while still allowing it to use the information in the file to generate a response. This allows `fnord` to conduct more complex research across many files and directories without losing track of the details it needs to provide accurate answers.
@@ -33,6 +33,8 @@ If you've ever pasted multiple files into ChatGPT or worked with it iteratively 
 - Learns about your project(s) over time
 - Improves its research capabilities with each interaction
 - User integrations
+- Layered approvals for shell/file operations
+- MCP server tools (Hermes/OpenAI MCP)
 
 
 ## Installation
@@ -59,11 +61,10 @@ source ~/.bashrc
 mix escript.install github sysread/fnord
 ```
 
-- **Set `OPENAI_API_KEY` in your shell environment**
+- **Set your OpenAI API key**
 
-Set this in your shell environment to the OpenAI project key you wish to use for this tool.
-You can create a new project and get a key [here](https://platform.openai.com/api-keys).
-
+Fnord reads the key from either `FNORD_OPENAI_API_KEY` or `OPENAI_API_KEY`.
+Create or view your keys [here](https://platform.openai.com/api-keys).
 
 - **Optional: Install `ripgrep`**
 
@@ -85,6 +86,7 @@ export FNORD_FORMATTER="gum format"
 
 For the purposes of this guide, we will assume that `fnord` is installed and we are using it to interact with your project, `blarg`, which is located at `$HOME/dev/blarg`.
 
+## Tool usage
 
 ### Index your project
 
@@ -101,9 +103,9 @@ If you cancel partway-through (for example, with `Ctrl-C`), you can resume index
 You must re-index your project to reflect changes in the code base, new files, deleted files, or to change the directory or exclusions.
 This is done by running the same command again.
 
-`fnord` stores its index in `$HOME/.fnord/$project`.
+`fnord` stores its index under `$HOME/.fnord/projects/<project>`.
 
-Although indexing provides full semantic search capabilities and richer results, `fnord` also supports ad-hoc querying on unindexed projects via directory metadata and `ripgrep` fallback, allowing quicker experimentation without full indexing.
+Note that semantic search requires an existing index. You can still perform text searches via the shell tool (e.g., ripgrep) if installed and approved, but indexing is recommended for full capabilities.
 
 
 ### Prime the knowledge base
@@ -113,6 +115,7 @@ Although indexing provides full semantic search capabilities and richer results,
 ```bash
 fnord prime --project blarg
 ```
+Prime uses 3 research rounds by default.
 
 
 ### Configuration
@@ -122,6 +125,39 @@ You can view and edit the configuration for existing projects with the `fnord co
 ```bash
 fnord config list --project blarg
 fnord config set --project blarg --root $HOME/dev/blarg --exclude 'node_modules' --exclude 'vendor'
+```
+
+
+### Approval patterns
+
+```bash
+fnord config approvals --project <project>            # list project approvals (use --global for global)
+fnord config approve   --project <project> --kind <kind> '<regex>'
+# add to global scope instead of project:
+fnord config approve   --global --kind <kind> '<regex>'
+```
+
+
+### MCP servers
+
+```bash
+# List configured servers (use --global for global scope, --effective for merged view)
+fnord config mcp list --project <project> [--global] [--effective]
+
+# Add a stdio server
+fnord config mcp add <name> --transport stdio --command ./my_server \
+  --arg --flag --env API_KEY=xyz [--global]
+
+# Add an HTTP server
+fnord config mcp add <name> --transport streamable_http --base-url https://api.example.com \
+  --header 'Authorization=Bearer ...' [--global]
+
+# Update or remove
+fnord config mcp update <name> [--transport ...] [--command ...] [--base-url ...] [...]
+fnord config mcp remove <name> [--global]
+
+# Validate connectivity and enumerate tools
+fnord config mcp check --project <project> [--global]
 ```
 
 
@@ -150,12 +186,10 @@ fnord summary --project blarg --file "path/to/some_module.ext" | glow
 
 ### Search behavior and fallbacks
 
-`fnord` uses semantic search by default when a project has been indexed. If semantic search is unavailable (because the project is unindexed or the index is missing):
-
-- Semantic search will be disabled with a warning.
-- If `ripgrep` is installed and in your PATH, `fnord` will automatically fall back to ripgrep for basic text-based file search.
-- If ripgrep is not available, you will see a warning indicating limited search capability.
-- This fallback behavior lets you query projects immediately without waiting for a full index, providing fast albeit less context-aware results.
+`fnord` uses semantic search by default when the project has been indexed.
+For `fnord search`, an index is required; without it you won't get semantic results.
+You can still ask questions, and the AI may use shell_tool-assisted text searches (for example, ripgrep) if installed and approved.
+For rich, accurate results, index your project first.
 
 
 ### Generate answers on-demand
@@ -166,30 +200,13 @@ As it conducts its investigation, you will see some of the research steps report
 
 ```bash
 fnord ask --project blarg --question "Where is the unit test for some_function?"
-fnord ask --project blarg --question "Find all callers of some_function"
-fnord ask --project blarg --question "Is there a function or method that does X?"
-fnord ask --project blarg --question "How do I add a new X implementation?"
-```
+fnord ask --project blarg --question "Please confirm that all information in the README is up-to-date and correct." --rounds 3
+fnord ask --project blarg --follow c81928aa-6ab2-4346-9b2a-0edce6a639f0 --question "Is some_function still used?"
+fnord ask --project blarg --fork c81928aa-6ab2-4346-9b2a-0edce6a639f0 --question "How do I update documentation?"
 
-#### Asking questions without prior indexing
+#### Asking questions on an unindexed project
 
-You can now use `fnord ask` on projects that have **not yet been indexed** or where the project index is unavailable.
-
-- If the project is already created in `fnord` but not indexed, semantic search will be disabled, and `ripgrep` fallback will be used if available.
-- If the project does **not exist in fnord yet**, you can provide the project's root directory with the `--directory` (or `-d`) option when running `fnord ask`.
-- This will automatically create the project metadata on demand and allow you to query the project files without requiring a full index upfront.
-
-Example usage:
-
-```bash
-# Ask a question about a project without an index by specifying the source directory
-fnord ask --project blarg --directory $HOME/dev/blarg --question "Where is the unit test for some_function?"
-
-# Continue to specify the directory if the project has not been indexed or created yet
-fnord ask --project new_project --directory /path/to/new_project --question "Explain the main workflow"
-```
-
-Note: If semantic search is unavailable and `ripgrep` is not installed, you will receive a warning and limited search capability. To get full semantic search power, please index your project using the `fnord index` command.
+If you haven't indexed yet, set up a project first (either run `fnord index --project <name> --dir <path>` or configure the root with `fnord config set --project <name> --root <path>`). Then you can run `fnord ask ...`. Semantic search will be unavailable until you index, but the AI may use shell_tool-assisted text searches (e.g., ripgrep) if installed and approved.
 
 #### Improve research quality
 
@@ -197,51 +214,29 @@ By default, `ask` performs a single round of research (multiple tool calls per r
 You can increase the number of rounds with the `--rounds` option.
 Increasing the number of rounds will increase the time it takes to generate a response, but can drastically improve the quality and thoroughness of the response, especially in large code bases or code bases containing multiple apps.
 
+
+After each response, you'll see:
+
 ```bash
-fnord ask --project blarg --question "Please confirm that all information in the README is up-to-date and correct. Identify user-facing functionality that is not well-documented." --rounds 3
-```
-
-#### Continuing a conversation
-
-Conversations (the transcript of messages between the LLM and the application) are saved for future reference and continuation. After each response, you will see a message like:
-```
 Conversation saved with ID: c81928aa-6ab2-4346-9b2a-0edce6a639f0
 ```
-
-If desired, you can use that ID to continue the conversation with `--conversation`.
-
+Continue it with `--follow <ID>` or branch a new thread with `--fork <ID>`.
 ```bash
-fnord ask --project blarg --conversation c81928aa-6ab2-4346-9b2a-0edce6a639f0 --question "Is some_function still used?"
+fnord ask --project blarg --follow c81928aa-6ab2-4346-9b2a-0edce6a639f0 --question "Is some_function still used?"
 ```
 
-...or can continue the _most recently saved conversation_ with `--follow`.
-
-```bash
-fnord ask --project blarg --follow --question "Is some_function still used?"
-```
-
-
-List conversations with the `conversations` command.
 
 ```bash
 fnord conversations --project blarg
-```
-
-Prune conversations older than a certain number of days with the `--prune` option.
-
-```bash
-# Prune conversations older than 30 days
 fnord conversations --project blarg --prune 30
 ```
 
 #### Replaying a conversation
 
-You can also `replay` a conversation, replicating the output of the original question, research steps, and response.
-
+You can replay a conversation (last-used or with `--follow <ID>`) using:
 ```bash
-fnord replay --project blarg --conversation c81928aa-6ab2-4346-9b2a-0edce6a639f0 | glow
+fnord ask --project blarg --replay --follow c81928aa-6ab2-4346-9b2a-0edce6a639f0 | glow
 ```
-
 As it learns more about your project, `fnord` will be able to answer more complex questions with less research.
 
 
@@ -281,27 +276,33 @@ mix escript.install github sysread/fnord
 
 
 ### Other commands
-- List projects: `fnord projects`
-- List files in a project: `fnord files --project foo`
-- Delete a project: `fnord torch --project foo`
-
+- List projects:        `fnord projects`
+- List files:           `fnord files --project <project>`
+- View file summary:    `fnord summary --project <project> --file <path>`
+- View notes:           `fnord notes --project <project>`  (use `--reset` to clear)
+- Delete a project:     `fnord torch --project <project>`
+- Upgrade fnord:        `fnord upgrade`
 
 ## User integrations
 
 Users can create their own integrations, called frobs, that `fnord` can use as a tool call while researching.
 
+### Create a new integration
+
 ```bash
-# Create a new integration
 fnord frobs create --name my_frob
+```
 
-# Validate the frob
+### Validate a frob
+
+```bash
 fnord frobs check --name my_frob
+```
 
-# List frobs
+### List frobs
+
+```bash
 fnord frobs list
-
-# List frobs that are registered for a project
-fnord frobs list --project blarg
 ```
 
 Frobs are stored in `$HOME/fnord/tools` and are comprised of the following files:
