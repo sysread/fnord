@@ -25,6 +25,9 @@ fnord-*.tar
 # Temporary files, for example, from tests.
 /tmp/
 
+# ElixirLS artifacts
+.elixir_ls
+
 # escript
 fnord
 
