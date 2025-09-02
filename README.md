@@ -130,8 +130,14 @@ fnord config set --project blarg --root $HOME/dev/blarg --exclude 'node_modules'
 
 ### Approval patterns
 
+For safety, `fnord` requires approval for most shell and file operations.
+You can auto-approve file edits by passing `--yes` to the `ask` subcommand (in conjunction with `--edit`).
+Shell commands (beyond a hard-coded list of read-only ones), however, require explicit approval.
+You can pre-approve commands on a per-project or global basis using regular expressions.
+
 ```bash
-fnord config approvals --project <project>            # list project approvals (use --global for global)
+# list project approvals (use --global for global)
+fnord config approvals --project <project>
 fnord config approve   --project <project> --kind <kind> '<regex>'
 # add to global scope instead of project:
 fnord config approve   --global --kind <kind> '<regex>'
