@@ -26,9 +26,22 @@ defmodule AI.Tools.File.Edit do
   def is_available?, do: true
 
   @impl AI.Tools
-  def read_args(args), do: {:ok, args}
+  def read_args(args) when is_map(args) do
+    # Validate and default the create_if_missing flag
+    case args["create_if_missing"] do
+      nil ->
+        {:ok, Map.put(args, "create_if_missing", false)}
+
+      val when is_boolean(val) ->
+        {:ok, args}
+
+      _ ->
+        {:error, "`create_if_missing` must be a boolean"}
+    end
+  end
 
   @impl AI.Tools
+
   def ui_note_on_request(%{"file" => file}) do
     {"Preparing changes", file}
   end
@@ -55,11 +68,8 @@ defmodule AI.Tools.File.Edit do
         - Clear, unambiguous, file-local changes
         - Fast, low-risk operations
 
-        NOT for system-wide, architectural, or ambiguous edits. Escalate to
-        `coder_tool` for those!
-
-        NOTE: This tool will FAIL if the file does not exist. Use the
-        `shell_tool` to create the file first.
+        Supports optional creation of the file when it does not exist by
+        setting `create_if_missing: true`.
         """,
         parameters: %{
           type: "object",
@@ -73,12 +83,12 @@ defmodule AI.Tools.File.Edit do
             changes: %{
               type: "array",
               items: %{
-                type: "object",
                 description: """
                 A list of changes to apply to the file.
                 Steps are ordered logically, with each building on the previous.
                 They will be applied in sequence.
                 """,
+                type: "object",
                 required: ["change"],
                 additionalProperties: false,
                 properties: %{
@@ -101,6 +111,11 @@ defmodule AI.Tools.File.Edit do
                   }
                 }
               }
+            },
+            create_if_missing: %{
+              type: "boolean",
+              description: "If true, create the file (and parent dirs) if it doesn't exist.",
+              default: false
             }
           }
         }
@@ -108,25 +123,75 @@ defmodule AI.Tools.File.Edit do
     }
   end
 
-  @spec call(map) :: {:ok, edit_result} | {:error, term}
   @impl AI.Tools
-  def call(args) do
-    with {:ok, file} <- AI.Tools.get_arg(args, "file"),
-         {:ok, changes} <- read_changes(args),
-         {:ok, result} <- do_edits(file, changes) do
-      {:ok, result}
+  def call(raw_args) do
+    # Parse and validate arguments, including create_if_missing
+    with {:ok, args} <- read_args(raw_args),
+         {:ok, file} <- AI.Tools.get_arg(args, "file"),
+         {:ok, changes} <- read_changes(args) do
+      # Determine whether to create file if missing
+      create? = Map.get(args, "create_if_missing", false)
+
+      with {:ok, result} <- do_edits(file, changes, create?) do
+        {:ok, result}
+      end
+    end
+  end
+
+  # Parse and validate the list of change instructions
+  @spec read_changes(map) :: {:ok, [String.t()]} | {:error, String.t()}
+  defp read_changes(opts) do
+    with {:ok, changes} <- AI.Tools.get_arg(opts, "changes") do
+      try do
+        changes
+        |> Enum.map(& &1["change"])
+        |> Enum.map(&String.trim/1)
+        |> then(&{:ok, &1})
+      rescue
+        _ in FunctionClauseError ->
+          {:error,
+           """
+           Invalid changes format.
+           Expected a list of objects with a \"change\" key.
+           Each change is expected to be a string.
+           """}
+      end
     end
   end
 
   # ----------------------------------------------------------------------------
   # Internals
   # ----------------------------------------------------------------------------
-  defp do_edits(file, changes) do
+  @spec ensure_file(binary, boolean) :: :ok | {:error, String.t()}
+  defp ensure_file(path, true) do
+    # Create file and parent directories if missing
+    unless File.exists?(path) do
+      File.mkdir_p!(Path.dirname(path))
+      File.write!(path, "")
+    end
+
+    :ok
+  end
+
+  defp ensure_file(path, false) do
+    # Only ok if file already exists
+    if File.exists?(path) do
+      :ok
+    else
+      {:error, "File does not exist: #{path}"}
+    end
+  end
+
+  # Main edit flow with optional file creation
+  defp do_edits(file, changes, create_if_missing) do
     try do
       with {:ok, project} <- Store.get_project(),
-           absolute_file <- Store.Project.expand_path(file, project),
-           {:ok, contents} <- apply_changes(absolute_file, changes),
-           {:ok, diff, backup_file} <- stage_changes(absolute_file, contents) do
+           absolute_path <- Store.Project.expand_path(file, project),
+           # Track original existence before optional creation
+           orig_exists = File.exists?(absolute_path),
+           :ok <- ensure_file(absolute_path, create_if_missing),
+           {:ok, contents} <- apply_changes(absolute_path, changes),
+           {:ok, diff, backup_file} <- stage_changes(absolute_path, contents, orig_exists) do
         {:ok,
          %{
            file: file,
@@ -153,11 +218,12 @@ defmodule AI.Tools.File.Edit do
     end
   end
 
-  defp stage_changes(file, contents) do
+  # Apply staged contents to disk, confirm, and optionally backup
+  defp stage_changes(file, contents, orig_exists) do
     Util.Temp.with_tmp(contents, fn temp ->
-      with {:ok, diff} <- build_diff(file, temp),
+      with {:ok, diff} <- build_diff(file, temp, orig_exists),
            {:ok, :approved} <- confirm_edit(file, diff),
-           {:ok, backup_file} <- backup_file(file),
+           {:ok, backup_file} <- maybe_backup(file, orig_exists),
            :ok <- commit_changes(file, temp) do
         {:ok, diff, backup_file}
       end
@@ -170,14 +236,18 @@ defmodule AI.Tools.File.Edit do
     |> AI.Agent.get_response(%{file: file, changes: changes})
   end
 
-  defp build_diff(file, staged) do
-    System.cmd("diff", ["-u", "-L", "ORIGINAL", "-L", "MODIFIED", file, staged],
+  @spec build_diff(binary, binary, boolean) :: {:ok, binary} | {:error, String.t()}
+  defp build_diff(file, staged, orig_exists) do
+    # Use /dev/null as the original when creating a new file
+    original = if orig_exists, do: file, else: "/dev/null"
+
+    System.cmd("diff", ["-u", "-L", "ORIGINAL", "-L", "MODIFIED", original, staged],
       stderr_to_stdout: true
     )
     |> case do
       {output, 1} -> {:ok, String.trim_trailing(output)}
       {_, 0} -> {:error, "no changes were made to the file"}
-      {error, code} -> {:error, "diff exited #{code}: #{error}"}
+      {error, code} -> {:error, "diff failed (#{code}): #{error}"}
     end
   end
 
@@ -187,7 +257,7 @@ defmodule AI.Tools.File.Edit do
   end
 
   @spec colorize_diff(binary) :: Owl.Data.t()
-  def colorize_diff(diff) do
+  defp colorize_diff(diff) do
     diff
     |> String.split("\n")
     |> Enum.map(fn line ->
@@ -203,26 +273,14 @@ defmodule AI.Tools.File.Edit do
     Services.BackupFile.create_backup(file)
   end
 
+  @spec commit_changes(binary, binary) :: :ok | {:error, term}
   defp commit_changes(file, staged) do
     File.cp(staged, file)
   end
 
-  defp read_changes(opts) do
-    with {:ok, changes} <- AI.Tools.get_arg(opts, "changes") do
-      try do
-        changes
-        |> Enum.map(& &1["change"])
-        |> Enum.map(&String.trim/1)
-        |> then(&{:ok, &1})
-      rescue
-        _ in FunctionClauseError ->
-          {:error,
-           """
-           Invalid changes format.
-           Expected a list of objects with a "change" key.
-           Each change is expected to be a string.
-           """}
-      end
-    end
-  end
+  @spec maybe_backup(binary, boolean) :: {:ok, binary | nil} | {:error, term}
+  # Backup only if the original file existed prior to the edit
+  defp maybe_backup(_file, false), do: {:ok, ""}
+  defp maybe_backup(file, true), do: backup_file(file)
 end
+

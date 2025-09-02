@@ -65,4 +65,38 @@ defmodule AI.Tools.File.EditTest do
 
     assert :meck.num_calls(AI.Agent.Code.Patcher, :get_response, :_) == 1
   end
+
+  describe "create_if_missing" do
+    test "file is created and patch applied", %{project: project} do
+      path = Path.join(project.source_root, "newdir/foo.txt")
+      refute File.exists?(path)
+
+      :meck.expect(AI.Agent.Code.Patcher, :get_response, fn args ->
+        assert args[:file] == path
+        {:ok, "Line One\n"}
+      end)
+
+      {:ok, res} =
+        Edit.call(%{
+          "file" => path,
+          "create_if_missing" => true,
+          "changes" => [%{"change" => "Add first line"}]
+        })
+
+      assert File.exists?(path)
+      # Diff headers use labels "ORIGINAL" and "MODIFIED" for new files
+      assert res.diff =~ "--- ORIGINAL"
+      assert res.diff =~ "+Line One"
+      assert res.backup_file == ""
+    end
+
+    test "fails when missing and create_if_missing false", %{project: project} do
+      path = Path.join(project.source_root, "nope.txt")
+
+      assert {:error, msg} =
+               Edit.call(%{"file" => path, "changes" => [%{"change" => "X"}]})
+
+      assert msg =~ "File does not exist"
+    end
+  end
 end
