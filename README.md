@@ -186,6 +186,7 @@ fnord ask --project blarg --question "Where is the unit test for some_function?"
 fnord ask --project blarg --question "Please confirm that all information in the README is up-to-date and correct." --rounds 3
 fnord ask --project blarg --follow c81928aa-6ab2-4346-9b2a-0edce6a639f0 --question "Is some_function still used?"
 fnord ask --project blarg --fork c81928aa-6ab2-4346-9b2a-0edce6a639f0 --question "How do I update documentation?"
+```
 
 #### Asking questions on an unindexed project
 
