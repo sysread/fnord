@@ -64,32 +64,6 @@ defmodule Services.Approvals.Shell do
     "tr"
   ]
 
-  @subcmd_families ~w/
-    aws
-    az
-    brew
-    cargo
-    docker
-    gcloud
-    gh
-    git
-    go
-    helm
-    just
-    kubectl
-    make
-    mix
-    npm
-    pip
-    pip3
-    pnpm
-    poetry
-    rye
-    terraform
-    uv
-    yarn
-  /
-
   def preapproved_cmds do
     if edit?() and auto?() do
       @ro_cmd ++ @rw_cmd
@@ -246,26 +220,19 @@ defmodule Services.Approvals.Shell do
   end
 
   # ----------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   # Utilities
   # ----------------------------------------------------------------------------
 
-  defp extract_prefix(%{"command" => cmd, "args" => args}) do
-    {_opts, argv_rest, _invalid} = OptionParser.parse(args, strict: [])
-
-    if cmd in @subcmd_families do
-      sub = argv_rest |> Enum.drop_while(&String.starts_with?(&1, "-")) |> List.first()
-
-      if is_binary(sub) and sub != "" do
-        cmd <> " " <> sub
-      else
-        cmd
-      end
-    else
-      cmd
-    end
+  @doc """
+  Delegate to the pure prefix extraction logic.
+  """
+  def extract_prefix(%{"command" => cmd, "args" => args}) do
+    Services.Approvals.Shell.Prefix.extract(cmd, args)
   end
 
-  defp get_feedback() do
+  # Prompt user for feedback when denying with feedback
+  defp get_feedback do
     "Feedback:"
     |> UI.prompt()
     |> then(&"The user denied the request with the following feedback: #{&1}")
