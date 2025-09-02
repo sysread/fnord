@@ -342,7 +342,7 @@ defmodule Cmd.Index do
       :ok
     else
       {:error, reason} ->
-        UI.warn("Error processing #{entry.file}", inspect(reason))
+        UI.warn("Error processing #{entry.file}", inspect(reason, pretty: true, limit: :infinity))
     end
   end
 

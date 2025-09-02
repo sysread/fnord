@@ -221,24 +221,26 @@ defmodule AI.Completion do
   end
 
   defp handle_response({:error, %{http_status: http_status, code: code, message: msg}}, state) do
-    error_msg = """
-    I encountered an error while processing your request.
+    error_msg =
+      """
+      I encountered an error while processing your request.
 
-    - HTTP Status: #{http_status}
-    - Error code: #{code}
-    - Message: #{msg}
-    """
+      - HTTP Status: #{http_status}
+      - Error code: #{code}
+      - Message: #{msg}
+      """
 
     {:error, %{state | response: error_msg}}
   end
 
   defp handle_response({:error, %{http_status: http_status, message: msg}}, state) do
-    error_msg = """
-    I encountered an error while processing your request.
+    error_msg =
+      """
+      I encountered an error while processing your request.
 
-    - HTTP Status: #{http_status}
-    - Message: #{msg}
-    """
+      - HTTP Status: #{http_status}
+      - Message: #{msg}
+      """
 
     {:error, %{state | response: error_msg}}
   end
@@ -251,13 +253,14 @@ defmodule AI.Completion do
         inspect(reason, pretty: true)
       end
 
-    error_msg = """
-    I encountered an error while processing your request.
+    error_msg =
+      """
+      I encountered an error while processing your request.
 
-    The error message was:
+      The error message was:
 
-    #{reason}
-    """
+      #{reason}
+      """
 
     {:error, %{state | response: error_msg}}
   end
