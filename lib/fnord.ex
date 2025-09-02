@@ -15,6 +15,9 @@ defmodule Fnord do
 
     Services.start_all()
 
+    # Load all frob modules to prevent race conditions during concurrent operations
+    Frobs.load_all_modules()
+
     # Parse command line arguments
     with {:ok, [command | subcommands], opts, unknown} <- parse_options(args) do
       # Certain options are common to most, if not all, subcommands, and control

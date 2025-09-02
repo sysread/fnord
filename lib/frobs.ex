@@ -209,6 +209,25 @@ defmodule Frobs do
     end
   end
 
+  @spec load_all_modules() :: :ok
+  def load_all_modules() do
+    get_home()
+    |> Path.join("**/main")
+    |> Path.wildcard()
+    |> Enum.map(fn path ->
+      path
+      |> Path.dirname()
+      |> Path.basename()
+    end)
+    |> Enum.each(fn name ->
+      case load(name) do
+        {:ok, _frob} -> :ok
+        error ->
+          Services.Once.warn("Frob '#{name}' could not be loaded: #{inspect(error)}")
+      end
+    end)
+  end
+
   @spec list() :: [t]
   def list() do
     get_home()
