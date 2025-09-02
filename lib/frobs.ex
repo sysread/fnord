@@ -606,11 +606,9 @@ defmodule Frobs do
             true
 
           {"", _} ->
-            Services.Once.warn("Frob #{frob.name} is not available.")
             false
 
-          {output, _} ->
-            Services.Once.warn("Frob #{frob.name} is not available: #{String.trim(output)}")
+          {_output, _} ->
             false
         end
       end
