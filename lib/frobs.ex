@@ -221,7 +221,9 @@ defmodule Frobs do
     end)
     |> Enum.each(fn name ->
       case load(name) do
-        {:ok, _frob} -> :ok
+        {:ok, _frob} ->
+          :ok
+
         error ->
           Services.Once.warn("Frob '#{name}' could not be loaded: #{inspect(error)}")
       end
