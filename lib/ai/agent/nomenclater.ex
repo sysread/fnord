@@ -26,7 +26,7 @@ defmodule AI.Agent.Nomenclater do
   - Wile E. Coyote, Programming Genius
   - D&D characters (e.g. "Sylvaris Strongbow", "Bramdir Ironvein", "Garrick Brightblade")
 
-  Try to spread names across different themes.
+  Try to spread names across multiple themes. Avoid clustering.
   """
 
   @response_format %{
