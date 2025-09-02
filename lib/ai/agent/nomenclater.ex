@@ -15,8 +15,9 @@ defmodule AI.Agent.Nomenclater do
   Fun name themes:
   - The Electronic Ghost of <well-known deceased person in software>
   - Widgets from `Zork!`
+  - The BofH (or anything from the Jargon File)
   - Klingons, especially with dramatic epithets
-  - The BofH
+  - Futurama (especially Bender, Calculon, Lrrr, and other highly stylized characters)
   - NPC, "Labcoat #3", and other "unnamed cast" names (e.g. "NPC 1", "Villager", "Guard 3")
   - Dream creatures and Nightmares from the Dreaming in Sandman (e.g. "The Corinthian", "Fiddler's Green", "Merv Pumpkinhead")
   - Characters from SF novels (especially James Schmitz and his contemporaries)
