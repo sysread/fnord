@@ -52,9 +52,12 @@ defmodule Http do
         if retryable_http_status?(status_code) and attempt < @max_retries do
           delay = backoff_delay(attempt)
 
-          UI.warn(
-            "[Http] 5xx (#{status_code}) on POST #{url}, attempt #{attempt}/#{@max_retries}; retrying in #{delay}ms"
-          )
+          UI.warn("[http] 50x response", """
+          POST:     #{url}
+          HTTP:     #{status_code}
+          Attempt:  #{attempt}/#{@max_retries}
+          Retry in: #{delay} ms
+          """)
 
           maybe_sleep(delay)
           do_post_json(url, headers, body, attempt + 1)
@@ -66,9 +69,14 @@ defmodule Http do
         if retryable_transport_reason?(reason) and attempt < @max_retries do
           delay = backoff_delay(attempt)
 
-          UI.warn(
-            "[Http] transport error #{inspect(reason)} on POST #{url}, attempt #{attempt}/#{@max_retries}; retrying in #{delay}ms"
-          )
+          UI.warn("[http] transport error", """
+          POST:     #{url}
+          Attempt:  #{attempt}/#{@max_retries}
+          Retry in: #{delay} ms
+          Reason:
+
+          #{inspect(reason, pretty: true)}
+          """)
 
           maybe_sleep(delay)
           do_post_json(url, headers, body, attempt + 1)
