@@ -90,7 +90,7 @@ defmodule AI.Tools.ShellTest do
     assert msg =~ "Command not found"
   end
 
-  test "special cases for that special flower, rg" do
+  test "special cases that special flower, rg" do
     project = mock_project("rg")
 
     args = %{
@@ -101,7 +101,7 @@ defmodule AI.Tools.ShellTest do
     }
 
     assert {:ok, msg} = Shell.call(args)
-    assert String.contains?(msg, ~s(Command: rg "pattern" "#{project.source_root}"))
+    assert msg =~ "Command: rg pattern #{project.source_root}"
   end
 
   test "format_commands and ui notes" do
