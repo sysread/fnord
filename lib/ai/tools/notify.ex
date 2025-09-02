@@ -31,6 +31,8 @@ defmodule AI.Tools.Notify do
         - "Interesting! I learned that $SomeComponent is actually performing the validation itself!" (info)
         - "This is taking longer than expected due to unexpected findings." (warn)
         - "The shell command is taking longer than expected, working on it." (error)
+
+        You are encouraged to speak in character. Software engineers love their geekdoms!
         """,
         parameters: %{
           type: "object",

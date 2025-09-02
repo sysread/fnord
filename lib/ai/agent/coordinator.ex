@@ -807,7 +807,7 @@ defmodule AI.Agent.Coordinator do
     |> Enum.map(& &1.name)
     |> Enum.join(" | ")
     |> case do
-      "" -> UI.info("Available frobs", "None")
+      "" -> UI.info("Available frobs", "none")
       some -> UI.info("Available frobs", some)
     end
   end
@@ -817,7 +817,7 @@ defmodule AI.Agent.Coordinator do
     |> Map.keys()
     |> Enum.join(" | ")
     |> case do
-      "" -> UI.info("Available MCP tools", "None")
+      "" -> UI.info("Available MCP tools", "none")
       some -> UI.info("Available MCP tools", some)
     end
   end
