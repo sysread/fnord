@@ -48,3 +48,6 @@ tags
 # We aren't *quite* good enough to bootstrap our own compilation, so to speak :)
 .claude
 CLAUDE.local.md
+
+# Notes and plans
+.notes
