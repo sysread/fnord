@@ -43,7 +43,7 @@ defmodule AI.Tools.Shell do
 
   @impl AI.Tools
   def spec do
-    os = :os.type() |> IO.inspect(pretty: true)
+    {os_family, os_name} = :os.type()
 
     allowed =
       Services.Approvals.Shell.preapproved_cmds()
@@ -76,7 +76,7 @@ defmodule AI.Tools.Shell do
                    For example, `rg` REQUIRES a path argument when not run in a
                    tty.
 
-        For commands that vary based on OS, the current OS is: #{os}
+        For commands that vary based on OS, the current OS is: #{os_name} (#{os_family}).
 
         The following commands are preapproved and will execute without requiring user approval:
         #{allowed}
