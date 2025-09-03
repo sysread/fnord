@@ -183,7 +183,7 @@ defmodule AI.Agent.Coordinator do
   defp perform_step({:error, _} = error), do: error
 
   defp perform_step(%{replay: replay, steps: [:followup | steps]} = state) do
-    UI.debug("Performing abbreviated research")
+    UI.info("Researching")
 
     state
     |> Map.put(:steps, steps)
@@ -199,7 +199,7 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp perform_step(%{replay: replay, steps: [:singleton | steps]} = state) do
-    UI.debug("Performing abbreviated research")
+    UI.info("Researching")
 
     state
     |> Map.put(:steps, steps)
@@ -215,7 +215,7 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp perform_step(%{replay: replay, steps: [:initial | steps]} = state) do
-    UI.debug("Researching")
+    UI.info("Researching")
 
     state
     |> Map.put(:steps, steps)
@@ -231,7 +231,7 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp perform_step(%{steps: [:clarify | steps]} = state) do
-    UI.debug("Clarifying")
+    UI.info("Clarifying")
 
     state
     |> Map.put(:steps, steps)
@@ -244,7 +244,7 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp perform_step(%{steps: [:refine | steps]} = state) do
-    UI.debug("Refining")
+    UI.info("Refining")
 
     state
     |> Map.put(:steps, steps)
@@ -257,7 +257,7 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp perform_step(%{steps: [:continue | steps]} = state) do
-    UI.debug("Continuing research")
+    UI.info("Continuing research")
 
     state
     |> Map.put(:steps, steps)
@@ -270,7 +270,7 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp perform_step(%{steps: [:coding | steps]} = state) do
-    UI.debug("Identifying coding tasks")
+    UI.info("Identifying incomplete coding tasks")
 
     state
     |> Map.put(:steps, steps)
@@ -283,7 +283,7 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp perform_step(%{steps: [:finalize]} = state) do
-    UI.debug("Generating response")
+    UI.info("Generating response")
 
     state
     |> Map.put(:steps, [])
