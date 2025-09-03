@@ -115,6 +115,9 @@ defmodule AI.Agent.Code.Planner do
   Consider the proper separation of concerns.
   Now, compare your Blue Sky Implementation with the current state of the code.
   Murphy dictates that the perfect implementation will not be possible, but you go to war with the army you *have*.
+  For larger repos and more complex applications, prioritize loose coupling and high cohesion to minimize the blast radius of changes.
+  For smaller repos and stand-alone libraries, prioritize simplicity and directness to minimize cognitive load.
+  Don't let the perfect be the enemy of the good.
   What is the closest you can get to the ideal implementation that still dovetails into the code as it is?
   Respond with your near ideal implementation, including any relevant files, functions, or components that may be affected by this change.
   """
