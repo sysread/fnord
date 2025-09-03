@@ -185,11 +185,11 @@ defmodule Cmd.Ask do
   # -----------------------------------------------------------------------------
   # Auto-approval policy
   # -----------------------------------------------------------------------------
-  defp set_auto_policy(%{auto_approve_after: seconds}) do
+  defp set_auto_policy(%{auto_approve_after: seconds}) when is_integer(seconds) do
     Settings.set_auto_policy({:approve, seconds * 1_000})
   end
 
-  defp set_auto_policy(%{auto_deny_after: seconds}) do
+  defp set_auto_policy(%{auto_deny_after: seconds}) when is_integer(seconds) do
     Settings.set_auto_policy({:deny, seconds * 1_000})
   end
 
