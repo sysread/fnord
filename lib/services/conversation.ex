@@ -63,7 +63,6 @@ defmodule Services.Conversation do
   """
   @spec save(pid) :: {:ok, Conversation.t()} | {:error, any}
   def save(pid) do
-    UI.debug("[conversation-server]", "saving conversation")
     GenServer.call(pid, :save)
   end
 
