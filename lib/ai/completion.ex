@@ -285,46 +285,42 @@ defmodule AI.Completion do
       end)
 
     # First handle async tool calls concurrently
-    messages =
+    state =
       async_calls
       |> Util.async_stream(&handle_tool_call(state, &1))
-      |> Enum.reduce(state.messages, fn result, acc ->
-        case result do
-          {:ok, {:ok, req, res}} ->
-            acc ++ [req, res]
-
-          {:ok, other} ->
-            UI.report_from(
-              state.name,
-              "Async tool call returned unexpected result",
-              inspect(other, pretty: true)
-            )
-
-            acc
-
-          {:exit, reason} ->
-            UI.report_from(state.name, "Async tool call crashed", inspect(reason, pretty: true))
-            acc
-
-          other ->
-            UI.report_from(
-              state.name,
-              "Async tool call produced unknown result",
-              inspect(other, pretty: true)
-            )
-
-            acc
-        end
-      end)
+      |> Enum.reduce(state, &tool_call_result(&1, &2))
 
     # Now handle all remaining requests serially and append
-    messages =
-      Enum.reduce(serial_calls, messages, fn req, acc ->
-        {:ok, req, res} = handle_tool_call(state, req)
-        acc ++ [req, res]
-      end)
+    state =
+      serial_calls
+      |> Util.async_stream(&handle_tool_call(state, &1), max_concurrency: 1)
+      |> Enum.reduce(state, &tool_call_result(&1, &2))
 
-    %{state | tool_call_requests: [], messages: messages}
+    %{state | tool_call_requests: []}
+  end
+
+  defp tool_call_result({:ok, {:ok, req, res}}, state) do
+    %{state | messages: state.messages ++ [req, res]}
+  end
+
+  defp tool_call_result({:ok, other}, state) do
+    UI.report_from(
+      state.name,
+      "tool call returned unexpected result",
+      inspect(other, pretty: true)
+    )
+
+    state
+  end
+
+  defp tool_call_result({:exit, reason}, state) do
+    UI.report_from(state.name, "Async tool call crashed", inspect(reason, pretty: true))
+    state
+  end
+
+  defp tool_call_result(other, state) do
+    UI.report_from(state.name, "tool call produced unknown result", inspect(other, pretty: true))
+    state
   end
 
   @spec dedupe_key(map()) :: {String.t(), String.t()} | nil
