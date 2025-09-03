@@ -181,7 +181,15 @@ defmodule Services.Approvals.Shell do
   # Prompt + persistence
   # ----------------------------------------------------------------------------
   defp prompt(state, stages) do
-    case UI.choose("Approve this request?", [@approve, @persistent, @deny, @deny_feedback]) do
+    opts = [@approve, @persistent, @deny, @deny_feedback]
+
+    Settings.get_auto_policy()
+    |> case do
+      {:approve, ms} -> UI.choose("Approve this request?", opts, ms, @approve)
+      {:deny, ms} -> UI.choose("Approve this request?", opts, ms, @deny)
+      _ -> UI.choose("Approve this request?", opts)
+    end
+    |> case do
       @approve -> {:approved, state}
       @deny -> {:denied, @no_feedback, state}
       @deny_feedback -> {:denied, get_feedback(), state}

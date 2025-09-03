@@ -283,4 +283,3 @@ defmodule AI.Tools.File.Edit do
   defp maybe_backup(_file, false), do: {:ok, ""}
   defp maybe_backup(file, true), do: backup_file(file)
 end
-

@@ -22,6 +22,20 @@ defmodule Cmd.Ask do
             help: "The prompt to ask the AI",
             required: true
           ],
+          auto_approve_after: [
+            value_name: "SECONDS",
+            long: "--auto-approve-after",
+            help: "After notification, auto-APPROVE in SECONDS if no input (interactive only)",
+            parser: :integer,
+            required: false
+          ],
+          auto_deny_after: [
+            value_name: "SECONDS",
+            long: "--auto-deny-after",
+            help: "After notification, auto-DENY in SECONDS if no input (interactive only)",
+            parser: :integer,
+            required: false
+          ],
           rounds: [
             value_name: "ROUNDS",
             long: "--rounds",
@@ -97,6 +111,7 @@ defmodule Cmd.Ask do
     start_time = System.monotonic_time(:second)
 
     with {:ok, opts} <- validate(opts),
+         :ok <- set_auto_policy(opts),
          {:ok, opts} <- maybe_fork_conversation(opts),
          {:ok, pid} = Services.Conversation.start_link(opts[:follow]),
          {:ok, usage, context, response} <- get_response(opts, pid),
@@ -128,13 +143,32 @@ defmodule Cmd.Ask do
   # ----------------------------------------------------------------------------
   defp validate(opts) do
     with :ok <- validate_conversation(opts),
-         :ok <- validate_rounds(opts) do
+         :ok <- validate_rounds(opts),
+         :ok <- validate_auto(opts) do
       {:ok, opts}
     end
   end
 
   defp validate_rounds(%{rounds: rounds}) when rounds > 0, do: :ok
   defp validate_rounds(_opts), do: {:error, :invalid_rounds}
+
+  # Validate mutual exclusion and positivity of auto flags
+  @spec validate_auto(map) :: :ok | {:error, atom | binary}
+  defp validate_auto(opts) do
+    case {opts[:auto_approve_after], opts[:auto_deny_after]} do
+      {a, d} when not is_nil(a) and not is_nil(d) ->
+        {:error, "--auto-approve-after and --auto-deny-after are mutually exclusive"}
+
+      {a, _} when not is_nil(a) and a <= 0 ->
+        {:error, "--auto-approve-after must be a positive integer"}
+
+      {_, d} when not is_nil(d) and d <= 0 ->
+        {:error, "--auto-deny-after must be a positive integer"}
+
+      _ ->
+        :ok
+    end
+  end
 
   defp validate_conversation(%{follow: id}) when is_binary(id) do
     id
@@ -147,6 +181,21 @@ defmodule Cmd.Ask do
   end
 
   defp validate_conversation(_opts), do: :ok
+
+  # -----------------------------------------------------------------------------
+  # Auto-approval policy
+  # -----------------------------------------------------------------------------
+  defp set_auto_policy(%{auto_approve_after: seconds}) do
+    Settings.set_auto_policy({:approve, seconds * 1_000})
+  end
+
+  defp set_auto_policy(%{auto_deny_after: seconds}) do
+    Settings.set_auto_policy({:deny, seconds * 1_000})
+  end
+
+  defp set_auto_policy(_opts) do
+    Settings.set_auto_policy(nil)
+  end
 
   # -----------------------------------------------------------------------------
   # Forking a conversation

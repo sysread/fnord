@@ -56,7 +56,15 @@ defmodule Services.Approvals.Edit do
   def approved?(_, _), do: edit?() && auto?()
 
   defp prompt(state) do
-    case UI.choose("Approve this request?", [@approve, @session, @deny, @deny_feedback]) do
+    opts = [@approve, @session, @deny, @deny_feedback]
+
+    Settings.get_auto_policy()
+    |> case do
+      {:approve, ms} -> UI.choose("Approve this request?", opts, ms, @approve)
+      {:deny, ms} -> UI.choose("Approve this request?", opts, ms, @deny)
+      _ -> UI.choose("Approve this request?", opts)
+    end
+    |> case do
       @approve ->
         {:approved, state}
 

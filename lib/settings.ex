@@ -1,4 +1,7 @@
 defmodule Settings do
+  # ----------------------------------------------------------------------------
+  # Settings type
+  # ----------------------------------------------------------------------------
   defstruct [:path, :data]
 
   @type t :: %__MODULE__{
@@ -187,6 +190,43 @@ defmodule Settings do
   @spec get_auto_approve() :: boolean
   def get_auto_approve() do
     Application.get_env(:fnord, :auto_approve, false)
+  end
+
+  @doc """
+  Set auto-approval policy for the application. This setting controls how
+  unattended approvals are handled.
+
+  The `policy` is a tuple consisting of an action and a timeout (or `nil` to
+  disable):
+  - `:approve` to automatically approve changes after a timeout.
+  - `:deny` to automatically deny changes after a timeout.
+  - `nil` to disable auto-approval.
+
+  The `timeout` is specified in milliseconds and determines how long to wait
+  before applying the auto-approval policy.
+
+  When an approval is required, the system will first send a notification to
+  the user after 60 seconds. If the user does not respond within the timeout
+  specified by the auto-approval policy, the specified action will be taken
+  automatically.
+  """
+  @spec set_auto_policy({:approve | :deny, non_neg_integer} | nil) :: :ok
+  def set_auto_policy(policy) do
+    case policy do
+      {policy, timeout} -> Application.put_env(:fnord, :auto_policy, {policy, timeout})
+      nil -> Application.delete_env(:fnord, :auto_policy)
+    end
+  end
+
+  @doc """
+  Get current auto-approval policy setting.
+  """
+  @spec get_auto_policy ::
+          {:approve, non_neg_integer}
+          | {:deny, non_neg_integer}
+          | nil
+  def get_auto_policy() do
+    Application.get_env(:fnord, :auto_policy, nil)
   end
 
   @doc """

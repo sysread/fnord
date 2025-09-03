@@ -136,8 +136,8 @@ defmodule UI.UITest do
 
       assert result == :delayed_result
       # Verify notification was sent and then dismissed
-      assert :meck.called(Notifier, :notify, ["Fnord", "test message", [urgency: "critical"]])
-      assert :meck.called(Notifier, :dismiss, ["fnord"])
+      assert :meck.called(Notifier, :notify, ["Fnord", "test message", []])
+      assert :meck.called(Notifier, :dismiss, ["Fnord"])
 
       :meck.unload(Notifier)
     end

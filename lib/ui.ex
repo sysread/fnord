@@ -1,6 +1,8 @@
 defmodule UI do
   require Logger
 
+  @notification_timeout_ms 60_000
+
   # ----------------------------------------------------------------------------
   # Messaging
   # ----------------------------------------------------------------------------
@@ -286,6 +288,42 @@ defmodule UI do
   # ----------------------------------------------------------------------------
   # Interactive prompts
   # ----------------------------------------------------------------------------
+  def choose(label, options, timeout_ms, default) do
+    if is_tty?() && !quiet?() do
+      # Display the selection prompt
+      task =
+        Task.async(fn ->
+          UI.flush()
+          Owl.IO.select(options, label: label)
+        end)
+
+      # Phase A: wait for notification threshold
+      case Task.yield(task, @notification_timeout_ms) do
+        {:ok, selection} ->
+          selection
+
+        nil ->
+          # Send OS notification and continue waiting
+          Notifier.notify("Fnord", "Fnord is waiting for your selection: #{label}", [])
+
+          # Phase B: wait for auto window
+          case Task.yield(task, timeout_ms) do
+            {:ok, selection} ->
+              Notifier.dismiss("Fnord")
+              selection
+
+            nil ->
+              Task.shutdown(task, :brutal_kill)
+              Notifier.dismiss("Fnord")
+              UI.debug("Auto-selection after user-specified timeout", "#{label}: #{default}")
+              default
+          end
+      end
+    else
+      {:error, :no_tty}
+    end
+  end
+
   def choose(label, options) do
     if is_tty?() && !quiet?() do
       with_notification_timeout(
@@ -373,20 +411,17 @@ defmodule UI do
   # ----------------------------------------------------------------------------
   # Notification timeout for interactive prompts
   # ----------------------------------------------------------------------------
-
-  @notification_timeout_ms 60_000
-
   @doc """
   Executes a function with a notification timeout.
 
   If the function takes longer than the specified timeout (default 60 seconds),
-  a system notification is sent to alert the user, but the function continues to run.
-  The notification is cancelled if the function completes before the timeout.
+  a system notification is sent to alert the user, but the function continues
+  to run. The notification is cancelled if the function completes before the
+  timeout.
   """
   @spec with_notification_timeout((-> any), binary) :: any
   def with_notification_timeout(func, notification_message) do
-    timeout_ms = Application.get_env(:fnord, :ui_timeout_ms, @notification_timeout_ms)
-    with_notification_timeout(func, notification_message, timeout_ms)
+    with_notification_timeout(func, notification_message, @notification_timeout_ms)
   end
 
   @spec with_notification_timeout((-> any), binary, non_neg_integer) :: any
@@ -417,7 +452,7 @@ defmodule UI do
     receive do
       {:notification_timeout, message} ->
         # Send notification but continue waiting for the task
-        Notifier.notify("Fnord", message, urgency: "critical")
+        Notifier.notify("Fnord", message, [])
         wait_for_task_with_timeout(task, timer_ref, true)
     after
       100 ->
@@ -426,7 +461,7 @@ defmodule UI do
           {:ok, result} ->
             # If we sent a notification, try to dismiss it
             if notification_sent? do
-              Notifier.dismiss("fnord")
+              Notifier.dismiss("Fnord")
             end
 
             result
