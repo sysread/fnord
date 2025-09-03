@@ -227,8 +227,8 @@ defmodule AI.Tools.Shell do
       "end_line" => String.to_integer(end_line)
     })
     |> case do
-      {:ok, content} -> {:ok, {content, 0}}
-      {:error, reason} -> {:ok, {"Error reading file #{file}: #{reason}", 1}}
+      {:ok, content} -> {:ok, content}
+      {:error, reason} -> {:ok, "Error reading file #{file}: #{reason}"}
     end
   end
 
