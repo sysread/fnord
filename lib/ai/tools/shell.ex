@@ -308,7 +308,7 @@ defmodule AI.Tools.Shell do
     end
   end
 
-  defp find_executable(command) do
+  defp find_executable(command) when is_binary(command) do
     cond do
       String.starts_with?(command, "/") -> Path.expand(command)
       String.starts_with?(command, "~") -> Path.expand(command)
@@ -321,28 +321,51 @@ defmodule AI.Tools.Shell do
     end
   end
 
-  defp shell_out(%{"command" => command, "args" => args}, timeout_ms, root, nil) do
+  defp find_executable(%{"command" => command, "args" => args}) do
+    if String.contains?(command, " ") do
+      command
+      |> find_executable()
+      |> case do
+        {:ok, cmd} ->
+          {:ok, %{"command" => cmd, "args" => args}}
+
+        # Try splitting on spaces and see if the first part is executable
+        {:error, :not_found} ->
+          [base | extra_args] = String.split(command, " ")
+          find_executable(%{"command" => base, "args" => extra_args ++ args})
+      end
+    else
+      command
+      |> find_executable()
+      |> case do
+        {:ok, cmd} -> {:ok, %{"command" => cmd, "args" => args}}
+        {:error, :not_found} -> {:error, :not_found}
+      end
+    end
+  end
+
+  defp shell_out(command, timeout_ms, root, nil) do
     command
     |> find_executable()
     |> case do
       {:error, :not_found} ->
         {:error, :not_found}
 
-      {:ok, cmd} ->
+      {:ok, %{"command" => cmd, "args" => args}} ->
         run_with_timeout(timeout_ms, fn ->
           {:ok, System.cmd(cmd, args, cd: root, stderr_to_stdout: true)}
         end)
     end
   end
 
-  defp shell_out(%{"command" => command, "args" => args}, timeout_ms, root, stdin) do
+  defp shell_out(command, timeout_ms, root, stdin) do
     command
     |> find_executable()
     |> case do
       {:error, :not_found} ->
         {:error, :not_found}
 
-      {:ok, cmd} ->
+      {:ok, %{"command" => cmd, "args" => args}} ->
         Util.Temp.with_tmp(stdin, fn tmp ->
           with :ok <- chmod_600(tmp),
                {:ok, runner} <- Briefly.create(),
