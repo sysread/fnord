@@ -9,7 +9,9 @@ defmodule AI.Tools.File.EditTest do
   end
 
   setup do
-    :meck.new(AI.Agent.Code.Patcher, [:non_strict, :passthrough])
+    :meck.new(AI.Agent.Code.Patcher, [:no_link, :non_strict, :passthrough])
+    on_exit(fn -> :meck.unload(AI.Agent.Code.Patcher) end)
+    :ok
   end
 
   setup do
