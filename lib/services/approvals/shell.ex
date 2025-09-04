@@ -236,7 +236,8 @@ defmodule Services.Approvals.Shell do
   Delegate to the pure prefix extraction logic.
   """
   def extract_prefix(%{"command" => cmd, "args" => args}) do
-    Services.Approvals.Shell.Prefix.extract(cmd, args)
+    base_cmd = Path.basename(cmd)
+    Services.Approvals.Shell.Prefix.extract(base_cmd, args)
   end
 
   # Prompt user for feedback when denying with feedback
