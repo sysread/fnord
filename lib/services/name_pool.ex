@@ -229,14 +229,18 @@ defmodule Services.NamePool do
       :real ->
         used_names = MapSet.to_list(state.all_used)
 
-        AI.Agent.Nomenclater
-        # `named?: false` prevents circular dependency with ourselves
-        |> AI.Agent.new(named?: false)
-        |> AI.Agent.get_response(%{
-          want: state.chunk_size,
-          used: used_names
-        })
-        |> case do
+        task =
+          Task.async(fn ->
+            AI.Agent.Nomenclater
+            # `named?: false` prevents circular dependency with ourselves
+            |> AI.Agent.new(named?: false)
+            |> AI.Agent.get_response(%{
+              want: state.chunk_size,
+              used: used_names
+            })
+          end)
+
+        case Task.await(task, 10_000) || Task.shutdown(task) do
           {:ok, names} when is_list(names) ->
             new_state = %{
               state
@@ -249,6 +253,10 @@ defmodule Services.NamePool do
           {:error, reason} ->
             UI.error("Failed to make up names for your agents", reason)
             {:error, reason}
+
+          nil ->
+            UI.error("Name allocation task timed out")
+            {:error, :timeout}
         end
     end
   end
