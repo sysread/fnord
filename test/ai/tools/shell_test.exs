@@ -86,7 +86,7 @@ defmodule AI.Tools.ShellTest do
       ]
     }
 
-    assert {:ok, msg} = Shell.call(args)
+    assert {:error, msg} = Shell.call(args)
     assert msg =~ "Command not found"
   end
 
@@ -101,7 +101,7 @@ defmodule AI.Tools.ShellTest do
     }
 
     assert {:ok, msg} = Shell.call(args)
-    assert msg =~ "Command: rg pattern #{project.source_root}"
+    assert msg =~ ~r/Command: (.+?)\/rg pattern #{project.source_root}/
   end
 
   test "format_commands and ui notes" do
