@@ -47,6 +47,7 @@ defmodule Services.Approvals.Shell do
     "git log",
     "git merge-base",
     "git rev-list",
+    "git rev-parse",
     "git show",
     "git status"
   ]
