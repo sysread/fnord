@@ -95,7 +95,7 @@ defmodule AI.Completion do
       log_tool_calls = Keyword.get(opts, :log_tool_calls, !quiet?)
 
       archive? = Keyword.get(opts, :archive_notes, false)
-      messages = [AI.Util.system_msg("Your name is #{name}.") | messages]
+      messages = set_name(messages, name)
 
       state = %__MODULE__{
         model: model,
@@ -498,6 +498,31 @@ defmodule AI.Completion do
       {:error, reason} ->
         UI.warn("Failed to compact conversation", inspect(reason, pretty: true))
         state
+    end
+  end
+
+  defp set_name(messages, name) do
+    messages
+    |> Enum.any?(fn
+      %{role: "system", content: content} -> content =~ ~r/Your name is .+\./
+      _ -> false
+    end)
+    |> case do
+      true ->
+        Enum.map(messages, fn
+          %{role: "system", content: content} ->
+            if content =~ ~r/Your name is .+\./ do
+              %{role: "system", content: "Your name is #{name}."}
+            else
+              %{role: "system", content: content}
+            end
+
+          msg ->
+            msg
+        end)
+
+      false ->
+        [%{role: "system", content: "Your name is #{name}."} | messages]
     end
   end
 end
