@@ -1,8 +1,6 @@
 defmodule AI.CompletionTest do
   use Fnord.TestCase, async: false
 
-  setup do: set_config(quiet: true)
-
   setup do
     :meck.new(AI.CompletionAPI, [:no_link, :passthrough, :non_strict])
     on_exit(fn -> :meck.unload(AI.CompletionAPI) end)
