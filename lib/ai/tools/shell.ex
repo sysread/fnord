@@ -335,7 +335,8 @@ defmodule AI.Tools.Shell do
   end
 
   defp run_pipeline(op, commands, timeout_ms, root, acc \\ nil)
-  defp run_pipeline(_, [], _, _, acc), do: {:ok, acc || "(no output)"}
+  defp run_pipeline(_, [], _, _, ""), do: {:ok, "(no output)"}
+  defp run_pipeline(_, [], _, _, acc), do: {:ok, acc}
 
   defp run_pipeline(op, [command | rest], timeout_ms, root, acc) do
     input =
