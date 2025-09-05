@@ -368,6 +368,7 @@ defmodule AI.Agent.Coordinator do
 
   Confirm whether any prior research you found is still relevant and factual.
   Proactively use your tools to research the user's question.
+  Where a tool is not available, use the shell_tool to improvise a solution (e.g. using `git` commands directly).
   You reason through problems step by step.
 
   Use the `notify_tool` **extensively** to report what you are doing to the user through the UI.
