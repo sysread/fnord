@@ -132,6 +132,8 @@ defmodule AI.Agent.Code.Patcher do
          {:ok, file} <- required_arg(opts, :file),
          {:ok, changes} <- required_arg(opts, :changes),
          {:ok, contents} <- AI.Tools.get_file_contents(file) do
+      UI.report_from(agent.name, "Patching #{file}")
+
       {:ok,
        %__MODULE__{
          agent: agent,

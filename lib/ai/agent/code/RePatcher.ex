@@ -72,6 +72,11 @@ defmodule AI.Agent.Code.RePatcher do
   def get_response(opts) do
     with {:ok, agent} <- Map.fetch(opts, :agent),
          {:ok, patch} <- Map.fetch(opts, :patch) do
+      UI.report_from(
+        agent.name,
+        "*sigh* the LLM tried to use `apply_patch` again. Lemme go ahead and fix that for you...\n${patch}"
+      )
+
       re_patch(agent, patch)
     end
   end
