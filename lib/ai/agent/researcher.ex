@@ -38,6 +38,8 @@ defmodule AI.Agent.Researcher do
   def get_response(opts) do
     with {:ok, agent} <- Map.fetch(opts, :agent),
          {:ok, prompt} <- Map.fetch(opts, :prompt) do
+      UI.report_from(agent.name, prompt)
+
       can_recurse? =
         inc_depth()
         |> case do

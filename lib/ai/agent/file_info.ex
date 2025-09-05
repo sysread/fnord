@@ -71,9 +71,12 @@ defmodule AI.Agent.FileInfo do
 
   @impl AI.Agent
   def get_response(opts) do
-    with {:ok, file} <- Map.fetch(opts, :file),
+    with {:ok, agent} <- Map.fetch(opts, :agent),
+         {:ok, file} <- Map.fetch(opts, :file),
          {:ok, question} <- Map.fetch(opts, :question),
          {:ok, content} <- Map.fetch(opts, :content) do
+      UI.report_from(agent.name, "Researching in #{file}: #{question}")
+
       question = """
       File: #{file}
       Question: #{question}

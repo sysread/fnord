@@ -41,6 +41,11 @@ defmodule AI.Agent.Spelunker do
   # Private functions
   # -----------------------------------------------------------------------------
   defp build_response(opts) do
+    UI.report_from(
+      opts.agent.name,
+      "Spelunking call paths from #{opts.start_file}:#{opts.symbol} to #{opts.goal}"
+    )
+
     opts.agent
     |> AI.Agent.get_completion(
       model: @model,

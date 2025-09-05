@@ -63,6 +63,8 @@ defmodule AI.Agent.Troubleshooter do
   def get_response(opts) do
     with {:ok, agent} <- Map.fetch(opts, :agent),
          {:ok, prompt} <- Map.fetch(opts, :prompt) do
+      UI.report_from(agent.name, "Troubleshooting: #{prompt}")
+
       # Get all tools including frobs, but prioritize troubleshooting tools
       tools = get_troubleshooting_tools()
 
