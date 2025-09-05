@@ -293,7 +293,7 @@ defmodule AI.Tools.Shell do
         # Ok, so we can fudge things this way, but the shell_tool is available
         # outside of edit mode, so we need to double-check that the user
         # actually wants to allow editing before we let them do it.
-        is_apply_patch? = String.contains?(json, "apply_patch")
+        is_apply_patch? = String.contains?(json, "apply_patch") || String.contains?(json, "patch")
         is_edit_mode? = Settings.get_edit_mode()
 
         cond do
