@@ -7,10 +7,14 @@ defmodule AI.Tools.Coder do
   @behaviour AI.Tools
 
   @impl AI.Tools
-  def async?, do: true
+  def async? do
+    Settings.get_edit_mode() && Settings.get_auto_approve()
+  end
 
   @impl AI.Tools
-  def is_available?, do: true
+  def is_available? do
+    Settings.get_edit_mode()
+  end
 
   @impl AI.Tools
   def read_args(args), do: {:ok, args}
