@@ -161,9 +161,9 @@ defmodule AI.Tools.Shell do
   def call(opts) do
     with {:ok, desc} <- AI.Tools.get_arg(opts, "description"),
          {:ok, commands} <- AI.Tools.get_arg(opts, "commands"),
-         timeout_ms <- validate_timeout(opts),
-         {:ok, project} <- Store.get_project(),
-         {:ok, commands} <- validate_commands(commands) do
+         timeout_ms <- sanitize_timeout(opts),
+         {:ok, commands} <- resolve_commands(commands),
+         {:ok, project} <- Store.get_project() do
       opts
       |> Map.get("operator", "|")
       |> route(commands, desc, timeout_ms, project.source_root)
@@ -171,9 +171,27 @@ defmodule AI.Tools.Shell do
   end
 
   # ----------------------------------------------------------------------------
-  # Internals
+  # Validation and argument processing
   # ----------------------------------------------------------------------------
-  def validate_commands(commands) do
+
+  # ----------------------------------------------------------------------------
+  # Sanitize timeout to be a positive integer within allowed range
+  # ----------------------------------------------------------------------------
+  defp sanitize_timeout(opts) do
+    val = Map.get(opts, "timeout_ms", @default_timeout_ms)
+
+    cond do
+      !is_integer(val) -> @default_timeout_ms
+      val <= 0 -> @default_timeout_ms
+      val > @max_timeout_ms -> @max_timeout_ms
+      true -> val
+    end
+  end
+
+  # ----------------------------------------------------------------------------
+  # Resolve commands to absolute paths where possible.
+  # ----------------------------------------------------------------------------
+  defp resolve_commands(commands) do
     commands
     |> Enum.reduce_while([], fn command, acc ->
       command
@@ -260,6 +278,10 @@ defmodule AI.Tools.Shell do
     end
   end
 
+  # -----------------------------------------------------------------------------
+  # Execution and routing
+  # -----------------------------------------------------------------------------
+
   # ----------------------------------------------------------------------------
   # The fact that this function exists at all is so, *so* frustrating.
   # ----------------------------------------------------------------------------
@@ -334,6 +356,9 @@ defmodule AI.Tools.Shell do
     end
   end
 
+  # ----------------------------------------------------------------------------
+  # Run the commands as a shell pipeline or sequence, collecting the output.
+  # ----------------------------------------------------------------------------
   defp run_pipeline(op, commands, timeout_ms, root, acc \\ nil)
   defp run_pipeline(_, [], _, _, ""), do: {:ok, "(no output)"}
   defp run_pipeline(_, [], _, _, acc), do: {:ok, acc}
@@ -398,7 +423,8 @@ defmodule AI.Tools.Shell do
 
   defp shell_out(%{"command" => cmd, "args" => args}, timeout_ms, root, stdin) do
     Util.Temp.with_tmp(stdin, fn tmp ->
-      with :ok <- chmod_600(tmp),
+      # Ensure stdin temp file is not world/group readable regardless of umask
+      with :ok <- File.chmod(tmp, 0o600),
            {:ok, runner} <- Briefly.create(),
            :ok <- File.write(runner, @runner),
            :ok <- File.chmod(runner, 0o700) do
@@ -423,11 +449,10 @@ defmodule AI.Tools.Shell do
     end)
   end
 
-  defp chmod_600(path) do
-    # Ensure stdin temp is not world/group readable regardless of umask
-    File.chmod(path, 0o600)
-  end
-
+  # ----------------------------------------------------------------------------
+  # Runs a function with the specified `timeout`, returning `{:error,
+  # :timeout}` if it times out.
+  # ----------------------------------------------------------------------------
   defp run_with_timeout(timeout, fun, opts \\ []) do
     on_timeout = Keyword.get(opts, :on_timeout, fn -> :ok end)
 
@@ -455,17 +480,9 @@ defmodule AI.Tools.Shell do
     end
   end
 
-  defp validate_timeout(opts) do
-    val = Map.get(opts, "timeout_ms", @default_timeout_ms)
-
-    cond do
-      !is_integer(val) -> @default_timeout_ms
-      val <= 0 -> @default_timeout_ms
-      val > @max_timeout_ms -> @max_timeout_ms
-      true -> val
-    end
-  end
-
+  # ----------------------------------------------------------------------------
+  # Formatting helpers
+  # ----------------------------------------------------------------------------
   defp format_commands(op, commands) do
     try do
       commands
