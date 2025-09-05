@@ -22,7 +22,7 @@ defmodule AI.Agent.Coordinator do
     :usage,
     :context,
     :notes,
-    :coder_tool_used
+    :editing_tools_used
   ]
 
   @type t :: %__MODULE__{
@@ -44,7 +44,7 @@ defmodule AI.Agent.Coordinator do
           usage: non_neg_integer,
           context: non_neg_integer,
           notes: binary | nil,
-          coder_tool_used: boolean
+          editing_tools_used: boolean
         }
 
   @type error :: {:error, binary | atom | :testing}
@@ -109,7 +109,7 @@ defmodule AI.Agent.Coordinator do
         usage: 0,
         context: @model.context,
         notes: nil,
-        coder_tool_used: false
+        editing_tools_used: false
       }
     end
   end
@@ -320,7 +320,6 @@ defmodule AI.Agent.Coordinator do
     |> case do
       {:ok, %{response: response, messages: new_msgs, usage: usage} = completion} ->
         Services.Conversation.replace_msgs(new_msgs, state.conversation)
-
         tools_used = AI.Agent.tools_used(completion)
 
         tools_used
@@ -331,15 +330,17 @@ defmodule AI.Agent.Coordinator do
           some -> UI.debug("Tools used", some)
         end)
 
-        coder_tool_used =
-          state.coder_tool_used ||
-            Map.has_key?(tools_used, "coder_tool")
+        editing_tools_used =
+          state.editing_tools_used ||
+            Map.has_key?(tools_used, "coder_tool") ||
+            Map.has_key?(tools_used, "file_edit_tool") ||
+            Map.has_key?(tools_used, "apply_patch")
 
         %{
           state
           | usage: usage,
             last_response: response,
-            coder_tool_used: coder_tool_used
+            editing_tools_used: editing_tools_used
         }
         |> log_usage()
         |> log_response()
@@ -349,7 +350,7 @@ defmodule AI.Agent.Coordinator do
         {:error, response}
 
       {:error, reason} ->
-        UI.error("Derp. Completion failed.", reason)
+        UI.error("Derp. Completion failed.", inspect(reason))
         {:error, reason}
     end
   end
@@ -491,13 +492,14 @@ defmodule AI.Agent.Coordinator do
   """
 
   @coding_reminder """
-  WARNING: The user passed --edit to enable coding capabilities, but you have not yet used the `coder_tool` this session.
+  WARNING: The user passed --edit to enable coding capabilities, but you have not yet used any editing tools this session.
+  Your coding tools are: coder_tool, file_edit_tool, apply_patch.
 
   The user explicitly enabled edit mode, which suggests they want you to make changes to the code base.
   Review their question carefully to determine if they are asking you to make changes.
 
   If they ARE asking for code changes:
-  - Use the coder_tool to implement the requested changes
+  - Use the coder_tool, file_edit_tool, or apply_patch to implement the requested changes
   - Verify the changes are correct and complete
 
   If they are NOT asking for code changes:
@@ -662,7 +664,7 @@ defmodule AI.Agent.Coordinator do
   end
 
   @spec execute_coding_phase(t) :: t
-  defp execute_coding_phase(%{edit?: true, coder_tool_used: false} = state) do
+  defp execute_coding_phase(%{edit?: true, editing_tools_used: false} = state) do
     @coding_reminder
     |> AI.Util.system_msg()
     |> Services.Conversation.append_msg(state.conversation)
