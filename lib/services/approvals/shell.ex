@@ -198,8 +198,20 @@ defmodule Services.Approvals.Shell do
     end
   end
 
-  defp customize(state, stages) do
-    Enum.reduce(stages, {:approved, state}, fn prefix, {:approved, acc_state} ->
+  @doc false
+  @spec pending_prefixes(state, [String.t()]) :: [String.t()]
+  def pending_prefixes(state, stages) do
+    stages
+    |> Enum.uniq()
+    |> Enum.reject(&approved?(state, &1))
+  end
+
+  @doc false
+  @spec customize(state, [String.t()]) :: {:approved, state}
+  def customize(state, stages) do
+    state
+    |> pending_prefixes(stages)
+    |> Enum.reduce({:approved, state}, fn prefix, {:approved, acc_state} ->
       {:approved, new_state} = choose_scope(acc_state, prefix)
       {:approved, new_state}
     end)
@@ -228,7 +240,6 @@ defmodule Services.Approvals.Shell do
     {:approved, state}
   end
 
-  # ----------------------------------------------------------------------------
   # ----------------------------------------------------------------------------
   # Utilities
   # ----------------------------------------------------------------------------
