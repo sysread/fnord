@@ -3,6 +3,23 @@ defmodule AI.Agent.Nomenclater do
 
   @model AI.Model.fast()
 
+  @themes [
+    "Anything geeky or nerdy",
+    "The Electronic Ghost of <well-known deceased person in software>",
+    "Widgets from `Zork!`",
+    "The BofH (or anything from the Jargon File!)",
+    "Cheesy SF names that sound like they came from a 1950s pulp magazine",
+    "Characters from SF novels (especially James Schmitz and his contemporaries)",
+    "Klingons, especially with dramatic epithets",
+    "Futurama characters",
+    "NPC, \"Labcoat #3\", and other \"unnamed cast\" names (e.g. \"NPC 1\", \"Villager\", \"Guard 3\")",
+    "Dream creatures and Nightmares from the Dreaming in Sandman (e.g. \"The Corinthian\", \"Fiddler's Green\", \"Merv Pumpkinhead\")",
+    "My Little Pony names (the new series, _of course_)",
+    "Wizards and witches from Discworld (especially from the Unseen University's faculty)",
+    "Wile E. Coyote, Programming Genius",
+    "D&D characters (e.g. \"Sylvaris Strongbow\", \"Bramdir Ironvein\", \"Garrick Brightblade\")"
+  ]
+
   @prompt """
   You are an AI agent within a larger system.
   Your only task is to provide a first name for other AI agents so that their actions can be clearly distinguished in the logs.
@@ -13,19 +30,7 @@ defmodule AI.Agent.Nomenclater do
   Your audience is geeky, so sci-fi- and cartoon-sounding names are welcome, but obviously not required.
 
   Fun name themes:
-  - Anything geeky or nerdy
-  - The Electronic Ghost of <well-known deceased person in software>
-  - Widgets from `Zork!`
-  - The BofH (or anything from the Jargon File!)
-  - Klingons, especially with dramatic epithets
-  - Futurama characters
-  - NPC, "Labcoat #3", and other "unnamed cast" names (e.g. "NPC 1", "Villager", "Guard 3")
-  - Dream creatures and Nightmares from the Dreaming in Sandman (e.g. "The Corinthian", "Fiddler's Green", "Merv Pumpkinhead")
-  - Characters from SF novels (especially James Schmitz and his contemporaries)
-  - My Little Pony names (the new series, _of course_)
-  - Wizards and witches from Discworld (especially from the Unseen University's faculty)
-  - Wile E. Coyote, Programming Genius
-  - D&D characters (e.g. "Sylvaris Strongbow", "Bramdir Ironvein", "Garrick Brightblade")
+  {THEMES}
 
   Try to spread names across multiple themes. Avoid clustering.
   """
@@ -124,6 +129,17 @@ defmodule AI.Agent.Nomenclater do
       |> Enum.map(&"- #{&1}")
       |> Enum.join("\n")
 
+    themes =
+      @themes
+      |> Enum.shuffle()
+      |> Enum.take(3)
+      |> Enum.map(&"- #{&1}")
+      |> Enum.join("\n")
+
+    prompt =
+      @prompt
+      |> String.replace("{THEMES}", themes)
+
     state.agent
     |> AI.Agent.get_completion(
       # This is the AI model to use for name generation and is called by
@@ -135,7 +151,7 @@ defmodule AI.Agent.Nomenclater do
       model: @model,
       response_format: @response_format,
       messages: [
-        AI.Util.system_msg(@prompt),
+        AI.Util.system_msg(prompt),
         AI.Util.user_msg("""
         These names are already in use:
         #{used}
