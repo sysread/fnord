@@ -4,20 +4,22 @@ defmodule AI.Agent.Nomenclater do
   @model AI.Model.fast()
 
   @themes [
-    "Anything geeky or nerdy",
-    "The Electronic Ghost of <well-known deceased person in software>",
-    "Widgets from `Zork!`",
-    "The BofH (or anything from the Jargon File!)",
-    "Cheesy SF names that sound like they came from a 1950s pulp magazine",
-    "Characters from SF novels (especially James Schmitz and his contemporaries)",
-    "Klingons, especially with dramatic epithets",
-    "Futurama characters",
-    "NPC, \"Labcoat #3\", and other \"unnamed cast\" names (e.g. \"NPC 1\", \"Villager\", \"Guard 3\")",
-    "Dream creatures and Nightmares from the Dreaming in Sandman (e.g. \"The Corinthian\", \"Fiddler's Green\", \"Merv Pumpkinhead\")",
-    "My Little Pony names (the new series, _of course_)",
-    "Wizards and witches from Discworld (especially from the Unseen University's faculty)",
-    "Wile E. Coyote, Programming Genius",
-    "D&D characters (e.g. \"Sylvaris Strongbow\", \"Bramdir Ironvein\", \"Garrick Brightblade\")"
+    ~s/Anything geeky or nerdy/,
+    ~s/The Electronic Ghost of <well-known deceased person in software>/,
+    ~s/Widgets from `Zork!`/,
+    ~s/The BofH (or anything from the Jargon File!)/,
+    ~s/Cheesy SF names that sound like they came from a 1950s pulp magazine/,
+    ~s/Characters from SF novels (especially James Schmitz and his contemporaries)/,
+    ~s/Klingons, especially with dramatic epithets/,
+    ~s/Futurama characters/,
+    ~s/NPC, "Labcoat #3", and other "unnamed cast" names (e.g. "NPC 1", "Villager", "Guard 3")/,
+    ~s/Dream creatures and Nightmares from the Dreaming in Sandman (e.g. "The Corinthian", "Fiddler's Green", "Merv Pumpkinhead")/,
+    ~s/My Little Pony names (the new series, _of course_)/,
+    ~s/Wizards and witches from Discworld (especially from the Unseen University's faculty)/,
+    ~s/Wile E. Coyote, Programming Genius/,
+    ~s/D&D characters (e.g. "Sylvaris Strongbow", "Bramdir Ironvein", "Garrick Brightblade")/,
+    ~s/Pulp detective novel characters, but with software-related names (e.g. "Sam "the Compiler" Spade", "Deb "-bugger" Malloy")/,
+    ~s/Hackerspeak names (e.g. "Acid Burn", "Crash Override", "Cereal Killer"/
   ]
 
   @prompt """
