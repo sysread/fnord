@@ -83,6 +83,34 @@ defmodule Cmd.ConfigApprovalsTest do
 
       assert log =~ "Invalid regex"
     end
+
+    test "slash-delimited pattern under kind shell is stored as shell_full" do
+      mock_project("proj1")
+      Settings.set_project("proj1")
+
+      out =
+        capture_io(fn ->
+          Approvals.run(%{kind: "shell"}, [:approve], ["/find(?!.*-exec).*/"])
+        end)
+
+      assert {:ok, %{"shell_full" => ["find(?!.*-exec).*"]}} = Jason.decode(out)
+    end
+
+    test "rejects empty regex for slash-delimited shell pattern" do
+      log =
+        capture_log(fn -> Approvals.run(%{kind: "shell", global: true}, [:approve], ["//"]) end)
+
+      assert log =~ "Empty regex is not allowed"
+    end
+
+    test "invalid unicode class is detected via CLI using 'u' flag" do
+      log =
+        capture_log(fn ->
+          Approvals.run(%{kind: "shell", global: true}, [:approve], ["/\\p{Foo}/"])
+        end)
+
+      assert log =~ "Invalid regex:"
+    end
   end
 
   describe "approve via opts[:pattern]" do

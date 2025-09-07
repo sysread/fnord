@@ -43,24 +43,30 @@ defmodule Cmd.Config.Approvals do
             UI.error(msg)
 
           {:ok, pattern} ->
-            scope = if opts[:global], do: :global, else: :project
-            if scope == :project && opts[:project], do: Settings.set_project(opts[:project])
-            settings = Settings.new()
+            case normalize_pattern(opts[:kind], pattern) do
+              {:error, msg} ->
+                UI.error(msg)
 
-            case build_approve(settings, scope, opts[:kind], pattern) do
-              {:ok, data} ->
-                data
-                |> Jason.encode!(pretty: true)
-                |> IO.puts()
+              {kind, pattern} ->
+                # determine scope from --global flag or default to project
+                scope = if opts[:global], do: :global, else: :project
+                if scope == :project && opts[:project], do: Settings.set_project(opts[:project])
+                settings = Settings.new()
 
-              {:error, err} ->
-                UI.error(err)
+                case build_approve(settings, scope, kind, pattern) do
+                  {:ok, data} ->
+                    data
+                    |> Jason.encode!(pretty: true)
+                    |> IO.puts()
+
+                  {:error, err} ->
+                    UI.error(err)
+                end
             end
         end
     end
   end
 
-  # ----------------------------------------------------------------------------
   # Helpers
   # ----------------------------------------------------------------------------
   defp build_list(:global) do
@@ -94,20 +100,43 @@ defmodule Cmd.Config.Approvals do
     |> Enum.into(%{})
   end
 
-  defp build_approve(settings, scope, kind, pattern) do
-    # validate that the pattern is a valid regex
-    case Regex.compile(pattern) do
-      {:error, reason} ->
-        # reason is a tuple {message, position}
-        msg = elem(reason, 0)
-        msg_str = to_string(msg)
-        {:error, "Invalid regex: #{msg_str}"}
+  # Interpret /pattern/ under --kind shell as full-command regex
+  defp normalize_pattern("shell", pat) when is_binary(pat) do
+    if String.starts_with?(pat, "/") and String.ends_with?(pat, "/") do
+      # Strip leading and trailing slash; use explicit step to avoid negative step warning
+      inner = String.slice(pat, 1..-2//1)
 
-      {:ok, _regex} ->
-        # add the approved prefix and output updated patterns
-        new_settings = Settings.Approvals.approve(settings, scope, kind, pattern)
-        patterns = Settings.Approvals.get_approvals(new_settings, scope, kind)
-        {:ok, %{kind => patterns}}
+      # Return error for empty inner regex
+      if inner == "" do
+        {:error, "Empty regex is not allowed"}
+      else
+        {"shell_full", inner}
+      end
+    else
+      {"shell", pat}
+    end
+  end
+
+  defp normalize_pattern(kind, pat), do: {kind, pat}
+
+  defp build_approve(settings, scope, kind, pattern) do
+    if kind == "shell_full" and pattern == "" do
+      {:error, "Empty regex is not allowed"}
+    else
+      # validate that the pattern is a valid regex
+      case Regex.compile(pattern, "u") do
+        {:error, reason} ->
+          # reason is a tuple {message, position}
+          msg = elem(reason, 0)
+          msg_str = to_string(msg)
+          {:error, "Invalid regex: #{msg_str}"}
+
+        {:ok, _regex} ->
+          # add the approved prefix and output updated patterns
+          new_settings = Settings.Approvals.approve(settings, scope, kind, pattern)
+          patterns = Settings.Approvals.get_approvals(new_settings, scope, kind)
+          {:ok, %{kind => patterns}}
+      end
     end
   end
 end

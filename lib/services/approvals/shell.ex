@@ -1,4 +1,5 @@
 defmodule Services.Approvals.Shell do
+  @behaviour Services.Approvals.Workflow
   # ----------------------------------------------------------------------------
   # Globals
   # ----------------------------------------------------------------------------
@@ -61,8 +62,7 @@ defmodule Services.Approvals.Shell do
     "sed",
     "awk",
     "patch",
-    "truncate",
-    "tr"
+    "truncate"
   ]
 
   def preapproved_cmds do
@@ -76,15 +76,17 @@ defmodule Services.Approvals.Shell do
   # ----------------------------------------------------------------------------
   # Behaviour implementation
   # ----------------------------------------------------------------------------
-  @behaviour Services.Approvals.Workflow
-
   @impl Services.Approvals.Workflow
   @spec confirm(state, args) :: decision
   def confirm(state, {op, commands, purpose}) when is_list(commands) do
     with :ok <- validate_commands(commands) do
-      stages = Enum.map(commands, &extract_prefix/1)
+      # build list of {prefix, full_command} pairs
+      stages =
+        Enum.map(commands, fn cmd ->
+          {extract_prefix(cmd), format_stage_for_match(cmd)}
+        end)
 
-      if Enum.all?(stages, &approved?(state, &1)) do
+      if Enum.all?(stages, &matches_approval?(state, &1)) do
         {:approved, state}
       else
         if !UI.is_tty?() do
@@ -139,6 +141,19 @@ defmodule Services.Approvals.Shell do
     end
   end
 
+  # Returns true if either the prefix path or the full command string is approved
+  defp matches_approval?(state, {prefix, full}) do
+    approved_by_prefix?(state, prefix) or
+      Settings.new() |> Settings.Approvals.approved?("shell_full", full)
+  end
+
+  # Existing prefix-based approval logic extracted to its own function
+  defp approved_by_prefix?(%{session: session}, prefix) do
+    prefix in preapproved_cmds() or
+      prefix in session or
+      Settings.new() |> Settings.Approvals.approved?("shell", prefix)
+  end
+
   # ----------------------------------------------------------------------------
   # Display
   # ----------------------------------------------------------------------------
@@ -178,6 +193,12 @@ defmodule Services.Approvals.Shell do
     Enum.join([cmd | args], " ")
   end
 
+  # Build the string used for shell_full matching: use basename(command) + args
+  defp format_stage_for_match(%{"command" => cmd, "args" => args}) do
+    base = Path.basename(cmd)
+    Enum.join([base | args], " ")
+  end
+
   # ----------------------------------------------------------------------------
   # Prompt + persistence
   # ----------------------------------------------------------------------------
@@ -191,10 +212,27 @@ defmodule Services.Approvals.Shell do
       _ -> UI.choose("Approve this request?", opts)
     end
     |> case do
-      @approve -> {:approved, state}
-      @deny -> {:denied, @no_feedback, state}
-      @deny_feedback -> {:denied, get_feedback(), state}
-      @persistent -> customize(state, stages)
+      @approve ->
+        {:approved, state}
+
+      @deny ->
+        {:denied, @no_feedback, state}
+
+      @deny_feedback ->
+        {:denied, get_feedback(), state}
+
+      @persistent ->
+        pending =
+          stages
+          |> Enum.uniq()
+          |> Enum.reject(&matches_approval?(state, &1))
+          |> Enum.map(&elem(&1, 0))
+          |> Enum.uniq()
+
+        Enum.reduce(pending, {:approved, state}, fn prefix, {:approved, acc_state} ->
+          {:approved, new_state} = choose_scope(acc_state, prefix)
+          {:approved, new_state}
+        end)
     end
   end
 
