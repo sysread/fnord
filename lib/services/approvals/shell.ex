@@ -222,17 +222,7 @@ defmodule Services.Approvals.Shell do
         {:denied, get_feedback(), state}
 
       @persistent ->
-        pending =
-          stages
-          |> Enum.uniq()
-          |> Enum.reject(&matches_approval?(state, &1))
-          |> Enum.map(&elem(&1, 0))
-          |> Enum.uniq()
-
-        Enum.reduce(pending, {:approved, state}, fn prefix, {:approved, acc_state} ->
-          {:approved, new_state} = choose_scope(acc_state, prefix)
-          {:approved, new_state}
-        end)
+        customize(state, stages)
     end
   end
 
@@ -245,35 +235,98 @@ defmodule Services.Approvals.Shell do
   end
 
   @doc false
-  @spec customize(state, [String.t()]) :: {:approved, state}
+  @spec customize(state, [String.t()] | list({String.t(), String.t()})) :: {:approved, state}
   def customize(state, stages) do
-    state
-    |> pending_prefixes(stages)
-    |> Enum.reduce({:approved, state}, fn prefix, {:approved, acc_state} ->
-      {:approved, new_state} = choose_scope(acc_state, prefix)
+    # Normalize stages to a list of prefixes that still need approval,
+    # using full matching when tuples are provided.
+    pending =
+      stages
+      |> Enum.uniq()
+      |> Enum.reject(fn
+        {prefix, full} -> matches_approval?(state, {prefix, full})
+        prefix when is_binary(prefix) -> approved?(state, prefix)
+      end)
+      |> Enum.map(fn
+        {prefix, _full} -> prefix
+        prefix when is_binary(prefix) -> prefix
+      end)
+      |> Enum.uniq()
+
+    Enum.reduce(pending, {:approved, state}, fn prefix, {:approved, acc_state} ->
+      {:approved, new_state} = choose_scope_with_optional_regex(acc_state, prefix)
       {:approved, new_state}
     end)
   end
 
-  defp choose_scope(state, prefix) do
-    UI.choose("Choose approval scope for: #{prefix}", [@session, @project, @global])
-    |> approve_scope(state, prefix)
+  defp choose_scope_with_optional_regex(state, prefix) do
+    scope =
+      UI.choose(
+        "Choose approval scope for: #{prefix}\n\n" <>
+          "Tip: Enter a regex by enclosing it in slashes, e.g. '/^find(?!.*-exec).*$/'. " <>
+          "Regex matches against the command basename with args.",
+        [@session, @project, @global]
+      )
+
+    input =
+      UI.prompt(
+        "Optional: enter /regex/ to approve a regex instead of this prefix (leave empty to approve prefix):"
+      )
+
+    trimmed = String.trim(input)
+
+    cond do
+      trimmed == "" ->
+        approve_scope(scope, state, prefix)
+
+      String.starts_with?(trimmed, "/") and String.ends_with?(trimmed, "/") ->
+        inner = String.slice(trimmed, 1..-2//1)
+
+        if inner == "" do
+          UI.error("Empty regex is not allowed")
+          approve_scope(scope, state, prefix)
+        else
+          case Regex.compile(inner, "u") do
+            {:ok, _} ->
+              approve_regex_scope(scope, state, inner, prefix)
+
+            {:error, {msg, _pos}} ->
+              UI.error("Invalid regex: #{to_string(msg)}")
+              approve_scope(scope, state, prefix)
+          end
+        end
+
+      true ->
+        # Not slash-delimited, treat as approving the prefix
+        approve_scope(scope, state, prefix)
+    end
+  end
+
+  defp approve_regex_scope(@session, state, _inner, prefix) do
+    # For session scope, continue to approve the plain prefix only
+    approve_scope(@session, state, prefix)
+  end
+
+  defp approve_regex_scope(@project, state, inner, _prefix) do
+    Settings.new() |> Settings.Approvals.approve(:project, "shell_full", inner)
+    {:approved, state}
+  end
+
+  defp approve_regex_scope(@global, state, inner, _prefix) do
+    Settings.new() |> Settings.Approvals.approve(:global, "shell_full", inner)
+    {:approved, state}
   end
 
   defp approve_scope(@session, %{session: session} = state, prefix) do
-    # store plain prefixes in-memory for this session
     prefixes = session |> Enum.concat([prefix]) |> Enum.uniq()
     {:approved, %{state | session: prefixes}}
   end
 
   defp approve_scope(@project, state, prefix) do
-    # persist plain prefix; Settings will compile to regex on load
     Settings.new() |> Settings.Approvals.approve(:project, "shell", prefix)
     {:approved, state}
   end
 
   defp approve_scope(@global, state, prefix) do
-    # persist plain prefix; Settings will compile to regex on load
     Settings.new() |> Settings.Approvals.approve(:global, "shell", prefix)
     {:approved, state}
   end

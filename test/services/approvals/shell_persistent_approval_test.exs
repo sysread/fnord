@@ -47,9 +47,12 @@ defmodule Services.Approvals.Shell.PersistentApprovalTest do
       end)
 
       :meck.expect(UI, :choose, fn
-        "Choose approval scope for: bar", _opts -> "Approve for this session"
+        prompt, _opts ->
+          assert String.contains?(prompt, "Choose approval scope for: bar")
+          "Approve for this session"
       end)
 
+      :meck.expect(UI, :prompt, fn _ -> "" end)
       {:approved, result_state} = Services.Approvals.Shell.customize(initial_state, stages)
 
       assert result_state.session == ["foo", "bar"]
