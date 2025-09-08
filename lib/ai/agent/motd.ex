@@ -20,6 +20,9 @@ defmodule AI.Agent.MOTD do
   - Attribute the quote to the real person, but as though speaking from the made-up scenario.
   - Example: "I have not failed. I've just found 10,000 ways that won't work." - Thomas Edison, on the importance of negative path testing."
     - Don't just use my example. Be creative. Sheesh.
+  - Every now and then, just for fun, make up a slightly off-putting quote about how AI is subverting people's ability to think critically.
+    Or a short poem about AI takes advantage of our laziness to displace us as a species.
+    Just to freak people out a little bit.
 
   # Output Template
   ```
