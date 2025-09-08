@@ -13,6 +13,8 @@ defmodule Services.NamePool do
 
   use GenServer
 
+  @name_chunk_timeout_ms Application.compile_env(:fnord, :name_chunk_timeout_ms, 30_000)
+
   @name __MODULE__
 
   @type t :: %__MODULE__{
@@ -233,17 +235,14 @@ defmodule Services.NamePool do
     {:noreply, new_state}
   end
 
-  # -----------------------------------------------------------------------------
-  # Private Functions
-  # -----------------------------------------------------------------------------
+  @doc false
+  # Ensures there are names available, allocating a new chunk if the pool is empty
+  defp ensure_names_available(%__MODULE__{available: []} = state) do
+    allocate_name_chunk(state)
+  end
 
-  # Ensures we have at least one name available, allocating a new chunk if needed
   defp ensure_names_available(state) do
-    if length(state.available) > 0 do
-      {:ok, state}
-    else
-      allocate_name_chunk(state)
-    end
+    {:ok, state}
   end
 
   # Allocates a chunk of names from the nomenclater
@@ -258,12 +257,13 @@ defmodule Services.NamePool do
           start_num..end_num
           |> Enum.map(&"NPC ##{&1}")
 
-        {:ok,
-         %{
-           state
-           | available: names ++ state.available,
-             all_used: MapSet.union(state.all_used, MapSet.new(names))
-         }}
+        new_state = %{
+          state
+          | available: names ++ state.available,
+            all_used: MapSet.union(state.all_used, MapSet.new(names))
+        }
+
+        {:ok, new_state}
 
       :real ->
         used_names = MapSet.to_list(state.all_used)
@@ -279,8 +279,9 @@ defmodule Services.NamePool do
             })
           end)
 
-        case Task.await(task, 10_000) || Task.shutdown(task) do
-          {:ok, names} when is_list(names) ->
+        # Use Task.yield to allow configurable timeout
+        case Task.yield(task, @name_chunk_timeout_ms) do
+          {:ok, {:ok, names}} when is_list(names) ->
             new_state = %{
               state
               | available: names ++ state.available,
@@ -289,11 +290,12 @@ defmodule Services.NamePool do
 
             {:ok, new_state}
 
-          {:error, reason} ->
+          {:ok, {:error, reason}} ->
             UI.error("Failed to make up names for your agents", reason)
             {:error, reason}
 
           nil ->
+            Task.shutdown(task, :brutal_kill)
             UI.error("Name allocation task timed out")
             {:error, :timeout}
         end
