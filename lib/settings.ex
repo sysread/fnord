@@ -353,11 +353,16 @@ defmodule Settings do
   end
 
   defp write_atomic!(path, content) do
-    with {:ok, tmp} <- Briefly.create(),
-         :ok <- File.write!(tmp, content),
-         :ok <- File.rename!(tmp, path) do
-      :ok
-    end
+    dir = Path.dirname(path)
+    base = Path.basename(path)
+
+    # Create temp file in the same directory to avoid cross-device rename
+    # issues and preserve atomicity.
+    tmp = Path.join(dir, ".#{base}.#{System.unique_integer([:positive])}.tmp")
+
+    File.write!(tmp, content)
+    File.rename!(tmp, path)
+    :ok
   end
 
   @doc """
