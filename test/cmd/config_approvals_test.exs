@@ -5,7 +5,7 @@ defmodule Cmd.ConfigApprovalsTest do
   alias Cmd.Config.Approvals
 
   setup do
-    File.rm_rf!(Settings.settings_file())
+    Settings.new() |> Settings.set(:approvals, %{})
     :ok
   end
 

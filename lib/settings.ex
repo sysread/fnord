@@ -62,7 +62,7 @@ defmodule Settings do
           |> Map.put("version", "0.8.30")
           |> Map.put_new("approvals", %{})
 
-        File.write!(path, Jason.encode!(new_data, pretty: true))
+        write_atomic!(path, Jason.encode!(new_data, pretty: true))
       end
     end
   end
@@ -86,7 +86,7 @@ defmodule Settings do
     path = "#{home()}/settings.json"
 
     if !File.exists?(path) do
-      File.write!(path, "{}")
+      write_atomic!(path, "{}")
     end
 
     path
@@ -347,8 +347,17 @@ defmodule Settings do
 
   defp spew(settings) do
     settings = ensure_approvals_exist(settings)
-    File.write!(settings.path, Jason.encode!(settings.data, pretty: true))
+    json = Jason.encode!(settings.data, pretty: true)
+    write_atomic!(settings.path, json)
     settings
+  end
+
+  defp write_atomic!(path, content) do
+    with {:ok, tmp} <- Briefly.create(),
+         :ok <- File.write!(tmp, content),
+         :ok <- File.rename!(tmp, path) do
+      :ok
+    end
   end
 
   @doc """
