@@ -250,34 +250,38 @@ defmodule Services.Approvals.Shell do
     |> Enum.map(fn {prefix, _full} -> prefix end)
     # Iterate over each unapproved prefix and ask for scope or regex
     |> Enum.reduce({:approved, state}, fn prefix, {:approved, acc_state} ->
-      {:approved, new_state} = choose_scope_with_optional_regex(acc_state, prefix)
-      {:approved, new_state}
+      choose_scope(acc_state, prefix)
     end)
   end
 
-  defp choose_scope_with_optional_regex(state, prefix) do
-    scope =
-      UI.choose(
-        "Choose approval scope for: #{prefix}\n\n" <>
-          "Tip: Enter a regex by enclosing it in slashes, e.g. '/^find(?!.*-exec).*$/'. " <>
-          "Regex matches against the command basename with args.",
-        [@session, @project, @global]
-      )
+  defp choose_scope(state, prefix) do
+    scope = UI.choose("Choose approval scope for: #{prefix}", [@session, @project, @global])
 
     input =
       UI.prompt(
-        "Enter a /<regex>/ (leave blank to approve prefix '#{prefix}'):",
+        """
+        You may optionally select your own approval prefix, making it broader or more specific.
+
+        Wrap your input in slashes (/) to treat it as a regular expression.
+        Regular expressions are matched against the entire command string, including arguments.
+        There is NO implicit anchoring, so include ^ and $ as needed.
+
+        Enter a manual prefix or leave blank to approve '#{prefix}':
+        """,
         optional: true
       )
-
-    trimmed = String.trim(input)
+      |> case do
+        {:error, :no_tty} -> ""
+        nil -> ""
+        str -> String.trim(str)
+      end
 
     cond do
-      trimmed == "" ->
+      input == "" ->
         approve_scope(scope, state, prefix)
 
-      String.starts_with?(trimmed, "/") and String.ends_with?(trimmed, "/") ->
-        inner = String.slice(trimmed, 1..-2//1)
+      String.starts_with?(input, "/") and String.ends_with?(input, "/") ->
+        inner = String.slice(input, 1..-2//1)
 
         if inner == "" do
           UI.error("Empty regex is not allowed")
@@ -299,21 +303,6 @@ defmodule Services.Approvals.Shell do
     end
   end
 
-  defp approve_regex_scope(@session, %{session: session} = state, inner, _prefix) do
-    prefixes = session |> Enum.concat([{:full, inner}]) |> Enum.uniq()
-    {:approved, %{state | session: prefixes}}
-  end
-
-  defp approve_regex_scope(@project, state, inner, _prefix) do
-    Settings.new() |> Settings.Approvals.approve(:project, "shell_full", inner)
-    {:approved, state}
-  end
-
-  defp approve_regex_scope(@global, state, inner, _prefix) do
-    Settings.new() |> Settings.Approvals.approve(:global, "shell_full", inner)
-    {:approved, state}
-  end
-
   defp approve_scope(@session, %{session: session} = state, prefix) do
     prefixes = session |> Enum.concat([{:prefix, prefix}]) |> Enum.uniq()
     {:approved, %{state | session: prefixes}}
@@ -326,6 +315,21 @@ defmodule Services.Approvals.Shell do
 
   defp approve_scope(@global, state, prefix) do
     Settings.new() |> Settings.Approvals.approve(:global, "shell", prefix)
+    {:approved, state}
+  end
+
+  defp approve_regex_scope(@session, %{session: session} = state, inner, _prefix) do
+    prefixes = session |> Enum.concat([{:full, inner}]) |> Enum.uniq()
+    {:approved, %{state | session: prefixes}}
+  end
+
+  defp approve_regex_scope(@project, state, inner, _prefix) do
+    Settings.new() |> Settings.Approvals.approve(:project, "shell_full", inner)
+    {:approved, state}
+  end
+
+  defp approve_regex_scope(@global, state, inner, _prefix) do
+    Settings.new() |> Settings.Approvals.approve(:global, "shell_full", inner)
     {:approved, state}
   end
 
