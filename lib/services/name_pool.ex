@@ -84,6 +84,14 @@ defmodule Services.NamePool do
     GenServer.call(server, {:get_name_by_pid, pid})
   end
 
+  @doc """
+  Restores the association between a `pid` and a `name`. This is useful to
+  re-associate a name after a process restart or similar event.
+  """
+  def restore_name(pid, name, server \\ @name) do
+    GenServer.cast(server, {:restore_name, pid, name})
+  end
+
   # -----------------------------------------------------------------------------
   # GenServer Callbacks
   # -----------------------------------------------------------------------------
@@ -192,6 +200,37 @@ defmodule Services.NamePool do
       UI.warn("Attempted to check in name that wasn't checked out", name)
       {:noreply, state}
     end
+  end
+
+  @impl GenServer
+  def handle_cast({:restore_name, pid, name}, state) do
+    prev_pid = Map.get(state.name_to_pid, name)
+
+    state =
+      case prev_pid do
+        nil ->
+          state
+
+        ^pid ->
+          state
+
+        other ->
+          %{
+            state
+            | pid_to_name: Map.delete(state.pid_to_name, other),
+              name_to_pid: Map.delete(state.name_to_pid, name)
+          }
+      end
+
+    new_state = %{
+      state
+      | checked_out: MapSet.put(state.checked_out, name),
+        pid_to_name: Map.put(state.pid_to_name, pid, name),
+        name_to_pid: Map.put(state.name_to_pid, name, pid),
+        available: List.delete(state.available, name)
+    }
+
+    {:noreply, new_state}
   end
 
   # -----------------------------------------------------------------------------

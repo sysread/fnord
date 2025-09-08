@@ -41,6 +41,14 @@ defmodule Services.Conversation do
   end
 
   @doc """
+  Get the current agent instance.
+  """
+  @spec get_agent(pid) :: AI.Agent.t()
+  def get_agent(pid) do
+    GenServer.call(pid, :get_agent)
+  end
+
+  @doc """
   Get the current conversation object.
   """
   @spec get_conversation(pid) :: Conversation.t()
@@ -87,6 +95,10 @@ defmodule Services.Conversation do
     {:noreply, %{state | msgs: new_msgs}}
   end
 
+  def handle_call(:get_agent, _from, state) do
+    {:reply, state.agent, state}
+  end
+
   def handle_call(:get_conversation, _from, state) do
     {:reply, state.conversation, state}
   end
@@ -107,14 +119,57 @@ defmodule Services.Conversation do
   # -----------------------------------------------------------------------------
   # Internals
   # -----------------------------------------------------------------------------
-  defp new(), do: {:ok, %{conversation: Conversation.new(), msgs: [], ts: nil}}
+  defp new() do
+    {:ok,
+     %{
+       agent: AI.Agent.new(AI.Agent.Coordinator, named?: true),
+       conversation: Conversation.new(),
+       msgs: [],
+       ts: nil
+     }}
+  end
+
   defp new(nil), do: new()
 
   defp new(id) do
     conversation = Conversation.new(id)
 
     with {:ok, ts, msgs} <- Conversation.read(conversation) do
-      {:ok, %{conversation: conversation, msgs: msgs, ts: ts}}
+      agent_args =
+        msgs
+        |> find_agent_name()
+        |> case do
+          nil -> [named?: true]
+          name -> [named?: true, name: name]
+        end
+
+      agent = AI.Agent.new(AI.Agent.Coordinator, agent_args)
+
+      {:ok,
+       %{
+         agent: agent,
+         conversation: conversation,
+         msgs: msgs,
+         ts: ts
+       }}
     end
+  end
+
+  defp find_agent_name(msgs) do
+    re = ~r/^Your name is (.*)\.$/
+
+    msgs
+    |> Enum.find_value(fn
+      %{role: "system", content: content} ->
+        re
+        |> Regex.run(content)
+        |> case do
+          [_, name] -> name
+          _ -> nil
+        end
+
+      _ ->
+        nil
+    end)
   end
 end

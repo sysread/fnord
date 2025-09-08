@@ -91,10 +91,18 @@ defmodule AI.Agent do
   end
 
   defp get_name(opts) do
-    if Keyword.get(opts, :named?, true) do
-      Services.NamePool.checkout_name()
-    else
-      {:ok, Services.NamePool.default_name()}
+    name = Keyword.get(opts, :name, nil)
+
+    cond do
+      !is_nil(name) ->
+        Services.NamePool.restore_name(self(), name)
+        {:ok, name}
+
+      Keyword.get(opts, :named?, true) ->
+        Services.NamePool.checkout_name()
+
+      true ->
+        {:ok, Services.NamePool.default_name()}
     end
   end
 end

@@ -235,8 +235,8 @@ defmodule Cmd.Ask do
 
   @spec get_agent_response(map, pid) :: {:ok, map} | {:error, any}
   defp get_agent_response(opts, conversation_server) do
-    AI.Agent.Coordinator
-    |> AI.Agent.new()
+    conversation_server
+    |> Services.Conversation.get_agent()
     |> AI.Agent.get_response(%{
       conversation: conversation_server,
       edit: opts.edit,
