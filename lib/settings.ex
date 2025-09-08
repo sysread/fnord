@@ -352,6 +352,10 @@ defmodule Settings do
     settings
   end
 
+  defp write_atomic!(path, "") do
+    write_atomic!(path, "{}")
+  end
+
   defp write_atomic!(path, content) do
     dir = Path.dirname(path)
     base = Path.basename(path)
