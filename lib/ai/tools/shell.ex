@@ -59,6 +59,9 @@ defmodule AI.Tools.Shell do
 
         ALWAYS prefer a built-in tool call over this tool when available.
 
+        If you are unsure of whether a command is available, try calling it with --version or --help. 
+        You can do this for multiple commands with concurrent tool calls to this tool.
+
         The user must approve execution of this command before it is run.
         It is essential to remember that you cannot launch interactive commands!
         Commands that require user input or interaction will fail after a timeout, resulting in a poor experience for the user.
