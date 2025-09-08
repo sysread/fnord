@@ -20,6 +20,16 @@ defmodule Services.Approvals.Edit do
 
   @impl Services.Approvals.Workflow
   def confirm(state, {file, diff}) do
+    file_display = Path.relative_to_cwd(file)
+
+    # 53 = 60 - 7 spaces and "Edit " in the title below
+    file_display =
+      if String.length(file_display) > 53 do
+        "..." <> String.slice(file_display, -57..-1)
+      else
+        file_display
+      end
+
     [
       Owl.Data.tag("# Scope ", [:red_background, :black, :bright]),
       "\n\nedit :: all files\n\n",
@@ -28,7 +38,7 @@ defmodule Services.Approvals.Edit do
       diff
     ]
     |> UI.box(
-      title: " Edit #{file} ",
+      title: " Edit #{file_display} ",
       min_width: 80,
       padding: 1,
       horizontal_align: :left,
