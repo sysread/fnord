@@ -47,7 +47,7 @@ defmodule Services.Approvals.Shell do
           UI.error("Shell", @no_tty)
           {:denied, @no_tty, state}
         else
-          render_pipeline(op, commands, purpose)
+          render_pipeline(state, op, commands, purpose)
           prompt(state, stages)
         end
       end
@@ -136,19 +136,19 @@ defmodule Services.Approvals.Shell do
     end
   end
 
+  # Returns true if either the prefix path or the full command string is
+  # approved or a stored full-command approval matches this stage.
+  defp approved?(state, {prefix, full}) do
+    prefix_approved?(state, prefix) or
+      full_cmd_preapproved?(state, full)
+  end
+
   defp session_approvals(%{session: session}, kind) do
     session
     |> Enum.reduce([], fn
       {^kind, prefix}, acc -> [prefix | acc]
       _, acc -> acc
     end)
-  end
-
-  # Returns true if either the prefix path or the full command string is
-  # approved or a stored full-command approval matches this stage.
-  defp approved?(state, {prefix, full}) do
-    prefix_approved?(state, prefix) or
-      full_cmd_preapproved?(state, full)
   end
 
   def prefix_approved?(state, prefix) do
@@ -171,13 +171,23 @@ defmodule Services.Approvals.Shell do
   # ----------------------------------------------------------------------------
   # Display
   # ----------------------------------------------------------------------------
-  defp render_pipeline(op, commands, purpose) do
+  defp render_pipeline(state, op, commands, purpose) do
     stages =
       commands
-      |> Enum.map(&format_stage/1)
       |> Enum.with_index(1)
-      |> Enum.map(fn {cmd, i} -> "#{i}. #{cmd}" end)
-      |> Enum.join("\n\n")
+      |> Enum.flat_map(fn {cmd, i} ->
+        tags =
+          if approved?(state, {extract_prefix(cmd), format_stage_for_match(cmd)}) do
+            [:green, :bright]
+          else
+            [:red, :bright]
+          end
+
+        formatted = format_stage(cmd)
+        item = "#{i}. #{formatted}"
+
+        [Owl.Data.tag(item, tags), "\n\n"]
+      end)
 
     op_msg =
       case op do
@@ -187,13 +197,14 @@ defmodule Services.Approvals.Shell do
 
     [
       Owl.Data.tag("# Approval Scope ", [:red_background, :black, :bright]),
-      "\n\n#{op_msg}:\n\n",
-      stages,
-      "\n\n",
+      "\n\n#{op_msg}:\n\n"
+    ]
+    |> Enum.concat(stages)
+    |> Enum.concat([
       Owl.Data.tag("# Purpose ", [:red_background, :black, :bright]),
       "\n\n",
       purpose
-    ]
+    ])
     |> UI.box(
       title: " Shell ",
       min_width: 80,
