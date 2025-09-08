@@ -20,12 +20,14 @@ defmodule Services.Approvals.Edit do
 
   @impl Services.Approvals.Workflow
   def confirm(state, {file, diff}) do
+    # 8 additional characters in: " Edit: #{file} ", +4 for borders and padding
+    max_width = Owl.IO.columns() - 12
+
     file_display = Path.relative_to_cwd(file)
 
-    # 53 = 60 - 7 spaces and "Edit " in the title below
     file_display =
-      if String.length(file_display) > 53 do
-        "..." <> String.slice(file_display, -57..-1)
+      if String.length(file_display) > max_width do
+        "..." <> String.slice(file_display, -max_width..-1)
       else
         file_display
       end
