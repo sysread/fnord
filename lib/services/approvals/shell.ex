@@ -266,7 +266,8 @@ defmodule Services.Approvals.Shell do
 
     input =
       UI.prompt(
-        "Optional: enter /regex/ to approve a regex instead of this prefix (leave empty to approve prefix):"
+        "Enter a /<regex>/ (leave blank to approve prefix '#{prefix}'):",
+        optional: true
       )
 
     trimmed = String.trim(input)
