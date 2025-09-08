@@ -64,11 +64,11 @@ defmodule AI.Tools.Shell do
         Commands that require user input or interaction will fail after a timeout, resulting in a poor experience for the user.
         Individual commands may not include redirection, pipes, command substitution, or other complex shell operators.
 
-        IMPORTANT: `sed`, `awk`, `find`, and other tools with the potential to
-                   modify files ALL require explicit user approval on every
-                   invocation. As a rule, if you can use a built-in tool to
-                   accomplish the same thing, that is preferable, as the user
-                   may not be babysitting this process.
+        IMPORTANT: `sed`, `awk`, `find` with `-exec`, and other tools with the
+                   potential to modify files ALL require explicit user approval
+                   on every invocation. As a rule, if you can use a built-in
+                   tool to accomplish the same thing, that is preferable, as
+                   the user may not be babysitting this process.
 
         IMPORTANT: This uses elixir's System.cmd/3 to execute commands. It
                    *will* `cd` into the project's source root before executing
@@ -293,7 +293,29 @@ defmodule AI.Tools.Shell do
         # Ok, so we can fudge things this way, but the shell_tool is available
         # outside of edit mode, so we need to double-check that the user
         # actually wants to allow editing before we let them do it.
-        is_apply_patch? = String.contains?(json, "apply_patch") || String.contains?(json, "patch")
+        is_apply_patch? =
+          Enum.any?(commands, fn %{"command" => cmd, "args" => args} ->
+            cond do
+              cmd =~ ~r/\b(z|ba)?sh .*? <<<.*?\b(patch|apply_patch|git apply)\b/ ->
+                true
+
+              Path.basename(cmd) in ["bash", "sh", "zsh"] and
+                  Enum.any?(args, fn a ->
+                    String.contains?(a, "apply_patch") or String.contains?(a, "patch")
+                  end) ->
+                true
+
+              Path.basename(cmd) in ["apply_patch", "patch"] ->
+                true
+
+              Path.basename(cmd) == "git" and "apply" in args ->
+                true
+
+              true ->
+                false
+            end
+          end)
+
         is_edit_mode? = Settings.get_edit_mode()
 
         cond do
@@ -302,8 +324,9 @@ defmodule AI.Tools.Shell do
 
             AI.Tools.ApplyPatch.call(%{
               "patch" => """
-              The LLM actually tried to call a non-existent `apply_patch` command
-              via the `shell_tool`. This was it's tool call, intended to be piped
+              The LLM actually tried to call a non-existent `apply_patch`
+              command via the `shell_tool` or attempted to call `patch` or `git
+              apply` directly. This was it's tool call, intended to be piped
               together in the shell. Please do your best with it.
 
               #{json}

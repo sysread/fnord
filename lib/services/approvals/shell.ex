@@ -1,5 +1,4 @@
 defmodule Services.Approvals.Shell do
-  @behaviour Services.Approvals.Workflow
   # ----------------------------------------------------------------------------
   # Globals
   # ----------------------------------------------------------------------------
@@ -22,6 +21,70 @@ defmodule Services.Approvals.Shell do
   The application is not running in an interactive terminal.
   The user cannot respond to prompts, so they were unable to approve or deny the request.
   """
+
+  # ----------------------------------------------------------------------------
+  # Behaviour implementation
+  # ----------------------------------------------------------------------------
+  @behaviour Services.Approvals.Workflow
+
+  @impl Services.Approvals.Workflow
+  @spec confirm(state, args) :: decision
+  def confirm(state, {op, commands, purpose}) when is_list(commands) do
+    with :ok <- validate_commands(commands) do
+      # Build list of {prefix, full_command} pairs
+      stages =
+        Enum.map(commands, fn cmd ->
+          {
+            extract_prefix(cmd),
+            format_stage_for_match(cmd)
+          }
+        end)
+
+      if Enum.all?(stages, &approved?(state, &1)) do
+        {:approved, state}
+      else
+        if !UI.is_tty?() do
+          UI.error("Shell", @no_tty)
+          {:denied, @no_tty, state}
+        else
+          render_pipeline(op, commands, purpose)
+          prompt(state, stages)
+        end
+      end
+    else
+      {:error, reason} -> {:denied, reason, state}
+    end
+  end
+
+  # ----------------------------------------------------------------------------
+  # Input validation
+  # ----------------------------------------------------------------------------
+  defp validate_commands([]), do: :ok
+
+  defp validate_commands([cmd | rest]) do
+    with :ok <- validate_command(cmd),
+         :ok <- validate_commands(rest) do
+      :ok
+    end
+  end
+
+  defp validate_command(%{"command" => cmd, "args" => args}) do
+    cond do
+      !is_binary(cmd) -> {:error, "command must be a string"}
+      !is_list(args) -> {:error, "args must be a list"}
+      !Enum.all?(args, &is_binary/1) -> {:error, "all args must be strings"}
+      true -> :ok
+    end
+  end
+
+  defp validate_command(_), do: {:error, "expected object with keys 'command' and 'args'"}
+
+  # ----------------------------------------------------------------------------
+  # Approval checks
+  # ----------------------------------------------------------------------------
+  @full_cmd [
+    "^find(?!.*-exec)"
+  ]
 
   @ro_cmd [
     "ag",
@@ -73,85 +136,36 @@ defmodule Services.Approvals.Shell do
     end
   end
 
-  # ----------------------------------------------------------------------------
-  # Behaviour implementation
-  # ----------------------------------------------------------------------------
-  @impl Services.Approvals.Workflow
-  @spec confirm(state, args) :: decision
-  def confirm(state, {op, commands, purpose}) when is_list(commands) do
-    with :ok <- validate_commands(commands) do
-      # build list of {prefix, full_command} pairs
-      stages =
-        Enum.map(commands, fn cmd ->
-          {extract_prefix(cmd), format_stage_for_match(cmd)}
-        end)
-
-      if Enum.all?(stages, &matches_approval?(state, &1)) do
-        {:approved, state}
-      else
-        if !UI.is_tty?() do
-          UI.error("Shell", @no_tty)
-          {:denied, @no_tty, state}
-        else
-          render_pipeline(op, commands, purpose)
-          prompt(state, stages)
-        end
-      end
-    else
-      {:error, reason} -> {:denied, reason, state}
-    end
+  defp session_approvals(%{session: session}, kind) do
+    session
+    |> Enum.reduce([], fn
+      {^kind, prefix}, acc -> [prefix | acc]
+      _, acc -> acc
+    end)
   end
 
-  # ----------------------------------------------------------------------------
-  # Input validation
-  # ----------------------------------------------------------------------------
-  defp validate_commands([]), do: :ok
-
-  defp validate_commands([cmd | rest]) do
-    with :ok <- validate_command(cmd),
-         :ok <- validate_commands(rest) do
-      :ok
-    end
+  # Returns true if either the prefix path or the full command string is
+  # approved or a stored full-command approval matches this stage.
+  defp approved?(state, {prefix, full}) do
+    prefix_approved?(state, prefix) or
+      full_cmd_preapproved?(state, full)
   end
 
-  defp validate_command(%{"command" => cmd, "args" => args}) do
-    cond do
-      !is_binary(cmd) -> {:error, "command must be a string"}
-      !is_list(args) -> {:error, "args must be a list"}
-      !Enum.all?(args, &is_binary/1) -> {:error, "all args must be strings"}
-      true -> :ok
-    end
-  end
-
-  defp validate_command(_), do: {:error, "expected object with keys 'command' and 'args'"}
-
-  # ----------------------------------------------------------------------------
-  # Approval checks
-  # ----------------------------------------------------------------------------
-  defp approved?(%{session: session}, prefix) do
-    preapproved?(prefix) or
-      Enum.any?(session, &(&1 == prefix)) or
-      Settings.new() |> Settings.Approvals.approved?("shell", prefix)
-  end
-
-  defp preapproved?(prefix) do
+  def prefix_approved?(state, prefix) do
     cond do
       prefix in preapproved_cmds() -> true
+      prefix in session_approvals(state, :prefix) -> true
+      Settings.Approvals.approved?(Settings.new(), :project, "shell", prefix) -> true
       true -> false
     end
   end
 
-  # Returns true if either the prefix path or the full command string is approved
-  defp matches_approval?(state, {prefix, full}) do
-    approved_by_prefix?(state, prefix) or
-      Settings.new() |> Settings.Approvals.approved?("shell_full", full)
-  end
-
-  # Existing prefix-based approval logic extracted to its own function
-  defp approved_by_prefix?(%{session: session}, prefix) do
-    prefix in preapproved_cmds() or
-      prefix in session or
-      Settings.new() |> Settings.Approvals.approved?("shell", prefix)
+  def full_cmd_preapproved?(state, full) do
+    Settings.Approvals.approved?(Settings.new(), "shell_full", full) or
+      @full_cmd
+      |> Enum.concat(session_approvals(state, :full))
+      |> Enum.map(fn re -> Regex.compile!(re, "u") end)
+      |> Enum.any?(&Regex.match?(&1, full))
   end
 
   # ----------------------------------------------------------------------------
@@ -226,33 +240,16 @@ defmodule Services.Approvals.Shell do
     end
   end
 
-  @doc false
-  @spec pending_prefixes(state, [String.t()]) :: [String.t()]
-  def pending_prefixes(state, stages) do
-    stages
-    |> Enum.uniq()
-    |> Enum.reject(&approved?(state, &1))
-  end
-
-  @doc false
   @spec customize(state, [String.t()] | list({String.t(), String.t()})) :: {:approved, state}
   def customize(state, stages) do
-    # Normalize stages to a list of prefixes that still need approval,
-    # using full matching when tuples are provided.
-    pending =
-      stages
-      |> Enum.uniq()
-      |> Enum.reject(fn
-        {prefix, full} -> matches_approval?(state, {prefix, full})
-        prefix when is_binary(prefix) -> approved?(state, prefix)
-      end)
-      |> Enum.map(fn
-        {prefix, _full} -> prefix
-        prefix when is_binary(prefix) -> prefix
-      end)
-      |> Enum.uniq()
-
-    Enum.reduce(pending, {:approved, state}, fn prefix, {:approved, acc_state} ->
+    stages
+    |> Enum.uniq()
+    # Filter out already approved stages
+    |> Enum.reject(fn {prefix, full} -> approved?(state, {prefix, full}) end)
+    # Extract just the prefixes
+    |> Enum.map(fn {prefix, _full} -> prefix end)
+    # Iterate over each unapproved prefix and ask for scope or regex
+    |> Enum.reduce({:approved, state}, fn prefix, {:approved, acc_state} ->
       {:approved, new_state} = choose_scope_with_optional_regex(acc_state, prefix)
       {:approved, new_state}
     end)
@@ -301,9 +298,9 @@ defmodule Services.Approvals.Shell do
     end
   end
 
-  defp approve_regex_scope(@session, state, _inner, prefix) do
-    # For session scope, continue to approve the plain prefix only
-    approve_scope(@session, state, prefix)
+  defp approve_regex_scope(@session, %{session: session} = state, inner, _prefix) do
+    prefixes = session |> Enum.concat([{:full, inner}]) |> Enum.uniq()
+    {:approved, %{state | session: prefixes}}
   end
 
   defp approve_regex_scope(@project, state, inner, _prefix) do
@@ -317,7 +314,7 @@ defmodule Services.Approvals.Shell do
   end
 
   defp approve_scope(@session, %{session: session} = state, prefix) do
-    prefixes = session |> Enum.concat([prefix]) |> Enum.uniq()
+    prefixes = session |> Enum.concat([{:prefix, prefix}]) |> Enum.uniq()
     {:approved, %{state | session: prefixes}}
   end
 

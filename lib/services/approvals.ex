@@ -6,7 +6,9 @@ defmodule Services.Approvals do
   # ----------------------------------------------------------------------------
   defstruct [:session]
 
-  @type t :: %__MODULE__{session: [Regex.t()]}
+  @type t :: %__MODULE__{
+          session: [any]
+        }
 
   # ----------------------------------------------------------------------------
   # Globals
