@@ -318,6 +318,9 @@ defmodule AI.Completion do
       end)
 
     # Now handle all remaining requests serially and append
+    # TODO this needs to use Util.async_stream with a pool size of 1 to ensure
+    # that serial calls to agent-backed tools are executed in their own process
+    # and get their own name.
     messages =
       Enum.reduce(serial_calls, messages, fn req, acc ->
         {:ok, req, res} = handle_tool_call(state, req)
@@ -506,6 +509,8 @@ defmodule AI.Completion do
   end
 
   defp set_name(messages, name) do
+    Services.NamePool.restore_name(self(), name)
+
     messages
     |> Enum.any?(fn
       %{role: "system", content: content} -> content =~ ~r/Your name is .+\./

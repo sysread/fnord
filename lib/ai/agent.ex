@@ -95,7 +95,6 @@ defmodule AI.Agent do
 
     cond do
       !is_nil(name) ->
-        Services.NamePool.restore_name(self(), name)
         {:ok, name}
 
       Keyword.get(opts, :named?, true) ->
