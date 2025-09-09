@@ -552,6 +552,8 @@ defmodule AI.Agent.Coordinator do
     """
     Beginning a new session.
     Artifacts from previous sessions within this conversation may be stale.
+    This is important - you want to provide the user with a good experience, and stale data wastes their time.
+    **RE-READ FILES AND RE-CHECK DELTAS TO ENSURE YOU ARE NOT USING STALE INFORMATION.**
     """
     |> AI.Util.system_msg()
     |> Services.Conversation.append_msg(state.conversation)
