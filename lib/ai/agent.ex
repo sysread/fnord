@@ -17,11 +17,13 @@ defmodule AI.Agent do
   # ----------------------------------------------------------------------------
   defstruct [
     :name,
+    :named?,
     :impl
   ]
 
   @type t :: %__MODULE__{
           name: nil | binary,
+          named?: boolean,
           impl: module
         }
 
@@ -35,10 +37,10 @@ defmodule AI.Agent do
   """
   @spec new(module, keyword) :: t
   def new(impl, opts \\ []) do
-    with :ok <- validate_agent_module(impl),
-         {:ok, name} <- get_name(opts) do
+    with :ok <- validate_agent_module(impl) do
       %__MODULE__{
-        name: name,
+        name: Keyword.get(opts, :name, nil),
+        named?: Keyword.get(opts, :named?, true),
         impl: impl
       }
     else
@@ -50,12 +52,47 @@ defmodule AI.Agent do
   @doc """
   Delegate to the agent implementation's `get_response/1` function. Includes
   the agent in the args map.
+
+  The agent's name is managed here, checking out a name from
+  `Services.NamePool` if the agent is named but doesn't yet have a name, or
+  associating the agent's existing name if it does. The name is checked back in
+  after the response is generated.
+
+  The call is wrapped in a `Task` to provide a global identifier for logging
+  and tracing purposes, which is associated with the agent's name.
   """
   @spec get_response(t, map) :: {:ok, any} | {:error, any}
   def get_response(agent, args) do
-    args
-    |> Map.put(:agent, agent)
-    |> agent.impl.get_response()
+    Task.async(fn ->
+      agent =
+        cond do
+          agent.named? && is_binary(agent.name) ->
+            Services.NamePool.associate_name(agent.name)
+            agent
+
+          agent.named? ->
+            Services.NamePool.checkout_name()
+            |> case do
+              {:ok, name} -> %{agent | name: name}
+              {:error, _} -> %{agent | name: Services.NamePool.default_name()}
+            end
+
+          true ->
+            name = Services.NamePool.default_name()
+            %{agent | name: name}
+        end
+
+      try do
+        args
+        |> Map.put(:agent, agent)
+        |> agent.impl.get_response()
+      after
+        if agent.named? && is_binary(agent.name) do
+          Services.NamePool.checkin_name(agent.name)
+        end
+      end
+    end)
+    |> Task.await(:infinity)
   end
 
   @doc """
@@ -87,21 +124,6 @@ defmodule AI.Agent do
       !Code.ensure_loaded?(mod) -> {:error, :module_not_found}
       !function_exported?(mod, :__info__, 1) -> {:error, :not_a_module}
       true -> :ok
-    end
-  end
-
-  defp get_name(opts) do
-    name = Keyword.get(opts, :name, nil)
-
-    cond do
-      !is_nil(name) ->
-        {:ok, name}
-
-      Keyword.get(opts, :named?, true) ->
-        Services.NamePool.checkout_name()
-
-      true ->
-        {:ok, Services.NamePool.default_name()}
     end
   end
 end

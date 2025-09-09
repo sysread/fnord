@@ -63,8 +63,24 @@ defmodule Services.NamePool do
   names that are never checked back in will simply be lost when the session ends.
   """
   @spec checkin_name(String.t(), atom() | pid()) :: :ok
-  def checkin_name(name, server \\ @name) when is_binary(name) do
+  def checkin_name(name, server \\ @name)
+
+  def checkin_name(@default_name, _), do: :ok
+
+  def checkin_name(name, server) do
     GenServer.cast(server, {:checkin_name, name})
+  end
+
+  @doc """
+  Restores the association between a `pid` and a `name`. This is useful to
+  re-associate a name after a process restart or similar event.
+  """
+  def associate_name(name, server \\ @name)
+
+  def associate_name(nil, _), do: :ok
+
+  def associate_name(name, server) do
+    GenServer.call(server, {:associate_name, name})
   end
 
   @doc "Returns pool statistics for debugging/monitoring"
@@ -84,14 +100,6 @@ defmodule Services.NamePool do
   @spec get_name_by_pid(pid(), atom() | pid()) :: {:ok, String.t()} | {:error, :not_found}
   def get_name_by_pid(pid, server \\ @name) when is_pid(pid) do
     GenServer.call(server, {:get_name_by_pid, pid})
-  end
-
-  @doc """
-  Restores the association between a `pid` and a `name`. This is useful to
-  re-associate a name after a process restart or similar event.
-  """
-  def restore_name(pid, name, server \\ @name) do
-    GenServer.cast(server, {:restore_name, pid, name})
   end
 
   # -----------------------------------------------------------------------------
@@ -118,33 +126,60 @@ defmodule Services.NamePool do
   @impl GenServer
 
   def handle_call(:checkout_name, {caller_pid, _ref}, state) do
-    if Map.has_key?(state.pid_to_name, caller_pid) do
-      {:reply, {:ok, Map.get(state.pid_to_name, caller_pid)}, state}
-    else
-      case ensure_names_available(state) do
-        {:ok, updated_state} ->
-          case updated_state.available do
-            [name | remaining] ->
-              new_state = %{
-                updated_state
-                | available: remaining,
-                  checked_out: MapSet.put(updated_state.checked_out, name),
-                  pid_to_name: Map.put(updated_state.pid_to_name, caller_pid, name),
-                  name_to_pid: Map.put(updated_state.name_to_pid, name, caller_pid)
-              }
+    case ensure_names_available(state) do
+      {:ok, updated_state} ->
+        case updated_state.available do
+          [name | remaining] ->
+            new_state = %{
+              updated_state
+              | available: remaining,
+                checked_out: MapSet.put(updated_state.checked_out, name),
+                pid_to_name: Map.put(updated_state.pid_to_name, caller_pid, name),
+                name_to_pid: Map.put(updated_state.name_to_pid, name, caller_pid)
+            }
 
-              {:reply, {:ok, name}, new_state}
+            {:reply, {:ok, name}, new_state}
 
-            [] ->
-              UI.error("Unable to allocate names from pool")
-              {:reply, {:error, "No names available"}, updated_state}
-          end
+          [] ->
+            UI.error("Unable to allocate names from pool")
+            {:reply, {:error, "No names available"}, updated_state}
+        end
 
-        {:error, reason} ->
-          UI.error("Failed to ensure names available", reason)
-          {:reply, {:error, reason}, state}
-      end
+      {:error, reason} ->
+        UI.error("Failed to ensure names available", reason)
+        {:reply, {:error, reason}, state}
     end
+  end
+
+  @impl GenServer
+  def handle_call({:associate_name, name}, {caller_pid, _ref}, state) do
+    prev_pid = Map.get(state.name_to_pid, name)
+
+    state =
+      case prev_pid do
+        nil ->
+          state
+
+        ^caller_pid ->
+          state
+
+        other ->
+          %{
+            state
+            | pid_to_name: Map.delete(state.pid_to_name, other),
+              name_to_pid: Map.delete(state.name_to_pid, name)
+          }
+      end
+
+    new_state = %{
+      state
+      | checked_out: MapSet.put(state.checked_out, name),
+        pid_to_name: Map.put(state.pid_to_name, caller_pid, name),
+        name_to_pid: Map.put(state.name_to_pid, name, caller_pid),
+        available: List.delete(state.available, name)
+    }
+
+    {:reply, :ok, new_state}
   end
 
   @impl GenServer
@@ -202,37 +237,6 @@ defmodule Services.NamePool do
       UI.warn("Attempted to check in name that wasn't checked out", name)
       {:noreply, state}
     end
-  end
-
-  @impl GenServer
-  def handle_cast({:restore_name, pid, name}, state) do
-    prev_pid = Map.get(state.name_to_pid, name)
-
-    state =
-      case prev_pid do
-        nil ->
-          state
-
-        ^pid ->
-          state
-
-        other ->
-          %{
-            state
-            | pid_to_name: Map.delete(state.pid_to_name, other),
-              name_to_pid: Map.delete(state.name_to_pid, name)
-          }
-      end
-
-    new_state = %{
-      state
-      | checked_out: MapSet.put(state.checked_out, name),
-        pid_to_name: Map.put(state.pid_to_name, pid, name),
-        name_to_pid: Map.put(state.name_to_pid, name, pid),
-        available: List.delete(state.available, name)
-    }
-
-    {:noreply, new_state}
   end
 
   @doc false

@@ -285,9 +285,31 @@ defmodule AI.Completion do
       end)
 
     # First handle async tool calls concurrently
-    messages =
+    state =
       async_calls
-      |> Util.async_stream(&handle_tool_call(state, &1))
+      |> Util.async_stream(
+        &handle_tool_call(state, &1),
+        ordered: true
+      )
+      |> collect_tool_call_result_messages(state)
+
+    # Now handle all remaining requests serially
+    state =
+      serial_calls
+      |> Util.async_stream(
+        &handle_tool_call(state, &1),
+        ordered: true,
+        max_concurrency: 1
+      )
+      |> collect_tool_call_result_messages(state)
+
+    # Clear out the tool call requests and return
+    %{state | tool_call_requests: []}
+  end
+
+  defp collect_tool_call_result_messages(results, state) do
+    messages =
+      results
       |> Enum.reduce(state.messages, fn result, acc ->
         case result do
           {:ok, {:ok, req, res}} ->
@@ -296,20 +318,25 @@ defmodule AI.Completion do
           {:ok, other} ->
             UI.report_from(
               state.name,
-              "Async tool call returned unexpected result",
+              "Tool call returned unexpected result",
               inspect(other, pretty: true)
             )
 
             acc
 
           {:exit, reason} ->
-            UI.report_from(state.name, "Async tool call crashed", inspect(reason, pretty: true))
+            UI.report_from(
+              state.name,
+              "Tool call crashed",
+              inspect(reason, pretty: true)
+            )
+
             acc
 
           other ->
             UI.report_from(
               state.name,
-              "Async tool call produced unknown result",
+              "Tool call produced unknown result",
               inspect(other, pretty: true)
             )
 
@@ -317,17 +344,7 @@ defmodule AI.Completion do
         end
       end)
 
-    # Now handle all remaining requests serially and append
-    # TODO this needs to use Util.async_stream with a pool size of 1 to ensure
-    # that serial calls to agent-backed tools are executed in their own process
-    # and get their own name.
-    messages =
-      Enum.reduce(serial_calls, messages, fn req, acc ->
-        {:ok, req, res} = handle_tool_call(state, req)
-        acc ++ [req, res]
-      end)
-
-    %{state | tool_call_requests: [], messages: messages}
+    %{state | messages: messages}
   end
 
   @spec dedupe_key(map()) :: {String.t(), String.t()} | nil
@@ -348,6 +365,19 @@ defmodule AI.Completion do
           AI.Util.tool_response_msg()
         }
   def handle_tool_call(state, %{id: id, function: %{name: func, arguments: args_json}}) do
+    # --------------------------------------------------------------------------
+    # Agents' names are associated with their process ID, and tool call
+    # requests and results are reported from within the process that performs
+    # the tool call. Because `handle_tool_calls` invokes tools within a
+    # separate process, we need to associate the agent's name with the process
+    # for the logs to display the correct name.
+    #
+    # If the tool itself invokes a new agent, that agent will be given a new
+    # name in `AI.Agent.get_response/1`.
+    # --------------------------------------------------------------------------
+    Services.NamePool.associate_name(state.name)
+
+    # Now back to your regularly scheduled programming...
     request = AI.Util.assistant_tool_msg(id, func, args_json)
 
     with {:ok, output} <- perform_tool_call(state, func, args_json) do
@@ -508,9 +538,13 @@ defmodule AI.Completion do
     end
   end
 
-  defp set_name(messages, name) do
-    Services.NamePool.restore_name(self(), name)
+  # Updates the system message that identifies the LLM to itself by name and
+  # updates it to use the name provided by the `name` arg, if any.
+  defp set_name(messages, nil) do
+    set_name(messages, Services.NamePool.default_name())
+  end
 
+  defp set_name(messages, name) do
     messages
     |> Enum.any?(fn
       %{role: "system", content: content} -> content =~ ~r/Your name is .+\./

@@ -235,16 +235,13 @@ defmodule Cmd.Ask do
 
   @spec get_agent_response(map, pid) :: {:ok, map} | {:error, any}
   defp get_agent_response(opts, conversation_server) do
-    conversation_server
-    |> Services.Conversation.get_agent()
-    |> AI.Agent.get_response(%{
-      conversation: conversation_server,
+    Services.Conversation.get_response(conversation_server,
       edit: opts.edit,
       rounds: opts.rounds,
       question: opts.question,
       replay: Map.get(opts, :replay, false),
       yes: Map.get(opts, :yes, false)
-    })
+    )
   end
 
   # ----------------------------------------------------------------------------

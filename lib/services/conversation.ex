@@ -74,6 +74,23 @@ defmodule Services.Conversation do
     GenServer.call(pid, :save)
   end
 
+  @doc """
+  Get a response from the AI.Agent.Coordinator. The `opts` is passed directly
+  to `AI.Agent.get_response/2` after converting to a map and adding the
+  `:conversation` server's `pid`.
+  """
+  @spec get_response(pid, keyword) :: {:ok, any} | {:error, any}
+  def get_response(pid, opts) do
+    args =
+      opts
+      |> Enum.into(%{})
+      |> Map.put(:conversation, pid)
+
+    pid
+    |> get_agent()
+    |> AI.Agent.get_response(args)
+  end
+
   # -----------------------------------------------------------------------------
   # Server API
   # -----------------------------------------------------------------------------
