@@ -90,8 +90,20 @@ defmodule Store.Project.Entry.Embeddings do
     # value for each position.
     combined_embeddings =
       embeddings_files
-      |> Enum.map(&File.read!/1)
-      |> Enum.map(&Jason.decode!/1)
+      |> Enum.map(fn file ->
+        with {:ok, content} <- File.read(file),
+             {:ok, data} <- Jason.decode(content) do
+          data
+        else
+          _ ->
+            raise """
+            Corrupted embeddings file: #{file}
+            
+            This may indicate a corrupted project index. Try running:
+              fnord index --reindex
+            """
+        end
+      end)
       |> Enum.zip_with(&Enum.max/1)
 
     # Write the combined embeddings to the new file.

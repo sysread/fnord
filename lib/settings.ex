@@ -48,7 +48,19 @@ defmodule Settings do
     ver = get_running_version()
 
     if Version.compare(ver, "0.8.30") != :lt do
-      data = File.read!(path) |> Jason.decode!()
+      data =
+        with {:ok, content} <- File.read(path),
+             {:ok, parsed} <- Jason.decode(content) do
+          parsed
+        else
+          _ ->
+            raise """
+            Corrupted settings file: #{path}
+            
+            You may need to reset your fnord settings. Consider backing up the file
+            and running 'fnord init' to recreate it.
+            """
+        end
       globals = ["approvals", "projects", "version"]
       {projects, globals_map} = Enum.split_with(data, fn {k, _v} -> k not in globals end)
 
@@ -336,13 +348,21 @@ defmodule Settings do
   end
 
   defp slurp(settings) do
-    %Settings{
-      settings
-      | data:
-          settings.path
-          |> File.read!()
-          |> Jason.decode!()
-    }
+    data =
+      with {:ok, content} <- File.read(settings.path),
+           {:ok, parsed} <- Jason.decode(content) do
+        parsed
+      else
+        _ ->
+          raise """
+          Corrupted settings file: #{settings.path}
+          
+          You may need to reset your fnord settings. Consider backing up the file
+          and running 'fnord init' to recreate it.
+          """
+      end
+
+    %Settings{settings | data: data}
   end
 
   defp spew(settings) do

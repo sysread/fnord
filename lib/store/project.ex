@@ -188,6 +188,9 @@ defmodule Store.Project do
 
   @spec stored_files(t) :: Enumerable.t()
   def stored_files(project) do
+    # Ensure legacy entries are migrated to relative-path scheme
+    Store.Project.Entry.MigrateAbsToRelPathKeys.ensure_relative_entry_ids(project)
+
     # Start with the path to the project in the store
     project.store_path
     # Each entry is a dir that contains metadata.json; this step ignores things
@@ -369,4 +372,5 @@ defmodule Store.Project do
       :error -> raise("Error: unable to calculate relative path for #{path} from #{cwd}")
     end
   end
+
 end

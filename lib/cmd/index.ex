@@ -266,6 +266,9 @@ defmodule Cmd.Index do
   defp reindex?(idx), do: Map.get(idx.opts, :reindex, false)
 
   def index_project(idx) do
+    # Ensure legacy entries are migrated to relative-path scheme before indexing
+    Store.Project.Entry.MigrateAbsToRelPathKeys.ensure_relative_entry_ids(idx.project)
+    
     idx
     |> maybe_reindex()
     |> scan_project()

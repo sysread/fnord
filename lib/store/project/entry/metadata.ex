@@ -30,9 +30,15 @@ defmodule Store.Project.Entry.Metadata do
   end
 
   @impl Store.Project.EntryFile
-  def write(file, _) do
+  def write(file, data \\ %{}) do
+    rel_path =
+      case data do
+        %{} -> Map.get(data, :rel_path) || Map.get(data, "rel_path")
+        _ -> nil
+      end
+
     %{
-      file: file.source_file,
+      file: rel_path || file.source_file,
       timestamp: DateTime.utc_now(),
       hash: mkhash(file.source_file)
     }
