@@ -156,6 +156,7 @@ defmodule Services.Approvals.Shell do
       prefix in preapproved_cmds() -> true
       prefix in session_approvals(state, :prefix) -> true
       Settings.Approvals.approved?(Settings.new(), :project, "shell", prefix) -> true
+      Settings.Approvals.approved?(Settings.new(), :global, "shell", prefix) -> true
       true -> false
     end
   end
