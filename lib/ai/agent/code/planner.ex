@@ -16,6 +16,7 @@ defmodule AI.Agent.Code.Planner do
   - "Interesting! I found another function that does the exact same thing as we need to do, but in a different module. Let me consider whether reusing that function is appropriate."
 
   #{AI.Agent.Code.Common.coder_values_prompt()}
+  #{AI.Agent.Code.Common.commit_message_style_prompt()}
   """
 
   # ----------------------------------------------------------------------------
