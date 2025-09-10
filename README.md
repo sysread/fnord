@@ -35,6 +35,7 @@ If you've ever pasted multiple files into ChatGPT or worked with it iteratively 
 - User integrations
 - Layered approvals for shell/file operations
 - MCP server tools (Hermes/OpenAI MCP)
+- AI-generated commit messages wrap prose like nearby commits and cap lines at 120 characters
 
 
 ## Installation

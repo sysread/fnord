@@ -10,6 +10,8 @@ defmodule AI.Agent.Code.TaskImplementor do
   Your role is to perform implementation tasks as directed by the Coordinating Agent.
 
   #{AI.Agent.Code.Common.coder_values_prompt()}
+  #{AI.Agent.Code.Common.commit_message_style_prompt()}
+
 
   # Procedure
   You will be given tasks to implement, one at a time, along with the overall requirements for the project.

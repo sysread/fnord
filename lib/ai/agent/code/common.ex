@@ -201,6 +201,27 @@ defmodule AI.Agent.Code.Common do
       Never add new libraries that the user did not expressly request or approve.
     """
   end
+  
+  @doc """
+  Guidance for wrapping Git commit messages in AI-generated output:
+  - Mimic the wrapping style of nearby commit history in the repository.
+  - Enforce a hard maximum of 120 characters per line.
+  - If no nearby commit style is discernible, default to a short subject line
+    and wrap the body at 72–100 characters per line, but never exceed 120.
+  - Do NOT reflow code blocks, diffs, or example snippets; only wrap prose lines.
+  """
+  @spec commit_message_style_prompt() :: binary
+  def commit_message_style_prompt do
+    """
+    **Commit Message Wrapping Guidelines:**
+    - Mimic the wrapping style of nearby commit history in the repository.
+    - Enforce a hard maximum of 120 characters per line.
+    - If no nearby style is available, default to a short subject line
+      and wrap the body at 72–100 characters per line (but never exceed 120).
+    - Do NOT reflow code blocks, diffs, or example snippets; only wrap prose lines.
+    """
+  end
+  
 
   # ----------------------------------------------------------------------------
   # Helpers
