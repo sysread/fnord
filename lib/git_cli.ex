@@ -31,6 +31,30 @@ defmodule GitCli do
     end
   end
 
+  def is_worktree? do
+    case System.cmd("git", ["rev-parse", "--is-inside-work-tree"],
+           cd: File.cwd!(),
+           stderr_to_stdout: true
+         ) do
+      {"true\n", 0} -> true
+      _ -> false
+    end
+  end
+
+  def worktree_root() do
+    if is_worktree?() do
+      case System.cmd("git", ["rev-parse", "--show-toplevel"],
+             cd: File.cwd!(),
+             stderr_to_stdout: true
+           ) do
+        {result, 0} -> String.trim(result)
+        _ -> nil
+      end
+    else
+      nil
+    end
+  end
+
   @spec git_info() :: String.t()
   def git_info() do
     git = System.find_executable("git")

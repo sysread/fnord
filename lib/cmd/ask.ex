@@ -122,7 +122,7 @@ defmodule Cmd.Ask do
     try do
       with {:ok, opts} <- validate(opts),
            :ok <- set_auto_policy(opts),
-           :ok <- Settings.set_project_root_override(Map.get(opts, :worktree, nil)),
+           :ok <- set_worktree(opts),
            {:ok, opts} <- maybe_fork_conversation(opts),
            {:ok, pid} <- Services.Conversation.start_link(opts[:follow]),
            {:ok, usage, context, response} <- get_response(opts, pid),
@@ -226,6 +226,44 @@ defmodule Cmd.Ask do
   end
 
   defp validate_conversation(_opts), do: :ok
+
+  # -----------------------------------------------------------------------------
+  # Worktree setting
+  # -----------------------------------------------------------------------------
+  defp set_worktree(%{worktree: dir}) do
+    Settings.set_project_root_override(dir)
+  end
+
+  # No override was set in edit mode, but if the user is in a git worktree, we
+  # should check whether the user _intended_ to set the worktree to cwd instead
+  # of defaulting to the project root.
+  defp set_worktree(%{edit: true}) do
+    with {:ok, project} <- Store.get_project() do
+      wt_root = GitCli.worktree_root()
+
+      if GitCli.is_worktree?() && wt_root != project.source_root do
+        choice =
+          UI.confirm(
+            """
+            You are working with project "#{project.name}", located at #{project.source_root}.
+            However, your current working directory is within a git worktree at #{wt_root}.
+            Would you like to set the project source root to #{wt_root} for this run?
+            """,
+            false
+          )
+
+        if choice do
+          Settings.set_project_root_override(wt_root)
+        else
+          :ok
+        end
+      end
+    else
+      _ -> :ok
+    end
+  end
+
+  defp set_worktree(_opts), do: :ok
 
   # -----------------------------------------------------------------------------
   # Auto-approval policy
