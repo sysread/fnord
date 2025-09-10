@@ -241,7 +241,7 @@ defmodule Services.Approvals.Shell do
         {:approved, state}
 
       @deny ->
-        {:denied, @no_feedback, state}
+        {:denied, build_auto_deny_message(), state}
 
       @deny_feedback ->
         {:denied, get_feedback(), state}
@@ -361,6 +361,22 @@ defmodule Services.Approvals.Shell do
     "Feedback:"
     |> UI.prompt()
     |> then(&"The user denied the request with the following feedback: #{&1}")
+  end
+
+  defp build_auto_deny_message() do
+    case Settings.get_auto_policy() do
+      {:deny, ms} when is_integer(ms) and ms > 0 ->
+        seconds = div(ms, 1000)
+
+        """
+        The request was automatically denied after #{seconds} seconds due to an active auto-deny policy.
+        The user may not be monitoring their terminal. Only use pre-approved shell commands that will not require user confirmation.
+        """
+        |> String.trim()
+
+      _ ->
+        @no_feedback
+    end
   end
 
   defp edit?, do: Settings.get_edit_mode()

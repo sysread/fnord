@@ -1,6 +1,9 @@
 defmodule Cmd.Ask do
   @default_rounds 1
 
+  # Universal default: auto-deny after 180 seconds if no explicit auto flag
+  @default_auto_policy {:deny, 180_000}
+
   @behaviour Cmd
 
   @impl Cmd
@@ -25,14 +28,16 @@ defmodule Cmd.Ask do
           auto_approve_after: [
             value_name: "SECONDS",
             long: "--auto-approve-after",
-            help: "After notification, auto-APPROVE in SECONDS if no input (interactive only)",
+            help:
+              "After notification, auto-APPROVE in SECONDS if no input (interactive only). Default: auto-DENY after 180 seconds if neither flag given",
             parser: :integer,
             required: false
           ],
           auto_deny_after: [
             value_name: "SECONDS",
             long: "--auto-deny-after",
-            help: "After notification, auto-DENY in SECONDS if no input (interactive only)",
+            help:
+              "After notification, auto-DENY in SECONDS if no input (interactive only). Default: auto-DENY after 180 seconds if neither flag given",
             parser: :integer,
             required: false
           ],
@@ -184,8 +189,9 @@ defmodule Cmd.Ask do
   defp validate_rounds(%{rounds: rounds}) when is_integer(rounds) and rounds > 0, do: :ok
   defp validate_rounds(_opts), do: {:error, :invalid_rounds}
 
+  # Validate mutual exclusion and positivity of auto flags
   @spec validate_auto(map) :: :ok | {:error, atom | binary}
-  defp validate_auto(opts) do
+  def validate_auto(opts) do
     case {opts[:auto_approve_after], opts[:auto_deny_after]} do
       {a, d} when not is_nil(a) and not is_nil(d) ->
         {:error, :auto_approval_mutually_exclusive}
@@ -268,16 +274,17 @@ defmodule Cmd.Ask do
   # -----------------------------------------------------------------------------
   # Auto-approval policy
   # -----------------------------------------------------------------------------
-  defp set_auto_policy(%{auto_approve_after: seconds}) when is_integer(seconds) do
+  def set_auto_policy(%{auto_approve_after: seconds}) when is_integer(seconds) do
     Settings.set_auto_policy({:approve, seconds * 1_000})
   end
 
-  defp set_auto_policy(%{auto_deny_after: seconds}) when is_integer(seconds) do
+  def set_auto_policy(%{auto_deny_after: seconds}) when is_integer(seconds) do
     Settings.set_auto_policy({:deny, seconds * 1_000})
   end
 
-  defp set_auto_policy(_opts) do
-    Settings.set_auto_policy(nil)
+  def set_auto_policy(_opts) do
+    # No explicit auto flags: apply universal default auto-deny policy
+    Settings.set_auto_policy(@default_auto_policy)
   end
 
   # -----------------------------------------------------------------------------
