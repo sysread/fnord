@@ -393,6 +393,8 @@ defmodule AI.Agent.Coordinator do
     - For small fixups, go ahead and make the changes yourself
     - For larger changes, invoke the tool again to take corrective action
     - Clean up any artifacts resulting from changes in direction (coding is messy; it happens!)
+      - Artifacts means *code artifacts*, like a function that you added early on but turned out to be unnecessary
+      - NEVER delete .bak files created by this process - the user may want to inspect them
   """
 
   @singleton """
