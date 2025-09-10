@@ -22,7 +22,8 @@ defmodule AI.Agent.Coordinator do
     :usage,
     :context,
     :notes,
-    :editing_tools_used
+    :editing_tools_used,
+    :_interrupt_listener
   ]
 
   @type t :: %__MODULE__{
@@ -44,7 +45,8 @@ defmodule AI.Agent.Coordinator do
           usage: non_neg_integer,
           context: non_neg_integer,
           notes: binary | nil,
-          editing_tools_used: boolean
+          editing_tools_used: boolean,
+          _interrupt_listener: pid | nil
         }
 
   @type error :: {:error, binary | atom | :testing}
@@ -193,6 +195,7 @@ defmodule AI.Agent.Coordinator do
     |> get_notes()
     |> followup_msg()
     |> get_intuition()
+    |> start_interrupt_listener()
     |> get_completion(replay)
     |> save_notes()
     |> perform_step()
@@ -209,6 +212,7 @@ defmodule AI.Agent.Coordinator do
     |> get_notes()
     |> begin_msg()
     |> get_intuition()
+    |> start_interrupt_listener()
     |> get_completion(replay)
     |> save_notes()
     |> perform_step()
@@ -308,11 +312,13 @@ defmodule AI.Agent.Coordinator do
         UI.error("Failed to save conversation state", inspect(reason))
     end
 
+    # Invoke completion once, ensuring conversation state is included
     AI.Agent.get_completion(state.agent,
       log_msgs: true,
       log_tool_calls: true,
       archive_notes: true,
       replay_conversation: replay,
+      conversation: state.conversation,
       model: @model,
       toolbox: get_tools(state),
       messages: msgs
@@ -824,6 +830,67 @@ defmodule AI.Agent.Coordinator do
     |> case do
       "" -> UI.info("Available MCP tools", "none")
       some -> UI.info("Available MCP tools", some)
+    end
+  end
+
+  defp start_interrupt_listener(%{conversation: convo} = state) do
+    # Only start in interactive TTY sessions and only for Coordinator
+    cond do
+      Map.get(state, :_interrupt_listener) != nil ->
+        state
+
+      UI.quiet?() ->
+        state
+
+      UI.is_tty?() ->
+        task =
+          Task.start(fn ->
+            listener_loop(convo)
+          end)
+          |> elem(1)
+
+        Map.put(state, :_interrupt_listener, task)
+
+      true ->
+        state
+    end
+  end
+
+  defp listener_loop(convo_pid) do
+    UI.info("Use enter (or ctrl-j) to interrupt and send feedback to the agent.")
+
+    case IO.getn(:stdio, "", 1) do
+      "\n" ->
+        "What would you like to say? (empty to ignore)"
+        |> UI.prompt(optional: true)
+        |> case do
+          {:error, _} ->
+            :ok
+
+          nil ->
+            :ok
+
+          msg when is_binary(msg) ->
+            msg
+            |> String.trim()
+            |> case do
+              "" ->
+                :ok
+
+              msg ->
+                Services.Conversation.interrupt(convo_pid, msg)
+                UI.info("You", msg)
+            end
+
+          _ ->
+            :ok
+        end
+
+        listener_loop(convo_pid)
+
+      _other ->
+        # Ignore any other input
+        listener_loop(convo_pid)
     end
   end
 
