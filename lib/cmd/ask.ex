@@ -46,6 +46,14 @@ defmodule Cmd.Ask do
             default: @default_rounds,
             required: false
           ],
+          worktree: [
+            value_name: "WORKTREE",
+            long: "--worktree",
+            short: "-W",
+            help: "Override project source root for this run",
+            parser: :string,
+            required: false
+          ],
           follow: [
             value_name: "UUID",
             long: "--follow",
@@ -93,6 +101,7 @@ defmodule Cmd.Ask do
     opts =
       if opts[:edit] do
         UI.warning_banner("EDITING MODE ENABLED! THE AI CAN MODIFY FILES. YOU MUST BE NUTS.")
+        UI.warn("You can work from a git worktree with --worktree <dir>.")
         opts
       else
         Map.put(opts, :edit, false)
@@ -110,32 +119,54 @@ defmodule Cmd.Ask do
 
     start_time = System.monotonic_time(:second)
 
-    with {:ok, opts} <- validate(opts),
-         :ok <- set_auto_policy(opts),
-         {:ok, opts} <- maybe_fork_conversation(opts),
-         {:ok, pid} = Services.Conversation.start_link(opts[:follow]),
-         {:ok, usage, context, response} <- get_response(opts, pid),
-         {:ok, conversation_id} <- save_conversation(pid) do
-      end_time = System.monotonic_time(:second)
-      print_result(start_time, end_time, response, usage, context, conversation_id)
-      Clipboard.copy(conversation_id)
-    else
-      {:error, :invalid_rounds} ->
-        UI.error("--rounds expects a positive integer")
-
-      {:error, :conversation_not_found} ->
-        UI.error("Conversation ID #{opts[:conversation]} not found")
-
-      {:error, :testing} ->
+    try do
+      with {:ok, opts} <- validate(opts),
+           :ok <- set_auto_policy(opts),
+           :ok <- Settings.set_project_root_override(Map.get(opts, :worktree, nil)),
+           {:ok, opts} <- maybe_fork_conversation(opts),
+           {:ok, pid} <- Services.Conversation.start_link(opts[:follow]),
+           {:ok, usage, context, response} <- get_response(opts, pid),
+           {:ok, conversation_id} <- save_conversation(pid) do
+        end_time = System.monotonic_time(:second)
+        print_result(start_time, end_time, response, usage, context, conversation_id)
+        Clipboard.copy(conversation_id)
         :ok
+      else
+        {:error, :testing} ->
+          :ok
 
-      {:error, other} ->
-        UI.error("An error occurred while generating the response:\n\n#{other}")
+        {:error, :invalid_worktree} ->
+          UI.error("--worktree must be an existing directory")
+          {:error, :invalid_worktree}
+
+        {:error, :auto_approval_mutually_exclusive} ->
+          UI.error("--auto-approve-after and --auto-deny-after are mutually exclusive")
+          {:error, :auto_approval_mutually_exclusive}
+
+        {:error, :invalid_auto_approve_after} ->
+          UI.error("--auto-approve-after must be a positive integer")
+          {:error, :invalid_auto_approve_after}
+
+        {:error, :invalid_auto_deny_after} ->
+          UI.error("--auto-deny-after must be a positive integer")
+          {:error, :invalid_auto_deny_after}
+
+        {:error, :invalid_rounds} ->
+          UI.error("--rounds expects a positive integer")
+          {:error, :invalid_rounds}
+
+        {:error, :conversation_not_found} ->
+          UI.error("Conversation ID #{opts[:conversation]} not found")
+          {:error, :conversation_not_found}
+
+        {:error, other} ->
+          UI.error("An error occurred while generating the response:\n\n#{other}")
+          {:error, other}
+      end
+    after
+      Services.BackupFile.offer_cleanup()
+      Services.Notes.join()
     end
-
-    Services.BackupFile.offer_cleanup()
-    Services.Notes.join()
-    :ok
   end
 
   # ----------------------------------------------------------------------------
@@ -144,32 +175,46 @@ defmodule Cmd.Ask do
   defp validate(opts) do
     with :ok <- validate_conversation(opts),
          :ok <- validate_rounds(opts),
-         :ok <- validate_auto(opts) do
+         :ok <- validate_auto(opts),
+         :ok <- validate_worktree(opts) do
       {:ok, opts}
     end
   end
 
-  defp validate_rounds(%{rounds: rounds}) when rounds > 0, do: :ok
+  defp validate_rounds(%{rounds: rounds}) when is_integer(rounds) and rounds > 0, do: :ok
   defp validate_rounds(_opts), do: {:error, :invalid_rounds}
 
-  # Validate mutual exclusion and positivity of auto flags
   @spec validate_auto(map) :: :ok | {:error, atom | binary}
   defp validate_auto(opts) do
     case {opts[:auto_approve_after], opts[:auto_deny_after]} do
       {a, d} when not is_nil(a) and not is_nil(d) ->
-        {:error, "--auto-approve-after and --auto-deny-after are mutually exclusive"}
+        {:error, :auto_approval_mutually_exclusive}
 
       {a, _} when not is_nil(a) and a <= 0 ->
-        {:error, "--auto-approve-after must be a positive integer"}
+        {:error, :invalid_auto_approve_after}
 
       {_, d} when not is_nil(d) and d <= 0 ->
-        {:error, "--auto-deny-after must be a positive integer"}
+        {:error, :invalid_auto_deny_after}
 
       _ ->
         :ok
     end
   end
 
+  @spec validate_worktree(map) :: :ok | {:error, :invalid_worktree}
+  defp validate_worktree(%{worktree: dir}) when is_binary(dir) do
+    path = Path.expand(dir)
+
+    if File.dir?(path) do
+      :ok
+    else
+      {:error, :invalid_worktree}
+    end
+  end
+
+  defp validate_worktree(_), do: :ok
+
+  @spec validate_conversation(map) :: :ok | {:error, :conversation_not_found}
   defp validate_conversation(%{follow: id}) when is_binary(id) do
     id
     |> Store.Project.Conversation.new()

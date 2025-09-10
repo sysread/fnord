@@ -25,7 +25,13 @@ defmodule Store.Project do
     settings = Settings.new()
     project_data = Settings.get_project_data(settings, project_name) || %{}
     exclude = Map.get(project_data, "exclude", [])
-    root = Map.get(project_data, "root", nil)
+
+    root =
+      Settings.get_project_root_override()
+      |> case do
+        nil -> Map.get(project_data, "root", nil)
+        override -> Path.expand(override)
+      end
 
     %__MODULE__{
       name: project_name,
@@ -372,5 +378,4 @@ defmodule Store.Project do
       :error -> raise("Error: unable to calculate relative path for #{path} from #{cwd}")
     end
   end
-
 end

@@ -191,6 +191,15 @@ defmodule Fnord do
       with {:ok, project} <- get_project_from_cwd() do
         UI.debug("Project not specified, but CWD is within recognized project: #{project}")
         Settings.set_project(project)
+      else
+        {:error, :not_in_project} ->
+          with {:ok, project} <- get_project_from_cwd_worktree() do
+            UI.debug(
+              "Project not specified, but CWD is within worktree of recognized project: #{project}"
+            )
+
+            Settings.set_project(project)
+          end
       end
     end
 
@@ -205,8 +214,8 @@ defmodule Fnord do
     end
   end
 
-  @spec get_project_from_cwd() :: {:ok, binary} | {:error, :not_in_project}
-  defp get_project_from_cwd() do
+  @spec get_project_from_cwd(cwd :: binary | nil) :: {:ok, binary} | {:error, :not_in_project}
+  defp get_project_from_cwd(cwd \\ nil) do
     # Map project roots to project names using Settings.get_projects/1
     projects =
       Settings.new()
@@ -214,12 +223,27 @@ defmodule Fnord do
       |> Enum.map(fn {k, %{"root" => root}} -> {root, k} end)
       |> Map.new()
 
-    with {:ok, cwd} <- File.cwd(),
-         root <- Path.expand(cwd),
+    cwd =
+      case cwd do
+        nil -> File.cwd!()
+        dir -> Path.expand(dir)
+      end
+
+    with root <- Path.expand(cwd),
          {:ok, project} <- Map.fetch(projects, root) do
       {:ok, project}
     else
       _ -> {:error, :not_in_project}
+    end
+  end
+
+  # If CWD is a worktree, use that to identify the actual project root, and
+  # then use that to find the project.
+  defp get_project_from_cwd_worktree() do
+    GitCli.repo_root()
+    |> case do
+      nil -> {:error, :not_in_project}
+      root -> get_project_from_cwd(root)
     end
   end
 end

@@ -1,7 +1,7 @@
 defmodule Store.Project.Entry.MigrateAbsToRelPathKeys do
   @moduledoc """
   Handles migration of project store entries from absolute-path-based IDs to relative-path-based IDs.
-  
+
   This module provides functionality to:
   - Detect when migration is needed for entry ID scheme changes
   - Coordinate cross-process migration with lockfiles
@@ -11,7 +11,7 @@ defmodule Store.Project.Entry.MigrateAbsToRelPathKeys do
 
   @doc """
   Ensures that all entries in the project use relative-path based IDs.
-  
+
   This function is idempotent and safe to call multiple times. It uses a lockfile
   to prevent concurrent migrations and will raise if another process is already
   performing the migration.
@@ -26,7 +26,7 @@ defmodule Store.Project.Entry.MigrateAbsToRelPathKeys do
 
       :migration_needed ->
         create_migration_lock(lockfile_path)
-        
+
         try do
           migrate_legacy_entries(project)
         after
@@ -81,6 +81,7 @@ defmodule Store.Project.Entry.MigrateAbsToRelPathKeys do
 
   defp stale_lock_retry(lockfile_path) do
     File.rm(lockfile_path)
+
     if migration_needed?(Path.dirname(lockfile_path)) do
       :migration_needed
     else
@@ -110,9 +111,11 @@ defmodule Store.Project.Entry.MigrateAbsToRelPathKeys do
             case Jason.decode(content) do
               {:ok, %{"file" => file_path}} when is_binary(file_path) ->
                 String.starts_with?(file_path, "/")
+
               _ ->
                 false
             end
+
           {:error, _} ->
             false
         end
@@ -162,13 +165,13 @@ defmodule Store.Project.Entry.MigrateAbsToRelPathKeys do
     with {:ok, content} <- File.read(metadata_file),
          {:ok, metadata} <- Jason.decode(content),
          {:ok, file_path} <- Map.fetch(metadata, "file") do
-      
       cond do
         # New relative path but wrong dir name -> rename to expected reversible ID
         is_binary(file_path) and not String.starts_with?(file_path, "/") ->
           expected_id = Store.Project.Entry.id_for_rel_path(file_path)
           current_id = Path.basename(entry_dir)
           expected_dir = Path.join(project.store_path, expected_id)
+
           if current_id != expected_id do
             if File.exists?(expected_dir) do
               merge_dirs(entry_dir, expected_dir)
@@ -177,6 +180,7 @@ defmodule Store.Project.Entry.MigrateAbsToRelPathKeys do
               # metadata already relative; fine as-is
             end
           end
+
           :ok
 
         # Legacy absolute path that needs migration
@@ -231,12 +235,13 @@ defmodule Store.Project.Entry.MigrateAbsToRelPathKeys do
       dst = Path.join(to_dir, name)
       if File.exists?(src) and !File.exists?(dst), do: File.cp!(src, dst)
     end
+
     File.rm_rf!(from_dir)
   end
 
   defp update_metadata_to_relative_path(metadata_file, rel_path, metadata) do
     updated_metadata = Map.put(metadata, "file", rel_path)
-    
+
     case Jason.encode(updated_metadata) do
       {:ok, json} ->
         File.write!(metadata_file, json)

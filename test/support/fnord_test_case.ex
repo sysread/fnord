@@ -118,11 +118,20 @@ defmodule Fnord.TestCase do
       end
 
       # -----------------------------------------------------------------------------
-      # Start all genservers that Fnord uses.
+      # Start internal services
       # -----------------------------------------------------------------------------
       setup do
         Services.start_all()
         Services.start_config_dependent_services()
+        :ok
+      end
+
+      # -----------------------------------------------------------------------------
+      # Ensure project root override is cleared before and after each test
+      # -----------------------------------------------------------------------------
+      setup do
+        Settings.set_project_root_override(nil)
+        on_exit(fn -> Settings.set_project_root_override(nil) end)
         :ok
       end
     end

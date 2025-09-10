@@ -48,7 +48,6 @@ defmodule Store.Project.Entry do
          {:ok, metadata} <- Jason.decode(content),
          {:ok, file_field} <- Map.fetch(metadata, "file"),
          true <- is_binary(file_field) do
-      
       resolved =
         cond do
           # Legacy absolute path
@@ -65,7 +64,7 @@ defmodule Store.Project.Entry do
       _ ->
         raise """
         Invalid or corrupted metadata in #{entry_path}.
-        
+
         This may indicate a corrupted project index. Try running:
           fnord index --reindex
         """
@@ -156,6 +155,7 @@ defmodule Store.Project.Entry do
   def metadata_file_path(entry), do: Store.Project.Entry.Metadata.store_path(entry.metadata)
   def has_metadata?(entry), do: Store.Project.Entry.Metadata.exists?(entry.metadata)
   def read_metadata(entry), do: Store.Project.Entry.Metadata.read(entry.metadata)
+
   def save_metadata(entry) do
     Store.Project.Entry.Metadata.write(entry.metadata, %{rel_path: entry.rel_path})
   end
@@ -199,7 +199,6 @@ defmodule Store.Project.Entry do
     end
   end
 
-
   defp file_sha256(file_path) do
     case File.read(file_path) do
       {:ok, content} -> sha256(content)
@@ -216,7 +215,7 @@ defmodule Store.Project.Entry do
   def id_for_rel_path(rel_path) do
     # Try reversible ID first
     reversible_id = @id_prefix_reversible <> Base.url_encode64(rel_path, padding: false)
-    
+
     if byte_size(reversible_id) <= @max_id_len do
       reversible_id
     else
@@ -225,24 +224,23 @@ defmodule Store.Project.Entry do
     end
   end
 
-
   @spec rel_path_from_id(String.t()) :: {:ok, String.t()} | {:error, :not_reversible}
   def rel_path_from_id(id) do
     cond do
       String.starts_with?(id, @id_prefix_reversible) ->
         encoded = String.slice(id, String.length(@id_prefix_reversible)..-1//1)
+
         case Base.url_decode64(encoded, padding: false) do
           {:ok, rel_path} -> {:ok, rel_path}
           :error -> {:error, :not_reversible}
         end
-      
+
       String.starts_with?(id, @id_prefix_hash) ->
         {:error, :not_reversible}
-      
+
       true ->
         # Legacy absolute path hash
         {:error, :not_reversible}
     end
   end
-
 end

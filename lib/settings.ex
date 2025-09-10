@@ -56,11 +56,12 @@ defmodule Settings do
           _ ->
             raise """
             Corrupted settings file: #{path}
-            
+
             You may need to reset your fnord settings. Consider backing up the file
             and running 'fnord init' to recreate it.
             """
         end
+
       globals = ["approvals", "projects", "version"]
       {projects, globals_map} = Enum.split_with(data, fn {k, _v} -> k not in globals end)
 
@@ -233,12 +234,33 @@ defmodule Settings do
   @doc """
   Get current auto-approval policy setting.
   """
-  @spec get_auto_policy ::
-          {:approve, non_neg_integer}
-          | {:deny, non_neg_integer}
-          | nil
+
+  @spec get_auto_policy() :: {:approve, non_neg_integer} | {:deny, non_neg_integer} | nil
   def get_auto_policy() do
     Application.get_env(:fnord, :auto_policy, nil)
+  end
+
+  @doc """
+  Set or clear a temporary project root override path. Pass a directory path to
+  override or nil to clear the override.
+  """
+  @spec set_project_root_override(binary | nil) :: :ok
+  def set_project_root_override(nil) do
+    Application.delete_env(:fnord, :project_root_override)
+    :ok
+  end
+
+  def set_project_root_override(path) when is_binary(path) do
+    Application.put_env(:fnord, :project_root_override, path)
+    :ok
+  end
+
+  @doc """
+  Gets the project root override path, or nil if not set.
+  """
+  @spec get_project_root_override() :: binary | nil
+  def get_project_root_override() do
+    Application.get_env(:fnord, :project_root_override, nil)
   end
 
   @doc """
@@ -356,7 +378,7 @@ defmodule Settings do
         _ ->
           raise """
           Corrupted settings file: #{settings.path}
-          
+
           You may need to reset your fnord settings. Consider backing up the file
           and running 'fnord init' to recreate it.
           """

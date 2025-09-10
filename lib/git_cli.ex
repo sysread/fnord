@@ -11,6 +11,26 @@ defmodule GitCli do
     System.find_executable("git") != nil and File.dir?(".git")
   end
 
+  def repo_root() do
+    git = System.find_executable("git")
+
+    if git do
+      cwd = File.cwd!()
+
+      case System.cmd(git, ["rev-parse", "--git-common-dir"], cd: cwd, stderr_to_stdout: true) do
+        {out, 0} ->
+          out
+          |> String.trim()
+          |> Path.dirname()
+
+        _ ->
+          nil
+      end
+    else
+      nil
+    end
+  end
+
   @spec git_info() :: String.t()
   def git_info() do
     git = System.find_executable("git")

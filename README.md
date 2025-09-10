@@ -357,6 +357,12 @@ It *cannot* perform write operations with `git` or act on files outside of the p
 fnord ask --project myproj --edit --question "Add a docstring to foo/thing.ex"
 ```
 
+**You can also use `--worktree` to specify a git worktree path to operate within.**
+
+```bash
+fnord ask --project myproj --worktree /path/to/myproj-wt --edit --question "Add a docstring to foo/thing.ex"
+```
+
 Code modification by an LLM is *unreliable* and is not safe for unsupervised use.
 The AI may behave unpredictably.
 

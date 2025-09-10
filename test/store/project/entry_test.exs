@@ -244,14 +244,14 @@ defmodule Store.Project.EntryTest do
       # Create subdirectory first
       subdir = Path.join(ctx.project.source_root, "subdir")
       File.mkdir_p!(subdir)
-      
+
       path = mock_source_file(ctx.project, "subdir/b.txt", @text)
       entry = Store.Project.Entry.new_from_file_path(ctx.project, path)
       Store.Project.Entry.create(entry)
 
       Store.Project.Entry.save(
         entry,
-        "summary text", 
+        "summary text",
         "outline",
         [1, 2, 3]
       )
@@ -260,12 +260,14 @@ defmodule Store.Project.EntryTest do
       metadata_path = Store.Project.Entry.metadata_file_path(entry)
       {:ok, raw_metadata} = File.read(metadata_path)
       {:ok, metadata} = Jason.decode(raw_metadata)
-      
-      assert metadata["file"] == "subdir/b.txt"  # relative path stored
-      
+
+      # relative path stored
+      assert metadata["file"] == "subdir/b.txt"
+
       # But the read/1 function should return absolute path for API compatibility
       {:ok, entry_data} = Store.Project.Entry.read(entry)
-      assert entry_data["file"] == entry.file  # absolute path returned
+      # absolute path returned
+      assert entry_data["file"] == entry.file
     end
   end
 
@@ -273,7 +275,7 @@ defmodule Store.Project.EntryTest do
     test "generates reversible IDs for short paths" do
       rel_path = "src/main.ex"
       id = Store.Project.Entry.id_for_rel_path(rel_path)
-      
+
       assert String.starts_with?(id, "r1-")
       # Base64url encode "src/main.ex" -> "c3JjL21haW4uZXg"
       assert id == "r1-c3JjL21haW4uZXg"
@@ -283,15 +285,16 @@ defmodule Store.Project.EntryTest do
       # Create a path that would exceed the 200 character limit when base64 encoded
       long_path = String.duplicate("very_long_directory_name/", 20) <> "file.txt"
       id = Store.Project.Entry.id_for_rel_path(long_path)
-      
+
       assert String.starts_with?(id, "h1-")
-      assert String.length(id) == 3 + 64  # "h1-" + 64 char SHA256 hash
+      # "h1-" + 64 char SHA256 hash
+      assert String.length(id) == 3 + 64
     end
 
     test "handles special characters in paths" do
       rel_path = "test files/special chars & symbols.txt"
       id = Store.Project.Entry.id_for_rel_path(rel_path)
-      
+
       assert String.starts_with?(id, "r1-")
       # Should be URL-safe (no +, /, or padding)
       refute String.contains?(id, "+")
@@ -302,14 +305,14 @@ defmodule Store.Project.EntryTest do
     test "roundtrip: id_for_rel_path/1 and rel_path_from_id/1" do
       rel_paths = [
         "src/main.ex",
-        "test/support/helpers.ex", 
+        "test/support/helpers.ex",
         "docs/README.md",
         "files with spaces/and & symbols.txt"
       ]
-      
+
       for rel_path <- rel_paths do
         id = Store.Project.Entry.id_for_rel_path(rel_path)
-        
+
         if String.starts_with?(id, "r1-") do
           # Should be reversible
           assert {:ok, ^rel_path} = Store.Project.Entry.rel_path_from_id(id)
@@ -324,11 +327,11 @@ defmodule Store.Project.EntryTest do
       # Legacy absolute path hash (64-char hex)
       legacy_id = "a123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
       assert {:error, :not_reversible} = Store.Project.Entry.rel_path_from_id(legacy_id)
-      
+
       # Hash-based ID (h1- prefix)
       hash_id = "h1-a123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
       assert {:error, :not_reversible} = Store.Project.Entry.rel_path_from_id(hash_id)
-      
+
       # Invalid reversible ID
       invalid_id = "r1-invalid_base64!!!"
       assert {:error, :not_reversible} = Store.Project.Entry.rel_path_from_id(invalid_id)
@@ -340,64 +343,72 @@ defmodule Store.Project.EntryTest do
       # Create src directory first
       src_dir = Path.join(ctx.project.source_root, "src")
       File.mkdir_p!(src_dir)
-      
+
       path = mock_source_file(ctx.project, "src/new_file.ex", @text)
       entry = Store.Project.Entry.new_from_file_path(ctx.project, path)
-      
+
       # Key should use the new scheme
       assert String.starts_with?(entry.key, "r1-")
-      
+
       # Rel path should be correct
       assert entry.rel_path == "src/new_file.ex"
-      
+
       # Store path should use the new key
       assert String.ends_with?(entry.store_path, entry.key)
     end
-    
+
     test "can read legacy entries with absolute paths in metadata", ctx do
       # This test simulates reading an entry that was created before the migration
       path = mock_source_file(ctx.project, "legacy.txt", @text)
       entry = Store.Project.Entry.new_from_file_path(ctx.project, path)
       Store.Project.Entry.create(entry)
-      
+
       # Manually create legacy metadata with absolute path
       metadata_path = Store.Project.Entry.metadata_file_path(entry)
+
       legacy_metadata = %{
-        "file" => entry.file,  # absolute path (legacy format)
+        # absolute path (legacy format)
+        "file" => entry.file,
         "timestamp" => DateTime.utc_now(),
         "hash" => "dummy_hash"
       }
+
       {:ok, json} = Jason.encode(legacy_metadata)
       File.write!(metadata_path, json)
-      
+
       # Should be able to read and create entry from the legacy metadata
       legacy_entry = Store.Project.Entry.new_from_entry_path(ctx.project, entry.store_path)
       assert legacy_entry.file == entry.file
       assert legacy_entry.rel_path == "legacy.txt"
     end
-    
+
     test "migration is reentrant - same process can call it multiple times", ctx do
       # Create a test file
       path = mock_source_file(ctx.project, "reentrant_test.txt", @text)
       entry = Store.Project.Entry.new_from_file_path(ctx.project, path)
       Store.Project.Entry.create(entry)
-      
+
       # Manually create legacy metadata with absolute path to force migration
       metadata_path = Store.Project.Entry.metadata_file_path(entry)
+
       legacy_metadata = %{
-        "file" => entry.file,  # absolute path (legacy format)
+        # absolute path (legacy format)
+        "file" => entry.file,
         "timestamp" => DateTime.utc_now(),
         "hash" => "dummy_hash"
       }
+
       {:ok, json} = Jason.encode(legacy_metadata)
       File.write!(metadata_path, json)
-      
+
       # First migration call should succeed
-      assert :ok == Store.Project.Entry.MigrateAbsToRelPathKeys.ensure_relative_entry_ids(ctx.project)
-      
+      assert :ok ==
+               Store.Project.Entry.MigrateAbsToRelPathKeys.ensure_relative_entry_ids(ctx.project)
+
       # Second migration call from same process should be reentrant (not deadlock)
-      assert :ok == Store.Project.Entry.MigrateAbsToRelPathKeys.ensure_relative_entry_ids(ctx.project)
-      
+      assert :ok ==
+               Store.Project.Entry.MigrateAbsToRelPathKeys.ensure_relative_entry_ids(ctx.project)
+
       # Verify the entry is properly migrated
       migrated_entry = Store.Project.Entry.new_from_entry_path(ctx.project, entry.store_path)
       assert migrated_entry.file == entry.file

@@ -98,7 +98,7 @@ defmodule Store.Project.Entry.Embeddings do
           _ ->
             raise """
             Corrupted embeddings file: #{file}
-            
+
             This may indicate a corrupted project index. Try running:
               fnord index --reindex
             """
