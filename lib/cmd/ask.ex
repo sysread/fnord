@@ -28,16 +28,18 @@ defmodule Cmd.Ask do
           auto_approve_after: [
             value_name: "SECONDS",
             long: "--auto-approve-after",
+            short: "-A",
             help:
-              "After notification, auto-APPROVE in SECONDS if no input (interactive only). Default: auto-DENY after 180 seconds if neither flag given",
+              "After notification, auto-APPROVE in SECONDS if no input. Default: auto-DENY after 180 seconds.",
             parser: :integer,
             required: false
           ],
           auto_deny_after: [
             value_name: "SECONDS",
             long: "--auto-deny-after",
+            short: "-D",
             help:
-              "After notification, auto-DENY in SECONDS if no input (interactive only). Default: auto-DENY after 180 seconds if neither flag given",
+              "After notification, auto-DENY in SECONDS if no input. Default: auto-DENY after 180 seconds.",
             parser: :integer,
             required: false
           ],
