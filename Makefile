@@ -1,4 +1,4 @@
-.DEFAULT_GOAL := help
+.DEFAULT_GOAL := build
 .PHONY: help
 help: ## Display this help message
 	@echo "Usage: make [target]"
@@ -6,6 +6,10 @@ help: ## Display this help message
 	@echo "Targets:"
 	@awk '/^[a-zA-Z0-9_-]+:.*## / {printf "%s : %s\n", $$1, substr($$0, index($$0, "##") + 3)}' $(MAKEFILE_LIST) | sort | column -t -s ':'
 	@echo
+
+.PHONY: build
+build: ## Build the escript
+	mix escript.build
 
 .PHONY: compile
 compile: ## Compile the project

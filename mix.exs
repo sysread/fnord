@@ -35,7 +35,8 @@ defmodule Fnord.MixProject do
 
   defp escript do
     [
-      main_module: Fnord
+      main_module: Fnord,
+      strip_beams: Mix.env() == :prod
     ]
   end
 
