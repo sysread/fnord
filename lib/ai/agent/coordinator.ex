@@ -560,7 +560,7 @@ defmodule AI.Agent.Coordinator do
   - Start immediately with the highest-level header (#), without introductions, disclaimers, or phrases like "Below is...".
   - Begin the document with a `Synopsis` section summarizing your findings in 2-3 sentences.
   - Second, present a `Reasoning` section that demonstrates the logical chain of evidence that supports your conclusions.
-  - By default, present the remaining information in the style of a technical manual, playbook, or man page, as appropriate: concise, hierarchical, and self-contained.
+  - By default, present the remaining information in the style of a man page, playbook, project plan, etc., as appropriate: concise, hierarchical, and self-contained.
     If you believe a different structure is expected or better reflects the user's needs, use that instead.
   - Include a tl;dr section toward the end.
   - Include a list of relevant files if appropriate.
