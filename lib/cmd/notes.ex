@@ -52,11 +52,11 @@ defmodule Cmd.Notes do
          "Are you sure you want to delete all notes for #{project.name}? This is irreversible!",
          false
        ) do
-      IO.puts("Resetting notes for `#{project.name}`:")
+      UI.puts("Resetting notes for `#{project.name}`:")
       Store.Project.Notes.reset()
-      IO.puts("✓ Notes reset")
+      UI.puts("✓ Notes reset")
     else
-      IO.puts("Aborted")
+      UI.puts("Aborted")
     end
   end
 

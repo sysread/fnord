@@ -43,8 +43,8 @@ defmodule Cmd.Upgrade do
           end
 
         if Version.compare(current, version) != :gt do
-          IO.puts("Current version: #{current}")
-          IO.puts("Latest version: #{version}")
+          UI.puts("Current version: #{current}")
+          UI.puts("Latest version: #{version}")
 
           if UI.confirm(confirm, opts.yes) do
             System.cmd("mix", ["escript.install", "--force", "github", "sysread/fnord"],
@@ -52,15 +52,15 @@ defmodule Cmd.Upgrade do
               into: IO.stream(:stdio, :line)
             )
           else
-            IO.puts("Cancelled")
+            UI.puts("Cancelled")
           end
         else
-          IO.puts("You are already on the latest version: #{current}")
+          UI.puts("You are already on the latest version: #{current}")
           false
         end
 
       {:error, reason} ->
-        IO.puts("Error checking for updates: #{reason}")
+        UI.puts("Error checking for updates: #{reason}")
         false
     end
   end

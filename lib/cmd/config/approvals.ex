@@ -8,19 +8,19 @@ defmodule Cmd.Config.Approvals do
       opts[:global] && opts[:project] ->
         build_list()
         |> Jason.encode!(pretty: true)
-        |> IO.puts()
+        |> UI.puts()
 
       opts[:global] ->
         build_list(:global)
         |> Jason.encode!(pretty: true)
-        |> IO.puts()
+        |> UI.puts()
 
       true ->
         case Settings.get_selected_project() do
           {:ok, _proj} ->
             build_list(:project)
             |> Jason.encode!(pretty: true)
-            |> IO.puts()
+            |> UI.puts()
 
           {:error, _} ->
             UI.error("Project not specified or not found")
@@ -57,7 +57,7 @@ defmodule Cmd.Config.Approvals do
                   {:ok, data} ->
                     data
                     |> Jason.encode!(pretty: true)
-                    |> IO.puts()
+                    |> UI.puts()
 
                   {:error, err} ->
                     UI.error(err)

@@ -32,7 +32,7 @@ defmodule Cmd.Files do
       |> Store.Project.stored_files()
       |> Stream.map(& &1.rel_path)
       |> Enum.sort()
-      |> Enum.each(&IO.puts(&1))
+      |> Enum.each(&UI.puts(&1))
     end
   end
 end

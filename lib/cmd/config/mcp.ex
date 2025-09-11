@@ -10,12 +10,12 @@ defmodule Cmd.Config.MCP do
       opts[:effective] ->
         Settings.MCP.effective_config(settings)
         |> Jason.encode!(pretty: true)
-        |> IO.puts()
+        |> UI.puts()
 
       opts[:global] ->
         Settings.MCP.get_config(settings, :global)
         |> Jason.encode!(pretty: true)
-        |> IO.puts()
+        |> UI.puts()
 
       # project scope explicitly via --project
       opts[:project] ->
@@ -30,7 +30,7 @@ defmodule Cmd.Config.MCP do
 
             Settings.MCP.get_config(settings, :project)
             |> Jason.encode!(pretty: true)
-            |> IO.puts()
+            |> UI.puts()
         end
 
       # default to current project in settings
@@ -39,7 +39,7 @@ defmodule Cmd.Config.MCP do
           {:ok, _proj} ->
             Settings.MCP.get_config(settings, :project)
             |> Jason.encode!(pretty: true)
-            |> IO.puts()
+            |> UI.puts()
 
           {:error, _} ->
             UI.error("Project not specified or not found")
@@ -53,7 +53,7 @@ defmodule Cmd.Config.MCP do
 
     Services.MCP.test()
     |> Jason.encode!(pretty: true)
-    |> IO.puts()
+    |> UI.puts()
   end
 
   # Unified entry for add, update, remove
@@ -110,7 +110,7 @@ defmodule Cmd.Config.MCP do
       {:ok, upd} ->
         %{name => Settings.MCP.list_servers(upd, scope)[name]}
         |> Jason.encode!(pretty: true)
-        |> IO.puts()
+        |> UI.puts()
 
       {:error, :exists} ->
         UI.error("Server '#{name}' already exists")
@@ -129,7 +129,7 @@ defmodule Cmd.Config.MCP do
       {:ok, upd} ->
         %{name => Settings.MCP.list_servers(upd, scope)[name]}
         |> Jason.encode!(pretty: true)
-        |> IO.puts()
+        |> UI.puts()
 
       {:error, :not_found} ->
         UI.error("Server '#{name}' not found")
@@ -147,7 +147,7 @@ defmodule Cmd.Config.MCP do
       {:ok, upd} ->
         Settings.MCP.list_servers(upd, scope)
         |> Jason.encode!(pretty: true)
-        |> IO.puts()
+        |> UI.puts()
 
       {:error, :not_found} ->
         UI.error("Server '#{name}' not found")

@@ -48,18 +48,18 @@ defmodule Cmd.Search do
       results
       |> Enum.each(fn {entry, score, data} ->
         if opts.detail do
-          IO.puts("""
+          UI.puts("""
           -----
           # File: #{entry.file} | Score: #{score}
           #{data["summary"]}
           """)
         else
-          IO.puts("#{score}\t#{entry.file}")
+          UI.puts("#{score}\t#{entry.file}")
         end
       end)
     else
       {:error, reason} ->
-        IO.puts("Error: #{reason}")
+        UI.puts("Error: #{reason}")
     end
   end
 end

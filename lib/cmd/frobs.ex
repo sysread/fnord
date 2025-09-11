@@ -49,7 +49,7 @@ defmodule Cmd.Frobs do
   @impl Cmd
   def run(opts, subcommands, _unknown) do
     with {:ok, msg} <- call_subcommand(subcommands, opts) do
-      IO.puts(msg)
+      UI.puts(msg)
     else
       {:error, :invalid_subcommand} ->
         IO.puts(:stderr, "Invalid subcommand. Use `fnord help frobs` for available commands.")

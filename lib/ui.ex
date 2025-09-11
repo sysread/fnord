@@ -2,7 +2,7 @@ defmodule UI do
   require Logger
 
   def __write_now__(iodata) do
-    Owl.IO.puts(iodata)
+    IO.puts(iodata)
   end
 
   defp write_or_log(iodata, level) do
@@ -29,11 +29,11 @@ defmodule UI do
 
     msg
     |> format_detail()
-    |> Owl.IO.puts()
+    |> IO.puts()
   end
 
   def puts(msg) do
-    UI.Pause.write(msg)
+    IO.puts(msg)
   end
 
   # ----------------------------------------------------------------------------
@@ -428,11 +428,11 @@ defmodule UI do
 
   def box(contents, opts) do
     unless UI.quiet?() do
-      Owl.IO.puts("")
+      IO.puts("")
 
       contents
       |> Owl.Box.new(opts)
-      |> Owl.IO.puts()
+      |> IO.puts()
     end
   end
 

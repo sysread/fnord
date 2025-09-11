@@ -19,6 +19,6 @@ defmodule Cmd.Projects do
   def run(_opts, _subcommands, _unknown) do
     Settings.new()
     |> Settings.list_projects()
-    |> Enum.each(&IO.puts/1)
+    |> Enum.each(&UI.puts/1)
   end
 end

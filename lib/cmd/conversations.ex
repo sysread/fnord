@@ -102,7 +102,7 @@ defmodule Cmd.Conversations do
     |> Store.Project.conversations()
     |> case do
       [] ->
-        IO.puts("No conversations found.")
+        UI.puts("No conversations found.")
 
       conversations ->
         conversations
@@ -116,7 +116,7 @@ defmodule Cmd.Conversations do
           }
         end)
         |> Jason.encode!(pretty: true)
-        |> IO.puts()
+        |> UI.puts()
     end
 
     :ok
