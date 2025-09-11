@@ -10,12 +10,31 @@ defmodule Services do
 
   defp start_internal_services do
     # Start core services that don't depend on CLI configuration
-    {:ok, _} = Registry.start_link(keys: :unique, name: MCP.ClientRegistry)
+    case Registry.start_link(keys: :unique, name: MCP.ClientRegistry) do
+      {:ok, _} -> :ok
+      {:error, {:already_started, _pid}} -> :ok
+      other -> other
+    end
+
     Services.Once.start_link()
     Services.Notes.start_link()
     Services.Task.start_link()
+
+    case UI.Pause.start_link() do
+      {:ok, _} -> :ok
+      {:error, {:already_started, _}} -> :ok
+      _ -> :ok
+    end
+
+    case Services.Conversation.Interrupts.start_link() do
+      {:ok, _} -> :ok
+      {:error, {:already_started, _pid}} -> :ok
+      other -> other
+    end
+
     AI.Agent.Researcher.start_link()
     Services.BackupFile.start_link()
+
     Services.ModelPerformanceTracker.start_link()
   end
 

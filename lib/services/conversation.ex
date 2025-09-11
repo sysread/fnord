@@ -75,6 +75,14 @@ defmodule Services.Conversation do
   end
 
   @doc """
+  Request an interrupt by enqueuing a new user message to be injected at the next safe point.
+  """
+  @spec interrupt(pid, String.t()) :: :ok | {:error, any}
+  def interrupt(pid, content) do
+    Services.Conversation.Interrupts.request(pid, content)
+  end
+
+  @doc """
   Get a response from the AI.Agent.Coordinator. The `opts` is passed directly
   to `AI.Agent.get_response/2` after converting to a map and adding the
   `:conversation` server's `pid`.

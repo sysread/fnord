@@ -1,6 +1,24 @@
 defmodule UI do
   require Logger
 
+  def __write_now__(iodata) do
+    Owl.IO.puts(iodata)
+  end
+
+  defp write_or_log(iodata, level) do
+    case Process.whereis(UI.Pause) do
+      nil ->
+        Logger.log(level, iodata)
+
+      _pid ->
+        if UI.Pause.paused?() do
+          UI.Pause.write(iodata)
+        else
+          Logger.log(level, iodata)
+        end
+    end
+  end
+
   @notification_timeout_ms 60_000
 
   # ----------------------------------------------------------------------------
@@ -15,7 +33,7 @@ defmodule UI do
   end
 
   def puts(msg) do
-    Owl.IO.puts(msg)
+    UI.Pause.write(msg)
   end
 
   # ----------------------------------------------------------------------------
@@ -61,7 +79,7 @@ defmodule UI do
   def report_from(nil, msg), do: info(msg)
 
   def report_from(name, msg) do
-    Logger.info(
+    write_or_log(
       IO.ANSI.format(
         [
           :cyan,
@@ -72,7 +90,8 @@ defmodule UI do
           :reset
         ],
         colorize?()
-      )
+      ),
+      :info
     )
   end
 
@@ -103,26 +122,34 @@ defmodule UI do
 
   def begin_step(msg, detail \\ nil) do
     if is_nil(detail) do
-      Logger.info(IO.ANSI.format([:green, msg, :reset], colorize?()))
+      write_or_log(
+        IO.ANSI.format([:green, msg, :reset], colorize?()),
+        :info
+      )
     else
-      Logger.info(
+      write_or_log(
         IO.ANSI.format(
           [:green, msg, :reset, ": ", :cyan, clean_detail(detail), :reset],
           colorize?()
-        )
+        ),
+        :info
       )
     end
   end
 
   def end_step(msg, detail \\ nil) do
     if is_nil(detail) do
-      Logger.info(IO.ANSI.format([:yellow, msg, :reset], colorize?()))
+      write_or_log(
+        IO.ANSI.format([:yellow, msg, :reset], colorize?()),
+        :info
+      )
     else
-      Logger.info(
+      write_or_log(
         IO.ANSI.format(
           [:yellow, msg, :reset, ": ", :cyan, clean_detail(detail), :reset],
           colorize?()
-        )
+        ),
+        :info
       )
     end
   end
@@ -147,40 +174,41 @@ defmodule UI do
   end
 
   def info(msg) do
-    Logger.info(IO.ANSI.format([:green, msg, :reset], colorize?()))
+    write_or_log(IO.ANSI.format([:green, msg, :reset], colorize?()), :info)
   end
 
   def info(msg, detail) do
-    msg = msg || ""
-
-    Logger.info(
+    write_or_log(
       IO.ANSI.format(
-        [:green, msg, :reset, ": ", :cyan, clean_detail(detail), :reset],
+        [:green, msg || "", :reset, ": ", :cyan, clean_detail(detail), :reset],
         colorize?()
-      )
+      ),
+      :info
     )
   end
 
   def warn(msg) do
-    Logger.warning(IO.ANSI.format([:yellow, msg, :reset], colorize?()))
+    write_or_log(IO.ANSI.format([:yellow, msg, :reset], colorize?()), :warning)
   end
 
   def warn(msg, detail) do
-    Logger.warning(
+    write_or_log(
       IO.ANSI.format(
         [:yellow, msg, :reset, ": ", :cyan, clean_detail(detail), :reset],
         colorize?()
-      )
+      ),
+      :warning
     )
   end
 
   def error(msg) do
-    Logger.error(IO.ANSI.format([:red, msg, :reset], colorize?()))
+    write_or_log(IO.ANSI.format([:red, msg, :reset], colorize?()), :error)
   end
 
   def error(msg, detail) do
-    Logger.error(
-      IO.ANSI.format([:red, msg, :reset, ": ", :cyan, clean_detail(detail), :reset], colorize?())
+    write_or_log(
+      IO.ANSI.format([:red, msg, :reset, ": ", :cyan, clean_detail(detail), :reset], colorize?()),
+      :error
     )
   end
 

@@ -31,7 +31,8 @@ defmodule AI.Completion do
     :messages,
     :tool_call_requests,
     :response,
-    :compact?
+    :compact?,
+    :conversation_pid
   ]
 
   @type t :: %__MODULE__{
@@ -96,6 +97,7 @@ defmodule AI.Completion do
 
       archive? = Keyword.get(opts, :archive_notes, false)
       messages = set_name(messages, name)
+      conversation_pid = Keyword.get(opts, :conversation)
 
       state = %__MODULE__{
         model: model,
@@ -107,6 +109,7 @@ defmodule AI.Completion do
         archive_notes: archive?,
         replay_conversation: replay,
         name: name,
+        conversation_pid: conversation_pid,
         usage: 0,
         messages: messages,
         tool_call_requests: [],
@@ -172,8 +175,29 @@ defmodule AI.Completion do
   # -----------------------------------------------------------------------------
   # Completion handling
   # -----------------------------------------------------------------------------
+  defp maybe_apply_interrupts(%{conversation_pid: nil} = state), do: state
+
+  defp maybe_apply_interrupts(%{conversation_pid: pid} = state) do
+    interrupts = Services.Conversation.Interrupts.take_all(pid)
+
+    case interrupts do
+      [] ->
+        state
+
+      msgs ->
+        new_messages = state.messages ++ msgs
+        Services.Conversation.replace_msgs(new_messages, pid)
+        UI.report_step("Interrupt", "Injected #{length(msgs)} message(s)")
+        %{state | messages: new_messages}
+    end
+  end
+
+  @doc false
   @spec send_request(t) :: response
   defp send_request(state) do
+    # Inject any pending user interrupts before calling the model
+    state = maybe_apply_interrupts(state)
+
     AI.CompletionAPI.get(
       state.model,
       state.messages,
@@ -197,8 +221,10 @@ defmodule AI.Completion do
   end
 
   defp handle_response({:ok, :tool, tool_calls}, state) do
-    %{state | tool_call_requests: tool_calls}
+    state
+    |> Map.put(:tool_call_requests, tool_calls)
     |> handle_tool_calls()
+    |> maybe_apply_interrupts()
     |> send_request()
   end
 
