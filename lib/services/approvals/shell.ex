@@ -47,8 +47,10 @@ defmodule Services.Approvals.Shell do
           UI.error("Shell", @no_tty)
           {:denied, @no_tty, state}
         else
-          render_pipeline(state, op, commands, purpose)
-          prompt(state, stages)
+          UI.interact(fn ->
+            render_pipeline(state, op, commands, purpose)
+            prompt(state, stages)
+          end)
         end
       end
     else

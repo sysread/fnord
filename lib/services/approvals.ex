@@ -46,7 +46,13 @@ defmodule Services.Approvals do
   def handle_call({:confirm, kind, args}, _from, state) do
     impl = impl_for(kind)
 
-    case impl.confirm(state, args) do
+    # Execute the confirmation in a UI.Queue context to avoid deadlocks
+    result =
+      UI.Queue.run_from_genserver(fn ->
+        impl.confirm(state, args)
+      end)
+
+    case result do
       {:approved, new_state} -> {:reply, {:ok, :approved}, new_state}
       {:denied, reason, new_state} -> {:reply, {:denied, reason}, new_state}
       {:error, reason, new_state} -> {:reply, {:error, reason}, new_state}

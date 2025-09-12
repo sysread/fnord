@@ -1,43 +1,88 @@
 defmodule UI do
+  @moduledoc """
+  User interface functions for output, logging, and user interaction.
+
+  ## Context Warnings for Interactive UI
+
+  Interactive UI functions (`confirm/1`, `choose/2`, `prompt/1`) can cause deadlocks
+  when called from certain contexts and must be wrapped appropriately.
+
+  ### GenServer Callbacks
+  Use `UI.Queue.run_from_genserver/1` to prevent deadlocks:
+
+      def handle_call(:delete_item, _from, state) do
+        confirmed = UI.Queue.run_from_genserver(fn ->
+          UI.confirm("Delete this item?")
+        end)
+        # ...
+      end
+
+  ### Task.async and Spawned Processes
+  Use `UI.Queue.run_from_task/1` when tasks need to participate in an existing UI interaction:
+
+      task = Task.async(fn ->
+        UI.Queue.run_from_task(fn ->
+          UI.confirm("Process this item?")
+        end)
+      end)
+
+  ### Creating UI Components
+  Use `UI.interact/1` to group multiple UI operations into a single atomic component:
+
+      def confirm_with_details(item) do
+        UI.interact(fn ->
+          UI.info("Item details: \#{item.name}")
+          UI.puts("Size: #\{item.size}, Modified: #\{item.date}")
+          UI.confirm("Delete this item?")
+        end)
+      end
+
+  Non-interactive functions (`info/2`, `warn/2`, `error/2`, `puts/1`, `say/1`) are safe 
+  to call directly from any context.
+
+  ## Interactive vs Non-Interactive Functions
+
+  **Interactive (require context wrappers in GenServer/Task contexts):**
+  - `confirm/1` - waits for yes/no input
+  - `choose/2` - waits for selection  
+  - `prompt/1` - waits for text input
+
+  **Non-interactive (safe to call directly from any context):**
+  - `info/2`, `warn/2`, `error/2`, `debug/2` - just output
+  - `puts/1`, `say/1` - just output
+  - `interact/1` - groups operations but doesn't itself interact
+  """
+
   require Logger
-
-  def __write_now__(iodata) do
-    IO.puts(iodata)
-  end
-
-  defp write_or_log(iodata, level) do
-    case Process.whereis(UI.Pause) do
-      nil ->
-        Logger.log(level, iodata)
-
-      _pid ->
-        if UI.Pause.paused?() do
-          UI.Pause.write(iodata)
-        else
-          Logger.log(level, iodata)
-        end
-    end
-  end
-
-  @notification_timeout_ms 60_000
 
   # ----------------------------------------------------------------------------
   # Messaging
   # ----------------------------------------------------------------------------
+  @doc """
+  Execute a function as a single interaction unit. All UI calls within the function
+  (puts, log, choose, prompt, etc.) will be treated as part of this interaction
+  and execute immediately without queuing.
+
+  This is useful for composite TUI components that combine multiple UI elements.
+  """
+  def interact(fun) when is_function(fun, 0) do
+    output_module().interact(fun)
+  end
+
   def say(msg) do
     UI.flush()
 
     msg
     |> format_detail()
-    |> IO.puts()
+    |> output_module().puts()
   end
 
   def puts(msg) do
-    IO.puts(msg)
+    output_module().puts(msg)
   end
 
   # ----------------------------------------------------------------------------
-  # Inversion of the `detail` for notifications from Fnord Prefect itself
+  # Feedback messages from the LLM
   # ----------------------------------------------------------------------------
   def feedback(:info, name, msg) do
     feedback(name, msg, :green_background, :green)
@@ -56,21 +101,23 @@ defmodule UI do
   end
 
   defp feedback(name, msg, label_codes, detail_codes) do
-    [
-      label_codes,
-      :bright,
-      "༺  ",
-      name,
-      " ༻ ",
-      :reset,
-      ": ",
-      :italic,
-      detail_codes,
-      msg,
-      :reset
-    ]
-    |> IO.ANSI.format(colorize?())
-    |> Logger.info()
+    msg =
+      [
+        label_codes,
+        :bright,
+        "༺  ",
+        name,
+        " ༻ ",
+        :reset,
+        ": ",
+        :italic,
+        detail_codes,
+        msg,
+        :reset
+      ]
+      |> IO.ANSI.format(colorize?())
+
+    output_module().log(:info, msg)
   end
 
   # ----------------------------------------------------------------------------
@@ -79,7 +126,8 @@ defmodule UI do
   def report_from(nil, msg), do: info(msg)
 
   def report_from(name, msg) do
-    write_or_log(
+    output_module().log(
+      :info,
       IO.ANSI.format(
         [
           :cyan,
@@ -90,15 +138,15 @@ defmodule UI do
           :reset
         ],
         colorize?()
-      ),
-      :info
+      )
     )
   end
 
   def report_from(nil, msg, detail), do: info(msg, detail)
 
   def report_from(name, msg, detail) do
-    Logger.info(
+    output_module().log(
+      :info,
       IO.ANSI.format(
         [
           :cyan,
@@ -120,38 +168,32 @@ defmodule UI do
   def report_step(msg), do: info(msg)
   def report_step(msg, detail), do: info(msg, detail)
 
-  def begin_step(msg, detail \\ nil) do
-    if is_nil(detail) do
-      write_or_log(
-        IO.ANSI.format([:green, msg, :reset], colorize?()),
-        :info
-      )
-    else
-      write_or_log(
-        IO.ANSI.format(
-          [:green, msg, :reset, ": ", :cyan, clean_detail(detail), :reset],
-          colorize?()
-        ),
-        :info
-      )
-    end
+  def begin_step(msg) do
+    UI.Queue.log(UI.Queue, :info, IO.ANSI.format([:green, "➤ ", msg, :reset], colorize?()))
   end
 
-  def end_step(msg, detail \\ nil) do
-    if is_nil(detail) do
-      write_or_log(
-        IO.ANSI.format([:yellow, msg, :reset], colorize?()),
-        :info
+  def begin_step(msg, detail) do
+    output_module().log(
+      :info,
+      IO.ANSI.format(
+        [:green, msg, :reset, ": ", :cyan, clean_detail(detail), :reset],
+        colorize?()
       )
-    else
-      write_or_log(
-        IO.ANSI.format(
-          [:yellow, msg, :reset, ": ", :cyan, clean_detail(detail), :reset],
-          colorize?()
-        ),
-        :info
+    )
+  end
+
+  def end_step(msg) do
+    UI.Queue.log(UI.Queue, :info, IO.ANSI.format([:yellow, msg, :reset], colorize?()))
+  end
+
+  def end_step(msg, detail) do
+    output_module().log(
+      :info,
+      IO.ANSI.format(
+        [:yellow, msg, :reset, ": ", :cyan, clean_detail(detail), :reset],
+        colorize?()
       )
-    end
+    )
   end
 
   def printf_debug(item) do
@@ -161,54 +203,56 @@ defmodule UI do
   end
 
   def debug(msg) do
-    Logger.debug(IO.ANSI.format([:green, msg, :reset], colorize?()))
+    msg = IO.ANSI.format([:green, msg, :reset], colorize?())
+    output_module().log(:debug, msg)
   end
 
   def debug(msg, detail) do
-    Logger.debug(
+    msg =
       IO.ANSI.format(
         [:green, msg, :reset, ": ", :cyan, clean_detail(detail), :reset],
+        colorize?()
+      )
+
+    output_module().log(:debug, msg)
+  end
+
+  def info(msg) do
+    UI.Queue.log(UI.Queue, :info, IO.ANSI.format([:green, msg, :reset], colorize?()))
+  end
+
+  def info(msg, detail) do
+    output_module().log(
+      :info,
+      IO.ANSI.format(
+        [:green, msg || "", :reset, ": ", :cyan, clean_detail(detail), :reset],
         colorize?()
       )
     )
   end
 
-  def info(msg) do
-    write_or_log(IO.ANSI.format([:green, msg, :reset], colorize?()), :info)
-  end
-
-  def info(msg, detail) do
-    write_or_log(
-      IO.ANSI.format(
-        [:green, msg || "", :reset, ": ", :cyan, clean_detail(detail), :reset],
-        colorize?()
-      ),
-      :info
-    )
-  end
-
   def warn(msg) do
-    write_or_log(IO.ANSI.format([:yellow, msg, :reset], colorize?()), :warning)
+    output_module().log(:warning, IO.ANSI.format([:yellow, msg, :reset], colorize?()))
   end
 
   def warn(msg, detail) do
-    write_or_log(
+    output_module().log(
+      :warning,
       IO.ANSI.format(
         [:yellow, msg, :reset, ": ", :cyan, clean_detail(detail), :reset],
         colorize?()
-      ),
-      :warning
+      )
     )
   end
 
   def error(msg) do
-    write_or_log(IO.ANSI.format([:red, msg, :reset], colorize?()), :error)
+    output_module().log(:error, IO.ANSI.format([:red, msg, :reset], colorize?()))
   end
 
   def error(msg, detail) do
-    write_or_log(
-      IO.ANSI.format([:red, msg, :reset, ": ", :cyan, clean_detail(detail), :reset], colorize?()),
-      :error
+    output_module().log(
+      :error,
+      IO.ANSI.format([:red, msg, :reset, ": ", :cyan, clean_detail(detail), :reset], colorize?())
     )
   end
 
@@ -231,6 +275,7 @@ defmodule UI do
 
   @spec warning_banner(binary) :: :ok
   def warning_banner(msg) do
+    # Directly write to stderr to ensure visibility even if output is paused.
     IO.puts(
       :stderr,
       IO.ANSI.format(
@@ -318,35 +363,7 @@ defmodule UI do
   # ----------------------------------------------------------------------------
   def choose(label, options, timeout_ms, default) do
     if is_tty?() && !quiet?() do
-      # Display the selection prompt
-      task =
-        Task.async(fn ->
-          UI.flush()
-          Owl.IO.select(options, label: label)
-        end)
-
-      # Phase A: wait for notification threshold
-      case Task.yield(task, @notification_timeout_ms) do
-        {:ok, selection} ->
-          selection
-
-        nil ->
-          # Send OS notification and continue waiting
-          Notifier.notify("Fnord", "Fnord is waiting for your selection: #{label}", [])
-
-          # Phase B: wait for auto window
-          case Task.yield(task, timeout_ms) do
-            {:ok, selection} ->
-              Notifier.dismiss("Fnord")
-              selection
-
-            nil ->
-              Task.shutdown(task, :brutal_kill)
-              Notifier.dismiss("Fnord")
-              UI.debug("Auto-selection after user-specified timeout", "#{label}: #{default}")
-              default
-          end
-      end
+      output_module().choose(label, options, timeout_ms, default)
     else
       {:error, :no_tty}
     end
@@ -354,13 +371,7 @@ defmodule UI do
 
   def choose(label, options) do
     if is_tty?() && !quiet?() do
-      with_notification_timeout(
-        fn ->
-          UI.flush()
-          Owl.IO.select(options, label: label)
-        end,
-        "Fnord is waiting for your selection: #{label}"
-      )
+      output_module().choose(label, options)
     else
       {:error, :no_tty}
     end
@@ -370,13 +381,7 @@ defmodule UI do
     if is_tty?() && !quiet?() do
       owl_opts = Keyword.put(owl_opts, :label, prompt)
 
-      with_notification_timeout(
-        fn ->
-          UI.flush()
-          Owl.IO.input(owl_opts)
-        end,
-        "Fnord is waiting for your input: #{String.slice(prompt, 0..50)}"
-      )
+      output_module().prompt(prompt, owl_opts)
     else
       {:error, :no_tty}
     end
@@ -387,124 +392,30 @@ defmodule UI do
 
   @spec confirm(binary, boolean) :: boolean
   def confirm(msg, default) do
-    has_default = is_boolean(default)
-
-    cond do
-      is_tty?() ->
-        yes = if default == true, do: "Y", else: "y"
-        no = if default == false, do: "N", else: "n"
-
-        with_notification_timeout(
-          fn ->
-            flush()
-            IO.write(:stderr, UI.Formatter.format_output("#{msg} (#{yes}/#{no}) "))
-
-            case IO.gets("") do
-              "y\n" -> true
-              "Y\n" -> true
-              _ -> default
-            end
-          end,
-          "Fnord is waiting for your response to: #{msg}"
-        )
-
-      has_default ->
-        default
-
-      true ->
-        Logger.warning(
-          "Confirmation requested without default, but session is not connected to a TTY."
-        )
-
-        false
-    end
+    output_module().confirm(msg, default)
   end
 
   def newline do
     unless UI.quiet?() do
-      IO.puts("")
+      output_module().newline()
     end
   end
 
   def box(contents, opts) do
     unless UI.quiet?() do
-      IO.puts("")
-
-      contents
-      |> Owl.Box.new(opts)
-      |> IO.puts()
-    end
-  end
-
-  # ----------------------------------------------------------------------------
-  # Notification timeout for interactive prompts
-  # ----------------------------------------------------------------------------
-  @doc """
-  Executes a function with a notification timeout.
-
-  If the function takes longer than the specified timeout (default 60 seconds),
-  a system notification is sent to alert the user, but the function continues
-  to run. The notification is cancelled if the function completes before the
-  timeout.
-  """
-  @spec with_notification_timeout((-> any), binary) :: any
-  def with_notification_timeout(func, notification_message) do
-    with_notification_timeout(func, notification_message, @notification_timeout_ms)
-  end
-
-  @spec with_notification_timeout((-> any), binary, non_neg_integer) :: any
-  def with_notification_timeout(func, notification_message, timeout_ms) do
-    # Start a task to execute the function
-    task = Task.async(func)
-
-    # Start a timer for the notification
-    timer_ref =
-      Process.send_after(self(), {:notification_timeout, notification_message}, timeout_ms)
-
-    # Wait for the task to complete while handling timeout messages
-    result = wait_for_task_with_timeout(task, timer_ref)
-
-    # Clean up: cancel timer if still active
-    Process.cancel_timer(timer_ref)
-
-    result
-  end
-
-  @spec wait_for_task_with_timeout(Task.t(), reference) :: any
-  defp wait_for_task_with_timeout(task, timer_ref) do
-    wait_for_task_with_timeout(task, timer_ref, false)
-  end
-
-  @spec wait_for_task_with_timeout(Task.t(), reference, boolean) :: any
-  defp wait_for_task_with_timeout(task, timer_ref, notification_sent?) do
-    receive do
-      {:notification_timeout, message} ->
-        # Send notification but continue waiting for the task
-        Notifier.notify("Fnord", message, [])
-        wait_for_task_with_timeout(task, timer_ref, true)
-    after
-      100 ->
-        # Check if task completed
-        case Task.yield(task, 0) do
-          {:ok, result} ->
-            # If we sent a notification, try to dismiss it
-            if notification_sent? do
-              Notifier.dismiss("Fnord")
-            end
-
-            result
-
-          nil ->
-            # Keep waiting
-            wait_for_task_with_timeout(task, timer_ref, notification_sent?)
-        end
+      output_module().newline()
+      output_module().box(contents, opts)
     end
   end
 
   # ----------------------------------------------------------------------------
   # Helper functions
   # ----------------------------------------------------------------------------
-  def flush, do: Logger.flush()
+  def flush, do: output_module().flush()
+
+  defp output_module do
+    Application.get_env(:fnord, :ui_output, UI.Output.Production)
+  end
 
   def quiet?() do
     Application.get_env(:fnord, :quiet)

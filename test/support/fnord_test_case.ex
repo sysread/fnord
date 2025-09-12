@@ -19,6 +19,7 @@ defmodule Fnord.TestCase do
   # ----------------------------------------------------------------------------
   Mox.defmock(MockIndexer, for: Indexer)
   Mox.defmock(MockApprovals, for: Services.Approvals.Workflow)
+  Mox.defmock(UI.Output.Mock, for: UI.Output)
 
   using do
     quote do
@@ -75,6 +76,11 @@ defmodule Fnord.TestCase do
           edit: MockApprovals,
           shell: MockApprovals
         })
+      end
+
+      setup do
+        Mox.stub_with(UI.Output.Mock, UI.Output.TestStub)
+        Application.put_env(:fnord, :ui_output, UI.Output.Mock)
       end
 
       setup do

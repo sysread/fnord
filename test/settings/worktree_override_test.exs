@@ -1,5 +1,5 @@
 defmodule Settings.WorktreeOverrideTest do
-  use ExUnit.Case, async: true
+  use Fnord.TestCase
 
   setup do
     Settings.set_project_root_override(nil)

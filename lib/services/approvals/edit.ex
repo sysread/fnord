@@ -20,33 +20,6 @@ defmodule Services.Approvals.Edit do
 
   @impl Services.Approvals.Workflow
   def confirm(state, {file, diff}) do
-    # 8 additional characters in: " Edit: #{file} ", +4 for borders and padding
-    max_width = Owl.IO.columns() - 12
-
-    file_display = Path.relative_to_cwd(file)
-
-    file_display =
-      if String.length(file_display) > max_width do
-        "..." <> String.slice(file_display, -max_width..-1)
-      else
-        file_display
-      end
-
-    [
-      Owl.Data.tag("# Scope ", [:red_background, :black, :bright]),
-      "\n\nedit :: all files\n\n",
-      Owl.Data.tag("# Changes ", [:red_background, :black, :bright]),
-      "\n\n",
-      diff
-    ]
-    |> UI.box(
-      title: " Edit #{file_display} ",
-      min_width: 80,
-      padding: 1,
-      horizontal_align: :left,
-      border_tag: [:red, :bright]
-    )
-
     cond do
       !edit?() ->
         UI.warn("Edit #{file}", @not_edit_mode)
@@ -61,7 +34,36 @@ defmodule Services.Approvals.Edit do
         {:error, @no_tty, state}
 
       true ->
-        prompt(state)
+        UI.interact(fn ->
+          # 8 additional characters in: " Edit: #{file} ", +4 for borders and padding
+          max_width = Owl.IO.columns() - 12
+
+          file_display = Path.relative_to_cwd(file)
+
+          file_display =
+            if String.length(file_display) > max_width do
+              "..." <> String.slice(file_display, -max_width..-1)
+            else
+              file_display
+            end
+
+          [
+            Owl.Data.tag("# Scope ", [:red_background, :black, :bright]),
+            "\n\nedit :: all files\n\n",
+            Owl.Data.tag("# Changes ", [:red_background, :black, :bright]),
+            "\n\n",
+            diff
+          ]
+          |> UI.box(
+            title: " Edit #{file_display} ",
+            min_width: 80,
+            padding: 1,
+            horizontal_align: :left,
+            border_tag: [:red, :bright]
+          )
+
+          prompt(state)
+        end)
     end
   end
 

@@ -9,6 +9,10 @@ defmodule Services do
   end
 
   defp start_internal_services do
+    # Start UI.Queue first, since other services may want to log messages
+    # during their startup.
+    UI.Queue.start_link()
+
     # Start core services that don't depend on CLI configuration
     case Registry.start_link(keys: :unique, name: MCP.ClientRegistry) do
       {:ok, _} -> :ok
@@ -19,12 +23,6 @@ defmodule Services do
     Services.Once.start_link()
     Services.Notes.start_link()
     Services.Task.start_link()
-
-    case UI.Pause.start_link() do
-      {:ok, _} -> :ok
-      {:error, {:already_started, _}} -> :ok
-      _ -> :ok
-    end
 
     case Services.Conversation.Interrupts.start_link() do
       {:ok, _} -> :ok
