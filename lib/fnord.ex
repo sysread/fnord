@@ -189,15 +189,12 @@ defmodule Fnord do
     # --------------------------------------------------------------------------
     unless Settings.project_is_set?() do
       with {:ok, project} <- get_project_from_cwd() do
-        UI.debug("Project not specified, but CWD is within recognized project: #{project}")
+        UI.info("Project not specified, but CWD is within #{project}")
         Settings.set_project(project)
       else
         {:error, :not_in_project} ->
           with {:ok, project} <- get_project_from_cwd_worktree() do
-            UI.debug(
-              "Project not specified, but CWD is within worktree of recognized project: #{project}"
-            )
-
+            UI.info("Project not specified, but CWD is worktree of #{project}")
             Settings.set_project(project)
           end
       end
