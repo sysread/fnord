@@ -126,6 +126,19 @@ defmodule Cmd.Ask do
 
     start_time = System.monotonic_time(:second)
 
+    # start silent background indexer (best-effort)
+    indexer_pid =
+      case Store.get_project() do
+        {:ok, project} ->
+          case Services.BackgroundIndexer.start_link(project: project) do
+            {:ok, pid} -> pid
+            _ -> nil
+          end
+
+        _ ->
+          nil
+      end
+
     try do
       with {:ok, opts} <- validate(opts),
            :ok <- set_auto_policy(opts),
@@ -171,6 +184,11 @@ defmodule Cmd.Ask do
           {:error, other}
       end
     after
+      # stop background indexer if still running
+      if is_pid(indexer_pid) and Process.alive?(indexer_pid) do
+        Services.BackgroundIndexer.stop(indexer_pid)
+      end
+
       Services.BackupFile.offer_cleanup()
       Services.Notes.join()
     end
