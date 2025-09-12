@@ -1,6 +1,4 @@
 defmodule Store do
-  require Logger
-
   @projects_dir "projects"
 
   @spec store_home() :: binary
@@ -57,7 +55,7 @@ defmodule Store do
     new_projects_dir = Path.join(home, "projects")
 
     if !File.exists?(new_projects_dir) do
-      Logger.info("Migrating projects to #{new_projects_dir}")
+      UI.info("Migrating projects to #{new_projects_dir}")
 
       File.mkdir_p!(new_projects_dir)
 
@@ -69,12 +67,12 @@ defmodule Store do
 
         cond do
           File.exists?(old_path) and File.exists?(new_path) ->
-            Logger.info("#{project_name} migrated to #{new_path}; cleaning up artifacts")
+            UI.info("#{project_name} migrated to #{new_path}; cleaning up artifacts")
             File.rm_rf!(new_path)
 
           File.exists?(old_path) ->
             File.rename(old_path, new_path)
-            Logger.info("#{project_name} migrated to #{new_path}")
+            UI.info("#{project_name} migrated to #{new_path}")
         end
       end)
     end
