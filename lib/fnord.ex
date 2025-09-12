@@ -41,7 +41,7 @@ defmodule Fnord do
       # require it here. That allows us to default to the project associated
       # with the current directory, if possible.
       if cmd_module.requires_project?() && !Settings.project_is_set?() do
-        IO.puts(:stderr, """
+        UI.fatal("""
         Error: The command `#{command}` must be called from an indexed project directory or with the --project option set to an indexed project.
         """)
 
@@ -67,7 +67,7 @@ defmodule Fnord do
           current = Util.get_running_version()
 
           if Version.compare(current, latest) == :lt do
-            IO.puts(:stderr, """
+            UI.info("""
 
             A new version of fnord is available! To upgrade to v#{latest}:
 

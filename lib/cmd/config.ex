@@ -306,7 +306,7 @@ defmodule Cmd.Config do
           global
           |> Map.merge(config)
           |> Jason.encode!(pretty: true)
-          |> IO.puts()
+          |> UI.puts()
       end
     else
       {:error, _} -> UI.error("Project not found")

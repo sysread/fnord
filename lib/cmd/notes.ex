@@ -43,7 +43,7 @@ defmodule Cmd.Notes do
       UI.say(notes)
     else
       {:error, :no_notes} ->
-        IO.puts(:stderr, "No notes found. Please run `prime` first to gather information.")
+        UI.warn("No notes found. Please run `prime` first to gather information.")
     end
   end
 
@@ -60,8 +60,8 @@ defmodule Cmd.Notes do
     end
   end
 
+  @spec fail(binary) :: no_return()
   defp fail(reason) do
-    IO.puts(:stderr, "Error: #{reason}")
-    exit(1)
+    UI.fatal("Error: #{reason}")
   end
 end

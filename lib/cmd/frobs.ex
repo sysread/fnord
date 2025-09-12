@@ -52,12 +52,10 @@ defmodule Cmd.Frobs do
       UI.puts(msg)
     else
       {:error, :invalid_subcommand} ->
-        IO.puts(:stderr, "Invalid subcommand. Use `fnord help frobs` for available commands.")
-        System.halt(1)
+        UI.fatal("Invalid subcommand. Use `fnord help frobs` for available commands.")
 
       {:error, reason} ->
-        IO.puts(:stderr, "Error creating frob: #{reason}")
-        System.halt(1)
+        UI.fatal("Error creating frob: #{reason}")
     end
   end
 
