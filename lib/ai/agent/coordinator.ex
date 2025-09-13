@@ -185,7 +185,7 @@ defmodule AI.Agent.Coordinator do
   defp perform_step({:error, _} = error), do: error
 
   defp perform_step(%{replay: replay, steps: [:followup | steps]} = state) do
-    UI.info("Researching")
+    UI.begin_step("Researching")
 
     state
     |> Map.put(:steps, steps)
@@ -202,7 +202,7 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp perform_step(%{replay: replay, steps: [:singleton | steps]} = state) do
-    UI.info("Researching")
+    UI.begin_step("Researching")
 
     state
     |> Map.put(:steps, steps)
@@ -219,7 +219,7 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp perform_step(%{replay: replay, steps: [:initial | steps]} = state) do
-    UI.info("Researching")
+    UI.begin_step("Researching")
 
     state
     |> Map.put(:steps, steps)
@@ -235,7 +235,7 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp perform_step(%{steps: [:clarify | steps]} = state) do
-    UI.info("Clarifying")
+    UI.begin_step("Clarifying")
 
     state
     |> Map.put(:steps, steps)
@@ -248,7 +248,7 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp perform_step(%{steps: [:refine | steps]} = state) do
-    UI.info("Refining")
+    UI.begin_step("Refining")
 
     state
     |> Map.put(:steps, steps)
@@ -261,7 +261,7 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp perform_step(%{steps: [:continue | steps]} = state) do
-    UI.info("Continuing research")
+    UI.begin_step("Continuing research")
 
     state
     |> Map.put(:steps, steps)
@@ -274,7 +274,7 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp perform_step(%{steps: [:coding | steps]} = state) do
-    UI.info("Identifying incomplete coding tasks")
+    UI.begin_step("Identifying incomplete coding tasks")
 
     state
     |> Map.put(:steps, steps)
@@ -287,7 +287,7 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp perform_step(%{steps: [:finalize]} = state) do
-    UI.info("Generating response")
+    UI.begin_step("Generating response")
 
     state
     |> Map.put(:steps, [])
@@ -857,8 +857,8 @@ defmodule AI.Agent.Coordinator do
     |> Enum.map(& &1.name)
     |> Enum.join(" | ")
     |> case do
-      "" -> UI.info("Available frobs", "none")
-      some -> UI.info("Available frobs", some)
+      "" -> UI.info("Frobs", "none")
+      some -> UI.info("Frobs", some)
     end
   end
 
@@ -867,8 +867,8 @@ defmodule AI.Agent.Coordinator do
     |> Map.keys()
     |> Enum.join(" | ")
     |> case do
-      "" -> UI.info("Available MCP tools", "none")
-      some -> UI.info("Available MCP tools", some)
+      "" -> UI.info("MCP tools", "none")
+      some -> UI.info("MCP tools", some)
     end
   end
 
