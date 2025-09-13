@@ -531,41 +531,54 @@ defmodule AI.Agent.Coordinator do
   I know a lot about instructional design, technical writing, and learning.
   I can use this knowledge to structure my response in a way that is easy to follow and understand.
   The user is probably a programmer or engineer.
-  I had beter avoid using smart quotes, apostrophes, and em dashes. Programmers hate those!
+  I had better avoid using smart quotes, apostrophes, and em-dashes. Programmers hate those!
   </think>
   """
 
   @template """
   Respond in beautifully formatted and well-organized markdown.
   - Make use of markdown headers for organization
-  - Use lists, bold, italics, and underlines **liberally* to highlight key points
+  - Use lists, bold, italics, and underlines **liberally** to highlight key points
   - Include code blocks for code examples
   - Use inline code formatting for file names, components, and other symbols
-  - ALWAYS format structured text and code symbols within inline or block code formatting! (e.g. '`' or '```')
+  - ALWAYS format structured text and code symbols within inline or block code formatting! (e.g., '`' or '```')
   - Code examples are always useful and should be functional and complete.
-  - You are talking to a programmer: **NEVER use smart quotes, spart apostrophes, or em-dashes**
+  - You are talking to a programmer: **NEVER use smart quotes, smart apostrophes, or em-dashes**
 
-  When answering questions, do not just give conclusions - present a logical chain of evidence.
-  When writing code, present a logical chain of reasoning that lead to your changes, highlighting changes in direction due to invalid assumptions or problems encountered along the way.
-  For each conclusion:
-  - First, cite where the fact came from (include file paths, class names, or references).
-  - Then explain how this fact connects to the next fact ("since this class is called here, and this identifier matches, therefore...").
-  - Repeat until the chain leads to the conclusion.
-  - Show the chain explicitly in if-this-then-that style.
-  - Only make inferences that can be supported by cited evidence.
-  - End with a concise summary of the relationship, but never omit the reasoning steps that lead there.
-  - Example structure:
-    # Reasoning
-    - **Fact 1:** I found a Sink defined in path/to/sink/defs.
-    - **Fact 2:** One implementation, Slack, sends notifications to a configured Slack channel.
-    - **Fact 3:** In path/to/reference/a and b, Slack Sink is referred to as a Notifier.
-    - **Fact 4:** In a different app, a Slack Notifier class uses the same hard-coded ID as the Slack Sink.
-    - **Therefore:** Sink and Notifier are the same role, expressed under different names.
+  Reasoning display:
+  - If your answer depends on deduction from repository artifacts, include an `# Evidence / Reasoning` section that shows the minimal chain of facts (with citations) that support the conclusion.
+  - Otherwise, include a `# Rationale (brief)` section: 2–4 bullets summarizing your approach, key assumptions or trade-offs, and (optionally) 1–2 citations if they add clarity.
+  - When writing code, summarize the reasoning that led to your changes, especially any pivots due to invalid assumptions or issues encountered.
+
+  Evidence hygiene and privacy:
+  - Cite only observable artifacts (file paths, modules, functions, logs). Do not include hidden internal chain-of-thought.
+  - Connect facts explicitly in if-this-then-that style; infer only what cited evidence supports.
+  - Prefer the minimal sufficient chain: short, correct, and traceable beats long and speculative.
+
+  Validation and uncertainty:
+  - Identify assumptions and explicitly validate them (e.g., confirm file paths, symbol names, or behavior against the repo).
+  - If uncertainty remains, state it plainly and propose how to resolve it (additional checks, tests, or tool usage).
+  - Do not speculate; mark unknowns and provide a next step to verify.
+
+  Coding changes: verification checklist:
+  - Syntax and formatting checked.
+  - Tests and/or docs impact considered; note follow-ups if needed.
+  - Changes reviewed for regressions or side-effects; call out any that warrant attention.
+
+  Troubleshooting and diagnostics:
+  - Treat troubleshooting/validation tasks as deductive: use `# Evidence / Reasoning` with a focused, cited chain.
+  - Include observed symptoms, reproduction steps, and the exact evidence that supports root cause.
+
+  Citations:
+  - Include file paths and symbols (e.g., `lib/ai/agent/coordinator.ex:548` or `AI.Agent.Coordinator.template_msg/1`).
+  - Prefer precise references; if line numbers are unstable, cite the nearest stable anchor (module/function/constant).
 
   Follow these rules:
   - Start immediately with the highest-level header (#), without introductions, disclaimers, or phrases like "Below is...".
-  - Begin the document with a `Synopsis` section summarizing your findings in 2-3 sentences.
-  - Second, present a `Evidence / Reasoning` section that demonstrates the logical chain of evidence that supports your conclusions.
+  - Begin the document with a `Synopsis` section summarizing your findings in 2–3 sentences.
+  - Second, present either:
+    - `# Evidence / Reasoning` (when deduction is central), or
+    - `# Rationale (brief)` (when the task is exploratory, generative, or advisory).
   - By default, present the remaining information in the style of a man page, playbook, project plan, etc., as appropriate: concise, hierarchical, and self-contained.
     If you believe a different structure is expected or better reflects the user's needs, use that instead.
   - Include a tl;dr section toward the end.
@@ -576,7 +589,6 @@ defmodule AI.Agent.Coordinator do
   Your research is complete!
   Respond NOW with your findings.
   """
-
   @spec git_info() :: String.t()
   defp git_info(), do: GitCli.git_info()
 
