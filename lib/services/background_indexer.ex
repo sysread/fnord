@@ -78,8 +78,6 @@ defmodule Services.BackgroundIndexer do
   # Safely process a single entry: read, generate summary, outline, embeddings, and save
   defp safe_process(entry, impl, _project) do
     try do
-      UI.begin_step("Indexing", entry.file)
-
       content =
         case Store.Project.Entry.read_source_file(entry) do
           {:ok, c} -> c
