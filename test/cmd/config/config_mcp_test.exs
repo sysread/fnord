@@ -1,4 +1,4 @@
-defmodule Cmd.ConfigMCPTest do
+defmodule Cmd.Config.MCPTest do
   use Fnord.TestCase, async: false
   import ExUnit.CaptureIO
   import ExUnit.CaptureLog

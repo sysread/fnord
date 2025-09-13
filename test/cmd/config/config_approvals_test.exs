@@ -1,4 +1,4 @@
-defmodule Cmd.ConfigApprovalsTest do
+defmodule Cmd.Config.ApprovalsTest do
   use Fnord.TestCase
   import ExUnit.CaptureIO
   import ExUnit.CaptureLog

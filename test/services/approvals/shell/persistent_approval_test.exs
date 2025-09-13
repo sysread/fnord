@@ -1,4 +1,4 @@
-defmodule Services.Approvals.Shell.PersistentApprovalTest do
+defmodule Services.Approvals.Shell.PersistentApproval.Test do
   use Fnord.TestCase, async: false
 
   describe "customize/2" do

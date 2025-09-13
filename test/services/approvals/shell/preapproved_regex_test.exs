@@ -1,4 +1,4 @@
-defmodule Services.Approvals.Shell.PreapprovedRegexTest do
+defmodule Services.Approvals.Shell.PreapprovedRegex.Test do
   use Fnord.TestCase, async: false
 
   alias Services.Approvals.Shell

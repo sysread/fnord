@@ -1,4 +1,4 @@
-defmodule Cmd.Ask.WorktreeTest do
+defmodule Cmd.Ask.Worktree.Test do
   use Fnord.TestCase
   import ExUnit.CaptureIO
 

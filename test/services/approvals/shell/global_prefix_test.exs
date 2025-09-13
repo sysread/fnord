@@ -1,6 +1,6 @@
 # This test module ensures that global shell prefix approvals are honored
 # for chained commands in Services.Approvals.Shell.
-defmodule Services.Approvals.Shell.GlobalPrefixTest do
+defmodule Services.Approvals.Shell.GlobalPrefix.Test do
   use Fnord.TestCase, async: false
 
   alias Services.Approvals.Shell

@@ -1,7 +1,5 @@
-defmodule AI.Tools.ShellTest do
+defmodule AI.Tools.Shell.Test do
   use Fnord.TestCase
-
-  alias AI.Tools.Shell
 
   test "preapproved pipeline: cat -> wc -l counts lines in files" do
     project = mock_project("shell-preapproved")
@@ -17,7 +15,7 @@ defmodule AI.Tools.ShellTest do
       ]
     }
 
-    assert {:ok, out} = Shell.call(args)
+    assert {:ok, out} = AI.Tools.Shell.call(args)
     # wc -l prefixes with whitespace and count
     assert out |> String.trim() |> String.split() |> hd() == "2"
   end
@@ -34,7 +32,7 @@ defmodule AI.Tools.ShellTest do
       ]
     }
 
-    assert {:ok, out} = Shell.call(args)
+    assert {:ok, out} = AI.Tools.Shell.call(args)
     assert String.trim(out) == "ABC"
   end
 
@@ -52,7 +50,7 @@ defmodule AI.Tools.ShellTest do
       ]
     }
 
-    assert {:ok, msg} = Shell.call(args)
+    assert {:ok, msg} = AI.Tools.Shell.call(args)
     assert msg =~ "Exit status: 1"
     assert msg =~ "grep -q pattern data.txt"
   end
@@ -69,7 +67,7 @@ defmodule AI.Tools.ShellTest do
       ]
     }
 
-    assert {:ok, msg} = Shell.call(args)
+    assert {:ok, msg} = AI.Tools.Shell.call(args)
 
     # run_with_timeout returns {:error, :timeout}, formatted as Exit code: timeout
     assert msg =~ "Error: timed out after"
@@ -86,7 +84,7 @@ defmodule AI.Tools.ShellTest do
       ]
     }
 
-    assert {:error, msg} = Shell.call(args)
+    assert {:error, msg} = AI.Tools.Shell.call(args)
     assert msg =~ "Command not found"
   end
 
@@ -100,7 +98,7 @@ defmodule AI.Tools.ShellTest do
       ]
     }
 
-    assert {:ok, msg} = Shell.call(args)
+    assert {:ok, msg} = AI.Tools.Shell.call(args)
     assert msg =~ ~r/Command: (.+?)\/rg pattern #{project.source_root}/
   end
 
@@ -113,11 +111,11 @@ defmodule AI.Tools.ShellTest do
       ]
     }
 
-    {req_title, req_desc} = Shell.ui_note_on_request(args)
+    {req_title, req_desc} = AI.Tools.Shell.ui_note_on_request(args)
     assert String.starts_with?(req_title, "shell> ")
     assert req_desc == "Describe"
 
-    {res_title, _res_detail} = Shell.ui_note_on_result(args, "ok")
+    {res_title, _res_detail} = AI.Tools.Shell.ui_note_on_result(args, "ok")
     assert String.starts_with?(res_title, "shell> ")
   end
 
@@ -131,7 +129,7 @@ defmodule AI.Tools.ShellTest do
       "commands" => [%{"command" => "echo", "args" => ["x"]}]
     }
 
-    assert {:ok, _} = Shell.call(args1)
+    assert {:ok, _} = AI.Tools.Shell.call(args1)
 
     # too large value clamps at max, still should execute fine
     args2 = %{
@@ -140,7 +138,7 @@ defmodule AI.Tools.ShellTest do
       "commands" => [%{"command" => "echo", "args" => ["y"]}]
     }
 
-    assert {:ok, _} = Shell.call(args2)
+    assert {:ok, _} = AI.Tools.Shell.call(args2)
 
     # negative value -> default
     args3 = %{
@@ -149,6 +147,6 @@ defmodule AI.Tools.ShellTest do
       "commands" => [%{"command" => "echo", "args" => ["z"]}]
     }
 
-    assert {:ok, _} = Shell.call(args3)
+    assert {:ok, _} = AI.Tools.Shell.call(args3)
   end
 end

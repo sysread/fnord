@@ -1,4 +1,4 @@
-defmodule SettingsMCPTest do
+defmodule Settings.MCPTest do
   use Fnord.TestCase
 
   alias Settings.MCP
