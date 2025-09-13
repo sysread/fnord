@@ -21,7 +21,12 @@ defmodule AI.Tools.Shell do
   def is_available?, do: true
 
   @impl AI.Tools
-  def read_args(args), do: {:ok, args}
+  def read_args(args) do
+    case validate_commands(args) do
+      :ok -> {:ok, args}
+      {:error, reason} -> {:error, :invalid_argument, reason}
+    end
+  end
 
   @impl AI.Tools
   def ui_note_on_request(%{"commands" => commands, "description" => desc} = args) do
@@ -504,6 +509,47 @@ defmodule AI.Tools.Shell do
         on_timeout.()
         {:error, :timeout}
     end
+  end
+
+  # ----------------------------------------------------------------------------
+  # Argument validation helpers
+  # ----------------------------------------------------------------------------
+  defp validate_commands(%{"commands" => commands}) when is_list(commands) do
+    commands
+    |> Enum.with_index()
+    |> Enum.reduce_while(:ok, fn {cmd, idx}, _acc ->
+      case validate_command(cmd, idx) do
+        :ok -> {:cont, :ok}
+        error -> {:halt, error}
+      end
+    end)
+  end
+
+  defp validate_commands(%{"commands" => commands}) do
+    {:error, "commands must be a list, got: #{inspect(commands)}"}
+  end
+
+  defp validate_commands(_) do
+    {:error, "missing required field 'commands'"}
+  end
+
+  defp validate_command(%{"command" => cmd, "args" => args}, idx)
+       when is_binary(cmd) and is_list(args) do
+    # Check that all args are strings
+    case Enum.all?(args, &is_binary/1) do
+      true -> :ok
+      false -> {:error, "command[#{idx}].args must be a list of strings"}
+    end
+  end
+
+  defp validate_command(%{"command" => cmd}, _idx) when is_binary(cmd) do
+    # args is optional, can be missing
+    :ok
+  end
+
+  defp validate_command(cmd, idx) do
+    {:error,
+     "command[#{idx}] invalid format: expected {command: string, args: [strings]}, got: #{inspect(cmd)}"}
   end
 
   # ----------------------------------------------------------------------------
