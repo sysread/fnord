@@ -7,6 +7,8 @@ defmodule Fnord.TestCase do
 
   use ExUnit.CaseTemplate
 
+  import ExUnit.CaptureIO
+
   # ----------------------------------------------------------------------------
   # Define and configure mocks
   #
@@ -23,6 +25,7 @@ defmodule Fnord.TestCase do
 
   using do
     quote do
+      import ExUnit.CaptureIO
       import Mox
 
       # ------------------------------------------------------------------------
@@ -31,6 +34,7 @@ defmodule Fnord.TestCase do
       import Fnord.TestCase,
         only: [
           tmpdir: 0,
+          capture_all: 1,
           mock_project: 1,
           mock_git_project: 1,
           mock_source_file: 3,
@@ -152,6 +156,21 @@ defmodule Fnord.TestCase do
   """
   def tmpdir() do
     Briefly.create(directory: true)
+  end
+
+  @doc """
+  Runs `fun` once and returns `{stdout, stderr}`.
+  """
+  @spec capture_all((-> any)) :: {binary, binary}
+  def capture_all(fun) do
+    capture_io(:stderr, fn ->
+      stdout = capture_io(fn -> fun.() end)
+      Process.put({__MODULE__, :stdout}, stdout)
+    end)
+    |> then(fn stderr ->
+      stdout = Process.delete({__MODULE__, :stdout})
+      {stdout, stderr}
+    end)
   end
 
   @doc """
