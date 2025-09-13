@@ -28,6 +28,8 @@ defmodule Services.BackgroundIndexer do
 
   @impl true
   def init(opts) do
+    HttpPool.set(:ai_indexer)
+
     project =
       case Keyword.get(opts, :project) do
         %Store.Project{} = prj ->
@@ -73,7 +75,10 @@ defmodule Services.BackgroundIndexer do
   end
 
   @impl true
-  def terminate(_reason, _state), do: :ok
+  def terminate(_reason, _state) do
+    HttpPool.clear()
+    :ok
+  end
 
   # Safely process a single entry: read, generate summary, outline, embeddings, and save
   defp safe_process(entry, impl, _project) do
@@ -85,13 +90,14 @@ defmodule Services.BackgroundIndexer do
         end
 
       path = entry.file
-      {:ok, summary} = impl.get_summary(path, content)
-      {:ok, outline} = impl.get_outline(path, content)
-      embed_str = [summary, outline, content] |> Enum.join("\n\n")
-      {:ok, embeddings} = impl.get_embeddings(embed_str)
-      Store.Project.Entry.save(entry, summary, outline, embeddings)
 
-      UI.end_step("Indexed", entry.file)
+      with {:ok, summary} = impl.get_summary(path, content),
+           {:ok, outline} = impl.get_outline(path, content),
+           embed_str = [summary, outline, content] |> Enum.join("\n\n"),
+           {:ok, embeddings} = impl.get_embeddings(embed_str) do
+        Store.Project.Entry.save(entry, summary, outline, embeddings)
+        UI.end_step("Indexed", entry.file)
+      end
     rescue
       _ -> :ok
     end
