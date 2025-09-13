@@ -110,6 +110,7 @@ defmodule Services.Approvals.Shell do
     "ag",
     "cat",
     "diff",
+    "echo",
     "fgrep",
     "grep",
     "head",
