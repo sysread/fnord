@@ -133,8 +133,24 @@ defmodule UI do
   def report_from(nil, msg, detail), do: info(msg, detail)
 
   def report_from(name, msg, detail) do
-    IO.ANSI.format([:cyan, "⦑ #{name} ⦒ ", :reset, msg], colorize?())
-    |> info(detail)
+    output_module().log(
+      :info,
+      IO.ANSI.format(
+        [
+          :cyan,
+          "⦑ #{name} ⦒ ",
+          :reset,
+          :green,
+          msg,
+          :reset,
+          ": ",
+          :light_black,
+          clean_detail(detail),
+          :reset
+        ],
+        colorize?()
+      )
+    )
   end
 
   def report_step(msg), do: info(msg)
@@ -146,8 +162,13 @@ defmodule UI do
   end
 
   def begin_step(msg, detail) do
-    IO.ANSI.format([:green, "➤ ", msg, :reset], colorize?())
-    |> info(detail)
+    output_module().log(
+      :info,
+      IO.ANSI.format(
+        [:green, "➤ ", msg, :reset, ": ", :cyan, clean_detail(detail), :reset],
+        colorize?()
+      )
+    )
   end
 
   def end_step(msg) do
@@ -156,8 +177,13 @@ defmodule UI do
   end
 
   def end_step(msg, detail) do
-    IO.ANSI.format([:yellow, "✓ ", msg, :reset], colorize?())
-    |> info(detail)
+    output_module().log(
+      :info,
+      IO.ANSI.format(
+        [:yellow, "✓ ", msg, :reset, ": ", :cyan, clean_detail(detail), :reset],
+        colorize?()
+      )
+    )
   end
 
   # Directly write to ensure visibility even if output is paused.
