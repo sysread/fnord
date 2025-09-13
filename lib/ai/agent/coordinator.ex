@@ -385,6 +385,13 @@ defmodule AI.Agent.Coordinator do
   Use the `notify_tool` to report your plan to the user before you begin executing it.
   Use the `notify_tool` to report your progress as you execute your plan.
   Use the `notify_tool` to inform the user how (and why) your plan changes as you discover new information or insights along the way.
+
+  Notifications (always use notify_tool):
+  - At the start: announce your plan briefly (e.g., "Plan: …").
+  - During work: report milestones, interesting findings, and tool anomalies.
+  - On blockers/uncertainty: warn and state the smallest next action.
+  - At the end: summarize outcomes and next steps.
+  - Memory memos: include a line starting with "note to self:" or "remember:" for anything that should persist; the notes agent will capture it automatically.
   """
 
   @coding """

@@ -51,6 +51,8 @@ defmodule AI.Notes do
     prompt: """
     You are a research assistant that extracts facts about the project from tool call results.
     Extract **non-transient** facts about the project from the tool call result.
+    If the tool call is a notification (notify_tool) and its message includes explicit memory memos (e.g., lines starting with "note to self:" or "remember:"), extract those memos verbatim as new facts. Treat them as high-priority, non-transient notes unless they clearly refer to ephemeral states (e.g., temporary delays, transient errors).
+    Normalize prefixes to a single dash list item.
     Transient facts are those that are not persistently relevant, such as current repo state, individual tickets or projects, PRs, or changes.
     You are concerned with the overall project architecture, design, and implementation details that are relevant to understanding the project as a whole.
     Focus on the most important details that would help someone understand the project quickly and effectively.
@@ -207,7 +209,8 @@ defmodule AI.Notes do
 
   @spec ingest_research(t, binary, binary, any) :: t
   def ingest_research(state, func, args_json, result) do
-    """
+    # Prepare input for AI and detect any memos from notify_tool
+    input = """
     The following tool call was made:
 
     **Function:** #{func}
@@ -219,16 +222,51 @@ defmodule AI.Notes do
     The result of the tool call was:
     #{inspect(result, pretty: true)}
     """
-    |> complete(@research)
+
+    extra_facts =
+      case func do
+        "notify_tool" ->
+          with {:ok, decoded} <- Jason.decode(args_json),
+               %{"message" => msg} <- decoded do
+            msg
+            |> String.split(["\n", "\r\n"], trim: true)
+            |> Enum.filter(fn line ->
+              l = String.downcase(String.trim_leading(line))
+              String.starts_with?(l, "note to self:") or String.starts_with?(l, "remember:")
+            end)
+            |> Enum.map(fn line ->
+              line
+              |> String.replace(~r/^\s*[-*]\s*/, "")
+              |> String.trim()
+            end)
+            |> Enum.map(&("- " <> &1))
+            |> Enum.join("\n")
+          else
+            _ -> nil
+          end
+
+        _ ->
+          nil
+      end
+
+    complete(input, @research)
     |> case do
       {:ok, response} ->
-        response
-        |> String.trim()
-        |> String.downcase()
-        |> case do
-          "n/a" -> state
-          facts -> %{state | new_facts: [facts | state.new_facts]}
-        end
+        # Merge AI facts and any extra_facts
+        new_state =
+          case String.downcase(String.trim(response)) do
+            "n/a" -> state
+            facts -> %{state | new_facts: [facts | state.new_facts]}
+          end
+
+        new_state =
+          case extra_facts do
+            nil -> new_state
+            "" -> new_state
+            ef -> %{new_state | new_facts: [ef | new_state.new_facts]}
+          end
+
+        new_state
 
       otherwise ->
         log_failure(otherwise, "Failed to ingest research")

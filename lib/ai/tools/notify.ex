@@ -33,6 +33,9 @@ defmodule AI.Tools.Notify do
         - "The shell command is taking longer than expected, working on it." (error)
 
         You are encouraged to speak in character. Software engineers love their geekdoms!
+        Memory memos:
+        - If your message includes a line starting with "note to self:" or "remember:", the notes agent will capture it as a high-priority, non-transient fact in the project notes.
+        - Keep memos concise and specific (one line per memo).
         """,
         parameters: %{
           type: "object",
