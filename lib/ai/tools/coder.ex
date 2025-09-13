@@ -166,7 +166,8 @@ defmodule AI.Tools.Coder do
         latest = """
         #{latest}
 
-        Note: Validation identified problems with this iteration.
+        NOTE: VALIDATION IDENTIFIED PROBLEMS WITH THIS ITERATION.
+              PLEASE ADDRESS THE ISSUES BEFORE PROCEEDING.
         """
 
         %{state | changes: [latest | prior]}

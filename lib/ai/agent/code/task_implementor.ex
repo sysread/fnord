@@ -124,11 +124,13 @@ defmodule AI.Agent.Code.TaskImplementor do
 
     # Instructions
     The Coordinating Agent has asked you to implement the above tasks.
+
+    # Handling file editing problems
+    The `file_edit_tool` creates a backup of each file it modifies in the same directory, with a `.bak` extension.
+    In case of problems, you may revert changes by replacing the file with the latest .bak file.
     """
 
-    tools =
-      AI.Tools.all_tools()
-      |> AI.Tools.with_rw_tools()
+    tools = AI.Tools.with_rw_tools()
 
     agent
     |> Common.new(@model, tools, @prompt, request)

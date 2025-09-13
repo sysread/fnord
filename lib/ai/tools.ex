@@ -190,7 +190,10 @@ defmodule AI.Tools do
 
   @rw_tools %{
     "apply_patch" => AI.Tools.ApplyPatch,
-    "file_edit_tool" => AI.Tools.File.Edit
+    "file_contents_tool" => AI.Tools.File.Contents,
+    "file_edit_tool" => AI.Tools.File.Edit,
+    "notify_tool" => AI.Tools.Notify,
+    "shell_tool" => AI.Tools.Shell
   }
 
   @coding_tools %{
@@ -219,7 +222,7 @@ defmodule AI.Tools do
   **directly** perform file edits, shell commands, and other read/write
   operations.
   """
-  def with_rw_tools(toolbox) do
+  def with_rw_tools(toolbox \\ %{}) do
     toolbox
     |> Map.merge(@rw_tools)
   end
@@ -228,7 +231,7 @@ defmodule AI.Tools do
   Adds the coding tools to the toolbox. Coding tools mutate the codebase, but
   do so in an organized, planned way, rather than directly managing files.
   """
-  def with_coding_tools(toolbox) do
+  def with_coding_tools(toolbox \\ %{}) do
     toolbox
     |> Map.merge(@coding_tools)
   end
