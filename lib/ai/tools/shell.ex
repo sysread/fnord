@@ -72,11 +72,11 @@ defmodule AI.Tools.Shell do
         Commands that require user input or interaction will fail after a timeout, resulting in a poor experience for the user.
         Individual commands may not include redirection, pipes, command substitution, or other complex shell operators.
 
-        IMPORTANT: `sed`, `awk`, `find` with `-exec`, and other tools with the
-                   potential to modify files ALL require explicit user approval
-                   on every invocation. As a rule, if you can use a built-in
-                   tool to accomplish the same thing, that is preferable, as
-                   the user may not be babysitting this process.
+
+
+
+        IMPORTANT: Tools that can modify files (e.g., `awk`, `find -exec`, `patch`) require explicit approval.
+        Safe, read-only `sed` invocations (without `-i`, `-f`, `e` or `w` ops) are auto-preapproved by built-in regex rules.
 
         IMPORTANT: This uses elixir's System.cmd/3 to execute commands. It
                    *will* `cd` into the project's source root before executing
@@ -350,26 +350,6 @@ defmodule AI.Tools.Shell do
 
       _ ->
         run_as_shell_commands(op, commands, desc, timeout_ms, root)
-    end
-  end
-
-  # ----------------------------------------------------------------------------
-  # This one is also super annoying since the file_contents_tool is already
-  # available, and sed can be used to modify files, so we don't want to
-  # auto-approve it.
-  # ----------------------------------------------------------------------------
-  defp run_as_shell_commands(_, [%{"command" => "sed", "args" => ["-n", range, file]}], _, _, _) do
-    [start_line, end_line] = Regex.run(~r/^(\d+),(\d+)p$/, range, capture: :all_but_first)
-
-    AI.Tools.File.Contents.call(%{
-      "file" => file,
-      "line_numbers" => true,
-      "start_line" => String.to_integer(start_line),
-      "end_line" => String.to_integer(end_line)
-    })
-    |> case do
-      {:ok, content} -> {:ok, content}
-      {:error, reason} -> {:ok, "Error reading file #{file}: #{reason}"}
     end
   end
 

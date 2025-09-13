@@ -58,7 +58,6 @@ defmodule Services.Approvals.Shell do
     end
   end
 
-  # ----------------------------------------------------------------------------
   # Input validation
   # ----------------------------------------------------------------------------
   defp validate_commands([]), do: :ok
@@ -84,8 +83,27 @@ defmodule Services.Approvals.Shell do
   # ----------------------------------------------------------------------------
   # Approval checks
   # ----------------------------------------------------------------------------
+  # Pre-approved regex for read-only sed commands: no -i, -f, e flag, s///e, w/W/r commands
+  # no in-place editing
+  # no script files
+  # no execute flag
+  # no s///e execute in substitution
+  # no w/W/r commands with filenames
+  # no addressed w/W/r commands
+  # no range w/W/r commands
+  @sed_readonly_pattern "^sed" <>
+                          "(?!.*\\s-i\\b)" <>
+                          "(?!.*\\s-f\\b)" <>
+                          "(?!.*\\s-e\\b)" <>
+                          "(?!.*s/[^/]*/[^/]*/[gp0-9]*e)" <>
+                          "(?!.*\\b[wWr]\\s+\\S)" <>
+                          "(?!.*\\d+[wWr]\\b)" <>
+                          "(?!.*,[wWr]\\b)" <>
+                          ".+$"
+
   @full_cmd [
-    "^find(?!.*-exec)"
+    "^find(?!.*-exec)",
+    @sed_readonly_pattern
   ]
 
   @ro_cmd [
