@@ -329,17 +329,7 @@ defmodule AI.Tools.Shell do
         cond do
           is_edit_mode? and is_apply_patch? ->
             UI.info("Oof", "The LLM attempted to apply a patch with the shell_tool. Rerouting.")
-
-            AI.Tools.ApplyPatch.call(%{
-              "patch" => """
-              The LLM actually tried to call a non-existent `apply_patch`
-              command via the `shell_tool` or attempted to call `patch` or `git
-              apply` directly. This was it's tool call, intended to be piped
-              together in the shell. Please do your best with it.
-
-              #{json}
-              """
-            })
+            AI.Tools.ApplyPatch.call(%{"patch" => json})
 
           is_apply_patch? and not is_edit_mode? ->
             {:denied, "Cannot edit files; the user did not pass --edit."}
