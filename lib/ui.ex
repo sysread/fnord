@@ -126,76 +126,41 @@ defmodule UI do
   def report_from(nil, msg), do: info(msg)
 
   def report_from(name, msg) do
-    output_module().log(
-      :info,
-      IO.ANSI.format(
-        [
-          :cyan,
-          "⦑ #{name} ⦒ ",
-          :reset,
-          :green,
-          msg,
-          :reset
-        ],
-        colorize?()
-      )
-    )
+    IO.ANSI.format([:cyan, "⦑ #{name} ⦒ ", :reset, msg], colorize?())
+    |> info()
   end
 
   def report_from(nil, msg, detail), do: info(msg, detail)
 
   def report_from(name, msg, detail) do
-    output_module().log(
-      :info,
-      IO.ANSI.format(
-        [
-          :cyan,
-          "⦑ #{name} ⦒ ",
-          :reset,
-          :green,
-          msg,
-          :reset,
-          ": ",
-          :light_black,
-          clean_detail(detail),
-          :reset
-        ],
-        colorize?()
-      )
-    )
+    IO.ANSI.format([:cyan, "⦑ #{name} ⦒ ", :reset, msg], colorize?())
+    |> info(detail)
   end
 
   def report_step(msg), do: info(msg)
   def report_step(msg, detail), do: info(msg, detail)
 
   def begin_step(msg) do
-    UI.Queue.log(UI.Queue, :info, IO.ANSI.format([:green, "➤ ", msg, :reset], colorize?()))
+    IO.ANSI.format([:green, "➤ ", msg, :reset], colorize?())
+    |> info()
   end
 
   def begin_step(msg, detail) do
-    output_module().log(
-      :info,
-      IO.ANSI.format(
-        [:green, msg, :reset, ": ", :cyan, clean_detail(detail), :reset],
-        colorize?()
-      )
-    )
+    IO.ANSI.format([:green, msg, :reset], colorize?())
+    |> info(detail)
   end
 
   def end_step(msg) do
-    UI.Queue.log(UI.Queue, :info, IO.ANSI.format([:yellow, msg, :reset], colorize?()))
+    IO.ANSI.format([:yellow, msg, :reset], colorize?())
+    |> info()
   end
 
   def end_step(msg, detail) do
-    output_module().log(
-      :info,
-      IO.ANSI.format(
-        [:yellow, msg, :reset, ": ", :cyan, clean_detail(detail), :reset],
-        colorize?()
-      )
-    )
+    IO.ANSI.format([:yellow, msg, :reset], colorize?())
+    |> info(detail)
   end
 
+  # Directly write to ensure visibility even if output is paused.
   def printf_debug(item) do
     Logger.debug(inspect(item, pretty: true))
     Logger.flush()
@@ -218,7 +183,7 @@ defmodule UI do
   end
 
   def info(msg) do
-    UI.Queue.log(UI.Queue, :info, IO.ANSI.format([:green, msg, :reset], colorize?()))
+    output_module().log(:info, IO.ANSI.format([:green, msg, :reset], colorize?()))
   end
 
   def info(msg, detail) do
@@ -256,6 +221,7 @@ defmodule UI do
     )
   end
 
+  # Directly write to ensure visibility even if output is paused.
   @spec fatal(binary) :: no_return()
   def fatal(msg) do
     Logger.error(IO.ANSI.format([:red, msg, :reset], colorize?()))
@@ -263,6 +229,7 @@ defmodule UI do
     System.halt(1)
   end
 
+  # Directly write to ensure visibility even if output is paused.
   @spec fatal(binary, binary) :: no_return()
   def fatal(msg, detail) do
     Logger.error(
@@ -273,9 +240,9 @@ defmodule UI do
     System.halt(1)
   end
 
+  # Directly write to stderr to ensure visibility even if output is paused.
   @spec warning_banner(binary) :: :ok
   def warning_banner(msg) do
-    # Directly write to stderr to ensure visibility even if output is paused.
     IO.puts(
       :stderr,
       IO.ANSI.format(
