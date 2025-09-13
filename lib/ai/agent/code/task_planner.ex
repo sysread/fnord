@@ -1,4 +1,4 @@
-defmodule AI.Agent.Code.Planner do
+defmodule AI.Agent.Code.TaskPlanner do
   alias AI.Agent.Code.Common
 
   @type t :: Common.t()

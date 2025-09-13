@@ -112,7 +112,7 @@ defmodule AI.Tools.Coder do
   end
 
   defp plan(state) do
-    AI.Agent.Code.Planner
+    AI.Agent.Code.TaskPlanner
     |> AI.Agent.new()
     |> AI.Agent.get_response(%{
       request: state.requirements
