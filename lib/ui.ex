@@ -146,17 +146,17 @@ defmodule UI do
   end
 
   def begin_step(msg, detail) do
-    IO.ANSI.format([:green, msg, :reset], colorize?())
+    IO.ANSI.format([:green, "➤ ", msg, :reset], colorize?())
     |> info(detail)
   end
 
   def end_step(msg) do
-    IO.ANSI.format([:yellow, msg, :reset], colorize?())
+    IO.ANSI.format([:yellow, "✓ ", msg, :reset], colorize?())
     |> info()
   end
 
   def end_step(msg, detail) do
-    IO.ANSI.format([:yellow, msg, :reset], colorize?())
+    IO.ANSI.format([:yellow, "✓ ", msg, :reset], colorize?())
     |> info(detail)
   end
 
