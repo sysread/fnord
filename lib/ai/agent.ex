@@ -63,7 +63,11 @@ defmodule AI.Agent do
   """
   @spec get_response(t, map) :: {:ok, any} | {:error, any}
   def get_response(agent, args) do
+    parent_pool = HttpPool.get()
+
     Task.async(fn ->
+      HttpPool.set(parent_pool)
+
       agent =
         cond do
           agent.named? && is_binary(agent.name) ->

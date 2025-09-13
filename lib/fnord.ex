@@ -32,6 +32,14 @@ defmodule Fnord do
         max_connections: Application.get_env(:fnord, :workers, Cmd.default_workers())
       )
 
+      # Start dedicated pool for background indexer (half workers, at least 1)
+      indexer_size =
+        Application.get_env(:fnord, :workers, Cmd.default_workers())
+        |> div(2)
+        |> max(1)
+
+      :hackney_pool.start_pool(:ai_indexer, max_connections: indexer_size)
+
       # Start services that depend on CLI configuration now that it's available.
       # These services depend on settings parsed from CLI arguments in set_globals().
       Services.start_config_dependent_services()

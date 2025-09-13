@@ -40,7 +40,7 @@ defmodule Http do
   defp do_post_json(url, headers, body, attempt) when attempt <= @max_retries do
     options = [
       recv_timeout: @recv_timeout,
-      hackney_options: [pool: :ai_api]
+      hackney_options: [pool: HttpPool.get()]
     ]
 
     HTTPoison.post(url, body, headers, options)
@@ -91,7 +91,7 @@ defmodule Http do
     # but keep it for completeness. Perform one last attempt without retry.
     options = [
       recv_timeout: @recv_timeout,
-      hackney_options: [pool: :ai_api]
+      hackney_options: [pool: HttpPool.get()]
     ]
 
     HTTPoison.post(url, body, headers, options)
