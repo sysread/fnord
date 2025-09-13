@@ -508,4 +508,55 @@ defmodule Settings do
       _ -> true
     end
   end
+
+  # ----------------------------------------------------------------------------
+  # Concurrency-safe update helpers
+  # ----------------------------------------------------------------------------
+  defp with_settings_lock(path, fun) when is_function(fun, 0) do
+    resource = {:fnord_settings_lock, Path.expand(path)}
+    requester = self()
+    id = {resource, requester}
+
+    try do
+      true = :global.set_lock(id, [node()])
+      fun.()
+    after
+      true = :global.del_lock(id, [node()])
+    end
+  end
+
+  # Read the latest JSON from disk ignoring the cached struct data.
+  defp fresh_read(path) do
+    case File.read(path) do
+      {:ok, content} ->
+        case Jason.decode(content) do
+          {:ok, parsed} -> parsed
+          _ -> %{}
+        end
+
+      _ ->
+        %{}
+    end
+  end
+
+  @doc """
+  Atomically update a top-level key in the settings file using a
+  cross-process lock and a read-merge-write cycle.
+
+  The updater receives the current value for `key` (or `default` when missing)
+  and must return the new value.
+  """
+  @spec update(t, binary, (any -> any), any) :: t
+  def update(%Settings{path: path} = _settings, key, updater, default \\ %{})
+      when is_function(updater, 1) do
+    with_settings_lock(path, fn ->
+      data = fresh_read(path)
+      cur = Map.get(data, make_key(key), default)
+      new_val = updater.(cur)
+      new_data = Map.put(data, make_key(key), new_val)
+      json = Jason.encode!(new_data, pretty: true)
+      write_atomic!(path, json)
+      %Settings{path: path, data: new_data}
+    end)
+  end
 end
