@@ -75,4 +75,68 @@ defmodule UI.UITest do
       refute UI.iodata?(improper)
     end
   end
+
+  describe "UI facade delegates to UI.Output via Mox" do
+    setup :set_mox_from_context
+
+    test "UI.say/1 flushes and calls puts/1 on the configured UI output" do
+      expect(UI.Output.Mock, :puts, fn msg ->
+        assert is_binary(msg)
+        :ok
+      end)
+
+      # Stub flush to avoid unexpected calls
+      stub(UI.Output.Mock, :flush, fn -> :ok end)
+
+      UI.say("Hello")
+    end
+
+    test "UI.info/1 logs via UI.Output.log/2" do
+      expect(UI.Output.Mock, :log, fn level, _msg ->
+        assert level in [:info]
+        :ok
+      end)
+
+      UI.info("hi")
+    end
+
+    test "UI.confirm/2 delegates to UI.Output.confirm/2" do
+      expect(UI.Output.Mock, :confirm, fn msg, default ->
+        assert msg == "Sure?"
+        assert default == true
+        true
+      end)
+
+      assert UI.confirm("Sure?", true) == true
+    end
+
+    test "UI.choose/2 returns {:error, :no_tty} when not a TTY or when quiet" do
+      Settings.set_quiet(true)
+      assert UI.choose("Pick", [1, 2]) == {:error, :no_tty}
+    end
+
+    test "UI.prompt/1 returns {:error, :no_tty} when not a TTY or when quiet" do
+      Settings.set_quiet(true)
+      assert UI.prompt("Your name?") == {:error, :no_tty}
+    end
+
+    test "UI.newline/0 delegates to UI.Output.newline/0 when not quiet" do
+      Settings.set_quiet(false)
+      expect(UI.Output.Mock, :newline, fn -> :ok end)
+      UI.newline()
+    end
+
+    test "UI.box/2 delegates to UI.Output.box/2 and newline/0 when not quiet" do
+      Settings.set_quiet(false)
+      expect(UI.Output.Mock, :newline, fn -> :ok end)
+
+      expect(UI.Output.Mock, :box, fn contents, opts ->
+        assert contents == "hello"
+        assert opts == [title: "T"]
+        :ok
+      end)
+
+      UI.box("hello", title: "T")
+    end
+  end
 end

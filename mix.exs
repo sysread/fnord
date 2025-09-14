@@ -11,7 +11,13 @@ defmodule Fnord.MixProject do
       package: package(),
       deps: deps(),
       escript: escript(),
-      docs: docs()
+      docs: docs(),
+      test_coverage: [tool: ExCoveralls],
+      preferred_cli_env: [
+        coveralls: :test,
+        "coveralls.html": :test,
+        "coveralls.json": :test
+      ]
     ]
   end
 
@@ -54,6 +60,7 @@ defmodule Fnord.MixProject do
       {:clipboard, "~> 0.2.1"},
       {:dialyxir, "~> 1.4.5", only: [:dev], runtime: false},
       {:ex_doc, ">= 0.0.0", only: [:dev], runtime: false},
+      {:excoveralls, "~> 0.18.5", only: [:test], runtime: false},
       {:hermes_mcp, "~> 0.14"},
       {:httpoison, "~> 2.2.1"},
       {:jason, "~> 1.4"},

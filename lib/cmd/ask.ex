@@ -1,4 +1,3 @@
-
 defmodule Cmd.Ask do
   @default_rounds 1
 
@@ -291,8 +290,7 @@ defmodule Cmd.Ask do
 
               To operate from this worktree, re-run with:
                 fnord ask --edit --worktree #{wt_root} …
-              """
-              )
+              """)
             end
           end
         end
@@ -303,13 +301,14 @@ defmodule Cmd.Ask do
         :ok
     end
   end
+
   # 3) all other cases: no change
   defp set_worktree(_), do: :ok
 
   # -----------------------------------------------------------------------------
   # Auto-approval policy
   # -----------------------------------------------------------------------------
-  
+
   def set_auto_policy(%{auto_approve_after: seconds}) when is_integer(seconds) do
     Settings.set_auto_policy({:approve, seconds * 1_000})
   end

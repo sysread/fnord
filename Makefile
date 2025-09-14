@@ -21,6 +21,11 @@ test: ## Run tests
 	mix test
 	@echo
 
+.PHONY: cover
+cover: ## Run tests with coverage
+	mix coveralls
+	@echo
+
 .PHONY: dialyzer
 dialyzer: ## Run Dialyzer
 	MIX_ENV=dev mix dialyzer

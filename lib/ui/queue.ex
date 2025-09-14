@@ -58,16 +58,20 @@ defmodule UI.Queue do
 
   # Normal output (fast-path if in interaction context)
   def puts(server \\ __MODULE__, io_device \\ :stdio, data, timeout \\ :infinity) do
-    if in_ctx?(server),
-      do: exec({:puts, io_device, data}),
-      else: GenServer.call(server, {:puts, io_device, data}, timeout)
+    if in_ctx?(server) do
+      exec({:puts, io_device, data})
+    else
+      GenServer.call(server, {:puts, io_device, data}, timeout)
+    end
   end
 
   # Logger proxy (fast-path if in interaction context)
   def log(server \\ __MODULE__, level, chardata, md \\ [], timeout \\ :infinity) do
-    if in_ctx?(server),
-      do: exec({:log, level, chardata, md}),
-      else: GenServer.call(server, {:log, level, chardata, md}, timeout)
+    if in_ctx?(server) do
+      exec({:log, level, chardata, md})
+    else
+      GenServer.call(server, {:log, level, chardata, md}, timeout)
+    end
   end
 
   # Interactive (priority). If already in context, run inline.

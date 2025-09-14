@@ -59,6 +59,26 @@ defmodule Fnord.TestCase do
       end
 
       setup do
+        # Silence git's default-branch advice during tests and prefer 'main'
+        # These environment variables affect git subprocesses spawned by System.cmd/3
+        System.put_env("GIT_CONFIG_COUNT", "2")
+        System.put_env("GIT_CONFIG_KEY_0", "advice.defaultBranchName")
+        System.put_env("GIT_CONFIG_VALUE_0", "false")
+        System.put_env("GIT_CONFIG_KEY_1", "init.defaultBranch")
+        System.put_env("GIT_CONFIG_VALUE_1", "main")
+
+        on_exit(fn ->
+          System.delete_env("GIT_CONFIG_COUNT")
+          System.delete_env("GIT_CONFIG_KEY_0")
+          System.delete_env("GIT_CONFIG_VALUE_0")
+          System.delete_env("GIT_CONFIG_KEY_1")
+          System.delete_env("GIT_CONFIG_VALUE_1")
+        end)
+
+        :ok
+      end
+
+      setup do
         # Globally override interactive mode, so that code called by tests does
         # not attempt to read from stdin.
         Settings.set_quiet(true)

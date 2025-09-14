@@ -2,8 +2,10 @@ defmodule Cmd.AskTest do
   use Fnord.TestCase, async: true
 
   setup do
-    # Ensure no prior auto_policy
     Application.delete_env(:fnord, :auto_policy)
+    # Ensure settings directory exists without deleting it to avoid races
+    settings_dir = Path.dirname(Settings.settings_file())
+    File.mkdir_p!(settings_dir)
     :ok
   end
 
