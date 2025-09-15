@@ -133,9 +133,11 @@ defmodule Services.Approvals.Shell do
 
     # git subcommands
     "git branch",
+    "git describe",
     "git diff",
     "git grep",
     "git log",
+    "git ls-files",
     "git merge-base",
     "git rev-list",
     "git rev-parse",
