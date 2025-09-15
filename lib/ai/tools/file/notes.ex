@@ -58,22 +58,40 @@ defmodule AI.Tools.File.Notes do
   @impl AI.Tools
   def call(args) do
     with {:ok, file} <- Map.fetch(args, "file"),
-         {:ok, entry} <- AI.Tools.get_entry(file),
-         {:ok, summary} <- Store.Project.Entry.read_summary(entry),
-         {:ok, outline} <- Store.Project.Entry.read_outline(entry) do
-      {:ok, format_notes(summary, outline)}
+         {:ok, project} <- Store.get_project() do
+      with {:ok, entry} <- AI.Tools.get_entry(file),
+           {:ok, summary} <- Store.Project.Entry.read_summary(entry),
+           {:ok, outline} <- Store.Project.Entry.read_outline(entry) do
+        {:ok, format_notes(summary, outline)}
+      else
+        {:error, :project_not_found} ->
+          {:error, "This project has not yet been indexed by the user."}
+
+        {:error, :enoent} ->
+          case Util.find_file_within_root(file, project.source_root) do
+            {:ok, _} ->
+              {:error,
+               """
+               The file you requested exists but has not yet been indexed by fnord.
+               As a result, there are no notes available for this file.
+               Use the `file_reindex_tool` to index this file if you would like to generate notes for it.
+               Alternatively, you can use the `file_info_tool` to retrieve specialized information about this file directly.
+               """}
+
+            _ ->
+              {:error,
+               """
+               File path not found.
+               Please verify the correct path.
+               """}
+          end
+
+        {:error, reason} ->
+          {:error, "Unable to load notes: #{inspect(reason)}"}
+      end
     else
       :error ->
         {:error, "Missing required parameter: file."}
-
-      {:error, :project_not_found} ->
-        {:error, "This project has not yet been indexed by the user."}
-
-      {:error, :enoent} ->
-        {:error, "File path not found. Please verify the correct path."}
-
-      {:error, reason} ->
-        {:error, "Unable to load notes: #{inspect(reason)}"}
     end
   end
 
