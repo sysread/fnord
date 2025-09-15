@@ -111,6 +111,8 @@ defmodule Services.Approvals.Shell do
   @ro_cmd [
     "ag",
     "cat",
+    "col",
+    "cut",
     "diff",
     "echo",
     "fgrep",
@@ -121,10 +123,12 @@ defmodule Services.Approvals.Shell do
     "nl",
     "pwd",
     "rg",
+    "sort",
     "tac",
     "tail",
     "tr",
     "tree",
+    "uniq",
     "wc",
 
     # git subcommands
