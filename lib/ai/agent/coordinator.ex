@@ -193,6 +193,7 @@ defmodule AI.Agent.Coordinator do
     |> singleton_msg()
     |> user_msg()
     |> get_notes()
+    |> research_tasklist_msg()
     |> followup_msg()
     |> get_intuition()
     |> start_interrupt_listener()
@@ -210,6 +211,7 @@ defmodule AI.Agent.Coordinator do
     |> singleton_msg()
     |> user_msg()
     |> get_notes()
+    |> research_tasklist_msg()
     |> begin_msg()
     |> get_intuition()
     |> start_interrupt_listener()
@@ -227,6 +229,7 @@ defmodule AI.Agent.Coordinator do
     |> initial_msg()
     |> user_msg()
     |> get_notes()
+    |> research_tasklist_msg()
     |> begin_msg()
     |> get_intuition()
     |> get_completion(replay)
@@ -239,6 +242,7 @@ defmodule AI.Agent.Coordinator do
 
     state
     |> Map.put(:steps, steps)
+    |> research_tasklist_msg()
     |> reminder_msg()
     |> clarify_msg()
     |> get_intuition()
@@ -252,6 +256,7 @@ defmodule AI.Agent.Coordinator do
 
     state
     |> Map.put(:steps, steps)
+    |> research_tasklist_msg()
     |> reminder_msg()
     |> refine_msg()
     |> get_intuition()
@@ -265,6 +270,7 @@ defmodule AI.Agent.Coordinator do
 
     state
     |> Map.put(:steps, steps)
+    |> research_tasklist_msg()
     |> reminder_msg()
     |> continue_msg()
     |> get_intuition()
@@ -278,7 +284,9 @@ defmodule AI.Agent.Coordinator do
 
     state
     |> Map.put(:steps, steps)
+    |> research_tasklist_msg()
     |> reminder_msg()
+    |> coding_milestone_msg()
     |> execute_coding_phase()
     |> get_intuition()
     |> get_completion()
@@ -291,6 +299,7 @@ defmodule AI.Agent.Coordinator do
 
     state
     |> Map.put(:steps, [])
+    |> penultimate_tasks_check_msg()
     |> reminder_msg()
     |> finalize_msg()
     |> template_msg()
@@ -979,11 +988,67 @@ defmodule AI.Agent.Coordinator do
   @spec get_tools(t) :: AI.Tools.toolbox()
   defp get_tools(%{edit?: true}) do
     AI.Tools.all_tools()
+    |> AI.Tools.with_task_tools()
     |> AI.Tools.with_rw_tools()
     |> AI.Tools.with_coding_tools()
   end
 
-  defp get_tools(_), do: AI.Tools.all_tools()
+  defp get_tools(_) do
+    AI.Tools.all_tools()
+    |> AI.Tools.with_task_tools()
+  end
+
+  # -----------------------------------------------------------------------------
+  # Coordinator Tasking Guidance
+  # -----------------------------------------------------------------------------
+  @spec research_tasklist_msg(t) :: t
+  defp research_tasklist_msg(state) do
+    """
+    COORDINATOR: Use your Coordinator task list to manage ALL research lines of inquiry.
+
+    - For every new line of inquiry, create a task (short label + detailed description).
+      Include rationale, next actions, and expected signals (files/components/behaviors).
+    - When you conclude or drop a line, resolve its task with a clear outcome.
+    - Before moving to the next step, call `tasks_show_list` to review open tasks and add follow-ups if needed.
+    - Do NOT rely on ad-hoc text; track lines of inquiry explicitly in the Coordinator task list.
+    """
+    |> AI.Util.system_msg()
+    |> Services.Conversation.append_msg(state.conversation)
+
+    state
+  end
+
+  @spec coding_milestone_msg(t) :: t
+  defp coding_milestone_msg(state) do
+    """
+    COORDINATOR: Maintain milestone oversight during coding.
+
+    - Treat the coder tool's iterative goals as sub-steps toward Coordinator milestones.
+    - At each coding iteration:
+      - Review your Coordinator task list for milestone tasks; update/add as needed.
+      - Ensure current work aligns with milestones; if not, record follow-ups and adjust plan.
+    - Use `tasks_show_list` to render current status before each iteration.
+    """
+    |> AI.Util.system_msg()
+    |> Services.Conversation.append_msg(state.conversation)
+
+    state
+  end
+
+  @spec penultimate_tasks_check_msg(t) :: t
+  defp penultimate_tasks_check_msg(state) do
+    """
+    COORDINATOR: PENULTIMATE CHECKPOINT — resolve all Coordinator tasks before final output.
+
+    - Call `tasks_show_list` and read it carefully.
+    - If any tasks remain open, either resolve them immediately or convert them into concrete follow-ups (label + detailed description + rationale).
+    - Do not produce the final response until tasks are resolved OR explicitly carried forward with clear follow-ups.
+    """
+    |> AI.Util.system_msg()
+    |> Services.Conversation.append_msg(state.conversation)
+
+    state
+  end
 
   # -----------------------------------------------------------------------------
   # Testing response
@@ -1034,6 +1099,7 @@ defmodule AI.Agent.Coordinator do
     # Enable all tools for testing.
     tools =
       AI.Tools.all_tools()
+      |> AI.Tools.with_task_tools()
       |> AI.Tools.with_coding_tools()
       |> AI.Tools.with_rw_tools()
 

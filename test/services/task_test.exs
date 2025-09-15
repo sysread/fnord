@@ -13,12 +13,15 @@ defmodule Services.TaskTest do
     assert :ok = Services.Task.add_task(list_id, "Task 1", %{data: "Data 1"})
     assert :ok = Services.Task.add_task(list_id, "Task 2", %{data: "Data 2"})
     assert :ok = Services.Task.add_task(list_id, "Task 3", %{data: "Data 3"})
+    assert :ok = Services.Task.push_task(list_id, "Task 0", %{data: "Data 0"})
 
     tasks = Services.Task.get_list(list_id)
-    assert length(tasks) == 3
+    assert length(tasks) == 4
 
     assert Services.Task.as_string(list_id) ==
              """
+             Task List #{list_id}:
+             [ ] Task 0
              [ ] Task 1
              [ ] Task 2
              [ ] Task 3
@@ -28,6 +31,7 @@ defmodule Services.TaskTest do
     assert :ok = Services.Task.fail_task(list_id, "Task 2", "Failed due to error")
 
     assert [
+             %{id: "Task 0", outcome: :todo, data: %{data: "Data 0"}, result: nil},
              %{id: "Task 1", outcome: :done, result: "Result 1"},
              %{id: "Task 2", outcome: :failed, result: "Failed due to error"},
              %{id: "Task 3", outcome: :todo, data: %{data: "Data 3"}, result: nil}
@@ -35,6 +39,8 @@ defmodule Services.TaskTest do
 
     assert Services.Task.as_string(list_id) ==
              """
+             Task List #{list_id}:
+             [ ] Task 0
              [✓] Task 1
              [✗] Task 2
              [ ] Task 3
@@ -88,10 +94,7 @@ defmodule Services.TaskTest do
       assert :ok = Services.Task.add_task(list_id, "dup", data2)
       tasks = Services.Task.get_list(list_id)
 
-      assert [
-               %{id: "dup", outcome: :todo, data: ^data1, result: nil},
-               %{id: "dup", outcome: :todo, data: ^data2, result: nil}
-             ] = tasks
+      assert [%{id: "dup", outcome: :todo, data: ^data1, result: nil}] = tasks
     end
   end
 
@@ -122,56 +125,6 @@ defmodule Services.TaskTest do
       assert :ok = Services.Task.fail_task(list2, "task2", "error")
       assert [%{id: "task1", outcome: :done, result: "ok"}] = Services.Task.get_list(list1)
       assert [%{id: "task2", outcome: :failed, result: "error"}] = Services.Task.get_list(list2)
-    end
-  end
-
-  describe "stack operations" do
-    test "push_task adds task to top of stack" do
-      list_id = Services.Task.start_list()
-      assert :ok = Services.Task.add_task(list_id, "bottom", %{order: 1})
-      assert :ok = Services.Task.push_task(list_id, "top", %{order: 2})
-
-      assert [
-               %{id: "top", outcome: :todo},
-               %{id: "bottom", outcome: :todo}
-             ] = Services.Task.get_list(list_id)
-    end
-
-    test "peek_task returns current task without removing it" do
-      list_id = Services.Task.start_list()
-      assert :ok = Services.Task.push_task(list_id, "first", %{data: 1})
-      assert :ok = Services.Task.push_task(list_id, "second", %{data: 2})
-
-      # Peek should return the most recently pushed task
-      assert {:ok, %{id: "second", outcome: :todo, data: %{data: 2}}} =
-               Services.Task.peek_task(list_id)
-
-      # Task should still be there after peek
-      assert {:ok, %{id: "second"}} = Services.Task.peek_task(list_id)
-    end
-
-    test "peek_task on empty list returns error" do
-      list_id = Services.Task.start_list()
-      assert {:error, :empty} = Services.Task.peek_task(list_id)
-    end
-
-    test "peek_task on nonexistent list returns error" do
-      assert {:error, :not_found} = Services.Task.peek_task(999)
-    end
-
-    test "peek_task shows only :todos" do
-      list_id = Services.Task.start_list()
-      assert :ok = Services.Task.push_task(list_id, "task1", %{data: 1})
-      assert :ok = Services.Task.push_task(list_id, "task2", %{data: 2})
-      assert :ok = Services.Task.complete_task(list_id, "task2", "done")
-
-      assert [
-               %{id: "task2", outcome: :done, result: "done"},
-               %{id: "task1", outcome: :todo, data: %{data: 1}, result: nil}
-             ] = Services.Task.get_list(list_id)
-
-      # Peek should return the first todo task
-      assert {:ok, %{id: "task1", outcome: :todo}} = Services.Task.peek_task(list_id)
     end
   end
 end

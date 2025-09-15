@@ -200,6 +200,14 @@ defmodule AI.Tools do
     "coder_tool" => AI.Tools.Coder
   }
 
+  @task_tools %{
+    "tasks_create_list" => AI.Tools.Tasks.CreateList,
+    "tasks_add_task" => AI.Tools.Tasks.AddTask,
+    "tasks_push_task" => AI.Tools.Tasks.PushTask,
+    "tasks_resolve_task" => AI.Tools.Tasks.ResolveTask,
+    "tasks_show_list" => AI.Tools.Tasks.ShowList
+  }
+
   # ----------------------------------------------------------------------------
   # API Functions
   # ----------------------------------------------------------------------------
@@ -218,10 +226,21 @@ defmodule AI.Tools do
   end
 
   @doc """
+  Adds the task management tools to the toolbox. This includes tools that can
+  create and manage task lists.
+  """
+  @spec with_task_tools(toolbox :: toolbox) :: toolbox
+  def with_task_tools(toolbox \\ %{}) do
+    toolbox
+    |> Map.merge(@task_tools)
+  end
+
+  @doc """
   Adds the read/write tools to the toolbox. This includes tools that can
   **directly** perform file edits, shell commands, and other read/write
   operations.
   """
+  @spec with_rw_tools(toolbox :: toolbox) :: toolbox
   def with_rw_tools(toolbox \\ %{}) do
     toolbox
     |> Map.merge(@rw_tools)
@@ -231,6 +250,7 @@ defmodule AI.Tools do
   Adds the coding tools to the toolbox. Coding tools mutate the codebase, but
   do so in an organized, planned way, rather than directly managing files.
   """
+  @spec with_coding_tools(toolbox :: toolbox) :: toolbox
   def with_coding_tools(toolbox \\ %{}) do
     toolbox
     |> Map.merge(@coding_tools)
