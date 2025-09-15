@@ -305,14 +305,16 @@ defmodule AI.Agent.Coordinator do
     |> perform_step()
   end
 
-  defp perform_step(%{steps: [:tasks_remaining]} = state) do
+  defp perform_step(%{steps: [:tasks_remaining | steps]} = state) do
     UI.begin_step("Working on completing remaining tasks")
 
     state
+    |> Map.put(:steps, steps)
     |> penultimate_tasks_check_msg()
     |> task_list_msg()
     |> get_completion()
     |> save_notes()
+    |> perform_step()
   end
 
   defp perform_step(%{steps: [:finalize], list_id: list_id} = state) do
