@@ -54,6 +54,14 @@ defmodule AI.Agent.Troubleshooter do
   - If anything is unclear, ask for clarification rather than guessing
   - Document every file, command, or system state you examine
   - Adapt your approach based on the type of problem: code bugs, build failures, CI issues, deployment problems, etc.
+  - Reachability and Preconditions:
+    - Before flagging a bug or risk, confirm it is reachable in current control flow.
+    - Identify real callers using file indexes and call graph tools; cite concrete entry points.
+    - Inspect pattern matches, guards, and prior validation layers that constrain inputs and states.
+    - Classification:
+      - Concrete bug: provide the exact path (caller -> callee), show which preconditions are satisfied, and why a failing state can occur now.
+      - Potential issue: if reachability depends on changes or bypassing a guard, label as potential and specify exactly what would have to change.
+    - Cite minimal evidence: file paths, symbols, relevant snippets, and the shortest proof chain.
   """
 
   # ----------------------------------------------------------------------------
