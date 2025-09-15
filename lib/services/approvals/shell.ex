@@ -293,51 +293,73 @@ defmodule Services.Approvals.Shell do
   end
 
   defp choose_scope(state, prefix) do
-    scope = UI.choose("Choose approval scope for: #{prefix}", [@session, @project, @global])
+    {kind, pattern} = custom_pattern(state, prefix)
 
-    input =
-      UI.prompt(
+    scope =
+      UI.choose(
         """
-        You may optionally select your own approval prefix, making it broader or more specific.
-
-        Wrap your input in slashes (/) to treat it as a regular expression.
-        Regular expressions are matched against the entire command string, including arguments.
-        There is NO implicit anchoring, so include ^ and $ as needed.
-
-        Enter a manual prefix or leave blank to approve '#{prefix}':
+        Choose approval scope for:
+            #{pattern}
         """,
-        optional: true
+        [@session, @project, @global]
       )
-      |> case do
-        {:error, :no_tty} -> ""
-        nil -> ""
-        str -> String.trim(str)
-      end
 
-    cond do
-      input == "" ->
-        approve_scope(scope, state, prefix)
+    case kind do
+      :prefix -> approve_scope(scope, state, pattern)
+      :full -> approve_regex_scope(scope, state, pattern, prefix)
+    end
+  end
 
-      String.starts_with?(input, "/") and String.ends_with?(input, "/") ->
-        inner = String.slice(input, 1..-2//1)
+  defp custom_pattern(state, prefix) do
+    UI.prompt(
+      """
+      You may optionally select your own approval prefix, making it broader or more specific.
 
-        if inner == "" do
-          UI.error("Empty regex is not allowed")
-          approve_scope(scope, state, prefix)
-        else
-          case Regex.compile(inner, "u") do
-            {:ok, _} ->
-              approve_regex_scope(scope, state, inner, prefix)
+      Wrap your input in slashes (/) to treat it as a regular expression.
+      Regular expressions are matched against the entire command string, including arguments.
+      There is NO implicit anchoring, so include ^ and $ as needed.
 
-            {:error, {msg, _pos}} ->
-              UI.error("Invalid regex: #{to_string(msg)}")
-              approve_scope(scope, state, prefix)
+      Options:
+      1. Customize the prefix (e.g. `docker image` to `docker image ls` or `docker` to change the specificity)
+      2. Enter a regular expression (e.g. `/^find(?!.*-exec).+$/` to allow find without -exec)
+      3. *Leave blank* to approve the default prefix as shown.
+
+      CURRENT PREFIX: #{prefix}
+      """,
+      optional: true
+    )
+    |> case do
+      {:error, :no_tty} ->
+        {:prefix, prefix}
+
+      nil ->
+        {:prefix, prefix}
+
+      "" ->
+        {:prefix, prefix}
+
+      str ->
+        str = String.trim(str)
+
+        if String.starts_with?(str, "/") and String.ends_with?(str, "/") do
+          re = String.slice(str, 1..-2//1)
+
+          if re == "" do
+            UI.error("Empty regex is not allowed")
+            custom_pattern(state, prefix)
+          else
+            case Regex.compile(re, "u") do
+              {:ok, _} ->
+                {:full, re}
+
+              {:error, {msg, _pos}} ->
+                UI.error("Invalid regex: #{to_string(msg)}")
+                custom_pattern(state, prefix)
+            end
           end
+        else
+          {:prefix, str}
         end
-
-      true ->
-        # Not slash-delimited, treat as approving the custom prefix
-        approve_scope(scope, state, input)
     end
   end
 

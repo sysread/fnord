@@ -57,7 +57,15 @@ defmodule Settings.Approvals do
 
         Map.put(approvals, kind, updated)
 
-      _other ->
+      other ->
+        UI.warn(
+          "Settings.Approvals",
+          """
+          FOUND CORRUPTED GLOBAL APPROVALS:
+          #{inspect(other, limit: :infinity, pretty: true)}
+          """
+        )
+
         %{
           kind => [prefix]
         }

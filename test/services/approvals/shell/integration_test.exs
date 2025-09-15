@@ -273,7 +273,8 @@ defmodule Services.Approvals.Shell.IntegrationTest do
         SettingsApprovals.approve(settings, :project, "shell_full", "^npm (install|test)")
 
       # Capture baseline state to verify it's preserved
-      initial_global_prefix = SettingsApprovals.get_approvals(initial_settings, :global, "shell")
+      initial_global_prefix =
+        SettingsApprovals.get_approvals(initial_settings, :global, "shell")
 
       initial_global_regex =
         SettingsApprovals.get_approvals(initial_settings, :global, "shell_full")
@@ -290,7 +291,7 @@ defmodule Services.Approvals.Shell.IntegrationTest do
       # Set up Mox expectations for UI interactions
       expect(UI.Output.Mock, :choose, 2, fn
         "Approve this request?", _opts -> "Approve persistently"
-        "Choose approval scope for: yarn build", _opts -> "Approve globally"
+        "Choose approval scope for:\n    yarn build\n", _opts -> "Approve globally"
       end)
 
       expect(UI.Output.Mock, :prompt, fn _msg, _opts -> "" end)
@@ -332,24 +333,23 @@ defmodule Services.Approvals.Shell.IntegrationTest do
     test "new project approval integrates with existing global approvals" do
       # Given: Pre-existing approvals at BOTH global and project levels to test settings integrity
       settings = Settings.new()
-      settings = SettingsApprovals.approve(settings, :global, "shell", "python -m pytest")
+      settings = SettingsApprovals.approve(settings, :global, "shell", "poetry run")
       settings = SettingsApprovals.approve(settings, :global, "shell_full", "^curl.*https")
       settings = SettingsApprovals.approve(settings, :project, "shell", "make build")
-
-      initial_settings =
-        SettingsApprovals.approve(settings, :project, "shell_full", "^docker (ps|images)")
+      settings = SettingsApprovals.approve(settings, :project, "shell_full", "^docker ps")
 
       # Capture baseline state to verify it's preserved
-      initial_global_prefix = SettingsApprovals.get_approvals(initial_settings, :global, "shell")
+      initial_global_prefix =
+        SettingsApprovals.get_approvals(settings, :global, "shell")
 
       initial_global_regex =
-        SettingsApprovals.get_approvals(initial_settings, :global, "shell_full")
+        SettingsApprovals.get_approvals(settings, :global, "shell_full")
 
       initial_project_prefix =
-        SettingsApprovals.get_approvals(initial_settings, :project, "shell")
+        SettingsApprovals.get_approvals(settings, :project, "shell")
 
       initial_project_regex =
-        SettingsApprovals.get_approvals(initial_settings, :project, "shell_full")
+        SettingsApprovals.get_approvals(settings, :project, "shell_full")
 
       # When: New command, user chooses project scope
       cmd = %{"command" => "python", "args" => ["-m", "black", "."]}
@@ -357,7 +357,7 @@ defmodule Services.Approvals.Shell.IntegrationTest do
       # Set up Mox expectations for UI interactions
       expect(UI.Output.Mock, :choose, 2, fn
         "Approve this request?", _opts -> "Approve persistently"
-        "Choose approval scope for: python", _opts -> "Approve for the project"
+        "Choose approval scope for:\n    python\n", _opts -> "Approve for the project"
       end)
 
       expect(UI.Output.Mock, :prompt, fn _msg, _opts -> "" end)
@@ -387,7 +387,7 @@ defmodule Services.Approvals.Shell.IntegrationTest do
              "Original project regex approvals were lost: #{inspect(initial_project_regex)} vs #{inspect(final_project_regex)}"
 
       # AND: New approval should appear in project scope
-      assert "python" in final_project_prefix, "New project approval was not added"
+      assert "python" in final_project_prefix, "New global approval added"
 
       # AND: Counts should increase by exactly 1 for project prefix
       assert length(final_global_prefix) == length(initial_global_prefix)
@@ -424,7 +424,7 @@ defmodule Services.Approvals.Shell.IntegrationTest do
       # Set up Mox expectations for UI interactions
       expect(UI.Output.Mock, :choose, 2, fn
         "Approve this request?", _opts -> "Approve persistently"
-        "Choose approval scope for: cargo clippy", _opts -> "Approve for this session"
+        "Choose approval scope for:\n    cargo clippy\n", _opts -> "Approve for this session"
       end)
 
       expect(UI.Output.Mock, :prompt, fn _msg, _opts -> "" end)
@@ -630,8 +630,8 @@ defmodule Services.Approvals.Shell.IntegrationTest do
       # Set up Mox expectations for multiple UI interactions
       expect(UI.Output.Mock, :choose, 4, fn
         "Approve this request?", _opts -> "Approve persistently"
-        "Choose approval scope for: new-cmd1", _opts -> "Approve globally"
-        "Choose approval scope for: new-cmd2", _opts -> "Approve for the project"
+        "Choose approval scope for:\n    ^new-cmd1.*\n", _opts -> "Approve globally"
+        "Choose approval scope for:\n    ^new-cmd2.*\n", _opts -> "Approve for the project"
       end)
 
       expect(UI.Output.Mock, :prompt, 2, fn
@@ -831,7 +831,7 @@ defmodule Services.Approvals.Shell.IntegrationTest do
       # Set up Mox expectations for first interaction: Approve globally
       expect(UI.Output.Mock, :choose, 2, fn
         "Approve this request?", _opts -> "Approve persistently"
-        "Choose approval scope for: safe-new-tool", _opts -> "Approve globally"
+        "Choose approval scope for:\n    safe-new-tool\n", _opts -> "Approve globally"
       end)
 
       expect(UI.Output.Mock, :prompt, fn _msg, _opts -> "" end)

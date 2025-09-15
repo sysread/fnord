@@ -33,8 +33,7 @@ defmodule Services.Approvals.Shell.PersistentApprovalTest do
       end)
 
       :meck.expect(UI, :choose, fn
-        prompt, _opts ->
-          assert String.contains?(prompt, "Choose approval scope for: bar")
+        "Choose approval scope for:\n    bar\n", _opts ->
           "Approve for this session"
       end)
 

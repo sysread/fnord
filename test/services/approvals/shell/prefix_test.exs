@@ -1,5 +1,5 @@
 defmodule Services.Approvals.Shell.PrefixTest do
-  use Fnord.TestCase, async: true
+  use Fnord.TestCase
   alias Services.Approvals.Shell.Prefix
 
   describe "extract/2 for known families" do

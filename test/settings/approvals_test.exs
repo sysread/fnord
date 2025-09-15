@@ -249,14 +249,16 @@ defmodule Settings.ApprovalsTest do
     end
 
     test "adds to existing kind without duplicating" do
-      settings =
-        Settings.new()
-        |> Approvals.approve(:global, "shell", "git")
-        |> Approvals.approve(:global, "shell", "npm")
-        # duplicate
-        |> Approvals.approve(:global, "shell", "git")
+      Settings.new()
+      |> Approvals.approve(:global, "shell", "git")
+      |> Approvals.approve(:global, "shell", "npm")
+      # duplicate
+      |> Approvals.approve(:global, "shell", "git")
 
-      result = Approvals.get_approvals(settings, :global, "shell")
+      result =
+        Settings.new()
+        |> Approvals.get_approvals(:global, "shell")
+
       # Should be deduplicated and sorted
       assert result == ["git", "npm"]
     end
