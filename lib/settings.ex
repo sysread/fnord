@@ -118,22 +118,34 @@ defmodule Settings do
   Set a value in the settings store.
   """
   @spec set(t, binary, any) :: t
-  def set(settings, key, value) do
+  def set(%Settings{path: path} = _settings, key, value) do
     key = make_key(key)
 
-    %Settings{settings | data: Map.put(settings.data, key, value)}
-    |> spew()
+    with_settings_lock(path, fn ->
+      data = fresh_read(path)
+      new_data = Map.put(data, key, value)
+      settings1 = %Settings{path: path, data: new_data} |> ensure_approvals_exist()
+      json = Jason.encode!(settings1.data, pretty: true)
+      write_atomic!(path, json)
+      settings1
+    end)
   end
 
   @doc """
   Delete a value from the settings store.
   """
   @spec delete(t, binary) :: t
-  def delete(settings, key) do
+  def delete(%Settings{path: path} = _settings, key) do
     key = make_key(key)
 
-    %Settings{settings | data: Map.delete(settings.data, key)}
-    |> spew()
+    with_settings_lock(path, fn ->
+      data = fresh_read(path)
+      new_data = Map.delete(data, key)
+      settings1 = %Settings{path: path, data: new_data} |> ensure_approvals_exist()
+      json = Jason.encode!(settings1.data, pretty: true)
+      write_atomic!(path, json)
+      settings1
+    end)
   end
 
   @doc """
@@ -385,13 +397,6 @@ defmodule Settings do
       end
 
     %Settings{settings | data: data}
-  end
-
-  defp spew(settings) do
-    settings = ensure_approvals_exist(settings)
-    json = Jason.encode!(settings.data, pretty: true)
-    write_atomic!(settings.path, json)
-    settings
   end
 
   defp write_atomic!(path, "") do
