@@ -188,14 +188,18 @@ defmodule Services.Approvals.Shell.RegexWorkflowsTest do
       end)
 
       prompt_call_count = :counters.new(1, [])
+
       :meck.expect(UI, :prompt, fn _msg, opts ->
         if Keyword.get(opts, :optional) do
           case :counters.get(prompt_call_count, 1) do
             0 ->
               :counters.add(prompt_call_count, 1, 1)
-              "/[invalid/"  # First call returns invalid regex
+              # First call returns invalid regex
+              "/[invalid/"
+
             _ ->
-              ""   # Second call returns empty string (falls back to prefix)
+              # Second call returns empty string (falls back to prefix)
+              ""
           end
         end
       end)
@@ -227,7 +231,7 @@ defmodule Services.Approvals.Shell.RegexWorkflowsTest do
 
       :meck.expect(UI, :choose, fn
         "Approve this request?", _opts -> "Approve persistently"
-"Choose approval scope for:\n    ^projcmd build.*\n", _opts -> "Approve for the project"
+        "Choose approval scope for:\n    ^projcmd build.*\n", _opts -> "Approve for the project"
       end)
 
       :meck.expect(UI, :prompt, fn _msg, opts ->
@@ -252,14 +256,18 @@ defmodule Services.Approvals.Shell.RegexWorkflowsTest do
       end)
 
       prompt_call_count = :counters.new(1, [])
+
       :meck.expect(UI, :prompt, fn _msg, opts ->
         if Keyword.get(opts, :optional) do
           case :counters.get(prompt_call_count, 1) do
             0 ->
               :counters.add(prompt_call_count, 1, 1)
-              "//"  # First call returns invalid regex
+              # First call returns invalid regex
+              "//"
+
             _ ->
-              ""   # Second call returns empty string (falls back to prefix)
+              # Second call returns empty string (falls back to prefix)
+              ""
           end
         end
       end)
@@ -369,8 +377,11 @@ defmodule Services.Approvals.Shell.RegexWorkflowsTest do
 
       # First command requires approval
       :meck.expect(UI, :choose, fn
-        "Approve this request?", _opts -> "Approve persistently"
-        "Choose approval scope for:\n    ^gradle (clean|build|test)\n", _opts -> "Approve for this session"
+        "Approve this request?", _opts ->
+          "Approve persistently"
+
+        "Choose approval scope for:\n    ^gradle (clean|build|test)\n", _opts ->
+          "Approve for this session"
       end)
 
       :meck.expect(UI, :prompt, fn _msg, opts ->
@@ -411,8 +422,11 @@ defmodule Services.Approvals.Shell.RegexWorkflowsTest do
       cmd = %{"command" => "locate", "args" => ["*.ex", "|", "grep", "test"]}
 
       :meck.expect(UI, :choose, fn
-        "Approve this request?", _opts -> "Approve persistently"
-        "Choose approval scope for:\n    ^locate \\*\\.ex \\| grep test\n", _opts -> "Approve globally"
+        "Approve this request?", _opts ->
+          "Approve persistently"
+
+        "Choose approval scope for:\n    ^locate \\*\\.ex \\| grep test\n", _opts ->
+          "Approve globally"
       end)
 
       :meck.expect(UI, :prompt, fn _msg, opts ->
@@ -488,8 +502,11 @@ defmodule Services.Approvals.Shell.RegexWorkflowsTest do
 
       # And When: Second approval - regex (slash-delimited input creates regex)
       :meck.expect(UI, :choose, fn
-        "Approve this request?", _opts -> "Approve persistently"
-        "Choose approval scope for:\n    ^search-tool .* .*\n", _opts -> "Approve for this session"
+        "Approve this request?", _opts ->
+          "Approve persistently"
+
+        "Choose approval scope for:\n    ^search-tool .* .*\n", _opts ->
+          "Approve for this session"
       end)
 
       :meck.expect(UI, :prompt, fn _msg, opts ->

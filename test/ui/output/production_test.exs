@@ -1,5 +1,6 @@
-defmodule UI.Output.Production.Test do
+defmodule UI.Output.ProductionTest do
   use Fnord.TestCase, async: false
+
 
   describe "interact/1 returns and maps errors correctly" do
     test "returns value when underlying queue returns {:ok, value}" do
@@ -41,6 +42,10 @@ defmodule UI.Output.Production.Test do
       end
     end
   end
+
+
+
+
 
   # Note: choose/2 and prompt/1 are integration points with Owl.IO and Notifier,
   # which are not behaviour-backed. Those UI-level tests are better expressed

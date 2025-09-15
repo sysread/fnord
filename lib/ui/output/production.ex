@@ -70,7 +70,6 @@ defmodule UI.Output.Production do
           # Send OS notification and continue waiting
           Notifier.notify("Fnord", "Fnord is waiting for your selection: #{label}", [])
 
-          # Phase B: wait for auto window
           case Task.yield(task, timeout_ms) do
             {:ok, selection} ->
               Notifier.dismiss("Fnord")
@@ -79,6 +78,13 @@ defmodule UI.Output.Production do
             nil ->
               Task.shutdown(task, :brutal_kill)
               Notifier.dismiss("Fnord")
+
+              UI.Queue.log(
+                UI.Queue,
+                :info,
+                "Auto-selection after timeout: #{label} -> #{inspect(default)}"
+              )
+
               # Note: would need UI.debug here, but that would create circular dependency
               default
           end
