@@ -11,7 +11,7 @@ defmodule AI.Agent.Nomenclater do
     ~s/Cheesy SF names that sound like they came from a 1950s pulp magazine/,
     ~s/Characters from SF novels (especially James Schmitz and his contemporaries)/,
     ~s/Klingons, especially with dramatic epithets/,
-    ~s/Futurama characters/,
+    ~s/Futurama characters, especially aliens and robots (e.g. "Lrrr, ruler of the Planet Omicron Persei 8!" (note that exclamation point is significant), "Bender", "Robot Devil"/,
     ~s/NPC, "Labcoat #3", and other "unnamed cast" names (e.g. "NPC 1", "Villager", "Guard 3")/,
     ~s/Dream creatures and Nightmares from the Dreaming in Sandman (e.g. "The Corinthian", "Fiddler's Green", "Merv Pumpkinhead")/,
     ~s/My Little Pony names (the new series, _of course_)/,
@@ -20,7 +20,8 @@ defmodule AI.Agent.Nomenclater do
     ~s/D&D characters (e.g. "Sylvaris Strongbow", "Bramdir Ironvein", "Garrick Brightblade")/,
     ~s/Pulp detective novel characters, but with software-related names (e.g. "Sam "the Compiler" Spade", "Deb "-bugger" Malloy")/,
     ~s/Hackerspeak names (e.g. "Acid Burn", "Crash Override", "Cereal Killer"/,
-    ~s/Puns about AI-powered research and coding that seem like names (e.g. "R. E. Search", "Otto Mated", "Matt Rix", "Dr. D. Co'deure")/
+    ~s/Puns about AI-powered research and coding that seem like names (e.g. "R. E. Search", "Otto Mated", "Matt Rix", "Dr. D. Co'deure")/,
+    ~s/Buffy the Vampire Slayer characters (e.g. "Xander Harris", "Willow Rosenberg", "Rupert Giles"; or soop them up for coding like "Buffy Overflow")/
   ]
 
   @prompt """
