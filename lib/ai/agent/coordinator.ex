@@ -23,6 +23,7 @@ defmodule AI.Agent.Coordinator do
     :context,
     :notes,
     :editing_tools_used,
+    :list_id,
     :_interrupt_listener
   ]
 
@@ -46,6 +47,7 @@ defmodule AI.Agent.Coordinator do
           context: non_neg_integer,
           notes: binary | nil,
           editing_tools_used: boolean,
+          list_id: Services.Task.list_id(),
           _interrupt_listener: pid | nil
         }
 
@@ -92,6 +94,8 @@ defmodule AI.Agent.Coordinator do
         |> Services.Conversation.get_conversation()
         |> Store.Project.Conversation.exists?()
 
+      list_id = Services.Task.start_list()
+
       %__MODULE__{
         # Agent
         agent: agent,
@@ -111,7 +115,8 @@ defmodule AI.Agent.Coordinator do
         usage: 0,
         context: @model.context,
         notes: nil,
-        editing_tools_used: false
+        editing_tools_used: false,
+        list_id: list_id
       }
     end
   end
@@ -194,6 +199,7 @@ defmodule AI.Agent.Coordinator do
     |> user_msg()
     |> get_notes()
     |> research_tasklist_msg()
+    |> task_list_msg()
     |> followup_msg()
     |> get_intuition()
     |> start_interrupt_listener()
@@ -212,6 +218,7 @@ defmodule AI.Agent.Coordinator do
     |> user_msg()
     |> get_notes()
     |> research_tasklist_msg()
+    |> task_list_msg()
     |> begin_msg()
     |> get_intuition()
     |> start_interrupt_listener()
@@ -230,6 +237,7 @@ defmodule AI.Agent.Coordinator do
     |> user_msg()
     |> get_notes()
     |> research_tasklist_msg()
+    |> task_list_msg()
     |> begin_msg()
     |> get_intuition()
     |> get_completion(replay)
@@ -245,6 +253,7 @@ defmodule AI.Agent.Coordinator do
     |> research_tasklist_msg()
     |> reminder_msg()
     |> clarify_msg()
+    |> task_list_msg()
     |> get_intuition()
     |> get_completion()
     |> save_notes()
@@ -259,6 +268,7 @@ defmodule AI.Agent.Coordinator do
     |> research_tasklist_msg()
     |> reminder_msg()
     |> refine_msg()
+    |> task_list_msg()
     |> get_intuition()
     |> get_completion()
     |> save_notes()
@@ -287,6 +297,7 @@ defmodule AI.Agent.Coordinator do
     |> research_tasklist_msg()
     |> reminder_msg()
     |> coding_milestone_msg()
+    |> task_list_msg()
     |> execute_coding_phase()
     |> get_intuition()
     |> get_completion()
@@ -294,18 +305,38 @@ defmodule AI.Agent.Coordinator do
     |> perform_step()
   end
 
-  defp perform_step(%{steps: [:finalize]} = state) do
-    UI.begin_step("Generating response")
+  defp perform_step(%{steps: [:tasks_remaining]} = state) do
+    UI.begin_step("Working on completing remaining tasks")
 
     state
-    |> Map.put(:steps, [])
     |> penultimate_tasks_check_msg()
-    |> reminder_msg()
-    |> finalize_msg()
-    |> template_msg()
+    |> task_list_msg()
     |> get_completion()
     |> save_notes()
-    |> get_motd()
+  end
+
+  defp perform_step(%{steps: [:finalize], list_id: list_id} = state) do
+    list_id
+    |> Services.Task.peek_task()
+    |> case do
+      {:ok, _task} ->
+        state
+        |> Map.put(:steps, [:tasks_remaining, :finalize])
+        |> perform_step()
+
+      _ ->
+        UI.begin_step("Generating response")
+
+        state
+        |> Map.put(:steps, [])
+        |> reminder_msg()
+        |> task_list_msg()
+        |> finalize_msg()
+        |> template_msg()
+        |> get_completion()
+        |> save_notes()
+        |> get_motd()
+    end
   end
 
   @spec get_completion(t, boolean) :: t | error
@@ -999,18 +1030,18 @@ defmodule AI.Agent.Coordinator do
   end
 
   # -----------------------------------------------------------------------------
-  # Coordinator Tasking Guidance
+  # Tasking Guidance
   # -----------------------------------------------------------------------------
   @spec research_tasklist_msg(t) :: t
   defp research_tasklist_msg(state) do
     """
-    COORDINATOR: Use your Coordinator task list to manage ALL research lines of inquiry.
+    Use your task list to manage ALL research lines of inquiry.
 
     - For every new line of inquiry, create a task (short label + detailed description).
       Include rationale, next actions, and expected signals (files/components/behaviors).
     - When you conclude or drop a line, resolve its task with a clear outcome.
     - Before moving to the next step, call `tasks_show_list` to review open tasks and add follow-ups if needed.
-    - Do NOT rely on ad-hoc text; track lines of inquiry explicitly in the Coordinator task list.
+    - Do NOT rely on ad-hoc text; track lines of inquiry explicitly in the task list.
     """
     |> AI.Util.system_msg()
     |> Services.Conversation.append_msg(state.conversation)
@@ -1021,11 +1052,9 @@ defmodule AI.Agent.Coordinator do
   @spec coding_milestone_msg(t) :: t
   defp coding_milestone_msg(state) do
     """
-    COORDINATOR: Maintain milestone oversight during coding.
-
-    - Treat the coder tool's iterative goals as sub-steps toward Coordinator milestones.
+    - Treat the coder tool's iterative goals as sub-steps toward milestones.
     - At each coding iteration:
-      - Review your Coordinator task list for milestone tasks; update/add as needed.
+      - Review your task list for milestone tasks; update/add as needed.
       - Ensure current work aligns with milestones; if not, record follow-ups and adjust plan.
     - Use `tasks_show_list` to render current status before each iteration.
     """
@@ -1038,11 +1067,30 @@ defmodule AI.Agent.Coordinator do
   @spec penultimate_tasks_check_msg(t) :: t
   defp penultimate_tasks_check_msg(state) do
     """
-    COORDINATOR: PENULTIMATE CHECKPOINT — resolve all Coordinator tasks before final output.
+    ALL tasks must be resolved before final output!
 
     - Call `tasks_show_list` and read it carefully.
     - If any tasks remain open, either resolve them immediately or convert them into concrete follow-ups (label + detailed description + rationale).
     - Do not produce the final response until tasks are resolved OR explicitly carried forward with clear follow-ups.
+    """
+    |> AI.Util.system_msg()
+    |> Services.Conversation.append_msg(state.conversation)
+
+    state
+  end
+
+  @spec task_list_msg(t) :: t
+  defp task_list_msg(%{list_id: list_id} = state) do
+    tasks = Services.Task.as_string(list_id)
+
+    """
+    Task list ID: `#{list_id}` (use this ID when invoking task management tools)
+
+    Current task list:
+    #{tasks}
+
+    The `tasks_show_list` tool can be used to display these tasks in more
+    detail, including detailed descriptions and statuses.
     """
     |> AI.Util.system_msg()
     |> Services.Conversation.append_msg(state.conversation)
