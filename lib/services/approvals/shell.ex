@@ -83,11 +83,13 @@ defmodule Services.Approvals.Shell do
   # ----------------------------------------------------------------------------
   # Approval checks
   # ----------------------------------------------------------------------------
-  # Pre-approved regex for read-only sed commands: no -i, -f, e flag, s///e, w/W/r commands
+  # Pre-approved regex for read-only sed commands commonly used by LLMs
+  # Supports: -n (quiet), -E (extended regex), basic s/// substitutions, p (print), d (delete without -i)
+  # Blocks: -i (in-place), -f (script files), -e (expressions), s///e (execute), w/W/r file operations
   # no in-place editing
   # no script files
-  # no execute flag
-  # no s///e execute in substitution
+  # no -e expressions (conservative)
+  # no s///e or s|||e execute in substitution
   # no w/W/r commands with filenames
   # no addressed w/W/r commands
   # no range w/W/r commands
@@ -95,7 +97,7 @@ defmodule Services.Approvals.Shell do
                           "(?!.*\\s-i\\b)" <>
                           "(?!.*\\s-f\\b)" <>
                           "(?!.*\\s-e\\b)" <>
-                          "(?!.*s/[^/]*/[^/]*/[gp0-9]*e)" <>
+                          "(?!.*s[|/].*[|/].*[|/][gp0-9]*e)" <>
                           "(?!.*\\b[wWr]\\s+\\S)" <>
                           "(?!.*\\d+[wWr]\\b)" <>
                           "(?!.*,[wWr]\\b)" <>
@@ -176,8 +178,7 @@ defmodule Services.Approvals.Shell do
     cond do
       prefix in preapproved_cmds() -> true
       prefix in session_approvals(state, :prefix) -> true
-      Settings.Approvals.approved?(Settings.new(), :project, "shell", prefix) -> true
-      Settings.Approvals.approved?(Settings.new(), :global, "shell", prefix) -> true
+      Settings.Approvals.prefix_approved?(Settings.new(), "shell", prefix) -> true
       true -> false
     end
   end
@@ -331,8 +332,8 @@ defmodule Services.Approvals.Shell do
         end
 
       true ->
-        # Not slash-delimited, treat as approving the prefix
-        approve_scope(scope, state, prefix)
+        # Not slash-delimited, treat as approving the custom prefix
+        approve_scope(scope, state, input)
     end
   end
 

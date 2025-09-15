@@ -1,4 +1,4 @@
-defmodule Services.Approvals.Shell.Prefix.Test do
+defmodule Services.Approvals.Shell.PrefixTest do
   use Fnord.TestCase, async: true
   alias Services.Approvals.Shell.Prefix
 

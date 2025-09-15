@@ -11,9 +11,20 @@ defmodule Services.Approvals.Shell.Prefix do
   )
 
   @doc """
-  Given a base command and its args, return:
-    - "cmd sub" if a first positional token (subcommand) exists,
-    - "cmd" otherwise.
+  Given a base command and its args, extract the most specific approval prefix.
+
+  For commands in @subcmd_families (like git, mix, npm), returns:
+    - "cmd sub" if a first positional token (subcommand) exists after flags
+    - "cmd" if no subcommand is found
+
+  For unknown commands, returns just "cmd" since we cannot distinguish between
+  subcommands and file arguments (e.g., "rm file_without_extension" vs "git log").
+
+  Examples:
+    - extract("mix", ["test"]) -> "mix test"
+    - extract("git", ["-c", "color.ui=always", "log"]) -> "git log"
+    - extract("rm", ["file.txt"]) -> "rm" (unknown command, can't assume subcommand)
+    - extract("custom-tool", ["build"]) -> "custom-tool" (unknown command)
   """
   @spec extract(String.t(), [String.t()]) :: String.t()
   def extract(cmd, args) when cmd in @subcmd_families do

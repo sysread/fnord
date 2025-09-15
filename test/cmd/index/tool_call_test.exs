@@ -1,4 +1,4 @@
-defmodule Cmd.Index.ToolCall.Test do
+defmodule Cmd.Index.ToolCallTest do
   use Fnord.TestCase
 
   describe "run_as_tool_call/1" do

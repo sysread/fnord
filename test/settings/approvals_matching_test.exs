@@ -1,4 +1,4 @@
-defmodule ApprovalsMatchingTest do
+defmodule Settings.ApprovalsMatchingTest do
   use Fnord.TestCase
 
   alias Settings.Approvals

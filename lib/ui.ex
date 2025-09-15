@@ -355,7 +355,7 @@ defmodule UI do
   # Interactive prompts
   # ----------------------------------------------------------------------------
   def choose(label, options, timeout_ms, default) do
-    if is_tty?() && !quiet?() do
+    if UI.is_tty?() && !UI.quiet?() do
       output_module().choose(label, options, timeout_ms, default)
     else
       {:error, :no_tty}
@@ -363,7 +363,7 @@ defmodule UI do
   end
 
   def choose(label, options) do
-    if is_tty?() && !quiet?() do
+    if UI.is_tty?() && !UI.quiet?() do
       output_module().choose(label, options)
     else
       {:error, :no_tty}
@@ -371,7 +371,7 @@ defmodule UI do
   end
 
   def prompt(prompt, owl_opts \\ []) do
-    if is_tty?() && !quiet?() do
+    if UI.is_tty?() && !UI.quiet?() do
       owl_opts = Keyword.put(owl_opts, :label, prompt)
 
       output_module().prompt(prompt, owl_opts)

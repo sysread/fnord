@@ -1,4 +1,4 @@
-defmodule ProjectTest do
+defmodule Store.ProjectTest do
   use Fnord.TestCase
 
   setup do: set_config(workers: 1, quiet: true)

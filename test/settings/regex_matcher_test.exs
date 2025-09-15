@@ -1,4 +1,4 @@
-defmodule RegexMatcherTest do
+defmodule Settings.RegexMatcherTest do
   use Fnord.TestCase
   alias Settings.Approvals.RegexMatcher
 

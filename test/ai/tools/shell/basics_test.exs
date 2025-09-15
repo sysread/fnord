@@ -1,4 +1,4 @@
-defmodule AI.Tools.Shell.Test do
+defmodule AI.Tools.Shell.BasicsTest do
   use Fnord.TestCase
 
   test "preapproved pipeline: cat -> wc -l counts lines in files" do

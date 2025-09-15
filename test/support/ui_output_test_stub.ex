@@ -78,40 +78,14 @@ defmodule UI.Output.TestStub do
 
   @impl UI.Output
   def newline do
-    IO.puts("")
+    # Silent in tests - newline output not needed for test verification
+    :ok
   end
 
   @impl UI.Output
-  def box(contents, opts) do
-    title = Keyword.get(opts, :title, "")
-    min_width = Keyword.get(opts, :min_width, 40)
-
-    # Simple box representation for tests
-    border = String.duplicate("-", max(min_width, String.length(title) + 4))
-
-    if title != "" do
-      IO.puts("┌#{border}┐")
-
-      IO.puts(
-        "│ #{title} #{String.duplicate(" ", max(0, String.length(border) - String.length(title) - 3))}│"
-      )
-
-      IO.puts("├#{border}┤")
-    else
-      IO.puts("┌#{border}┐")
-    end
-
-    # Output content with simple formatting
-    content_str = to_string(contents)
-
-    content_str
-    |> String.split("\n")
-    |> Enum.each(fn line ->
-      padding = max(0, String.length(border) - String.length(line) - 2)
-      IO.puts("│ #{line}#{String.duplicate(" ", padding)} │")
-    end)
-
-    IO.puts("└#{border}┘")
+  def box(_contents, _opts) do
+    # Silent in tests - box output is not needed for test verification
+    :ok
   end
 
   @impl UI.Output
