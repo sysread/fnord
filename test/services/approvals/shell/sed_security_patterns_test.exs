@@ -67,7 +67,9 @@ defmodule Services.Approvals.Shell.SedSecurityPatternsTest do
 
       # In-place with backup
       cmd2 = %{"command" => "sed", "args" => ["-i", ".bak", "s/foo/bar/", "file.txt"]}
-      assert {:denied, _, _} = Shell.confirm(%{session: []}, {"|", [cmd2], "in-place with backup"})
+
+      assert {:denied, _, _} =
+               Shell.confirm(%{session: []}, {"|", [cmd2], "in-place with backup"})
     end
 
     test "file I/O operations" do
@@ -91,7 +93,9 @@ defmodule Services.Approvals.Shell.SedSecurityPatternsTest do
     test "code execution operations" do
       # Execute flag in substitution (forward slashes)
       cmd1 = %{"command" => "sed", "args" => ["s/foo/bar/e", "file.txt"]}
-      assert {:denied, _, _} = Shell.confirm(%{session: []}, {"|", [cmd1], "execute substitution"})
+
+      assert {:denied, _, _} =
+               Shell.confirm(%{session: []}, {"|", [cmd1], "execute substitution"})
 
       # Execute flag with pipe delimiters
       cmd2 = %{"command" => "sed", "args" => ["s|foo|bar|e", "file.txt"]}

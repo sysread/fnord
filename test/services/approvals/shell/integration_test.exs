@@ -115,7 +115,8 @@ defmodule Services.Approvals.Shell.IntegrationTest do
       cmd = %{"command" => "npm", "args" => ["test", "--coverage"]}
 
       # Then: Should auto-approve without UI interaction
-      assert {:approved, _state} = Shell.confirm(%{session: []}, {"|", [cmd], "npm test with coverage"})
+      assert {:approved, _state} =
+               Shell.confirm(%{session: []}, {"|", [cmd], "npm test with coverage"})
 
       # Note: Auto-approval - no UI interaction expected
     end
@@ -140,7 +141,9 @@ defmodule Services.Approvals.Shell.IntegrationTest do
     test "global regex approval auto-approves matching command" do
       # Given: Pre-existing global regex approval
       settings = Settings.new()
-      _settings = SettingsApprovals.approve(settings, :global, "shell_full", "^git (status|diff|log)")
+
+      _settings =
+        SettingsApprovals.approve(settings, :global, "shell_full", "^git (status|diff|log)")
 
       # When: Command matches the regex pattern
       cmd = %{"command" => "git", "args" => ["diff", "--cached"]}
@@ -154,13 +157,21 @@ defmodule Services.Approvals.Shell.IntegrationTest do
     test "project regex approval auto-approves matching command" do
       # Given: Pre-existing project regex approval
       settings = Settings.new()
-      _settings = SettingsApprovals.approve(settings, :project, "shell_full", "^mix (test|compile|deps\\.get)")
+
+      _settings =
+        SettingsApprovals.approve(
+          settings,
+          :project,
+          "shell_full",
+          "^mix (test|compile|deps\\.get)"
+        )
 
       # When: Command matches the project regex
       cmd = %{"command" => "mix", "args" => ["deps.get", "--force"]}
 
       # Then: Should auto-approve without UI interaction
-      assert {:approved, _state} = Shell.confirm(%{session: []}, {"|", [cmd], "mix deps.get force"})
+      assert {:approved, _state} =
+               Shell.confirm(%{session: []}, {"|", [cmd], "mix deps.get force"})
 
       # Note: Auto-approval - no UI interaction expected
     end
@@ -194,7 +205,9 @@ defmodule Services.Approvals.Shell.IntegrationTest do
       # Given: Both prefix and regex approvals for similar commands
       settings = Settings.new()
       settings = SettingsApprovals.approve(settings, :global, "shell", "docker")
-      _settings = SettingsApprovals.approve(settings, :global, "shell_full", "^docker (run|build)")
+
+      _settings =
+        SettingsApprovals.approve(settings, :global, "shell_full", "^docker (run|build)")
 
       # When: Command matches prefix (broader match)
       cmd = %{"command" => "docker", "args" => ["ps", "-a"]}
@@ -209,13 +222,16 @@ defmodule Services.Approvals.Shell.IntegrationTest do
       # Given: Specific prefix and broader regex approvals
       settings = Settings.new()
       settings = SettingsApprovals.approve(settings, :global, "shell", "kubectl get pods")
-      _settings = SettingsApprovals.approve(settings, :global, "shell_full", "^kubectl (get|describe) .*")
+
+      _settings =
+        SettingsApprovals.approve(settings, :global, "shell_full", "^kubectl (get|describe) .*")
 
       # When: Command matches regex but not specific prefix
       cmd = %{"command" => "kubectl", "args" => ["get", "services"]}
 
       # Then: Should auto-approve via regex match
-      assert {:approved, _state} = Shell.confirm(%{session: []}, {"|", [cmd], "kubectl get services"})
+      assert {:approved, _state} =
+               Shell.confirm(%{session: []}, {"|", [cmd], "kubectl get services"})
 
       # Note: Auto-approval - no UI interaction expected
     end
@@ -252,13 +268,21 @@ defmodule Services.Approvals.Shell.IntegrationTest do
       settings = SettingsApprovals.approve(settings, :global, "shell", "git status")
       settings = SettingsApprovals.approve(settings, :global, "shell_full", "^grep.*pattern")
       settings = SettingsApprovals.approve(settings, :project, "shell", "yarn test")
-      initial_settings = SettingsApprovals.approve(settings, :project, "shell_full", "^npm (install|test)")
+
+      initial_settings =
+        SettingsApprovals.approve(settings, :project, "shell_full", "^npm (install|test)")
 
       # Capture baseline state to verify it's preserved
       initial_global_prefix = SettingsApprovals.get_approvals(initial_settings, :global, "shell")
-      initial_global_regex = SettingsApprovals.get_approvals(initial_settings, :global, "shell_full")
-      initial_project_prefix = SettingsApprovals.get_approvals(initial_settings, :project, "shell")
-      initial_project_regex = SettingsApprovals.get_approvals(initial_settings, :project, "shell_full")
+
+      initial_global_regex =
+        SettingsApprovals.get_approvals(initial_settings, :global, "shell_full")
+
+      initial_project_prefix =
+        SettingsApprovals.get_approvals(initial_settings, :project, "shell")
+
+      initial_project_regex =
+        SettingsApprovals.get_approvals(initial_settings, :project, "shell_full")
 
       # When: New command requires approval, user chooses global scope
       cmd = %{"command" => "yarn", "args" => ["build", "prod"]}
@@ -278,17 +302,22 @@ defmodule Services.Approvals.Shell.IntegrationTest do
       final_global_prefix = SettingsApprovals.get_approvals(final_settings, :global, "shell")
       final_global_regex = SettingsApprovals.get_approvals(final_settings, :global, "shell_full")
       final_project_prefix = SettingsApprovals.get_approvals(final_settings, :project, "shell")
-      final_project_regex = SettingsApprovals.get_approvals(final_settings, :project, "shell_full")
+
+      final_project_regex =
+        SettingsApprovals.get_approvals(final_settings, :project, "shell_full")
 
       # CRITICAL: All original approvals must still exist (regression test for settings corruption)
       assert Enum.all?(initial_global_prefix, &(&1 in final_global_prefix)),
-        "Original global prefix approvals were lost: #{inspect(initial_global_prefix)} vs #{inspect(final_global_prefix)}"
+             "Original global prefix approvals were lost: #{inspect(initial_global_prefix)} vs #{inspect(final_global_prefix)}"
+
       assert Enum.all?(initial_global_regex, &(&1 in final_global_regex)),
-        "Original global regex approvals were lost: #{inspect(initial_global_regex)} vs #{inspect(final_global_regex)}"
+             "Original global regex approvals were lost: #{inspect(initial_global_regex)} vs #{inspect(final_global_regex)}"
+
       assert Enum.all?(initial_project_prefix, &(&1 in final_project_prefix)),
-        "Original project prefix approvals were lost: #{inspect(initial_project_prefix)} vs #{inspect(final_project_prefix)}"
+             "Original project prefix approvals were lost: #{inspect(initial_project_prefix)} vs #{inspect(final_project_prefix)}"
+
       assert Enum.all?(initial_project_regex, &(&1 in final_project_regex)),
-        "Original project regex approvals were lost: #{inspect(initial_project_regex)} vs #{inspect(final_project_regex)}"
+             "Original project regex approvals were lost: #{inspect(initial_project_regex)} vs #{inspect(final_project_regex)}"
 
       # AND: New approval should appear in global scope
       assert "yarn build" in final_global_prefix, "New global approval was not added"
@@ -306,13 +335,21 @@ defmodule Services.Approvals.Shell.IntegrationTest do
       settings = SettingsApprovals.approve(settings, :global, "shell", "python -m pytest")
       settings = SettingsApprovals.approve(settings, :global, "shell_full", "^curl.*https")
       settings = SettingsApprovals.approve(settings, :project, "shell", "make build")
-      initial_settings = SettingsApprovals.approve(settings, :project, "shell_full", "^docker (ps|images)")
+
+      initial_settings =
+        SettingsApprovals.approve(settings, :project, "shell_full", "^docker (ps|images)")
 
       # Capture baseline state to verify it's preserved
       initial_global_prefix = SettingsApprovals.get_approvals(initial_settings, :global, "shell")
-      initial_global_regex = SettingsApprovals.get_approvals(initial_settings, :global, "shell_full")
-      initial_project_prefix = SettingsApprovals.get_approvals(initial_settings, :project, "shell")
-      initial_project_regex = SettingsApprovals.get_approvals(initial_settings, :project, "shell_full")
+
+      initial_global_regex =
+        SettingsApprovals.get_approvals(initial_settings, :global, "shell_full")
+
+      initial_project_prefix =
+        SettingsApprovals.get_approvals(initial_settings, :project, "shell")
+
+      initial_project_regex =
+        SettingsApprovals.get_approvals(initial_settings, :project, "shell_full")
 
       # When: New command, user chooses project scope
       cmd = %{"command" => "python", "args" => ["-m", "black", "."]}
@@ -332,17 +369,22 @@ defmodule Services.Approvals.Shell.IntegrationTest do
       final_global_prefix = SettingsApprovals.get_approvals(final_settings, :global, "shell")
       final_global_regex = SettingsApprovals.get_approvals(final_settings, :global, "shell_full")
       final_project_prefix = SettingsApprovals.get_approvals(final_settings, :project, "shell")
-      final_project_regex = SettingsApprovals.get_approvals(final_settings, :project, "shell_full")
+
+      final_project_regex =
+        SettingsApprovals.get_approvals(final_settings, :project, "shell_full")
 
       # CRITICAL: All original approvals must still exist (regression test for settings corruption)
       assert Enum.all?(initial_global_prefix, &(&1 in final_global_prefix)),
-        "Original global prefix approvals were lost: #{inspect(initial_global_prefix)} vs #{inspect(final_global_prefix)}"
+             "Original global prefix approvals were lost: #{inspect(initial_global_prefix)} vs #{inspect(final_global_prefix)}"
+
       assert Enum.all?(initial_global_regex, &(&1 in final_global_regex)),
-        "Original global regex approvals were lost: #{inspect(initial_global_regex)} vs #{inspect(final_global_regex)}"
+             "Original global regex approvals were lost: #{inspect(initial_global_regex)} vs #{inspect(final_global_regex)}"
+
       assert Enum.all?(initial_project_prefix, &(&1 in final_project_prefix)),
-        "Original project prefix approvals were lost: #{inspect(initial_project_prefix)} vs #{inspect(final_project_prefix)}"
+             "Original project prefix approvals were lost: #{inspect(initial_project_prefix)} vs #{inspect(final_project_prefix)}"
+
       assert Enum.all?(initial_project_regex, &(&1 in final_project_regex)),
-        "Original project regex approvals were lost: #{inspect(initial_project_regex)} vs #{inspect(final_project_regex)}"
+             "Original project regex approvals were lost: #{inspect(initial_project_regex)} vs #{inspect(final_project_regex)}"
 
       # AND: New approval should appear in project scope
       assert "python" in final_project_prefix, "New project approval was not added"
@@ -360,13 +402,21 @@ defmodule Services.Approvals.Shell.IntegrationTest do
       settings = SettingsApprovals.approve(settings, :global, "shell", "cargo test")
       settings = SettingsApprovals.approve(settings, :global, "shell_full", "^find.*-name")
       settings = SettingsApprovals.approve(settings, :project, "shell", "cargo build")
-      initial_settings = SettingsApprovals.approve(settings, :project, "shell_full", "^helm (install|upgrade)")
+
+      initial_settings =
+        SettingsApprovals.approve(settings, :project, "shell_full", "^helm (install|upgrade)")
 
       # Capture baseline state to verify session approval doesn't corrupt settings
       initial_global_prefix = SettingsApprovals.get_approvals(initial_settings, :global, "shell")
-      initial_global_regex = SettingsApprovals.get_approvals(initial_settings, :global, "shell_full")
-      initial_project_prefix = SettingsApprovals.get_approvals(initial_settings, :project, "shell")
-      initial_project_regex = SettingsApprovals.get_approvals(initial_settings, :project, "shell_full")
+
+      initial_global_regex =
+        SettingsApprovals.get_approvals(initial_settings, :global, "shell_full")
+
+      initial_project_prefix =
+        SettingsApprovals.get_approvals(initial_settings, :project, "shell")
+
+      initial_project_regex =
+        SettingsApprovals.get_approvals(initial_settings, :project, "shell_full")
 
       # When: User chooses session approval for new command
       cmd = %{"command" => "cargo", "args" => ["clippy"]}
@@ -389,17 +439,22 @@ defmodule Services.Approvals.Shell.IntegrationTest do
       final_global_prefix = SettingsApprovals.get_approvals(final_settings, :global, "shell")
       final_global_regex = SettingsApprovals.get_approvals(final_settings, :global, "shell_full")
       final_project_prefix = SettingsApprovals.get_approvals(final_settings, :project, "shell")
-      final_project_regex = SettingsApprovals.get_approvals(final_settings, :project, "shell_full")
+
+      final_project_regex =
+        SettingsApprovals.get_approvals(final_settings, :project, "shell_full")
 
       # CRITICAL: Session approval must not modify settings.json at all
       assert final_global_prefix == initial_global_prefix,
-        "Session approval corrupted global prefix: #{inspect(initial_global_prefix)} vs #{inspect(final_global_prefix)}"
+             "Session approval corrupted global prefix: #{inspect(initial_global_prefix)} vs #{inspect(final_global_prefix)}"
+
       assert final_global_regex == initial_global_regex,
-        "Session approval corrupted global regex: #{inspect(initial_global_regex)} vs #{inspect(final_global_regex)}"
+             "Session approval corrupted global regex: #{inspect(initial_global_regex)} vs #{inspect(final_global_regex)}"
+
       assert final_project_prefix == initial_project_prefix,
-        "Session approval corrupted project prefix: #{inspect(initial_project_prefix)} vs #{inspect(final_project_prefix)}"
+             "Session approval corrupted project prefix: #{inspect(initial_project_prefix)} vs #{inspect(final_project_prefix)}"
+
       assert final_project_regex == initial_project_regex,
-        "Session approval corrupted project regex: #{inspect(initial_project_regex)} vs #{inspect(final_project_regex)}"
+             "Session approval corrupted project regex: #{inspect(initial_project_regex)} vs #{inspect(final_project_regex)}"
 
       # AND: Counts must remain exactly the same
       assert length(final_global_prefix) == length(initial_global_prefix)
@@ -425,7 +480,8 @@ defmodule Services.Approvals.Shell.IntegrationTest do
       cmd = %{"command" => "custom-tool", "args" => ["action", "file"]}
 
       # Then: Should auto-approve based on session state
-      assert {:approved, _state} = Shell.confirm(%{session: initial_session}, {"|", [cmd], "custom tool"})
+      assert {:approved, _state} =
+               Shell.confirm(%{session: initial_session}, {"|", [cmd], "custom tool"})
 
       # Note: Auto-approval - no UI interaction expected
     end
@@ -443,7 +499,9 @@ defmodule Services.Approvals.Shell.IntegrationTest do
       cmd2 = %{"command" => "docker", "args" => ["ps"]}
 
       # Then: Both should auto-approve from their respective sources
-      assert {:approved, state1} = Shell.confirm(%{session: initial_session}, {"|", [cmd1], "git check"})
+      assert {:approved, state1} =
+               Shell.confirm(%{session: initial_session}, {"|", [cmd1], "git check"})
+
       assert {:approved, _state2} = Shell.confirm(state1, {"|", [cmd2], "docker list"})
 
       # Note: Auto-approval - no UI interaction expected
@@ -458,11 +516,15 @@ defmodule Services.Approvals.Shell.IntegrationTest do
       initial_session = [{:full, "^gradle (clean|build|test).*"}]
 
       # When: Commands match their respective approval types
-      cmd1 = %{"command" => "make", "args" => ["install"]}  # matches persistent prefix
-      cmd2 = %{"command" => "gradle", "args" => ["clean"]}  # matches session regex
+      # matches persistent prefix
+      cmd1 = %{"command" => "make", "args" => ["install"]}
+      # matches session regex
+      cmd2 = %{"command" => "gradle", "args" => ["clean"]}
 
       # Then: Both should auto-approve
-      assert {:approved, state1} = Shell.confirm(%{session: initial_session}, {"|", [cmd1], "make install"})
+      assert {:approved, state1} =
+               Shell.confirm(%{session: initial_session}, {"|", [cmd1], "make install"})
+
       assert {:approved, _state2} = Shell.confirm(state1, {"|", [cmd2], "gradle clean"})
 
       # Note: Auto-approval - no UI interaction expected
@@ -481,8 +543,11 @@ defmodule Services.Approvals.Shell.IntegrationTest do
       settings = Settings.new()
       settings = SettingsApprovals.approve(settings, :global, "shell", "git")
       settings = SettingsApprovals.approve(settings, :global, "shell_full", "^npm (install|test)")
-      settings = SettingsApprovals.approve(settings, :project, "shell", "python")  # Fixed: should match extracted prefix
-      _settings = SettingsApprovals.approve(settings, :project, "shell_full", "^docker (run|build) .*")
+      # Fixed: should match extracted prefix
+      settings = SettingsApprovals.approve(settings, :project, "shell", "python")
+
+      _settings =
+        SettingsApprovals.approve(settings, :project, "shell_full", "^docker (run|build) .*")
 
       # And: Session state with mixed approvals
       initial_session = [
@@ -497,9 +562,11 @@ defmodule Services.Approvals.Shell.IntegrationTest do
         # Global regex: npm install|test
         {%{"command" => "npm", "args" => ["install", "lodash"]}, "should match global regex"},
         # Project prefix: python -m pytest
-        {%{"command" => "python", "args" => ["-m", "pytest", "tests/"]}, "should match project prefix"},
+        {%{"command" => "python", "args" => ["-m", "pytest", "tests/"]},
+         "should match project prefix"},
         # Project regex: docker run|build
-        {%{"command" => "docker", "args" => ["run", "-it", "ubuntu"]}, "should match project regex"},
+        {%{"command" => "docker", "args" => ["run", "-it", "ubuntu"]},
+         "should match project regex"},
         # Session prefix: make
         {%{"command" => "make", "args" => ["clean"]}, "should match session prefix"},
         # Session regex: cargo check|test|build
@@ -507,30 +574,37 @@ defmodule Services.Approvals.Shell.IntegrationTest do
       ]
 
       # Then: All should auto-approve without user interaction
-      final_state = Enum.reduce(test_cases, %{session: initial_session}, fn {cmd, description}, state ->
-        assert {:approved, new_state} = Shell.confirm(state, {"|", [cmd], description})
-        new_state
-      end)
+      final_state =
+        Enum.reduce(test_cases, %{session: initial_session}, fn {cmd, description}, state ->
+          assert {:approved, new_state} = Shell.confirm(state, {"|", [cmd], description})
+          new_state
+        end)
 
       # Verify no UI interaction occurred for any command
       # Note: Auto-approval - no UI interaction expected
 
       # And: Session state should be preserved
-      assert length(final_state.session) >= 2  # Original session approvals still there
+      # Original session approvals still there
+      assert length(final_state.session) >= 2
     end
 
     test "approval precedence with overlapping patterns" do
       # Given: Overlapping approval patterns at different scopes
       settings = Settings.new()
-      settings = SettingsApprovals.approve(settings, :global, "shell", "kubectl")  # Broad global
-      settings = SettingsApprovals.approve(settings, :project, "shell", "kubectl get")  # Specific project
-      _settings = SettingsApprovals.approve(settings, :project, "shell_full", "^kubectl get pods.*")  # Very specific project regex
+      # Broad global
+      settings = SettingsApprovals.approve(settings, :global, "shell", "kubectl")
+      # Specific project
+      settings = SettingsApprovals.approve(settings, :project, "shell", "kubectl get")
+      # Very specific project regex
+      _settings =
+        SettingsApprovals.approve(settings, :project, "shell_full", "^kubectl get pods.*")
 
       # When: Command could match multiple patterns
       cmd = %{"command" => "kubectl", "args" => ["get", "pods", "-o", "wide"]}
 
       # Then: Should auto-approve (any match is sufficient)
-      assert {:approved, _state} = Shell.confirm(%{session: []}, {"|", [cmd], "kubectl get pods wide"})
+      assert {:approved, _state} =
+               Shell.confirm(%{session: []}, {"|", [cmd], "kubectl get pods wide"})
 
       # Note: Auto-approval - no UI interaction expected
     end
@@ -539,11 +613,15 @@ defmodule Services.Approvals.Shell.IntegrationTest do
       # Given: Complex initial state
       settings = Settings.new()
       settings = SettingsApprovals.approve(settings, :global, "shell", "baseline-cmd")
-      initial_settings = SettingsApprovals.approve(settings, :project, "shell_full", "^baseline-regex")
+
+      initial_settings =
+        SettingsApprovals.approve(settings, :project, "shell_full", "^baseline-regex")
 
       # Capture initial approval counts
       initial_global_prefix = SettingsApprovals.get_approvals(initial_settings, :global, "shell")
-      initial_project_regex = SettingsApprovals.get_approvals(initial_settings, :project, "shell_full")
+
+      initial_project_regex =
+        SettingsApprovals.get_approvals(initial_settings, :project, "shell_full")
 
       # When: Multiple interactive approvals occur
       cmd1 = %{"command" => "new-cmd1", "args" => []}
@@ -565,13 +643,18 @@ defmodule Services.Approvals.Shell.IntegrationTest do
           end
       end)
 
-      assert {:approved, state1} = Shell.confirm(%{session: []}, {"|", [cmd1], "first new command"})
+      assert {:approved, state1} =
+               Shell.confirm(%{session: []}, {"|", [cmd1], "first new command"})
+
       assert {:approved, _state2} = Shell.confirm(state1, {"|", [cmd2], "second new command"})
 
       # Then: All original approvals should be preserved
       final_settings = Settings.new()
       final_global_prefix = SettingsApprovals.get_approvals(final_settings, :global, "shell")
-      final_project_regex = SettingsApprovals.get_approvals(final_settings, :project, "shell_full")
+
+      final_project_regex =
+        SettingsApprovals.get_approvals(final_settings, :project, "shell_full")
+
       final_global_regex = SettingsApprovals.get_approvals(final_settings, :global, "shell_full")
 
       # Original approvals preserved
@@ -602,13 +685,21 @@ defmodule Services.Approvals.Shell.IntegrationTest do
       settings = SettingsApprovals.approve(settings, :global, "shell", "git status")
       settings = SettingsApprovals.approve(settings, :global, "shell_full", "^ls.*-l")
       settings = SettingsApprovals.approve(settings, :project, "shell", "npm test")
-      initial_settings = SettingsApprovals.approve(settings, :project, "shell_full", "^pytest.*-v")
+
+      initial_settings =
+        SettingsApprovals.approve(settings, :project, "shell_full", "^pytest.*-v")
 
       # Capture baseline state to verify denial doesn't corrupt settings
       initial_global_prefix = SettingsApprovals.get_approvals(initial_settings, :global, "shell")
-      initial_global_regex = SettingsApprovals.get_approvals(initial_settings, :global, "shell_full")
-      initial_project_prefix = SettingsApprovals.get_approvals(initial_settings, :project, "shell")
-      initial_project_regex = SettingsApprovals.get_approvals(initial_settings, :project, "shell_full")
+
+      initial_global_regex =
+        SettingsApprovals.get_approvals(initial_settings, :global, "shell_full")
+
+      initial_project_prefix =
+        SettingsApprovals.get_approvals(initial_settings, :project, "shell")
+
+      initial_project_regex =
+        SettingsApprovals.get_approvals(initial_settings, :project, "shell_full")
 
       # When: User denies approval for new command
       cmd = %{"command" => "dangerous-command", "args" => ["--delete-all"]}
@@ -616,24 +707,30 @@ defmodule Services.Approvals.Shell.IntegrationTest do
       # Set up Mox expectation for denial
       expect(UI.Output.Mock, :choose, fn "Approve this request?", _opts -> "Deny" end)
 
-      assert {:denied, _reason, _state} = Shell.confirm(%{session: []}, {"|", [cmd], "dangerous operation"})
+      assert {:denied, _reason, _state} =
+               Shell.confirm(%{session: []}, {"|", [cmd], "dangerous operation"})
 
       # Then: Settings.json must be COMPLETELY unchanged (denial must not corrupt settings)
       final_settings = Settings.new()
       final_global_prefix = SettingsApprovals.get_approvals(final_settings, :global, "shell")
       final_global_regex = SettingsApprovals.get_approvals(final_settings, :global, "shell_full")
       final_project_prefix = SettingsApprovals.get_approvals(final_settings, :project, "shell")
-      final_project_regex = SettingsApprovals.get_approvals(final_settings, :project, "shell_full")
+
+      final_project_regex =
+        SettingsApprovals.get_approvals(final_settings, :project, "shell_full")
 
       # CRITICAL: Denial must not corrupt any existing approvals
       assert final_global_prefix == initial_global_prefix,
-        "Denial corrupted global prefix: #{inspect(initial_global_prefix)} vs #{inspect(final_global_prefix)}"
+             "Denial corrupted global prefix: #{inspect(initial_global_prefix)} vs #{inspect(final_global_prefix)}"
+
       assert final_global_regex == initial_global_regex,
-        "Denial corrupted global regex: #{inspect(initial_global_regex)} vs #{inspect(final_global_regex)}"
+             "Denial corrupted global regex: #{inspect(initial_global_regex)} vs #{inspect(final_global_regex)}"
+
       assert final_project_prefix == initial_project_prefix,
-        "Denial corrupted project prefix: #{inspect(initial_project_prefix)} vs #{inspect(final_project_prefix)}"
+             "Denial corrupted project prefix: #{inspect(initial_project_prefix)} vs #{inspect(final_project_prefix)}"
+
       assert final_project_regex == initial_project_regex,
-        "Denial corrupted project regex: #{inspect(initial_project_regex)} vs #{inspect(final_project_regex)}"
+             "Denial corrupted project regex: #{inspect(initial_project_regex)} vs #{inspect(final_project_regex)}"
 
       # AND: No new approvals should be added
       assert length(final_global_prefix) == length(initial_global_prefix)
@@ -652,29 +749,45 @@ defmodule Services.Approvals.Shell.IntegrationTest do
       settings = SettingsApprovals.approve(settings, :global, "shell", "safe-command")
       settings = SettingsApprovals.approve(settings, :global, "shell_full", "^echo.*hello")
       settings = SettingsApprovals.approve(settings, :project, "shell", "test-runner")
-      initial_settings = SettingsApprovals.approve(settings, :project, "shell_full", "^linter.*--fix")
+
+      initial_settings =
+        SettingsApprovals.approve(settings, :project, "shell_full", "^linter.*--fix")
 
       # Capture baseline state
       initial_global_prefix = SettingsApprovals.get_approvals(initial_settings, :global, "shell")
-      initial_global_regex = SettingsApprovals.get_approvals(initial_settings, :global, "shell_full")
-      initial_project_prefix = SettingsApprovals.get_approvals(initial_settings, :project, "shell")
-      initial_project_regex = SettingsApprovals.get_approvals(initial_settings, :project, "shell_full")
+
+      initial_global_regex =
+        SettingsApprovals.get_approvals(initial_settings, :global, "shell_full")
+
+      initial_project_prefix =
+        SettingsApprovals.get_approvals(initial_settings, :project, "shell")
+
+      initial_project_regex =
+        SettingsApprovals.get_approvals(initial_settings, :project, "shell_full")
 
       # When: User denies with feedback
       cmd = %{"command" => "risky-operation", "args" => ["--force"]}
 
       # Set up Mox expectations for denial with feedback
-      expect(UI.Output.Mock, :choose, fn "Approve this request?", _opts -> "Deny with feedback" end)
-      expect(UI.Output.Mock, :prompt, fn "Feedback:", _opts -> "This command looks too dangerous" end)
+      expect(UI.Output.Mock, :choose, fn "Approve this request?", _opts ->
+        "Deny with feedback"
+      end)
 
-      assert {:denied, _reason, _state} = Shell.confirm(%{session: []}, {"|", [cmd], "risky operation"})
+      expect(UI.Output.Mock, :prompt, fn "Feedback:", _opts ->
+        "This command looks too dangerous"
+      end)
+
+      assert {:denied, _reason, _state} =
+               Shell.confirm(%{session: []}, {"|", [cmd], "risky operation"})
 
       # Then: Settings.json must be completely unchanged despite feedback collection
       final_settings = Settings.new()
       final_global_prefix = SettingsApprovals.get_approvals(final_settings, :global, "shell")
       final_global_regex = SettingsApprovals.get_approvals(final_settings, :global, "shell_full")
       final_project_prefix = SettingsApprovals.get_approvals(final_settings, :project, "shell")
-      final_project_regex = SettingsApprovals.get_approvals(final_settings, :project, "shell_full")
+
+      final_project_regex =
+        SettingsApprovals.get_approvals(final_settings, :project, "shell_full")
 
       # CRITICAL: Denial with feedback must not corrupt any settings
       assert final_global_prefix == initial_global_prefix
@@ -695,13 +808,21 @@ defmodule Services.Approvals.Shell.IntegrationTest do
       settings = SettingsApprovals.approve(settings, :global, "shell", "git")
       settings = SettingsApprovals.approve(settings, :global, "shell_full", "^aws.*s3")
       settings = SettingsApprovals.approve(settings, :project, "shell", "build-tool")
-      initial_settings = SettingsApprovals.approve(settings, :project, "shell_full", "^deploy.*staging")
+
+      initial_settings =
+        SettingsApprovals.approve(settings, :project, "shell_full", "^deploy.*staging")
 
       # Capture initial state
       initial_global_prefix = SettingsApprovals.get_approvals(initial_settings, :global, "shell")
-      initial_global_regex = SettingsApprovals.get_approvals(initial_settings, :global, "shell_full")
-      initial_project_prefix = SettingsApprovals.get_approvals(initial_settings, :project, "shell")
-      initial_project_regex = SettingsApprovals.get_approvals(initial_settings, :project, "shell_full")
+
+      initial_global_regex =
+        SettingsApprovals.get_approvals(initial_settings, :global, "shell_full")
+
+      initial_project_prefix =
+        SettingsApprovals.get_approvals(initial_settings, :project, "shell")
+
+      initial_project_regex =
+        SettingsApprovals.get_approvals(initial_settings, :project, "shell_full")
 
       # When: Mixed scenario - approve one command, deny another
       cmd1 = %{"command" => "safe-new-tool", "args" => ["--help"]}
@@ -720,14 +841,17 @@ defmodule Services.Approvals.Shell.IntegrationTest do
       # Set up Mox expectation for second interaction: Deny
       expect(UI.Output.Mock, :choose, fn "Approve this request?", _opts -> "Deny" end)
 
-      assert {:denied, _reason, _final_state} = Shell.confirm(state1, {"|", [cmd2], "dangerous operation"})
+      assert {:denied, _reason, _final_state} =
+               Shell.confirm(state1, {"|", [cmd2], "dangerous operation"})
 
       # Then: Settings should contain original approvals + the approved one, but not the denied one
       final_settings = Settings.new()
       final_global_prefix = SettingsApprovals.get_approvals(final_settings, :global, "shell")
       final_global_regex = SettingsApprovals.get_approvals(final_settings, :global, "shell_full")
       final_project_prefix = SettingsApprovals.get_approvals(final_settings, :project, "shell")
-      final_project_regex = SettingsApprovals.get_approvals(final_settings, :project, "shell_full")
+
+      final_project_regex =
+        SettingsApprovals.get_approvals(final_settings, :project, "shell_full")
 
       # CRITICAL: All original approvals must be preserved
       assert Enum.all?(initial_global_prefix, &(&1 in final_global_prefix))

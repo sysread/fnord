@@ -232,7 +232,6 @@ defmodule Services.Approvals.Shell.RegexWorkflowsTest do
       project_full_approvals = SettingsApprovals.get_approvals(settings, :project, "shell_full")
       expected_project_regex = (baseline_project_regex ++ ["^projcmd build.*"]) |> Enum.sort()
       assert project_full_approvals == expected_project_regex
-
     end
 
     test "project regex approval - negative path (empty regex)" do
@@ -254,7 +253,7 @@ defmodule Services.Approvals.Shell.RegexWorkflowsTest do
       # Should fall back to prefix approval
       settings = Settings.new()
       project_prefix_approvals = SettingsApprovals.get_approvals(settings, :project, "shell")
-      expected_project_prefix = (["baseline-project-cmd", "projcmd"]) |> Enum.sort()
+      expected_project_prefix = ["baseline-project-cmd", "projcmd"] |> Enum.sort()
       assert project_prefix_approvals == expected_project_prefix
     end
 
