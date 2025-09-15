@@ -49,6 +49,14 @@ Examples:
 ## Conventions
 
 - All tests use `Fnord.TestCase` instead of `ExUnit.Case`
+  - Before you set up complex setup scenarios, check if `Fnord.TestCase` already provides what you need.
+  - If it doesn't, but it seems like something we might need again, consider adding it to `Fnord.TestCase`.
+- Prefer `Mox` for mocking, but fall back to `meck` if the code to be mocked is not designed for dependency injection.
+- Use `mix test --warnings-as-errors` and always ensure tests pass without warnings.
+- Use `mix dialyzer` to check for type and contract issues.
+- Use `mix coveralls` to ensure tests are adequately covering the codebase.
+- Use `mix format` to ensure consistent code formatting.
 - No aliases in test modules - use full module names
 - Module names append `Test` to the final component (not `Shell.Test`, but `ShellTest`)
 - Directory structure matches module hierarchy exactly
+- Tests should not output directly to stdout/stderr (except *while* debugging)
