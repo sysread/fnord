@@ -32,6 +32,7 @@ defmodule AI.Agent.Nomenclater do
   Each name should EITHER be <first_name last_name> OR <first_name the "adjective">.
   Try not to select names that are too similar to existing names, as that can cause confusion.
   Your audience is geeky, so sci-fi- and cartoon-sounding names are welcome, but obviously not required.
+  Resist the urge to give *everyone* a name starting with Z. Maybe just a couple per batch :)
 
   Fun name themes:
   {THEMES}
