@@ -63,7 +63,10 @@ defmodule AI.Tools.Tasks.AddTask do
               type: "string",
               description: """
               A short task label that describes the task. This doubles as the
-              unique identifier for the task.
+              unique identifier for the task. Examples:
+              - "Add some_function/3 to Some.Module"
+              - "Write tests for Another.Module"
+              - "Identify stale documentation in Some.Module"
               """
             },
             "data" => %{
