@@ -61,7 +61,10 @@ defmodule AI.Tools.Tasks.AddTask do
             },
             "task_id" => %{
               type: "string",
-              description: "Unique identifier for the task."
+              description: """
+              A short task label that describes the task. This doubles as the
+              unique identifier for the task.
+              """
             },
             "data" => %{
               type: "string",
