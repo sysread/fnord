@@ -211,7 +211,13 @@ defmodule Store.Project do
     |> Stream.map(&Store.Project.Entry.new_from_entry_path(project, &1))
   end
 
+  @doc """
+  Returns no source files when source_root is nil to avoid crashing.
+  """
+  def source_files(%{source_root: nil} = project), do: {project, []}
+
   @spec source_files(t) :: {t, Enumerable.t()}
+
   def source_files(project) do
     {project, excluded_paths} = excluded_paths(project)
 
@@ -334,6 +340,11 @@ defmodule Store.Project do
     end
   end
 
+  # Returns ignored paths via GitCli or empty map when root is nil
+  defp git_ignored(nil), do: %{}
+  defp git_ignored(root), do: GitCli.ignored_files(root)
+
+  # Computes excluded file paths, caching the result
   defp excluded_paths(%{exclude_cache: nil} = project) do
     user_excluded =
       if is_nil(project.exclude) do
@@ -358,7 +369,7 @@ defmodule Store.Project do
         |> Map.new(&{&1, true})
       end
 
-    excluded = Map.merge(user_excluded, GitCli.ignored_files(project.source_root))
+    excluded = Map.merge(user_excluded, git_ignored(project.source_root))
 
     {%{project | exclude_cache: excluded}, excluded}
   end

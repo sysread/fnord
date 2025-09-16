@@ -93,7 +93,12 @@ defmodule GitCli do
     end
   end
 
-  @spec ignored_files(String.t()) :: map()
+  @spec ignored_files(String.t() | nil) :: map()
+  @doc """
+  Returns an empty map if root is nil, otherwise behaves as before.
+  """
+  def ignored_files(nil), do: %{}
+
   def ignored_files(root) when is_binary(root) do
     case System.cmd("git", ["ls-files", "--others", "--ignored", "--exclude-standard"],
            cd: root,

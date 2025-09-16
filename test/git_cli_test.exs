@@ -143,5 +143,9 @@ defmodule GitCli.Test do
       {:ok, tmp} = tmpdir()
       assert GitCli.ignored_files(tmp) == %{}
     end
+
+    test "returns empty map for nil root" do
+      assert GitCli.ignored_files(nil) == %{}
+    end
   end
 end
