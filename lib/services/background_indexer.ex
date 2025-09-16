@@ -48,14 +48,25 @@ defmodule Services.BackgroundIndexer do
     GenServer.start_link(__MODULE__, opts)
   end
 
-  @spec stop(pid()) :: :ok
+  @doc """
+  Stop the BackgroundIndexer GenServer safely.
+  This function is idempotent, swallows exits, and accepts non-pid values.
+  Always returns :ok.
+  """
+  @spec stop(pid() | any()) :: :ok
   def stop(pid) when is_pid(pid) do
-    if Process.alive?(pid) do
-      GenServer.stop(pid, :normal)
-    else
-      :ok
+    # Attempt to stop the GenServer normally with a finite timeout.
+    # Catch any exit (normal, noproc, timeout) to ensure safe, idempotent behavior.
+    try do
+      GenServer.stop(pid, :normal, 5_000)
+    catch
+      :exit, _reason ->
+        :ok
     end
   end
+
+  # Accept any other values (nil, atom, etc.) and no-op.
+  def stop(_), do: :ok
 
   @doc """
   init/1 sets up the GenServer state, performing the following steps:

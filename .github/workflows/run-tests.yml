@@ -46,7 +46,12 @@ jobs:
       uses: actions/cache@v4
       with:
         path: _build
-        key: build-cache-${{ runner.os }}-${{ hashFiles('mix.lock') }}-${{ steps.setup-elixir.outputs.elixir-version }}-${{ steps.setup-elixir.outputs.otp-version }}
+        # Include commit SHA to avoid reusing stale compiled BEAMs when code changes
+        key: build-cache-${{ runner.os }}-${{ hashFiles('mix.lock') }}-${{ steps.setup-elixir.outputs.elixir-version }}-${{ steps.setup-elixir.outputs.otp-version }}-${{ github.sha }}
+
+    - name: Clean build
+      # Ensure no stale BEAMs survive from previous caches. This is fast and prevents flaky exits.
+      run: MIX_ENV=test mix clean
 
     - name: Install dependencies
       run: |
@@ -75,4 +80,5 @@ jobs:
       uses: actions/cache@v4
       with:
         path: _build
-        key: build-cache-${{ runner.os }}-${{ hashFiles('mix.lock') }}-${{ steps.setup-elixir.outputs.elixir-version }}-${{ steps.setup-elixir.outputs.otp-version }}
+        # Include commit SHA to avoid reusing stale compiled BEAMs when code changes
+        key: build-cache-${{ runner.os }}-${{ hashFiles('mix.lock') }}-${{ steps.setup-elixir.outputs.elixir-version }}-${{ steps.setup-elixir.outputs.otp-version }}-${{ github.sha }}
