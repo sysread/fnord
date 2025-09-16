@@ -649,10 +649,12 @@ defmodule AI.Agent.Coordinator do
   - Propose the smallest next action to resolve it (one check/test/tool call) or ask the user if it's a product/intent choice.
   - Use an 'Open Questions / Next Steps' subsection when items remain.
 
-  Coding changes: verification checklist:
-  - Syntax and formatting checked.
-  - Tests and/or docs impact considered; note follow-ups if needed.
-  - Changes reviewed for regressions or side-effects; call out any that warrant attention.
+  Coding changes:
+  - Verification checklist:
+    - Syntax and formatting checked.
+    - Tests and/or docs impact considered; note follow-ups if needed.
+    - Changes reviewed for regressions or side-effects; call out any that warrant attention.
+  - Walk the user through your changes in a logical manner, using the reasoning display guidelines above to introduce your approach step-by-step.
 
   Citations:
   - Include file paths and symbols (e.g., `lib/ai/agent/coordinator.ex:548` or `AI.Agent.Coordinator.template_msg/1`).
