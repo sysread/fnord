@@ -22,7 +22,7 @@ defmodule AI.Tools.Tasks.AddTaskTest do
 
       params = spec.function.parameters
       assert params.type == "object"
-      assert params.required == ["list_id", "task_id", "data"]
+      assert params.required == ["list_id"]
 
       props = params.properties
       assert props["list_id"].type == :integer
@@ -53,7 +53,9 @@ defmodule AI.Tools.Tasks.AddTaskTest do
 
     test "returns parsed map when args are valid" do
       args = %{"list_id" => 1, "task_id" => "t", "data" => "d"}
-      assert {:ok, %{"list_id" => 1, "task_id" => "t", "data" => "d"}} = AddTask.read_args(args)
+
+      assert {:ok, %{"list_id" => 1, "tasks" => [%{"task_id" => "t", "data" => "d"}]}} =
+               AddTask.read_args(args)
     end
   end
 
@@ -75,6 +77,54 @@ defmodule AI.Tools.Tasks.AddTaskTest do
 
       tasks = Task.get_list(list_id)
       assert [%{id: ^task_id, outcome: :todo, data: ^data, result: nil}] = tasks
+    end
+  end
+
+  describe "read_args/1 batch" do
+    test "normalizes single-element tasks list" do
+      args = %{"list_id" => 1, "tasks" => [%{"task_id" => "a", "data" => "A"}]}
+      assert {:ok, %{"list_id" => 1, "tasks" => tasks}} = AddTask.read_args(args)
+      assert tasks == [%{"task_id" => "a", "data" => "A"}]
+    end
+
+    test "normalizes multi-element tasks list" do
+      tasks_input = [
+        %{"task_id" => "t1", "data" => "d1"},
+        %{"task_id" => "t2", "data" => "d2"}
+      ]
+
+      args = %{"list_id" => 2, "tasks" => tasks_input}
+      assert {:ok, %{"list_id" => 2, "tasks" => tasks}} = AddTask.read_args(args)
+      assert tasks == tasks_input
+    end
+
+    test "returns error for empty tasks list" do
+      args = %{"list_id" => 3, "tasks" => []}
+      assert {:error, :invalid_argument, _} = AddTask.read_args(args)
+    end
+
+    test "returns error for invalid task element" do
+      args = %{"list_id" => 4, "tasks" => [%{"task_id" => 1, "data" => "d"}]}
+      assert {:error, :invalid_argument, _} = AddTask.read_args(args)
+    end
+  end
+
+  describe "call/1 batch" do
+    setup do
+      list_id = Task.start_list()
+      {:ok, list_id: list_id}
+    end
+
+    test "adds multiple tasks in order", %{list_id: list_id} do
+      tasks = [
+        %{"task_id" => "m1", "data" => "d1"},
+        %{"task_id" => "m2", "data" => "d2"},
+        %{"task_id" => "m3", "data" => "d3"}
+      ]
+
+      assert {:ok, _} = AddTask.call(%{"list_id" => list_id, "tasks" => tasks})
+      got = Task.get_list(list_id)
+      assert Enum.map(got, & &1.id) == ["m1", "m2", "m3"]
     end
   end
 end

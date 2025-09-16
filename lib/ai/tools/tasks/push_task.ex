@@ -14,13 +14,37 @@ defmodule AI.Tools.Tasks.PushTask do
   @impl AI.Tools
   def read_args(args) when is_map(args) do
     with {:ok, list_id} <- AI.Tools.get_arg(args, "list_id"),
-         true <- is_integer(list_id) or {:error, :invalid_argument, "list_id must be an integer"},
-         {:ok, task_id} <- AI.Tools.get_arg(args, "task_id"),
-         true <- is_binary(task_id) or {:error, :invalid_argument, "task_id must be a string"},
-         {:ok, data} <- AI.Tools.get_arg(args, "data"),
-         true <- is_binary(data) or {:error, :invalid_argument, "data must be a string"} do
-      {:ok, %{"list_id" => list_id, "task_id" => task_id, "data" => data}}
+         true <- is_integer(list_id) or {:error, :invalid_argument, "list_id must be an integer"} do
+      case Map.fetch(args, "tasks") do
+        {:ok, tasks} ->
+          with {:ok, normalized} <- validate_and_normalize_tasks(tasks) do
+            {:ok, %{"list_id" => list_id, "tasks" => normalized}}
+          end
+
+        :error ->
+          # legacy single-task args: return task_id and data directly for backward compatibility
+          with {:ok, task_id} <- AI.Tools.get_arg(args, "task_id"),
+               true <-
+                 is_binary(task_id) or {:error, :invalid_argument, "task_id must be a string"},
+               {:ok, data} <- AI.Tools.get_arg(args, "data"),
+               true <- is_binary(data) or {:error, :invalid_argument, "data must be a string"} do
+            {:ok, %{"list_id" => list_id, "task_id" => task_id, "data" => data}}
+          end
+      end
     end
+  end
+
+  @impl AI.Tools
+  def ui_note_on_request(%{"tasks" => [%{"task_id" => task_id, "data" => data}]}) do
+    {task_id, data}
+  end
+
+  @impl AI.Tools
+  def ui_note_on_request(%{"tasks" => tasks}) when is_list(tasks) do
+    count = length(tasks)
+    ids = Enum.map(tasks, & &1["task_id"])
+    preview = ids |> Enum.take(3) |> Enum.join(", ")
+    {"Pushing #{count} tasks", preview}
   end
 
   @impl AI.Tools
@@ -42,7 +66,7 @@ defmodule AI.Tools.Tasks.PushTask do
         description: """
         Push a new task to the front of an existing task list. The task is
         identified by a unique task_id that should be a short label, describing
-        the task at a glance (e.g. "Add some_function/3 to Some.Module"). The
+        the task at a glance (e.g. \"Add some_function/3 to Some.Module\"). The
         data field is a free-form string that can contain any details or
         payload for the task.
 
@@ -54,19 +78,26 @@ defmodule AI.Tools.Tasks.PushTask do
         parameters: %{
           type: "object",
           additionalProperties: false,
-          required: ["list_id", "task_id", "data"],
+          required: ["list_id"],
           properties: %{
-            "list_id" => %{
-              type: :integer,
-              description: "The ID of the task list."
-            },
-            "task_id" => %{
-              type: "string",
-              description: "Unique identifier for the task."
-            },
-            "data" => %{
-              type: "string",
-              description: "Free-form detail or payload for the task."
+            "list_id" => %{type: :integer, description: "The ID of the task list."},
+            "task_id" => %{type: "string", description: "Unique identifier for the task."},
+            "data" => %{type: "string", description: "Free-form detail or payload for the task."},
+            "tasks" => %{
+              type: "array",
+              description: "A list of tasks to push, each with task_id and data.",
+              items: %{
+                type: "object",
+                additionalProperties: false,
+                required: ["task_id", "data"],
+                properties: %{
+                  "task_id" => %{
+                    type: "string",
+                    description: "The unique identifier for the task."
+                  },
+                  "data" => %{type: "string", description: "The detail or payload for the task."}
+                }
+              }
             }
           }
         }
@@ -75,8 +106,50 @@ defmodule AI.Tools.Tasks.PushTask do
   end
 
   @impl AI.Tools
+  def call(%{"list_id" => list_id, "tasks" => tasks}) when is_list(tasks) do
+    tasks
+    |> Enum.reverse()
+    |> Enum.each(fn %{"task_id" => task_id, "data" => data} ->
+      Services.Task.push_task(list_id, task_id, data)
+    end)
+
+    {:ok, Services.Task.as_string(list_id)}
+  end
+
+  @impl AI.Tools
   def call(%{"list_id" => list_id, "task_id" => task_id, "data" => data}) do
     Services.Task.push_task(list_id, task_id, data)
     {:ok, Services.Task.as_string(list_id)}
+  end
+
+  # Validate and normalize a list of tasks into the required format or return an error tuple.
+  defp validate_and_normalize_tasks(tasks) do
+    cond do
+      not is_list(tasks) ->
+        {:error, :invalid_argument, "tasks must be a list of task objects"}
+
+      tasks == [] ->
+        {:error, :invalid_argument, "tasks list cannot be empty"}
+
+      true ->
+        tasks
+        |> Enum.reduce_while({:ok, []}, fn
+          %{"task_id" => task_id, "data" => data}, {:ok, acc}
+          when is_binary(task_id) and is_binary(data) ->
+            {:cont, {:ok, [%{"task_id" => task_id, "data" => data} | acc]}}
+
+          %{"task_id" => _, "data" => _}, _ ->
+            {:halt, {:error, :invalid_argument, "each task must have string task_id and data"}}
+
+          _, _ ->
+            {:halt,
+             {:error, :invalid_argument,
+              "tasks must be list of %{\"task_id\" => string, \"data\" => string}"}}
+        end)
+        |> case do
+          {:ok, list} -> {:ok, Enum.reverse(list)}
+          error -> error
+        end
+    end
   end
 end
