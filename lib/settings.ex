@@ -1,5 +1,7 @@
 defmodule Settings do
   alias Settings.FileLock
+  alias Settings.Instrumentation
+  require Logger
   # ----------------------------------------------------------------------------
   # Settings type
   # ----------------------------------------------------------------------------
@@ -16,8 +18,12 @@ defmodule Settings do
     path = settings_file()
     maybe_migrate_settings(path)
 
-    %Settings{path: path}
-    |> slurp()
+    settings =
+      %Settings{path: path}
+      |> slurp()
+
+    Instrumentation.init_baseline(settings.data)
+    settings
   end
 
   # ----------------------------------------------------------------------------
@@ -123,12 +129,15 @@ defmodule Settings do
     key = make_key(key)
 
     with_settings_lock(path, fn ->
-      data = fresh_read(path)
-      new_data = Map.put(data, key, value)
+      before = fresh_read(path)
+      new_data = Map.put(before, key, value)
       settings1 = %Settings{path: path, data: new_data} |> ensure_approvals_exist()
-      json = Jason.encode!(settings1.data, pretty: true)
+      after_data = settings1.data
+      Instrumentation.record_trace(:set, key, before, after_data)
+      final = Instrumentation.guard_or_heal(before, after_data, %{op: :set, key: key})
+      json = Jason.encode!(final, pretty: true)
       write_atomic!(path, json)
-      settings1
+      %Settings{path: path, data: final}
     end)
   end
 
@@ -140,12 +149,15 @@ defmodule Settings do
     key = make_key(key)
 
     with_settings_lock(path, fn ->
-      data = fresh_read(path)
-      new_data = Map.delete(data, key)
+      before = fresh_read(path)
+      new_data = Map.delete(before, key)
       settings1 = %Settings{path: path, data: new_data} |> ensure_approvals_exist()
-      json = Jason.encode!(settings1.data, pretty: true)
+      after_data = settings1.data
+      Instrumentation.record_trace(:delete, key, before, after_data)
+      final = Instrumentation.guard_or_heal(before, after_data, %{op: :delete, key: key})
+      json = Jason.encode!(final, pretty: true)
       write_atomic!(path, json)
-      settings1
+      %Settings{path: path, data: final}
     end)
   end
 
@@ -564,13 +576,25 @@ defmodule Settings do
   def update(%Settings{path: path} = _settings, key, updater, default \\ %{})
       when is_function(updater, 1) do
     with_settings_lock(path, fn ->
-      data = fresh_read(path)
-      cur = Map.get(data, make_key(key), default)
+      before = fresh_read(path)
+      cur = Map.get(before, make_key(key), default)
       new_val = updater.(cur)
-      new_data = Map.put(data, make_key(key), new_val)
-      json = Jason.encode!(new_data, pretty: true)
+      new_data = Map.put(before, make_key(key), new_val)
+      settings1 = %Settings{path: path, data: new_data} |> ensure_approvals_exist()
+      after_data = settings1.data
+      Instrumentation.record_trace(:update, key, before, after_data)
+      final = Instrumentation.guard_or_heal(before, after_data, %{op: :update, key: key})
+      json = Jason.encode!(final, pretty: true)
       write_atomic!(path, json)
-      %Settings{path: path, data: new_data}
+      %Settings{path: path, data: final}
     end)
   end
+
+  @doc "Are we in debug approvals mode?"
+  @spec debug_settings?() :: boolean
+  def debug_settings?(), do: Instrumentation.debug?()
+
+  @doc "Retrieve recent approval traces"
+  @spec get_recent_approval_traces(pos_integer) :: [map]
+  def get_recent_approval_traces(n), do: Instrumentation.recent_traces(n)
 end
