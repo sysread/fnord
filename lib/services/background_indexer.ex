@@ -216,7 +216,7 @@ defmodule Services.BackgroundIndexer do
            embed_str = [summary, outline, content] |> Enum.join("\n\n"),
            {:ok, embeddings} = impl.get_embeddings(embed_str) do
         Store.Project.Entry.save(entry, summary, outline, embeddings)
-        UI.end_step("Indexed", entry.file)
+        UI.end_step("Reindexed", entry.file)
       end
     rescue
       _ -> :ok
