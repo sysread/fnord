@@ -5,7 +5,7 @@ defmodule Cmd.Config.ApprovalsTest do
   alias Cmd.Config.Approvals
 
   setup do
-    Settings.new() |> Settings.set(:approvals, %{})
+    Settings.new() |> Settings.update(:approvals, fn _ -> %{} end)
     :ok
   end
 

@@ -57,7 +57,7 @@ defmodule Settings.MCP do
   @doc "Set MCP configuration for the given scope"
   @spec set_config(settings, scope, map()) :: settings
   def set_config(settings, :global, cfg) do
-    Settings.set(settings, "mcp_servers", cfg)
+    Settings.update(settings, "mcp_servers", fn _ -> cfg end)
   end
 
   def set_config(settings, :project, cfg) do

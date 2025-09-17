@@ -20,16 +20,6 @@ defmodule Settings.InstrumentationTest do
     :ok
   end
 
-  test "debug_settings? picks up truthy env values" do
-    for v <- ["1", "true", "yes", "TRUE", "Yes"] do
-      System.put_env("FNORD_DEBUG_SETTINGS", v)
-      assert Settings.debug_settings?(), "Expected debug_settings? to be true for \\#{v}"
-    end
-
-    System.delete_env("FNORD_DEBUG_SETTINGS")
-    refute Settings.debug_settings?(), "Expected debug_settings? to be false when unset"
-  end
-
   test "init_baseline and record_trace work" do
     data = %{"approvals" => %{"foo" => ["A", "B"]}}
     assert :ok = Instrumentation.init_baseline(data)

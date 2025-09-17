@@ -14,9 +14,9 @@ defmodule Settings do
 
   @spec new() :: t
   def new() do
-    cleanup_default_project_dir()
+    Settings.Migrate.cleanup_default_project_dir()
     path = settings_file()
-    maybe_migrate_settings(path)
+    Settings.Migrate.maybe_migrate_settings(path)
 
     settings =
       %Settings{path: path}
@@ -26,64 +26,11 @@ defmodule Settings do
     settings
   end
 
-  # ----------------------------------------------------------------------------
-  # Cleans up the "default" project directory within the store on startup.
-  #
-  # This function exists to remove any lingering "default" project data which
-  # might cause inconsistencies or conflicts. It is safe to call repeatedly
-  # and will not raise errors if the directory does not exist. Moreover, no
-  # code depends on this directory being present, so removing it has no adverse
-  # side effects.
-  # ----------------------------------------------------------------------------
-  defp cleanup_default_project_dir do
-    path = Path.join(home(), "default")
-
-    if File.exists?(path) do
-      File.rm_rf!(path)
-    end
-  end
-
-  defp get_running_version do
+  def get_running_version do
     # Allow version override for testing
     case Application.get_env(:fnord, :test_version_override) do
       nil -> Application.spec(:fnord, :vsn) |> to_string()
       version -> version
-    end
-  end
-
-  defp maybe_migrate_settings(path) do
-    ver = get_running_version()
-
-    if Version.compare(ver, "0.8.30") != :lt do
-      data =
-        with {:ok, content} <- File.read(path),
-             {:ok, parsed} <- Jason.decode(content) do
-          parsed
-        else
-          _ ->
-            raise """
-            Corrupted settings file: #{path}
-
-            You may need to reset your fnord settings. Consider backing up the file
-            and running 'fnord init' to recreate it.
-            """
-        end
-
-      globals = ["approvals", "projects", "version"]
-      {projects, globals_map} = Enum.split_with(data, fn {k, _v} -> k not in globals end)
-
-      if Map.has_key?(data, "projects") do
-        :ok
-      else
-        new_data =
-          globals_map
-          |> Map.new()
-          |> Map.put("projects", Map.new(projects))
-          |> Map.put("version", "0.8.30")
-          |> Map.put_new("approvals", %{})
-
-        write_atomic!(path, Jason.encode!(new_data, pretty: true))
-      end
     end
   end
 
@@ -121,45 +68,7 @@ defmodule Settings do
     Map.get(settings.data, key, default)
   end
 
-  @doc """
-  Set a value in the settings store.
-  """
-  @spec set(t, binary, any) :: t
-  def set(%Settings{path: path} = _settings, key, value) do
-    key = make_key(key)
 
-    with_settings_lock(path, fn ->
-      before = fresh_read(path)
-      new_data = Map.put(before, key, value)
-      settings1 = %Settings{path: path, data: new_data} |> ensure_approvals_exist()
-      after_data = settings1.data
-      Instrumentation.record_trace(:set, key, before, after_data)
-      final = Instrumentation.guard_or_heal(before, after_data, %{op: :set, key: key})
-      json = Jason.encode!(final, pretty: true)
-      write_atomic!(path, json)
-      %Settings{path: path, data: final}
-    end)
-  end
-
-  @doc """
-  Delete a value from the settings store.
-  """
-  @spec delete(t, binary) :: t
-  def delete(%Settings{path: path} = _settings, key) do
-    key = make_key(key)
-
-    with_settings_lock(path, fn ->
-      before = fresh_read(path)
-      new_data = Map.delete(before, key)
-      settings1 = %Settings{path: path, data: new_data} |> ensure_approvals_exist()
-      after_data = settings1.data
-      Instrumentation.record_trace(:delete, key, before, after_data)
-      final = Instrumentation.guard_or_heal(before, after_data, %{op: :delete, key: key})
-      json = Jason.encode!(final, pretty: true)
-      write_atomic!(path, json)
-      %Settings{path: path, data: final}
-    end)
-  end
 
   @doc """
   Set the project name for the --project option.
@@ -359,7 +268,7 @@ defmodule Settings do
   def set_project_data(settings, project_name, data) do
     projects_map = get(settings, "projects", %{})
     updated_projects_map = Map.put(projects_map, project_name, data)
-    set(settings, "projects", updated_projects_map)
+    update(settings, "projects", fn _ -> updated_projects_map end)
   end
 
   @doc """
@@ -370,10 +279,10 @@ defmodule Settings do
     # Delete from new nested format
     projects_map = get(settings, "projects", %{})
     updated_projects_map = Map.delete(projects_map, project_name)
-    settings = set(settings, "projects", updated_projects_map)
+    settings = update(settings, "projects", fn _ -> updated_projects_map end)
 
     # Also delete from old format for cleanup
-    delete(settings, project_name)
+    update(settings, project_name, fn _ -> :delete end)
   end
 
   @spec list_projects(t) :: [binary]
@@ -392,41 +301,6 @@ defmodule Settings do
       {:ok, %{"root" => root}} -> {:ok, Path.absname(root)}
       {:error, _} -> {:error, :not_found}
     end
-  end
-
-  defp slurp(settings) do
-    data =
-      with {:ok, content} <- File.read(settings.path),
-           {:ok, parsed} <- Jason.decode(content) do
-        parsed
-      else
-        _ ->
-          raise """
-          Corrupted settings file: #{settings.path}
-
-          You may need to reset your fnord settings. Consider backing up the file
-          and running 'fnord init' to recreate it.
-          """
-      end
-
-    %Settings{settings | data: data}
-  end
-
-  defp write_atomic!(path, "") do
-    write_atomic!(path, "{}")
-  end
-
-  defp write_atomic!(path, content) do
-    dir = Path.dirname(path)
-    base = Path.basename(path)
-
-    # Create temp file in the same directory to avoid cross-device rename
-    # issues and preserve atomicity.
-    tmp = Path.join(dir, ".#{base}.#{System.unique_integer([:positive])}.tmp")
-
-    File.write!(tmp, content)
-    File.rename!(tmp, path)
-    :ok
   end
 
   @doc """
@@ -465,6 +339,134 @@ defmodule Settings do
   @spec global_config_keys() :: [binary]
   def global_config_keys() do
     ["approvals", "projects", "version"]
+  end
+
+  @doc """
+  Check if model performance debugging is enabled via environment variable.
+  """
+  @spec debug_models?() :: boolean
+  def debug_models?() do
+    case System.get_env("FNORD_DEBUG_MODELS") do
+      nil -> false
+      "" -> false
+      _ -> true
+    end
+  end
+
+  @doc """
+  Atomically update a top-level key in the settings file using a cross-process
+  lock and a read-merge-write cycle.
+
+  The updater receives the current value for `key` (or `default` when missing)
+  and must return the new value. If the updater returns `:delete`, the key will
+  be removed from the settings.
+  """
+  @spec update(t, binary, (any -> any | :delete), any) :: t
+  def update(%Settings{path: path}, key, updater, default \\ %{}) do
+    key = make_key(key)
+
+    with_settings_lock(path, fn ->
+      before = fresh_read(path)
+
+      new_data =
+        before
+        |> Map.get(key, default)
+        |> updater.()
+        |> case do
+          :delete -> Map.delete(before, key)
+          value -> Map.put(before, key, value)
+        end
+
+      after_data =
+        %Settings{path: path, data: new_data}
+        |> ensure_approvals_exist()
+        |> then(& &1.data)
+
+      Instrumentation.record_trace(:update, key, before, after_data)
+
+      final =
+        before
+        |> Instrumentation.guard_or_heal(after_data, %{op: :update, key: key})
+
+      final
+      |> Jason.encode!(pretty: true)
+      |> then(&write_atomic!(path, &1))
+
+      %Settings{path: path, data: final}
+    end)
+  end
+
+  defp slurp(settings) do
+    data =
+      with {:ok, content} <- File.read(settings.path),
+           {:ok, parsed} <- Jason.decode(content) do
+        parsed
+      else
+        _ ->
+          raise """
+          Corrupted settings file: #{settings.path}
+
+          You may need to reset your fnord settings. Consider backing up the file
+          and running 'fnord init' to recreate it.
+          """
+      end
+
+    %Settings{settings | data: data}
+  end
+
+  def write_atomic!(path, "") do
+    write_atomic!(path, "{}")
+  end
+
+  def write_atomic!(path, content) do
+    dir = Path.dirname(path)
+    base = Path.basename(path)
+
+    # Create temp file in the same directory to avoid cross-device rename
+    # issues and preserve atomicity.
+    tmp = Path.join(dir, ".#{base}.#{System.unique_integer([:positive])}.tmp")
+
+    File.write!(tmp, content)
+    File.rename!(tmp, path)
+    :ok
+  end
+
+  # ----------------------------------------------------------------------------
+  # Concurrency-safe update helpers combining a filesystem lock and an Erlang
+  # global lock.
+  # ----------------------------------------------------------------------------
+  defp with_settings_lock(path, fun) when is_function(fun, 0) do
+    lock_path = Path.expand(path)
+
+    # 1) Acquire filesystem lock to coordinate across processes
+    FileLock.acquire_lock!(lock_path)
+
+    # 2) Acquire in-node global lock to coordinate across threads and nodes
+    resource = {:fnord_settings_lock, lock_path}
+    id = {resource, self()}
+
+    try do
+      true = :global.set_lock(id, [node()])
+      fun.()
+    after
+      # Release global lock first, then filesystem lock
+      true = :global.del_lock(id, [node()])
+      FileLock.release_lock!(lock_path)
+    end
+  end
+
+  # Read the latest JSON from disk ignoring the cached struct data.
+  defp fresh_read(path) do
+    case File.read(path) do
+      {:ok, content} ->
+        case Jason.decode(content) do
+          {:ok, parsed} -> parsed
+          _ -> %{}
+        end
+
+      _ ->
+        %{}
+    end
   end
 
   defp make_key(key) when is_atom(key), do: Atom.to_string(key)
@@ -514,87 +516,4 @@ defmodule Settings do
 
     %Settings{settings | data: data}
   end
-
-  @doc """
-  Check if model performance debugging is enabled via environment variable.
-  """
-  @spec debug_models?() :: boolean
-  def debug_models?() do
-    case System.get_env("FNORD_DEBUG_MODELS") do
-      nil -> false
-      "" -> false
-      _ -> true
-    end
-  end
-
-  # ----------------------------------------------------------------------------
-  # Concurrency-safe update helpers combining a filesystem lock and an Erlang
-  # global lock.
-  # ----------------------------------------------------------------------------
-  defp with_settings_lock(path, fun) when is_function(fun, 0) do
-    lock_path = Path.expand(path)
-
-    # 1) Acquire filesystem lock to coordinate across processes
-    FileLock.acquire_lock!(lock_path)
-
-    # 2) Acquire in-node global lock to coordinate across threads and nodes
-    resource = {:fnord_settings_lock, lock_path}
-    id = {resource, self()}
-
-    try do
-      true = :global.set_lock(id, [node()])
-      fun.()
-    after
-      # Release global lock first, then filesystem lock
-      true = :global.del_lock(id, [node()])
-      FileLock.release_lock!(lock_path)
-    end
-  end
-
-  # Read the latest JSON from disk ignoring the cached struct data.
-  defp fresh_read(path) do
-    case File.read(path) do
-      {:ok, content} ->
-        case Jason.decode(content) do
-          {:ok, parsed} -> parsed
-          _ -> %{}
-        end
-
-      _ ->
-        %{}
-    end
-  end
-
-  @doc """
-  Atomically update a top-level key in the settings file using a
-  cross-process lock and a read-merge-write cycle.
-
-  The updater receives the current value for `key` (or `default` when missing)
-  and must return the new value.
-  """
-  @spec update(t, binary, (any -> any), any) :: t
-  def update(%Settings{path: path} = _settings, key, updater, default \\ %{})
-      when is_function(updater, 1) do
-    with_settings_lock(path, fn ->
-      before = fresh_read(path)
-      cur = Map.get(before, make_key(key), default)
-      new_val = updater.(cur)
-      new_data = Map.put(before, make_key(key), new_val)
-      settings1 = %Settings{path: path, data: new_data} |> ensure_approvals_exist()
-      after_data = settings1.data
-      Instrumentation.record_trace(:update, key, before, after_data)
-      final = Instrumentation.guard_or_heal(before, after_data, %{op: :update, key: key})
-      json = Jason.encode!(final, pretty: true)
-      write_atomic!(path, json)
-      %Settings{path: path, data: final}
-    end)
-  end
-
-  @doc "Are we in debug approvals mode?"
-  @spec debug_settings?() :: boolean
-  def debug_settings?(), do: Instrumentation.debug?()
-
-  @doc "Retrieve recent approval traces"
-  @spec get_recent_approval_traces(pos_integer) :: [map]
-  def get_recent_approval_traces(n), do: Instrumentation.recent_traces(n)
 end

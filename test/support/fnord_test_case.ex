@@ -131,7 +131,7 @@ defmodule Fnord.TestCase do
           on_exit(fn -> System.put_env("HOME", orig) end)
           System.put_env("HOME", tmp_dir)
 
-          Settings.new() |> Settings.set(:approvals, %{})
+          Settings.new() |> Settings.update(:approvals, fn _ -> %{} end)
 
           {:ok, home_dir: tmp_dir}
         end
