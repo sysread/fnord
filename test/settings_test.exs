@@ -60,7 +60,9 @@ defmodule SettingsTest do
     assert Settings.get(settings, "missing") == 101
 
     # Update non-existent key with default default (%{})
-    settings = Settings.update(settings, "map_key", fn current -> Map.put(current, "nested", "value") end)
+    settings =
+      Settings.update(settings, "map_key", fn current -> Map.put(current, "nested", "value") end)
+
     assert Settings.get(settings, "map_key") == %{"nested" => "value"}
   end
 
@@ -68,15 +70,18 @@ defmodule SettingsTest do
     settings = Settings.new()
 
     # Start with empty map
-    settings = Settings.update(settings, "config", fn current -> Map.put(current, "enabled", true) end)
+    settings =
+      Settings.update(settings, "config", fn current -> Map.put(current, "enabled", true) end)
+
     assert Settings.get(settings, "config") == %{"enabled" => true}
 
     # Add more keys
-    settings = Settings.update(settings, "config", fn current ->
-      current
-      |> Map.put("timeout", 30)
-      |> Map.put("retries", 3)
-    end)
+    settings =
+      Settings.update(settings, "config", fn current ->
+        current
+        |> Map.put("timeout", 30)
+        |> Map.put("retries", 3)
+      end)
 
     expected = %{"enabled" => true, "timeout" => 30, "retries" => 3}
     assert Settings.get(settings, "config") == expected
@@ -101,20 +106,23 @@ defmodule SettingsTest do
     settings = Settings.update(settings, "count", fn _ -> 0 end)
 
     # Conditionally delete based on current values
-    settings = Settings.update(settings, "enabled", fn
-      true -> :delete
-      other -> other
-    end)
+    settings =
+      Settings.update(settings, "enabled", fn
+        true -> :delete
+        other -> other
+      end)
 
-    settings = Settings.update(settings, "disabled", fn
-      false -> "was_false"
-      other -> other
-    end)
+    settings =
+      Settings.update(settings, "disabled", fn
+        false -> "was_false"
+        other -> other
+      end)
 
-    settings = Settings.update(settings, "count", fn
-      0 -> :delete
-      other -> other + 1
-    end)
+    settings =
+      Settings.update(settings, "count", fn
+        0 -> :delete
+        other -> other + 1
+      end)
 
     # Verify results
     assert Settings.get(settings, "enabled", :missing) == :missing
@@ -162,6 +170,7 @@ defmodule SettingsTest do
     # Verify final count is correct
     final_count = Settings.new() |> Settings.get(key)
     expected = num_tasks * increments_per_task
+
     assert final_count == expected,
            "Expected #{expected} but got #{final_count} - lost #{expected - final_count} updates"
   end
@@ -175,6 +184,7 @@ defmodule SettingsTest do
       for i <- 1..num_tasks do
         Task.async(fn ->
           key = "task_#{i}"
+
           for j <- 1..updates_per_task do
             Settings.new()
             |> Settings.update(key, fn _ -> "task_#{i}_value_#{j}" end)
@@ -187,6 +197,7 @@ defmodule SettingsTest do
 
     # Verify all keys have their expected final values
     settings = Settings.new()
+
     for i <- 1..num_tasks do
       key = "task_#{i}"
       expected = "task_#{i}_value_#{updates_per_task}"
@@ -201,6 +212,7 @@ defmodule SettingsTest do
 
     # Pre-populate some data
     initial_data = for i <- 1..20, into: %{}, do: {"key_#{i}", "initial_value_#{i}"}
+
     _settings =
       Enum.reduce(initial_data, settings, fn {key, value}, acc ->
         Settings.update(acc, key, fn _ -> value end)
@@ -218,12 +230,15 @@ defmodule SettingsTest do
               0 ->
                 # Delete the key
                 Settings.new() |> Settings.update(key, fn _ -> :delete end)
+
               1 ->
                 # Update with new value
                 Settings.new() |> Settings.update(key, fn _ -> "updated_by_task_#{i}_#{j}" end)
+
               2 ->
                 # Conditional update based on current value
-                Settings.new() |> Settings.update(key, fn
+                Settings.new()
+                |> Settings.update(key, fn
                   current when is_binary(current) -> current <> "_modified"
                   _ -> "recreated_by_task_#{i}_#{j}"
                 end)
@@ -269,13 +284,14 @@ defmodule SettingsTest do
     settings = Settings.new()
 
     # Set up multiple existing approvals
-    settings = Settings.update(settings, "approvals", fn _ ->
-      %{
-        "shell" => ["existing_approval_1", "existing_approval_2"],
-        "shell_full" => [".*\\.txt"],
-        "other_category" => ["keep_this"]
-      }
-    end)
+    settings =
+      Settings.update(settings, "approvals", fn _ ->
+        %{
+          "shell" => ["existing_approval_1", "existing_approval_2"],
+          "shell_full" => [".*\\.txt"],
+          "other_category" => ["keep_this"]
+        }
+      end)
 
     # Verify they exist
     approvals = Settings.get(settings, "approvals")
@@ -285,17 +301,20 @@ defmodule SettingsTest do
 
     # Now simulate what happens during an approval operation
     # (this mimics what the Approvals module might do)
-    settings = Settings.update(settings, "approvals", fn current_approvals ->
-      # Add a new approval to shell category
-      updated_shell = (current_approvals["shell"] || []) ++ ["new_approval"]
-      Map.put(current_approvals, "shell", updated_shell)
-    end)
+    settings =
+      Settings.update(settings, "approvals", fn current_approvals ->
+        # Add a new approval to shell category
+        updated_shell = (current_approvals["shell"] || []) ++ ["new_approval"]
+        Map.put(current_approvals, "shell", updated_shell)
+      end)
 
     # Verify the other categories weren't wiped out
     final_approvals = Settings.get(settings, "approvals")
     assert length(final_approvals["shell"]) == 3
     assert final_approvals["shell_full"] == [".*\\.txt"], "shell_full approvals were lost!"
-    assert final_approvals["other_category"] == ["keep_this"], "other_category approvals were lost!"
+
+    assert final_approvals["other_category"] == ["keep_this"],
+           "other_category approvals were lost!"
   end
 
   test "concurrent approval additions don't lose existing approvals", %{home_dir: _} do
@@ -303,13 +322,14 @@ defmodule SettingsTest do
     settings = Settings.new()
 
     # Set up existing approvals like a real user would have
-    _settings = Settings.update(settings, "approvals", fn _ ->
-      %{
-        "shell" => ["git status", "git diff", "make test"],
-        "shell_full" => ["find . -name '*.ex'", "grep -r 'TODO'"],
-        "edit" => ["/project/src/**/*.ex"]
-      }
-    end)
+    _settings =
+      Settings.update(settings, "approvals", fn _ ->
+        %{
+          "shell" => ["git status", "git diff", "make test"],
+          "shell_full" => ["find . -name '*.ex'", "grep -r 'TODO'"],
+          "edit" => ["/project/src/**/*.ex"]
+        }
+      end)
 
     # Simulate two different worktrees/processes adding approvals simultaneously
     tasks = [
@@ -317,16 +337,15 @@ defmodule SettingsTest do
         # Process 1: Add approval to shell
         Settings.new()
         |> Settings.update("approvals", fn approvals ->
-          shell_approvals = (Map.get(approvals, "shell", [])) ++ ["git log"]
+          shell_approvals = Map.get(approvals, "shell", []) ++ ["git log"]
           Map.put(approvals, "shell", shell_approvals)
         end)
       end),
-
       Task.async(fn ->
         # Process 2: Add approval to shell_full
         Settings.new()
         |> Settings.update("approvals", fn approvals ->
-          shell_full_approvals = (Map.get(approvals, "shell_full", [])) ++ ["rg 'pattern' ."]
+          shell_full_approvals = Map.get(approvals, "shell_full", []) ++ ["rg 'pattern' ."]
           Map.put(approvals, "shell_full", shell_full_approvals)
         end)
       end)
@@ -343,7 +362,10 @@ defmodule SettingsTest do
     edit_count = length(final_approvals["edit"] || [])
 
     assert shell_count >= 3, "Shell approvals missing: #{inspect(final_approvals["shell"])}"
-    assert shell_full_count >= 2, "Shell_full approvals missing: #{inspect(final_approvals["shell_full"])}"
+
+    assert shell_full_count >= 2,
+           "Shell_full approvals missing: #{inspect(final_approvals["shell_full"])}"
+
     assert edit_count >= 1, "Edit approvals missing: #{inspect(final_approvals["edit"])}"
 
     # Make sure specific approvals exist
@@ -373,12 +395,16 @@ defmodule SettingsTest do
     test "approvals read functions handle completely missing approvals key" do
       # Create settings with NO approvals key at all
       settings_file = Settings.settings_file()
-      File.write!(settings_file, Jason.encode!(%{
-        "some_other_key" => "value",
-        "projects" => %{
-          "test_project" => %{"root" => "/test", "exclude" => []}
-        }
-      }))
+
+      File.write!(
+        settings_file,
+        Jason.encode!(%{
+          "some_other_key" => "value",
+          "projects" => %{
+            "test_project" => %{"root" => "/test", "exclude" => []}
+          }
+        })
+      )
 
       settings = Settings.new()
 
@@ -395,12 +421,16 @@ defmodule SettingsTest do
     test "approvals read functions handle existing but empty approvals" do
       # Create settings with empty approvals objects
       settings_file = Settings.settings_file()
-      File.write!(settings_file, Jason.encode!(%{
-        "approvals" => %{},
-        "projects" => %{
-          "test_project" => %{"root" => "/test", "approvals" => %{}}
-        }
-      }))
+
+      File.write!(
+        settings_file,
+        Jason.encode!(%{
+          "approvals" => %{},
+          "projects" => %{
+            "test_project" => %{"root" => "/test", "approvals" => %{}}
+          }
+        })
+      )
 
       settings = Settings.new()
 
@@ -416,12 +446,16 @@ defmodule SettingsTest do
     test "approvals read functions handle corrupted approvals data" do
       # Create settings with corrupted approvals (not a map)
       settings_file = Settings.settings_file()
-      File.write!(settings_file, Jason.encode!(%{
-        "approvals" => "not_a_map",
-        "projects" => %{
-          "test_project" => %{"root" => "/test", "approvals" => ["not_a_map_either"]}
-        }
-      }))
+
+      File.write!(
+        settings_file,
+        Jason.encode!(%{
+          "approvals" => "not_a_map",
+          "projects" => %{
+            "test_project" => %{"root" => "/test", "approvals" => ["not_a_map_either"]}
+          }
+        })
+      )
 
       settings = Settings.new()
 

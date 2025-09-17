@@ -5,12 +5,15 @@ defmodule Settings.Approvals.RaceTest do
     test "global repair merges concurrent additions instead of overwriting", %{home_dir: _} do
       # Setup: Create settings with some valid approvals and one invalid entry
       settings_file = Settings.settings_file()
+
       initial_data = %{
         "approvals" => %{
-          "shell" => ["git status", 123, "git log"],  # 123 is invalid
+          # 123 is invalid
+          "shell" => ["git status", 123, "git log"],
           "edit" => ["*.ex", "*.exs"]
         }
       }
+
       File.write!(settings_file, Jason.encode!(initial_data))
 
       # Simulate what happens when repair is triggered
@@ -23,7 +26,9 @@ defmodule Settings.Approvals.RaceTest do
       # (In real scenario, this would happen between validation detecting corruption
       # and the repair write)
       spawn(fn ->
-        :timer.sleep(5)  # Small delay to interleave with repair
+        # Small delay to interleave with repair
+        :timer.sleep(5)
+
         Settings.new()
         |> Settings.update("approvals", fn approvals ->
           current_shell = Map.get(approvals, "shell", [])
@@ -58,17 +63,20 @@ defmodule Settings.Approvals.RaceTest do
 
       # Setup: Create settings with project approvals containing invalid entry
       settings_file = Settings.settings_file()
+
       initial_data = %{
         "projects" => %{
           "test_project" => %{
             "root" => "/test",
             "approvals" => %{
-              "shell" => ["mix test", nil, "mix compile"],  # nil is invalid
+              # nil is invalid
+              "shell" => ["mix test", nil, "mix compile"],
               "edit" => ["lib/**/*.ex"]
             }
           }
         }
       }
+
       File.write!(settings_file, Jason.encode!(initial_data))
 
       settings = Settings.new()
@@ -76,6 +84,7 @@ defmodule Settings.Approvals.RaceTest do
       # Simulate concurrent addition
       spawn(fn ->
         :timer.sleep(5)
+
         Settings.new()
         |> Settings.update("projects", fn projects ->
           project = Map.get(projects, "test_project", %{})
@@ -108,12 +117,15 @@ defmodule Settings.Approvals.RaceTest do
     test "repair handles completely corrupted approval data (not a list)", %{home_dir: _} do
       # Test when the approval data is completely wrong type
       settings_file = Settings.settings_file()
+
       initial_data = %{
         "approvals" => %{
-          "shell" => "not_a_list",  # Completely wrong type
+          # Completely wrong type
+          "shell" => "not_a_list",
           "edit" => ["*.ex"]
         }
       }
+
       File.write!(settings_file, Jason.encode!(initial_data))
 
       settings = Settings.new()
@@ -121,6 +133,7 @@ defmodule Settings.Approvals.RaceTest do
       # Simulate concurrent addition while repair is fixing corruption
       spawn(fn ->
         :timer.sleep(5)
+
         Settings.new()
         |> Settings.update("approvals", fn approvals ->
           # Since shell is corrupted, we need to handle it being non-list
@@ -129,6 +142,7 @@ defmodule Settings.Approvals.RaceTest do
               list when is_list(list) -> list
               _ -> []
             end
+
           updated = (current_shell ++ ["git status"]) |> Enum.uniq() |> Enum.sort()
           Map.put(approvals, "shell", updated)
         end)
@@ -136,7 +150,8 @@ defmodule Settings.Approvals.RaceTest do
 
       # This should trigger repair since "not_a_list" is invalid
       result = Settings.Approvals.get_approvals(settings, :global, "shell")
-      assert result == []  # Initial result is empty due to corruption
+      # Initial result is empty due to corruption
+      assert result == []
 
       # Wait and verify the concurrent addition succeeded
       :timer.sleep(50)
@@ -146,12 +161,15 @@ defmodule Settings.Approvals.RaceTest do
 
     test "repair handles nil approval data", %{home_dir: _} do
       settings_file = Settings.settings_file()
+
       initial_data = %{
         "approvals" => %{
-          "shell" => nil,  # nil instead of list
+          # nil instead of list
+          "shell" => nil,
           "edit" => ["*.ex"]
         }
       }
+
       File.write!(settings_file, Jason.encode!(initial_data))
 
       settings = Settings.new()
@@ -159,15 +177,18 @@ defmodule Settings.Approvals.RaceTest do
       # Concurrent addition
       spawn(fn ->
         :timer.sleep(5)
+
         Settings.new()
         |> Settings.update("approvals", fn approvals ->
           current = Map.get(approvals, "shell", [])
+
           updated =
             if is_list(current) do
               (current ++ ["ls -la"]) |> Enum.uniq() |> Enum.sort()
             else
               ["ls -la"]
             end
+
           Map.put(approvals, "shell", updated)
         end)
       end)
@@ -185,24 +206,29 @@ defmodule Settings.Approvals.RaceTest do
     test "multiple concurrent repairs don't lose data", %{home_dir: _} do
       # Test multiple processes all trying to repair at once
       settings_file = Settings.settings_file()
+
       initial_data = %{
         "approvals" => %{
           "shell" => [
             "valid1",
-            123,  # invalid
+            # invalid
+            123,
             "valid2",
-            nil,  # invalid
+            # invalid
+            nil,
             "valid3"
           ]
         }
       }
+
       File.write!(settings_file, Jason.encode!(initial_data))
 
       # Start multiple concurrent processes that will all detect and try to repair
       tasks =
         for i <- 1..5 do
           Task.async(fn ->
-            :timer.sleep(i * 2)  # Stagger slightly
+            # Stagger slightly
+            :timer.sleep(i * 2)
             settings = Settings.new()
 
             # Each process adds its own approval
@@ -240,17 +266,21 @@ defmodule Settings.Approvals.RaceTest do
     test "repair preserves valid non-string entries that should be strings", %{home_dir: _} do
       # Some entries might be atoms that got serialized wrong
       settings_file = Settings.settings_file()
+
       initial_data = %{
         "approvals" => %{
           "shell" => [
             "git status",
-            %{"invalid" => "map"},  # Invalid: map instead of string
+            # Invalid: map instead of string
+            %{"invalid" => "map"},
             "git log",
-            ["nested", "list"],     # Invalid: nested list
+            # Invalid: nested list
+            ["nested", "list"],
             "git diff"
           ]
         }
       }
+
       File.write!(settings_file, Jason.encode!(initial_data))
 
       settings = Settings.new()
@@ -258,6 +288,7 @@ defmodule Settings.Approvals.RaceTest do
       # Concurrent addition during repair
       spawn(fn ->
         :timer.sleep(5)
+
         Settings.new()
         |> Settings.Approvals.approve(:global, "shell", "git pull")
       end)
@@ -290,15 +321,17 @@ defmodule Settings.Approvals.RaceTest do
       Settings.new()
 
       # Two processes add different approvals concurrently
-      task1 = Task.async(fn ->
-        Settings.new()
-        |> Settings.Approvals.approve(:global, "shell", "git status")
-      end)
+      task1 =
+        Task.async(fn ->
+          Settings.new()
+          |> Settings.Approvals.approve(:global, "shell", "git status")
+        end)
 
-      task2 = Task.async(fn ->
-        Settings.new()
-        |> Settings.Approvals.approve(:global, "shell", "git log")
-      end)
+      task2 =
+        Task.async(fn ->
+          Settings.new()
+          |> Settings.Approvals.approve(:global, "shell", "git log")
+        end)
 
       Task.await(task1, 5000)
       Task.await(task2, 5000)

@@ -68,8 +68,6 @@ defmodule Settings do
     Map.get(settings.data, key, default)
   end
 
-
-
   @doc """
   Set the project name for the --project option.
   """
@@ -468,5 +466,4 @@ defmodule Settings do
 
   defp make_key(key) when is_atom(key), do: Atom.to_string(key)
   defp make_key(key), do: key
-
 end
