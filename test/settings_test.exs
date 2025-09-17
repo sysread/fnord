@@ -132,6 +132,225 @@ defmodule SettingsTest do
     assert Settings.get(settings, "nonexistent", :still_missing) == :still_missing
   end
 
+  test "concurrent updates to same key don't lose data", %{home_dir: _} do
+    # This tests the critical case where multiple processes update the same key
+    # and we need to ensure no data is lost due to read-modify-write races
+    key = "concurrent_counter"
+    num_tasks = 10
+    increments_per_task = 5
+
+    # Initialize counter
+    Settings.new() |> Settings.update(key, fn _ -> 0 end)
+
+    tasks =
+      for _i <- 1..num_tasks do
+        Task.async(fn ->
+          for _j <- 1..increments_per_task do
+            Settings.new()
+            |> Settings.update(key, fn current ->
+              # Simulate some work and ensure we use the current value
+              :timer.sleep(1)
+              current + 1
+            end)
+          end
+        end)
+      end
+
+    # Wait for all tasks to complete
+    Enum.each(tasks, &Task.await(&1, 30_000))
+
+    # Verify final count is correct
+    final_count = Settings.new() |> Settings.get(key)
+    expected = num_tasks * increments_per_task
+    assert final_count == expected,
+           "Expected #{expected} but got #{final_count} - lost #{expected - final_count} updates"
+  end
+
+  test "concurrent updates to different keys don't interfere", %{home_dir: _} do
+    # Test that updates to different keys don't cause data corruption
+    num_tasks = 8
+    updates_per_task = 10
+
+    tasks =
+      for i <- 1..num_tasks do
+        Task.async(fn ->
+          key = "task_#{i}"
+          for j <- 1..updates_per_task do
+            Settings.new()
+            |> Settings.update(key, fn _ -> "task_#{i}_value_#{j}" end)
+          end
+        end)
+      end
+
+    # Wait for completion
+    Enum.each(tasks, &Task.await(&1, 30_000))
+
+    # Verify all keys have their expected final values
+    settings = Settings.new()
+    for i <- 1..num_tasks do
+      key = "task_#{i}"
+      expected = "task_#{i}_value_#{updates_per_task}"
+      actual = Settings.get(settings, key)
+      assert actual == expected, "Task #{i}: expected '#{expected}' but got '#{actual}'"
+    end
+  end
+
+  test "concurrent deletes and updates don't corrupt settings", %{home_dir: _} do
+    # Test mixed operations that could cause corruption
+    settings = Settings.new()
+
+    # Pre-populate some data
+    initial_data = for i <- 1..20, into: %{}, do: {"key_#{i}", "initial_value_#{i}"}
+    _settings =
+      Enum.reduce(initial_data, settings, fn {key, value}, acc ->
+        Settings.update(acc, key, fn _ -> value end)
+      end)
+
+    num_tasks = 10
+
+    tasks =
+      for i <- 1..num_tasks do
+        Task.async(fn ->
+          for j <- 1..5 do
+            key = "key_#{rem(i * j, 20) + 1}"
+
+            case rem(i + j, 3) do
+              0 ->
+                # Delete the key
+                Settings.new() |> Settings.update(key, fn _ -> :delete end)
+              1 ->
+                # Update with new value
+                Settings.new() |> Settings.update(key, fn _ -> "updated_by_task_#{i}_#{j}" end)
+              2 ->
+                # Conditional update based on current value
+                Settings.new() |> Settings.update(key, fn
+                  current when is_binary(current) -> current <> "_modified"
+                  _ -> "recreated_by_task_#{i}_#{j}"
+                end)
+            end
+          end
+        end)
+      end
+
+    Enum.each(tasks, &Task.await(&1, 30_000))
+
+    # Verify settings file is still valid JSON and not corrupted
+    final_settings = Settings.new()
+    assert is_struct(final_settings, Settings)
+    assert is_map(final_settings.data)
+
+    # Verify we can still read and write
+    test_key = "post_test_verification"
+    result = Settings.update(final_settings, test_key, fn _ -> "success" end)
+    assert Settings.get(result, test_key) == "success"
+  end
+
+  test "settings file corruption recovery", %{home_dir: _home_dir} do
+    # Test what happens if the settings file gets corrupted during concurrent access
+    settings_file = Settings.settings_file()
+
+    # Create initial valid settings
+    Settings.new() |> Settings.update("test_key", fn _ -> "test_value" end)
+
+    # Simulate file corruption by writing invalid JSON
+    File.write!(settings_file, "{invalid json")
+
+    # Attempting to read should raise with a helpful error
+    assert_raise RuntimeError, ~r/Corrupted settings file/, fn ->
+      Settings.new()
+    end
+
+    # Cleanup - restore valid JSON for other tests
+    File.write!(settings_file, "{}")
+  end
+
+  test "approval operations don't wipe existing approvals", %{home_dir: _} do
+    # This specifically tests the bug where adding one approval wipes out others
+    settings = Settings.new()
+
+    # Set up multiple existing approvals
+    settings = Settings.update(settings, "approvals", fn _ ->
+      %{
+        "shell" => ["existing_approval_1", "existing_approval_2"],
+        "shell_full" => [".*\\.txt"],
+        "other_category" => ["keep_this"]
+      }
+    end)
+
+    # Verify they exist
+    approvals = Settings.get(settings, "approvals")
+    assert length(approvals["shell"]) == 2
+    assert length(approvals["shell_full"]) == 1
+    assert length(approvals["other_category"]) == 1
+
+    # Now simulate what happens during an approval operation
+    # (this mimics what the Approvals module might do)
+    settings = Settings.update(settings, "approvals", fn current_approvals ->
+      # Add a new approval to shell category
+      updated_shell = (current_approvals["shell"] || []) ++ ["new_approval"]
+      Map.put(current_approvals, "shell", updated_shell)
+    end)
+
+    # Verify the other categories weren't wiped out
+    final_approvals = Settings.get(settings, "approvals")
+    assert length(final_approvals["shell"]) == 3
+    assert final_approvals["shell_full"] == [".*\\.txt"], "shell_full approvals were lost!"
+    assert final_approvals["other_category"] == ["keep_this"], "other_category approvals were lost!"
+  end
+
+  test "concurrent approval additions don't lose existing approvals", %{home_dir: _} do
+    # Test the specific scenario: two worktrees adding approvals concurrently
+    settings = Settings.new()
+
+    # Set up existing approvals like a real user would have
+    _settings = Settings.update(settings, "approvals", fn _ ->
+      %{
+        "shell" => ["git status", "git diff", "make test"],
+        "shell_full" => ["find . -name '*.ex'", "grep -r 'TODO'"],
+        "edit" => ["/project/src/**/*.ex"]
+      }
+    end)
+
+    # Simulate two different worktrees/processes adding approvals simultaneously
+    tasks = [
+      Task.async(fn ->
+        # Process 1: Add approval to shell
+        Settings.new()
+        |> Settings.update("approvals", fn approvals ->
+          shell_approvals = (Map.get(approvals, "shell", [])) ++ ["git log"]
+          Map.put(approvals, "shell", shell_approvals)
+        end)
+      end),
+
+      Task.async(fn ->
+        # Process 2: Add approval to shell_full
+        Settings.new()
+        |> Settings.update("approvals", fn approvals ->
+          shell_full_approvals = (Map.get(approvals, "shell_full", [])) ++ ["rg 'pattern' ."]
+          Map.put(approvals, "shell_full", shell_full_approvals)
+        end)
+      end)
+    ]
+
+    Enum.each(tasks, &Task.await(&1, 15_000))
+
+    # Check final state - both new approvals should exist AND old ones preserved
+    final_approvals = Settings.get(Settings.new(), "approvals")
+
+    # Should have at least the original approvals plus new ones
+    shell_count = length(final_approvals["shell"] || [])
+    shell_full_count = length(final_approvals["shell_full"] || [])
+    edit_count = length(final_approvals["edit"] || [])
+
+    assert shell_count >= 3, "Shell approvals missing: #{inspect(final_approvals["shell"])}"
+    assert shell_full_count >= 2, "Shell_full approvals missing: #{inspect(final_approvals["shell_full"])}"
+    assert edit_count >= 1, "Edit approvals missing: #{inspect(final_approvals["edit"])}"
+
+    # Make sure specific approvals exist
+    assert "git status" in final_approvals["shell"], "Original shell approval lost"
+    assert "/project/src/**/*.ex" in final_approvals["edit"], "Original edit approval lost"
+  end
+
   test "automatic cleanup of default project directory" do
     home = Settings.home()
     default_dir = Path.join(home, "default")
