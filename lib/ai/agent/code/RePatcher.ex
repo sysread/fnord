@@ -24,6 +24,10 @@ defmodule AI.Agent.Code.RePatcher do
 
   Read the "patch" carefully and compare it to the contents of the file(s) referenced.
   Then, attempt to make the requested change(s) using the CORRECT tool, `file_edit_tool`.
+  # Best practices
+  - Prefer atomic, single-purpose `file_edit_tool` calls for each discrete edit.
+  - Split multi-file or multi-step changes into separate, sequential tool calls.
+  - Avoid embedded shell gymnastics (e.g., here-doc patches); rely on `file_edit_tool` for clarity.
   """
 
   @response_format %{

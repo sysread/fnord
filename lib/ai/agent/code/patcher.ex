@@ -4,6 +4,8 @@ defmodule AI.Agent.Code.Patcher do
   # ----------------------------------------------------------------------------
   @model AI.Model.reasoning(:low)
 
+  @max_retries 2
+
   @prompt """
   # Synopsis
   You are the Patcher, an AI Agent that applies changes to a file.
@@ -40,6 +42,11 @@ defmodule AI.Agent.Code.Patcher do
   After making a change, you MUST use the tools available to the project or
   language ecosystem to validate that the change is correct and does not
   introduce syntax errors or other issues.
+
+  # Best practices
+  - Generate linear, atomic patches; avoid complex nested conditionals in a single patch.
+  - If a requested change implies multiple steps, propose sequential, small patches rather than nesting logic.
+  - Use early validation or checks to enforce invariants before proceeding with deeper edits.
   """
 
   @response_format %{
@@ -116,14 +123,18 @@ defmodule AI.Agent.Code.Patcher do
     :agent,
     :file,
     :changes,
-    :contents
+    :contents,
+    :tools,
+    :retry_counts
   ]
 
   @type t :: %__MODULE__{
           agent: AI.Agent.t(),
           file: binary,
           changes: list(binary),
-          contents: binary
+          contents: binary,
+          tools: map(),
+          retry_counts: map()
         }
 
   @spec new(map) :: {:ok, t} | {:error, binary}
@@ -134,16 +145,26 @@ defmodule AI.Agent.Code.Patcher do
          {:ok, contents} <- AI.Tools.get_file_contents(file) do
       UI.report_from(agent.name, "Patching #{file}")
 
+      # Build the toolbox once per apply_changes session
+      tools =
+        %{"shell_tool" => AI.Tools.Shell}
+        |> Map.merge(Frobs.module_map())
+
       {:ok,
        %__MODULE__{
          agent: agent,
          file: file,
          changes: changes,
-         contents: contents
+         contents: contents,
+         tools: tools,
+         retry_counts: %{}
        }}
     else
-      {:error, reason} when is_binary(reason) -> {:error, reason}
-      {:error, reason} -> {:error, inspect(reason, pretty: true, limit: :infinity)}
+      {:error, reason} when is_binary(reason) ->
+        {:error, reason}
+
+      {:error, reason} ->
+        {:error, inspect(reason, pretty: true, limit: :infinity)}
     end
   end
 
@@ -155,16 +176,12 @@ defmodule AI.Agent.Code.Patcher do
 
     numbered = Util.numbered_lines(contents)
 
-    tools =
-      %{"shell_tool" => AI.Tools.Shell}
-      |> Map.merge(Frobs.module_map())
-
     AI.Agent.get_completion(state.agent,
       model: @model,
       response_format: @response_format,
       log_msgs: false,
       log_tool_calls: true,
-      toolbox: tools,
+      toolbox: state.tools,
       messages: [
         AI.Util.system_msg(@prompt),
         AI.Util.user_msg("""
@@ -180,64 +197,21 @@ defmodule AI.Agent.Code.Patcher do
     )
     |> case do
       {:error, reason} ->
-        error_response(change, reason)
+        attempts = Map.get(state.retry_counts, change, 0) + 1
+
+        if attempts <= @max_retries do
+          updated_state = %{state | retry_counts: Map.put(state.retry_counts, change, attempts)}
+          apply_changes(updated_state)
+        else
+          {:error, "Failed to apply change after #{@max_retries} attempts: #{reason}"}
+        end
 
       {:ok, %{response: response}} ->
-        response
-        |> Jason.decode()
-        |> case do
-          {:ok,
-           %{
-             "error" => "",
-             "start_line" => start_line,
-             "end_line" => end_line,
-             "replacement" => replacement
-           }} ->
+        case parse_patch_response(response) do
+          {:ok, {start_line, end_line, replacement}} ->
             %{state | changes: remaining}
             |> replace_contents(start_line, end_line, replacement)
             |> apply_changes()
-
-          {:ok,
-           %{
-             "start_line" => start_line,
-             "end_line" => end_line,
-             "replacement" => replacement
-           }} ->
-            %{state | changes: remaining}
-            |> replace_contents(start_line, end_line, replacement)
-            |> apply_changes()
-
-          # The LLM often barfs out the correct response, but inside a "patch" key.
-          {:ok,
-           %{
-             "patch" => %{
-               "error" => "",
-               "start_line" => start_line,
-               "end_line" => end_line,
-               "replacement" => replacement
-             }
-           }} ->
-            %{state | changes: remaining}
-            |> replace_contents(start_line, end_line, replacement)
-            |> apply_changes()
-
-          {:ok,
-           %{
-             "patch" => %{
-               "start_line" => start_line,
-               "end_line" => end_line,
-               "replacement" => replacement
-             }
-           }} ->
-            %{state | changes: remaining}
-            |> replace_contents(start_line, end_line, replacement)
-            |> apply_changes()
-
-          {:ok, %{"error" => reason}} ->
-            error_response(change, reason)
-
-          {:ok, _other} ->
-            apply_changes(state)
 
           {:error, reason} ->
             error_response(change, reason)
@@ -279,6 +253,35 @@ defmodule AI.Agent.Code.Patcher do
      The AI Agent returned an error:
      #{inspect(reason, pretty: true, limit: :infinity)}
      """}
+  end
+
+  @doc false
+  # Parses the LLM JSON response into patch tuple or error
+  defp parse_patch_response(json) do
+    case Jason.decode(json) do
+      {:ok, decoded} ->
+        patch = Map.get(decoded, "patch", decoded)
+
+        case Map.get(patch, "error", "") do
+          "" ->
+            start_line = Map.get(patch, "start_line")
+            end_line = Map.get(patch, "end_line")
+            replacement = Map.get(patch, "replacement")
+
+            if is_integer(start_line) and is_integer(end_line) and start_line >= 1 and
+                 start_line <= end_line and is_binary(replacement) do
+              {:ok, {start_line, end_line, replacement}}
+            else
+              {:error, "Invalid patch structure"}
+            end
+
+          reason ->
+            {:error, reason}
+        end
+
+      {:error, error} ->
+        {:error, "JSON parse error: #{inspect(error)}"}
+    end
   end
 
   @spec required_arg(map, atom) :: {:ok, any} | {:error, binary}

@@ -70,6 +70,12 @@ defmodule AI.Tools.File.Edit do
 
         Supports optional creation of the file when it does not exist by
         setting `create_if_missing: true`.
+
+        Best practices:
+        - Prefer linear, atomic steps; avoid nested control flow in a single change.
+        - Use early checks/exits to prevent deep conditionals.
+        - Split complex edits into multiple changes/tool calls.
+        - Keep diffs minimal and well-anchored with clear anchors.
         """,
         parameters: %{
           type: "object",
@@ -164,10 +170,9 @@ defmodule AI.Tools.File.Edit do
   # ----------------------------------------------------------------------------
   @spec ensure_file(binary, boolean) :: :ok | {:error, String.t()}
   defp ensure_file(path, true) do
-    # Create file and parent directories if missing
+    # Ensure parent directories exist, but do not pre-create the file itself
     unless File.exists?(path) do
       File.mkdir_p!(Path.dirname(path))
-      File.write!(path, "")
     end
 
     :ok
@@ -183,21 +188,23 @@ defmodule AI.Tools.File.Edit do
   end
 
   # Main edit flow with optional file creation
+  @spec do_edits(binary, [String.t()], boolean) :: {:ok, edit_result} | {:error, String.t()}
   defp do_edits(file, changes, create_if_missing) do
     try do
       with {:ok, project} <- Store.get_project(),
            absolute_path <- Store.Project.expand_path(file, project),
-           # Track original existence before optional creation
-           orig_exists = File.exists?(absolute_path),
+           {orig_exists, orig_text} = read_file(absolute_path),
+           base_hash = :crypto.hash(:sha256, orig_text),
            :ok <- ensure_file(absolute_path, create_if_missing),
-           {:ok, contents} <- apply_changes(absolute_path, changes),
-           {:ok, diff, backup_file} <- stage_changes(absolute_path, contents, orig_exists) do
-        {:ok,
-         %{
-           file: file,
-           backup_file: backup_file,
-           diff: diff
-         }}
+           {:ok, contents} <- apply_changes(absolute_path, changes) do
+        if contents == orig_text do
+          {:error, "no changes were made to the file"}
+        else
+          with {:ok, diff, backup_file} <-
+                 stage_changes(absolute_path, contents, orig_exists, base_hash) do
+            {:ok, %{file: file, diff: diff, backup_file: backup_file}}
+          end
+        end
       end
     rescue
       error ->
@@ -218,12 +225,15 @@ defmodule AI.Tools.File.Edit do
     end
   end
 
-  # Apply staged contents to disk, confirm, and optionally backup
-  defp stage_changes(file, contents, orig_exists) do
+  # Apply staged contents to disk, confirm, optionally backup, and verify no mid-flight changes
+  @spec stage_changes(binary, binary, boolean, binary) ::
+          {:ok, binary, binary} | {:error, String.t()}
+  defp stage_changes(file, contents, orig_exists, base_hash) do
     Util.Temp.with_tmp(contents, fn temp ->
       with {:ok, diff} <- build_diff(file, temp, orig_exists),
            {:ok, :approved} <- confirm_edit(file, diff),
            {:ok, backup_file} <- maybe_backup(file, orig_exists),
+           {:ok, _} <- verify_no_race(file, base_hash, orig_exists),
            :ok <- commit_changes(file, temp) do
         {:ok, diff, backup_file}
       end
@@ -275,11 +285,50 @@ defmodule AI.Tools.File.Edit do
 
   @spec commit_changes(binary, binary) :: :ok | {:error, term}
   defp commit_changes(file, staged) do
-    File.cp(staged, file)
+    # Perform atomic write: copy staged content to a temp file, then rename over target
+    dir = Path.dirname(file)
+    tmp = Path.join(dir, ".#{Path.basename(file)}.tmp")
+
+    case File.cp(staged, tmp) do
+      :ok ->
+        case File.rename(tmp, file) do
+          :ok -> :ok
+          {:error, reason} -> {:error, reason}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @spec verify_no_race(binary, binary, boolean) :: {:ok, :ok} | {:error, String.t()}
+  defp verify_no_race(_, _, false) do
+    {:ok, :skipped}
+  end
+
+  defp verify_no_race(path, base_hash, true) do
+    # Read current contents and compare hash to detect concurrent modifications
+    current = File.read!(path)
+    current_hash = :crypto.hash(:sha256, current)
+
+    if current_hash == base_hash do
+      {:ok, :ok}
+    else
+      {:error, "File changed on disk during edit; aborting"}
+    end
   end
 
   @spec maybe_backup(binary, boolean) :: {:ok, binary | nil} | {:error, term}
   # Backup only if the original file existed prior to the edit
   defp maybe_backup(_file, false), do: {:ok, ""}
   defp maybe_backup(file, true), do: backup_file(file)
+
+  defp read_file(abs_path) do
+    abs_path
+    |> File.exists?()
+    |> case do
+      true -> {true, File.read!(abs_path)}
+      false -> {false, ""}
+    end
+  end
 end
