@@ -866,30 +866,27 @@ defmodule AI.Agent.Coordinator do
     end
   end
 
-  # -----------------------------------------------------------------------------
-  # Notes
-  # -----------------------------------------------------------------------------
   @spec get_notes(t) :: t
   defp get_notes(%{question: question} = state) do
-    # We want the initial notes to be extracted from the NotesServer before we
-    # commit to the much slower process of consolidation.
-    notes = Services.Notes.ask(question)
+    UI.begin_step("Recalling")
 
-    # Then we consolidate the new notes from the last session. This is a
-    # fire-and-forget, so it won't block the rest of the process.
+    notes = Services.Notes.ask(question)
     Services.Notes.consolidate()
 
-    # Add the notes as a message for the coordinating agent, so that it
-    # can see relevant prior research before choosing how to proceed.
-    "Prior research notes: #{notes}"
-    |> AI.Util.system_msg()
+    # Append assistant reflection on prior notes
+    """
+    <think>
+    Let's see what I remember about that...
+    #{notes}
+    </think>
+    """
+    |> AI.Util.assistant_msg()
     |> Services.Conversation.append_msg(state.conversation)
 
-    # Add notes to the state so that get_intuition/1 can access
+    # Update state with retrieved notes
     %{state | notes: notes}
   end
 
-  @spec save_notes(any) :: any
   defp save_notes(passthrough) do
     Services.Notes.save()
     passthrough
