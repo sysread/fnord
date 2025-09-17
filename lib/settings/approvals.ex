@@ -206,7 +206,24 @@ defmodule Settings.Approvals do
   defp repair_approval_list(settings, :global, kind, valid_entries) do
     Settings.update(settings, "approvals", fn approvals ->
       approvals = if is_map(approvals), do: approvals, else: %{}
-      Map.put(approvals, kind, valid_entries)
+
+      # Get the current list for this kind (may have been updated by another process)
+      current = Map.get(approvals, kind, [])
+
+      # Filter out invalid entries from current list and merge with our valid entries
+      # Handle case where current is corrupted (not a list)
+      all_valid =
+        if is_list(current) do
+          current
+          |> Enum.filter(&is_binary/1)
+        else
+          []
+        end
+        |> Enum.concat(valid_entries)
+        |> Enum.uniq()
+        |> Enum.sort()
+
+      Map.put(approvals, kind, all_valid)
     end)
 
     :ok
@@ -218,7 +235,24 @@ defmodule Settings.Approvals do
         projects = if is_map(projects), do: projects, else: %{}
         project = Map.get(projects, name, %{})
         approvals = Map.get(project, "approvals", %{})
-        updated_approvals = Map.put(approvals, kind, valid_entries)
+
+        # Get the current list for this kind (may have been updated by another process)
+        current = Map.get(approvals, kind, [])
+
+        # Filter out invalid entries from current list and merge with our valid entries
+        # Handle case where current is corrupted (not a list)
+        all_valid =
+          if is_list(current) do
+            current
+            |> Enum.filter(&is_binary/1)
+          else
+            []
+          end
+          |> Enum.concat(valid_entries)
+          |> Enum.uniq()
+          |> Enum.sort()
+
+        updated_approvals = Map.put(approvals, kind, all_valid)
         updated_project = Map.put(project, "approvals", updated_approvals)
         Map.put(projects, name, updated_project)
       end)

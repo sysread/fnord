@@ -377,10 +377,7 @@ defmodule Settings do
           value -> Map.put(before, key, value)
         end
 
-      after_data =
-        %Settings{path: path, data: new_data}
-        |> ensure_approvals_exist()
-        |> then(& &1.data)
+      after_data = new_data
 
       Instrumentation.record_trace(:update, key, before, after_data)
 
@@ -472,48 +469,4 @@ defmodule Settings do
   defp make_key(key) when is_atom(key), do: Atom.to_string(key)
   defp make_key(key), do: key
 
-  defp ensure_approvals_exist(settings) do
-    data = settings.data
-
-    data =
-      if Map.has_key?(data, "approvals") do
-        data
-      else
-        Map.put(data, "approvals", %{})
-      end
-
-    # Handle projects in new nested format
-    projects_map = Map.get(data, "projects", %{})
-
-    updated_projects_map =
-      Enum.reduce(projects_map, projects_map, fn {project_name, project_data}, acc ->
-        if is_map(project_data) and not Map.has_key?(project_data, "approvals") do
-          updated_project_data = Map.put(project_data, "approvals", %{})
-          Map.put(acc, project_name, updated_project_data)
-        else
-          acc
-        end
-      end)
-
-    data = Map.put(data, "projects", updated_projects_map)
-
-    # Handle old format projects at root level
-    data =
-      Enum.reduce(data, data, fn
-        {key, project_data}, acc
-        when is_map(project_data) and key not in ["approvals", "projects", "version"] ->
-          if Map.has_key?(project_data, "root") and
-               not Map.has_key?(project_data, "approvals") do
-            updated_project_data = Map.put(project_data, "approvals", %{})
-            Map.put(acc, key, updated_project_data)
-          else
-            acc
-          end
-
-        _, acc ->
-          acc
-      end)
-
-    %Settings{settings | data: data}
-  end
 end

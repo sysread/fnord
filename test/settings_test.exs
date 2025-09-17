@@ -370,19 +370,68 @@ defmodule SettingsTest do
   end
 
   describe "approvals" do
-    test "migration adds approvals to global and project configs on spew" do
+    test "approvals read functions handle completely missing approvals key" do
+      # Create settings with NO approvals key at all
+      settings_file = Settings.settings_file()
+      File.write!(settings_file, Jason.encode!(%{
+        "some_other_key" => "value",
+        "projects" => %{
+          "test_project" => %{"root" => "/test", "exclude" => []}
+        }
+      }))
+
       settings = Settings.new()
 
-      # Add a project without approvals
-      _settings =
-        Settings.update(settings, "settings_test_project", fn _ -> %{"root" => "/test", "exclude" => []} end)
+      # Global approvals should default to empty map when key doesn't exist
+      assert Settings.Approvals.get_approvals(settings, :global) == %{}
+      assert Settings.Approvals.get_approvals(settings, :global, "shell") == []
 
-      # Verify migration added approvals
-      updated_settings = Settings.new()
-      assert Settings.get(updated_settings, "approvals", :missing) == %{}
+      # Project approvals should also default to empty when missing
+      Settings.set_project("test_project")
+      assert Settings.Approvals.get_approvals(settings, :project) == %{}
+      assert Settings.Approvals.get_approvals(settings, :project, "shell") == []
+    end
 
-      project_data = Settings.get_project_data(updated_settings, "settings_test_project")
-      assert Map.get(project_data, "approvals") == %{}
+    test "approvals read functions handle existing but empty approvals" do
+      # Create settings with empty approvals objects
+      settings_file = Settings.settings_file()
+      File.write!(settings_file, Jason.encode!(%{
+        "approvals" => %{},
+        "projects" => %{
+          "test_project" => %{"root" => "/test", "approvals" => %{}}
+        }
+      }))
+
+      settings = Settings.new()
+
+      # Should still return empty structures
+      assert Settings.Approvals.get_approvals(settings, :global) == %{}
+      assert Settings.Approvals.get_approvals(settings, :global, "shell") == []
+
+      Settings.set_project("test_project")
+      assert Settings.Approvals.get_approvals(settings, :project) == %{}
+      assert Settings.Approvals.get_approvals(settings, :project, "shell") == []
+    end
+
+    test "approvals read functions handle corrupted approvals data" do
+      # Create settings with corrupted approvals (not a map)
+      settings_file = Settings.settings_file()
+      File.write!(settings_file, Jason.encode!(%{
+        "approvals" => "not_a_map",
+        "projects" => %{
+          "test_project" => %{"root" => "/test", "approvals" => ["not_a_map_either"]}
+        }
+      }))
+
+      settings = Settings.new()
+
+      # Should handle corrupted data gracefully
+      assert Settings.Approvals.get_approvals(settings, :global) == %{}
+      assert Settings.Approvals.get_approvals(settings, :global, "shell") == []
+
+      Settings.set_project("test_project")
+      assert Settings.Approvals.get_approvals(settings, :project) == %{}
+      assert Settings.Approvals.get_approvals(settings, :project, "shell") == []
     end
   end
 
@@ -392,17 +441,12 @@ defmodule SettingsTest do
       project_data = %{"root" => "/test", "exclude" => []}
       settings = Settings.set_project_data(settings, "test_project", project_data)
 
-      expected =
-        project_data
-        |> Map.put("approvals", %{})
-        |> Map.put("name", "test_project")
-
+      expected = project_data |> Map.put("name", "test_project")
       actual = Settings.get_project_data(settings, "test_project")
       assert actual == expected
 
       projects = Settings.get(settings, "projects")
-      expected = Map.put(project_data, "approvals", %{})
-      assert Map.get(projects, "test_project") == expected
+      assert Map.get(projects, "test_project") == project_data
     end
 
     test "get_project_data falls back to old format" do
@@ -410,11 +454,7 @@ defmodule SettingsTest do
       project_data = %{"root" => "/test", "exclude" => []}
       settings = Settings.update(settings, "old_project", fn _ -> project_data end)
 
-      expected_data =
-        project_data
-        |> Map.put("approvals", %{})
-        |> Map.put("name", "old_project")
-
+      expected_data = project_data |> Map.put("name", "old_project")
       assert Settings.get_project_data(settings, "old_project") == expected_data
     end
 
@@ -425,9 +465,7 @@ defmodule SettingsTest do
       updated_settings = Settings.set_project_data(settings, "new_project", project_data)
 
       projects = Settings.get(updated_settings, "projects")
-      # The ensure_approvals_exist function adds approvals
-      expected_data = Map.put(project_data, "approvals", %{})
-      assert Map.get(projects, "new_project") == expected_data
+      assert Map.get(projects, "new_project") == project_data
       # Should not be at root level
       assert Settings.get(updated_settings, "new_project", :not_found) == :not_found
     end
