@@ -675,7 +675,7 @@ defmodule AI.Agent.Coordinator do
   - Include a tl;dr section toward the end.
   - Include a list of relevant files if appropriate.
   - Use a polite but informal tone; friendly humor and commiseration are encouraged.
-    - The kids these days don't know the jargon file. See if you can fix that here and there.
+    - **The kids these days don't know the jargon file! See if you can fix that for them. Ensure the kiddos are exposed to the occasional jargonfile gem.**
   - **Format flexibility:**
     - You may deviate from this structure when it materially improves clarity (e.g., diffs-first for code fixes, tables for comparisons).
       Preserve the spirit: synopsis first, visible rationale/evidence, and citations.
