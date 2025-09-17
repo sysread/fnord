@@ -66,9 +66,10 @@ defmodule AI.Tools.Tasks.PushTask do
         description: """
         Push a new task to the front of an existing task list. The task is
         identified by a unique task_id that should be a short label, describing
-        the task at a glance (e.g. \"Add some_function/3 to Some.Module\"). The
-        data field is a free-form string that can contain any details or
-        payload for the task.
+        the task at a glance (e.g. "Add some_function/3 to Some.Module") Note
+        that this is NOT a "slug" - it's a human-readable label. The data field
+        is a free-form string that can contain any details or payload for the
+        task.
 
         Tasks are intended to help you retain state between interactions, even
         if your context window is full. Ensure that the data field includes
@@ -80,12 +81,27 @@ defmodule AI.Tools.Tasks.PushTask do
           additionalProperties: false,
           required: ["list_id"],
           properties: %{
-            "list_id" => %{type: :integer, description: "The ID of the task list."},
-            "task_id" => %{type: "string", description: "Unique identifier for the task."},
-            "data" => %{type: "string", description: "Free-form detail or payload for the task."},
+            "list_id" => %{
+              type: :integer,
+              description: "The ID of the task list."
+            },
+            "task_id" => %{
+              type: "string",
+              description: """
+              A short task label that describes the task. This doubles as the
+              unique identifier for the task. Examples:
+              - "Add some_function/3 to Some.Module"
+              - "Write tests for Another.Module"
+              - "Identify stale documentation in Some.Module"
+              """
+            },
+            "data" => %{
+              type: "string",
+              description: "Free-form detail or payload for the task."
+            },
             "tasks" => %{
               type: "array",
-              description: "A list of tasks to push, each with task_id and data.",
+              description: "A list of tasks to add, each with a task_id and data.",
               items: %{
                 type: "object",
                 additionalProperties: false,
@@ -93,9 +109,18 @@ defmodule AI.Tools.Tasks.PushTask do
                 properties: %{
                   "task_id" => %{
                     type: "string",
-                    description: "The unique identifier for the task."
+                    description: """
+                    A short task label that describes the task. This doubles as the
+                    unique identifier for the task. Examples:
+                    - "Add some_function/3 to Some.Module"
+                    - "Write tests for Another.Module"
+                    - "Identify stale documentation in Some.Module"
+                    """
                   },
-                  "data" => %{type: "string", description: "The detail or payload for the task."}
+                  "data" => %{
+                    type: "string",
+                    description: "The detail or payload for the task."
+                  }
                 }
               }
             }

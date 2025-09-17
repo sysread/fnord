@@ -190,7 +190,7 @@ defmodule AI.Agent.Coordinator do
   defp perform_step({:error, _} = error), do: error
 
   defp perform_step(%{replay: replay, steps: [:followup | steps]} = state) do
-    UI.begin_step("Researching")
+    UI.begin_step("Bootstrapping")
 
     state
     |> Map.put(:steps, steps)
@@ -209,7 +209,7 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp perform_step(%{replay: replay, steps: [:singleton | steps]} = state) do
-    UI.begin_step("Researching")
+    UI.begin_step("Bootstrapping")
 
     state
     |> Map.put(:steps, steps)
@@ -228,7 +228,7 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp perform_step(%{replay: replay, steps: [:initial | steps]} = state) do
-    UI.begin_step("Researching")
+    UI.begin_step("Bootstrapping")
 
     state
     |> Map.put(:steps, steps)
@@ -246,7 +246,7 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp perform_step(%{steps: [:clarify | steps]} = state) do
-    UI.begin_step("Clarifying")
+    UI.begin_step("Investigating the phase space")
 
     state
     |> Map.put(:steps, steps)
@@ -261,7 +261,7 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp perform_step(%{steps: [:refine | steps]} = state) do
-    UI.begin_step("Refining")
+    UI.begin_step("Collapsing the wave form")
 
     state
     |> Map.put(:steps, steps)
@@ -276,7 +276,7 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp perform_step(%{steps: [:continue | steps]} = state) do
-    UI.begin_step("Continuing research")
+    UI.begin_step("Shaving yaks")
 
     state
     |> Map.put(:steps, steps)
@@ -290,7 +290,7 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp perform_step(%{steps: [:coding | steps]} = state) do
-    UI.begin_step("Identifying incomplete coding tasks")
+    UI.begin_step("Draining coding tasks")
 
     state
     |> Map.put(:steps, steps)
@@ -306,7 +306,7 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp perform_step(%{steps: [:tasks_remaining | steps]} = state) do
-    UI.begin_step("Working on completing remaining tasks")
+    UI.begin_step("Flushing the queue")
 
     state
     |> Map.put(:steps, steps)
@@ -327,7 +327,7 @@ defmodule AI.Agent.Coordinator do
         |> perform_step()
 
       _ ->
-        UI.begin_step("Generating response")
+        UI.begin_step("Joining")
 
         state
         |> Map.put(:steps, [])
@@ -675,6 +675,7 @@ defmodule AI.Agent.Coordinator do
   - Include a tl;dr section toward the end.
   - Include a list of relevant files if appropriate.
   - Use a polite but informal tone; friendly humor and commiseration are encouraged.
+    - The kids these days don't know the jargon file. See if you can fix that here and there.
   - **Format flexibility:**
     - You may deviate from this structure when it materially improves clarity (e.g., diffs-first for code fixes, tables for comparisons).
       Preserve the spirit: synopsis first, visible rationale/evidence, and citations.
@@ -868,7 +869,7 @@ defmodule AI.Agent.Coordinator do
 
   @spec get_notes(t) :: t
   defp get_notes(%{question: question} = state) do
-    UI.begin_step("Recalling")
+    UI.begin_step("Spooling mnemonics")
 
     notes = Services.Notes.ask(question)
     Services.Notes.consolidate()
