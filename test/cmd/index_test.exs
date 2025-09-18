@@ -75,4 +75,58 @@ defmodule Cmd.IndexTest do
       refute raises_error
     end
   end
+
+  describe "root persistence" do
+    setup do
+      # Setup mock project
+      project = mock_git_project("test_project")
+
+      # Create a worktree
+      {:ok, tmp} = tmpdir()
+
+      System.cmd("git", ["worktree", "add", "-b", "some-feature", tmp],
+        cd: project.source_root,
+        stderr_to_stdout: true
+      )
+
+      {:ok, project: project, worktree: tmp}
+    end
+
+    test "transient override + run_as_tool_call does NOT change settings.json root", %{
+      project: project,
+      worktree: worktree
+    } do
+      Settings.set_project_root_override(worktree)
+      Cmd.Index.run_as_tool_call(%{project: project.name, yes: true, quiet: true})
+      persisted = Settings.new() |> Settings.get_project_data(project.name) |> Map.get("root")
+      assert persisted == project.source_root
+    end
+
+    test "transient override + run/3 does NOT change settings.json root", %{
+      project: project,
+      worktree: worktree
+    } do
+      capture_all(fn ->
+        Settings.set_project_root_override(worktree)
+        Cmd.Index.run(%{project: project.name, yes: true, quiet: true}, [], [])
+        persisted = Settings.new() |> Settings.get_project_data(project.name) |> Map.get("root")
+        assert persisted == project.source_root
+      end)
+    end
+
+    test "explicit --dir DOES persist new root", %{project: project} do
+      # Create a temp dir for explicit --dir
+      {:ok, tmp} = tmpdir()
+      # Pass yes: true and quiet: true to bypass prompts
+      {:ok, idx} = Cmd.Index.new(%{project: project.name, directory: tmp, yes: true, quiet: true})
+      Cmd.Index.perform_task({:ok, idx})
+
+      persisted =
+        Settings.new()
+        |> Settings.get_project_data(project.name)
+        |> Map.get("root")
+
+      assert persisted == Path.expand(tmp)
+    end
+  end
 end

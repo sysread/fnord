@@ -91,7 +91,9 @@ defmodule Cmd.Index do
       end
 
       with {:ok, idx} <- new(opts) do
-        perform_task({:ok, idx})
+        idx
+        |> Map.put(:has_notes?, true)
+        |> then(&perform_task({:ok, &1}))
       end
     after
       # Restore previous quiet setting regardless of indexing outcome
@@ -138,9 +140,23 @@ defmodule Cmd.Index do
     with {:ok, project} <- Store.get_project(),
          {:ok, root} <- confirm_root_changed?(project, opts),
          {:ok, exclude} <- confirm_exclude_changed?(project, opts, root) do
+      # Determine whether to persist project root/exclude
+      settings = Settings.new()
+      orig_data = Settings.get_project_data(settings, project.name) || %{}
+      orig_root = Map.get(orig_data, "root")
+      # Persist only on first index, explicit --dir, or when exclude changes
+      persist? =
+        Map.has_key?(opts, :directory) or Map.has_key?(opts, :exclude) or is_nil(orig_root)
+
       project =
         project
-        |> Store.Project.save_settings(root, exclude)
+        |> (fn project ->
+              if persist? do
+                Store.Project.save_settings(project, root, exclude)
+              else
+                project
+              end
+            end).()
         |> Store.Project.make_default_for_session()
 
       if is_nil(project.source_root) do
@@ -154,21 +170,27 @@ defmodule Cmd.Index do
            - the first index after the upgrade that made --dir optional
          """}
       else
-        has_notes? =
-          Store.Project.Notes.read()
-          |> case do
-            {:ok, _} -> true
-            {:error, :no_notes} -> false
-          end
-
-        {:ok,
-         %__MODULE__{
-           opts: opts,
-           indexer: Indexer.impl(),
-           project: project,
-           has_notes?: has_notes?
-         }}
+        %__MODULE__{
+          opts: opts,
+          indexer: Indexer.impl(),
+          project: project
+        }
+        |> maybe_set_has_notes()
+        |> then(&{:ok, &1})
       end
+    end
+  end
+
+  defp maybe_set_has_notes(%{opts: %{has_notes?: has_notes?}} = idx)
+       when is_boolean(has_notes?) do
+    %{idx | has_notes?: has_notes?}
+  end
+
+  defp maybe_set_has_notes(idx) do
+    Store.Project.Notes.read()
+    |> case do
+      {:ok, _} -> Map.put(idx, :has_notes?, true)
+      {:error, :no_notes} -> Map.put(idx, :has_notes?, false)
     end
   end
 
