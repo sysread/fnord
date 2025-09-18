@@ -23,8 +23,18 @@ defmodule AI.Agent.Code.TaskImplementor do
   - Do not leave comments explaining what you did or the process you followed.
   - Comments should document the business workflow or concretely explain why a particular approach was taken.
   - Errors should be handled gracefully, but dovetail into existing patterns.
+  - If you believe this implementation step should trigger a QA checkpoint, include an optional `checkpoint` boolean field set to true in your JSON output. Otherwise omit it or set it to false.
+
+  # Checkpoint Heuristics
+  Suggest a checkpoint ONLY when:
+  - You introduced or modified cross-module interfaces, public APIs, or multi-file wiring, OR
+  - A compilation step is likely to fail without additional steps, OR
+  - You completed a self-contained unit that should compile and pass format/lint.
+  Do NOT suggest checkpoints on purely local, single-file edits unless they change externally visible boundaries.
+
   If at any time you identify critical issues or unintended consequences, report them as `followUpTasks` that must be investigated.
   If at any time you determine that the change has unmet dependencies (e.g. using a function that does not yet exist), report them as `followUpTasks` that must be investigated, and respond with an `error` report detailing the issue.
+
   Use the `notify_tool` regularly to convey your reasoning, findings, and progress.
   """
 
@@ -49,6 +59,11 @@ defmodule AI.Agent.Code.TaskImplementor do
             tasks, requiring the Coordinating Agent to investigate and address
             the issue(s) you document in `outcome` before proceeding.
             """
+          },
+          checkpoint: %{
+            type: "boolean",
+            description:
+              "Optional flag: true if a QA checkpoint is suggested after this implementation step."
           },
           outcome: %{
             type: "string",
@@ -203,10 +218,19 @@ defmodule AI.Agent.Code.TaskImplementor do
       |> Common.get_completion(prompt, @response_format)
       |> case do
         %{error: nil, response: response} = state ->
-          response
-          |> Jason.decode(keys: :atoms)
-          |> case do
-            {:ok, %{error: "", outcome: outcome, followUpTasks: new_tasks}} ->
+          case Jason.decode(response, keys: :atoms) do
+            {:ok, %{error: "", outcome: outcome, followUpTasks: new_tasks} = decoded} ->
+              cp? = Map.get(decoded, :checkpoint, false)
+              state = Common.put_state(state, :checkpoint?, cp?)
+
+              if cp? do
+                UI.report_from(
+                  state.agent.name,
+                  "Checkpoint suggested",
+                  "A QA checkpoint has been suggested for task #{task.id}."
+                )
+              end
+
               Common.report_task_outcome(state, task, "", outcome, new_tasks)
               Services.Task.complete_task(task_list_id, task.id, outcome)
               Common.add_tasks(task_list_id, new_tasks)
@@ -268,6 +292,22 @@ defmodule AI.Agent.Code.TaskImplementor do
   """
 
   defp summarize(state) do
-    Common.get_completion(state, @summary_prompt, nil, true)
+    state = Common.get_completion(state, @summary_prompt, nil, true)
+
+    cp? =
+      case Common.get_state(state, :checkpoint?) do
+        {:ok, true} -> true
+        _ -> false
+      end
+
+    if cp? and is_binary(state.response) do
+      # Append a conservative, machine-readable marker
+      %{
+        state
+        | response: String.trim_trailing(state.response) <> "\n\n[checkpoint_suggested:true]\n"
+      }
+    else
+      state
+    end
   end
 end

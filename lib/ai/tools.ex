@@ -185,7 +185,8 @@ defmodule AI.Tools do
     "prior_research" => AI.Tools.Notes,
     "research_tool" => AI.Tools.Research,
     "shell_tool" => AI.Tools.Shell,
-    "troubleshooter_tool" => AI.Tools.Troubleshooter
+    "troubleshooter_tool" => AI.Tools.Troubleshooter,
+    "task_validation_tool" => AI.Tools.TaskValidation
   }
 
   @rw_tools %{
@@ -193,7 +194,8 @@ defmodule AI.Tools do
     "file_contents_tool" => AI.Tools.File.Contents,
     "file_edit_tool" => AI.Tools.File.Edit,
     "notify_tool" => AI.Tools.Notify,
-    "shell_tool" => AI.Tools.Shell
+    "shell_tool" => AI.Tools.Shell,
+    "task_validation_tool" => AI.Tools.TaskValidation
   }
 
   @coding_tools %{
