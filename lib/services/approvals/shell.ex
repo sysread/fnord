@@ -132,6 +132,7 @@ defmodule Services.Approvals.Shell do
     "wc",
 
     # git subcommands
+    "git blame",
     "git branch",
     "git describe",
     "git diff",
