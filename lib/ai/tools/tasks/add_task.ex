@@ -73,6 +73,9 @@ defmodule AI.Tools.Tasks.AddTask do
         if your context window is full. Ensure that the data field includes
         enough context for you to understand and complete the task later, even
         if you have forgotten the details you had in mind when creating it.
+
+        Tasks are added IN ORDER - the first task in the list will be the
+        next task to be completed.
         """,
         parameters: %{
           type: "object",
