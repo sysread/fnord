@@ -133,12 +133,36 @@ defmodule Services.Conversation do
   end
 
   def handle_call(:save, _from, state) do
-    with {:ok, conversation} <- Conversation.write(state.conversation, state.msgs),
+    # Before persisting, strip recurring system prompts per settings
+    msgs_to_write = filter_system_messages(state.msgs)
+
+    with {:ok, conversation} <- Conversation.write(state.conversation, msgs_to_write),
          {:ok, state} <- new(state.conversation.id) do
       {:reply, {:ok, conversation}, state}
     else
       other -> {:reply, other, state}
     end
+  end
+
+  # -----------------------------------------------------------------------------
+  # System message filtering
+  # -----------------------------------------------------------------------------
+  @spec filter_system_messages([AI.Util.msg()]) :: [AI.Util.msg()]
+  defp filter_system_messages(msgs) do
+    Enum.filter(msgs, fn
+      %{role: "system", content: content} ->
+        cond do
+          # Preserve the agent name-line to avoid churn
+          Regex.run(~r/^Your name is (.*)\.$/, content) != nil -> true
+          # Preserve compactor summary so follow-ups and replays retain the compressed context
+          String.starts_with?(content, "Summary of conversation and research thus far:") -> true
+          # Drop other system scaffolding
+          true -> false
+        end
+
+      _ ->
+        true
+    end)
   end
 
   # -----------------------------------------------------------------------------
