@@ -21,25 +21,8 @@ defmodule Settings.FileLock do
   If at any time we exceed the `:timeout_ms` threshold, we raise an error.
   """
 
-  @doc """
-  Acquire a lock directory alongside the JSON file at `path`. Blocks up to
-  `opts[:timeout_ms]` (default 10_000ms), treats locks older than
-  `opts[:stale_ms]` (default 120_000ms) as stale and reclaims them.
-  """
-  @spec acquire_lock!(path :: binary, opts :: keyword) :: :ok
-  def acquire_lock!(path, opts \\ []) do
-    lock_dir = path <> ".lock"
-    timeout = Keyword.get(opts, :timeout_ms, 10_000)
-    stale = Keyword.get(opts, :stale_ms, 120_000)
-
-    do_acquire_lock(
-      lock_dir,
-      path,
-      timeout,
-      stale,
-      System.monotonic_time(:millisecond)
-    )
-  end
+  @timeout_ms 10_000
+  @stale_ms 120_000
 
   @doc """
   Release the lock directory created for `path`.
@@ -47,25 +30,49 @@ defmodule Settings.FileLock do
   @spec release_lock!(path :: binary) :: :ok
   def release_lock!(path) do
     lock_dir = path <> ".lock"
-    File.rm_rf(lock_dir)
-    :ok
+    stale_name = "#{lock_dir}.released.#{:erlang.unique_integer([:positive])}"
+
+    case File.rename(lock_dir, stale_name) do
+      :ok ->
+        # Safe to delete now; lock_dir path is no longer used by this release
+        File.rm_rf(stale_name)
+        :ok
+
+      {:error, :enoent} ->
+        # Already gone; nothing to do
+        :ok
+
+      {:error, _} ->
+        # Fallback; best-effort cleanup
+        File.rm_rf(lock_dir)
+        :ok
+    end
+  end
+
+  @doc """
+  Acquire a lock directory alongside the JSON file at `path`. Blocks up to
+  `opts[:timeout_ms]` (default 10_000ms), treats locks older than
+  `opts[:stale_ms]` (default 120_000ms) as stale and reclaims them.
+  """
+  @spec acquire_lock!(path :: binary) :: :ok
+  def acquire_lock!(path) do
+    lock_dir = path <> ".lock"
+    do_acquire_lock(lock_dir, path, System.monotonic_time(:millisecond))
   end
 
   @spec do_acquire_lock(
           lock_dir :: binary(),
           path :: binary(),
-          timeout :: non_neg_integer(),
-          stale :: non_neg_integer(),
           start_time :: non_neg_integer()
         ) :: :ok
-  defp do_acquire_lock(lock_dir, path, timeout, stale, start_time) do
+  defp do_acquire_lock(lock_dir, path, start_time) do
     # If we've been trying for too long, give up and raise an error.
     elapsed = System.monotonic_time(:millisecond) - start_time
 
-    if elapsed >= timeout do
+    if elapsed >= @timeout_ms do
       raise """
       Timeout acquiring file lock for #{path}.
-      Waited #{elapsed}ms (timeout is #{timeout}ms).
+      Waited #{elapsed}ms (timeout is #{@timeout_ms}ms).
       """
     end
 
@@ -74,7 +81,17 @@ defmodule Settings.FileLock do
       :ok ->
         # The lock directory did not exist and we successfully created it.
         # Ergo, we own the lock.
-        write_owner_info(lock_dir)
+        case write_owner_info(lock_dir) do
+          :ok ->
+            :ok
+
+          {:retry} ->
+            # Another process deleted the dir out from under us; start over.
+            # But don't count this against our timeout.
+            :timer.sleep(10)
+            do_acquire_lock(lock_dir, path, System.monotonic_time(:millisecond))
+        end
+
         :ok
 
       {:error, :eexist} ->
@@ -88,10 +105,10 @@ defmodule Settings.FileLock do
               max(0, (now - mtime) * 1_000)
 
             _ ->
-              stale + 1
+              @stale_ms + 1
           end
 
-        if age_ms > stale do
+        if age_ms > @stale_ms do
           # The lock is stale, try to take it over.
           case attempt_stale_takeover(lock_dir) do
             :ok ->
@@ -104,12 +121,12 @@ defmodule Settings.FileLock do
               # over the stale lock before we could. Retry until the timeout is
               # reached.
               :timer.sleep(50)
-              do_acquire_lock(lock_dir, path, timeout, stale, start_time)
+              do_acquire_lock(lock_dir, path, start_time)
           end
         else
           # The lock is not stale, wait and retry
           :timer.sleep(50)
-          do_acquire_lock(lock_dir, path, timeout, stale, start_time)
+          do_acquire_lock(lock_dir, path, start_time)
         end
 
       # Other error creating the lock directory
@@ -173,6 +190,8 @@ defmodule Settings.FileLock do
   end
 
   defp write_owner_info(lock_dir) do
+    owner_file = Path.join(lock_dir, "owner")
+
     owner_info =
       [
         "pid: #{inspect(self())}",
@@ -180,6 +199,16 @@ defmodule Settings.FileLock do
       ]
       |> Enum.join("\n")
 
-    File.write!(Path.join(lock_dir, "owner"), owner_info)
+    case File.write(owner_file, owner_info) do
+      :ok ->
+        :ok
+
+      # dir was removed; caller should re-attempt acquire
+      {:error, :enoent} ->
+        {:retry}
+
+      {:error, reason} ->
+        raise File.Error, reason: reason, action: "write", path: owner_file
+    end
   end
 end

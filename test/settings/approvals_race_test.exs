@@ -1,6 +1,11 @@
 defmodule Settings.Approvals.RaceTest do
   use Fnord.TestCase, async: false
 
+  setup do
+    project = mock_project("blarg")
+    %{project: project}
+  end
+
   describe "repair_approval_list race condition handling" do
     test "global repair merges concurrent additions instead of overwriting", %{home_dir: _} do
       # Setup: Create settings with some valid approvals and one invalid entry
@@ -225,15 +230,12 @@ defmodule Settings.Approvals.RaceTest do
 
       # Start multiple concurrent processes that will all detect and try to repair
       tasks =
-        for i <- 1..5 do
+        for i <- 1..50 do
           Task.async(fn ->
-            # Stagger slightly
-            :timer.sleep(i * 2)
             settings = Settings.new()
 
             # Each process adds its own approval
-            Settings.new()
-            |> Settings.Approvals.approve(:global, "shell", "process_#{i}")
+            Settings.Approvals.approve(settings, :global, "shell", "process_#{i}")
 
             # Then triggers validation/repair by reading
             Settings.Approvals.get_approvals(settings, :global, "shell")
