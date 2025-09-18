@@ -1,5 +1,5 @@
 defmodule Settings.Approvals.RaceTest do
-  use Fnord.TestCase
+  use Fnord.TestCase, async: false
 
   describe "repair_approval_list race condition handling" do
     test "global repair merges concurrent additions instead of overwriting", %{home_dir: _} do
