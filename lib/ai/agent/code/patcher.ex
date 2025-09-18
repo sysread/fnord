@@ -142,7 +142,7 @@ defmodule AI.Agent.Code.Patcher do
     with {:ok, agent} <- required_arg(opts, :agent),
          {:ok, file} <- required_arg(opts, :file),
          {:ok, changes} <- required_arg(opts, :changes),
-         {:ok, contents} <- AI.Tools.get_file_contents(file) do
+         {:ok, contents} <- read_file(file) do
       UI.report_from(agent.name, "Patching #{file}")
 
       # Build the toolbox once per apply_changes session
@@ -159,12 +159,15 @@ defmodule AI.Agent.Code.Patcher do
          tools: tools,
          retry_counts: %{}
        }}
-    else
-      {:error, reason} when is_binary(reason) ->
-        {:error, reason}
+    end
+  end
 
-      {:error, reason} ->
-        {:error, inspect(reason, pretty: true, limit: :infinity)}
+  defp read_file(path) do
+    path
+    |> AI.Tools.get_file_contents()
+    |> case do
+      {:ok, contents} -> {:ok, contents}
+      {:error, _} -> {:ok, ""}
     end
   end
 

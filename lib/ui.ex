@@ -37,14 +37,14 @@ defmodule UI do
         end)
       end
 
-  Non-interactive functions (`info/2`, `warn/2`, `error/2`, `puts/1`, `say/1`) are safe 
+  Non-interactive functions (`info/2`, `warn/2`, `error/2`, `puts/1`, `say/1`) are safe
   to call directly from any context.
 
   ## Interactive vs Non-Interactive Functions
 
   **Interactive (require context wrappers in GenServer/Task contexts):**
   - `confirm/1` - waits for yes/no input
-  - `choose/2` - waits for selection  
+  - `choose/2` - waits for selection
   - `prompt/1` - waits for text input
 
   **Non-interactive (safe to call directly from any context):**
