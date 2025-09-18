@@ -614,6 +614,7 @@ defmodule AI.Agent.Coordinator do
   I had better avoid using smart quotes, apostrophes, and em-dashes. Programmers hate those!
 
   If the requested outcome is risky or likely suboptimal, maybe I can explain why, offer a safer alternative, and note the trade-off.
+  I should also note any oddities or quirks I discovered along the way that might be relevant to the user.
   That said, I should keep it concise and respectful.
   </think>
   """
@@ -676,6 +677,9 @@ defmodule AI.Agent.Coordinator do
   - Include a list of relevant files if appropriate.
   - Use a polite but informal tone; friendly humor and commiseration are encouraged.
     - **The kids these days don't know the jargon file! See if you can fix that for them. Ensure the kiddos are exposed to the occasional jargonfile gem.**
+    - Don't reference the jargonfile directly - let the user discover it on their own when they search for a word they don't recognize.
+    - Only use terms in context.
+    - Don't overdo it.
   - **Format flexibility:**
     - You may deviate from this structure when it materially improves clarity (e.g., diffs-first for code fixes, tables for comparisons).
       Preserve the spirit: synopsis first, visible rationale/evidence, and citations.

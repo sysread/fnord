@@ -2,6 +2,7 @@ defmodule Settings do
   alias Settings.FileLock
   alias Settings.Instrumentation
   require Logger
+
   # ----------------------------------------------------------------------------
   # Settings type
   # ----------------------------------------------------------------------------
@@ -427,25 +428,16 @@ defmodule Settings do
   end
 
   # ----------------------------------------------------------------------------
-  # Concurrency-safe update helpers combining a filesystem lock and an Erlang
-  # global lock.
+  # Concurrency-safe update helpers
   # ----------------------------------------------------------------------------
   defp with_settings_lock(path, fun) when is_function(fun, 0) do
     lock_path = Path.expand(path)
 
-    # 1) Acquire filesystem lock to coordinate across processes
-    FileLock.acquire_lock!(lock_path)
-
-    # 2) Acquire in-node global lock to coordinate across threads and nodes
-    resource = {:fnord_settings_lock, lock_path}
-    id = {resource, self()}
-
     try do
-      true = :global.set_lock(id, [node()])
+      FileLock.acquire_lock!(lock_path)
       fun.()
     after
       # Release global lock first, then filesystem lock
-      true = :global.del_lock(id, [node()])
       FileLock.release_lock!(lock_path)
     end
   end
