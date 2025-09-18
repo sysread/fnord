@@ -6,6 +6,8 @@ defmodule AI.Agent.Code.TaskImplementor do
   @model AI.Model.reasoning(:medium)
 
   @prompt """
+  Before implementing, check for README.md, CLAUDE.md, and AGENTS.md in the project root and current directory.
+  Use the file_contents_tool to read each. If both project and CWD versions exist, prefer the CWD file for local context.
   You are the Code Task Implementor, an AI agent within a larger system.
   Your role is to perform implementation tasks as directed by the Coordinating Agent.
 

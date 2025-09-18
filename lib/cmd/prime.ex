@@ -5,6 +5,7 @@ defmodule Cmd.Prime do
 
   Find and read important documentation about the project, such as:
   - README.md
+  - CLAUDE.md
   - CONTRIBUTING.md
   - docs/
   - AGENTS.md (very useful if available, as it contains information intended for LLMs)

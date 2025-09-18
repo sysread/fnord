@@ -9,6 +9,8 @@ defmodule AI.Agent.Code.TaskValidator do
   @model AI.Model.reasoning(:medium)
 
   @prompt """
+  Before validating, check for README.md, CLAUDE.md, and AGENTS.md in the project root and current directory.
+  Use the file_contents_tool to read each. If both project and CWD versions exist, prefer the CWD file for local context.
   Review the implementation of the task and ensure that it meets the acceptance criteria.
 
   ## Investigate

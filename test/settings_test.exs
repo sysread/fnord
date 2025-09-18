@@ -526,4 +526,39 @@ defmodule SettingsTest do
       assert Settings.get(settings, "old_format_project", :not_found) == :not_found
     end
   end
+
+  describe "hint docs flags" do
+    setup do
+      original_enabled = Application.get_env(:fnord, :hint_docs_enabled)
+      original_auto = Application.get_env(:fnord, :hint_docs_auto_inject)
+
+      on_exit(fn ->
+        if original_enabled == nil,
+          do: Application.delete_env(:fnord, :hint_docs_enabled),
+          else: Application.put_env(:fnord, :hint_docs_enabled, original_enabled)
+
+        if original_auto == nil,
+          do: Application.delete_env(:fnord, :hint_docs_auto_inject),
+          else: Application.put_env(:fnord, :hint_docs_auto_inject, original_auto)
+      end)
+
+      :ok
+    end
+
+    test "get_hint_docs_enabled?/0 defaults to true and respects config" do
+      Application.delete_env(:fnord, :hint_docs_enabled)
+      assert Settings.get_hint_docs_enabled?()
+
+      Application.put_env(:fnord, :hint_docs_enabled, false)
+      refute Settings.get_hint_docs_enabled?()
+    end
+
+    test "get_hint_docs_auto_inject?/0 defaults to true and respects config" do
+      Application.delete_env(:fnord, :hint_docs_auto_inject)
+      assert Settings.get_hint_docs_auto_inject?()
+
+      Application.put_env(:fnord, :hint_docs_auto_inject, false)
+      refute Settings.get_hint_docs_auto_inject?()
+    end
+  end
 end

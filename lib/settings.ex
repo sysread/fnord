@@ -197,6 +197,22 @@ defmodule Settings do
   end
 
   @doc """
+  Check if hint docs feature is enabled. Defaults to `true` if unset.
+  """
+  @spec get_hint_docs_enabled?() :: boolean
+  def get_hint_docs_enabled?() do
+    Application.get_env(:fnord, :hint_docs_enabled, true)
+  end
+
+  @doc """
+  Check if automatic injection of hint docs is enabled. Defaults to `true` if unset.
+  """
+  @spec get_hint_docs_auto_inject?() :: boolean
+  def get_hint_docs_auto_inject?() do
+    Application.get_env(:fnord, :hint_docs_auto_inject, true)
+  end
+
+  @doc """
   Check if the --project option is set.
   """
   def project_is_set?() do

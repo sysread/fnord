@@ -58,6 +58,32 @@ defmodule AI.Notes.ExternalDocsTest do
                type == :agents and display == "./AGENTS.md" and content == "Cwd Agents docs"
              end)
     end
+
+    test "finds README.md in project root", %{project_root: project_root} do
+      # Create README.md in the mock project root
+      readme_path = Path.join(project_root, "README.md")
+      File.write!(readme_path, "Project root README contents")
+
+      docs = ExternalDocs.get_docs()
+
+      assert Enum.any?(docs, fn {type, path, _display, content} ->
+               type == :readme and String.ends_with?(path, "README.md") and
+                 content == "Project root README contents"
+             end)
+    end
+
+    test "finds README.md in cwd", %{project_root: project_root} do
+      # Create README.md in the current working directory (mock project)
+      readme_path = Path.join(project_root, "README.md")
+      File.write!(readme_path, "Cwd README contents")
+
+      docs = ExternalDocs.get_docs()
+
+      assert Enum.any?(docs, fn {type, _path, display, content} ->
+               type == :readme and display == "./README.md" and
+                 content == "Cwd README contents"
+             end)
+    end
   end
 
   describe "home directory file discovery" do
@@ -144,6 +170,28 @@ defmodule AI.Notes.ExternalDocsTest do
 
       assert log =~ "Skipping large file"
       assert log =~ claude_path
+    end
+  end
+
+  describe "format_hints/1" do
+    test "formats and truncates hints correctly" do
+      # Prepare a single doc with content longer than hint_max_size
+      docs = [
+        {:readme, "/path/README.md", "README.md", String.duplicate("a", 5000)}
+      ]
+
+      result = ExternalDocs.format_hints(docs)
+
+      # Should start with header and title
+      assert String.starts_with?(result, "# Hints\n\n## README")
+
+      # Should include exactly hint_max_size characters of content
+      snippet = String.duplicate("a", 4096)
+      assert String.contains?(result, snippet)
+      refute String.contains?(result, String.duplicate("a", 4097))
+
+      # Overall length should not exceed hint_max_size plus reasonable overhead
+      assert String.length(result) <= 4096 + 50
     end
   end
 end

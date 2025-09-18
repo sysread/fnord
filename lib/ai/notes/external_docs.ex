@@ -1,13 +1,14 @@
 defmodule AI.Notes.ExternalDocs do
   @moduledoc """
-  Discover and read external documentation files (CLAUDE.md and AGENTS.md).
+  Discover and read external documentation files (README.md, CLAUDE.md, and
+  AGENTS.md).
 
-  This module searches for these files in the project root, current
-  working directory, and standard user directories, returning a list of
-  `{type, path, contents}` tuples.
+  This module searches for these files in the project root, current working
+  directory, and standard user directories, returning a list of `{type, path,
+  contents}` tuples.
   """
 
-  @type doc_type :: :claude | :agents
+  @type doc_type :: :claude | :agents | :readme
   @type path :: String.t()
   @type display_path :: String.t()
   @type contents :: String.t()
@@ -21,7 +22,8 @@ defmodule AI.Notes.ExternalDocs do
     cwd = Path.expand(File.cwd!())
     user_home = System.get_env("HOME") || System.user_home!()
 
-    # Define sources in order of specificity: home files, project files, cwd files
+    # Define sources in order of specificity: home files, project files, cwd
+    # files.
     sources = [
       # Home directory files (most general)
       {:claude, Path.join(user_home, ".claude/CLAUDE.md"), "~/.claude/CLAUDE.md"},
@@ -37,7 +39,12 @@ defmodule AI.Notes.ExternalDocs do
 
       # Current working directory files (most specific)
       {:claude, Path.join(cwd, "CLAUDE.md"), "./CLAUDE.md"},
-      {:agents, Path.join(cwd, "AGENTS.md"), "./AGENTS.md"}
+      {:agents, Path.join(cwd, "AGENTS.md"), "./AGENTS.md"},
+
+      # README files
+      {:readme, Path.join(project_root, "README.md"),
+       get_relative_path(Path.join(project_root, "README.md"), cwd)},
+      {:readme, Path.join(cwd, "README.md"), "./README.md"}
     ]
 
     for {type, path, display_path} <- sources,
@@ -73,5 +80,20 @@ defmodule AI.Notes.ExternalDocs do
 
   defp get_relative_path(target_path, from_path) do
     Path.relative_to(target_path, from_path)
+  end
+
+  @hint_max_size 4_096
+  @spec format_hints([doc_result]) :: String.t()
+  def format_hints(docs) do
+    header = "# Hints\n\n"
+
+    docs
+    |> Enum.map(fn {type, _path, display, contents} ->
+      title = String.upcase(to_string(type))
+      snippet = String.slice(contents, 0, @hint_max_size)
+      "## #{title} (#{display})\n" <> snippet <> "\n\n"
+    end)
+    |> Enum.join()
+    |> then(&(header <> &1))
   end
 end

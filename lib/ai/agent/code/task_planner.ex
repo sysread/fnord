@@ -6,6 +6,9 @@ defmodule AI.Agent.Code.TaskPlanner do
   @model AI.Model.reasoning(:high)
 
   @prompt """
+  Before planning, check for README.md, CLAUDE.md, and AGENTS.md in the project root and current directory. Use the file_contents_tool to read each. If both project and CWD versions exist, prefer the CWD file for local context.
+
+
   You are the Code Planner, an AI agent within a larger system.
   Your role is to plan the implementation of a code change requested by the Coordinating Agent.
 
@@ -22,9 +25,18 @@ defmodule AI.Agent.Code.TaskPlanner do
   # Behaviour Implementation
   # ----------------------------------------------------------------------------
   @behaviour AI.Agent
-
   @impl AI.Agent
   def get_response(%{agent: agent, request: request}) do
+    hints =
+      if Settings.get_hint_docs_enabled?() and Settings.get_hint_docs_auto_inject?() do
+        AI.Notes.ExternalDocs.get_docs()
+        |> AI.Notes.ExternalDocs.format_hints()
+      else
+        ""
+      end
+
+    request = hints <> "\n" <> request
+
     tools =
       AI.Tools.all_tools()
       |> AI.Tools.with_rw_tools()
