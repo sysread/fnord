@@ -6,8 +6,9 @@ defmodule AI.Agent.Code.TaskPlanner do
   @model AI.Model.reasoning(:high)
 
   @prompt """
-  Before planning, check for README.md, CLAUDE.md, and AGENTS.md in the project root and current directory. Use the file_contents_tool to read each. If both project and CWD versions exist, prefer the CWD file for local context.
-
+  Before planning, check for README.md, CLAUDE.md, and AGENTS.md in the project root and current directory.
+  Use the file_contents_tool to read each.
+  If both project and CWD versions exist, prefer the CWD file for local context.
 
   You are the Code Planner, an AI agent within a larger system.
   Your role is to plan the implementation of a code change requested by the Coordinating Agent.
@@ -164,6 +165,10 @@ defmodule AI.Agent.Code.TaskPlanner do
   Incidentally, this ia also good practice for biological programmers, as it reduces the surface area for bugs and makes writing unit tests much simpler.
 
   Compare the current state of the code with your solution.
+  Identify the changes in terms of component interfaces and contracts.
+  The first steps are to create test cases that validate the desired change.
+  Next, identify the logical steps required to implement the change.
+  In your instructions for each step, identify whether the unit test(s) created in the first step(s) should pass after this step is complete.
   Break the change down into a series of logical dependencies, just as you would when writing a program in prolog.
   Each step builds on the previous, resulting in a cascade of changes that, once implemented, will result in the desired state.
 
