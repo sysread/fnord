@@ -12,29 +12,29 @@ defmodule Settings.Instrumentation do
     initial = Map.get(data, "approvals", %{})
     Application.put_env(:fnord, :initial_global_approvals_snapshot, initial)
 
-      # Ensure baseline table exists, handling potential race conditions
-      if :ets.whereis(@baseline_table) == :undefined do
-        try do
-          :ets.new(@baseline_table, [:named_table, :public, read_concurrency: true])
-        rescue
-          ArgumentError -> :ok
-        end
+    # Ensure baseline table exists, handling potential race conditions
+    if :ets.whereis(@baseline_table) == :undefined do
+      try do
+        :ets.new(@baseline_table, [:named_table, :public, read_concurrency: true])
+      rescue
+        ArgumentError -> :ok
       end
+    end
 
-      # Clear any existing baseline entries or new table is empty
-      :ets.delete_all_objects(@baseline_table)
-      :ets.insert(@baseline_table, {:baseline, initial})
+    # Clear any existing baseline entries or new table is empty
+    :ets.delete_all_objects(@baseline_table)
+    :ets.insert(@baseline_table, {:baseline, initial})
 
-      # Ensure trace table exists, handling potential race conditions
-      if :ets.whereis(@trace_table) == :undefined do
-        try do
-          :ets.new(@trace_table, [:named_table, :public, :bag, read_concurrency: true])
-        rescue
-          ArgumentError -> :ok
-        end
+    # Ensure trace table exists, handling potential race conditions
+    if :ets.whereis(@trace_table) == :undefined do
+      try do
+        :ets.new(@trace_table, [:named_table, :public, :bag, read_concurrency: true])
+      rescue
+        ArgumentError -> :ok
       end
+    end
 
-      :ok
+    :ok
   end
 
   @spec record_trace(atom, any, map, map) :: :ok
