@@ -85,10 +85,47 @@ defmodule Services.BackupFile do
     if Enum.empty?(backup_files) do
       :ok
     else
+      # Backup file format: $filename.X.Y.bak
+      # Collect each $filename as $filename.X1..Xn.Y1..Yn.bak
+      re = ~r/^(.*?)\.(\d+?)\.(\d+?)\.bak$/
+
       backup_file_list =
         backup_files
-        |> Enum.reverse()
-        |> Enum.map(&"- #{&1}")
+        |> Enum.reduce(%{}, fn backup_file, acc ->
+          re
+          |> Regex.run(backup_file)
+          |> case do
+            [_, filename, global_str, change_str] ->
+              global = String.to_integer(global_str)
+              change = String.to_integer(change_str)
+
+              Map.update(acc, filename, %{global: [global], change: [change]}, fn entry ->
+                %{
+                  global: Enum.uniq([global | entry.global]),
+                  change: Enum.uniq([change | entry.change])
+                }
+              end)
+
+            _ ->
+              acc
+          end
+        end)
+        |> Enum.map(fn {filename, %{global: globals, change: changes}} ->
+          global_part =
+            case Enum.sort(globals) do
+              [single] -> "#{single}"
+              multiple -> "#{Enum.min(multiple)}..#{Enum.max(multiple)}"
+            end
+
+          change_part =
+            case Enum.sort(changes) do
+              [single] -> "#{single}"
+              multiple -> "#{Enum.min(multiple)}..#{Enum.max(multiple)}"
+            end
+
+          "- #{Path.basename(filename)}.#{global_part}.#{change_part}.bak"
+        end)
+        |> Enum.sort()
         |> Enum.join("\n")
 
       UI.warning_banner("Backup files were created during this session")
@@ -259,7 +296,6 @@ defmodule Services.BackupFile do
       |> Enum.reduce({0, []}, fn backup_file, {deleted, failed} ->
         case File.rm(backup_file) do
           :ok ->
-            UI.debug("Deleted backup file", Path.basename(backup_file))
             {deleted + 1, failed}
 
           {:error, reason} ->

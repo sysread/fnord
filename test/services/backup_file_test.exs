@@ -249,7 +249,10 @@ defmodule Services.BackupFileTest do
       # Verify UI calls were made
       assert :meck.called(UI, :warning_banner, ["Backup files were created during this session"])
       # The backup files are listed in chronological order (oldest first) due to Enum.reverse()
-      assert :meck.called(UI, :say, ["- #{backup1}\n- #{backup2}"])
+      assert :meck.called(UI, :say, [
+               "- #{project_path(project, backup1)}\n- #{project_path(project, backup2)}"
+             ])
+
       assert :meck.called(UI, :confirm, ["Would you like to delete these backup files?"])
       assert :meck.called(UI, :info, ["Successfully deleted 2 backup file(s)"])
 
@@ -278,7 +281,7 @@ defmodule Services.BackupFileTest do
 
       # Verify UI calls were made
       assert :meck.called(UI, :warning_banner, ["Backup files were created during this session"])
-      assert :meck.called(UI, :say, ["- #{backup_file}"])
+      assert :meck.called(UI, :say, ["- #{project_path(project, backup_file)}"])
       assert :meck.called(UI, :confirm, ["Would you like to delete these backup files?"])
 
       assert :meck.called(UI, :say, [
@@ -315,12 +318,12 @@ defmodule Services.BackupFileTest do
 
       # Verify UI calls were made
       assert :meck.called(UI, :warning_banner, ["Backup files were created during this session"])
-      assert :meck.called(UI, :say, ["- #{backup_file}"])
+      assert :meck.called(UI, :say, ["- #{project_path(project, backup_file)}"])
       assert :meck.called(UI, :confirm, ["Would you like to delete these backup files?"])
 
       assert :meck.called(UI, :warn, [
                "Unable to delete some backup files",
-               "- #{Path.basename(backup_file)}"
+               "- #{project_path(project, backup_file)}"
              ])
 
       :meck.unload(UI)
@@ -412,5 +415,9 @@ defmodule Services.BackupFileTest do
       assert Services.BackupFile.describe_backup("file.bak") == nil
       assert Services.BackupFile.describe_backup("file.0.bak") == nil
     end
+  end
+
+  defp project_path(project, file) do
+    Path.relative_to(file, project.source_root)
   end
 end
