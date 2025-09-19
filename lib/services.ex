@@ -8,31 +8,22 @@ defmodule Services do
     {:ok, _} = Application.ensure_all_started(:briefly)
   end
 
-  defp start_internal_services do
+  @doc """
+  Starts core services that don't depend on CLI configuration.
+  """
+  def start_internal_services do
     # Start UI.Queue first, since other services may want to log messages
     # during their startup.
     UI.Queue.start_link()
 
-    # Start core services that don't depend on CLI configuration
-    case Registry.start_link(keys: :unique, name: MCP.ClientRegistry) do
-      {:ok, _} -> :ok
-      {:error, {:already_started, _pid}} -> :ok
-      other -> other
-    end
-
+    Services.Globals.start_link([])
+    Registry.start_link(keys: :unique, name: MCP.ClientRegistry)
     Services.Once.start_link()
     Services.Notes.start_link()
     Services.Task.start_link()
-
-    case Services.Conversation.Interrupts.start_link([]) do
-      {:ok, _} -> :ok
-      {:error, {:already_started, _pid}} -> :ok
-      other -> other
-    end
-
+    Services.Conversation.Interrupts.start_link([])
     AI.Agent.Researcher.start_link()
     Services.BackupFile.start_link()
-
     Services.ModelPerformanceTracker.start_link()
   end
 
