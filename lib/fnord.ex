@@ -4,7 +4,7 @@ defmodule Fnord do
   search code files.
   """
 
-  @desc "fnord - an AI powered, conversational interface for your project that learns"
+  @desc "fnord - an AI code archaeologist"
 
   @doc """
   Main entry point for the application. Parses command line arguments and
