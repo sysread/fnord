@@ -1,6 +1,5 @@
 defmodule Settings do
   alias Settings.FileLock
-  alias Settings.Instrumentation
   require Logger
 
   # ----------------------------------------------------------------------------
@@ -19,12 +18,8 @@ defmodule Settings do
     path = settings_file()
     Settings.Migrate.maybe_migrate_settings(path)
 
-    settings =
-      %Settings{path: path}
-      |> slurp()
-
-    Instrumentation.init_baseline(settings.data)
-    settings
+    %Settings{path: path}
+    |> slurp()
   end
 
   def get_running_version do
@@ -383,7 +378,7 @@ defmodule Settings do
     with_settings_lock(path, fn ->
       before = fresh_read(path)
 
-      new_data =
+      updated_data =
         before
         |> Map.get(key, default)
         |> updater.()
@@ -392,19 +387,11 @@ defmodule Settings do
           value -> Map.put(before, key, value)
         end
 
-      after_data = new_data
-
-      Instrumentation.record_trace(:update, key, before, after_data)
-
-      final =
-        before
-        |> Instrumentation.guard_or_heal(after_data, %{op: :update, key: key})
-
-      final
+      updated_data
       |> Jason.encode!(pretty: true)
       |> then(&write_atomic!(path, &1))
 
-      %Settings{path: path, data: final}
+      %Settings{path: path, data: updated_data}
     end)
   end
 
