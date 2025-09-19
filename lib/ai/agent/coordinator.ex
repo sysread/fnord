@@ -24,7 +24,9 @@ defmodule AI.Agent.Coordinator do
     :notes,
     :editing_tools_used,
     :list_id,
-    :_interrupt_listener
+    :_interrupt_listener,
+    # Store pending interrupts to display after completion
+    :pending_interrupts
   ]
 
   @type t :: %__MODULE__{
@@ -116,7 +118,8 @@ defmodule AI.Agent.Coordinator do
         context: @model.context,
         notes: nil,
         editing_tools_used: false,
-        list_id: list_id
+        list_id: list_id,
+        pending_interrupts: []
       }
     end
   end
@@ -358,6 +361,11 @@ defmodule AI.Agent.Coordinator do
         UI.error("Failed to save conversation state", inspect(reason))
     end
 
+    # Check for any pending interrupts before starting completion
+    # Store them in state so we can display them after completion returns
+    pending_interrupts = Services.Conversation.Interrupts.take_all(state.conversation)
+    state = %{state | pending_interrupts: pending_interrupts}
+
     # Invoke completion once, ensuring conversation state is included
     AI.Agent.get_completion(state.agent,
       log_msgs: true,
@@ -394,18 +402,18 @@ defmodule AI.Agent.Coordinator do
         %{state | usage: usage, last_response: response, editing_tools_used: editing_tools_used}
         |> log_usage()
         |> log_response()
-        # Acknowledge any pending user interrupts after completion
-        |> acknowledge_interrupts()
+        # Display any pending user interrupts after completion
+        |> display_pending_interrupts()
 
       {:error, %{response: response}} ->
         UI.error("Derp. Completion failed.", response)
-        # Acknowledge interrupts even on error
-        acknowledge_interrupts(state)
+        # Display interrupts even on error
+        display_pending_interrupts(state)
         {:error, response}
 
       {:error, reason} ->
         UI.error("Derp. Completion failed.", inspect(reason))
-        acknowledge_interrupts(state)
+        display_pending_interrupts(state)
         {:error, reason}
     end
   end
@@ -975,26 +983,29 @@ defmodule AI.Agent.Coordinator do
   end
 
   # ---------------------------------------------------------------------------
-  # Delayed Interrupt Acknowledgment
+  # Delayed Interrupt Display
   # ---------------------------------------------------------------------------
-  # Consume any pending user interrupts and echo them in UI after completion
-  defp acknowledge_interrupts(%{conversation: convo} = state) do
-    Services.Conversation.Interrupts.take_all(convo)
-    |> Enum.each(fn msg ->
+  # Display any pending user interrupts that were captured before completion
+  defp display_pending_interrupts(%{pending_interrupts: []} = state), do: state
+
+  defp display_pending_interrupts(%{pending_interrupts: interrupts} = state) do
+    # Display each interrupt message that was consumed
+    Enum.each(interrupts, fn msg ->
       # Strip internal prefix for display
       content = Map.get(msg, :content, "")
       display = String.replace_prefix(content, "[User Interjection] ", "")
       UI.info("You (rude)", display)
     end)
 
-    state
+    # Clear the pending interrupts after displaying
+    %{state | pending_interrupts: []}
   end
 
-  # Public wrapper for testing delayed interrupt acknowledgment
+  # Public wrapper for testing delayed interrupt display
   if Mix.env() == :test do
     @doc false
-    @spec acknowledge_interrupts_for_test(t) :: t
-    def acknowledge_interrupts_for_test(state), do: acknowledge_interrupts(state)
+    @spec display_pending_interrupts_for_test(t) :: t
+    def display_pending_interrupts_for_test(state), do: display_pending_interrupts(state)
   end
 
   defp start_interrupt_listener(%{conversation: convo} = state) do

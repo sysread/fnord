@@ -21,15 +21,16 @@ defmodule AI.Agent.CoordinatorTest do
     :ok
   end
 
-  test "acknowledge_interrupts_for_test echoes interrupt and returns state unchanged" do
-    # Inject an interrupt into the real queue
-    Services.Conversation.Interrupts.request(self(), "foo")
+  test "display_pending_interrupts_for_test echoes interrupt and returns state with cleared interrupts" do
+    # Create a test interrupt message
+    interrupt_msg = %{role: "user", content: "[User Interjection] foo"}
 
-    state = %{conversation: self(), foo: :bar}
-    returned = AI.Agent.Coordinator.acknowledge_interrupts_for_test(state)
+    state = %{conversation: self(), pending_interrupts: [interrupt_msg], foo: :bar}
+    returned = AI.Agent.Coordinator.display_pending_interrupts_for_test(state)
 
-    # Should return the same state
-    assert returned == state
+    # Should return the state with cleared interrupts
+    assert returned.pending_interrupts == []
+    assert returned.foo == :bar
 
     # UI.info should have been called with the stripped message
     assert_receive {:info, "You (rude)", "foo"}
