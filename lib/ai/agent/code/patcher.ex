@@ -262,28 +262,52 @@ defmodule AI.Agent.Code.Patcher do
   # Parses the LLM JSON response into patch tuple or error
   defp parse_patch_response(json) do
     case Jason.decode(json) do
-      {:ok, decoded} ->
-        patch = Map.get(decoded, "patch", decoded)
+      {:ok, decoded} when is_map(decoded) ->
+        decoded
+        |> Map.get("patch", decoded)
+        |> case do
+          patch when is_map(patch) ->
+            patch
+            |> Map.get("error", "")
+            |> case do
+              "" ->
+                start_line = Map.get(patch, "start_line")
+                end_line = Map.get(patch, "end_line")
+                replacement = Map.get(patch, "replacement")
 
-        case Map.get(patch, "error", "") do
-          "" ->
-            start_line = Map.get(patch, "start_line")
-            end_line = Map.get(patch, "end_line")
-            replacement = Map.get(patch, "replacement")
+                cond do
+                  !is_integer(start_line) ->
+                    {:error, "Invalid patch structure: start_line is not an integer"}
 
-            if is_integer(start_line) and is_integer(end_line) and start_line >= 1 and
-                 start_line <= end_line and is_binary(replacement) do
-              {:ok, {start_line, end_line, replacement}}
-            else
-              {:error, "Invalid patch structure"}
+                  !is_integer(end_line) ->
+                    {:error, "Invalid patch structure: end_line is not an integer"}
+
+                  !is_binary(replacement) ->
+                    {:error, "Invalid patch structure: replacement is not a string"}
+
+                  start_line < 1 ->
+                    {:error, "Invalid patch structure: start_line must be > 0"}
+
+                  start_line > end_line ->
+                    {:error, "Invalid patch structure: start_line must be <= end_line"}
+
+                  true ->
+                    {:ok, {start_line, end_line, replacement}}
+                end
+
+              reason ->
+                {:error, reason}
             end
 
-          reason ->
-            {:error, reason}
+          _ ->
+            {:error, "Invalid patch structure: patch is not an object"}
         end
 
+      {:ok, _} ->
+        {:error, "Invalid patch structure: decoded JSON response is not an object"}
+
       {:error, error} ->
-        {:error, "JSON parse error: #{inspect(error)}"}
+        {:error, "Invalid patch structure: #{inspect(error)}"}
     end
   end
 
