@@ -24,7 +24,7 @@ defmodule Services do
     Services.Notes.start_link()
     Services.Task.start_link()
 
-    case Services.Conversation.Interrupts.start_link() do
+    case Services.Conversation.Interrupts.start_link([]) do
       {:ok, _} -> :ok
       {:error, {:already_started, _pid}} -> :ok
       other -> other

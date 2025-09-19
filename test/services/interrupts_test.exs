@@ -15,7 +15,7 @@ defmodule Services.Conversation.InterruptsTest do
     assert Interrupts.pending?(self())
 
     [msg] = Interrupts.take_all(self())
-    assert %{role: "user", content: "[User Interrupt] hello"} = msg
+    assert %{role: "user", content: "[User Interjection] hello"} = msg
     refute Interrupts.pending?(self())
   end
 
@@ -28,9 +28,9 @@ defmodule Services.Conversation.InterruptsTest do
     contents = Enum.map(msgs, & &1.content)
 
     assert contents == [
-             "[User Interrupt] first",
-             "[User Interrupt] second",
-             "[User Interrupt] third"
+             "[User Interjection] first",
+             "[User Interjection] second",
+             "[User Interjection] third"
            ]
   end
 
@@ -58,10 +58,10 @@ defmodule Services.Conversation.InterruptsTest do
     msgs1 = Interrupts.take_all(self())
     msgs2 = Interrupts.take_all(pid2)
 
-    assert [%{content: "[User Interrupt] one"}] =
+    assert [%{content: "[User Interjection] one"}] =
              Enum.map(msgs1, fn msg -> %{content: msg.content} end)
 
-    assert [%{content: "[User Interrupt] two"}] =
+    assert [%{content: "[User Interjection] two"}] =
              Enum.map(msgs2, fn msg -> %{content: msg.content} end)
   end
 end

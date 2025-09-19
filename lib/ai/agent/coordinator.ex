@@ -369,8 +369,10 @@ defmodule AI.Agent.Coordinator do
       toolbox: get_tools(state),
       messages: msgs
     )
+    # Acknowledge completion result, update conversation, and log usage and response
     |> case do
       {:ok, %{response: response, messages: new_msgs, usage: usage} = completion} ->
+        # Update conversation state and log tool usage and response
         Services.Conversation.replace_msgs(new_msgs, state.conversation)
         tools_used = AI.Agent.tools_used(completion)
 
@@ -388,21 +390,22 @@ defmodule AI.Agent.Coordinator do
             Map.has_key?(tools_used, "file_edit_tool") ||
             Map.has_key?(tools_used, "apply_patch")
 
-        %{
-          state
-          | usage: usage,
-            last_response: response,
-            editing_tools_used: editing_tools_used
-        }
+        # Build new state
+        %{state | usage: usage, last_response: response, editing_tools_used: editing_tools_used}
         |> log_usage()
         |> log_response()
+        # Acknowledge any pending user interrupts after completion
+        |> acknowledge_interrupts()
 
       {:error, %{response: response}} ->
         UI.error("Derp. Completion failed.", response)
+        # Acknowledge interrupts even on error
+        acknowledge_interrupts(state)
         {:error, response}
 
       {:error, reason} ->
         UI.error("Derp. Completion failed.", inspect(reason))
+        acknowledge_interrupts(state)
         {:error, reason}
     end
   end
@@ -971,6 +974,29 @@ defmodule AI.Agent.Coordinator do
     end
   end
 
+  # ---------------------------------------------------------------------------
+  # Delayed Interrupt Acknowledgment
+  # ---------------------------------------------------------------------------
+  # Consume any pending user interrupts and echo them in UI after completion
+  defp acknowledge_interrupts(%{conversation: convo} = state) do
+    Services.Conversation.Interrupts.take_all(convo)
+    |> Enum.each(fn msg ->
+      # Strip internal prefix for display
+      content = Map.get(msg, :content, "")
+      display = String.replace_prefix(content, "[User Interjection] ", "")
+      UI.info("You (rude)", display)
+    end)
+
+    state
+  end
+
+  # Public wrapper for testing delayed interrupt acknowledgment
+  if Mix.env() == :test do
+    @doc false
+    @spec acknowledge_interrupts_for_test(t) :: t
+    def acknowledge_interrupts_for_test(state), do: acknowledge_interrupts(state)
+  end
+
   defp start_interrupt_listener(%{conversation: convo} = state) do
     # Only start in interactive TTY sessions and only for Coordinator
     cond do
@@ -1017,7 +1043,8 @@ defmodule AI.Agent.Coordinator do
 
               msg ->
                 Services.Conversation.interrupt(convo_pid, msg)
-                UI.info("You", msg)
+                # defer UI echo until after completion cycle
+                :ok
             end
 
           _ ->

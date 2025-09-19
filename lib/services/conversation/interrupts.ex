@@ -25,7 +25,7 @@ defmodule Services.Conversation.Interrupts do
   def request(conversation_pid, content)
       when is_pid(conversation_pid) and
              is_binary(content) do
-    msg = AI.Util.user_msg("[User Interrupt] " <> content)
+    msg = AI.Util.user_msg("[User Interjection] " <> content)
     GenServer.cast(__MODULE__, {:enqueue, conversation_pid, msg})
     :ok
   end
