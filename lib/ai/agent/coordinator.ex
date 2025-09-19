@@ -126,6 +126,10 @@ defmodule AI.Agent.Coordinator do
     log_available_frobs()
     log_available_mcp_tools()
 
+    if !state.replay do
+      UI.info("You", state.question)
+    end
+
     if is_testing?(state) do
       UI.debug("Testing mode enabled")
       get_test_response(state)
