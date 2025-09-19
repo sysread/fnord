@@ -187,12 +187,7 @@ defmodule AI.Completion do
       msgs ->
         new_messages = state.messages ++ msgs
         Services.Conversation.replace_msgs(new_messages, pid)
-
-        UI.report_step("Interrupt", """
-        Injected #{length(msgs)} message(s).
-        The LLM will see your response after the current step completes.
-        """)
-
+        UI.info("The LLM will see your message after the current step completes.")
         %{state | messages: new_messages}
     end
   end
