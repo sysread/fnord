@@ -1,5 +1,5 @@
 defmodule Cmd.AskTest do
-  use Fnord.TestCase, async: true
+  use Fnord.TestCase
 
   setup do
     Application.delete_env(:fnord, :auto_policy)

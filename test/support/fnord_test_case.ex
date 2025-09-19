@@ -25,6 +25,8 @@ defmodule Fnord.TestCase do
 
   using do
     quote do
+      use ExUnit.Case, async: false
+
       import ExUnit.CaptureIO
       import Mox
 
