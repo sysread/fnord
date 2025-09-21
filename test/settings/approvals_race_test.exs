@@ -232,6 +232,8 @@ defmodule Settings.Approvals.RaceTest do
       tasks =
         for i <- 1..50 do
           Services.Globals.Spawn.async(fn ->
+            :timer.sleep(Enum.random(1..10))
+
             settings = Settings.new()
 
             # Each process adds its own approval
