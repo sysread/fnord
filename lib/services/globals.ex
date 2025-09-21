@@ -1,25 +1,22 @@
 defmodule Services.Globals do
   @moduledoc """
-  Drop-in-ish replacement for Application.(get|put)_env that *shadows* values
-  down a process tree. Think: dynamic scope via process ancestry.
+  Drop-in-ish replacement for Application env that *shadows* values down a
+  process tree. Think: dynamic scope via process ancestry.
 
-  - `put_env/3` sets an override in the *current tree* (installing the caller
-     as a root if needed).
-  - `get_env/3` first checks the current tree's overrides, then falls back to
-    `Application.get_env/3`.
+  - `put_env/3` sets an override in the *current tree* (installing the caller as a root if needed).
+  - `get_env/3` first checks the current tree's overrides, then falls back to `Application.get_env/3`.
   - `delete_env/2` removes the tree-local override.
+  - `get_all_env/1` lists all overrides in the current tree, overlaying them on top of `Application.get_all_env/1` if the caller is the root.
+  - `put_all_env/2` bulk-inserts multiple overrides for one or more apps in the current tree (installing the caller as a root if needed).
+  - `install_root/0` explicitly installs the caller as a shadowing root (rarely needed; `put_env/3` auto-installs).
+  - `current_root/0` returns the current shadowing root PID (or nil). Useful for debugging.
+  - `explain/0` prints the current process tree and its overrides (for debugging).
   """
 
   use GenServer
 
-  @name __MODULE__
-
   @pd_root_key :globals_root_pid
-
-  # set: pid -> true
   @roots_tab :globals_roots
-
-  # set: {root_pid, app, key} -> value
   @data_tab :globals_data
 
   @type app :: atom()
@@ -30,7 +27,7 @@ defmodule Services.Globals do
   # Public API
   # ----------------------------------------------------------------------------
   def start_link(opts \\ []) do
-    opts = Keyword.put_new(opts, :name, @name)
+    opts = Keyword.put_new(opts, :name, __MODULE__)
 
     case GenServer.start_link(__MODULE__, :ok, opts) do
       {:ok, pid} -> {:ok, pid}
@@ -95,6 +92,10 @@ defmodule Services.Globals do
     end
   end
 
+  @doc """
+  Bulk put multiple overrides for one or more apps in the current tree
+  (installing the caller as a root if needed).
+  """
   @spec put_all_env([{app(), [{key(), value()}]}], keyword()) :: :ok
   def put_all_env(app_kvs_list, _opts \\ [])
 
@@ -119,6 +120,10 @@ defmodule Services.Globals do
     put_all_env([{app, kvs}], [])
   end
 
+  @doc """
+  Get all tree-local overrides for the given app, overlaying them on top of
+  `Application.get_all_env/1` if the caller is the root.
+  """
   @spec get_all_env(atom()) :: keyword()
   def get_all_env(app) do
     case resolve_root() do
@@ -143,7 +148,7 @@ defmodule Services.Globals do
   """
   @spec install_root() :: :ok
   def install_root() do
-    GenServer.call(@name, {:install_root, self()})
+    GenServer.call(__MODULE__, {:install_root, self()})
   end
 
   @doc """
