@@ -1,6 +1,5 @@
 defmodule Cmd.Config.ApprovalsTest do
   use Fnord.TestCase, async: false
-  import ExUnit.CaptureIO
   import ExUnit.CaptureLog
   alias Cmd.Config.Approvals
 
@@ -20,7 +19,7 @@ defmodule Cmd.Config.ApprovalsTest do
   describe "list subcommand" do
     test "lists global approvals when --global" do
       Settings.new() |> Settings.Approvals.approve(:global, "shell", "ls.*")
-      output = capture_io(fn -> Approvals.run(%{global: true}, [:approvals], []) end)
+      {output, _stderr} = capture_all(fn -> Approvals.run(%{global: true}, [:approvals], []) end)
       assert {:ok, %{"shell" => ["ls.*"]}} = Jason.decode(output)
     end
 
@@ -28,7 +27,7 @@ defmodule Cmd.Config.ApprovalsTest do
       mock_project("proj1")
       Settings.set_project("proj1")
       Settings.new() |> Settings.Approvals.approve(:project, "shell", "foo.*")
-      output = capture_io(fn -> Approvals.run(%{}, [:approvals], []) end)
+      {output, _stderr} = capture_all(fn -> Approvals.run(%{}, [:approvals], []) end)
       assert {:ok, %{"shell" => ["foo.*"]}} = Jason.decode(output)
     end
 
@@ -38,8 +37,8 @@ defmodule Cmd.Config.ApprovalsTest do
       Settings.new() |> Settings.Approvals.approve(:global, "shell", "ls.*")
       Settings.new() |> Settings.Approvals.approve(:project, "shell", "foo.*")
 
-      output =
-        capture_io(fn -> Approvals.run(%{global: true, project: "proj1"}, [:approvals], []) end)
+      {output, _stderr} =
+        capture_all(fn -> Approvals.run(%{global: true, project: "proj1"}, [:approvals], []) end)
 
       assert {:ok, %{"shell" => %{"global" => ["ls.*"], "project" => ["foo.*"]}}} =
                Jason.decode(output)
@@ -62,8 +61,8 @@ defmodule Cmd.Config.ApprovalsTest do
     end
 
     test "adds to global scope" do
-      out =
-        capture_io(fn ->
+      {out, _stderr} =
+        capture_all(fn ->
           Approvals.run(%{kind: "shell", global: true}, [:approve], ["echo.*"])
         end)
 
@@ -73,7 +72,7 @@ defmodule Cmd.Config.ApprovalsTest do
     test "adds to project scope by default" do
       mock_project("prj")
       Settings.set_project("prj")
-      out = capture_io(fn -> Approvals.run(%{kind: "shell"}, [:approve], ["foo.*"]) end)
+      {out, _stderr} = capture_all(fn -> Approvals.run(%{kind: "shell"}, [:approve], ["foo.*"]) end)
       assert {:ok, %{"shell" => ["foo.*"]}} = Jason.decode(out)
     end
 
@@ -88,8 +87,8 @@ defmodule Cmd.Config.ApprovalsTest do
       mock_project("proj1")
       Settings.set_project("proj1")
 
-      out =
-        capture_io(fn ->
+      {out, _stderr} =
+        capture_all(fn ->
           Approvals.run(%{kind: "shell"}, [:approve], ["/find(?!.*-exec).*/"])
         end)
 
@@ -115,8 +114,8 @@ defmodule Cmd.Config.ApprovalsTest do
 
   describe "approve via opts[:pattern]" do
     test "adds to global when pattern in opts" do
-      out =
-        capture_io(fn ->
+      {out, _stderr} =
+        capture_all(fn ->
           Approvals.run(%{kind: "shell", global: true, pattern: "x.*"}, [:approve], [])
         end)
 

@@ -51,8 +51,8 @@ defmodule Cmd.SearchTest do
     }
 
     # Capture the output of the Search.run/2 function
-    output =
-      ExUnit.CaptureIO.capture_io(fn ->
+    {output, _stderr} =
+      capture_all(fn ->
         Cmd.Search.run(search_opts, [], [])
       end)
 

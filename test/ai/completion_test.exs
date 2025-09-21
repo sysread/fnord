@@ -133,7 +133,7 @@ defmodule AI.CompletionTest do
                  toolbox: %{}
                )
 
-      output = ExUnit.CaptureIO.capture_io(fn -> IO.puts(state.response) end)
+      {output, _stderr} = capture_all(fn -> IO.puts(state.response) end)
 
       assert output =~ "429"
       assert output =~ "rate_limit"

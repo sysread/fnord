@@ -1,12 +1,10 @@
 defmodule NotifierTest do
   use Fnord.TestCase, async: false
 
-  import ExUnit.CaptureIO
-
   describe "fallback beep" do
     test "prints bell to stderr and returns :ok" do
-      stderr =
-        capture_io(:stderr, fn ->
+      {_stdout, stderr} =
+        capture_all(fn ->
           assert :ok == Notifier.notify("Title", "Body", platform: :other)
         end)
 

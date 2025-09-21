@@ -1,7 +1,6 @@
 defmodule Cmd.ConfigTest do
   use Fnord.TestCase, async: false
 
-  import ExUnit.CaptureIO
   import ExUnit.CaptureLog
 
   # Enable logger output for error testing  
@@ -33,9 +32,10 @@ defmodule Cmd.ConfigTest do
 
       new_root = "/new/path"
 
-      capture_io(fn ->
-        Cmd.Config.run([project: project.name, root: new_root], [:set], [])
-      end)
+      {_stdout, _stderr} =
+        capture_all(fn ->
+          Cmd.Config.run([project: project.name, root: new_root], [:set], [])
+        end)
 
       # Verify the change was applied
       {:ok, updated_project} = Store.get_project(project.name)
@@ -82,8 +82,8 @@ defmodule Cmd.ConfigTest do
       # seed a pattern
       Settings.new() |> Settings.Approvals.approve(:global, "shell", "ls.*")
 
-      output =
-        capture_io(fn ->
+      {output, _stderr} =
+        capture_all(fn ->
           Cmd.Config.run(%{global: true}, [:approvals], [])
         end)
 
@@ -95,8 +95,8 @@ defmodule Cmd.ConfigTest do
       Settings.set_project("proj1")
       Settings.new() |> Settings.Approvals.approve(:project, "shell", "foo.*")
 
-      output =
-        capture_io(fn ->
+      {output, _stderr} =
+        capture_all(fn ->
           Cmd.Config.run(%{}, [:approvals], [])
         end)
 
@@ -109,8 +109,8 @@ defmodule Cmd.ConfigTest do
       Settings.new() |> Settings.Approvals.approve(:project, "shell", "foo.*")
       Settings.new() |> Settings.Approvals.approve(:global, "shell", "ls.*")
 
-      output =
-        capture_io(fn ->
+      {output, _stderr} =
+        capture_all(fn ->
           Cmd.Config.run(%{global: true, project: "proj1"}, [:approvals], [])
         end)
 
@@ -131,8 +131,8 @@ defmodule Cmd.ConfigTest do
     end
 
     test "adds to global scope" do
-      out =
-        capture_io(fn ->
+      {out, _stderr} =
+        capture_all(fn ->
           Cmd.Config.run(%{kind: "shell", global: true}, [:approve], ["echo.*"])
         end)
 
@@ -143,8 +143,8 @@ defmodule Cmd.ConfigTest do
       mock_project("prj")
       Settings.set_project("prj")
 
-      out =
-        capture_io(fn ->
+      {out, _stderr} =
+        capture_all(fn ->
           Cmd.Config.run(%{kind: "shell"}, [:approve], ["foo.*"])
         end)
 

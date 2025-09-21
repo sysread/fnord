@@ -1,6 +1,5 @@
 defmodule Cmd.ConversationsTest do
   use Fnord.TestCase, async: false
-  import ExUnit.CaptureIO
 
   setup do
     set_config(quiet: true)
@@ -8,8 +7,8 @@ defmodule Cmd.ConversationsTest do
   end
 
   test "listing with no conversations prints no-found message", %{project: project} do
-    output =
-      capture_io(fn ->
+    {output, _stderr} =
+      capture_all(fn ->
         Cmd.Conversations.run(%{project: project.name}, [], [])
       end)
 
@@ -21,8 +20,8 @@ defmodule Cmd.ConversationsTest do
     :meck.expect(UI, :info, fn msg -> IO.puts(:stderr, msg) end)
     :meck.expect(UI, :error, fn msg -> IO.puts(:stderr, msg) end)
 
-    output =
-      capture_io(:stderr, fn ->
+    {_stdout, output} =
+      capture_all(fn ->
         Cmd.Conversations.run(%{project: project.name, prune: 30}, [], [])
       end)
 
@@ -47,8 +46,8 @@ defmodule Cmd.ConversationsTest do
     :meck.expect(UI, :info, fn msg -> IO.puts(:stderr, msg) end)
     :meck.expect(UI, :error, fn msg -> IO.puts(:stderr, msg) end)
 
-    output =
-      capture_io(:stderr, fn ->
+    {_stdout, output} =
+      capture_all(fn ->
         Cmd.Conversations.run(%{project: project.name, prune: 30}, [], [])
       end)
 
@@ -80,8 +79,8 @@ defmodule Cmd.ConversationsTest do
     :meck.expect(UI, :info, fn msg -> IO.puts(:stderr, msg) end)
     :meck.expect(UI, :error, fn msg -> IO.puts(:stderr, msg) end)
 
-    output =
-      capture_io(:stderr, fn ->
+    {_stdout, output} =
+      capture_all(fn ->
         Cmd.Conversations.run(%{project: project.name, prune: 30}, [], [])
       end)
 
@@ -101,8 +100,8 @@ defmodule Cmd.ConversationsTest do
     :meck.expect(UI, :info, fn msg -> IO.puts(:stderr, msg) end)
     :meck.expect(UI, :error, fn msg -> IO.puts(:stderr, msg) end)
 
-    output =
-      capture_io(:stderr, fn ->
+    {_stdout, output} =
+      capture_all(fn ->
         Cmd.Conversations.run(%{project: project.name, prune: -5}, [], [])
       end)
 

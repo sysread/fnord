@@ -1,8 +1,6 @@
 defmodule Cmd.Ask.WorktreeTest do
   use Fnord.TestCase, async: false
 
-  import ExUnit.CaptureIO
-
   setup do
     project = mock_project("ask_worktree_test")
     {:ok, project: project}
@@ -35,18 +33,19 @@ defmodule Cmd.Ask.WorktreeTest do
 
     {:ok, dir} = tmpdir()
 
-    capture_io(fn ->
-      assert :ok =
-               Cmd.Ask.run(
-                 %{
-                   worktree: dir,
-                   question: "hello",
-                   rounds: 1
-                 },
-                 [],
-                 []
-               )
-    end)
+    {_stdout, _stderr} =
+      capture_all(fn ->
+        assert :ok =
+                 Cmd.Ask.run(
+                   %{
+                     worktree: dir,
+                     question: "hello",
+                     rounds: 1
+                   },
+                   [],
+                   []
+                 )
+      end)
 
     assert Settings.get_project_root_override() == dir
   end
