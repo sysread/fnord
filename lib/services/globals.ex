@@ -131,10 +131,15 @@ defmodule Services.Globals do
         Application.get_all_env(app)
 
       root when root == self() ->
-        # We *are* the root: overlay overrides on top of Application env (overrides win)
+        # We *are* the root: overlay overrides on top of Application env
+        # (overrides win).
         base = Application.get_all_env(app)
-        overrides = overrides_for(root, app)
-        Enum.reduce(overrides, base, fn {k, v}, acc -> Keyword.put(acc, k, v) end)
+
+        root
+        |> overrides_for(app)
+        |> Enum.reduce(base, fn {k, v}, acc ->
+          Keyword.put(acc, k, v)
+        end)
 
       root ->
         # Descendant: show only overrides (matches your get_env/3 semantics)
@@ -183,7 +188,7 @@ defmodule Services.Globals do
       IO.puts("#{indent}- #{inspect(pid)} (no overrides)")
     end
 
-    # Recurse into linked children (optional: you can also use Process.info(pid, :dictionary) if you’re storing parent refs)
+    # Recurse into linked children
     case Process.info(pid, :links) do
       {:links, links} ->
         Enum.each(links, fn child ->
@@ -205,20 +210,23 @@ defmodule Services.Globals do
   def init(:ok) do
     :ets.new(@roots_tab, [:named_table, :set, :public])
     :ets.new(@data_tab, [:named_table, :set, :public, :compressed, read_concurrency: true])
-    # refs: ref -> pid
     {:ok, %{refs: %{}}}
   end
 
   @impl true
   def handle_call({:install_root, pid}, _from, s) do
-    unless :ets.member(@roots_tab, pid) do
-      ref = Process.monitor(pid)
-      :ets.insert(@roots_tab, {pid, true})
-      # cache root in caller PD so descendants resolve quickly
-      if self() == pid, do: Process.put(@pd_root_key, pid)
-      s = put_in(s.refs[ref], pid)
+    if :ets.member(@roots_tab, pid) do
       {:reply, :ok, s}
     else
+      ref = Process.monitor(pid)
+      :ets.insert(@roots_tab, {pid, true})
+
+      # cache root in caller PD so descendants resolve quickly
+      if self() == pid do
+        Process.put(@pd_root_key, pid)
+      end
+
+      s = put_in(s.refs[ref], pid)
       {:reply, :ok, s}
     end
   end
@@ -232,10 +240,12 @@ defmodule Services.Globals do
       {root, refs2} ->
         # Remove root marker
         :ets.delete(@roots_tab, root)
+
         # Wipe all overrides under this root
         # Match head: {{root, _app, _key}, _val}
         ms = [{{{root, :_, :_}, :_}, [], [true]}]
-        _ = :ets.select_delete(@data_tab, ms)
+        :ets.select_delete(@data_tab, ms)
+
         {:noreply, %{s | refs: refs2}}
     end
   end
@@ -299,7 +309,8 @@ defmodule Services.Globals do
   @spec overrides_for(pid(), atom()) :: keyword()
   defp overrides_for(root, app) do
     # Robust and simple: match → map to {k,v}
-    :ets.match(@data_tab, {{root, app, :"$1"}, :"$2"})
+    @data_tab
+    |> :ets.match({{root, app, :"$1"}, :"$2"})
     |> Enum.map(fn [k, v] -> {k, v} end)
   end
 end
