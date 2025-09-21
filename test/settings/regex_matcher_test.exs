@@ -1,5 +1,5 @@
 defmodule Settings.RegexMatcherTest do
-  use Fnord.TestCase
+  use Fnord.TestCase, async: false
   alias Settings.Approvals.RegexMatcher
 
   describe "compile_patterns/1" do

@@ -1,5 +1,5 @@
 defmodule AI.SplitterTest do
-  use Fnord.TestCase
+  use Fnord.TestCase, async: false
 
   test "next_chunk/1" do
     input = "aaaabbbbccccddddeeeeffff"

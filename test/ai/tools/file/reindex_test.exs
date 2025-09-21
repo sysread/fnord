@@ -1,5 +1,5 @@
 defmodule AI.Tools.File.ReindexTest do
-  use Fnord.TestCase
+  use Fnord.TestCase, async: false
 
   alias AI.Tools.File.Reindex
 

@@ -1,5 +1,5 @@
 defmodule AIAgentHttpPoolTest do
-  use Fnord.TestCase
+  use Fnord.TestCase, async: false
 
   alias HttpPool
   alias AI.Agent

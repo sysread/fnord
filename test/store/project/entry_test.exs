@@ -1,5 +1,5 @@
 defmodule Store.Project.EntryTest do
-  use Fnord.TestCase
+  use Fnord.TestCase, async: false
 
   @text "how now brown bureaucrat"
   @alt_text "now is the time for all good men to come to the aid of their country"

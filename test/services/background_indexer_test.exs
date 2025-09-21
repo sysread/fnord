@@ -1,5 +1,5 @@
 defmodule Services.BackgroundIndexerTest do
-  use Fnord.TestCase
+  use Fnord.TestCase, async: false
 
   alias Services.BackgroundIndexer
   alias Store.Project.Entry

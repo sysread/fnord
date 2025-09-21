@@ -1,5 +1,5 @@
 defmodule SettingsTest do
-  use Fnord.TestCase
+  use Fnord.TestCase, async: false
 
   describe "project" do
     test "project_is_set?/0 returns false when project is not set and true when set" do

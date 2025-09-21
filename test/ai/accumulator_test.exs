@@ -1,5 +1,5 @@
 defmodule AI.Accumulator.Test do
-  use Fnord.TestCase
+  use Fnord.TestCase, async: false
 
   @moduledoc """
   Unit tests for AI.Accumulator covering missing options, multi‐chunk, backoff,

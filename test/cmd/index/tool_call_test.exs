@@ -1,5 +1,5 @@
 defmodule Cmd.Index.ToolCallTest do
-  use Fnord.TestCase
+  use Fnord.TestCase, async: false
 
   describe "run_as_tool_call/1" do
     setup do

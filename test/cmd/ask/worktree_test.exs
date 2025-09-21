@@ -1,5 +1,5 @@
 defmodule Cmd.Ask.WorktreeTest do
-  use Fnord.TestCase
+  use Fnord.TestCase, async: false
 
   import ExUnit.CaptureIO
 

@@ -1,5 +1,5 @@
 defmodule Cmd.ConfigTest do
-  use Fnord.TestCase
+  use Fnord.TestCase, async: false
 
   import ExUnit.CaptureIO
   import ExUnit.CaptureLog

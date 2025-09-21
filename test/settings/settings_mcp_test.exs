@@ -1,5 +1,5 @@
 defmodule Settings.MCPTest do
-  use Fnord.TestCase
+  use Fnord.TestCase, async: false
 
   alias Settings.MCP
 

@@ -3,7 +3,7 @@ defmodule UI.UITest do
   Unit tests for UI.clean_detail/1 and UI.iodata?/1 functions.
   """
 
-  use Fnord.TestCase
+  use Fnord.TestCase, async: false
 
   alias UI
 

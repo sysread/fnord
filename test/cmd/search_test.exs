@@ -1,5 +1,5 @@
 defmodule Cmd.SearchTest do
-  use Fnord.TestCase
+  use Fnord.TestCase, async: false
 
   setup do: set_log_level(:none)
   setup do: {:ok, project: mock_project("test_project")}

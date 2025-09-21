@@ -1,5 +1,5 @@
 defmodule Services.GlobalsTest do
-  use Fnord.TestCase, async: true
+  use Fnord.TestCase, async: false
 
   alias Services.Globals
 

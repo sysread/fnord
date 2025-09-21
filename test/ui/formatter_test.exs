@@ -1,5 +1,5 @@
 defmodule UI.FormatterTest do
-  use Fnord.TestCase
+  use Fnord.TestCase, async: false
 
   import ExUnit.CaptureLog
 

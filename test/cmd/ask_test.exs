@@ -1,5 +1,5 @@
 defmodule Cmd.AskTest do
-  use Fnord.TestCase
+  use Fnord.TestCase, async: false
 
   setup do
     Services.Globals.delete_env(:fnord, :auto_policy)

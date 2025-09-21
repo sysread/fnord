@@ -1,5 +1,5 @@
 defmodule Services.ModelPerformanceTracker.Test do
-  use Fnord.TestCase
+  use Fnord.TestCase, async: false
 
   setup do
     Services.ModelPerformanceTracker.reset_session()

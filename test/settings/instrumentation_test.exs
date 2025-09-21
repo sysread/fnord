@@ -1,5 +1,5 @@
 defmodule Settings.InstrumentationTest do
-  use Fnord.TestCase
+  use Fnord.TestCase, async: false
 
   alias Settings.Instrumentation
   alias Settings

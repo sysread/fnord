@@ -1,5 +1,5 @@
 defmodule AI.Tools.TroubleshooterTest do
-  use Fnord.TestCase
+  use Fnord.TestCase, async: false
 
   alias AI.Tools.Troubleshooter
 

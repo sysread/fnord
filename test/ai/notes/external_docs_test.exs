@@ -1,5 +1,5 @@
 defmodule AI.Notes.ExternalDocsTest do
-  use Fnord.TestCase
+  use Fnord.TestCase, async: false
   import ExUnit.CaptureLog
 
   alias AI.Notes.ExternalDocs

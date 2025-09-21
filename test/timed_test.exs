@@ -1,5 +1,5 @@
 defmodule TimedTest do
-  use Fnord.TestCase
+  use Fnord.TestCase, async: false
   import ExUnit.CaptureLog
 
   setup do

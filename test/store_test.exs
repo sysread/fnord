@@ -1,5 +1,5 @@
 defmodule StoreTest do
-  use Fnord.TestCase
+  use Fnord.TestCase, async: false
 
   setup do: {:ok, project: mock_project("blarg")}
 
