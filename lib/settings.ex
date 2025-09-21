@@ -36,11 +36,23 @@ defmodule Settings do
   end
 
   @doc """
+  Get the user's home directory, allowing override for testing.
+  """
+  @spec get_user_home() :: binary | nil | no_return
+  def get_user_home do
+    Application.get_env(:fnord, :test_home_override, System.get_env("HOME"))
+    |> case do
+      nil -> raise "Could not determine user home directory. Is $HOME set?"
+      home -> home
+    end
+  end
+
+  @doc """
   Get the path to the store root directory.
   """
-  @spec home() :: binary
-  def home() do
-    path = "#{System.get_env("HOME")}/.fnord"
+  @spec fnord_home() :: binary
+  def fnord_home() do
+    path = "#{get_user_home()}/.fnord"
     File.mkdir_p!(path)
     path
   end
@@ -51,7 +63,7 @@ defmodule Settings do
   """
   @spec settings_file() :: binary
   def settings_file() do
-    path = "#{home()}/settings.json"
+    path = "#{fnord_home()}/settings.json"
 
     if !File.exists?(path) do
       write_atomic!(path, "{}")

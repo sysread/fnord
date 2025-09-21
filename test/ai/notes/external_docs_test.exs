@@ -87,21 +87,9 @@ defmodule AI.Notes.ExternalDocsTest do
   end
 
   describe "home directory file discovery" do
-    setup %{home_dir: home_dir} do
-      # Override HOME environment to use the mock home directory from Fnord.TestCase
-      original_home = System.get_env("HOME")
-      System.put_env("HOME", home_dir)
+    test "finds docs in user home directories" do
+      home_dir = Settings.get_user_home()
 
-      on_exit(fn ->
-        if original_home,
-          do: System.put_env("HOME", original_home),
-          else: System.delete_env("HOME")
-      end)
-
-      :ok
-    end
-
-    test "finds docs in user home directories", %{home_dir: home_dir} do
       # Create the standard home directory structure for external docs
       claude_home1 = Path.join(home_dir, ".claude/CLAUDE.md")
       claude_home2 = Path.join(home_dir, ".config/claude/CLAUDE.md")

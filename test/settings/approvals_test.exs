@@ -1,12 +1,5 @@
 defmodule Settings.ApprovalsTest do
-  @moduledoc """
-  Comprehensive test suite for Settings.Approvals module covering all core functions
-  and precondition states.
-
-  This test suite validates the complete Settings.Approvals API across all possible
-  settings file states, project configurations, and data corruption scenarios.
-  """
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase
 
   alias Settings.Approvals
 

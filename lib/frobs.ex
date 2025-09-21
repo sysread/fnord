@@ -383,7 +383,7 @@ defmodule Frobs do
   # Private functions
   # -----------------------------------------------------------------------------
   defp get_home do
-    home = System.get_env("HOME") || System.user_home!()
+    home = Settings.get_user_home()
     Path.join([home, "fnord", "tools"])
   end
 

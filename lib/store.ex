@@ -5,7 +5,7 @@ defmodule Store do
   def store_home() do
     move_projects_into_discrete_folder()
 
-    home = Settings.home()
+    home = Settings.fnord_home()
     File.mkdir_p!(home)
 
     home
@@ -51,7 +51,7 @@ defmodule Store do
   # Clean ups for legacy data
   # -----------------------------------------------------------------------------
   defp move_projects_into_discrete_folder() do
-    home = Settings.home()
+    home = Settings.fnord_home()
     new_projects_dir = Path.join(home, "projects")
 
     if !File.exists?(new_projects_dir) do

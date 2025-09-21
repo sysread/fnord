@@ -24,11 +24,13 @@ defmodule AI.NotesTest do
       assert is_binary(result)
     end
 
-    test "includes external docs in ask function when they exist", %{home_dir: home_dir} do
+    test "includes external docs in ask function when they exist" do
       # Mock AI.Completion.get to prevent network calls
       :meck.expect(AI.Completion, :get, fn _opts ->
         {:ok, %{response: "Mocked response with external docs"}}
       end)
+
+      home_dir = Settings.get_user_home()
 
       # Create some external docs
       claude_path = Path.join(home_dir, ".claude/CLAUDE.md")
@@ -39,8 +41,6 @@ defmodule AI.NotesTest do
 
       File.mkdir_p!(Path.dirname(agents_path))
       File.write!(agents_path, "Test Agents instructions")
-
-      System.put_env("HOME", home_dir)
 
       state = Notes.new()
 

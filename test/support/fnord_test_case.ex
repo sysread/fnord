@@ -129,12 +129,7 @@ defmodule Fnord.TestCase do
       # ----------------------------------------------------------------------------
       setup do
         with {:ok, tmp_dir} <- tmpdir() do
-          orig = System.get_env("HOME")
-          on_exit(fn -> System.put_env("HOME", orig) end)
-          System.put_env("HOME", tmp_dir)
-
-          Settings.new() |> Settings.update(:approvals, fn _ -> %{} end)
-
+          Application.put_env(:fnord, :test_home_override, tmp_dir)
           {:ok, home_dir: tmp_dir}
         end
       end

@@ -9,7 +9,7 @@ defmodule Settings.Migrate do
   # side effects.
   # ----------------------------------------------------------------------------
   def cleanup_default_project_dir do
-    path = Path.join(Settings.home(), "default")
+    path = Path.join(Settings.fnord_home(), "default")
 
     if File.exists?(path) do
       File.rm_rf!(path)

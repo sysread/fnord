@@ -20,7 +20,7 @@ defmodule AI.Notes.ExternalDocs do
   def get_docs do
     project_root = Path.expand("../../../", __DIR__)
     cwd = Path.expand(File.cwd!())
-    user_home = System.get_env("HOME") || System.user_home!()
+    user_home = Settings.get_user_home()
 
     # Define sources in order of specificity: home files, project files, cwd
     # files.

@@ -20,7 +20,7 @@ defmodule SettingsTest do
   end
 
   test "home/0", %{home_dir: home_dir} do
-    assert Settings.home() == Path.join(home_dir, ".fnord")
+    assert Settings.fnord_home() == Path.join(home_dir, ".fnord")
   end
 
   test "settings_file/0", %{home_dir: home_dir} do
@@ -374,7 +374,7 @@ defmodule SettingsTest do
   end
 
   test "automatic cleanup of default project directory" do
-    home = Settings.home()
+    home = Settings.fnord_home()
     default_dir = Path.join(home, "default")
 
     # Setup: ensure the default dir exists
