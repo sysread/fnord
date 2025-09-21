@@ -80,7 +80,7 @@ defmodule UI.Queue.Test do
 
       # Block the queue with an initial interact
       _blocker =
-        spawn(fn ->
+        Services.Globals.Spawn.spawn(fn ->
           UI.Queue.interact(fn ->
             send(parent, :blocker_started)
 
@@ -95,12 +95,12 @@ defmodule UI.Queue.Test do
       assert_receive :blocker_started, 100
 
       # Enqueue another interact (high priority)
-      spawn(fn ->
+      Services.Globals.Spawn.spawn(fn ->
         UI.Queue.interact(fn -> send(parent, :after_interact) end)
       end)
 
       # Enqueue a puts (normal priority)
-      spawn(fn ->
+      Services.Globals.Spawn.spawn(fn ->
         UI.Queue.puts(UI.Queue, :stdout, "dummy")
         send(parent, :after_puts)
       end)

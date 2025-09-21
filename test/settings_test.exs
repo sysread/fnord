@@ -152,7 +152,7 @@ defmodule SettingsTest do
 
     tasks =
       for _i <- 1..num_tasks do
-        Task.async(fn ->
+        Services.Globals.Spawn.async(fn ->
           for _j <- 1..increments_per_task do
             Settings.new()
             |> Settings.update(key, fn current ->
@@ -182,7 +182,7 @@ defmodule SettingsTest do
 
     tasks =
       for i <- 1..num_tasks do
-        Task.async(fn ->
+        Services.Globals.Spawn.async(fn ->
           key = "task_#{i}"
 
           for j <- 1..updates_per_task do
@@ -222,7 +222,7 @@ defmodule SettingsTest do
 
     tasks =
       for i <- 1..num_tasks do
-        Task.async(fn ->
+        Services.Globals.Spawn.async(fn ->
           for j <- 1..5 do
             key = "key_#{rem(i * j, 20) + 1}"
 
@@ -333,7 +333,7 @@ defmodule SettingsTest do
 
     # Simulate two different worktrees/processes adding approvals simultaneously
     tasks = [
-      Task.async(fn ->
+      Services.Globals.Spawn.async(fn ->
         # Process 1: Add approval to shell
         Settings.new()
         |> Settings.update("approvals", fn approvals ->
@@ -341,7 +341,7 @@ defmodule SettingsTest do
           Map.put(approvals, "shell", shell_approvals)
         end)
       end),
-      Task.async(fn ->
+      Services.Globals.Spawn.async(fn ->
         # Process 2: Add approval to shell_full
         Settings.new()
         |> Settings.update("approvals", fn approvals ->
@@ -529,35 +529,35 @@ defmodule SettingsTest do
 
   describe "hint docs flags" do
     setup do
-      original_enabled = Application.get_env(:fnord, :hint_docs_enabled)
-      original_auto = Application.get_env(:fnord, :hint_docs_auto_inject)
+      original_enabled = Services.Globals.get_env(:fnord, :hint_docs_enabled)
+      original_auto = Services.Globals.get_env(:fnord, :hint_docs_auto_inject)
 
       on_exit(fn ->
         if original_enabled == nil,
-          do: Application.delete_env(:fnord, :hint_docs_enabled),
-          else: Application.put_env(:fnord, :hint_docs_enabled, original_enabled)
+          do: Services.Globals.delete_env(:fnord, :hint_docs_enabled),
+          else: Services.Globals.put_env(:fnord, :hint_docs_enabled, original_enabled)
 
         if original_auto == nil,
-          do: Application.delete_env(:fnord, :hint_docs_auto_inject),
-          else: Application.put_env(:fnord, :hint_docs_auto_inject, original_auto)
+          do: Services.Globals.delete_env(:fnord, :hint_docs_auto_inject),
+          else: Services.Globals.put_env(:fnord, :hint_docs_auto_inject, original_auto)
       end)
 
       :ok
     end
 
     test "get_hint_docs_enabled?/0 defaults to true and respects config" do
-      Application.delete_env(:fnord, :hint_docs_enabled)
+      Services.Globals.delete_env(:fnord, :hint_docs_enabled)
       assert Settings.get_hint_docs_enabled?()
 
-      Application.put_env(:fnord, :hint_docs_enabled, false)
+      Services.Globals.put_env(:fnord, :hint_docs_enabled, false)
       refute Settings.get_hint_docs_enabled?()
     end
 
     test "get_hint_docs_auto_inject?/0 defaults to true and respects config" do
-      Application.delete_env(:fnord, :hint_docs_auto_inject)
+      Services.Globals.delete_env(:fnord, :hint_docs_auto_inject)
       assert Settings.get_hint_docs_auto_inject?()
 
-      Application.put_env(:fnord, :hint_docs_auto_inject, false)
+      Services.Globals.put_env(:fnord, :hint_docs_auto_inject, false)
       refute Settings.get_hint_docs_auto_inject?()
     end
   end

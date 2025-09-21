@@ -30,7 +30,7 @@ defmodule Settings.Approvals.RaceTest do
       # Simulate concurrent addition by another process
       # (In real scenario, this would happen between validation detecting corruption
       # and the repair write)
-      spawn(fn ->
+      Services.Globals.Spawn.spawn(fn ->
         # Small delay to interleave with repair
         :timer.sleep(5)
 
@@ -87,7 +87,7 @@ defmodule Settings.Approvals.RaceTest do
       settings = Settings.new()
 
       # Simulate concurrent addition
-      spawn(fn ->
+      Services.Globals.Spawn.spawn(fn ->
         :timer.sleep(5)
 
         Settings.new()
@@ -136,7 +136,7 @@ defmodule Settings.Approvals.RaceTest do
       settings = Settings.new()
 
       # Simulate concurrent addition while repair is fixing corruption
-      spawn(fn ->
+      Services.Globals.Spawn.spawn(fn ->
         :timer.sleep(5)
 
         Settings.new()
@@ -180,7 +180,7 @@ defmodule Settings.Approvals.RaceTest do
       settings = Settings.new()
 
       # Concurrent addition
-      spawn(fn ->
+      Services.Globals.Spawn.spawn(fn ->
         :timer.sleep(5)
 
         Settings.new()
@@ -231,7 +231,7 @@ defmodule Settings.Approvals.RaceTest do
       # Start multiple concurrent processes that will all detect and try to repair
       tasks =
         for i <- 1..50 do
-          Task.async(fn ->
+          Services.Globals.Spawn.async(fn ->
             settings = Settings.new()
 
             # Each process adds its own approval
@@ -288,7 +288,7 @@ defmodule Settings.Approvals.RaceTest do
       settings = Settings.new()
 
       # Concurrent addition during repair
-      spawn(fn ->
+      Services.Globals.Spawn.spawn(fn ->
         :timer.sleep(5)
 
         Settings.new()
@@ -324,13 +324,13 @@ defmodule Settings.Approvals.RaceTest do
 
       # Two processes add different approvals concurrently
       task1 =
-        Task.async(fn ->
+        Services.Globals.Spawn.async(fn ->
           Settings.new()
           |> Settings.Approvals.approve(:global, "shell", "git status")
         end)
 
       task2 =
-        Task.async(fn ->
+        Services.Globals.Spawn.async(fn ->
           Settings.new()
           |> Settings.Approvals.approve(:global, "shell", "git log")
         end)
@@ -353,7 +353,7 @@ defmodule Settings.Approvals.RaceTest do
       # Many processes add approvals concurrently
       tasks =
         for i <- 1..10 do
-          Task.async(fn ->
+          Services.Globals.Spawn.async(fn ->
             Settings.new()
             |> Settings.Approvals.approve(:global, "shell", "cmd_#{i}")
           end)
@@ -374,15 +374,15 @@ defmodule Settings.Approvals.RaceTest do
     test "concurrent approvals to different kinds don't interfere", %{home_dir: _} do
       # Multiple processes updating different kinds
       tasks = [
-        Task.async(fn ->
+        Services.Globals.Spawn.async(fn ->
           Settings.new()
           |> Settings.Approvals.approve(:global, "shell", "git status")
         end),
-        Task.async(fn ->
+        Services.Globals.Spawn.async(fn ->
           Settings.new()
           |> Settings.Approvals.approve(:global, "edit", "*.ex")
         end),
-        Task.async(fn ->
+        Services.Globals.Spawn.async(fn ->
           Settings.new()
           |> Settings.Approvals.approve(:global, "shell_full", "^find.*")
         end)

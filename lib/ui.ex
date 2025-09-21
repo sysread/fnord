@@ -17,10 +17,10 @@ defmodule UI do
         # ...
       end
 
-  ### Task.async and Spawned Processes
+  ### Services.Globals.Spawn.async and Spawned Processes
   Use `UI.Queue.run_from_task/1` when tasks need to participate in an existing UI interaction:
 
-      task = Task.async(fn ->
+      task = Services.Globals.Spawn.async(fn ->
         UI.Queue.run_from_task(fn ->
           UI.confirm("Process this item?")
         end)
@@ -407,11 +407,11 @@ defmodule UI do
   def flush, do: output_module().flush()
 
   defp output_module do
-    Application.get_env(:fnord, :ui_output, UI.Output.Production)
+    Services.Globals.get_env(:fnord, :ui_output, UI.Output.Production)
   end
 
   def quiet?() do
-    Application.get_env(:fnord, :quiet)
+    Services.Globals.get_env(:fnord, :quiet)
   end
 
   def is_tty? do

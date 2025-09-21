@@ -29,12 +29,12 @@ defmodule Fnord do
       # Now that global settings are set, we can configure the :hackney_pool to
       # limit the number of concurrent requests.
       :hackney_pool.start_pool(:ai_api,
-        max_connections: Application.get_env(:fnord, :workers, Cmd.default_workers())
+        max_connections: Services.Globals.get_env(:fnord, :workers, Cmd.default_workers())
       )
 
       # Start dedicated pool for background indexer (half workers, at least 1)
       indexer_size =
-        Application.get_env(:fnord, :workers, Cmd.default_workers())
+        Services.Globals.get_env(:fnord, :workers, Cmd.default_workers())
         |> div(2)
         |> max(1)
 
@@ -62,7 +62,7 @@ defmodule Fnord do
         if command == :upgrade do
           nil
         else
-          Task.async(fn -> Util.get_latest_version() end)
+          Services.Globals.Spawn.async(fn -> Util.get_latest_version() end)
         end
 
       # Run the subcommand

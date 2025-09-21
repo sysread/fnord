@@ -7,9 +7,6 @@ defmodule Settings.WorktreeOverrideTest do
     :ok
   end
 
-  alias Settings
-  alias Briefly
-
   test "get/set project_root_override" do
     # Default override is nil
     assert Settings.get_project_root_override() == nil

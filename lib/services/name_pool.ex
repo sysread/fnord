@@ -109,7 +109,7 @@ defmodule Services.NamePool do
   @impl GenServer
   def init(_opts) do
     chunk_size =
-      Application.get_env(:fnord, :workers, 12)
+      Services.Globals.get_env(:fnord, :workers, 12)
 
     state = %__MODULE__{
       available: [],
@@ -251,7 +251,7 @@ defmodule Services.NamePool do
 
   # Allocates a chunk of names from the nomenclater
   defp allocate_name_chunk(state) do
-    Application.get_env(:fnord, :nomenclater, :real)
+    Services.Globals.get_env(:fnord, :nomenclater, :real)
     |> case do
       :fake ->
         start_num = MapSet.size(state.all_used) + 1
@@ -273,7 +273,7 @@ defmodule Services.NamePool do
         used_names = MapSet.to_list(state.all_used)
 
         task =
-          Task.async(fn ->
+          Services.Globals.Spawn.async(fn ->
             AI.Agent.Nomenclater
             # `named?: false` prevents circular dependency with ourselves
             |> AI.Agent.new(named?: false)

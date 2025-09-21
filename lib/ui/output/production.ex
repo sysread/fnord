@@ -56,7 +56,7 @@ defmodule UI.Output.Production do
     interact(fn ->
       # Display the selection prompt
       task =
-        Task.async(fn ->
+        Services.Globals.Spawn.async(fn ->
           flush()
           Owl.IO.select(options, label: label)
         end)
@@ -179,7 +179,7 @@ defmodule UI.Output.Production do
   defp with_notification_timeout(func, notification_message, timeout_ms) do
     # Start a task to execute the function with UI.Queue context preserved
     task =
-      Task.async(fn ->
+      Services.Globals.Spawn.async(fn ->
         UI.Queue.run_from_task(func)
       end)
 

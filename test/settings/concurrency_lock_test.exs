@@ -15,7 +15,7 @@ defmodule Settings.ConcurrencyLockTest do
 
     tasks =
       for prefix <- prefixes do
-        Task.async(fn ->
+        Services.Globals.Spawn.async(fn ->
           Settings.new()
           |> Approvals.approve(:global, "shell", prefix)
         end)
@@ -32,7 +32,7 @@ defmodule Settings.ConcurrencyLockTest do
 
     tasks =
       for pat <- patterns do
-        Task.async(fn ->
+        Services.Globals.Spawn.async(fn ->
           Settings.new()
           |> Approvals.approve(:global, "shell_full", pat)
         end)

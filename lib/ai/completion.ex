@@ -92,7 +92,7 @@ defmodule AI.Completion do
       log_msgs = Keyword.get(opts, :log_msgs, false)
       replay = Keyword.get(opts, :replay_conversation, true)
 
-      quiet? = Application.get_env(:fnord, :quiet)
+      quiet? = Services.Globals.get_env(:fnord, :quiet)
       log_tool_calls = Keyword.get(opts, :log_tool_calls, !quiet?)
 
       archive? = Keyword.get(opts, :archive_notes, false)

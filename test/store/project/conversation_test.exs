@@ -3,8 +3,6 @@ defmodule Store.Project.ConversationTest do
 
   alias Store.Project.Conversation
 
-  setup do: set_config(workers: 1, quiet: true)
-
   setup do
     {:ok, project: mock_project("blarg")}
   end

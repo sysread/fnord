@@ -19,7 +19,7 @@ defmodule UI.Queue do
   could cause deadlocks:
 
   - `run_from_genserver/1` - For GenServer callbacks (starts fresh UI context)
-  - `run_from_task/1` - For Task.async (preserves parent UI context)
+  - `run_from_task/1` - For Services.Globals.Spawn.async (preserves parent UI context)
 
   **Interactive UI functions that require wrapping:**
   - `UI.confirm/1`
@@ -34,8 +34,8 @@ defmodule UI.Queue do
         {:reply, result, state}
       end
 
-  **Task.async example:**
-      task = Task.async(fn ->
+  **Services.Globals.Spawn.async example:**
+      task = Services.Globals.Spawn.async(fn ->
         UI.Queue.run_from_task(fn ->
           UI.confirm("Process this item?")
         end)
@@ -123,7 +123,7 @@ defmodule UI.Queue do
   end
 
   @doc """
-  Wrapper for running interactive UI calls from async tasks (Task.async).
+  Wrapper for running interactive UI calls from async tasks (Services.Globals.Spawn.async).
 
   This **preserves the parent process's UI interaction context**, allowing async
   tasks to participate in the same UI interaction as their parent. This is essential
@@ -134,7 +134,7 @@ defmodule UI.Queue do
 
   ## Example
       # In a function that's already in a UI interaction context
-      task = Task.async(fn ->
+      task = Services.Globals.Spawn.async(fn ->
         UI.Queue.run_from_task(fn ->
           # This UI call will be part of the parent's interaction
           UI.confirm("Process this item?")
@@ -150,7 +150,7 @@ defmodule UI.Queue do
 
   def spawn_bound(server \\ __MODULE__, fun) when is_function(fun, 0) do
     tok = interaction_token(server)
-    spawn(fn -> bind(server, tok, fun) end)
+    Services.Globals.Spawn.spawn(fn -> bind(server, tok, fun) end)
   end
 
   # ----------------------------------------------------------------------------

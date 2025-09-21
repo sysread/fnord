@@ -8,7 +8,7 @@ defmodule Settings.ApprovalsTest do
     File.rm_rf!(Settings.settings_file())
 
     # Clear any project selection from previous tests
-    Application.delete_env(:fnord, :project)
+    Services.Globals.delete_env(:fnord, :project)
 
     :ok
   end
@@ -676,19 +676,19 @@ defmodule Settings.ApprovalsTest do
       File.write!(settings_path, Jason.encode!(multi_project_data))
 
       # Test project1 - set application env and create settings
-      Application.put_env(:fnord, :project, "project1")
+      Services.Globals.put_env(:fnord, :project, "project1")
       project1_approvals = Approvals.get_approvals(Settings.new(), :project, "shell")
       assert project1_approvals == ["git"]
 
       # Test project2 - set application env and create settings
-      Application.put_env(:fnord, :project, "project2")
+      Services.Globals.put_env(:fnord, :project, "project2")
       project2_approvals = Approvals.get_approvals(Settings.new(), :project, "shell")
       assert project2_approvals == ["npm"]
 
       # Global approvals should be accessible from both
-      Application.put_env(:fnord, :project, "project1")
+      Services.Globals.put_env(:fnord, :project, "project1")
       global_from_p1 = Approvals.get_approvals(Settings.new(), :global, "global_kind")
-      Application.put_env(:fnord, :project, "project2")
+      Services.Globals.put_env(:fnord, :project, "project2")
       global_from_p2 = Approvals.get_approvals(Settings.new(), :global, "global_kind")
 
       assert global_from_p1 == ["global_item"]

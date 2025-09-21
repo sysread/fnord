@@ -57,6 +57,6 @@ defmodule Indexer do
   testing. See `test/test_helper.exs`.
   """
   def impl() do
-    Application.get_env(:fnord, :indexer) || __MODULE__
+    Services.Globals.get_env(:fnord, :indexer) || __MODULE__
   end
 end

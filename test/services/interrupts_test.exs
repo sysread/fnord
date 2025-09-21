@@ -48,7 +48,7 @@ defmodule Services.Conversation.InterruptsTest do
 
     # Spawn a separate process to simulate another conversation
     pid2 =
-      spawn(fn ->
+      Services.Globals.Spawn.spawn(fn ->
         receive do
         end
       end)

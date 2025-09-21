@@ -25,7 +25,7 @@ defmodule Fnord.TestCase do
 
   using do
     quote do
-      use ExUnit.Case, async: false
+      use ExUnit.Case
 
       import ExUnit.CaptureIO
       import Mox
@@ -46,11 +46,30 @@ defmodule Fnord.TestCase do
           set_config: 2
         ]
 
+      setup do
+        # NOTE: Services.Globals is started in test_helper.exs
+        Services.Globals.install_root()
+
+        Services.Globals.put_env(:fnord, :workers, 1)
+
+        # Ensure quiet mode is enabled to prevent interactive prompts during
+        # tests.
+        Services.Globals.put_env(:fnord, :quiet, true)
+
+        # Disable any sleep calls during HTTP retries to speed up tests.
+        Services.Globals.put_env(:fnord, :http_retry_skip_sleep, true)
+
+        :ok
+      end
+
       # ------------------------------------------------------------------------
-      # Set up Mox
+      # Override default implementations for services which use external APIs
+      # or have other side effects.
       # ------------------------------------------------------------------------
-      setup :verify_on_exit!
-      setup :set_mox_from_context
+      setup do
+        Services.Globals.put_env(:fnord, :indexer, MockIndexer)
+        :ok
+      end
 
       setup do
         # Ensure no OpenAI API key is set in the environment. This prevents
@@ -80,12 +99,11 @@ defmodule Fnord.TestCase do
         :ok
       end
 
-      setup do
-        # Globally override interactive mode, so that code called by tests does
-        # not attempt to read from stdin.
-        Settings.set_quiet(true)
-        :ok
-      end
+      # ------------------------------------------------------------------------
+      # Setup Mox
+      # ------------------------------------------------------------------------
+      setup :verify_on_exit!
+      setup :set_mox_from_context
 
       setup do
         # Globally override the configured Indexer with our stub because the
@@ -106,7 +124,7 @@ defmodule Fnord.TestCase do
 
       setup do
         Mox.stub_with(UI.Output.Mock, UI.Output.TestStub)
-        Application.put_env(:fnord, :ui_output, UI.Output.Mock)
+        Services.Globals.put_env(:fnord, :ui_output, UI.Output.Mock)
       end
 
       setup do
@@ -129,7 +147,10 @@ defmodule Fnord.TestCase do
       # ----------------------------------------------------------------------------
       setup do
         with {:ok, tmp_dir} <- tmpdir() do
-          Application.put_env(:fnord, :test_home_override, tmp_dir)
+          # Just in case, ensure that the env var is overridden.
+          System.put_env("HOME", tmp_dir)
+          # Then, override app config.
+          Services.Globals.put_env(:fnord, :test_home_override, tmp_dir)
           {:ok, home_dir: tmp_dir}
         end
       end
@@ -268,11 +289,8 @@ defmodule Fnord.TestCase do
   stored under the `:fnord` application environment.
   """
   def set_config(config) do
-    orig = Application.get_all_env(:fnord)
-    on_exit(fn -> Application.put_all_env(fnord: orig) end)
-
     Enum.each(config, fn {key, val} ->
-      Application.put_env(:fnord, key, val)
+      Services.Globals.put_env(:fnord, key, val)
     end)
 
     :ok
@@ -284,8 +302,6 @@ defmodule Fnord.TestCase do
   environment.
   """
   def set_config(key, val) do
-    orig = Application.get_env(:fnord, key)
-    on_exit(fn -> Application.put_env(:fnord, key, orig) end)
-    Application.put_env(:fnord, key, val)
+    Services.Globals.put_env(:fnord, key, val)
   end
 end

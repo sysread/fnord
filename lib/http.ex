@@ -137,7 +137,7 @@ defmodule Http do
   end
 
   defp maybe_sleep(ms) do
-    if Application.get_env(:fnord, :http_retry_skip_sleep, false) do
+    if Services.Globals.get_env(:fnord, :http_retry_skip_sleep, false) do
       :ok
     else
       Process.sleep(ms)

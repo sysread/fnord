@@ -10,7 +10,7 @@ defmodule Settings.Instrumentation do
   @spec init_baseline(map) :: :ok
   def init_baseline(data) do
     initial = Map.get(data, "approvals", %{})
-    Application.put_env(:fnord, :initial_global_approvals_snapshot, initial)
+    Services.Globals.put_env(:fnord, :initial_global_approvals_snapshot, initial)
 
     # Ensure baseline table exists, handling potential race conditions
     if :ets.whereis(@baseline_table) == :undefined do

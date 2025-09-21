@@ -4,7 +4,6 @@ defmodule Store.Project.EntryTest do
   @text "how now brown bureaucrat"
   @alt_text "now is the time for all good men to come to the aid of their country"
 
-  setup do: set_config(workers: 1, quiet: true)
   setup do: {:ok, project: mock_project("blarg")}
 
   describe "new_from_file_path/2" do

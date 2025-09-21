@@ -2,7 +2,7 @@ defmodule Cmd.AskTest do
   use Fnord.TestCase
 
   setup do
-    Application.delete_env(:fnord, :auto_policy)
+    Services.Globals.delete_env(:fnord, :auto_policy)
     # Ensure settings directory exists without deleting it to avoid races
     settings_file = Settings.settings_file()
     settings_dir = Path.dirname(settings_file)

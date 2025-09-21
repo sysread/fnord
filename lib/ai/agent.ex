@@ -65,7 +65,7 @@ defmodule AI.Agent do
   def get_response(agent, args) do
     parent_pool = HttpPool.get()
 
-    Task.async(fn ->
+    Services.Globals.Spawn.async(fn ->
       HttpPool.set(parent_pool)
 
       agent =

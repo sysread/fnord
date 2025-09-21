@@ -1,16 +1,13 @@
 ExUnit.start()
 
 # ------------------------------------------------------------------------------
-# Configure non-interactive mode for all tests
+# Start foundational services
 # ------------------------------------------------------------------------------
-# Ensure quiet mode is enabled to prevent interactive prompts during tests
-Application.put_env(:fnord, :quiet, true)
-Application.put_env(:fnord, :http_retry_skip_sleep, true)
+Services.Globals.start_link()
 
 # ------------------------------------------------------------------------------
-# Start applications for any external dependencies used in tests
+# Start test applications
 # ------------------------------------------------------------------------------
-Application.ensure_all_started(:briefly)
 Application.ensure_all_started(:mox)
 Application.ensure_all_started(:meck)
 

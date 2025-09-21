@@ -83,7 +83,7 @@ defmodule Cmd.Index do
   def run_as_tool_call(opts) do
     # Ensure we restore the global `:quiet` flag after indexing so that
     # UI output returns to its previous formatting mode.
-    original_quiet = Application.get_env(:fnord, :quiet, false)
+    original_quiet = Services.Globals.get_env(:fnord, :quiet, false)
 
     try do
       if opts[:quiet] do
@@ -111,7 +111,7 @@ defmodule Cmd.Index do
 
   def perform_task({:ok, idx}) do
     UI.info("Project", idx.project.name)
-    UI.info("Workers", Application.get_env(:fnord, :workers) |> to_string())
+    UI.info("Workers", Services.Globals.get_env(:fnord, :workers) |> to_string())
     UI.info("   Root", idx.project.source_root)
 
     UI.info(
@@ -360,7 +360,7 @@ defmodule Cmd.Index do
       # If :quiet is true, the progress bar will be absent, so instead, we'll
       # emit debug logs to stderr. The user can control whether those are
       # displayed by setting LOGGER_LEVEL.
-      if Application.get_env(:fnord, :quiet) do
+      if Services.Globals.get_env(:fnord, :quiet) do
         UI.info("✓ #{entry.file}")
       end
 
@@ -372,8 +372,8 @@ defmodule Cmd.Index do
   end
 
   defp get_derivatives(file, file_contents) do
-    summary_task = Task.async(fn -> get_summary(file, file_contents) end)
-    outline_task = Task.async(fn -> get_outline(file, file_contents) end)
+    summary_task = Services.Globals.Spawn.async(fn -> get_summary(file, file_contents) end)
+    outline_task = Services.Globals.Spawn.async(fn -> get_outline(file, file_contents) end)
 
     with {:ok, summary} <- Task.await(summary_task, :infinity),
          {:ok, outline} <- Task.await(outline_task, :infinity) do

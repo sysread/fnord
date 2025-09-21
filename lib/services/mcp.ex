@@ -10,7 +10,7 @@ defmodule Services.MCP do
   @spec start() :: :ok
   def start do
     # Configure Hermes MCP logging to reduce debug output
-    Application.put_env(:hermes_mcp, :logging,
+    Services.Globals.put_env(:hermes_mcp, :logging,
       client_events: :info,
       server_events: :info,
       transport_events: :warning,

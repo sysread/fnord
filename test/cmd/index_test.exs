@@ -1,10 +1,14 @@
 defmodule Cmd.IndexTest do
   use Fnord.TestCase
 
-  setup do: set_config(workers: 1, quiet: true)
+  setup do
+    set_config(workers: 1)
+  end
 
   describe "run" do
-    setup do: {:ok, project: mock_git_project("test_project")}
+    setup do
+      {:ok, project: mock_git_project("test_project")}
+    end
 
     test "positive path", %{project: project} do
       file = mock_source_file(project, "file1.txt", "file1")
@@ -36,7 +40,7 @@ defmodule Cmd.IndexTest do
   describe "new" do
     test "returns error when source :directory is not passed or present in settings" do
       # Ensure clean state - no project should be set in Application environment
-      Application.put_env(:fnord, :project, nil)
+      Services.Globals.put_env(:fnord, :project, nil)
 
       assert {:error, :project_not_set} = Cmd.Index.new(%{project: "test_project"})
     end

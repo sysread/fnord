@@ -63,7 +63,7 @@ defmodule Services.Approvals do
   # Internals
   # ----------------------------------------------------------------------------
   defp impl_for(kind) do
-    Application.get_env(:fnord, :approvals, @default_impl)
+    Services.Globals.get_env(:fnord, :approvals, @default_impl)
     |> Map.fetch!(kind)
   end
 end

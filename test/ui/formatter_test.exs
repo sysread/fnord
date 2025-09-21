@@ -15,9 +15,9 @@ defmodule UI.FormatterTest do
   end
 
   setup do
-    original = Application.get_env(:fnord, :quiet)
-    on_exit(fn -> Application.put_env(:fnord, :quiet, original) end)
-    Application.put_env(:fnord, :quiet, false)
+    original = Services.Globals.get_env(:fnord, :quiet)
+    on_exit(fn -> Services.Globals.put_env(:fnord, :quiet, original) end)
+    Services.Globals.put_env(:fnord, :quiet, false)
     :ok
   end
 

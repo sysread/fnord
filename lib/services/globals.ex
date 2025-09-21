@@ -22,6 +22,10 @@ defmodule Services.Globals do
   # set: {root_pid, app, key} -> value
   @data_tab :globals_data
 
+  @type app :: atom()
+  @type key :: term()
+  @type value :: term()
+
   # ----------------------------------------------------------------------------
   # Public API
   # ----------------------------------------------------------------------------
@@ -51,16 +55,29 @@ defmodule Services.Globals do
   """
   @spec get_env(atom, term, term) :: term
   def get_env(app, key, default \\ nil) do
-    case resolve_root() do
-      nil ->
-        Application.get_env(app, key, default)
+    root = resolve_root()
 
-      root ->
-        case :ets.lookup(@data_tab, {root, app, key}) do
-          [{{^root, ^app, ^key}, value}] -> value
-          [] -> Application.get_env(app, key, default)
-        end
-    end
+    found =
+      case root do
+        nil ->
+          Application.get_env(app, key, default)
+
+        root when root == self() ->
+          # We *are* the root: check overrides, else fall back directly
+          case :ets.lookup(@data_tab, {root, app, key}) do
+            [{{^root, ^app, ^key}, value}] -> value
+            [] -> Application.get_env(app, key, default)
+          end
+
+        root ->
+          # We're under a root: check overrides, else just return default
+          case :ets.lookup(@data_tab, {root, app, key}) do
+            [{{^root, ^app, ^key}, value}] -> value
+            [] -> default
+          end
+      end
+
+    found
   end
 
   @doc """
@@ -75,6 +92,48 @@ defmodule Services.Globals do
       root ->
         :ets.delete(@data_tab, {root, app, key})
         :ok
+    end
+  end
+
+  @spec put_all_env([{app(), [{key(), value()}]}], keyword()) :: :ok
+  def put_all_env(app_kvs_list, _opts \\ [])
+
+  def put_all_env(app_kvs_list, _opts) when is_list(app_kvs_list) do
+    root = ensure_root!()
+
+    Enum.each(app_kvs_list, fn
+      {app, kvs} when is_atom(app) and is_list(kvs) ->
+        Enum.each(kvs, fn {k, v} ->
+          true = :ets.insert(@data_tab, {{root, app, k}, v})
+        end)
+
+      other ->
+        raise ArgumentError,
+              "put_all_env/2 expects [{app, keyword}] entries, got: #{inspect(other)}"
+    end)
+
+    :ok
+  end
+
+  def put_all_env(app, kvs) when is_atom(app) and is_list(kvs) do
+    put_all_env([{app, kvs}], [])
+  end
+
+  @spec get_all_env(atom()) :: keyword()
+  def get_all_env(app) do
+    case resolve_root() do
+      nil ->
+        Application.get_all_env(app)
+
+      root when root == self() ->
+        # We *are* the root: overlay overrides on top of Application env (overrides win)
+        base = Application.get_all_env(app)
+        overrides = overrides_for(root, app)
+        Enum.reduce(overrides, base, fn {k, v}, acc -> Keyword.put(acc, k, v) end)
+
+      root ->
+        # Descendant: show only overrides (matches your get_env/3 semantics)
+        overrides_for(root, app) |> Enum.sort_by(&elem(&1, 0))
     end
   end
 
@@ -93,7 +152,49 @@ defmodule Services.Globals do
   @spec current_root() :: pid | nil
   def current_root(), do: resolve_root()
 
-  ## GenServer
+  def explain() do
+    root = resolve_root()
+    IO.puts("Globals process tree (root = #{inspect(root)})")
+    do_explain(root, 0)
+    :ok
+  end
+
+  defp do_explain(pid, depth) when is_pid(pid) do
+    indent = String.duplicate("  ", depth)
+
+    # Which apps/keys are set for this pid?
+    entries =
+      :ets.select(@data_tab, [
+        {{{pid, :"$1", :"$2"}, :"$3"}, [], [{{:"$1", :"$2", :"$3"}}]}
+      ])
+
+    if entries != [] do
+      IO.puts("#{indent}- #{inspect(pid)}")
+
+      Enum.each(entries, fn {app, key, val} ->
+        IO.puts("#{indent}    #{inspect(app)}.#{inspect(key)} = #{inspect(val)}")
+      end)
+    else
+      IO.puts("#{indent}- #{inspect(pid)} (no overrides)")
+    end
+
+    # Recurse into linked children (optional: you can also use Process.info(pid, :dictionary) if you’re storing parent refs)
+    case Process.info(pid, :links) do
+      {:links, links} ->
+        Enum.each(links, fn child ->
+          if is_pid(child) and Process.alive?(child) do
+            do_explain(child, depth + 1)
+          end
+        end)
+
+      _ ->
+        :ok
+    end
+  end
+
+  # ----------------------------------------------------------------------------
+  # GenServer callbacks
+  # ----------------------------------------------------------------------------
 
   @impl true
   def init(:ok) do
@@ -188,5 +289,12 @@ defmodule Services.Globals do
             end
         end
     end
+  end
+
+  @spec overrides_for(pid(), atom()) :: keyword()
+  defp overrides_for(root, app) do
+    # Robust and simple: match → map to {k,v}
+    :ets.match(@data_tab, {{root, app, :"$1"}, :"$2"})
+    |> Enum.map(fn [k, v] -> {k, v} end)
   end
 end

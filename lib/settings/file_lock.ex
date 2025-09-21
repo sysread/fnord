@@ -158,7 +158,7 @@ defmodule Settings.FileLock do
 
                 # Clean up any other stale lock dirs we created in the
                 # background while attempting takeover.
-                spawn(fn ->
+                Services.Globals.Spawn.spawn(fn ->
                   "#{lock_dir}.stale.*"
                   |> Path.wildcard()
                   |> Enum.each(&File.rm_rf/1)

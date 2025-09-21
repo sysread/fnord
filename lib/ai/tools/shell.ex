@@ -458,7 +458,7 @@ defmodule AI.Tools.Shell do
     on_timeout = Keyword.get(opts, :on_timeout, fn -> :ok end)
 
     task =
-      Task.async(fn ->
+      Services.Globals.Spawn.async(fn ->
         try do
           fun.()
         rescue

@@ -17,6 +17,7 @@ defmodule Settings do
   def new() do
     Settings.Migrate.cleanup_default_project_dir()
     path = settings_file()
+
     Settings.Migrate.maybe_migrate_settings(path)
 
     settings =
@@ -29,7 +30,7 @@ defmodule Settings do
 
   def get_running_version do
     # Allow version override for testing
-    case Application.get_env(:fnord, :test_version_override) do
+    case Services.Globals.get_env(:fnord, :test_version_override) do
       nil -> Application.spec(:fnord, :vsn) |> to_string()
       version -> version
     end
@@ -40,7 +41,7 @@ defmodule Settings do
   """
   @spec get_user_home() :: binary | nil | no_return
   def get_user_home do
-    Application.get_env(:fnord, :test_home_override, System.get_env("HOME"))
+    Services.Globals.get_env(:fnord, :test_home_override, System.get_env("HOME"))
     |> case do
       nil -> raise "Could not determine user home directory. Is $HOME set?"
       home -> home
@@ -90,7 +91,7 @@ defmodule Settings do
   end
 
   def set_project(project_name) do
-    Application.put_env(:fnord, :project, project_name)
+    Services.Globals.put_env(:fnord, :project, project_name)
     UI.debug("Project selected", project_name)
     Services.Notes.load_notes()
     :ok
@@ -102,7 +103,7 @@ defmodule Settings do
   @spec set_quiet(boolean) :: :ok
   def set_quiet(quiet) do
     # Force quiet mode to be a boolean
-    Application.put_env(:fnord, :quiet, !!quiet)
+    Services.Globals.put_env(:fnord, :quiet, !!quiet)
     :ok
   end
 
@@ -111,7 +112,7 @@ defmodule Settings do
   """
   @spec set_workers(pos_integer) :: :ok
   def set_workers(workers) when is_integer(workers) and workers > 0 do
-    Application.put_env(:fnord, :workers, workers)
+    Services.Globals.put_env(:fnord, :workers, workers)
     :ok
   end
 
@@ -120,7 +121,7 @@ defmodule Settings do
   """
   @spec set_edit_mode(boolean) :: :ok
   def set_edit_mode(edit_mode) do
-    Application.put_env(:fnord, :edit_mode, !!edit_mode)
+    Services.Globals.put_env(:fnord, :edit_mode, !!edit_mode)
     :ok
   end
 
@@ -129,7 +130,7 @@ defmodule Settings do
   """
   @spec get_edit_mode() :: boolean
   def get_edit_mode() do
-    Application.get_env(:fnord, :edit_mode, false)
+    Services.Globals.get_env(:fnord, :edit_mode, false)
   end
 
   @doc """
@@ -138,7 +139,7 @@ defmodule Settings do
   """
   @spec set_auto_approve(boolean) :: :ok
   def set_auto_approve(auto_approve) do
-    Application.put_env(:fnord, :auto_approve, !!auto_approve)
+    Services.Globals.put_env(:fnord, :auto_approve, !!auto_approve)
     :ok
   end
 
@@ -147,7 +148,7 @@ defmodule Settings do
   """
   @spec get_auto_approve() :: boolean
   def get_auto_approve() do
-    Application.get_env(:fnord, :auto_approve, false)
+    Services.Globals.get_env(:fnord, :auto_approve, false)
   end
 
   @doc """
@@ -171,8 +172,8 @@ defmodule Settings do
   @spec set_auto_policy({:approve | :deny, non_neg_integer} | nil) :: :ok
   def set_auto_policy(policy) do
     case policy do
-      {policy, timeout} -> Application.put_env(:fnord, :auto_policy, {policy, timeout})
-      nil -> Application.delete_env(:fnord, :auto_policy)
+      {policy, timeout} -> Services.Globals.put_env(:fnord, :auto_policy, {policy, timeout})
+      nil -> Services.Globals.delete_env(:fnord, :auto_policy)
     end
   end
 
@@ -182,7 +183,7 @@ defmodule Settings do
 
   @spec get_auto_policy() :: {:approve, non_neg_integer} | {:deny, non_neg_integer} | nil
   def get_auto_policy() do
-    Application.get_env(:fnord, :auto_policy, nil)
+    Services.Globals.get_env(:fnord, :auto_policy, nil)
   end
 
   @doc """
@@ -191,12 +192,12 @@ defmodule Settings do
   """
   @spec set_project_root_override(binary | nil) :: :ok
   def set_project_root_override(nil) do
-    Application.delete_env(:fnord, :project_root_override)
+    Services.Globals.delete_env(:fnord, :project_root_override)
     :ok
   end
 
   def set_project_root_override(path) when is_binary(path) do
-    Application.put_env(:fnord, :project_root_override, path)
+    Services.Globals.put_env(:fnord, :project_root_override, path)
     :ok
   end
 
@@ -205,7 +206,7 @@ defmodule Settings do
   """
   @spec get_project_root_override() :: binary | nil
   def get_project_root_override() do
-    Application.get_env(:fnord, :project_root_override, nil)
+    Services.Globals.get_env(:fnord, :project_root_override, nil)
   end
 
   @doc """
@@ -213,7 +214,7 @@ defmodule Settings do
   """
   @spec get_hint_docs_enabled?() :: boolean
   def get_hint_docs_enabled?() do
-    Application.get_env(:fnord, :hint_docs_enabled, true)
+    Services.Globals.get_env(:fnord, :hint_docs_enabled, true)
   end
 
   @doc """
@@ -221,14 +222,14 @@ defmodule Settings do
   """
   @spec get_hint_docs_auto_inject?() :: boolean
   def get_hint_docs_auto_inject?() do
-    Application.get_env(:fnord, :hint_docs_auto_inject, true)
+    Services.Globals.get_env(:fnord, :hint_docs_auto_inject, true)
   end
 
   @doc """
   Check if the --project option is set.
   """
   def project_is_set?() do
-    !is_nil(Application.get_env(:fnord, :project))
+    !is_nil(Services.Globals.get_env(:fnord, :project))
   end
 
   @doc """
@@ -237,7 +238,7 @@ defmodule Settings do
   """
   @spec get_selected_project :: {:ok, binary} | {:error, :project_not_set}
   def get_selected_project() do
-    Application.get_env(:fnord, :project)
+    Services.Globals.get_env(:fnord, :project)
     |> case do
       nil -> {:error, :project_not_set}
       project -> {:ok, project}

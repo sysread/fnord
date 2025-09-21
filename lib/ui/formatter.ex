@@ -29,7 +29,7 @@ defmodule UI.Formatter do
           shell = System.get_env("SHELL") || "/bin/sh"
 
           Util.Temp.with_tmp(input, fn tmpfile ->
-            Task.async(fn ->
+            Services.Globals.Spawn.async(fn ->
               System.cmd(shell, ["-c", "cat #{tmpfile} | #{formatter}"], stderr_to_stdout: true)
             end)
             |> Task.await(@timeout_ms)

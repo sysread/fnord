@@ -1,7 +1,6 @@
 defmodule Cmd.SearchTest do
   use Fnord.TestCase
 
-  setup do: set_config(workers: 1, quiet: true)
   setup do: set_log_level(:none)
   setup do: {:ok, project: mock_project("test_project")}
 

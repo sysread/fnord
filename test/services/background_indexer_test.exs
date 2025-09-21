@@ -40,7 +40,7 @@ defmodule Services.BackgroundIndexerTest do
 
   setup do
     # Configure Indexer to use our stub implementation
-    Application.put_env(:fnord, :indexer, StubIndexer)
+    Services.Globals.put_env(:fnord, :indexer, StubIndexer)
     {:ok, _} = StubIndexer.start_link([])
     StubIndexer.reset()
 

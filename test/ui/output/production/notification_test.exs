@@ -43,8 +43,8 @@ defmodule UI.Output.Production.NotificationTest do
   describe "basic delegates" do
     test "newline delegates to puts" do
       # Ensure UI facade is active
-      orig = Application.get_env(:fnord, :quiet)
-      on_exit(fn -> Application.put_env(:fnord, :quiet, orig) end)
+      orig = Services.Globals.get_env(:fnord, :quiet)
+      on_exit(fn -> Services.Globals.put_env(:fnord, :quiet, orig) end)
       Settings.set_quiet(false)
 
       expect(UI.Output.Mock, :newline, fn -> :ok end)
@@ -54,8 +54,8 @@ defmodule UI.Output.Production.NotificationTest do
 
     test "box renders and prints via Owl.Box.new and puts" do
       # Ensure UI facade is active
-      orig = Application.get_env(:fnord, :quiet)
-      on_exit(fn -> Application.put_env(:fnord, :quiet, orig) end)
+      orig = Services.Globals.get_env(:fnord, :quiet)
+      on_exit(fn -> Services.Globals.put_env(:fnord, :quiet, orig) end)
       Settings.set_quiet(false)
 
       :meck.new(Owl.Box, [:passthrough])
