@@ -273,9 +273,7 @@ defmodule Services.Globals do
   # 3) Walk :"$ancestors" for first PID in @roots_tab
   # ----------------------------------------------------------------------------
   defp resolve_root() do
-    @pd_root_key
-    |> Process.get()
-    |> case do
+    case Process.get(@pd_root_key) do
       pid when is_pid(pid) ->
         if :ets.member(@roots_tab, pid) do
           pid
@@ -290,16 +288,19 @@ defmodule Services.Globals do
             self()
 
           true ->
-            :"$ancestors"
-            |> Process.get()
-            |> Enum.find(&:ets.member(@roots_tab, &1))
-            |> case do
-              nil ->
-                nil
+            case Process.get(:"$ancestors") do
+              list when is_list(list) ->
+                case Enum.find(list, &:ets.member(@roots_tab, &1)) do
+                  nil ->
+                    nil
 
-              root ->
-                Process.put(@pd_root_key, root)
-                root
+                  root ->
+                    Process.put(@pd_root_key, root)
+                    root
+                end
+
+              _ ->
+                nil
             end
         end
     end
