@@ -1,6 +1,5 @@
 defmodule UtilTest do
   use Fnord.TestCase, async: false
-  import ExUnit.CaptureIO
 
   test "expand_path/2" do
     assert Util.expand_path("foo/bar") == Path.expand("foo/bar")
@@ -135,12 +134,12 @@ defmodule UtilTest do
         {:ok, %HTTPoison.Response{status_code: 500, body: ""}}
       end)
 
-      stderr =
-        capture_io(:stderr, fn ->
+      {_, stderr} =
+        capture_all(fn ->
           assert Util.get_latest_version() == {:error, :api_request_failed}
         end)
 
-      assert stderr =~ "Hex API request failed with status 500"
+      assert String.contains?(stderr, "Hex API request failed with status 500")
     end
 
     test "returns {:error, reason} and warns when transport error occurs" do
@@ -148,12 +147,12 @@ defmodule UtilTest do
         {:error, %HTTPoison.Error{reason: :timeout}}
       end)
 
-      stderr =
-        capture_io(:stderr, fn ->
+      {_, stderr} =
+        capture_all(fn ->
           assert Util.get_latest_version() == {:error, :timeout}
         end)
 
-      assert stderr =~ "Hex API request error: :timeout"
+      assert String.contains?(stderr, "Hex API request error: :timeout")
     end
   end
 
