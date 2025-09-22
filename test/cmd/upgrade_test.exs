@@ -132,4 +132,3 @@ defmodule Cmd.UpgradeTest do
     end
   end
 end
-

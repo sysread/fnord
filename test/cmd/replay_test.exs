@@ -25,7 +25,9 @@ defmodule Cmd.ReplayTest do
       # Stub Completion creation
       fake_conv = Store.Project.Conversation.new("abc-123")
       fake_completion = %AI.Completion{messages: [AI.Util.user_msg("hi")], response: nil}
-      :meck.expect(AI.Completion, :new_from_conversation, fn ^fake_conv, opts when is_list(opts) ->
+
+      :meck.expect(AI.Completion, :new_from_conversation, fn ^fake_conv, opts
+                                                             when is_list(opts) ->
         {:ok, fake_completion}
       end)
 
