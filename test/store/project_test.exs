@@ -149,14 +149,10 @@ defmodule Store.ProjectTest do
 
   describe "source_files/1 when source_root is nil" do
     test "returns {project, []} without crashing" do
-      # Minimal project struct with no source_root field
-      project = %Store.Project{
-        name: "no_root",
-        store_path: "/tmp",
-        source_root: nil,
-        exclude: ["foo"],
-        exclude_cache: nil
-      }
+      {:ok, tmp} = tmpdir()
+      project = Store.Project.new("no_root", tmp)
+      # Force source_root to nil to exercise this code path
+      project = %{project | source_root: nil, exclude: ["foo"], exclude_cache: nil}
 
       assert Store.Project.source_files(project) == {project, []}
     end
@@ -164,35 +160,24 @@ defmodule Store.ProjectTest do
 
   describe "excluded_paths/1 when source_root is nil" do
     test "user_excluded paths used without invoking git_ignored" do
-      # Construct project with exclude list and nil source_root
-      project = %Store.Project{
-        name: "no_root",
-        store_path: "/tmp",
-        source_root: nil,
-        exclude: ["bar.txt"],
-        exclude_cache: nil
-      }
+      {:ok, tmp} = tmpdir()
+      project = Store.Project.new("no_root", tmp)
+      project = %{project | source_root: nil, exclude: ["bar.txt"], exclude_cache: nil}
 
-      # source_files bypasses excluded_paths and returns empty
       {proj, files} = Store.Project.source_files(project)
       assert proj.exclude_cache == nil
       assert files == []
+
       # index_status should also not crash and use only exclude list
       status = Store.Project.index_status(project)
       assert status == %{new: [], stale: [], deleted: []}
     end
 
     test "index_status ignores git and uses only user_excluded" do
-      # Create a dummy project struct with nil source_root and a user exclude list
-      project = %Store.Project{
-        name: "no_root",
-        store_path: "/tmp",
-        source_root: nil,
-        exclude: ["dummy"],
-        exclude_cache: nil
-      }
+      {:ok, tmp} = tmpdir()
+      project = Store.Project.new("no_root", tmp)
+      project = %{project | source_root: nil, exclude: ["dummy"], exclude_cache: nil}
 
-      # index_status should not crash and produce empty lists
       status = Store.Project.index_status(project)
       assert status == %{new: [], stale: [], deleted: []}
     end
