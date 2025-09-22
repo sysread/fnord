@@ -36,6 +36,8 @@ defmodule AI.Tools.Notify do
         Memory memos:
         - If your message includes a line starting with "note to self:" or "remember:", the notes agent will capture it as a high-priority, non-transient fact in the project notes.
         - Keep memos concise and specific (one line per memo).
+
+        Additionally, any lines in the message beginning with `note to self:` or `remember:` (case-insensitive) will be captured as memos in your project notes.
         """,
         parameters: %{
           type: "object",
@@ -56,9 +58,7 @@ defmodule AI.Tools.Notify do
             },
             message: %{
               type: "string",
-              description: """
-              The message to be displayed in the notification.
-              """
+              description: "The message content to send as feedback."
             }
           }
         }
@@ -70,6 +70,11 @@ defmodule AI.Tools.Notify do
   def call(args) do
     with {:ok, level} <- AI.Tools.get_arg(args, "level"),
          {:ok, message} <- AI.Tools.get_arg(args, "message") do
+      # Capture memo lines and ingest asynchronously
+      message
+      |> extract_memo_lines()
+      |> ingest_memos()
+
       name = get_name()
 
       case level do
@@ -87,5 +92,33 @@ defmodule AI.Tools.Notify do
     else
       _ -> Services.NamePool.default_name()
     end
+  end
+
+  @spec extract_memo_lines(String.t()) :: [String.t()]
+  defp extract_memo_lines(message) do
+    message
+    |> String.split("\n")
+    |> Enum.reduce([], fn line, acc ->
+      case Regex.run(~r/^\s*(?:note to self:|remember:)\s*(.+)$/i, line) do
+        [_, memo_raw] ->
+          memo = String.trim(memo_raw)
+
+          if memo != "" do
+            [memo | acc]
+          else
+            acc
+          end
+
+        _ ->
+          acc
+      end
+    end)
+    |> Enum.reverse()
+  end
+
+  @spec ingest_memos([String.t()]) :: :ok
+  defp ingest_memos(memos) do
+    Enum.each(memos, &Services.Notes.ingest_user_msg(&1))
+    :ok
   end
 end
