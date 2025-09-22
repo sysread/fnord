@@ -10,9 +10,8 @@ defmodule Settings.Instrumentation do
   @spec init_baseline(map) :: :ok
   def init_baseline(data) do
     initial = Map.get(data, "approvals", %{})
-    Services.Globals.put_env(:fnord, :initial_global_approvals_snapshot, initial)
 
-    # Ensure baseline table exists, handling potential race conditions
+    # Ensure baseline table exists
     if :ets.whereis(@baseline_table) == :undefined do
       try do
         :ets.new(@baseline_table, [:named_table, :public, read_concurrency: true])
@@ -21,17 +20,20 @@ defmodule Settings.Instrumentation do
       end
     end
 
-    # Clear any existing baseline entries or new table is empty
-    :ets.delete_all_objects(@baseline_table)
-    :ets.insert(@baseline_table, {:baseline, initial})
-
-    # Ensure trace table exists, handling potential race conditions
+    # Ensure trace table exists
     if :ets.whereis(@trace_table) == :undefined do
       try do
         :ets.new(@trace_table, [:named_table, :public, :bag, read_concurrency: true])
       rescue
         ArgumentError -> :ok
       end
+    end
+
+    # IMPORTANT: do NOT clear the baseline unconditionally. Seed it only if the
+    # baseline is not already present.
+    case :ets.lookup(@baseline_table, :baseline) do
+      [] -> :ets.insert_new(@baseline_table, {:baseline, initial})
+      _ -> :ok
     end
 
     :ok
@@ -73,7 +75,7 @@ defmodule Settings.Instrumentation do
   end
 
   @spec guard_or_heal(map, map, map) :: map
-  def guard_or_heal(before, after_value, %{op: op, key: key}) do
+  def guard_or_heal(before, after_value, %{op: op, key: "approvals" = key}) do
     bc = kind_counts(before)
     ac = kind_counts(after_value)
 
@@ -96,6 +98,8 @@ defmodule Settings.Instrumentation do
       after_value
     end
   end
+
+  def guard_or_heal(_, after_value, _), do: after_value
 
   @spec recent_traces(pos_integer) :: [map]
   def recent_traces(n) do

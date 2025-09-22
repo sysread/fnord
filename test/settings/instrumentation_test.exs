@@ -44,7 +44,9 @@ defmodule Settings.InstrumentationTest do
     data = %{"approvals" => %{"k" => ["x"]}}
     :ok = Instrumentation.init_baseline(data)
 
-    healed = Instrumentation.guard_or_heal(data, %{"approvals" => %{}}, %{op: :t, key: :k})
+    healed =
+      Instrumentation.guard_or_heal(data, %{"approvals" => %{}}, %{op: :t, key: "approvals"})
+
     # Should restore missing approvals
     assert healed["approvals"] == %{"k" => ["x"]}
   end
@@ -54,7 +56,9 @@ defmodule Settings.InstrumentationTest do
     data = %{"approvals" => %{"k" => ["x"]}}
     :ok = Instrumentation.init_baseline(data)
 
-    result = Instrumentation.guard_or_heal(data, %{"approvals" => %{}}, %{op: :t, key: :k})
+    result =
+      Instrumentation.guard_or_heal(data, %{"approvals" => %{}}, %{op: :t, key: "approvals"})
+
     # In debug mode, approvals should remain cleared
     assert result == %{"approvals" => %{}}
   end
