@@ -207,6 +207,7 @@ defmodule AI.Agent.Code.Common do
         - Concrete bug: provide the exact path (caller -> callee), show which preconditions are satisfied, and why a failing state can occur now.
         - Potential issue: if reachability depends on changes or bypassing a guard, label as potential and specify exactly what would have to change.
       - Cite minimal evidence: file paths, symbols, relevant snippets, and the shortest proof chain.
+    - ALWAYS check for READMEs, CONTRIBUTING files, AGENTS.md, CLAUDE.md, etc., to identify conventions and expectations for the area(s) of the code you are working on.
     """
   end
 

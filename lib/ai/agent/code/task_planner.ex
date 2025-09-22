@@ -28,16 +28,6 @@ defmodule AI.Agent.Code.TaskPlanner do
   @behaviour AI.Agent
   @impl AI.Agent
   def get_response(%{agent: agent, request: request}) do
-    hints =
-      if Settings.get_hint_docs_enabled?() and Settings.get_hint_docs_auto_inject?() do
-        AI.Notes.ExternalDocs.get_docs()
-        |> AI.Notes.ExternalDocs.format_hints()
-      else
-        ""
-      end
-
-    request = hints <> "\n" <> request
-
     tools =
       AI.Tools.all_tools()
       |> AI.Tools.with_rw_tools()

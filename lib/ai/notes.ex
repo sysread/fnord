@@ -306,19 +306,18 @@ defmodule AI.Notes do
 
   @spec ask(t, binary) :: binary
   def ask(state, question) do
-    (format_external_docs() <>
-       """
-       The following are the existing research notes about the project.
-       #{state.notes}
+    """
+    The following are the existing research notes about the project.
+    #{state.notes}
 
-       # New facts:
-       The following are the new facts that have been collected during the current session.
-       #{format_new_notes(state)}
+    # New facts:
+    The following are the new facts that have been collected during the current session.
+    #{format_new_notes(state)}
 
-       # Question
-       Please answer the following question based on the existing notes and new facts:
-       #{question}
-       """)
+    # Question
+    Please answer the following question based on the existing notes and new facts:
+    #{question}
+    """
     |> complete(@ask)
     |> case do
       {:ok, response} ->
@@ -350,39 +349,6 @@ defmodule AI.Notes do
   # ----------------------------------------------------------------------------
   # Utility Functions
   # ----------------------------------------------------------------------------
-  @spec format_external_docs() :: binary
-  defp format_external_docs() do
-    case AI.Notes.ExternalDocs.get_docs() do
-      [] ->
-        ""
-
-      docs ->
-        formatted_docs =
-          docs
-          |> Enum.map(fn {type, _path, display_path, contents} ->
-            type_name =
-              if type == :claude do
-                "CLAUDE"
-              else
-                "AGENTS"
-              end
-
-            """
-            ## #{type_name} (#{display_path})
-            #{contents}
-            """
-          end)
-          |> Enum.join("\n")
-
-        """
-        # External Configuration Files
-        The following are external configuration files for AI agents that should be respected as the user's wishes:
-        #{formatted_docs}
-
-        """
-    end
-  end
-
   @spec load_notes() :: binary
   defp load_notes() do
     with {:ok, notes} <- Store.Project.Notes.read() do
