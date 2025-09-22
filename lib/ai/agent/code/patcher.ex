@@ -143,7 +143,7 @@ defmodule AI.Agent.Code.Patcher do
          {:ok, file} <- required_arg(opts, :file),
          {:ok, changes} <- required_arg(opts, :changes),
          {:ok, contents} <- read_file(file) do
-      UI.report_from(agent.name, "Patching #{file}")
+      UI.report_from(agent.name, "Working on", file)
 
       # Build the toolbox once per apply_changes session
       tools =
@@ -175,7 +175,7 @@ defmodule AI.Agent.Code.Patcher do
   defp apply_changes(%{changes: []} = state), do: {:ok, state}
 
   defp apply_changes(%{changes: [change | remaining], contents: contents} = state) do
-    UI.report_from(state.agent.name, "[#{state.file}] #{change}")
+    UI.report_from(state.agent.name, "Patching #{state.file}", change)
 
     numbered = Util.numbered_lines(contents)
 
