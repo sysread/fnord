@@ -168,22 +168,30 @@ defmodule AI.Agent.Nomenclater do
     )
     |> case do
       {:ok, %{response: response}} ->
-        case Jason.decode!(response) do
-          # Handle normal case
-          %{"names" => names} when is_list(names) ->
-            process_names(state, names)
+        case parse_json(response) do
+          {:ok, decoded} ->
+            case decoded do
+              # Handle normal case
+              %{"names" => names} when is_list(names) ->
+                process_names(state, names)
 
-          # Handle nested case (sometimes AI returns nested structure)
-          %{"names" => %{"names" => names}} when is_list(names) ->
-            process_names(state, names)
+              # Handle nested case (sometimes AI returns nested structure)
+              %{"names" => %{"names" => names}} when is_list(names) ->
+                process_names(state, names)
 
-          # Same as above, but stupider
-          %{"names" => %{"values" => names}} when is_list(names) ->
-            process_names(state, names)
+              # Same as above, but stupider
+              %{"names" => %{"values" => names}} when is_list(names) ->
+                process_names(state, names)
 
-          # Handle any other unexpected structure
-          decoded ->
-            UI.warn("Unexpected response format", inspect(decoded, pretty: true))
+              # Handle any other unexpected structure
+              decoded ->
+                UI.warn("Unexpected response format", inspect(decoded, pretty: true))
+                get_name_batch(%{state | attempt: state.attempt + 1})
+            end
+
+          {:error, _reason} ->
+            preview = Util.truncate(response, 30)
+            UI.debug("Failed to parse Nomenclater's response", preview)
             get_name_batch(%{state | attempt: state.attempt + 1})
         end
 
@@ -214,6 +222,35 @@ defmodule AI.Agent.Nomenclater do
       # Take exactly what we need and return them
       names = Enum.take(unique_names, state.want)
       %{state | names: names}
+    end
+  end
+
+  # ----------------------------------------------------------------------------
+  # JSON parsing helpers
+  # ----------------------------------------------------------------------------
+
+  # Returns {:ok, map} or {:error, reason}
+  defp parse_json(response) do
+    response
+    |> String.trim()
+    |> strip_code_fences()
+    |> extract_json_object()
+    |> Jason.decode()
+  end
+
+  # Remove wrapping ``` or ```json fences
+  defp strip_code_fences(text) do
+    text
+    |> String.replace(~r/^```json\s*/i, "")
+    |> String.replace(~r/^```\s*/, "")
+    |> String.replace(~r/\s*```$/, "")
+  end
+
+  # Drop any prefix up to the first '{'
+  defp extract_json_object(text) do
+    case String.split(text, "{", parts: 2) do
+      [_, rest] -> "{" <> rest
+      _ -> text
     end
   end
 end
