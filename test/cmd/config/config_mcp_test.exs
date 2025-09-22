@@ -37,9 +37,10 @@ defmodule Cmd.Config.MCPTest do
 
   describe "mcp add" do
     test "happy-path adds stdio server with defaults" do
-      {out, _stderr} = capture_all(fn ->
-        MCP.run(%{global: true, command: "foo"}, [:mcp, :add], ["srv"])
-      end)
+      {out, _stderr} =
+        capture_all(fn ->
+          MCP.run(%{global: true, command: "foo"}, [:mcp, :add], ["srv"])
+        end)
 
       assert {:ok, %{"srv" => cfg}} = Jason.decode(out)
       assert cfg["transport"] == "stdio"
@@ -49,13 +50,14 @@ defmodule Cmd.Config.MCPTest do
     end
 
     test "adds server with args and env" do
-      {out, _stderr} = capture_all(fn ->
-        MCP.run(
-          %{global: true, command: "uvx", arg: ["mcp-server-time"], env: ["DEBUG=1"]},
-          [:mcp, :add],
-          ["time"]
-        )
-      end)
+      {out, _stderr} =
+        capture_all(fn ->
+          MCP.run(
+            %{global: true, command: "uvx", arg: ["mcp-server-time"], env: ["DEBUG=1"]},
+            [:mcp, :add],
+            ["time"]
+          )
+        end)
 
       assert {:ok, %{"time" => cfg}} = Jason.decode(out)
       assert cfg["transport"] == "stdio"
@@ -65,9 +67,10 @@ defmodule Cmd.Config.MCPTest do
     end
 
     test "duplicate add returns error" do
-      {_stdout, _stderr} = capture_all(fn ->
-        MCP.run(%{global: true, command: "foo"}, [:mcp, :add], ["srv"])
-      end)
+      {_stdout, _stderr} =
+        capture_all(fn ->
+          MCP.run(%{global: true, command: "foo"}, [:mcp, :add], ["srv"])
+        end)
 
       log =
         capture_log(fn ->
@@ -81,9 +84,10 @@ defmodule Cmd.Config.MCPTest do
   describe "mcp update" do
     setup do
       # add initial server
-      {_stdout, _stderr} = capture_all(fn ->
-        MCP.run(%{global: true, command: "initial"}, [:mcp, :add], ["foo"])
-      end)
+      {_stdout, _stderr} =
+        capture_all(fn ->
+          MCP.run(%{global: true, command: "initial"}, [:mcp, :add], ["foo"])
+        end)
 
       :ok
     end
@@ -98,21 +102,23 @@ defmodule Cmd.Config.MCPTest do
     end
 
     test "update existing server" do
-      {out, _stderr} = capture_all(fn ->
-        MCP.run(%{global: true, command: "updated"}, [:mcp, :update], ["foo"])
-      end)
+      {out, _stderr} =
+        capture_all(fn ->
+          MCP.run(%{global: true, command: "updated"}, [:mcp, :update], ["foo"])
+        end)
 
       assert {:ok, %{"foo" => %{"command" => "updated"}}} = Jason.decode(out)
     end
 
     test "update with additional env vars" do
-      {out, _stderr} = capture_all(fn ->
-        MCP.run(
-          %{global: true, command: "initial", env: ["DEBUG=1", "VERBOSE=true"]},
-          [:mcp, :update],
-          ["foo"]
-        )
-      end)
+      {out, _stderr} =
+        capture_all(fn ->
+          MCP.run(
+            %{global: true, command: "initial", env: ["DEBUG=1", "VERBOSE=true"]},
+            [:mcp, :update],
+            ["foo"]
+          )
+        end)
 
       assert {:ok, %{"foo" => cfg}} = Jason.decode(out)
       assert cfg["env"] == %{"DEBUG" => "1", "VERBOSE" => "true"}
@@ -122,9 +128,10 @@ defmodule Cmd.Config.MCPTest do
   describe "mcp remove" do
     setup do
       # seed server for removal tests
-      {_stdout, _stderr} = capture_all(fn ->
-        MCP.run(%{global: true, command: "one"}, [:mcp, :add], ["one"])
-      end)
+      {_stdout, _stderr} =
+        capture_all(fn ->
+          MCP.run(%{global: true, command: "one"}, [:mcp, :add], ["one"])
+        end)
 
       :ok
     end
@@ -169,9 +176,10 @@ defmodule Cmd.Config.MCPTest do
       end)
 
       # add server for check testing (but don't expect it to actually connect)
-      {_stdout, _stderr} = capture_all(fn ->
-        MCP.run(%{global: true, command: "echo", arg: ["hello"]}, [:mcp, :add], ["test_server"])
-      end)
+      {_stdout, _stderr} =
+        capture_all(fn ->
+          MCP.run(%{global: true, command: "echo", arg: ["hello"]}, [:mcp, :add], ["test_server"])
+        end)
 
       :ok
     end

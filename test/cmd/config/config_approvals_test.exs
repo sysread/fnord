@@ -72,7 +72,10 @@ defmodule Cmd.Config.ApprovalsTest do
     test "adds to project scope by default" do
       mock_project("prj")
       Settings.set_project("prj")
-      {out, _stderr} = capture_all(fn -> Approvals.run(%{kind: "shell"}, [:approve], ["foo.*"]) end)
+
+      {out, _stderr} =
+        capture_all(fn -> Approvals.run(%{kind: "shell"}, [:approve], ["foo.*"]) end)
+
       assert {:ok, %{"shell" => ["foo.*"]}} = Jason.decode(out)
     end
 
