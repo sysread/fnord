@@ -54,3 +54,4 @@ CLAUDE.local.md
 
 # excoveralls
 cover/
+*.coverdata

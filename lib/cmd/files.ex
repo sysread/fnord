@@ -26,13 +26,19 @@ defmodule Cmd.Files do
   end
 
   @impl Cmd
-  def run(_opts, _subcommands, _unknown) do
+  def run(opts, _subcommands, _unknown) do
     with {:ok, project} <- Store.get_project() do
       project
       |> Store.Project.stored_files()
-      |> Stream.map(& &1.rel_path)
+      |> Enum.map(fn entry ->
+        if opts[:relpath] do
+          Path.relative_to(entry.file, project.source_root)
+        else
+          entry.rel_path
+        end
+      end)
       |> Enum.sort()
-      |> Enum.each(&UI.puts(&1))
+      |> Enum.each(&UI.puts/1)
     end
   end
 end
