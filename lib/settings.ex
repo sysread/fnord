@@ -1,6 +1,4 @@
 defmodule Settings do
-  alias Settings.FileLock
-  alias Settings.Instrumentation
   require Logger
 
   # ----------------------------------------------------------------------------
@@ -24,7 +22,6 @@ defmodule Settings do
       %Settings{path: path}
       |> slurp()
 
-    Instrumentation.init_baseline(settings.data)
     settings
   end
 
@@ -394,30 +391,22 @@ defmodule Settings do
     key = make_key(key)
 
     with_settings_lock(path, fn ->
-      before = fresh_read(path)
+      data = fresh_read(path)
+      value = Map.get(data, key, default)
 
-      new_data =
-        before
-        |> Map.get(key, default)
+      data =
+        value
         |> updater.()
         |> case do
-          :delete -> Map.delete(before, key)
-          value -> Map.put(before, key, value)
+          :delete -> Map.delete(data, key)
+          value -> Map.put(data, key, value)
         end
 
-      after_data = new_data
-
-      Instrumentation.record_trace(:update, key, before, after_data)
-
-      final =
-        before
-        |> Instrumentation.guard_or_heal(after_data, %{op: :update, key: key})
-
-      final
+      data
       |> Jason.encode!(pretty: true)
       |> then(&write_atomic!(path, &1))
 
-      %Settings{path: path, data: final}
+      %Settings{path: path, data: data}
     end)
   end
 
@@ -463,11 +452,11 @@ defmodule Settings do
     lock_path = Path.expand(path)
 
     try do
-      FileLock.acquire_lock!(lock_path)
+      Settings.FileLock.acquire_lock!(lock_path)
       fun.()
     after
       # Release global lock first, then filesystem lock
-      FileLock.release_lock!(lock_path)
+      Settings.FileLock.release_lock!(lock_path)
     end
   end
 
