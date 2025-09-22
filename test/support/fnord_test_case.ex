@@ -25,6 +25,7 @@ defmodule Fnord.TestCase do
 
   using do
     quote do
+      @moduletag capture_log: true
       use ExUnit.Case
 
       import ExUnit.CaptureIO
@@ -160,7 +161,8 @@ defmodule Fnord.TestCase do
       # -----------------------------------------------------------------------------
       setup do
         orig = Logger.level()
-        Logger.configure(level: :none)
+        # suppress debug/info but allow warnings and errors
+        Logger.configure(level: :warning)
         on_exit(fn -> Logger.configure(level: orig) end)
         :ok
       end

@@ -60,3 +60,45 @@ Examples:
 - Module names append `Test` to the final component (not `Shell.Test`, but `ShellTest`)
 - Directory structure matches module hierarchy exactly
 - Tests should not output directly to stdout/stderr (except *while* debugging)
+- Tests should not output directly to stdout/stderr (except *while* debugging)
+
+## Test Logging Defaults
+
+All tests that `use Fnord.TestCase` now:
+
+- Automatically run with a `@moduletag capture_log: true` tag.
+- Have the Logger level set to `:warning` by default (so info/debug messages are suppressed but warnings/errors are still caught).
+
+You can still adjust logging at runtime or on a per-module basis:
+
+```elixir
+defmodule MyFeatureTest do
+  use Fnord.TestCase
+
+  test "debug message is not printed by default" do
+    assert Logger.level() == :warning
+    Logger.debug("foo")
+    # Debug is suppressed
+  end
+
+  test "temporarily raise to debug" do
+    set_log_level(:debug)
+    assert Logger.level() == :debug
+  end
+end
+```
+
+### Opting out of automatic capture
+
+If you need console logs in your tests, disable the tag:
+
+```elixir
+defmodule NoisyTest do
+  @moduletag capture_log: false
+  use Fnord.TestCase
+
+  test "prints to stderr" do
+    assert capture_io(:stderr, fn -> Logger.error("bar") end) =~ "bar"
+  end
+end
+```
