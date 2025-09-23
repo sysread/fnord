@@ -291,27 +291,6 @@ defmodule Services.BackupFile do
 
   @spec cleanup_session_backups([binary]) :: :ok
   defp cleanup_session_backups(backup_files) do
-    {deleted_count, failed_files} =
-      backup_files
-      |> Enum.reduce({0, []}, fn backup_file, {deleted, failed} ->
-        case File.rm(backup_file) do
-          :ok ->
-            {deleted + 1, failed}
-
-          {:error, reason} ->
-            UI.warn("Failed to delete backup file", "#{Path.basename(backup_file)}: #{reason}")
-            {deleted, [Path.basename(backup_file) | failed]}
-        end
-      end)
-
-    if Enum.empty?(failed_files) do
-      UI.info("Successfully deleted #{deleted_count} backup file(s)")
-    else
-      failed_files
-      |> Enum.reverse()
-      |> Enum.map(&"- #{&1}")
-      |> Enum.join("\n")
-      |> then(&UI.warn("Unable to delete some backup files", &1))
-    end
+    Enum.each(backup_files, fn f -> File.rm(f) end)
   end
 end

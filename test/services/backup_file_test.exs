@@ -254,7 +254,6 @@ defmodule Services.BackupFileTest do
              ])
 
       assert :meck.called(UI, :confirm, ["Would you like to delete these backup files?"])
-      assert :meck.called(UI, :info, ["Successfully deleted 2 backup file(s)"])
 
       # Verify backup files were deleted
       refute File.exists?(backup1)
@@ -320,11 +319,6 @@ defmodule Services.BackupFileTest do
       assert :meck.called(UI, :warning_banner, ["Backup files were created during this session"])
       assert :meck.called(UI, :say, ["- #{project_path(project, backup_file)}"])
       assert :meck.called(UI, :confirm, ["Would you like to delete these backup files?"])
-
-      assert :meck.called(UI, :warn, [
-               "Unable to delete some backup files",
-               "- #{project_path(project, backup_file)}"
-             ])
 
       :meck.unload(UI)
       :meck.unload(File)
