@@ -150,6 +150,11 @@ defmodule Cmd.Ask do
         end_time = System.monotonic_time(:second)
         print_result(start_time, end_time, response, usage, context, conversation_id)
         Clipboard.copy(conversation_id)
+
+        unless UI.quiet?() do
+          Notifier.notify("Fnord response ready", opts.question)
+        end
+
         :ok
       else
         {:error, :testing} ->
