@@ -239,7 +239,8 @@ defmodule AI.Tools.Shell do
   # a path, and no other path-like args, we can't do anything sensible, since
   # we don't know *which* arg they borked, so we just let the command fail.
   # -----------------------------------------------------------------------------
-  defp find_executable(%{"command" => "rg", "args" => args}) do
+  defp find_executable(%{"command" => "rg", "args" => args})
+       when is_list(args) do
     with {:ok, path} <- find_executable("rg") do
       args
       # Filter out options, leaving only positional args
@@ -263,7 +264,8 @@ defmodule AI.Tools.Shell do
     end
   end
 
-  defp find_executable(%{"command" => command, "args" => args} = cmd) do
+  defp find_executable(%{"command" => command, "args" => args} = cmd)
+       when is_list(args) do
     if String.contains?(command, " ") do
       command
       |> find_executable()
@@ -284,6 +286,12 @@ defmodule AI.Tools.Shell do
         {:error, :not_found} -> {:error, "Command not found: #{format_command(cmd)}"}
       end
     end
+  end
+
+  defp find_executable(%{"command" => _} = cmd) do
+    cmd
+    |> Map.put("args", [])
+    |> find_executable()
   end
 
   # -----------------------------------------------------------------------------
