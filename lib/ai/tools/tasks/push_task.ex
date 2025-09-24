@@ -53,9 +53,18 @@ defmodule AI.Tools.Tasks.PushTask do
   end
 
   @impl AI.Tools
-  def ui_note_on_result(_args, result) do
-    result
+  def ui_note_on_result(%{"tasks" => tasks}, _result) when is_list(tasks) do
+    count = length(tasks)
+    "Pushed #{count} task(s)"
   end
+
+  @impl AI.Tools
+  def ui_note_on_result(%{"task_id" => _task_id}, _result) do
+    "Pushed 1 task"
+  end
+
+  @impl AI.Tools
+  def ui_note_on_result(_args, _result), do: nil
 
   @impl AI.Tools
   def spec do
