@@ -57,7 +57,20 @@ defmodule Cmd.Config do
           ],
           approve: [
             name: "approve",
-            about: "Add an approval regex under a kind (scope: global|project)",
+            about: """
+            Add an approval regex under a kind (shell|shell_full) for scope (global|project).
+
+            - shell:      Approves a *prefix* match of the shell command.
+                          This is matched against shell commands the LLM
+                          wishes to execute. It ONLY matches against the
+                          command itself and its subcommands, not arguments.
+                          Subcommands are only supported for a small number
+                          of recognized commands (e.g., git, docker).
+
+            - shell_full: Approves a *regex* match of the full command,
+                          including arguments. It is up to the user to ensure
+                          the regex is safe and properly anchored.
+            """,
             args: [
               pattern: [
                 value_name: "PATTERN",
