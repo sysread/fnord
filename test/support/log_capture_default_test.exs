@@ -19,6 +19,4 @@ defmodule Fnord.TestCase.LoggingBehaviorTest do
     log = ExUnit.CaptureLog.capture_log(fn -> Logger.error("oops") end)
     assert log =~ "oops"
   end
-
-
 end

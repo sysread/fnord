@@ -11,7 +11,8 @@ defmodule UI.Formatter do
   """
   require Logger
 
-  @timeout_ms 200
+  # Allow a slightly more generous timeout; if it elapses, we fallback gracefully.
+  @timeout_ms 1_000
 
   @spec format_output(binary) :: binary
   def format_output(input) do
@@ -29,20 +30,23 @@ defmodule UI.Formatter do
           shell = System.get_env("SHELL") || "/bin/sh"
 
           Util.Temp.with_tmp(input, fn tmpfile ->
-            Services.Globals.Spawn.async(fn ->
-              System.cmd(shell, ["-c", "cat #{tmpfile} | #{formatter}"], stderr_to_stdout: true)
-            end)
-            |> Task.await(@timeout_ms)
-            |> case do
-              {output, 0} ->
+            task =
+              Services.Globals.Spawn.async(fn ->
+                System.cmd(shell, ["-c", "cat #{tmpfile} | #{formatter}"], stderr_to_stdout: true)
+              end)
+
+            case Task.yield(task, @timeout_ms) do
+              {:ok, {output, 0}} ->
                 output
 
-              {_, exit_code} ->
+              {:ok, {_, exit_code}} ->
                 Logger.warning("Formatter command failed: #{formatter} (exit code: #{exit_code})")
                 input
 
               nil ->
-                Logger.warning("Formatter command failed: #{formatter}")
+                # Timed out; make sure we don’t leak the task and fall back safely.
+                Task.shutdown(task, :brutal_kill)
+                Logger.warning("Formatter command timed out after #{@timeout_ms}ms: #{formatter}")
                 input
             end
           end)
