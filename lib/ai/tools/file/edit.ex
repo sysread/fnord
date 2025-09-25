@@ -58,10 +58,17 @@ defmodule AI.Tools.File.Edit do
       function: %{
         name: "file_edit_tool",
         description: """
-        Perform atomic, well-anchored edits to a single file.
+        Perform atomic, well-anchored edits to a single file using either exact
+        string matching or AI-interpreted natural language instructions.
 
         This is the best tool for simple changes that do not require extensive
         planning, coordination, or span many files.
+
+        **Two editing modes:**
+        1. **Exact String Matching**: Provide old_string/new_string for precise,
+           reliable replacements. Use when you know the exact text to change.
+        2. **Natural Language**: Provide descriptive change instructions for the
+           AI to interpret. Use when you need contextual understanding.
 
         Use for:
         - One-off line or block replacements
@@ -72,14 +79,15 @@ defmodule AI.Tools.File.Edit do
         setting `create_if_missing: true`.
 
         Best practices:
-        - Prefer linear, atomic steps; avoid nested control flow in a single change.
-        - Use early checks/exits to prevent deep conditionals.
-        - Split complex edits into multiple changes/tool calls.
-        - Keep diffs minimal and well-anchored with clear anchors.
+        - Use exact string matching for maximum reliability
+        - Use natural language for contextual changes when exact strings are impractical
+        - Prefer linear, atomic steps; avoid nested control flow in a single change
+        - Split complex edits into multiple changes/tool calls
+        - Keep diffs minimal and well-anchored with clear anchors
         """,
         parameters: %{
           type: "object",
-          required: ["file", "changes"],
+          required: ["file"],
           additionalProperties: false,
           properties: %{
             file: %{
@@ -114,6 +122,33 @@ defmodule AI.Tools.File.Edit do
                     - "At the top of the file, insert the following imports, ensuring they are properly formatted and ordered: ..."
                     - "Add a new function at the end of the module named `blarg` with the following contents: ..."
                     """
+                  },
+                  old_string: %{
+                    type: "string",
+                    description: """
+                    Optional: Exact string to replace. When provided, this change will use
+                    precise string matching instead of AI interpretation. The old_string must
+                    match exactly (including whitespace) or the operation will fail.
+                    Special case: Use empty string ("") with create_if_missing to create new files.
+                    Cannot be used without new_string.
+                    """
+                  },
+                  new_string: %{
+                    type: "string",
+                    description: """
+                    Optional: Exact replacement string. Must be provided when old_string is used.
+                    This will replace all occurrences of old_string unless replace_all is false.
+                    For file creation, this becomes the entire file content.
+                    """
+                  },
+                  replace_all: %{
+                    type: "boolean",
+                    description: """
+                    Optional: When using exact string matching (old_string/new_string),
+                    whether to replace all occurrences (true) or fail if old_string appears
+                    multiple times (false). Defaults to false for safety.
+                    """,
+                    default: false
                   }
                 }
               }
@@ -145,25 +180,93 @@ defmodule AI.Tools.File.Edit do
   end
 
   # Parse and validate the list of change instructions
-  @spec read_changes(map) :: {:ok, [String.t()]} | {:error, String.t()}
+  @spec read_changes(map) :: {:ok, [change()]} | {:error, String.t()}
   defp read_changes(opts) do
-    with {:ok, changes} <- AI.Tools.get_arg(opts, "changes") do
-      try do
-        changes
-        |> Enum.map(& &1["change"])
-        |> Enum.map(&String.trim/1)
-        |> then(&{:ok, &1})
-      rescue
-        _ in FunctionClauseError ->
-          {:error,
-           """
-           Invalid changes format.
-           Expected a list of objects with a \"change\" key.
-           Each change is expected to be a string.
-           """}
-      end
+    case Map.get(opts, "changes") do
+      nil ->
+        {:error, "Either 'changes' array or individual change parameters must be provided"}
+
+      changes when is_list(changes) ->
+        try do
+          parsed_changes =
+            changes
+            |> Enum.map(&parse_change/1)
+            |> Enum.map(fn
+              {:ok, change} -> change
+              {:error, error} -> throw({:parse_error, error})
+            end)
+
+          {:ok, parsed_changes}
+        rescue
+          _ in FunctionClauseError ->
+            {:error,
+             """
+             Invalid changes format.
+             Expected a list of objects with change instructions.
+             """}
+        catch
+          {:parse_error, error} -> {:error, error}
+        end
+
+      _ ->
+        {:error, "Changes must be an array"}
     end
   end
+
+  # Define change types
+  @type change :: %{
+          type: :exact | :natural_language,
+          instruction: String.t(),
+          old_string: String.t() | nil,
+          new_string: String.t() | nil,
+          replace_all: boolean()
+        }
+
+  @spec parse_change(map) :: {:ok, change()} | {:error, String.t()}
+  defp parse_change(change_map) when is_map(change_map) do
+    instruction = Map.get(change_map, "change", "")
+    old_string = Map.get(change_map, "old_string")
+    new_string = Map.get(change_map, "new_string")
+    replace_all = Map.get(change_map, "replace_all", false)
+
+    cond do
+      # Exact string matching mode
+      old_string != nil and new_string != nil ->
+        if is_binary(old_string) and is_binary(new_string) and is_boolean(replace_all) do
+          {:ok,
+           %{
+             type: :exact,
+             instruction: String.trim(instruction),
+             old_string: old_string,
+             new_string: new_string,
+             replace_all: replace_all
+           }}
+        else
+          {:error, "old_string and new_string must be strings, replace_all must be boolean"}
+        end
+
+      # Partial exact string matching (error case)
+      old_string != nil or new_string != nil ->
+        {:error, "Both old_string and new_string must be provided together"}
+
+      # Natural language mode
+      instruction != "" ->
+        {:ok,
+         %{
+           type: :natural_language,
+           instruction: String.trim(instruction),
+           old_string: nil,
+           new_string: nil,
+           replace_all: false
+         }}
+
+      # No valid parameters
+      true ->
+        {:error, "Either provide 'change' instruction or 'old_string'/'new_string' pair"}
+    end
+  end
+
+  defp parse_change(_), do: {:error, "Change must be an object"}
 
   # ----------------------------------------------------------------------------
   # Internals
@@ -188,7 +291,7 @@ defmodule AI.Tools.File.Edit do
   end
 
   # Main edit flow with optional file creation
-  @spec do_edits(binary, [String.t()], boolean) :: {:ok, edit_result} | {:error, String.t()}
+  @spec do_edits(binary, [change()], boolean) :: {:ok, edit_result} | {:error, String.t()}
   defp do_edits(file, changes, create_if_missing) do
     try do
       with {:ok, project} <- Store.get_project(),
@@ -196,7 +299,7 @@ defmodule AI.Tools.File.Edit do
            {orig_exists, orig_text} = read_file(absolute_path),
            base_hash = :crypto.hash(:sha256, orig_text),
            :ok <- ensure_file(absolute_path, create_if_missing),
-           {:ok, contents} <- apply_changes(absolute_path, changes) do
+           {:ok, contents} <- apply_all_changes(absolute_path, orig_text, changes) do
         if contents == orig_text do
           {:error, "no changes were made to the file"}
         else
@@ -240,10 +343,140 @@ defmodule AI.Tools.File.Edit do
     end)
   end
 
-  defp apply_changes(file, changes) do
+  # Apply all changes sequentially, handling both exact and natural language changes
+  @spec apply_all_changes(binary, binary, [change()]) :: {:ok, binary} | {:error, String.t()}
+  defp apply_all_changes(_file, contents, []), do: {:ok, contents}
+
+  defp apply_all_changes(file, contents, [change | remaining]) do
+    # Pre-validate natural language changes
+    with :ok <- validate_change(change, contents),
+         {:ok, new_contents} <- apply_single_change(file, contents, change) do
+      apply_all_changes(file, new_contents, remaining)
+    else
+      {:error, reason} -> {:error, format_change_error(change, reason)}
+    end
+  end
+
+  # Pre-validation for changes to catch common issues early
+  @spec validate_change(change(), binary) :: :ok | {:error, String.t()}
+  defp validate_change(%{type: :exact, old_string: old}, contents) when byte_size(old) == 0 do
+    # Allow empty old_string only when creating a new file (empty contents)
+    if byte_size(contents) == 0 do
+      :ok
+    else
+      {:error, "old_string cannot be empty when editing existing content"}
+    end
+  end
+
+  defp validate_change(%{type: :natural_language, instruction: instruction}, _contents) do
+    cond do
+      String.length(String.trim(instruction)) < 10 ->
+        {:error,
+         "Instruction too vague. Please provide more specific details about what to change and where."}
+
+      not (String.contains?(instruction, [
+             "after",
+             "before",
+             "at the",
+             "in the",
+             "replace",
+             "add",
+             "remove",
+             "function",
+             "line"
+           ]) or
+               Regex.match?(~r/\d+/, instruction)) ->
+        {:error,
+         "Instruction lacks clear location anchors. Consider specifying line numbers, function names, or relative positions."}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp validate_change(_change, _contents), do: :ok
+
+  # Apply a single change based on its type
+  @spec apply_single_change(binary, binary, change()) :: {:ok, binary} | {:error, String.t()}
+  defp apply_single_change(_file, contents, %{type: :exact} = change) do
+    apply_exact_change(contents, change)
+  end
+
+  defp apply_single_change(file, contents, %{type: :natural_language} = change) do
+    apply_natural_language_change(file, contents, change.instruction)
+  end
+
+  # Handle exact string replacement
+  @spec apply_exact_change(binary, change()) :: {:ok, binary} | {:error, String.t()}
+  defp apply_exact_change(contents, %{old_string: old, new_string: new, replace_all: replace_all}) do
+    cond do
+      # File creation case: empty old_string with empty contents
+      byte_size(old) == 0 and byte_size(contents) == 0 ->
+        {:ok, new}
+
+      # Empty old_string with non-empty contents (invalid)
+      byte_size(old) == 0 ->
+        {:error, "old_string cannot be empty when editing existing content"}
+
+      # Normal replacement cases
+      not String.contains?(contents, old) ->
+        {:error, "String not found in file: #{inspect(old)}"}
+
+      replace_all ->
+        # Replace all occurrences
+        {:ok, String.replace(contents, old, new)}
+
+      true ->
+        # Check for multiple occurrences when replace_all is false
+        parts = String.split(contents, old)
+
+        case parts do
+          [_before, _after] ->
+            # Exactly one occurrence
+            {:ok, String.replace(contents, old, new)}
+
+          _ ->
+            # Multiple occurrences
+            count = length(parts) - 1
+
+            {:error,
+             "String appears #{count} times in file. Set replace_all: true to replace all occurrences"}
+        end
+    end
+  end
+
+  # Handle natural language changes using the existing patcher
+  @spec apply_natural_language_change(binary, binary, String.t()) ::
+          {:ok, binary} | {:error, String.t()}
+  defp apply_natural_language_change(file, _contents, instruction) do
     AI.Agent.Code.Patcher
     |> AI.Agent.new()
-    |> AI.Agent.get_response(%{file: file, changes: changes})
+    |> AI.Agent.get_response(%{file: file, changes: [instruction]})
+  end
+
+  # Format error messages with context about which change failed
+  @spec format_change_error(change(), String.t()) :: String.t()
+  defp format_change_error(%{type: :exact, old_string: old}, reason) do
+    """
+    Exact string replacement failed:
+    Searching for: #{inspect(old)}
+    Error: #{reason}
+
+    Suggestion: Verify the exact string exists in the file, including all whitespace and capitalization.
+    """
+  end
+
+  defp format_change_error(%{type: :natural_language, instruction: instruction}, reason) do
+    """
+    Natural language instruction failed:
+    Instruction: "#{instruction}"
+    Error: #{reason}
+
+    Suggestions:
+    - Try using exact string replacement (old_string/new_string) for more reliable results
+    - Make the instruction more specific with clear anchors (line numbers, function names, etc.)
+    - Break complex changes into smaller, more specific steps
+    """
   end
 
   @spec build_diff(binary, binary, boolean) :: {:ok, binary} | {:error, String.t()}
