@@ -64,16 +64,13 @@ defmodule AI.Tools.Shell do
 
         ALWAYS prefer a built-in tool call over this tool when available.
 
-        If you are unsure of whether a command is available, try calling it with --version or --help. 
+        If you are unsure of whether a command is available, try calling it with --version or --help.
         You can do this for multiple commands with concurrent tool calls to this tool.
 
         The user must approve execution of this command before it is run.
         It is essential to remember that you cannot launch interactive commands!
         Commands that require user input or interaction will fail after a timeout, resulting in a poor experience for the user.
         Individual commands may not include redirection, pipes, command substitution, or other complex shell operators.
-
-
-
 
         IMPORTANT: Tools that can modify files (e.g., `awk`, `find -exec`, `patch`) require explicit approval.
         Safe, read-only `sed` invocations (without `-i`, `-f`, `e` or `w` ops) are auto-preapproved by built-in regex rules.
@@ -84,7 +81,10 @@ defmodule AI.Tools.Shell do
                    For example, `rg` REQUIRES a path argument when not run in a
                    tty.
 
-        For commands that vary based on OS, the current OS is: #{os_name} (#{os_family}).
+        For commands that vary based on OS (like grep and sed), the current OS is: #{os_name} (#{os_family}).
+
+        The following tools are available on your PATH with their respective versions:
+        #{available_tools()}
 
         The following commands are preapproved and will execute without requiring user approval:
         #{allowed}
@@ -550,5 +550,76 @@ defmodule AI.Tools.Shell do
 
   defp format_command(invalid_format) do
     "Invalid command format: #{inspect(invalid_format, pretty: true)}"
+  end
+
+  # ----------------------------------------------------------------------------
+  # Available tools
+  # ----------------------------------------------------------------------------
+  @non_posix_tools_memo_table :shell_tools_cache
+
+  @non_posix_tools [
+    ["ack", "--version"],
+    ["ag", "--version"],
+    ["docker", "--version"],
+    ["docker-compose", "--version"],
+    ["expect", "-v"],
+    ["fd", "--version"],
+    ["fzf", "--version"],
+    ["gh", "--version"],
+    ["git", "--version"],
+    ["helm", "--version"],
+    ["kubectl", "version", "--client=true"],
+    ["perl", "-e", "print \"$^V\\n\""],
+    ["rg", "--version"]
+  ]
+
+  defp available_tools do
+    # Create memoization table if it doesn't exist
+    if :ets.info(@non_posix_tools_memo_table) == :undefined do
+      :ets.new(@non_posix_tools_memo_table, [:named_table, :public, read_concurrency: true])
+    end
+
+    # Check if we have a cached value
+    case :ets.lookup(@non_posix_tools_memo_table, :cached) do
+      [{:cached, result}] ->
+        result
+
+      [] ->
+        result =
+          @non_posix_tools
+          # Filter out tools that are not on our PATH
+          |> Util.async_filter(fn [cmd | _] ->
+            cmd
+            |> System.find_executable()
+            |> case do
+              nil -> false
+              _ -> true
+            end
+          end)
+          # For each remaining tool, run the command to get its version
+          |> Util.async_stream(fn [cmd | args] ->
+            case System.cmd(cmd, args, stderr_to_stdout: true) do
+              {out, 0} ->
+                out
+                |> String.split("\n")
+                |> List.first()
+                |> String.trim()
+                |> then(&"- #{cmd}: #{&1}")
+
+              _ ->
+                "- #{cmd}: (unknown version)"
+            end
+          end)
+          # Resolve async_stream results, ignoring any errors
+          |> Enum.reduce([], fn
+            {:ok, line}, acc -> [line | acc]
+            {:error, _}, acc -> acc
+          end)
+          |> Enum.sort()
+          |> Enum.join("\n")
+
+        :ets.insert(@non_posix_tools_memo_table, {:cached, result})
+        result
+    end
   end
 end
