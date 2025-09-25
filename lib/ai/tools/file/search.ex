@@ -71,26 +71,25 @@ defmodule AI.Tools.File.Search do
     with {:ok, query} <- Map.fetch(args, "query"),
          {:ok, matches} <- search(query),
          {:ok, index_state_msg} <- index_state() do
-      matches
-      |> Enum.map(fn {file, score, data} ->
-        """
-        # `#{file}` (cosine similarity: #{score})
-        #{data["summary"]}
-        """
-      end)
-      |> Enum.join("\n-----\n")
-      |> then(fn res ->
-        msg =
-          """
-          [search_tool]
-          #{res}
-          -----
-          #{index_state_msg}
-          """
-
-        {:ok, msg}
-      end)
+      {:ok, build_response(matches, index_state_msg)}
     end
+  end
+
+  # Build the complete tool response by formatting matches and the index state banner.
+  defp build_response(matches, index_state_msg) do
+    header = "[search_tool]"
+    body = matches |> Enum.map(&format_entry/1) |> Enum.join("\n-----\n")
+
+    [header, body, "-----", index_state_msg]
+    |> Enum.join("\n")
+  end
+
+  # Format a single search result entry as markdown with file, similarity, and summary.
+  defp format_entry({file, score, data}) do
+    """
+    # `#{file}` (cosine similarity: #{score})
+    #{data["summary"]}
+    """
   end
 
   # -----------------------------------------------------------------------------
