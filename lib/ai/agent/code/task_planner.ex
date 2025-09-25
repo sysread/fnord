@@ -3,7 +3,7 @@ defmodule AI.Agent.Code.TaskPlanner do
 
   @type t :: Common.t()
 
-  @model AI.Model.reasoning(:high)
+  @model AI.Model.coding()
 
   @prompt """
   Before planning, check for README.md, CLAUDE.md, and AGENTS.md in the project root and current directory.

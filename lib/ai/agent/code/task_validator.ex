@@ -6,7 +6,7 @@ defmodule AI.Agent.Code.TaskValidator do
   # ----------------------------------------------------------------------------
   @type t :: Common.t()
 
-  @model AI.Model.reasoning(:medium)
+  @model AI.Model.coding()
 
   @prompt """
   Before validating, check for README.md, CLAUDE.md, and AGENTS.md in the project root and current directory.

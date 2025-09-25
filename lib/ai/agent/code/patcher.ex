@@ -2,7 +2,7 @@ defmodule AI.Agent.Code.Patcher do
   # ----------------------------------------------------------------------------
   # Constants
   # ----------------------------------------------------------------------------
-  @model AI.Model.reasoning(:low)
+  @model AI.Model.coding()
 
   @max_retries 2
 

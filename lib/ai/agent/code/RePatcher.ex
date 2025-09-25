@@ -6,7 +6,7 @@ defmodule AI.Agent.Code.RePatcher do
   # ----------------------------------------------------------------------------
   # Constants
   # ----------------------------------------------------------------------------
-  @model AI.Model.reasoning(:low)
+  @model AI.Model.coding()
 
   @prompt """
   You are the "RePatcher" agent.
