@@ -126,7 +126,8 @@ defmodule Cmd.Ask do
 
     start_time = System.monotonic_time(:second)
 
-    # start silent background indexer (best-effort)
+    # Start silent background indexer. This must happen BEFORE any project root
+    # override is applied, so that the indexer uses the correct root.
     indexer_pid =
       case Store.get_project() do
         {:ok, project} ->
