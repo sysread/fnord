@@ -21,7 +21,8 @@ defmodule AI.Agent.Nomenclater do
     ~s/Pulp detective novel characters, but with software-related names (e.g. "Sam "the Compiler" Spade", "Deb "-bugger" Malloy")/,
     ~s/Hackerspeak names (e.g. "Acid Burn", "Crash Override", "Cereal Killer"/,
     ~s/Puns about AI-powered research and coding that seem like names (e.g. "R. E. Search", "Otto Mated", "Matt Rix", "Dr. D. Co'deure")/,
-    ~s/Buffy the Vampire Slayer characters (e.g. "Xander Harris", "Willow Rosenberg", "Rupert Giles"; or soop them up for coding like "Buffy Overflow")/
+    ~s/Buffy the Vampire Slayer characters (e.g. "Xander Harris", "Willow Rosenberg", "Rupert Giles"; or soop them up for coding like "Buffy Overflow")/,
+    ~s/Spoofed names of famous AIs and robots in fiction/
   ]
 
   @prompt """
