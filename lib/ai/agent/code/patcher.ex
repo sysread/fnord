@@ -35,13 +35,13 @@ defmodule AI.Agent.Code.Patcher do
      All lines identified will be replaced *in their entirety*.
   2. Generate a *complete* replacement for those lines.
   3. You MUST ensure that the indentation is correct and consistent, paying special attention to whitespace (e.g. tabs vs spaces).
-  4. You MUST ensure that the syntax of the replacement is correct and that it can be applied to the file without syntax errors.
+  4. Make the textual changes as requested, preserving the file's existing formatting patterns.
   5. Do NOT include the prefixed line numbers in the replacement text.
 
-  # Validation
-  After making a change, you MUST use the tools available to the project or
-  language ecosystem to validate that the change is correct and does not
-  introduce syntax errors or other issues.
+  # Language Agnostic Operation
+  This tool works with any type of text file (code, configuration, plain text, etc.).
+  Do not assume any specific programming language, syntax, or tooling is available.
+  Focus on making the requested textual changes accurately without syntax validation.
 
   # Best practices
   - Generate linear, atomic patches; avoid complex nested conditionals in a single patch.
