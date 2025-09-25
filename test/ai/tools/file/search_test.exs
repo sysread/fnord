@@ -49,7 +49,7 @@ defmodule AI.Tools.File.SearchTest do
     params = f.parameters
     assert params.additionalProperties == false
     assert params.required == ["query"]
-    assert params.properties["query"].type == "string"
+    assert params.properties.query.type == "string"
   end
 
   test "ui_note_on_request/1 and ui_note_on_result/2" do
