@@ -161,5 +161,48 @@ defmodule AI.Tools.File.EditAgentPatternsTest do
       assert String.contains?(msg, "TOP LEVEL")
       assert String.contains?(msg, "not inside changes")
     end
+
+    test "content insertion confusion with create_if_missing: false", %{project: project} do
+      path = Path.join(project.source_root, "test.txt")
+
+      # Agent tries to insert content but uses create_if_missing: false inside change
+      {:error, msg} = Edit.call(%{
+        "file" => path,
+        "changes" => [%{
+          "change" => "Add helper function",
+          "new_string" => "def helper_function, do: :ok",
+          "create_if_missing" => false
+        }]
+      })
+
+      # Verify specific guidance for content insertion confusion
+      assert String.contains?(msg, "Invalid parameters for content insertion")
+      assert String.contains?(msg, "new_string without old_string")
+      assert String.contains?(msg, "create_if_missing: false")
+      assert String.contains?(msg, "Exact string matching - specify where to insert")
+      assert String.contains?(msg, "Natural language - describe the location")
+      assert String.contains?(msg, "create_if_missing belongs at the top level")
+    end
+
+    test "parameter placement error for create_if_missing", %{project: project} do
+      path = Path.join(project.source_root, "test.txt")
+
+      # Agent puts create_if_missing: true in wrong place
+      {:error, msg} = Edit.call(%{
+        "file" => path,
+        "changes" => [%{
+          "change" => "Create new content",
+          "new_string" => "new content",
+          "create_if_missing" => true
+        }]
+      })
+
+      # Verify guidance about parameter placement
+      assert String.contains?(msg, "Parameter placement error")
+      assert String.contains?(msg, "create_if_missing should be at the top level")
+      assert String.contains?(msg, "not inside changes")
+      assert String.contains?(msg, "Correct structure:")
+      assert String.contains?(msg, "\"create_if_missing\": true")
+    end
   end
 end

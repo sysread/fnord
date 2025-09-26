@@ -279,17 +279,56 @@ defmodule AI.Tools.File.Edit do
 
       # File creation mode (new_string only, for create_if_missing)
       old_string == nil and new_string != nil ->
-        if is_binary(new_string) and is_boolean(replace_all) do
-          {:ok,
-           %{
-             type: :exact,
-             instruction: String.trim(instruction),
-             old_string: "",
-             new_string: new_string,
-             replace_all: replace_all
-           }}
-        else
-          {:error, "new_string must be a string, replace_all must be boolean"}
+        # Check for common agent confusion: trying to insert content into existing file
+        # Look for indicators that this might be content insertion, not file creation
+        create_if_missing = Map.get(change_map, "create_if_missing")
+
+        cond do
+          # Agent explicitly said create_if_missing: false - they're confused about insertion
+          create_if_missing == false ->
+            {:error, """
+            Invalid parameters for content insertion. You provided new_string without old_string,
+            but also set create_if_missing: false, indicating you want to modify an existing file.
+
+            For inserting content into an existing file, you have two options:
+
+            1. Exact string matching - specify where to insert:
+               {"old_string": "existing code to insert after", "new_string": "existing code + new content"}
+
+            2. Natural language - describe the location:
+               {"change": "Add the new function after the existing helper functions"}
+
+            Note: create_if_missing belongs at the top level, not inside individual changes.
+            """}
+
+          # Agent has create_if_missing inside the change (wrong placement)
+          create_if_missing != nil ->
+            {:error, """
+            Parameter placement error: create_if_missing should be at the top level, not inside changes.
+
+            Correct structure:
+            {
+              "file": "path/to/file.ex",
+              "create_if_missing": true,
+              "changes": [{"new_string": "file content"}]
+            }
+
+            For adding content to existing files, use exact matching or natural language instead.
+            """}
+
+          # Standard file creation mode
+          is_binary(new_string) and is_boolean(replace_all) ->
+            {:ok,
+             %{
+               type: :exact,
+               instruction: String.trim(instruction),
+               old_string: "",
+               new_string: new_string,
+               replace_all: replace_all
+             }}
+
+          true ->
+            {:error, "new_string must be a string, replace_all must be boolean"}
         end
 
       # Partial exact string matching (error case)
