@@ -289,7 +289,7 @@ defmodule Services.Approvals.Shell do
     |> Enum.uniq()
   end
 
-  @spec customize(state, [String.t()] | list({String.t(), String.t()})) :: {:approved, state}
+  @spec customize(state, list({String.t(), String.t()})) :: {:approved, state}
   def customize(state, stages) do
     unapproved_prefixes(state, stages)
     |> Enum.reduce({:approved, state}, fn prefix, {:approved, acc_state} ->
