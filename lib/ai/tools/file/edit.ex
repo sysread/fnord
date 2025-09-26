@@ -1,10 +1,4 @@
 defmodule AI.Tools.File.Edit do
-  @moduledoc """
-  String-based code editing tool that uses exact and fuzzy string matching
-  instead of line numbers. Handles whitespace normalization while preserving
-  original formatting and indentation.
-  """
-
   # ----------------------------------------------------------------------------
   # Types
   # ----------------------------------------------------------------------------
@@ -41,7 +35,6 @@ defmodule AI.Tools.File.Edit do
   end
 
   @impl AI.Tools
-
   def ui_note_on_request(%{"file" => file}) do
     {"Preparing changes", file}
   end
@@ -207,11 +200,9 @@ defmodule AI.Tools.File.Edit do
 
   @impl AI.Tools
   def call(raw_args) do
-    # Parse and validate arguments, including create_if_missing
     with {:ok, args} <- read_args(raw_args),
          {:ok, file} <- AI.Tools.get_arg(args, "file"),
          {:ok, changes} <- read_changes(args) do
-      # Determine whether to create file if missing
       create? = Map.get(args, "create_if_missing", false)
 
       with {:ok, result} <- do_edits(file, changes, create?) do
@@ -303,12 +294,13 @@ defmodule AI.Tools.File.Edit do
 
       # Partial exact string matching (error case)
       old_string != nil and new_string == nil ->
-        {:error, """
-        Both old_string and new_string must be provided together for exact matching.
-        For file creation, you can omit old_string and just provide new_string.
-        Example for editing: {"old_string": "old text", "new_string": "new text"}
-        Example for file creation: {"new_string": "file content"} with create_if_missing: true
-        """}
+        {:error,
+         """
+         Both old_string and new_string must be provided together for exact matching.
+         For file creation, you can omit old_string and just provide new_string.
+         Example for editing: {"old_string": "old text", "new_string": "new text"}
+         Example for file creation: {"new_string": "file content"} with create_if_missing: true
+         """}
 
       # Natural language mode
       instruction != "" ->
@@ -323,12 +315,13 @@ defmodule AI.Tools.File.Edit do
 
       # No valid parameters
       true ->
-        {:error, """
-        Invalid change parameters. You must provide either:
-        1. Natural language: {"change": "description of what to do"}
-        2. Exact matching: {"old_string": "text to replace", "new_string": "replacement text"}
-        3. File creation: {"new_string": "content"} with create_if_missing: true at the top level
-        """}
+        {:error,
+         """
+         Invalid change parameters. You must provide either:
+         1. Natural language: {"change": "description of what to do"}
+         2. Exact matching: {"old_string": "text to replace", "new_string": "replacement text"}
+         3. File creation: {"new_string": "content"} with create_if_missing: true at the top level
+         """}
     end
   end
 
@@ -431,17 +424,19 @@ defmodule AI.Tools.File.Edit do
     if byte_size(contents) == 0 do
       :ok
     else
-      {:error, "old_string cannot be empty when editing existing content (use create_if_missing: true for new files)"}
+      {:error,
+       "old_string cannot be empty when editing existing content (use create_if_missing: true for new files)"}
     end
   end
 
   defp validate_change(%{type: :natural_language, instruction: instruction}, _contents) do
     cond do
       String.length(String.trim(instruction)) < 10 ->
-        {:error, """
-        Instruction too vague. Please provide more specific details about what to change and where.
-        Examples: "Add error handling to the login function", "Replace the hardcoded API URL on line 42"
-        """}
+        {:error,
+         """
+         Instruction too vague. Please provide more specific details about what to change and where.
+         Examples: "Add error handling to the login function", "Replace the hardcoded API URL on line 42"
+         """}
 
       not (String.contains?(instruction, [
              "after",
@@ -455,13 +450,14 @@ defmodule AI.Tools.File.Edit do
              "line"
            ]) or
                Regex.match?(~r/\d+/, instruction)) ->
-        {:error, """
-        Instruction lacks clear location anchors. Consider specifying:
-        - Line numbers: "on line 42", "after line 15"
-        - Function names: "in the validateUser function"
-        - Relative positions: "before the return statement", "after the imports"
-        - Specific text: "replace 'localhost' with 'api.example.com'"
-        """}
+        {:error,
+         """
+         Instruction lacks clear location anchors. Consider specifying:
+         - Line numbers: "on line 42", "after line 15"
+         - Function names: "in the validateUser function"
+         - Relative positions: "before the return statement", "after the imports"
+         - Specific text: "replace 'localhost' with 'api.example.com'"
+         """}
 
       true ->
         :ok
