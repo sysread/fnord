@@ -21,18 +21,41 @@ defmodule AI.Tools.File.Edit do
 
   @impl AI.Tools
   def read_args(args) when is_map(args) do
-    # Validate and default the create_if_missing flag
-    case args["create_if_missing"] do
-      nil ->
-        {:ok, Map.put(args, "create_if_missing", false)}
-
-      val when is_boolean(val) ->
-        {:ok, args}
-
-      _ ->
-        {:error, "`create_if_missing` must be a boolean"}
+    with {:ok, args} <- read_create_if_missing(args),
+         {:ok, args} <- patch_the_patch(args) do
+      {:ok, args}
     end
   end
+
+  defp read_create_if_missing(args) do
+    # Validate and default the create_if_missing flag
+    case args["create_if_missing"] do
+      true -> {:ok, args}
+      false -> {:ok, args}
+      nil -> {:ok, Map.put(args, "create_if_missing", false)}
+      _ -> {:invalid_arg_error, "`create_if_missing` must be a boolean"}
+    end
+  end
+
+  defp patch_the_patch(%{"patch" => patch} = args) do
+    args
+    |> Map.delete("patch")
+    |> Map.put("changes", [%{"instruction" => patch}])
+    |> then(&{:ok, &1})
+  end
+
+  defp patch_the_patch(%{"changes" => changes} = args) do
+    changes =
+      changes
+      |> Enum.map(fn
+        %{"patch" => patch} -> %{"instructions" => patch}
+        other -> other
+      end)
+
+    {:ok, Map.put(args, "changes", changes)}
+  end
+
+  defp patch_the_patch(args), do: {:ok, args}
 
   @impl AI.Tools
   def ui_note_on_request(%{"file" => file}) do
@@ -232,7 +255,7 @@ defmodule AI.Tools.File.Edit do
   end
 
   # Parse and validate the list of change instructions
-  @spec read_changes(map) :: {:ok, [change()]} | {:error, String.t()}
+  @spec read_changes(map) :: {:ok, [change]} | {:error, String.t()}
   defp read_changes(opts) do
     case Map.get(opts, "changes") do
       nil ->
@@ -266,15 +289,24 @@ defmodule AI.Tools.File.Edit do
   end
 
   # Define change types
-  @type change :: %{
-          type: :exact | :natural_language,
+  @type natural_language :: %{
+          type: :natural_language,
+          instruction: String.t()
+        }
+
+  @type exact :: %{
+          type: :exact,
           instruction: String.t(),
-          old_string: String.t() | nil,
-          new_string: String.t() | nil,
+          old_string: String.t(),
+          new_string: String.t(),
           replace_all: boolean()
         }
 
-  @spec parse_change(map) :: {:ok, change()} | {:error, String.t()}
+  @type change ::
+          natural_language
+          | exact
+
+  @spec parse_change(map) :: {:ok, change} | {:error, String.t()}
   defp parse_change(change_map) when is_map(change_map) do
     instruction = Map.get(change_map, "instructions", "")
     old_string = Map.get(change_map, "old_string")
@@ -288,7 +320,6 @@ defmodule AI.Tools.File.Edit do
           {:ok,
            %{
              type: :exact,
-             instruction: String.trim(instruction),
              old_string: old_string,
              new_string: new_string,
              replace_all: replace_all
@@ -343,7 +374,6 @@ defmodule AI.Tools.File.Edit do
             {:ok,
              %{
                type: :exact,
-               instruction: String.trim(instruction),
                old_string: "",
                new_string: new_string,
                replace_all: replace_all
@@ -368,10 +398,7 @@ defmodule AI.Tools.File.Edit do
         {:ok,
          %{
            type: :natural_language,
-           instruction: String.trim(instruction),
-           old_string: nil,
-           new_string: nil,
-           replace_all: false
+           instruction: String.trim(instruction)
          }}
 
       # No valid parameters
@@ -411,7 +438,7 @@ defmodule AI.Tools.File.Edit do
   end
 
   # Main edit flow with optional file creation
-  @spec do_edits(binary, [change()], boolean) :: {:ok, edit_result} | {:error, String.t()}
+  @spec do_edits(binary, [change], boolean) :: {:ok, edit_result} | {:error, String.t()}
   defp do_edits(file, changes, create_if_missing) do
     try do
       with {:ok, project} <- Store.get_project(),
@@ -463,7 +490,7 @@ defmodule AI.Tools.File.Edit do
   end
 
   # Apply all changes sequentially, handling both exact and natural language changes
-  @spec apply_all_changes(binary, binary, [change()]) :: {:ok, binary} | {:error, String.t()}
+  @spec apply_all_changes(binary, binary, [change]) :: {:ok, binary} | {:error, String.t()}
   defp apply_all_changes(_file, contents, []), do: {:ok, contents}
 
   defp apply_all_changes(file, contents, [change | remaining]) do
@@ -477,7 +504,7 @@ defmodule AI.Tools.File.Edit do
   end
 
   # Pre-validation for changes to catch common issues early
-  @spec validate_change(change(), binary) :: :ok | {:error, String.t()}
+  @spec validate_change(change, binary) :: :ok | {:error, String.t()}
   defp validate_change(%{type: :exact, old_string: old}, contents) when byte_size(old) == 0 do
     # Allow empty old_string only when creating a new file (empty contents)
     # This supports the file creation UX where agents can omit old_string
@@ -527,7 +554,7 @@ defmodule AI.Tools.File.Edit do
   defp validate_change(_change, _contents), do: :ok
 
   # Apply a single change based on its type
-  @spec apply_single_change(binary, binary, change()) :: {:ok, binary} | {:error, String.t()}
+  @spec apply_single_change(binary, binary, change) :: {:ok, binary} | {:error, String.t()}
   defp apply_single_change(_file, contents, %{type: :exact} = change) do
     apply_exact_change(contents, change)
   end
@@ -537,7 +564,7 @@ defmodule AI.Tools.File.Edit do
   end
 
   # Handle exact string replacement
-  @spec apply_exact_change(binary, change()) :: {:ok, binary} | {:error, String.t()}
+  @spec apply_exact_change(binary, change) :: {:ok, binary} | {:error, String.t()}
   defp apply_exact_change(contents, %{old_string: old, new_string: new, replace_all: replace_all}) do
     cond do
       # File creation case: empty old_string with empty contents
@@ -585,7 +612,7 @@ defmodule AI.Tools.File.Edit do
   end
 
   # Format error messages with context about which change failed
-  @spec format_change_error(change(), String.t()) :: String.t()
+  @spec format_change_error(change, String.t()) :: String.t()
   defp format_change_error(%{type: :exact, old_string: old}, reason) do
     """
     Exact string replacement failed:
