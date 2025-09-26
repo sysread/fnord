@@ -114,7 +114,7 @@ defmodule AI.Tools.Shell do
               enum: ["|", "&&"],
               description: """
               Optionally specifies whether commands are piped together (`|`) or
-              run sequentially (&&). By default, commands are piped.
+              run sequentially (&&). By default, commands are run sequentially.
               """
             },
             commands: %{
@@ -173,7 +173,7 @@ defmodule AI.Tools.Shell do
          {:ok, commands} <- resolve_commands(commands),
          {:ok, project} <- Store.get_project() do
       opts
-      |> Map.get("operator", "|")
+      |> Map.get("operator", "&&")
       |> route(commands, desc, timeout_ms, project.source_root)
     end
   end

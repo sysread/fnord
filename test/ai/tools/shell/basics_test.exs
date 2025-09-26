@@ -9,6 +9,7 @@ defmodule AI.Tools.Shell.BasicsTest do
     args = %{
       "description" => "Count lines using preapproved commands",
       "timeout_ms" => 2_000,
+      "operator" => "|",
       "commands" => [
         %{"command" => "cat", "args" => ["file1.txt", "file2.txt"]},
         %{"command" => "wc", "args" => ["-l"]}
@@ -26,6 +27,7 @@ defmodule AI.Tools.Shell.BasicsTest do
     args = %{
       "description" => "Uppercase via pipeline using stdin temp runner",
       "timeout_ms" => 2_000,
+      "operator" => "|",
       "commands" => [
         %{"command" => "echo", "args" => ["abc"]},
         %{"command" => "tr", "args" => ["a-z", "A-Z"]}
