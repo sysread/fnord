@@ -362,9 +362,8 @@ defmodule AI.Tools.File.Edit do
         if contents == orig_text do
           {:error, "no changes were made to the file"}
         else
-          with {:ok, diff, backup_file} <-
-                 stage_changes(absolute_path, contents, orig_exists, base_hash) do
-            {:ok, %{file: file, diff: diff, backup_file: backup_file}}
+          with {:ok, diff, bak} <- stage_changes(absolute_path, contents, orig_exists, base_hash) do
+            {:ok, %{file: file, diff: diff, backup_file: bak}}
           end
         end
       end
