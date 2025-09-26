@@ -28,17 +28,17 @@ defmodule AI.Tools.File.ContentsTest do
   describe "ui_note_on_request/1" do
     test "with line_numbers true returns Read +ln and ref" do
       args = %{"file" => "f.txt", "line_numbers" => true}
-      assert AI.Tools.File.Contents.ui_note_on_request(args) == {"Read +ln", "f.txt:1...-1"}
+      assert AI.Tools.File.Contents.ui_note_on_request(args) == {"Read +ln", "f.txt (full)"}
     end
 
     test "with line_numbers false returns Read -ln and ref" do
       args = %{"file" => "f.txt", "line_numbers" => false}
-      assert AI.Tools.File.Contents.ui_note_on_request(args) == {"Read -ln", "f.txt:1...-1"}
+      assert AI.Tools.File.Contents.ui_note_on_request(args) == {"Read -ln", "f.txt (full)"}
     end
 
     test "without line_numbers key defaults to false" do
       args = %{"file" => "f.txt"}
-      assert AI.Tools.File.Contents.ui_note_on_request(args) == {"Read -ln", "f.txt:1...-1"}
+      assert AI.Tools.File.Contents.ui_note_on_request(args) == {"Read -ln", "f.txt (full)"}
     end
 
     test "with custom start and end in ref" do

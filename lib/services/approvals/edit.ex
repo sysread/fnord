@@ -26,8 +26,11 @@ defmodule Services.Approvals.Edit do
         {:denied, @not_edit_mode, state}
 
       auto?() ->
-        UI.info("Edit #{file}", "Auto-approved (either --yes passed or approved for session)")
-        {:approved, state}
+        UI.interact(fn ->
+          render_diff_box(file, diff)
+          UI.info("Edit #{file}", "Auto-approved (either --yes passed or approved for session)")
+          {:approved, state}
+        end)
 
       !interactive?() ->
         UI.error("Edit #{file}", @no_tty)
@@ -35,33 +38,7 @@ defmodule Services.Approvals.Edit do
 
       true ->
         UI.interact(fn ->
-          # 8 additional characters in: " Edit: #{file} ", +4 for borders and padding
-          max_width = Owl.IO.columns() - 12
-
-          file_display = Path.relative_to_cwd(file)
-
-          file_display =
-            if String.length(file_display) > max_width do
-              "..." <> String.slice(file_display, -max_width..-1)
-            else
-              file_display
-            end
-
-          [
-            Owl.Data.tag("# Scope ", [:red_background, :black, :bright]),
-            "\n\nedit :: all files\n\n",
-            Owl.Data.tag("# Changes ", [:red_background, :black, :bright]),
-            "\n\n",
-            diff
-          ]
-          |> UI.box(
-            title: " Edit #{file_display} ",
-            min_width: 80,
-            padding: 1,
-            horizontal_align: :left,
-            border_tag: [:red, :bright]
-          )
-
+          render_diff_box(file, diff)
           prompt(state)
         end)
     end
@@ -102,5 +79,51 @@ defmodule Services.Approvals.Edit do
     "Feedback:"
     |> UI.prompt()
     |> then(&"The user denied the request with the following feedback: #{&1}")
+  end
+
+  # Safely fetch terminal columns, fallback to 120
+  defp safe_columns() do
+    try do
+      case Owl.IO.columns() do
+        cols when is_integer(cols) -> cols
+        _ -> 120
+      end
+    rescue
+      _ -> 120
+    end
+  end
+
+  # Render the diff display box with safe width handling
+  defp render_diff_box(file, diff) do
+    # Determine terminal width
+    cols = safe_columns()
+    # subtract padding/borders (12 chars)
+    max_width = max(cols - 12, 0)
+
+    # compute relative file path and truncate if too long
+    file_display = Path.relative_to_cwd(file)
+
+    file_display =
+      if String.length(file_display) > max_width do
+        "..." <> String.slice(file_display, -max_width..-1)
+      else
+        file_display
+      end
+
+    # Build the box content
+    [
+      Owl.Data.tag("# Scope ", [:red_background, :black, :bright]),
+      "\n\nedit :: all files\n\n",
+      Owl.Data.tag("# Changes ", [:red_background, :black, :bright]),
+      "\n\n",
+      diff
+    ]
+    |> UI.box(
+      title: " Edit #{file_display} ",
+      min_width: 80,
+      padding: 1,
+      horizontal_align: :left,
+      border_tag: [:red, :bright]
+    )
   end
 end
