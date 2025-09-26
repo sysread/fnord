@@ -76,11 +76,7 @@ defmodule AI.Agent.Code.RePatcher do
   def get_response(opts) do
     with {:ok, agent} <- Map.fetch(opts, :agent),
          {:ok, patch} <- Map.fetch(opts, :patch) do
-      UI.report_from(
-        agent.name,
-        "*sigh* the LLM tried to use `apply_patch` again. Lemme go ahead and fix that for you...\n#{patch}"
-      )
-
+      UI.report_from(agent.name, "Re-routing overfitted `apply_patch` attempt", patch)
       re_patch(agent, patch)
     end
   end
