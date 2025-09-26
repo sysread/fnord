@@ -92,9 +92,7 @@ defmodule Services.BackupFile do
       backup_file_list =
         backup_files
         |> Enum.reduce(%{}, fn backup_file, acc ->
-          re
-          |> Regex.run(backup_file)
-          |> case do
+          case Regex.run(re, backup_file) do
             [_, filename, global_str, change_str] ->
               global = String.to_integer(global_str)
               change = String.to_integer(change_str)
@@ -123,7 +121,16 @@ defmodule Services.BackupFile do
               multiple -> "#{Enum.min(multiple)}..#{Enum.max(multiple)}"
             end
 
-          "- #{Path.basename(filename)}.#{global_part}.#{change_part}.bak"
+          display_path =
+            case Store.get_project() do
+              {:ok, project} when is_binary(project.source_root) ->
+                Store.Project.relative_path(filename, project)
+
+              _ ->
+                Path.basename(filename)
+            end
+
+          "- #{display_path}.#{global_part}.#{change_part}.bak"
         end)
         |> Enum.sort()
         |> Enum.join("\n")
@@ -194,6 +201,7 @@ defmodule Services.BackupFile do
   # ----------------------------------------------------------------------------
   # Private Functions
   # ----------------------------------------------------------------------------
+
   @spec initial_state() :: state
   defp initial_state do
     %{

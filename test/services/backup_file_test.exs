@@ -323,6 +323,36 @@ defmodule Services.BackupFileTest do
       :meck.unload(UI)
       :meck.unload(File)
     end
+
+    test "shows nested relative paths in cleanup summary with dotted syntax", %{project: project} do
+      # Prepare a nested file
+      nested_dir = Path.join(project.source_root, "nested/dir")
+      File.mkdir_p!(nested_dir)
+      file = Path.join(nested_dir, "file.txt")
+      File.write!(file, "hello")
+
+      # Create three backups to generate a 0..2 range
+      Enum.each(1..3, fn _ -> Services.BackupFile.create_backup(file) end)
+
+      # Mock UI to capture the summary and decline deletion
+      :meck.new(UI, [:passthrough])
+      :meck.expect(UI, :warning_banner, fn _ -> :ok end)
+
+      :meck.expect(UI, :say, fn msg ->
+        send(self(), {:say, msg})
+        :ok
+      end)
+
+      :meck.expect(UI, :confirm, fn _ -> false end)
+
+      Services.BackupFile.offer_cleanup()
+
+      # Assert exactly one summary line with nested/dir prefix and dotted range
+      assert_received {:say, summary}
+      assert summary == "- nested/dir/file.txt.0.0..2.bak"
+
+      :meck.unload(UI)
+    end
   end
 
   describe "is_backup_file?/1" do
