@@ -281,15 +281,17 @@ defmodule Services.Approvals.Shell do
     end
   end
 
-  @spec customize(state, [String.t()] | list({String.t(), String.t()})) :: {:approved, state}
-  def customize(state, stages) do
+  defp unapproved_prefixes(state, stages) do
     stages
     |> Enum.uniq()
-    # Filter out already approved stages
     |> Enum.reject(fn {prefix, full} -> approved?(state, {prefix, full}) end)
-    # Extract just the prefixes
     |> Enum.map(fn {prefix, _full} -> prefix end)
-    # Iterate over each unapproved prefix and ask for scope or regex
+    |> Enum.uniq()
+  end
+
+  @spec customize(state, [String.t()] | list({String.t(), String.t()})) :: {:approved, state}
+  def customize(state, stages) do
+    unapproved_prefixes(state, stages)
     |> Enum.reduce({:approved, state}, fn prefix, {:approved, acc_state} ->
       choose_scope(acc_state, prefix)
     end)

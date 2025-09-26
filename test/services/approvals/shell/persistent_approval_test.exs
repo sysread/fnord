@@ -45,5 +45,39 @@ defmodule Services.Approvals.Shell.PersistentApprovalTest do
                {:prefix, "bar"}
              ]
     end
+
+    test "prompts only once for duplicate prefixes with different full strings" do
+      initial_state = %{session: []}
+
+      stages = [
+        {"git reflog", "git reflog --date=relative"},
+        {"git reflog", "git reflog --all"}
+      ]
+
+      :ok = :meck.new(UI, [:passthrough])
+
+      on_exit(fn ->
+        try do
+          :meck.unload(UI)
+        catch
+          _, _ -> :ok
+        end
+      end)
+
+      # Stub prompt to accept default prefix
+      :meck.expect(UI, :prompt, fn _ -> "" end)
+      # Expect only one choose call for the shared prefix
+      :meck.expect(UI, :choose, fn
+        "Choose approval scope for:\n    git reflog\n", _opts ->
+          "Approve for this session"
+      end)
+
+      {:approved, result_state} = Services.Approvals.Shell.customize(initial_state, stages)
+
+      # Session should contain exactly one entry for the prefix
+      assert result_state.session == [
+               {:prefix, "git reflog"}
+             ]
+    end
   end
 end
