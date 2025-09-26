@@ -22,7 +22,7 @@ defmodule AI.Tools.File.Edit do
   @impl AI.Tools
   def read_args(args) when is_map(args) do
     with {:ok, args} <- read_create_if_missing(args),
-         {:ok, args} <- patch_the_patch(args) do
+         {:ok, args} <- AI.Tools.File.Edit.OMFG.normalize_agent_chaos(args) do
       {:ok, args}
     end
   end
@@ -37,25 +37,6 @@ defmodule AI.Tools.File.Edit do
     end
   end
 
-  defp patch_the_patch(%{"patch" => patch} = args) do
-    args
-    |> Map.delete("patch")
-    |> Map.put("changes", [%{"instruction" => patch}])
-    |> then(&{:ok, &1})
-  end
-
-  defp patch_the_patch(%{"changes" => changes} = args) do
-    changes =
-      changes
-      |> Enum.map(fn
-        %{"patch" => patch} -> %{"instructions" => patch}
-        other -> other
-      end)
-
-    {:ok, Map.put(args, "changes", changes)}
-  end
-
-  defp patch_the_patch(args), do: {:ok, args}
 
   @impl AI.Tools
   def ui_note_on_request(%{"file" => file}) do
