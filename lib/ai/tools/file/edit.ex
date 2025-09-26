@@ -78,10 +78,46 @@ defmodule AI.Tools.File.Edit do
         Supports optional creation of the file when it does not exist by
         setting `create_if_missing: true`.
 
-        Best practices:
+        **Examples:**
+
+        File editing with exact matching:
+        ```json
+        {
+          "file": "src/app.js",
+          "changes": [{
+            "change": "Update API endpoint",
+            "old_string": "const API_URL = 'localhost'",
+            "new_string": "const API_URL = 'api.example.com'"
+          }]
+        }
+        ```
+
+        File creation (simplified UX):
+        ```json
+        {
+          "file": "config/new-config.json",
+          "create_if_missing": true,
+          "changes": [{
+            "change": "Create initial config",
+            "new_string": "{\"version\": \"1.0\", \"debug\": true}"
+          }]
+        }
+        ```
+
+        Natural language instruction:
+        ```json
+        {
+          "file": "components/Header.tsx",
+          "changes": [{
+            "change": "Add a new prop called 'showLogo' to the Header component and use it to conditionally render the logo"
+          }]
+        }
+        ```
+
+        **Best practices:**
         - Use exact string matching for maximum reliability
         - Use natural language for contextual changes when exact strings are impractical
-        - Prefer linear, atomic steps; avoid nested control flow in a single change
+        - For new files: omit old_string and use create_if_missing: true at the TOP LEVEL
         - Split complex edits into multiple changes/tool calls
         - Keep diffs minimal and well-anchored with clear anchors
         """,
@@ -126,19 +162,24 @@ defmodule AI.Tools.File.Edit do
                   old_string: %{
                     type: "string",
                     description: """
-                    Optional: Exact string to replace. When provided, this change will use
+                    Optional: Exact string to replace. When provided with new_string, this change will use
                     precise string matching instead of AI interpretation. The old_string must
                     match exactly (including whitespace) or the operation will fail.
-                    Special case: Use empty string ("") with create_if_missing to create new files.
-                    Cannot be used without new_string.
+
+                    For file creation with create_if_missing: true, you can omit old_string entirely
+                    and just provide new_string - this is the recommended approach.
                     """
                   },
                   new_string: %{
                     type: "string",
                     description: """
-                    Optional: Exact replacement string. Must be provided when old_string is used.
-                    This will replace all occurrences of old_string unless replace_all is false.
-                    For file creation, this becomes the entire file content.
+                    Exact replacement string when used with old_string, or complete file content
+                    when creating new files (with create_if_missing: true).
+
+                    Usage patterns:
+                    - With old_string: Replaces exact matches of old_string
+                    - Without old_string: Creates new file content (requires create_if_missing: true)
+                    - Multiple matches: Use replace_all: true to replace all occurrences
                     """
                   },
                   replace_all: %{
@@ -230,7 +271,7 @@ defmodule AI.Tools.File.Edit do
     replace_all = Map.get(change_map, "replace_all", false)
 
     cond do
-      # Exact string matching mode
+      # Exact string matching mode (full parameters)
       old_string != nil and new_string != nil ->
         if is_binary(old_string) and is_binary(new_string) and is_boolean(replace_all) do
           {:ok,
@@ -245,9 +286,29 @@ defmodule AI.Tools.File.Edit do
           {:error, "old_string and new_string must be strings, replace_all must be boolean"}
         end
 
+      # File creation mode (new_string only, for create_if_missing)
+      old_string == nil and new_string != nil ->
+        if is_binary(new_string) and is_boolean(replace_all) do
+          {:ok,
+           %{
+             type: :exact,
+             instruction: String.trim(instruction),
+             old_string: "",
+             new_string: new_string,
+             replace_all: replace_all
+           }}
+        else
+          {:error, "new_string must be a string, replace_all must be boolean"}
+        end
+
       # Partial exact string matching (error case)
-      old_string != nil or new_string != nil ->
-        {:error, "Both old_string and new_string must be provided together"}
+      old_string != nil and new_string == nil ->
+        {:error, """
+        Both old_string and new_string must be provided together for exact matching.
+        For file creation, you can omit old_string and just provide new_string.
+        Example for editing: {"old_string": "old text", "new_string": "new text"}
+        Example for file creation: {"new_string": "file content"} with create_if_missing: true
+        """}
 
       # Natural language mode
       instruction != "" ->
@@ -262,7 +323,12 @@ defmodule AI.Tools.File.Edit do
 
       # No valid parameters
       true ->
-        {:error, "Either provide 'change' instruction or 'old_string'/'new_string' pair"}
+        {:error, """
+        Invalid change parameters. You must provide either:
+        1. Natural language: {"change": "description of what to do"}
+        2. Exact matching: {"old_string": "text to replace", "new_string": "replacement text"}
+        3. File creation: {"new_string": "content"} with create_if_missing: true at the top level
+        """}
     end
   end
 
@@ -361,18 +427,21 @@ defmodule AI.Tools.File.Edit do
   @spec validate_change(change(), binary) :: :ok | {:error, String.t()}
   defp validate_change(%{type: :exact, old_string: old}, contents) when byte_size(old) == 0 do
     # Allow empty old_string only when creating a new file (empty contents)
+    # This supports the file creation UX where agents can omit old_string
     if byte_size(contents) == 0 do
       :ok
     else
-      {:error, "old_string cannot be empty when editing existing content"}
+      {:error, "old_string cannot be empty when editing existing content (use create_if_missing: true for new files)"}
     end
   end
 
   defp validate_change(%{type: :natural_language, instruction: instruction}, _contents) do
     cond do
       String.length(String.trim(instruction)) < 10 ->
-        {:error,
-         "Instruction too vague. Please provide more specific details about what to change and where."}
+        {:error, """
+        Instruction too vague. Please provide more specific details about what to change and where.
+        Examples: "Add error handling to the login function", "Replace the hardcoded API URL on line 42"
+        """}
 
       not (String.contains?(instruction, [
              "after",
@@ -386,8 +455,13 @@ defmodule AI.Tools.File.Edit do
              "line"
            ]) or
                Regex.match?(~r/\d+/, instruction)) ->
-        {:error,
-         "Instruction lacks clear location anchors. Consider specifying line numbers, function names, or relative positions."}
+        {:error, """
+        Instruction lacks clear location anchors. Consider specifying:
+        - Line numbers: "on line 42", "after line 15"
+        - Function names: "in the validateUser function"
+        - Relative positions: "before the return statement", "after the imports"
+        - Specific text: "replace 'localhost' with 'api.example.com'"
+        """}
 
       true ->
         :ok
@@ -462,7 +536,10 @@ defmodule AI.Tools.File.Edit do
     Searching for: #{inspect(old)}
     Error: #{reason}
 
-    Suggestion: Verify the exact string exists in the file, including all whitespace and capitalization.
+    Suggestions:
+    - Verify the exact string exists in the file, including all whitespace and capitalization
+    - If creating a new file, use create_if_missing: true at the TOP LEVEL (not inside changes array)
+    - For multiple occurrences, add "replace_all": true to the change object
     """
   end
 
@@ -473,8 +550,10 @@ defmodule AI.Tools.File.Edit do
     Error: #{reason}
 
     Suggestions:
-    - Try using exact string replacement (old_string/new_string) for more reliable results
-    - Make the instruction more specific with clear anchors (line numbers, function names, etc.)
+    - Try using exact string replacement for more reliable results:
+      {"old_string": "exact text to find", "new_string": "replacement text"}
+    - Make instructions more specific with clear anchors (line numbers, function names)
+    - For new files, use create_if_missing: true at the TOP LEVEL, not inside changes
     - Break complex changes into smaller, more specific steps
     """
   end

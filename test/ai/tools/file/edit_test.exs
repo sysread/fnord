@@ -366,6 +366,35 @@ defmodule AI.Tools.File.EditTest do
       content = File.read!(path)
       assert content == "Hello World\nThis is a new file."
     end
+
+    test "file creation with omitted old_string (improved UX)", %{project: project} do
+      path = Path.join(project.source_root, "simple_new_file.txt")
+      refute File.exists?(path)
+
+      {:ok, result} =
+        Edit.call(%{
+          "file" => path,
+          "create_if_missing" => true,
+          "changes" => [
+            %{
+              "change" => "Create simple file",
+              "new_string" => "Just the content\nNo old_string needed!"
+            }
+          ]
+        })
+
+      assert File.exists?(path)
+      assert result.backup_file == ""
+      assert result.diff =~ "+Just the content"
+      assert result.diff =~ "+No old_string needed!"
+
+      # Verify actual file content
+      content = File.read!(path)
+      assert content == "Just the content\nNo old_string needed!"
+
+      # Verify AI patcher was not called (exact string matching)
+      assert :meck.num_calls(AI.Agent.Code.Patcher, :get_response, :_) == 0
+    end
   end
 
   describe "language agnostic operation" do
