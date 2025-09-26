@@ -19,7 +19,11 @@ defmodule AI.Tools.File.Contents do
   defp ui_note_file_ref(%{"file" => file} = args) do
     start_line = Map.get(args, "start_line", 1)
     end_line = Map.get(args, "end_line", -1)
-    "#{file}:#{start_line}...#{end_line}"
+
+    case {start_line, end_line} do
+      {1, -1} -> "#{file} (full)"
+      {s, e} -> "#{file}:#{s}...#{e}"
+    end
   end
 
   @impl AI.Tools
