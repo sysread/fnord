@@ -63,9 +63,9 @@ defmodule AI.Tools.File.Edit.OMFGTest do
       {:ok, result} = OMFG.normalize_agent_chaos(args)
 
       assert %{
-        "file" => "test.ex",
-        "changes" => [%{"instructions" => instruction}]
-      } = result
+               "file" => "test.ex",
+               "changes" => [%{"instructions" => instruction}]
+             } = result
 
       assert String.contains?(instruction, "After def main() do")
       assert String.contains?(instruction, "# Main function implementation")
@@ -86,9 +86,9 @@ defmodule AI.Tools.File.Edit.OMFGTest do
       {:ok, result} = OMFG.normalize_agent_chaos(args)
 
       assert %{
-        "file" => "test.ex",
-        "changes" => [%{"instructions" => instruction}]
-      } = result
+               "file" => "test.ex",
+               "changes" => [%{"instructions" => instruction}]
+             } = result
 
       assert String.contains?(instruction, "Before end")
       assert String.contains?(instruction, "IO.puts(\"Goodbye\")")
@@ -130,9 +130,9 @@ defmodule AI.Tools.File.Edit.OMFGTest do
       {:ok, result} = OMFG.normalize_agent_chaos(args)
 
       assert %{
-        "file" => "test.ex",
-        "changes" => [%{"instructions" => instruction}]
-      } = result
+               "file" => "test.ex",
+               "changes" => [%{"instructions" => instruction}]
+             } = result
 
       assert String.contains?(instruction, "some_function()")
     end
@@ -156,9 +156,9 @@ defmodule AI.Tools.File.Edit.OMFGTest do
       {:ok, result} = OMFG.normalize_agent_chaos(args)
 
       assert %{
-        "file" => "test.ex",
-        "changes" => [%{"instructions" => instruction}]
-      } = result
+               "file" => "test.ex",
+               "changes" => [%{"instructions" => instruction}]
+             } = result
 
       assert String.contains?(instruction, "Remove:   old_function()")
       assert String.contains?(instruction, "Add:   new_function()")
@@ -178,13 +178,13 @@ defmodule AI.Tools.File.Edit.OMFGTest do
       {:ok, result} = OMFG.normalize_agent_chaos(args)
 
       assert %{
-        "file" => "test.ex",
-        "changes" => [
-          %{"instructions" => "First change"},
-          %{"instructions" => first_instruction},
-          %{"old_string" => "old", "new_string" => "new"}
-        ]
-      } = result
+               "file" => "test.ex",
+               "changes" => [
+                 %{"instructions" => "First change"},
+                 %{"instructions" => first_instruction},
+                 %{"old_string" => "old", "new_string" => "new"}
+               ]
+             } = result
 
       assert String.contains?(first_instruction, "After def foo")
     end
@@ -204,9 +204,9 @@ defmodule AI.Tools.File.Edit.OMFGTest do
       {:ok, result} = OMFG.normalize_agent_chaos(args)
 
       assert %{
-        "file" => "test.ex",
-        "changes" => [%{"instructions" => instruction}]
-      } = result
+               "file" => "test.ex",
+               "changes" => [%{"instructions" => instruction}]
+             } = result
 
       # Should fallback to using the entire diff as instruction
       assert String.contains?(instruction, "Apply this patch:")
