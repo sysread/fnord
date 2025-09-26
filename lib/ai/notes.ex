@@ -82,7 +82,7 @@ defmodule AI.Notes do
   }
 
   @consolidate %{
-    model: AI.Model.large_context(:balanced),
+    model: AI.Model.large_context(:smart),
     prompt: """
     You are a research assistant that consolidates and organizes project notes.
     Your role is to incorporate newly extracted facts into existing project notes, ensuring that all information is accurate, up-to-date, and well-organized.
