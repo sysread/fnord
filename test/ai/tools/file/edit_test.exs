@@ -52,7 +52,7 @@ defmodule AI.Tools.File.EditTest do
                "file" => file,
                "changes" => [
                  %{
-                   "change" => """
+                   "instructions" => """
                    Replace the word "cow" with "bureaucrat" in the final sentence.
                    """
                  }
@@ -82,7 +82,7 @@ defmodule AI.Tools.File.EditTest do
         Edit.call(%{
           "file" => path,
           "create_if_missing" => true,
-          "changes" => [%{"change" => "Add first line"}]
+          "changes" => [%{"instructions" => "Add first line"}]
         })
 
       assert File.exists?(path)
@@ -96,7 +96,7 @@ defmodule AI.Tools.File.EditTest do
       path = Path.join(project.source_root, "nope.txt")
 
       assert {:error, msg} =
-               Edit.call(%{"file" => path, "changes" => [%{"change" => "X"}]})
+               Edit.call(%{"file" => path, "changes" => [%{"instructions" => "X"}]})
 
       assert msg =~ "File does not exist"
     end
@@ -116,7 +116,7 @@ defmodule AI.Tools.File.EditTest do
           "file" => file,
           "changes" => [
             %{
-              "change" => "Replace greeting",
+              "instructions" => "Replace greeting",
               "old_string" => "Hello World",
               "new_string" => "Hi Universe"
             }
@@ -144,7 +144,7 @@ defmodule AI.Tools.File.EditTest do
                  "file" => file,
                  "changes" => [
                    %{
-                     "change" => "Replace foo",
+                     "instructions" => "Replace foo",
                      "old_string" => "foo",
                      "new_string" => "baz"
                    }
@@ -167,7 +167,7 @@ defmodule AI.Tools.File.EditTest do
           "file" => file,
           "changes" => [
             %{
-              "change" => "Replace all foo",
+              "instructions" => "Replace all foo",
               "old_string" => "foo",
               "new_string" => "baz",
               "replace_all" => true
@@ -193,7 +193,7 @@ defmodule AI.Tools.File.EditTest do
                  "file" => file,
                  "changes" => [
                    %{
-                     "change" => "Replace missing text",
+                     "instructions" => "Replace missing text",
                      "old_string" => "missing text",
                      "new_string" => "found text"
                    }
@@ -217,7 +217,7 @@ defmodule AI.Tools.File.EditTest do
           "file" => file,
           "changes" => [
             %{
-              "change" => "Change print statement",
+              "instructions" => "Change print statement",
               "old_string" => "    print(\"Hello\")",
               "new_string" => "    print(\"Hi there\")"
             }
@@ -258,12 +258,12 @@ defmodule AI.Tools.File.EditTest do
           "file" => file,
           "changes" => [
             %{
-              "change" => "Replace greeting exactly",
+              "instructions" => "Replace greeting exactly",
               "old_string" => "Hello World",
               "new_string" => "Hi Universe"
             },
             %{
-              "change" => "Add a new line after the header"
+              "instructions" => "Add a new line after the header"
             }
           ]
         })
@@ -288,7 +288,7 @@ defmodule AI.Tools.File.EditTest do
                  "file" => file,
                  "changes" => [
                    %{
-                     "change" => "Bad change",
+                     "instructions" => "Bad change",
                      "old_string" => "",
                      "new_string" => "new"
                    }
@@ -304,7 +304,7 @@ defmodule AI.Tools.File.EditTest do
       assert {:error, msg} =
                Edit.call(%{
                  "file" => file,
-                 "changes" => [%{"change" => "fix it"}]
+                 "changes" => [%{"instructions" => "fix it"}]
                })
 
       assert msg =~ "Instruction too vague"
@@ -316,7 +316,7 @@ defmodule AI.Tools.File.EditTest do
       assert {:error, msg} =
                Edit.call(%{
                  "file" => file,
-                 "changes" => [%{"change" => "change something somewhere somehow"}]
+                 "changes" => [%{"instructions" => "change something somewhere somehow"}]
                })
 
       assert msg =~ "lacks clear location anchors"
@@ -330,7 +330,7 @@ defmodule AI.Tools.File.EditTest do
                  "file" => file,
                  "changes" => [
                    %{
-                     "change" => "Partial change",
+                     "instructions" => "Partial change",
                      "old_string" => "old"
                      # missing new_string
                    }
@@ -350,7 +350,7 @@ defmodule AI.Tools.File.EditTest do
           "create_if_missing" => true,
           "changes" => [
             %{
-              "change" => "Create new file",
+              "instructions" => "Create new file",
               "old_string" => "",
               "new_string" => "Hello World\nThis is a new file."
             }
@@ -377,7 +377,7 @@ defmodule AI.Tools.File.EditTest do
           "create_if_missing" => true,
           "changes" => [
             %{
-              "change" => "Create simple file",
+              "instructions" => "Create simple file",
               "new_string" => "Just the content\nNo old_string needed!"
             }
           ]
@@ -417,7 +417,7 @@ defmodule AI.Tools.File.EditTest do
             "file" => file,
             "changes" => [
               %{
-                "change" => "Update content",
+                "instructions" => "Update content",
                 "old_string" => old,
                 "new_string" => new
               }

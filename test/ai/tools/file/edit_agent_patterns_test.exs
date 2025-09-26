@@ -33,14 +33,17 @@ defmodule AI.Tools.File.EditAgentPatternsTest do
       path = Path.join(project.source_root, "agent_created.txt")
 
       # This pattern was confusing for agents before - now it should work seamlessly
-      {:ok, result} = Edit.call(%{
-        "file" => path,
-        "create_if_missing" => true,
-        "changes" => [%{
-          "change" => "Create new configuration file",
-          "new_string" => "# Agent-created config\nversion: 1.0\ndebug: true"
-        }]
-      })
+      {:ok, result} =
+        Edit.call(%{
+          "file" => path,
+          "create_if_missing" => true,
+          "changes" => [
+            %{
+              "instructions" => "Create new configuration file",
+              "new_string" => "# Agent-created config\nversion: 1.0\ndebug: true"
+            }
+          ]
+        })
 
       assert File.exists?(path)
       assert File.read!(path) == "# Agent-created config\nversion: 1.0\ndebug: true"
@@ -54,14 +57,17 @@ defmodule AI.Tools.File.EditAgentPatternsTest do
       path = Path.join(project.source_root, "test.txt")
 
       # Common agent mistake: providing old_string without new_string
-      {:error, msg} = Edit.call(%{
-        "file" => path,
-        "changes" => [%{
-          "change" => "Incomplete parameters",
-          "old_string" => "something to replace"
-          # missing new_string
-        }]
-      })
+      {:error, msg} =
+        Edit.call(%{
+          "file" => path,
+          "changes" => [
+            %{
+              "instructions" => "Incomplete parameters",
+              "old_string" => "something to replace"
+              # missing new_string
+            }
+          ]
+        })
 
       # Verify the error message is much more helpful now
       assert String.contains?(msg, "Both old_string and new_string must be provided together")
@@ -74,12 +80,15 @@ defmodule AI.Tools.File.EditAgentPatternsTest do
       path = Path.join(project.source_root, "test.txt")
 
       # Agent provides no valid parameters
-      {:error, msg} = Edit.call(%{
-        "file" => path,
-        "changes" => [%{
-          "description" => "This is wrong parameter name"
-        }]
-      })
+      {:error, msg} =
+        Edit.call(%{
+          "file" => path,
+          "changes" => [
+            %{
+              "description" => "This is wrong parameter name"
+            }
+          ]
+        })
 
       assert String.contains?(msg, "Invalid change parameters")
       assert String.contains?(msg, "Natural language:")
@@ -91,10 +100,12 @@ defmodule AI.Tools.File.EditAgentPatternsTest do
     test "improved validation messages for vague instructions", %{project: project} do
       file = mock_source_file(project, "test.txt", "some content")
 
-      {:error, msg} = Edit.call(%{
-        "file" => file,
-        "changes" => [%{"change" => "fix it"}]  # too vague
-      })
+      {:error, msg} =
+        Edit.call(%{
+          "file" => file,
+          # too vague
+          "changes" => [%{"instructions" => "fix it"}]
+        })
 
       # Verify the validation message provides concrete examples
       assert String.contains?(msg, "Instruction too vague")
@@ -106,10 +117,11 @@ defmodule AI.Tools.File.EditAgentPatternsTest do
     test "improved validation messages for missing location anchors", %{project: project} do
       file = mock_source_file(project, "test.txt", "some content")
 
-      {:error, msg} = Edit.call(%{
-        "file" => file,
-        "changes" => [%{"change" => "change something somewhere somehow"}]
-      })
+      {:error, msg} =
+        Edit.call(%{
+          "file" => file,
+          "changes" => [%{"instructions" => "change something somewhere somehow"}]
+        })
 
       # Verify the validation provides specific guidance
       assert String.contains?(msg, "lacks clear location anchors")
@@ -122,14 +134,17 @@ defmodule AI.Tools.File.EditAgentPatternsTest do
     test "exact string error provides parameter placement guidance", %{project: project} do
       file = mock_source_file(project, "test.txt", "content")
 
-      {:error, msg} = Edit.call(%{
-        "file" => file,
-        "changes" => [%{
-          "change" => "Replace missing text",
-          "old_string" => "nonexistent text",
-          "new_string" => "replacement"
-        }]
-      })
+      {:error, msg} =
+        Edit.call(%{
+          "file" => file,
+          "changes" => [
+            %{
+              "instructions" => "Replace missing text",
+              "old_string" => "nonexistent text",
+              "new_string" => "replacement"
+            }
+          ]
+        })
 
       # Verify error message includes parameter placement guidance
       assert String.contains?(msg, "Exact string replacement failed")
@@ -146,12 +161,16 @@ defmodule AI.Tools.File.EditAgentPatternsTest do
         {:error, "AI processing failed"}
       end)
 
-      {:error, msg} = Edit.call(%{
-        "file" => file,
-        "changes" => [%{
-          "change" => "Add a function to handle user authentication with proper error handling"
-        }]
-      })
+      {:error, msg} =
+        Edit.call(%{
+          "file" => file,
+          "changes" => [
+            %{
+              "instructions" =>
+                "Add a function to handle user authentication with proper error handling"
+            }
+          ]
+        })
 
       # Verify the error message provides actionable suggestions
       assert String.contains?(msg, "Natural language instruction failed")
@@ -166,14 +185,17 @@ defmodule AI.Tools.File.EditAgentPatternsTest do
       path = Path.join(project.source_root, "test.txt")
 
       # Agent tries to insert content but uses create_if_missing: false inside change
-      {:error, msg} = Edit.call(%{
-        "file" => path,
-        "changes" => [%{
-          "change" => "Add helper function",
-          "new_string" => "def helper_function, do: :ok",
-          "create_if_missing" => false
-        }]
-      })
+      {:error, msg} =
+        Edit.call(%{
+          "file" => path,
+          "changes" => [
+            %{
+              "instructions" => "Add helper function",
+              "new_string" => "def helper_function, do: :ok",
+              "create_if_missing" => false
+            }
+          ]
+        })
 
       # Verify specific guidance for content insertion confusion
       assert String.contains?(msg, "Invalid parameters for content insertion")
@@ -188,14 +210,17 @@ defmodule AI.Tools.File.EditAgentPatternsTest do
       path = Path.join(project.source_root, "test.txt")
 
       # Agent puts create_if_missing: true in wrong place
-      {:error, msg} = Edit.call(%{
-        "file" => path,
-        "changes" => [%{
-          "change" => "Create new content",
-          "new_string" => "new content",
-          "create_if_missing" => true
-        }]
-      })
+      {:error, msg} =
+        Edit.call(%{
+          "file" => path,
+          "changes" => [
+            %{
+              "instructions" => "Create new content",
+              "new_string" => "new content",
+              "create_if_missing" => true
+            }
+          ]
+        })
 
       # Verify guidance about parameter placement
       assert String.contains?(msg, "Parameter placement error")

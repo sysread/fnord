@@ -88,7 +88,6 @@ defmodule AI.Tools.File.SpelunkerTest do
     test "returns :error when missing start_file" do
       assert :error = AI.Tools.File.Spelunker.call(%{"symbol" => "S", "goal" => "G"})
     end
-
   end
 
   describe "AI.Tools.perform_tool_call/3 integration" do
@@ -102,8 +101,5 @@ defmodule AI.Tools.File.SpelunkerTest do
 
       assert result == {:error, :missing_argument, "goal"}
     end
-
   end
-
-
 end
