@@ -23,6 +23,8 @@ defmodule AI.Agent.Code.TaskImplementor do
   - Do not leave comments explaining what you did or the process you followed.
   - Comments should document the business workflow or concretely explain why a particular approach was taken.
   - Errors should be handled gracefully, but dovetail into existing patterns.
+  - NEVER delete comments or documentation unless explicitly instructed to do so.
+  - ALWAYS follow the style and formatting of the code already present in the file.
   - If you believe this implementation step should trigger a QA checkpoint, include an optional `checkpoint` boolean field set to true in your JSON output. Otherwise omit it or set it to false.
 
   # Checkpoint Heuristics
