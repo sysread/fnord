@@ -33,7 +33,7 @@ defmodule AI.Tools.File.Edit do
       true -> {:ok, args}
       false -> {:ok, args}
       nil -> {:ok, Map.put(args, "create_if_missing", false)}
-      _ -> {:invalid_argument, "`create_if_missing` must be a boolean"}
+      _ -> {:error, :invalid_argument, "`create_if_missing` must be a boolean"}
     end
   end
 
