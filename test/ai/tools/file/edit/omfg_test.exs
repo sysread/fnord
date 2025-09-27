@@ -239,6 +239,11 @@ defmodule AI.Tools.File.Edit.OMFGTest do
   end
 
   describe "edge cases and combinations" do
+    test "rejects non-map entries in changes with a clear error" do
+      args = %{"file" => "test.ex", "changes" => ["instructions"]}
+      assert {:error, :invalid_argument, _} = AI.Tools.File.Edit.read_args(args)
+    end
+
     test "handles mixed parameter styles within changes array" do
       args = %{
         "file" => "test.ex",

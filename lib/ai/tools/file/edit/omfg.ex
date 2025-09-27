@@ -38,7 +38,10 @@ defmodule AI.Tools.File.Edit.OMFG do
   Returns `{:ok, normalized_args}` or `{:error, reason}` if the shenanigans
   are too creative even for us to handle.
   """
-  @spec normalize_agent_chaos(map()) :: {:ok, map()} | {:error, String.t()}
+  @spec normalize_agent_chaos(map()) ::
+          {:ok, map()}
+          | {:error, String.t()}
+          | AI.Tools.args_error()
   def normalize_agent_chaos(args) when is_map(args) do
     with {:ok, args} <- patch_the_patch(args),
          {:ok, args} <- handle_insert_after_before(args),
@@ -46,6 +49,10 @@ defmodule AI.Tools.File.Edit.OMFG do
          {:ok, args} <- handle_diff_style_patches(args) do
       {:ok, args}
     end
+  end
+
+  def normalize_agent_chaos(args) do
+    {:error, :invalid_argument, "Expected an object, but got: #{inspect(args)}"}
   end
 
   # Handle agents trying to use "patch" parameter instead of "instructions"
@@ -83,20 +90,25 @@ defmodule AI.Tools.File.Edit.OMFG do
   defp handle_insert_after_before(%{"changes" => changes} = args) do
     normalized_changes =
       changes
-      |> Enum.map(fn change ->
-        cond do
-          Map.has_key?(change, "insert_after") ->
-            convert_insert_after(change)
+      |> Enum.map(fn
+        change when is_map(change) ->
+          cond do
+            Map.has_key?(change, "insert_after") -> convert_insert_after(change)
+            Map.has_key?(change, "insert_before") -> convert_insert_before(change)
+            true -> change
+          end
 
-          Map.has_key?(change, "insert_before") ->
-            convert_insert_before(change)
-
-          true ->
-            change
-        end
+        other ->
+          other
       end)
 
-    {:ok, Map.put(args, "changes", normalized_changes)}
+    cond do
+      Enum.all?(normalized_changes, &is_map(&1)) ->
+        {:ok, Map.put(args, "changes", normalized_changes)}
+
+      true ->
+        {:error, :invalid_argument, "All entries in changes must be objects"}
+    end
   end
 
   defp handle_insert_after_before(args), do: {:ok, args}
@@ -105,9 +117,7 @@ defmodule AI.Tools.File.Edit.OMFG do
   defp convert_insert_after(%{"insert_after" => content} = change) do
     anchor = Map.get(change, "pattern", "the specified location")
     new_content = Map.get(change, "content", content)
-
     instruction = "After #{anchor}, insert the following content:\n#{new_content}"
-
     %{"instructions" => instruction}
   end
 
@@ -115,9 +125,7 @@ defmodule AI.Tools.File.Edit.OMFG do
   defp convert_insert_before(%{"insert_before" => content} = change) do
     anchor = Map.get(change, "pattern", "the specified location")
     new_content = Map.get(change, "content", content)
-
     instruction = "Before #{anchor}, insert the following content:\n#{new_content}"
-
     %{"instructions" => instruction}
   end
 
