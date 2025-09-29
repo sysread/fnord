@@ -386,11 +386,11 @@ defmodule Settings do
   and must return the new value. If the updater returns `:delete`, the key will
   be removed from the settings.
   """
-  @spec update(t, binary, (any -> any | :delete), any) :: t
+  @spec update(t, binary, (any -> any | :delete), any) :: t | no_return
   def update(%Settings{path: path}, key, updater, default \\ %{}) do
     key = make_key(key)
 
-    with_settings_lock(path, fn ->
+    FileLock.with_lock(path, fn ->
       data = fresh_read(path)
       value = Map.get(data, key, default)
 
@@ -408,6 +408,10 @@ defmodule Settings do
 
       %Settings{path: path, data: data}
     end)
+    |> case do
+      {:ok, settings} -> settings
+      {:error, reason} -> raise "Failed to update settings: #{inspect(reason)}"
+    end
   end
 
   defp slurp(settings) do
@@ -443,21 +447,6 @@ defmodule Settings do
     File.write!(tmp, content)
     File.rename!(tmp, path)
     :ok
-  end
-
-  # ----------------------------------------------------------------------------
-  # Concurrency-safe update helpers
-  # ----------------------------------------------------------------------------
-  defp with_settings_lock(path, fun) when is_function(fun, 0) do
-    lock_path = Path.expand(path)
-
-    try do
-      Settings.FileLock.acquire_lock!(lock_path)
-      fun.()
-    after
-      # Release global lock first, then filesystem lock
-      Settings.FileLock.release_lock!(lock_path)
-    end
   end
 
   # Read the latest JSON from disk ignoring the cached struct data.

@@ -35,6 +35,10 @@ dialyzer: ## Run Dialyzer
 check: compile test dialyzer ## Run all checks
 	@echo "All checks passed"
 
+.PHONY: format
+format: ## Format the code
+	mix format
+
 .PHONY: release
 release: publish ## Alias for publish because apparently this is what my fingers' muscle memory prefers
 

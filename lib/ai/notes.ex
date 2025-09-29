@@ -15,13 +15,11 @@ defmodule AI.Notes do
   """
 
   defstruct [
-    :notes,
     :user,
     :new_facts
   ]
 
   @type t :: %__MODULE__{
-          notes: binary,
           user: binary,
           new_facts: list(binary)
         }
@@ -30,6 +28,8 @@ defmodule AI.Notes do
            model: AI.Model.t(),
            prompt: binary
          }
+
+  @attempts 2
 
   # ----------------------------------------------------------------------------
   # Mini Agent defs
@@ -132,7 +132,6 @@ defmodule AI.Notes do
   @spec new() :: t
   def new() do
     %__MODULE__{
-      notes: "",
       user: "",
       new_facts: []
     }
@@ -142,7 +141,7 @@ defmodule AI.Notes do
   def init(state) do
     notes = load_notes()
     user = extract_user_section(notes)
-    %{state | notes: notes, user: user, new_facts: []}
+    %{state | user: user, new_facts: []}
   end
 
   @spec commit(t) :: {:ok, t} | {:error, any}
@@ -156,7 +155,7 @@ defmodule AI.Notes do
 
     # If there is already a `# NEW NOTES (unconsolidated)` section, append to it.
     notes =
-      if Regex.match?(~r/^# NEW NOTES \(unconsolidated\)$/, notes) do
+      if Regex.match?(~r/(?mi)^# NEW NOTES \(unconsolidated\)$/, notes) do
         """
         #{notes}
         #{facts}
@@ -173,7 +172,7 @@ defmodule AI.Notes do
     Store.Project.Notes.write(notes)
     |> case do
       :ok ->
-        {:ok, %{state | new_facts: [], notes: notes}}
+        {:ok, %{state | new_facts: []}}
 
       {:error, reason} ->
         UI.error("Error saving new notes", reason)
@@ -280,64 +279,81 @@ defmodule AI.Notes do
     end
   end
 
-  @spec consolidate(t) :: {:ok, t} | {:error, binary}
-  def consolidate(state) do
-    """
-    Please reorganize and consolidate the following project notes according to the specified guidelines.
-    -----
-    #{state.notes}
-    """
-    |> accumulate(@consolidate)
-    |> case do
-      {:ok, response} ->
-        response
-        |> clean_notes_string()
-        |> case do
-          {:error, :empty_string} ->
-            {:error, "Notes Consolidation Agent returned an empty string"}
+  @spec consolidate(t, non_neg_integer) :: {:ok, t} | {:error, binary}
+  def consolidate(state, attempt \\ 1) do
+    with_lock(fn ->
+      fresh = load_notes() |> collapse_unconsolidated_sections()
 
-          {:ok, notes} ->
-            notes
-            |> Store.Project.Notes.write()
-            |> case do
-              :ok -> {:ok, %{state | notes: notes, new_facts: []}}
-              otherwise -> otherwise
-            end
-        end
+      """
+      Please reorganize and consolidate the following project notes according to the specified guidelines.
+      -----
+      #{fresh}
+      """
+      |> accumulate(@consolidate)
+      |> case do
+        {:ok, response} ->
+          response
+          |> clean_notes_string()
+          |> case do
+            {:error, :empty_string} ->
+              {:error, "Notes Consolidation Agent returned an empty string"}
 
-      otherwise ->
-        otherwise
-    end
+            {:ok, notes} ->
+              notes
+              |> Store.Project.Notes.write()
+              |> case do
+                :ok -> {:ok, %{state | new_facts: []}}
+                otherwise -> otherwise
+              end
+          end
+
+        otherwise ->
+          if attempt < @attempts do
+            consolidate(state, attempt + 1)
+          else
+            log_failure(otherwise, "Failed to consolidate notes after #{@attempts} attempts")
+            otherwise
+          end
+      end
+    end)
   end
 
-  @spec ask(t, binary) :: binary
-  def ask(state, question) do
-    """
-    The following are the existing research notes about the project.
-    #{state.notes}
+  @spec ask(t, binary, non_neg_integer) :: binary
+  def ask(state, question, attempt \\ 1) do
+    with_lock(fn ->
+      fresh = load_notes() |> collapse_unconsolidated_sections()
 
-    # New facts:
-    The following are the new facts that have been collected during the current session.
-    #{format_new_notes(state)}
+      """
+      The following are the existing research notes about the project.
+      #{fresh}
 
-    # Question
-    Please answer the following question based on the existing notes and new facts:
-    #{question}
-    """
-    |> complete(@ask)
-    |> case do
-      {:ok, response} ->
-        response
-        |> String.trim()
-        |> case do
-          "" -> "No relevant information found."
-          answer -> answer
-        end
+      # New facts:
+      The following are the new facts that have been collected during the current session.
+      #{format_new_notes(state)}
 
-      otherwise ->
-        log_failure(otherwise, "Failed to answer question")
-        "Error processing request."
-    end
+      # Question
+      Please answer the following question based on the existing notes and new facts:
+      #{question}
+      """
+      |> complete(@ask)
+      |> case do
+        {:ok, response} ->
+          response
+          |> String.trim()
+          |> case do
+            "" -> "No relevant information found."
+            answer -> answer
+          end
+
+        otherwise ->
+          if attempt < @attempts do
+            ask(state, question, attempt + 1)
+          else
+            log_failure(otherwise, "Failed to answer question after #{@attempts} attempts")
+            "Error processing request."
+          end
+      end
+    end)
   end
 
   @doc """
@@ -345,16 +361,37 @@ defmodule AI.Notes do
   "# new notes (unconsolidated)" (case-insensitive), indicating uncategorized
   notes pending consolidation.
   """
-  @spec has_new_facts?(t) :: boolean
-  def has_new_facts?(%__MODULE__{notes: notes}) do
-    notes
-    |> String.downcase()
-    |> String.contains?("# new notes (unconsolidated)")
+  @spec has_new_facts?() :: boolean
+  def has_new_facts?() do
+    case Store.Project.Notes.read() do
+      {:ok, notes} ->
+        notes
+        |> String.downcase()
+        |> String.contains?("# new notes (unconsolidated)")
+
+      {:error, :no_notes} ->
+        false
+
+      _ ->
+        false
+    end
   end
+
+  @deprecated "use has_new_facts?/0"
+  @spec has_new_facts?(t) :: boolean
+  def has_new_facts?(_state), do: has_new_facts?()
 
   # ----------------------------------------------------------------------------
   # Utility Functions
   # ----------------------------------------------------------------------------
+  @spec with_lock((-> any)) :: any
+  defp with_lock(func) do
+    with {:ok, path} <- Store.Project.Notes.file_path(),
+         {:ok, result} <- FileLock.with_lock(path, func) do
+      result
+    end
+  end
+
   @spec load_notes() :: binary
   defp load_notes() do
     with {:ok, notes} <- Store.Project.Notes.read() do
@@ -451,5 +488,48 @@ defmodule AI.Notes do
 
   defp log_failure({:error, reason}, of_what) do
     UI.warn("#{of_what}: #{inspect(reason, pretty: true)}")
+  end
+
+  def collapse_unconsolidated_sections(text) do
+    pattern = ~r/^# NEW NOTES \(unconsolidated\)\r?\n([\s\S]*?)(?=^# |\z)/mi
+
+    blocks =
+      Regex.scan(pattern, text)
+      |> Enum.map(fn [_full, content] -> content end)
+
+    items =
+      blocks
+      |> Enum.flat_map(fn block ->
+        block
+        |> String.split("\n", trim: false)
+        |> Enum.map(&String.trim/1)
+        |> Enum.filter(&(&1 != ""))
+        |> Enum.map(fn line ->
+          line
+          |> String.replace(~r/^\s*[-*]\s*/, "")
+          |> (&("- " <> &1)).()
+        end)
+      end)
+      |> Enum.reduce({[], MapSet.new()}, fn item, {acc, seen} ->
+        key = String.downcase(item)
+
+        if MapSet.member?(seen, key) do
+          {acc, seen}
+        else
+          {[item | acc], MapSet.put(seen, key)}
+        end
+      end)
+      |> elem(0)
+      |> Enum.reverse()
+
+    doc = Regex.replace(pattern, text, "")
+
+    if items == [] do
+      doc
+    else
+      # ensure exactly one blank line before the canonical block
+      doc_trim = Regex.replace(~r/\n+\z/, doc, "")
+      doc_trim <> "\n\n# NEW NOTES (unconsolidated)\n" <> Enum.join(items, "\n") <> "\n"
+    end
   end
 end

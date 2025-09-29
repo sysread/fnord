@@ -354,7 +354,7 @@ defmodule Frobs do
                 {"Frob '#{@tool_name}' result", truncated}
 
               String.trim(result) == "" ->
-                {"Frob '#{@tool_name}' result", "<no output>"}
+                {"Frob '#{@tool_name}' result", "<no output, but completed without error>"}
 
               true ->
                 {"Frob '#{@tool_name}' result", result}
@@ -583,6 +583,7 @@ defmodule Frobs do
       frob.main
       |> System.cmd([], env: env, stderr_to_stdout: true)
       |> case do
+        {"", 0} -> {:ok, "<no output, but completed without error>"}
         {output, 0} -> {:ok, output}
         {output, exit_code} -> {:error, exit_code, output}
       end

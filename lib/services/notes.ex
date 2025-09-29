@@ -112,7 +112,7 @@ defmodule Services.Notes do
   end
 
   def handle_cast(:consolidate, state) do
-    if AI.Notes.has_new_facts?(state) do
+    if AI.Notes.has_new_facts?() do
       state
       |> AI.Notes.consolidate()
       |> case do
