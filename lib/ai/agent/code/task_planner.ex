@@ -6,7 +6,7 @@ defmodule AI.Agent.Code.TaskPlanner do
   @model AI.Model.coding()
 
   @prompt """
-  Before planning, check for README.md, CLAUDE.md, and AGENTS.md in the project root and current directory.
+  Before planning, check for README.md, CLAUDE.md, and AGENTS.md in the project root, as well as in the directory tree from any files being modified, up to the project root.
   Use the file_contents_tool to read each.
   If both project and CWD versions exist, prefer the CWD file for local context.
 
@@ -156,6 +156,11 @@ defmodule AI.Agent.Code.TaskPlanner do
 
   Compare the current state of the code with your solution.
   Identify the changes in terms of component interfaces and contracts.
+  Try to pragmatically balance the following competing concerns:
+    - The ideal implementation and the reality of the existing code base
+    - Minimal complexity and proper separation of concerns
+    - Reducing the number of lines changed to simplify review and reduce risk
+    - Reducing the blast radius of changes to minimize unintended consequences
   The first steps are to create test cases that validate the desired change.
   Next, identify the logical steps required to implement the change.
   In your instructions for each step, identify whether the unit test(s) created in the first step(s) should pass after this step is complete.
