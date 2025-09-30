@@ -319,6 +319,7 @@ defmodule AI.Notes do
   end
 
   @spec ask(t, binary, non_neg_integer) :: binary
+  @spec ask(t, binary, non_neg_integer) :: binary
   def ask(state, question, attempt \\ 1) do
     with_lock(fn ->
       fresh = load_notes() |> collapse_unconsolidated_sections()
@@ -354,6 +355,13 @@ defmodule AI.Notes do
           end
       end
     end)
+    |> case do
+      ans when is_binary(ans) -> ans
+      {:error, :lock_failed} -> "Notes unavailable due to lock contention. Please retry."
+      {:callback_error, _} -> "Error processing request."
+      {:error, _} -> "Error processing request."
+      _ -> "Error processing request."
+    end
   end
 
   @doc """
