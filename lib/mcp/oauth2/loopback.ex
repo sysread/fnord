@@ -1,0 +1,214 @@
+defmodule MCP.OAuth2.Loopback do
+  @moduledoc """
+  Minimal loopback HTTP server for OAuth2/OIDC Authorization Code callback.
+
+  - Binds to 127.0.0.1 on an ephemeral port
+  - Exposes GET /callback to capture `code` and `state`
+  - Delegates token exchange to `MCP.OAuth2.OidccAdapter.handle_callback/4`
+  - Persists tokens via `MCP.OAuth2.CredentialsStore`
+  - Returns a tiny HTML page and stops itself
+  """
+
+  use GenServer
+  require Logger
+
+  @type t :: %{
+          server_ref: pid(),
+          port: non_neg_integer(),
+          state: String.t(),
+          code_verifier: String.t(),
+          cfg: map(),
+          server_key: String.t()
+        }
+
+  @doc """
+  Start the loopback server on 127.0.0.1:0, returning bound port.
+  """
+  @spec start_link(keyword()) :: GenServer.on_start()
+  def start_link(opts) do
+    GenServer.start_link(__MODULE__, opts)
+  end
+
+  @doc """
+  Start the server and return `{pid, port}` so the caller can construct the redirect_uri.
+  """
+  @spec start(map(), String.t(), String.t(), String.t()) ::
+          {:ok, pid(), non_neg_integer()} | {:error, term()}
+  def start(cfg, server_key, expected_state, code_verifier) do
+    with {:ok, pid} <-
+           start_link(
+             cfg: cfg,
+             server_key: server_key,
+             state: expected_state,
+             code_verifier: code_verifier
+           ),
+         {:ok, port} <- GenServer.call(pid, :get_port) do
+      {:ok, pid, port}
+    end
+  end
+
+  @doc """
+  Run the loopback flow until one callback is handled or timeout.
+  Returns the token map on success.
+  """
+  @spec run(map(), String.t(), String.t(), String.t(), non_neg_integer()) ::
+          {:ok, map()} | {:error, term()}
+  def run(cfg, server_key, expected_state, code_verifier, timeout_ms \\ 120_000) do
+    {:ok, pid} =
+      start_link(
+        cfg: cfg,
+        server_key: server_key,
+        state: expected_state,
+        code_verifier: code_verifier
+      )
+
+    GenServer.call(pid, {:await, timeout_ms}, timeout_ms + 5_000)
+  end
+
+  # GenServer
+
+  @impl true
+  def init(opts) do
+    cfg = Keyword.fetch!(opts, :cfg)
+    server_key = Keyword.fetch!(opts, :server_key)
+    expected_state = Keyword.fetch!(opts, :state)
+    code_verifier = Keyword.fetch!(opts, :code_verifier)
+
+    # Build Plug router with captured state
+    {:ok, plug} = build_router(cfg, server_key, expected_state, code_verifier)
+
+    ref = :"mcp_oauth_loopback_#{System.unique_integer([:monotonic, :positive])}"
+    {:ok, _pid} = Plug.Cowboy.http(plug, [], ip: {127, 0, 0, 1}, port: 0, ref: ref)
+    port = case cowboy_port(ref) do
+      {:ok, p} -> p; _ -> 0 end
+
+    state = %{
+      server_ref: ref,
+      port: port,
+      state: expected_state,
+      code_verifier: code_verifier,
+      cfg: cfg,
+      server_key: server_key,
+      result: nil
+    }
+
+    {:ok, state}
+  end
+
+  @impl true
+  def handle_call({:await, timeout_ms}, from, st) do
+    # Save caller; will reply on first callback
+    {:noreply, Map.put(st, :await, {from, timeout_ms}), timeout_ms}
+  end
+
+  @impl true
+  def handle_call(:get_port, _from, st) do
+    {:reply, {:ok, st.port}, st}
+  end
+
+  @impl true
+  def handle_info({:callback_result, result}, %{await: {from, _}} = st) do
+    reply =
+      case result do
+        {:ok, token_map} -> {:ok, token_map}
+        {:error, e} -> {:error, e}
+      end
+
+    GenServer.reply(from, reply)
+    stop_cowboy(st.server_ref)
+    {:stop, :normal, Map.put(st, :result, result)}
+  end
+
+  @impl true
+  def handle_info(:timeout, st) do
+    if st[:await] do
+      GenServer.reply(elem(st.await, 0), {:error, :timeout})
+    end
+
+    stop_cowboy(st.server_ref)
+    {:stop, :timeout, st}
+  end
+
+  defp stop_cowboy(ref) do
+    try do
+      Plug.Cowboy.shutdown(ref)
+    catch
+      _c, _e -> :ok
+    end
+  end
+
+  defp cowboy_port(ref) do
+    case :ranch.get_addr(ref) do
+      {_, port} when is_integer(port) ->
+        {:ok, port}
+      {:local, _socket} ->
+        {:error, :local_socket}
+      other ->
+        {:error, other}
+    end
+  end
+
+  defp build_router(cfg, server_key, expected_state, code_verifier) do
+    parent = self()
+
+    mod = Module.concat(__MODULE__, :"Router_#{System.unique_integer([:monotonic, :positive])}")
+
+    {:module, _name, _bin, _warnings} =
+      Module.create(
+        mod,
+        quote do
+          use Plug.Router
+          plug(:match)
+          plug(:fetch_query_params)
+          plug(:dispatch)
+
+          get "/callback" do
+            params = conn.params
+
+            case MCP.OAuth2.OidccAdapter.handle_callback(
+                   unquote(Macro.escape(cfg)),
+                   params,
+                   unquote(expected_state),
+                   unquote(code_verifier)
+                 ) do
+              {:ok, token_map} ->
+                :ok =
+                  MCP.OAuth2.CredentialsStore.write(unquote(server_key), %{
+                    "access_token" => token_map.access_token,
+                    "refresh_token" => Map.get(token_map, :refresh_token),
+                    "token_type" => token_map.token_type,
+                    "expires_at" => token_map.expires_at,
+                    "scope" => Map.get(token_map, :scope)
+                  })
+
+                send(unquote(parent), {:callback_result, {:ok, token_map}})
+
+                send_resp(conn, 200, success_html())
+
+              {:error, e} ->
+                send(unquote(parent), {:callback_result, {:error, e}})
+
+                send_resp(conn, 400, failure_html())
+
+                send_resp(conn, 400, failure_html())
+            end
+          end
+
+          match _ do
+            send_resp(conn, 404, "Not Found")
+          end
+
+          defp success_html do
+            "<html><body><h3>Authentication complete</h3><p>You can close this tab.</p></body></html>"
+          end
+
+          defp failure_html do
+            "<html><body><h3>Authentication failed</h3><p>Please return to the app.</p></body></html>"
+          end
+        end,
+        Macro.Env.location(__ENV__)
+      )
+
+    {:ok, mod}
+  end
+end

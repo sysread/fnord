@@ -71,7 +71,8 @@ defmodule Fnord.MixProject do
       {:uniq, "~> 0.1"},
       # OAuth/OIDC for browser-based flow
       {:oidcc, "~> 3.6"},
-      {:oidcc_plug, "~> 0.3"}
+      {:oidcc_plug, "~> 0.3"},
+      {:plug_cowboy, "~> 2.7"}
     ]
   end
 end
