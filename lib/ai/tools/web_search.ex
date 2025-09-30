@@ -42,7 +42,10 @@ defmodule AI.Tools.WebSearch do
           properties: %{
             query: %{
               type: "string",
-              description: "The search query to find relevant information on the web."
+              description: """
+              The search query to find relevant information on the web.
+              This may be an open-ended query to identify relevant web pages, or a specific question about a particular site.
+              """
             }
           }
         }
@@ -65,6 +68,13 @@ defmodule AI.Tools.WebSearch do
         You are a web search tool that provides concise and relevant information based on user queries.
         Use the provided query to search the web and return the most pertinent results.
 
+        There are two separate response types, based on the query.
+
+        # Search Query
+        Examples:
+        - "Find go packages for making HTTP requests"
+        - "Search npm for packages related to image processing"
+
         Response template (without the code fences):
         ```
         - [url 1]: [Brief description of the first relevant result]
@@ -74,6 +84,17 @@ defmodule AI.Tools.WebSearch do
         ```
 
         Do not include any explanations or additional text outside the response template.
+
+        # Direct Answer Query
+        Examples:
+        - "Identify the API calls that perform user authentication in https://example.com/api-docs"
+        - "How do you structure the tools list in this API? - https://example.com/api-docs"
+
+        Response template (without the code fences):
+        ```
+        [Direct answer to the query based on the information found in the provided URL, with inline citations from the site's content when possible]
+        ```
+
         """),
         AI.Util.user_msg("Search the web for the following query: #{query}")
       ]
