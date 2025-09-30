@@ -120,6 +120,14 @@ defmodule Services.Notes do
           UI.info("[notes-server]", "consolidated existing research notes")
           {:noreply, result}
 
+        {:callback_error, error} ->
+          UI.error("[notes-server]", "callback error during consolidation: #{inspect(error)}")
+          {:noreply, state}
+
+        {:error, :lock_failed} ->
+          UI.error("[notes-server]", "failed to acquire lock for consolidation: lock_failed")
+          {:noreply, state}
+
         {:error, reason} ->
           UI.error("[notes-server]", "failed to consolidate notes: #{reason}")
           {:noreply, state}
