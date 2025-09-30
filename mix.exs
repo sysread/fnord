@@ -68,7 +68,10 @@ defmodule Fnord.MixProject do
       {:mox, "~> 1.2", only: [:test], runtime: false},
       {:optimus, "~> 0.2"},
       {:owl, "~> 0.12"},
-      {:uniq, "~> 0.1"}
+      {:uniq, "~> 0.1"},
+      # OAuth/OIDC for browser-based flow
+      {:oidcc, "~> 3.6"},
+      {:oidcc_plug, "~> 0.3"}
     ]
   end
 end
