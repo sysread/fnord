@@ -279,7 +279,11 @@ defmodule AI.Notes do
     end
   end
 
-  @spec consolidate(t, non_neg_integer) :: {:ok, t} | {:error, binary}
+  @spec consolidate(t, non_neg_integer) ::
+          {:ok, t}
+          | {:error, binary}
+          | {:error, :lock_failed}
+          | {:callback_error, Exception.t()}
   def consolidate(state, attempt \\ 1) do
     with_lock(fn ->
       fresh = load_notes() |> collapse_unconsolidated_sections()
@@ -318,7 +322,6 @@ defmodule AI.Notes do
     end)
   end
 
-  @spec ask(t, binary, non_neg_integer) :: binary
   @spec ask(t, binary, non_neg_integer) :: binary
   def ask(state, question, attempt \\ 1) do
     with_lock(fn ->
