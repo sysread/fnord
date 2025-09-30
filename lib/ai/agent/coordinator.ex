@@ -1122,11 +1122,13 @@ defmodule AI.Agent.Coordinator do
     |> AI.Tools.with_task_tools()
     |> AI.Tools.with_rw_tools()
     |> AI.Tools.with_coding_tools()
+    |> AI.Tools.with_web_tools()
   end
 
   defp get_tools(_) do
     AI.Tools.all_tools()
     |> AI.Tools.with_task_tools()
+    |> AI.Tools.with_web_tools()
   end
 
   # -----------------------------------------------------------------------------
@@ -1250,6 +1252,7 @@ defmodule AI.Agent.Coordinator do
       |> AI.Tools.with_task_tools()
       |> AI.Tools.with_coding_tools()
       |> AI.Tools.with_rw_tools()
+      |> AI.Tools.with_web_tools()
 
     AI.Agent.get_completion(state.agent,
       log_msgs: true,

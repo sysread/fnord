@@ -266,8 +266,8 @@ defmodule Cmd.Ask do
     Settings.set_project_root_override(dir)
   end
 
-  # 2) edit mode without explicit override: detect a mismatched git worktree
-  defp set_worktree(%{edit: true}) do
+  # 2) no explicit override: detect a mismatched git worktree
+  defp set_worktree(_) do
     case Store.get_project() do
       {:ok, project} ->
         if GitCli.is_worktree?() do
@@ -307,9 +307,6 @@ defmodule Cmd.Ask do
         :ok
     end
   end
-
-  # 3) all other cases: no change
-  defp set_worktree(_), do: :ok
 
   # -----------------------------------------------------------------------------
   # Auto-approval policy

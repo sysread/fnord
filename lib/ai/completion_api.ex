@@ -5,6 +5,7 @@ defmodule AI.CompletionAPI do
   @type msgs :: [map()]
   @type tools :: nil | [AI.Tools.tool_spec()]
   @type response_format :: nil | map
+  @type web_search? :: boolean
 
   @type usage :: non_neg_integer
   @type msg_response :: {:ok, :msg, binary, usage}
@@ -17,8 +18,8 @@ defmodule AI.CompletionAPI do
           | {:error, :api_unavailable, any}
           | {:error, :context_length_exceeded, non_neg_integer}
 
-  @spec get(model, msgs, tools, response_format) :: response
-  def get(model, msgs, tools \\ nil, response_format \\ nil) do
+  @spec get(model, msgs, tools, response_format, web_search?) :: response
+  def get(model, msgs, tools \\ nil, response_format \\ nil, web_search? \\ false) do
     tracking_id = Services.ModelPerformanceTracker.begin_tracking(model)
 
     api_key = get_api_key!()
@@ -53,6 +54,13 @@ defmodule AI.CompletionAPI do
           :medium -> %{reasoning_effort: "medium"}
           :high -> %{reasoning_effort: "high"}
           _ -> %{}
+        end
+      )
+      |> Map.merge(
+        if web_search? do
+          %{web_search_options: %{}}
+        else
+          %{}
         end
       )
 

@@ -198,6 +198,10 @@ defmodule AI.Tools do
     "task_validation_tool" => AI.Tools.TaskValidation
   }
 
+  @web_tools %{
+    "web_search_tool" => AI.Tools.WebSearch
+  }
+
   @coding_tools %{
     "coder_tool" => AI.Tools.Coder
   }
@@ -235,6 +239,16 @@ defmodule AI.Tools do
   def with_task_tools(toolbox \\ %{}) do
     toolbox
     |> Map.merge(@task_tools)
+  end
+
+  @doc """
+  Adds the web tools to the toolbox. This includes tools that can access the
+  web, such as web search.
+  """
+  @spec with_web_tools(toolbox :: toolbox) :: toolbox
+  def with_web_tools(toolbox \\ %{}) do
+    toolbox
+    |> Map.merge(@web_tools)
   end
 
   @doc """

@@ -19,6 +19,7 @@ defmodule AI.Completion do
   """
   defstruct [
     :model,
+    :web_search?,
     :response_format,
     :toolbox,
     :specs,
@@ -37,6 +38,7 @@ defmodule AI.Completion do
 
   @type t :: %__MODULE__{
           model: String.t(),
+          web_search?: boolean,
           response_format: map | nil,
           toolbox: AI.Tools.toolbox() | nil,
           specs: list(AI.Tools.tool_spec()) | nil,
@@ -78,16 +80,25 @@ defmodule AI.Completion do
       response_format = Keyword.get(opts, :response_format, nil)
       name = Keyword.get(opts, :name, nil)
       compact? = Keyword.get(opts, :compact?, true)
+      web_search? = Keyword.get(opts, :web_search?, false)
+
+      toolbox_opt = Keyword.get(opts, :toolbox, nil)
 
       toolbox =
-        opts
-        |> Keyword.get(:toolbox, nil)
-        |> AI.Tools.build_toolbox()
+        cond do
+          is_nil(toolbox_opt) -> nil
+          is_map(toolbox_opt) && map_size(toolbox_opt) == 0 -> nil
+          true -> AI.Tools.build_toolbox(toolbox_opt)
+        end
 
       specs =
-        toolbox
-        |> Map.values()
-        |> Enum.map(& &1.spec())
+        if is_nil(toolbox) do
+          nil
+        else
+          toolbox
+          |> Map.values()
+          |> Enum.map(& &1.spec())
+        end
 
       log_msgs = Keyword.get(opts, :log_msgs, false)
       replay = Keyword.get(opts, :replay_conversation, true)
@@ -99,23 +110,25 @@ defmodule AI.Completion do
       messages = set_name(messages, name)
       conversation_pid = Keyword.get(opts, :conversation)
 
-      state = %__MODULE__{
-        model: model,
-        response_format: response_format,
-        toolbox: toolbox,
-        specs: specs,
-        log_msgs: log_msgs,
-        log_tool_calls: log_tool_calls,
-        archive_notes: archive?,
-        replay_conversation: replay,
-        name: name,
-        conversation_pid: conversation_pid,
-        usage: 0,
-        messages: messages,
-        tool_call_requests: [],
-        response: nil,
-        compact?: compact?
-      }
+      state =
+        %__MODULE__{
+          model: model,
+          web_search?: web_search?,
+          response_format: response_format,
+          toolbox: toolbox,
+          specs: specs,
+          log_msgs: log_msgs,
+          log_tool_calls: log_tool_calls,
+          archive_notes: archive?,
+          replay_conversation: replay,
+          name: name,
+          conversation_pid: conversation_pid,
+          usage: 0,
+          messages: messages,
+          tool_call_requests: [],
+          response: nil,
+          compact?: compact?
+        }
 
       {:ok, state}
     end
@@ -202,7 +215,8 @@ defmodule AI.Completion do
       state.model,
       state.messages,
       state.specs,
-      state.response_format
+      state.response_format,
+      state.web_search?
     )
     |> handle_response(state)
   end
