@@ -23,7 +23,17 @@ defmodule AI.Agent.Coordinator do
     :context,
     :notes,
     :editing_tools_used,
+
+    # --------------------------------------------------------------------------
+    # Task list management
+    # --------------------------------------------------------------------------
     :list_id,
+    :task_checks,
+
+    # --------------------------------------------------------------------------
+    # Interrupt handling
+    # --------------------------------------------------------------------------
+    # PID of interrupt listener process
     :_interrupt_listener,
     # Store pending interrupts to display after completion
     :pending_interrupts
@@ -49,11 +59,19 @@ defmodule AI.Agent.Coordinator do
           context: non_neg_integer,
           notes: binary | nil,
           editing_tools_used: boolean,
+
+          # State: Task list management
           list_id: Services.Task.list_id(),
-          _interrupt_listener: pid | nil
+          task_checks: non_neg_integer | nil,
+
+          # State: Interrupt handling
+          _interrupt_listener: pid | nil,
+          pending_interrupts: AI.Util.msg_list()
         }
 
   @type error :: {:error, binary | atom | :testing}
+
+  @max_task_checks 2
 
   @model AI.Model.smart()
 
@@ -119,6 +137,7 @@ defmodule AI.Agent.Coordinator do
         notes: nil,
         editing_tools_used: false,
         list_id: list_id,
+        task_checks: 0,
         pending_interrupts: []
       }
     end
@@ -147,19 +166,19 @@ defmodule AI.Agent.Coordinator do
   # -----------------------------------------------------------------------------
   @spec select_steps(t) :: t
   defp select_steps(%{edit?: true, followup?: true} = state) do
-    %{state | steps: [:followup, :coding, :finalize]}
+    %{state | steps: [:followup, :coding, :check_tasks, :finalize]}
   end
 
   defp select_steps(%{edit?: true, followup?: false, rounds: 1} = state) do
-    %{state | steps: [:singleton, :coding, :finalize]}
+    %{state | steps: [:singleton, :coding, :check_tasks, :finalize]}
   end
 
   defp select_steps(%{edit?: true, followup?: false, rounds: 2} = state) do
-    %{state | steps: [:singleton, :refine, :coding, :finalize]}
+    %{state | steps: [:singleton, :refine, :coding, :check_tasks, :finalize]}
   end
 
   defp select_steps(%{edit?: true, followup?: false, rounds: 3} = state) do
-    %{state | steps: [:initial, :clarify, :refine, :coding, :finalize]}
+    %{state | steps: [:initial, :clarify, :refine, :coding, :check_tasks, :finalize]}
   end
 
   defp select_steps(%{edit?: true, followup?: false, rounds: n} = state) when n > 3 do
@@ -168,20 +187,20 @@ defmodule AI.Agent.Coordinator do
       | steps:
           [:initial, :clarify, :refine] ++
             Enum.map(1..(n - 3), fn _ -> :continue end) ++
-            [:coding, :finalize]
+            [:coding, :check_tasks, :finalize]
     }
   end
 
   defp select_steps(%{edit?: false, rounds: 1} = state) do
-    %{state | steps: [:singleton, :finalize]}
+    %{state | steps: [:singleton, :check_tasks, :finalize]}
   end
 
   defp select_steps(%{edit?: false, rounds: 2} = state) do
-    %{state | steps: [:singleton, :refine, :finalize]}
+    %{state | steps: [:singleton, :refine, :check_tasks, :finalize]}
   end
 
   defp select_steps(%{edit?: false, rounds: 3} = state) do
-    %{state | steps: [:initial, :clarify, :refine, :finalize]}
+    %{state | steps: [:initial, :clarify, :refine, :check_tasks, :finalize]}
   end
 
   defp select_steps(%{edit?: false, rounds: n} = state) do
@@ -312,40 +331,54 @@ defmodule AI.Agent.Coordinator do
     |> perform_step()
   end
 
-  defp perform_step(%{steps: [:tasks_remaining | steps]} = state) do
+  # Check for remaining tasks in the list, up to a maximum number of checks. If
+  # tasks remain, let the agent know and give it another chance to flush them
+  # out.
+  defp perform_step(%{steps: [:check_tasks | steps], task_checks: task_checks} = state)
+       when task_checks < @max_task_checks do
     UI.begin_step("Flushing the queue")
 
-    state
-    |> Map.put(:steps, steps)
-    |> penultimate_tasks_check_msg()
-    |> task_list_msg()
-    |> get_completion()
-    |> save_notes()
-    |> perform_step()
-  end
-
-  defp perform_step(%{steps: [:finalize], list_id: list_id} = state) do
-    list_id
+    state.list_id
     |> Services.Task.peek_task()
     |> case do
       {:ok, _task} ->
         state
-        |> Map.put(:steps, [:tasks_remaining, :finalize])
+        |> Map.put(:steps, [:check_tasks | steps])
+        |> Map.put(:task_checks, task_checks + 1)
+        |> task_list_msg()
+        |> penultimate_tasks_check_msg()
+        |> get_completion()
+        |> save_notes()
         |> perform_step()
 
       _ ->
-        UI.begin_step("Joining")
-
         state
-        |> Map.put(:steps, [])
-        |> reminder_msg()
-        |> task_list_msg()
-        |> finalize_msg()
-        |> template_msg()
-        |> get_completion()
-        |> save_notes()
-        |> get_motd()
+        |> Map.put(:steps, steps)
+        |> perform_step()
     end
+  end
+
+  # Max checks reached, but tasks remain. Give up and move on to finalization.
+  defp perform_step(%{steps: [:check_tasks | steps]} = state) do
+    UI.info("Tasks remaining, but max checks reached. Moving on.")
+
+    state
+    |> Map.put(:steps, steps)
+    |> perform_step()
+  end
+
+  defp perform_step(%{steps: [:finalize]} = state) do
+    UI.begin_step("Joining")
+
+    state
+    |> Map.put(:steps, [])
+    |> reminder_msg()
+    |> task_list_msg()
+    |> finalize_msg()
+    |> template_msg()
+    |> get_completion()
+    |> save_notes()
+    |> get_motd()
   end
 
   @spec get_completion(t, boolean) :: t | error
@@ -1029,6 +1062,7 @@ defmodule AI.Agent.Coordinator do
   # Delayed Interrupt Display
   # ---------------------------------------------------------------------------
   # Display any pending user interrupts that were captured before completion
+  @spec display_pending_interrupts(t) :: t
   defp display_pending_interrupts(%{pending_interrupts: []} = state), do: state
 
   defp display_pending_interrupts(%{pending_interrupts: interrupts} = state) do
@@ -1170,10 +1204,11 @@ defmodule AI.Agent.Coordinator do
   defp penultimate_tasks_check_msg(state) do
     """
     ALL tasks must be resolved before final output!
-
     - Call `tasks_show_list` and read it carefully.
     - If any tasks remain open, either resolve them immediately or convert them into concrete follow-ups (label + detailed description + rationale).
     - Do not produce the final response until tasks are resolved OR explicitly carried forward with clear follow-ups.
+
+    YOU WILL CONTINUE TO BE SENT BACK TO THIS STEP UNTIL ALL TASKS ARE RESOLVED OR CANCELED.
     """
     |> AI.Util.system_msg()
     |> Services.Conversation.append_msg(state.conversation)
