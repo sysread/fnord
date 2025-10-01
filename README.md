@@ -341,6 +341,60 @@ fnord config mcp remove <name> [--global]
 fnord config mcp check --project <project> [--global]
 ```
 
+#### MCP OAuth (OIDC)
+
+`fnord` supports OAuth 2.0 / OpenID Connect for MCP servers. This includes:
+
+- Supported flows:
+  - Discovery + Authorization Code + PKCE
+  - Token refresh
+- Not supported:
+  - Device flow
+  - private_key_jwt client authentication
+  - ID token validation
+
+Security notes:
+
+- PKCE is required for authorization code flow
+- Use least-privilege scopes
+- Do not log tokens
+- Credentials are stored in `~/.fnord/credentials.json` with file mode 0600 using atomic writes
+
+Configuration example (`Settings.MCP` per-server `oauth` block):
+
+```elixir
+config :fnord, Fnord.Settings.MCP,
+  servers: [
+    myserver: %{
+      transport: :stdio,
+      command: "./my_server",
+      oauth: %{
+        discovery_url: "https://example.com/.well-known/openid-configuration",
+        client_id: "your-client-id",
+        client_secret: "your-client-secret", # optional for public clients
+        scopes: ["openid", "profile", "fnord.mcp"],
+        credentials_path: "/home/alice/.fnord/credentials.json", # optional
+        refresh_margin: 300 # seconds before expiry to refresh
+      }
+    }
+  ]
+```
+
+CLI usage:
+
+```bash
+fnord mcp login <name>
+fnord mcp status <name>
+```
+
+Troubleshooting:
+
+If the provider rejects the `redirect_uri`, make sure you have registered a loopback redirect URI in your client settings. For example:
+
+```
+http://127.0.0.1:<port>/callback
+```
+
 
 ## Writing code
 Fnord can (optionally) automate code changes in your project using the `ask` command with the `--edit` flag.

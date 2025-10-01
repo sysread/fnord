@@ -62,7 +62,10 @@ defmodule MCP.OAuth2.OidccAdapterTest do
       {:ok, %{status_code: 200, body: ~s({"issuer":"https://issuer"})}}
     end)
 
-    :meck.expect(:oidcc_provider_configuration_worker, :start_link, fn %{issuer: ~c"https://issuer"} ->
+    :meck.expect(:oidcc_provider_configuration_worker, :start_link, fn %{
+                                                                         issuer:
+                                                                           ~c"https://issuer"
+                                                                       } ->
       {:ok, self()}
     end)
 
@@ -98,7 +101,10 @@ defmodule MCP.OAuth2.OidccAdapterTest do
       {:ok, %{status_code: 200, body: ~s({"issuer":"https://issuer"})}}
     end)
 
-    :meck.expect(:oidcc_provider_configuration_worker, :start_link, fn %{issuer: ~c"https://issuer"} ->
+    :meck.expect(:oidcc_provider_configuration_worker, :start_link, fn %{
+                                                                         issuer:
+                                                                           ~c"https://issuer"
+                                                                       } ->
       {:ok, self()}
     end)
 
@@ -135,7 +141,10 @@ defmodule MCP.OAuth2.OidccAdapterTest do
       {:ok, %{status_code: 200, body: ~s({"issuer":"https://issuer"})}}
     end)
 
-    :meck.expect(:oidcc_provider_configuration_worker, :start_link, fn %{issuer: ~c"https://issuer"} ->
+    :meck.expect(:oidcc_provider_configuration_worker, :start_link, fn %{
+                                                                         issuer:
+                                                                           ~c"https://issuer"
+                                                                       } ->
       {:ok, self()}
     end)
 

@@ -1,6 +1,22 @@
 defmodule MCP.OAuth2.OidccAdapter do
   @moduledoc """
   Thin wrapper over oidcc for Discovery + PKCE + Authorization-Code + Refresh.
+
+  Supported:
+    * Discovery
+    * Authorization Code + PKCE
+    * Token Refresh
+
+  Not supported:
+    * Device flow
+    * private_key_jwt
+    * ID token validation
+
+  Security guardrails:
+    * PKCE required
+    * Least-privilege scopes
+    * Never log tokens
+
   MVP scope: no ID token validation.
   """
 
