@@ -98,21 +98,15 @@ defmodule AI.Agent.Coordinator do
          {:ok, question} <- Map.fetch(opts, :question),
          {:ok, replay} <- Map.fetch(opts, :replay),
          {:ok, project} <- Store.get_project() do
-      UI.feedback(
-        :info,
-        agent.name,
-        "Greetings, human. I am #{agent.name}, and I shall be doing your thinking for you today."
-      )
+      followup? =
+        conversation
+        |> Services.Conversation.get_conversation()
+        |> Store.Project.Conversation.exists?()
 
       Settings.set_edit_mode(edit?)
       # Restart approvals service to pick up edit mode setting
       GenServer.stop(Services.Approvals, :normal)
       {:ok, _pid} = Services.Approvals.start_link()
-
-      followup? =
-        conversation
-        |> Services.Conversation.get_conversation()
-        |> Store.Project.Conversation.exists?()
 
       list_id = Services.Task.start_list()
 
@@ -154,11 +148,32 @@ defmodule AI.Agent.Coordinator do
 
     if is_testing?(state) do
       UI.debug("Testing mode enabled")
-      get_test_response(state)
+
+      state
+      |> greet()
+      |> get_test_response()
     else
       Services.Notes.ingest_user_msg(state.question)
-      perform_step(state)
+
+      state
+      |> greet()
+      |> perform_step()
     end
+  end
+
+  defp greet(%{followup?: true, agent: %{name: name}} = state) do
+    UI.feedback(:info, name, "Welcome back, biological.")
+    state
+  end
+
+  defp greet(%{agent: %{name: name}} = state) do
+    UI.feedback(
+      :info,
+      name,
+      "Greetings, human. I am #{name}, and I shall be doing your thinking for you today."
+    )
+
+    state
   end
 
   # -----------------------------------------------------------------------------
@@ -1065,25 +1080,11 @@ defmodule AI.Agent.Coordinator do
   @spec display_pending_interrupts(t) :: t
   defp display_pending_interrupts(%{pending_interrupts: []} = state), do: state
 
-  defp display_pending_interrupts(%{pending_interrupts: interrupts} = state) do
-    # Display each interrupt message that was consumed
-    Enum.each(interrupts, fn msg ->
-      # Strip internal prefix for display
-      content = Map.get(msg, :content, "")
-      display = String.replace_prefix(content, "[User Interjection] ", "")
-      UI.info("You (rude)", display)
-    end)
-
-    # Clear the pending interrupts after displaying
-    %{state | pending_interrupts: []}
+  defp display_pending_interrupts(state) do
+    Services.Conversation.InterruptsDisplay.display_pending_interrupts(state)
   end
 
   # Public wrapper for testing delayed interrupt display
-  if Mix.env() == :test do
-    @doc false
-    @spec display_pending_interrupts_for_test(t) :: t
-    def display_pending_interrupts_for_test(state), do: display_pending_interrupts(state)
-  end
 
   defp start_interrupt_listener(%{conversation: convo} = state) do
     # Only start in interactive TTY sessions and only for Coordinator

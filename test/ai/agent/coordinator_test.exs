@@ -21,12 +21,12 @@ defmodule AI.Agent.CoordinatorTest do
     :ok
   end
 
-  test "display_pending_interrupts_for_test echoes interrupt and returns state with cleared interrupts" do
+  test "display of pending interrupts echoes message and clears pending list" do
     # Create a test interrupt message
     interrupt_msg = %{role: "user", content: "[User Interjection] foo"}
 
     state = %{conversation: self(), pending_interrupts: [interrupt_msg], foo: :bar}
-    returned = AI.Agent.Coordinator.display_pending_interrupts_for_test(state)
+    returned = Services.Conversation.InterruptsDisplay.display_pending_interrupts(state)
 
     # Should return the state with cleared interrupts
     assert returned.pending_interrupts == []
