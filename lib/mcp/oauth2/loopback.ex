@@ -207,8 +207,6 @@ defmodule MCP.OAuth2.Loopback do
                 send(unquote(parent), {:callback_result, {:error, e}})
 
                 send_resp(conn, 400, failure_html())
-
-                send_resp(conn, 400, failure_html())
             end
           end
 
