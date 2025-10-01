@@ -108,7 +108,12 @@ defmodule Cmd.Ask do
     opts =
       if opts[:edit] do
         UI.warning_banner("EDITING MODE ENABLED! THE AI CAN MODIFY FILES. YOU MUST BE NUTS.")
-        UI.warn("You can work from a git worktree with --worktree <dir>.")
+
+        # They obviously already know if they are using --worktree
+        unless opts[:worktree] do
+          UI.warn("You can work from a git worktree with --worktree <dir>.")
+        end
+
         opts
       else
         Map.put(opts, :edit, false)
@@ -264,6 +269,7 @@ defmodule Cmd.Ask do
   # 1) explicit override via --worktree/-W
   defp set_worktree(%{worktree: dir}) when is_binary(dir) do
     Settings.set_project_root_override(dir)
+    UI.info("Project root overridden for session", dir)
   end
 
   # 2) no explicit override: detect a mismatched git worktree
@@ -288,6 +294,7 @@ defmodule Cmd.Ask do
 
               if UI.confirm(msg, false) do
                 Settings.set_project_root_override(wt_root)
+                UI.info("Project root overridden for session", wt_root)
               end
             else
               UI.warn("""
