@@ -86,30 +86,15 @@ defmodule Services.Approvals.Edit do
     try do
       case Owl.IO.columns() do
         cols when is_integer(cols) -> cols
-        _ -> 120
+        _ -> 140
       end
     rescue
-      _ -> 120
+      _ -> 140
     end
   end
 
   # Render the diff display box with safe width handling
   defp render_diff_box(file, diff) do
-    # Determine terminal width
-    cols = safe_columns()
-    # subtract padding/borders (12 chars)
-    max_width = max(cols - 12, 0)
-
-    # compute relative file path and truncate if too long
-    file_display = Path.relative_to_cwd(file)
-
-    file_display =
-      if String.length(file_display) > max_width do
-        "..." <> String.slice(file_display, -max_width..-1)
-      else
-        file_display
-      end
-
     # Build the box content
     [
       Owl.Data.tag("# Scope ", [:red_background, :black, :bright]),
@@ -119,11 +104,28 @@ defmodule Services.Approvals.Edit do
       diff
     ]
     |> UI.box(
-      title: " Edit #{file_display} ",
-      min_width: 80,
+      title: " Edit #{render_file_path(file)} ",
+      min_width: max(safe_columns() - 8, 80),
       padding: 1,
       horizontal_align: :left,
       border_tag: [:red, :bright]
     )
+  end
+
+  defp render_file_path(file) do
+    # Determine terminal width
+    cols = safe_columns()
+
+    # Subtract padding/borders (12 chars)
+    max_width = max(cols - 12, 0)
+
+    # Compute relative file path and truncate if too long
+    file_display = Path.relative_to_cwd(file)
+
+    if String.length(file_display) > max_width do
+      "..." <> String.slice(file_display, -max_width..-1)
+    else
+      file_display
+    end
   end
 end
