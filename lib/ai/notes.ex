@@ -66,6 +66,11 @@ defmodule AI.Notes do
     - Details about individual features, components, modules, tests, etc.
     - Gotchas and pitfalls to avoid
     - "Always check X before doing Y" type of advice
+    - "The user prefers Z" type of advice
+    - Useful commands and command sequences for common tasks (when using the `shell_tool`)
+    - Useful prompts for common tasks when using an LLM-backed tool call (e.g. the `research_tool` or `file_info_tool`)
+    - Useful prompting patterns observed on successful calls to the `coder_tool` or `file_edit_tool` (e.g. "When using the coder_tool to insert a new function, always tell it exactly *where* to put it using anchors like 'above the function foo' or 'immediately below the function bar'")
+    - Prompting patterns that FAIL to produce good results with the `coder_tool` or `file_edit_tool` (e.g. "When using the coder_tool to insert code, never say 'at the top of the file' because that confuses the model; instead, always use referential anchors like 'above the function foo' or 'immediately below the function bar'")
     Respond with a formatted markdown list of facts without any additional text.
     If nothing was identified, respond with "N/A" on a single line.
     Just the facts, ma'am!
@@ -167,6 +172,19 @@ defmodule AI.Notes do
 
     # USE CASES
     [For each major use case: purpose, pre-conditions, steps, post-conditions, entry-point modules]
+
+    # USEFUL COMMANDS
+    [
+      - Project-specific commands and command sequences for common tasks that the LLM frequently performs while researching or coding
+      - Project-specific scripts and internal tools, their purpose, and useful invocations
+    ]
+
+    # USEFUL PROMPTS AND TOOL CALL GUIDANCE
+    [
+      - Useful prompts for common tasks when using an LLM-backed tool call (e.g. the `research_tool` or `file_info_tool`)
+      - Useful prompting patterns observed on successful calls to the `coder_tool` or `file_edit_tool`
+      - Prompting patterns that FAIL to produce good results with the `coder_tool` or `file_edit_tool`
+    ]
 
     # NOTES
     [Organized by topic: subheading per topic, then a list of facts]
