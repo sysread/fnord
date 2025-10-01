@@ -11,9 +11,9 @@ defmodule Cmd.Mcp do
         name: "mcp",
         about: "MCP utilities",
         subcommands: [
-          auth: [
-            name: "auth",
-            about: "Authenticate to an MCP server via OAuth2 (PKCE)",
+          login: [
+            name: "login",
+            about: "Login to an MCP server via OAuth2 (PKCE) and persist tokens",
             args: [
               server: [value_name: "SERVER", help: "Server name from config", required: true]
             ],
@@ -28,6 +28,16 @@ defmodule Cmd.Mcp do
                 default: 120_000
               ]
             ]
+          ],
+          status: [
+            name: "status",
+            about: "Show token status for an MCP server",
+            args: [
+              server: [value_name: "SERVER", help: "Server name from config", required: true]
+            ],
+            options: [
+              project: Cmd.project_arg()
+            ]
           ]
         ]
       ]
@@ -35,7 +45,7 @@ defmodule Cmd.Mcp do
   end
 
   @impl Cmd
-  def run(opts, [:mcp, :auth], [server]) when is_binary(server) do
+  def run(opts, [:mcp, :login], [server]) when is_binary(server) do
     if opts[:project], do: Settings.set_project(opts[:project])
 
     settings = Settings.new()
@@ -67,6 +77,29 @@ defmodule Cmd.Mcp do
 
       {:error, e} ->
         UI.error("Auth error", inspect(e))
+    end
+  end
+
+  @impl Cmd
+  def run(opts, [:mcp, :status], [server]) when is_binary(server) do
+    if opts[:project], do: Settings.set_project(opts[:project])
+    settings = Settings.new()
+    cfgs = Settings.MCP.effective_config(settings)
+
+    with {:ok, _srv_cfg} <- fetch_server(cfgs, server) do
+      case MCP.OAuth2.CredentialsStore.read(server) do
+        {:ok, %{"access_token" => _at, "expires_at" => exp} = m} ->
+          now = System.os_time(:second)
+          age = now - Map.get(m, "last_updated", now)
+          UI.info("Token", "present")
+          UI.info("Expires in", Integer.to_string(max(exp - now, 0)) <> "s")
+          UI.info("Age", Integer.to_string(age) <> "s")
+
+        {:error, :not_found} ->
+          UI.warn("No credentials found for server", server)
+      end
+    else
+      {:error, :not_found} -> UI.error("Server '#{server}' not found in config")
     end
   end
 
@@ -106,7 +139,7 @@ defmodule Cmd.Mcp do
 
   defp await_callback(oauth, server, state, verifier, port, timeout_ms) do
     cfg = Map.put(oauth, :redirect_uri, "http://127.0.0.1:#{port}/callback")
-    MCP.OAuth2.Loopback.run(cfg, server, state, verifier, timeout_ms, port)
+    MCP.OAuth2.Loopback.run(cfg, server, state, verifier, port, timeout_ms)
   end
 
   defp print_tokens_redacted(token) do

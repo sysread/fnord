@@ -256,6 +256,26 @@ defmodule Settings.MCP do
           _ -> norm
         end
 
+      norm =
+        case Map.get(oauth, "redirect_uri") do
+          nil -> norm
+          ru when is_binary(ru) -> Map.put(norm, "redirect_uri", ru)
+          _ -> norm
+        end
+
+      norm =
+        case Map.get(oauth, "credentials_path") do
+          nil -> norm
+          cp when is_binary(cp) -> Map.put(norm, "credentials_path", cp)
+          _ -> norm
+        end
+
+      norm =
+        case Map.get(oauth, "refresh_margin") do
+          rm when is_integer(rm) and rm >= 0 -> Map.put(norm, "refresh_margin", rm)
+          _ -> norm
+        end
+
       {:ok, norm}
     else
       nil -> {:error, "Missing required oauth fields: discovery_url, client_id, scopes"}
