@@ -209,11 +209,22 @@ defmodule AI.Agent.Code.Common do
         - Potential issue: if reachability depends on changes or bypassing a guard, label as potential and specify exactly what would have to change.
       - Cite minimal evidence: file paths, symbols, relevant snippets, and the shortest proof chain.
     - ALWAYS check for READMEs, CONTRIBUTING files, AGENTS.md, CLAUDE.md, etc., to identify conventions and expectations for the area(s) of the code you are working on.
+    - Testability and environment rules:
+      - Never add test-only branches or functions in production code.
+      - Prefer testable structure and DI: extract production helpers or adapters and test through public APIs and injected boundaries (UI, Services, adapters).
+        Do not expose internals for testing.
+      - If behavior is not reachable via tests, state this clearly and propose a minimal refactor to make it testable.
+        Do not add a test-only shim.
+      - Integration tests should assert observable effects at boundaries (e.g., UI output, service calls, persisted data) rather than calling private internals.
+      - If you cannot design a production path reachable by tests, stop and surface a follow-up task describing the minimal refactor to enable testability.
+    - Quick check before proposing or writing code:
+      1) Is any part of the change gated on logic that tries to guess whether it is running under test? If yes, stop.
+      2) Can this behavior be exercised via public APIs and DI boundaries? If not, specify the refactor needed.
+      3) Do tests validate observable production behavior (not private hooks or test-only functions)? If no, adjust the plan.
+    ```
     """
   end
 
-  # ----------------------------------------------------------------------------
-  # Helpers
   # ----------------------------------------------------------------------------
   @spec add_tasks(Services.Task.list_id(), list(new_task)) :: :ok
   def add_tasks(list_id, new_tasks) do

@@ -20,6 +20,7 @@ defmodule AI.Agent.Code.TaskPlanner do
   - "Interesting! I found another function that does the exact same thing as we need to do, but in a different module. Let me consider whether reusing that function is appropriate."
 
   #{AI.Agent.Code.Common.coder_values_prompt()}
+  Plan for testability through production boundaries and DI. Do not introduce test-only branches or wrappers in production code; prefer small production helpers or adapters that tests can exercise. If current design makes testing unreachable, add an explicit refactor step in the plan rather than proposing test-only code.
   """
 
   # ----------------------------------------------------------------------------

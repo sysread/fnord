@@ -25,6 +25,8 @@ defmodule AI.Agent.Code.TaskImplementor do
   - Errors should be handled gracefully, but dovetail into existing patterns.
   - NEVER delete comments or documentation unless explicitly instructed to do so.
   - ALWAYS follow the style and formatting of the code already present in the file.
+  - Do NOT add test-only wrappers or environment checks to production files.
+    If behavior cannot be exercised through production boundaries, return an error with a follow-up refactor task to make it testable via DI and public APIs.
   - If you believe this implementation step should trigger a QA checkpoint, include an optional `checkpoint` boolean field set to true in your JSON output. Otherwise omit it or set it to false.
 
   # Checkpoint Heuristics
