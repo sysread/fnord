@@ -36,6 +36,7 @@ defmodule Services do
   def start_config_dependent_services do
     Services.NamePool.start_link()
     Services.Approvals.start_link()
+    Services.Approvals.Gate.start_link([])
     Services.MCP.start()
     :ok
   end

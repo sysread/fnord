@@ -1,5 +1,16 @@
 defmodule Browser.Default do
-  @moduledoc false
+  @moduledoc """
+  Default OS-aware browser launcher.
+
+  macOS: uses `open`.
+  Linux: uses `xdg-open`.
+  Fallback: prints the URL via `UI.info/2` when a suitable launcher is not available.
+
+  Notes:
+    - Designed for DI; tests should inject a mock instead of using this module.
+
+  Introduced: M3.
+  """
   @behaviour Browser
 
   @impl true

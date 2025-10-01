@@ -181,18 +181,27 @@ defmodule MCP.OAuth2.Loopback do
                    unquote(code_verifier)
                  ) do
               {:ok, token_map} ->
-                :ok =
-                  MCP.OAuth2.CredentialsStore.write(unquote(server_key), %{
-                    "access_token" => token_map.access_token,
-                    "refresh_token" => Map.get(token_map, :refresh_token),
-                    "token_type" => token_map.token_type,
-                    "expires_at" => token_map.expires_at,
-                    "scope" => Map.get(token_map, :scope)
-                  })
+                case Services.Approvals.Gate.require(
+                       {:mcp, unquote(server_key), :auth_finalize},
+                       []
+                     ) do
+                  :approved ->
+                    :ok =
+                      MCP.OAuth2.CredentialsStore.write(unquote(server_key), %{
+                        "access_token" => token_map.access_token,
+                        "refresh_token" => Map.get(token_map, :refresh_token),
+                        "token_type" => token_map.token_type,
+                        "expires_at" => token_map.expires_at,
+                        "scope" => Map.get(token_map, :scope)
+                      })
 
-                send(unquote(parent), {:callback_result, {:ok, token_map}})
+                    send(unquote(parent), {:callback_result, {:ok, token_map}})
+                    send_resp(conn, 200, success_html())
 
-                send_resp(conn, 200, success_html())
+                  {:pending, ref} ->
+                    send(unquote(parent), {:callback_result, {:error, :approval_pending}})
+                    send_resp(conn, 202, "Approval pending; ref=" <> ref)
+                end
 
               {:error, e} ->
                 send(unquote(parent), {:callback_result, {:error, e}})
