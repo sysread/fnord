@@ -34,7 +34,7 @@ If you've ever pasted multiple files into ChatGPT or worked with it iteratively 
 - Improves its research capabilities with each interaction
 - User integrations
 - Layered approvals for shell/file operations
-- MCP server tools (Hermes/OpenAI MCP)
+- MCP server support
 
 
 ## Installation

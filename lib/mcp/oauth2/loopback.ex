@@ -32,15 +32,16 @@ defmodule MCP.OAuth2.Loopback do
   @doc """
   Start the server and return `{pid, port}` so the caller can construct the redirect_uri.
   """
-  @spec start(map(), String.t(), String.t(), String.t()) ::
+  @spec start(map(), String.t(), String.t(), String.t(), non_neg_integer()) ::
           {:ok, pid(), non_neg_integer()} | {:error, term()}
-  def start(cfg, server_key, expected_state, code_verifier) do
+  def start(cfg, server_key, expected_state, code_verifier, port \\ 0) do
     with {:ok, pid} <-
            start_link(
              cfg: cfg,
              server_key: server_key,
              state: expected_state,
-             code_verifier: code_verifier
+             code_verifier: code_verifier,
+             port: port
            ),
          {:ok, port} <- GenServer.call(pid, :get_port) do
       {:ok, pid, port}
@@ -51,15 +52,16 @@ defmodule MCP.OAuth2.Loopback do
   Run the loopback flow until one callback is handled or timeout.
   Returns the token map on success.
   """
-  @spec run(map(), String.t(), String.t(), String.t(), non_neg_integer()) ::
+  @spec run(map(), String.t(), String.t(), String.t(), non_neg_integer(), non_neg_integer()) ::
           {:ok, map()} | {:error, term()}
-  def run(cfg, server_key, expected_state, code_verifier, timeout_ms \\ 120_000) do
+  def run(cfg, server_key, expected_state, code_verifier, port \\ 0, timeout_ms \\ 120_000) do
     {:ok, pid} =
       start_link(
         cfg: cfg,
         server_key: server_key,
         state: expected_state,
-        code_verifier: code_verifier
+        code_verifier: code_verifier,
+        port: port
       )
 
     GenServer.call(pid, {:await, timeout_ms}, timeout_ms + 5_000)
@@ -73,14 +75,19 @@ defmodule MCP.OAuth2.Loopback do
     server_key = Keyword.fetch!(opts, :server_key)
     expected_state = Keyword.fetch!(opts, :state)
     code_verifier = Keyword.fetch!(opts, :code_verifier)
+    port = Keyword.get(opts, :port, 0)
 
     # Build Plug router with captured state
     {:ok, plug} = build_router(cfg, server_key, expected_state, code_verifier)
 
     ref = :"mcp_oauth_loopback_#{System.unique_integer([:monotonic, :positive])}"
-    {:ok, _pid} = Plug.Cowboy.http(plug, [], ip: {127, 0, 0, 1}, port: 0, ref: ref)
-    port = case cowboy_port(ref) do
-      {:ok, p} -> p; _ -> 0 end
+    {:ok, _pid} = Plug.Cowboy.http(plug, [], ip: {127, 0, 0, 1}, port: port, ref: ref)
+
+    port =
+      case cowboy_port(ref) do
+        {:ok, p} -> p
+        _ -> 0
+      end
 
     state = %{
       server_ref: ref,
@@ -141,8 +148,10 @@ defmodule MCP.OAuth2.Loopback do
     case :ranch.get_addr(ref) do
       {_, port} when is_integer(port) ->
         {:ok, port}
+
       {:local, _socket} ->
         {:error, :local_socket}
+
       other ->
         {:error, other}
     end

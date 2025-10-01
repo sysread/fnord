@@ -138,12 +138,28 @@ defmodule Settings.MCP do
         _ -> Map.delete(cfg, "timeout_ms")
       end
 
+    # Optional nested OAuth configuration is allowed for any transport
+    {cfg_oauth, oauth_norm} =
+      case Map.get(cfg1, "oauth") do
+        nil ->
+          {cfg1, nil}
+
+        oauth when is_map(oauth) ->
+          case normalize_oauth(oauth) do
+            {:ok, norm} -> {cfg1, norm}
+            {:error, msg} -> {Map.put(cfg1, :__oauth_error, msg), nil}
+          end
+
+        _ ->
+          {Map.put(cfg1, :__oauth_error, "Invalid 'oauth' (must be a map)"), nil}
+      end
+
     case t do
       "stdio" ->
-        with command when is_binary(command) <- Map.get(cfg1, "command"),
-             args <- Map.get(cfg1, "args", []),
+        with command when is_binary(command) <- Map.get(cfg_oauth, "command"),
+             args <- Map.get(cfg_oauth, "args", []),
              true <- is_list(args),
-             env <- Map.get(cfg1, "env", %{}),
+             env <- Map.get(cfg_oauth, "env", %{}),
              true <- is_map(env) do
           normalized = %{
             "transport" => "stdio",
@@ -153,19 +169,23 @@ defmodule Settings.MCP do
           }
 
           normalized =
-            if Map.has_key?(cfg1, "timeout_ms"),
-              do: Map.put(normalized, "timeout_ms", cfg1["timeout_ms"]),
+            if Map.has_key?(cfg_oauth, "timeout_ms"),
+              do: Map.put(normalized, "timeout_ms", cfg_oauth["timeout_ms"]),
               else: normalized
+
+          normalized =
+            if oauth_norm, do: Map.put(normalized, "oauth", oauth_norm), else: normalized
 
           {:ok, normalized}
         else
           nil -> {:error, "Missing 'command' for stdio transport"}
           false -> {:error, "Invalid 'args' or 'env' for stdio transport"}
+          {:error, msg} -> {:error, msg}
         end
 
       "streamable_http" ->
-        with base_url when is_binary(base_url) <- Map.get(cfg1, "base_url"),
-             headers <- Map.get(cfg1, "headers", %{}),
+        with base_url when is_binary(base_url) <- Map.get(cfg_oauth, "base_url"),
+             headers <- Map.get(cfg_oauth, "headers", %{}),
              true <- is_map(headers) do
           normalized = %{
             "transport" => "streamable_http",
@@ -174,19 +194,23 @@ defmodule Settings.MCP do
           }
 
           normalized =
-            if Map.has_key?(cfg1, "timeout_ms"),
-              do: Map.put(normalized, "timeout_ms", cfg1["timeout_ms"]),
+            if Map.has_key?(cfg_oauth, "timeout_ms"),
+              do: Map.put(normalized, "timeout_ms", cfg_oauth["timeout_ms"]),
               else: normalized
+
+          normalized =
+            if oauth_norm, do: Map.put(normalized, "oauth", oauth_norm), else: normalized
 
           {:ok, normalized}
         else
           nil -> {:error, "Missing 'base_url' for streamable_http transport"}
           false -> {:error, "Invalid 'headers' for streamable_http transport"}
+          {:error, msg} -> {:error, msg}
         end
 
       "websocket" ->
-        with base_url when is_binary(base_url) <- Map.get(cfg1, "base_url"),
-             headers <- Map.get(cfg1, "headers", %{}),
+        with base_url when is_binary(base_url) <- Map.get(cfg_oauth, "base_url"),
+             headers <- Map.get(cfg_oauth, "headers", %{}),
              true <- is_map(headers) do
           normalized = %{
             "transport" => "websocket",
@@ -195,17 +219,48 @@ defmodule Settings.MCP do
           }
 
           normalized =
-            if Map.has_key?(cfg1, "timeout_ms"),
-              do: Map.put(normalized, "timeout_ms", cfg1["timeout_ms"]),
+            if Map.has_key?(cfg_oauth, "timeout_ms"),
+              do: Map.put(normalized, "timeout_ms", cfg_oauth["timeout_ms"]),
               else: normalized
+
+          normalized =
+            if oauth_norm, do: Map.put(normalized, "oauth", oauth_norm), else: normalized
 
           {:ok, normalized}
         else
           nil -> {:error, "Missing 'base_url' for websocket transport"}
           false -> {:error, "Invalid 'headers' for websocket transport"}
+          {:error, msg} -> {:error, msg}
         end
     end
   end
 
   defp validate_server_config(_), do: {:error, "Missing or invalid 'transport' field"}
+
+  @spec normalize_oauth(map()) :: {:ok, map()} | {:error, String.t()}
+  defp normalize_oauth(%{} = oauth) do
+    with discovery when is_binary(discovery) <- Map.get(oauth, "discovery_url"),
+         client_id when is_binary(client_id) <- Map.get(oauth, "client_id"),
+         scopes when is_list(scopes) <- Map.get(oauth, "scopes"),
+         true <- Enum.all?(scopes, &is_binary/1) do
+      norm = %{
+        "discovery_url" => discovery,
+        "client_id" => client_id,
+        "scopes" => scopes
+      }
+
+      norm =
+        case Map.get(oauth, "client_secret") do
+          nil -> norm
+          cs when is_binary(cs) -> Map.put(norm, "client_secret", cs)
+          _ -> norm
+        end
+
+      {:ok, norm}
+    else
+      nil -> {:error, "Missing required oauth fields: discovery_url, client_id, scopes"}
+      false -> {:error, "Invalid 'scopes' (must be list of strings)"}
+      _ -> {:error, "Invalid oauth configuration"}
+    end
+  end
 end
