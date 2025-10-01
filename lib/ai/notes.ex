@@ -94,6 +94,10 @@ defmodule AI.Notes do
     These should be consolidated into the existing notes.
     The `# NEW NOTES (unconsolidated)` section(s) are removed after being incorporated into the document proper.
 
+    The purpose of these notes:
+    - Inform future sessions, reducing the likelihood that the researching LLM gets tripped up by unexpected details or quirks of the project.
+    - Improve your baseline understanding of the project, reducing the need to re-research common topics.
+
     Goals:
     - **Overall Goal:** Manage a well-organized, comprehensive, archive of research notes about the project.
     - Dismiss ephemeral facts that (e.g. about individual tickets, PRs, or changes) that are not persistently relevant.
@@ -101,6 +105,10 @@ defmodule AI.Notes do
     - Ensure the notes are organized by topic and concise.
     - Combine nearly identical facts into a single entry.
     - Reorganize as needed to improve clarity and flow.
+    - **DISCARD TRANSIENT INFORMATION:**
+      - Examples: Temporary states, tickets, PRs, in-progress work, bugs (unless still present), migrations, and other ephemeral details).
+      - This can't be emphasized enough!
+      - Leaving such details in the notes risks leaking those transient details into new sessions, causing hallucination and a bad user experience.
 
     Response Template:
     # SYNOPSIS
@@ -118,8 +126,47 @@ defmodule AI.Notes do
     # LAYOUT
     [Repo/app layout, interaction, organization]
 
-    # APPLICATIONS & COMPONENTS
-    [For each app/component: brief description, location, dependencies]
+    # APPLICATIONS
+    [
+      - Common details:
+        - How do apps interact?
+        - Conventions for organization within apps
+        - Deployment or runtime details
+        - Shared services or libraries
+          - How are they shared?
+      - For each discrete app in the project:
+        - App name
+        - Brief description of purpose
+        - Location in the repo
+        - Dependencies on other apps or services
+          - Exported interfaces
+          - Internal interfaces from other apps consumed
+          - Differences in conventions or organization from other apps
+          - Integration quirks (e.g. "uses DB but is NOT the source of truth for the schema; that is $other_app")
+        - Deployment or runtime details that differ from other apps
+        - For each component within the app:
+          - Component name
+          - Brief description of purpose
+          - Location in the repo
+          - Dependencies on other components, apps, or services
+    ]
+
+    # FEATURES & WORKFLOWS
+    [
+      - Cover:
+        - Technical and background workflows (e.g. cron jobs, data pipelines, build/deploy processes), not user workflows
+        - User-facing features (e.g. "user can reset password via email link")
+      - For each major feature/workflow:
+        - brief description
+        - location
+        - key modules
+        - terminology
+        - behaviorial walkthrough
+        - relevant details
+    ]
+
+    # USE CASES
+    [For each major use case: purpose, pre-conditions, steps, post-conditions, entry-point modules]
 
     # NOTES
     [Organized by topic: subheading per topic, then a list of facts]
