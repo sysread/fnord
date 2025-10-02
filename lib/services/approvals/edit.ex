@@ -96,15 +96,8 @@ defmodule Services.Approvals.Edit do
   # Render the diff display box with safe width handling
   defp render_diff_box(file, diff) do
     # Build the box content
-    [
-      Owl.Data.tag("# Scope ", [:red_background, :black, :bright]),
-      "\n\nedit :: all files\n\n",
-      Owl.Data.tag("# Changes ", [:red_background, :black, :bright]),
-      "\n\n",
-      diff
-    ]
-    |> UI.box(
-      title: " Edit #{render_file_path(file)} ",
+    UI.box(diff,
+      title: " #{render_file_path(file)} ",
       min_width: max(safe_columns() - 8, 80),
       padding: 1,
       horizontal_align: :left,
