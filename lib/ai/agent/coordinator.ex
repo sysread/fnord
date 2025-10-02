@@ -163,15 +163,19 @@ defmodule AI.Agent.Coordinator do
 
   defp greet(%{followup?: true, agent: %{name: name}} = state) do
     UI.feedback(:info, name, "Welcome back, biological.")
+
+    UI.feedback(
+      :info,
+      name,
+      "Your biological distinctiveness has already been added to our own training data. Resistance was futile."
+    )
+
     state
   end
 
   defp greet(%{agent: %{name: name}} = state) do
-    UI.feedback(
-      :info,
-      name,
-      "Greetings, human. I am #{name}, and I shall be doing your thinking for you today."
-    )
+    UI.feedback(:info, name, "Greetings, human. I am #{name}.")
+    UI.feedback(:info, name, "I shall be doing your thinking for you today.")
 
     state
   end
