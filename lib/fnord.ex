@@ -102,7 +102,6 @@ defmodule Fnord do
       Cmd.Search,
       Cmd.Summary,
       Cmd.Torch,
-      Cmd.Mcp,
       Cmd.Upgrade
     ]
 

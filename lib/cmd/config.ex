@@ -357,6 +357,8 @@ defmodule Cmd.Config do
   def run(opts, [:mcp, :add], args), do: Cmd.Config.MCP.run(opts, [:mcp, :add], args)
   def run(opts, [:mcp, :update], args), do: Cmd.Config.MCP.run(opts, [:mcp, :update], args)
   def run(opts, [:mcp, :remove], args), do: Cmd.Config.MCP.run(opts, [:mcp, :remove], args)
+  def run(opts, [:mcp, :login], args), do: Cmd.Config.MCP.run(opts, [:mcp, :login], args)
+  def run(opts, [:mcp, :status], args), do: Cmd.Config.MCP.run(opts, [:mcp, :status], args)
   def run(opts, [:mcp, :check], args), do: Cmd.Config.MCP.run(opts, [:mcp, :check], args)
 
   def run(_opts, [], _unknown) do

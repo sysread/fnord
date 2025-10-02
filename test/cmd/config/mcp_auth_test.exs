@@ -41,7 +41,7 @@ defmodule Cmd.McpAuthTest do
     settings
   end
 
-  describe "mcp login happy path" do
+  describe "config mcp login happy path" do
     setup do
       mock_oauth_server("authsrv")
       # Mock OidccAdapter.start_flow
@@ -85,16 +85,16 @@ defmodule Cmd.McpAuthTest do
 
     test "auth succeeds and prints summary" do
       {stdout, stderr} =
-        capture_all(fn -> Cmd.Mcp.run(%{timeout: 5000}, [:mcp, :login], ["authsrv"]) end)
+        capture_all(fn -> Cmd.Config.run(%{timeout: 5000}, [:mcp, :login], ["authsrv"]) end)
 
       # Presence of redacted summary
       assert stdout <> stderr =~ "token_type"
     end
   end
 
-  describe "mcp login missing server" do
+  describe "config mcp login missing server" do
     test "prints not found error" do
-      log = capture_log(fn -> Cmd.Mcp.run(%{}, [:mcp, :login], ["nope"]) end)
+      log = capture_log(fn -> Cmd.Config.run(%{}, [:mcp, :login], ["nope"]) end)
       assert log =~ "not found"
     end
   end
@@ -120,7 +120,7 @@ defmodule Cmd.McpAuthTest do
     end
 
     test "shows exact redirect_uri to register" do
-      log = capture_log(fn -> Cmd.Mcp.run(%{}, [:mcp, :login], ["rejectsrv"]) end)
+      log = capture_log(fn -> Cmd.Config.run(%{}, [:mcp, :login], ["rejectsrv"]) end)
       assert log =~ "redirect_uri"
       assert log =~ "http://127.0.0.1:"
     end
@@ -155,7 +155,7 @@ defmodule Cmd.McpAuthTest do
     end
 
     test "prints timeout error" do
-      log = capture_log(fn -> Cmd.Mcp.run(%{timeout: 1}, [:mcp, :login], ["timeoutsrv"]) end)
+      log = capture_log(fn -> Cmd.Config.run(%{timeout: 1}, [:mcp, :login], ["timeoutsrv"]) end)
       assert log =~ "Timed out"
     end
   end

@@ -1,5 +1,8 @@
 defmodule Cmd.Config.MCP do
-  @moduledoc false
+  @moduledoc """
+  Aggregator for MCP commands. Directly handles list, check, add, update, and remove operations,
+  and delegates login and status commands to specialized submodules.
+  """
   alias Cmd.Config.Utils
 
   @spec run(map(), list(), list()) :: :ok
@@ -67,6 +70,15 @@ defmodule Cmd.Config.MCP do
       {:ok, name} ->
         do_mcp_action(opts, action, name)
     end
+  end
+
+  # Delegate login and status to submodules
+  def run(opts, [:mcp, :login], [server]) when is_binary(server) do
+    Cmd.Config.MCP.Login.run(opts, [:mcp, :login], [server])
+  end
+
+  def run(opts, [:mcp, :status], [server]) when is_binary(server) do
+    Cmd.Config.MCP.Status.run(opts, [:mcp, :status], [server])
   end
 
   # ----------------------------------------------------------------------------
