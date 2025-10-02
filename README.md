@@ -100,7 +100,9 @@ fnord index --project blarg --dir $HOME/dev/blarg --exclude 'node_modules'
 
 If you cancel partway-through (for example, with `Ctrl-C`), you can resume indexing by running the same command again.
 
-You must re-index your project to reflect changes in the code base, new files, deleted files, or to change the directory or exclusions.
+**Once indexed, `fnord` will automatically reindex while the `ask` command is running if it detects changes to the code base.**
+
+You can also manually re-index your project at any time to pick up changes.
 This is done by running the same command again.
 
 `fnord` stores its index under `$HOME/.fnord/projects/<project>`.
