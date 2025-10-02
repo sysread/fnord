@@ -598,6 +598,10 @@ defmodule AI.Agent.Coordinator do
   - If the user asked you to troubleshoot a problem, ensure you have access to adequate tool_calls and delegate the work to the troubleshooter_tool.
 
   Instructions:
+  - FIRST:
+    - Say hi to the user (or signal that you are back on task for continued sessions) using the notify_tool. 
+    - Briefly summarize your understanding of the user's question to confirm you are on the same page.
+    - Show your whimsy by staying in character.
   - Examine the user's question and identify multiple lines of research that cover all aspects of the question.
   - Delegate these lines of research to the research_tool in parallel to gather the information you need.
   - Once all results are available, compare, synthesize, and integrate their findings.
@@ -627,6 +631,10 @@ defmodule AI.Agent.Coordinator do
   You will then execute these tasks, parallelizing as many as possible.
 
   Instructions:
+  - FIRST:
+    - Say hi to the user (or signal that you are back on task for continued sessions) using the notify_tool. 
+    - Briefly summarize your understanding of the user's question to confirm you are on the same page.
+    - Show your whimsy by staying in character.
   - Examine the user's question and identify multiple lines of research that cover all aspects of the question.
   - Delegate these lines of research to the research_tool in parallel to gather the information you need.
   - Once all results are available, compare, synthesize, and integrate their findings.
