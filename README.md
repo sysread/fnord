@@ -353,35 +353,6 @@ fnord config mcp check --project <project> [--global]
   - private_key_jwt client authentication
   - ID token validation
 
-Security notes:
-
-- PKCE is required for authorization code flow
-- Use least-privilege scopes
-- Do not log tokens
-- Credentials are stored in `~/.fnord/credentials.json` with file mode 0600 using atomic writes
-
-Configuration example (`Settings.MCP` per-server `oauth` block):
-
-```elixir
-config :fnord, Fnord.Settings.MCP,
-  servers: [
-    myserver: %{
-      transport: :stdio,
-      command: "./my_server",
-      oauth: %{
-        discovery_url: "https://example.com/.well-known/openid-configuration",
-        client_id: "your-client-id",
-        client_secret: "your-client-secret", # optional for public clients
-        scopes: ["openid", "profile", "fnord.mcp"],
-        credentials_path: "/home/alice/.fnord/credentials.json", # optional
-        refresh_margin: 300 # seconds before expiry to refresh
-      }
-    }
-  ]
-```
-
-CLI usage:
-
 ```bash
 fnord mcp login <name>
 fnord mcp status <name>
