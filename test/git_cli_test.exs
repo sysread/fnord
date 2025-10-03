@@ -137,6 +137,10 @@ defmodule GitCli.Test do
       refute Map.has_key?(ignored, abs_baz)
       assert ignored[abs_foo] == true
       assert ignored[abs_bar] == true
+      ignored_set = git_check_ignore!(project, ["*.tmp", "logs/"])
+      assert MapSet.member?(ignored_set, abs_foo)
+      assert MapSet.member?(ignored_set, abs_bar)
+      refute MapSet.member?(ignored_set, abs_baz)
     end
 
     test "returns empty map on git error" do
@@ -146,6 +150,37 @@ defmodule GitCli.Test do
 
     test "returns empty map for nil root" do
       assert GitCli.ignored_files(nil) == %{}
+    end
+  end
+
+  describe "current_branch/0" do
+    setup do
+      project = mock_git_project("test-repo")
+      {:ok, project: project}
+    end
+
+    test "returns nil in a non-git directory" do
+      {:ok, tmp} = tmpdir()
+      cd(tmp, fn -> assert GitCli.current_branch() == nil end)
+    end
+
+    test "returns the branch name for a valid git repository", %{project: project} do
+      cd(project.source_root, fn ->
+        git_config_user!(project)
+        git_empty_commit!(project)
+        git_checkout_branch!(project, "feature-branch")
+        assert GitCli.current_branch() == "feature-branch"
+      end)
+    end
+
+    test "returns '@<sha>' for detached HEAD", %{project: project} do
+      cd(project.source_root, fn ->
+        git_config_user!(project)
+        git_empty_commit!(project)
+        sha = System.cmd("git", ["rev-parse", "--short", "HEAD"]) |> elem(0) |> String.trim()
+        git_checkout_detached!(project, sha)
+        assert GitCli.current_branch() == "@#{sha}"
+      end)
     end
   end
 end

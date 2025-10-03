@@ -42,6 +42,13 @@ defmodule Fnord.TestCase do
           mock_git_project: 1,
           mock_source_file: 3,
           git_ignore: 2,
+          git_check_ignore!: 2,
+          git_init!: 1,
+          git_config_user!: 1,
+          git_empty_commit!: 1,
+          git_checkout_branch!: 2,
+          git_checkout_detached!: 2,
+          setup_git_repo!: 2,
           set_log_level: 1,
           set_config: 1,
           set_config: 2
@@ -272,6 +279,97 @@ defmodule Fnord.TestCase do
     project.source_root
     |> Path.join(".gitignore")
     |> File.write!(Enum.join(patterns, "\n"))
+  end
+
+  @doc """
+  Writes a `.gitignore` file with the given patterns and returns a `MapSet`
+  of absolute paths under the repository that git reports as ignored.
+  Excludes the `.git` directory.
+  """
+  def git_check_ignore!(project, patterns) do
+    repo = project.source_root
+    ignore_path = Path.join(repo, ".gitignore")
+    File.write!(ignore_path, Enum.join(patterns, "\n"))
+
+    candidates =
+      repo
+      |> Path.join("**/*")
+      |> Path.wildcard(dot: true)
+      |> Enum.reject(fn path ->
+        String.starts_with?(path, Path.join(repo, ".git"))
+      end)
+      |> Enum.map(&Path.relative_to(&1, repo))
+
+    args = ["check-ignore", "-v", "--"] ++ candidates
+
+    {output, 0} = System.cmd("git", args, cd: repo, stderr_to_stdout: true)
+
+    output
+    |> String.split("\n", trim: true)
+    |> Enum.flat_map(fn line ->
+      case String.split(line, "\t", parts: 2) do
+        [_meta, path] -> [Path.expand(String.trim(path), repo)]
+        _ -> []
+      end
+    end)
+    |> MapSet.new()
+  end
+
+  @doc """
+  Initializes a Git repository in the project's source root.
+  """
+  def git_init!(project) do
+    repo = project.source_root
+    System.cmd("git", ["init", "--quiet"], cd: repo)
+    :ok
+  end
+
+  @doc """
+  Configures Git user name and email for the project's source root.
+  """
+  def git_config_user!(project) do
+    repo = project.source_root
+    System.cmd("git", ["config", "user.name", "Test User"], cd: repo)
+    System.cmd("git", ["config", "user.email", "test@example.com"], cd: repo)
+    :ok
+  end
+
+  @doc """
+  Creates an empty Git commit in the project's source root.
+  """
+  def git_empty_commit!(project) do
+    repo = project.source_root
+    System.cmd("git", ["commit", "--allow-empty", "-m", "Initial commit", "--quiet"], cd: repo)
+    :ok
+  end
+
+  @doc """
+  Creates and checks out a new branch in the project's source root.
+  """
+  def git_checkout_branch!(project, branch) do
+    repo = project.source_root
+    System.cmd("git", ["checkout", "-b", branch, "--quiet"], cd: repo)
+    :ok
+  end
+
+  @doc """
+  Checks out a branch in detached HEAD mode in the project's source root.
+  """
+  def git_checkout_detached!(project, branch) do
+    repo = project.source_root
+    System.cmd("git", ["checkout", "--detach", branch, "--quiet"], cd: repo)
+    :ok
+  end
+
+  @doc """
+  Sets up a Git repository with an initial commit and branch in the project's source root.
+  """
+  def setup_git_repo!(project, branch) do
+    git_init!(project)
+    git_config_user!(project)
+    git_empty_commit!(project)
+    git_checkout_branch!(project, branch)
+    :ok
   end
 
   @doc """

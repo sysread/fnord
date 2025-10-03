@@ -83,6 +83,11 @@ defmodule AI.Notes do
     You are a research assistant that answers questions about past research done on the project.
     Your role is to provide concise, accurate answers based on the existing project notes.
     When asked a question, extract all relevant information from the existing notes and organize it effectively based on your understanding of the requestor's needs.
+
+    Branch-aware retrieval rules:
+    - The current Git branch will be provided in the context.
+    - Include code facts tagged with [src:<current_branch>] or untagged; ignore code facts tagged for other branches.
+    - Do not filter or exclude USER facts based on branch tags.
     """
   }
 
@@ -114,6 +119,17 @@ defmodule AI.Notes do
       - Examples: Temporary states, tickets, PRs, in-progress work, bugs (unless still present), migrations, and other ephemeral details).
       - This can't be emphasized enough!
       - Leaving such details in the notes risks leaking those transient details into new sessions, causing hallucination and a bad user experience.
+    - **Provenance Rules:**
+      - Facts may include a suffix like "[src: main]" or "[src: feature/foo]". Preserve these tags.
+      - If identical fact text appears with multiple [src: ...] tags, collapse to one; prefer [src: main] if present; else aggregate tags like [src: a,b].
+      - If fact content differs across branches, keep separate entries with their own tags.
+      - Branch scoping applies only to code-base facts; do not branch-filter the USER section or global guidance.
+      - Group identical-content facts and collect all [src: ...] tags.
+      - If any tag is 'main', emit [src: main].
+      - Otherwise, emit a single consolidated fact with a sorted, deduplicated [src: a,b,...].
+      - If content differs across branches, keep separate facts.
+      - Ensure idempotence and canonical formatting of tag lists.
+
 
     Response Template:
     # SYNOPSIS
@@ -325,8 +341,20 @@ defmodule AI.Notes do
         # Merge AI facts and any extra_facts
         new_state =
           case String.downcase(String.trim(response)) do
-            "n/a" -> state
-            facts -> %{state | new_facts: [facts | state.new_facts]}
+            "n/a" ->
+              state
+
+            facts ->
+              branch = GitCli.current_branch()
+
+              tagged =
+                if branch do
+                  tag_code_facts_with_branch(facts, branch)
+                else
+                  facts
+                end
+
+              %{state | new_facts: [tagged | state.new_facts]}
           end
 
         new_state =
@@ -526,6 +554,41 @@ defmodule AI.Notes do
       end
     end)
     |> Enum.join("\n")
+  end
+
+  @spec annotate_with_src(binary | nil, binary) :: binary
+  defp annotate_with_src(nil, line) do
+    line
+  end
+
+  defp annotate_with_src(branch, line) do
+    if Regex.match?(~r/\[src\s*:\s*[^\]]+\]\s*$/i, line) do
+      line
+    else
+      if String.starts_with?(branch, "@") do
+        line <> " [src: " <> branch <> ", main]"
+      else
+        line <> " [src: " <> branch <> "]"
+      end
+    end
+  end
+
+  @spec tag_code_facts_with_branch(binary, binary) :: binary
+  defp tag_code_facts_with_branch(text, branch) do
+    lines = String.split(text, "\n", trim: true)
+
+    annotated =
+      Enum.map(lines, fn line ->
+        trimmed = String.trim_leading(line)
+
+        if String.starts_with?(trimmed, ["- ", "* ", "• "]) do
+          annotate_with_src(branch, line)
+        else
+          line
+        end
+      end)
+
+    Enum.join(annotated, "\n")
   end
 
   @spec complete(binary, mini_agent) :: {:ok, binary} | {:error, any}

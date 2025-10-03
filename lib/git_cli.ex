@@ -55,6 +55,32 @@ defmodule GitCli do
     end
   end
 
+  @spec current_branch() :: String.t() | nil
+  def current_branch() do
+    case System.cmd("git", ["rev-parse", "--abbrev-ref", "HEAD"],
+           cd: File.cwd!(),
+           stderr_to_stdout: true
+         ) do
+      {out, 0} ->
+        case String.trim(out) do
+          "HEAD" ->
+            case System.cmd("git", ["rev-parse", "--short", "HEAD"],
+                   cd: File.cwd!(),
+                   stderr_to_stdout: true
+                 ) do
+              {sha, 0} -> "@" <> String.trim(sha)
+              _ -> nil
+            end
+
+          branch ->
+            branch
+        end
+
+      _ ->
+        nil
+    end
+  end
+
   @spec git_info() :: String.t()
   def git_info() do
     git = System.find_executable("git")
