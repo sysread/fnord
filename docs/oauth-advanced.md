@@ -4,7 +4,7 @@ This guide covers advanced OAuth authentication features, troubleshooting, and m
 
 ## Quick Reference
 
-For basic OAuth setup, see the [main README](../README.md#authentication-with-oauth2).
+For basic OAuth setup, see the [main README](../README.md#oauth-authentication).
 
 ## Command-Line Options
 

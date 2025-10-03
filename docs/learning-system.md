@@ -95,14 +95,12 @@ fnord ask -p myproject -q "What's the pattern for adding a new API endpoint?"
 
 ### Knowledge Storage
 
-Notes are stored in: `~/.fnord/<project>/notes/`
+Notes are stored in: `~/.fnord/projects/<project>/notes.md`
 
 Structure:
 ```
-~/.fnord/myproject/
-├── index/          # Semantic index
-├── notes/          # Learned knowledge
-└── conversations/  # Question history
+~/.fnord/projects/myproject/
+└── notes.md          # Consolidated learned knowledge
 ```
 
 ### Dealing with Staleness
