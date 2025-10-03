@@ -116,7 +116,6 @@ Note that semantic search requires an existing index. You can still perform text
 ```bash
 fnord prime --project blarg
 ```
-Prime uses 3 research rounds by default.
 
 
 ### Configuration
