@@ -295,6 +295,33 @@ defmodule Cmd.Config do
                   ]
                 ]
               ],
+              login: [
+                name: "login",
+                about: "Authenticate to an MCP server using OAuth2 + PKCE",
+                args: [
+                  server: [value_name: "SERVER", help: "Server identifier", required: true]
+                ],
+                options: [
+                  project: Cmd.project_arg(),
+                  timeout: [
+                    value_name: "TIMEOUT_MS",
+                    long: "--timeout",
+                    short: "-t",
+                    help: "Timeout in milliseconds for OAuth callback",
+                    required: false
+                  ]
+                ]
+              ],
+              status: [
+                name: "status",
+                about: "Show OAuth token status for an MCP server",
+                args: [
+                  server: [value_name: "SERVER", help: "Server identifier", required: true]
+                ],
+                options: [
+                  project: Cmd.project_arg()
+                ]
+              ],
               oauth: [
                 name: "oauth",
                 about: "Manage OAuth server configuration",

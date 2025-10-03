@@ -7,8 +7,8 @@ defmodule Services.MCP do
   alias MCP.Tools
   alias UI
 
-  @spec start() :: :ok
-  def start do
+  @spec start(String.t() | nil) :: :ok
+  def start(command \\ nil) do
     # Configure Hermes MCP logging to reduce debug output
     Services.Globals.put_env(:hermes_mcp, :logging,
       client_events: :info,
@@ -17,9 +17,13 @@ defmodule Services.MCP do
       protocol_messages: :warning
     )
 
+    # Skip MCP discovery for config commands to avoid premature connection attempts
+    # Users should be able to configure OAuth without triggering server connections
+    skip_discovery = command in [:config, "config"]
+
     servers = MCPSettings.effective_config(Settings.new())
 
-    if map_size(servers) > 0 do
+    if map_size(servers) > 0 && !skip_discovery do
       ensure_supervisor()
       Once.run(:mcp_discovery, fn -> discover_once(servers) end)
     end

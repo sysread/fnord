@@ -42,7 +42,7 @@ defmodule Fnord do
 
       # Start services that depend on CLI configuration now that it's available.
       # These services depend on settings parsed from CLI arguments in set_globals().
-      Services.start_config_dependent_services()
+      Services.start_config_dependent_services(command)
 
       # Require a project if the command needs it. As a rule, we make the
       # project option optional in the Cmd implementation, and then manually

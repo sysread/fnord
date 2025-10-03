@@ -17,7 +17,7 @@ defmodule MCP.Supervisor do
 
     children =
       Enum.map(servers, fn {server, scfg} ->
-        {kind, t_opts} = Transport.map(scfg)
+        {kind, t_opts} = Transport.map(server, scfg)
         spec_opts = [name: instance_name(server), transport: {kind, t_opts}]
         Supervisor.child_spec({FnordClient, spec_opts}, id: {:mcp, server})
       end)
