@@ -1,10 +1,10 @@
 defmodule MCP.OAuth2.Bridge do
   @moduledoc """
   Builds Authorization header for MCP transports.
-  If token is near expiry, attempts a refresh via `OidccAdapter` and persists.
+  If token is near expiry, attempts a refresh via `Client` and persists.
   """
 
-  alias MCP.OAuth2.{CredentialsStore, OidccAdapter}
+  alias MCP.OAuth2.{CredentialsStore, Client}
 
   @default_refresh_margin 120
 
@@ -30,7 +30,16 @@ defmodule MCP.OAuth2.Bridge do
   defp maybe_refresh(_server, _cfg, toks, _margin), do: {:ok, toks}
 
   defp refresh(server, cfg, %{"refresh_token" => rt}) do
-    case OidccAdapter.refresh_token(cfg, %{refresh_token: rt}) do
+    # Build OAuth config for refresh - need discovery_url, client_id, optional client_secret
+    oauth_cfg = %{
+      discovery_url: Map.get(cfg["oauth"], "discovery_url"),
+      client_id: Map.get(cfg["oauth"], "client_id"),
+      client_secret: Map.get(cfg["oauth"], "client_secret"),
+      scopes: Map.get(cfg["oauth"], "scopes", []),
+      redirect_uri: "http://127.0.0.1/callback"
+    }
+
+    case Client.refresh_token(oauth_cfg, rt) do
       {:ok, new} ->
         :ok = CredentialsStore.write(server, normalize(new))
         {:ok, normalize(new)}

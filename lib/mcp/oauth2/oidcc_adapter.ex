@@ -54,8 +54,8 @@ defmodule MCP.OAuth2.OidccAdapter do
           {:ok, %{auth_url: String.t(), state: String.t(), code_verifier: String.t()}}
           | {:error, term()}
   def start_flow(cfg) do
-    with {:ok, issuer} <- fetch_issuer(cfg),
-         {:ok, provider} <- start_provider_worker(issuer),
+    with {:ok, issuer, config} <- fetch_issuer_and_config(cfg),
+         {:ok, provider} <- start_provider_worker(issuer, config),
          {:ok, state} <- gen_state(),
          {:ok, {verifier, _challenge}} <- gen_pkce(),
          {:ok, auth_url} <-
@@ -85,8 +85,8 @@ defmodule MCP.OAuth2.OidccAdapter do
   def handle_callback(cfg, params, expected_state, code_verifier) do
     with :ok <- verify_state(params, expected_state),
          {:ok, code} <- fetch_code(params),
-         {:ok, issuer} <- fetch_issuer(cfg),
-         {:ok, provider} <- start_provider_worker(issuer),
+         {:ok, issuer, config} <- fetch_issuer_and_config(cfg),
+         {:ok, provider} <- start_provider_worker(issuer, config),
          {:ok, token_rec} <- retrieve_token(provider, cfg, code, code_verifier) do
       normalize_token(token_rec)
     else
@@ -110,8 +110,8 @@ defmodule MCP.OAuth2.OidccAdapter do
            }}
           | {:error, term()}
   def refresh_token(cfg, %{refresh_token: refresh_token}) do
-    with {:ok, issuer} <- fetch_issuer(cfg),
-         {:ok, provider} <- start_provider_worker(issuer),
+    with {:ok, issuer, config} <- fetch_issuer_and_config(cfg),
+         {:ok, provider} <- start_provider_worker(issuer, config),
          {:ok, token_rec} <- refresh_with_provider(provider, cfg, refresh_token) do
       normalize_token(token_rec)
     else
@@ -122,13 +122,18 @@ defmodule MCP.OAuth2.OidccAdapter do
 
   # -- internals --
 
-  defp fetch_issuer(%{discovery_url: url}) when is_binary(url) do
+  defp fetch_issuer_and_config(%{discovery_url: url}) when is_binary(url) do
     case HTTPoison.get(url, [], recv_timeout: 10_000, timeout: 10_000) do
       {:ok, %{status_code: 200, body: body}} ->
         case Jason.decode(body) do
-          {:ok, %{"issuer" => issuer}} when is_binary(issuer) -> {:ok, issuer}
-          {:ok, _} -> {:error, :no_issuer_in_metadata}
-          {:error, e} -> {:error, {:bad_metadata, e}}
+          {:ok, %{"issuer" => issuer} = config} when is_binary(issuer) ->
+            {:ok, issuer, config}
+
+          {:ok, _} ->
+            {:error, :no_issuer_in_metadata}
+
+          {:error, e} ->
+            {:error, {:bad_metadata, e}}
         end
 
       {:ok, %{status_code: code}} ->
@@ -139,9 +144,12 @@ defmodule MCP.OAuth2.OidccAdapter do
     end
   end
 
-  defp start_provider_worker(issuer) do
+  defp start_provider_worker(issuer, _config) when is_binary(issuer) do
+    # oidcc_provider_configuration_worker will fetch the configuration from issuer
+    # We can't avoid this duplicate fetch with the current oidcc API
+    # The _config parameter is kept for future use if oidcc adds support
     case :oidcc_provider_configuration_worker.start_link(%{
-           issuer: String.to_charlist(issuer)
+           issuer: issuer
          }) do
       {:ok, pid} -> {:ok, pid}
       {:error, {:already_started, pid}} -> {:ok, pid}

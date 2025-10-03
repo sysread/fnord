@@ -23,6 +23,8 @@ defmodule Cmd.Config.MCP.Login do
            await_callback(oauth, server, state, verifier, port, opts[:timeout] || 120_000) do
       UI.info("Auth", "Success for #{server}")
       print_tokens_redacted(token)
+      # Brief delay to allow HTTP response to be sent to browser before process exits
+      Process.sleep(3000)
       :ok
     else
       {:error, :not_found} ->
@@ -53,13 +55,21 @@ defmodule Cmd.Config.MCP.Login do
     with discovery when is_binary(discovery) <- Map.get(oauth, "discovery_url"),
          client_id when is_binary(client_id) <- Map.get(oauth, "client_id"),
          scopes when is_list(scopes) <- Map.get(oauth, "scopes") do
-      {:ok,
-       %{
-         discovery_url: discovery,
-         client_id: client_id,
-         client_secret: Map.get(oauth, "client_secret"),
-         scopes: scopes
-       }}
+      oauth_map = %{
+        discovery_url: discovery,
+        client_id: client_id,
+        client_secret: Map.get(oauth, "client_secret"),
+        scopes: scopes
+      }
+
+      # Include redirect_port if present (for exact URI matching with OAuth provider)
+      oauth_with_port =
+        case Map.get(oauth, "redirect_port") do
+          port when is_integer(port) -> Map.put(oauth_map, :redirect_port, port)
+          _ -> oauth_map
+        end
+
+      {:ok, oauth_with_port}
     else
       _ ->
         {:error, {:oauth_missing, "OAuth config requires discovery_url, client_id, and scopes"}}

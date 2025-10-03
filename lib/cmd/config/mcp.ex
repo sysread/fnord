@@ -93,151 +93,32 @@ defmodule Cmd.Config.MCP do
     end
   end
 
-  # OAuth subcommands for MCP
-  def run(opts, [:mcp, :oauth, :list], args) do
-    if opts[:project], do: Settings.set_project(opts[:project])
-
-    case Utils.require_key(opts, args, :name, "Server name") do
-      {:error, msg} ->
-        UI.error(msg)
-
-      {:ok, name} ->
-        settings = Settings.new()
-        scope = if opts[:global], do: :global, else: :project
-        servers = Settings.MCP.get_config(settings, scope)
-
-        case Map.fetch(servers, name) do
-          :error ->
-            UI.error("Server '#{name}' not found")
-
-          {:ok, conf} ->
-            Map.get(conf, "oauth", %{})
-            |> Jason.encode!(pretty: true)
-            |> UI.puts()
-        end
-    end
-  end
-
-  def run(opts, [:mcp, :oauth, :add], args) do
-    if opts[:project], do: Settings.set_project(opts[:project])
-
-    case Utils.require_key(opts, args, :name, "Server name") do
-      {:error, msg} ->
-        UI.error(msg)
-
-      {:ok, name} ->
-        raw_oauth =
-          %{}
-          |> maybe_put("discovery_url", opts[:discovery_url])
-          |> maybe_put("client_id", opts[:client_id])
-          |> maybe_put("client_secret", opts[:client_secret])
-          |> maybe_put("scopes", opts[:scope] || [])
-
-        settings = Settings.new()
-        scope = if opts[:global], do: :global, else: :project
-        servers = Settings.MCP.get_config(settings, scope)
-
-        # Merge with existing server config
-        existing_config = Map.get(servers, name, %{})
-        updated_config = Map.put(existing_config, "oauth", raw_oauth)
-
-        case Settings.MCP.update_server(settings, scope, name, updated_config) do
-          {:ok, upd} ->
-            %{name => Settings.MCP.list_servers(upd, scope)[name]}
-            |> Jason.encode!(pretty: true)
-            |> UI.puts()
-
-          {:error, :not_found} ->
-            UI.error("Server '#{name}' not found")
-
-          {:error, err} ->
-            UI.error(err)
-        end
-    end
-  end
-
-  def run(opts, [:mcp, :oauth, :update], args) do
-    if opts[:project], do: Settings.set_project(opts[:project])
-
-    case Utils.require_key(opts, args, :name, "Server name") do
-      {:error, msg} ->
-        UI.error(msg)
-
-      {:ok, name} ->
-        raw_oauth =
-          %{}
-          |> maybe_put("discovery_url", opts[:discovery_url])
-          |> maybe_put("client_id", opts[:client_id])
-          |> maybe_put("client_secret", opts[:client_secret])
-          |> maybe_put("scopes", opts[:scope] || [])
-
-        settings = Settings.new()
-        scope = if opts[:global], do: :global, else: :project
-        servers = Settings.MCP.get_config(settings, scope)
-
-        # Merge with existing server config and OAuth settings
-        existing_config = Map.get(servers, name, %{})
-        existing_oauth = Map.get(existing_config, "oauth", %{})
-        merged_oauth = Map.merge(existing_oauth, raw_oauth)
-        updated_config = Map.put(existing_config, "oauth", merged_oauth)
-
-        case Settings.MCP.update_server(settings, scope, name, updated_config) do
-          {:ok, upd} ->
-            %{name => Settings.MCP.list_servers(upd, scope)[name]}
-            |> Jason.encode!(pretty: true)
-            |> UI.puts()
-
-          {:error, :not_found} ->
-            UI.error("Server '#{name}' not found")
-
-          {:error, err} ->
-            UI.error(err)
-        end
-    end
-  end
-
-  def run(opts, [:mcp, :oauth, :remove], args) do
-    if opts[:project], do: Settings.set_project(opts[:project])
-
-    case Utils.require_key(opts, args, :name, "Server name") do
-      {:error, msg} ->
-        UI.error(msg)
-
-      {:ok, name} ->
-        settings = Settings.new()
-        scope = if opts[:global], do: :global, else: :project
-        servers = Settings.MCP.get_config(settings, scope)
-
-        case Map.fetch(servers, name) do
-          :error ->
-            UI.error("Server '#{name}' not found")
-
-          {:ok, conf} ->
-            new_conf = Map.delete(conf, "oauth")
-
-            case Settings.MCP.update_server(settings, scope, name, new_conf) do
-              {:ok, upd} ->
-                %{name => Settings.MCP.list_servers(upd, scope)[name]}
-                |> Jason.encode!(pretty: true)
-                |> UI.puts()
-
-              {:error, err} ->
-                UI.error(err)
-            end
-        end
-    end
-  end
-
   # ----------------------------------------------------------------------------
   # Helpers
   # ----------------------------------------------------------------------------
+  @spec reserve_ephemeral_port() :: {:ok, non_neg_integer()}
+  defp reserve_ephemeral_port do
+    # Open a socket to get an ephemeral port, then close it
+    # The port will remain available for immediate reuse
+    {:ok, socket} =
+      :gen_tcp.listen(0, [:binary, {:ip, {127, 0, 0, 1}}, {:active, false}, {:reuseaddr, true}])
+
+    {:ok, {_addr, port}} = :inet.sockname(socket)
+    :gen_tcp.close(socket)
+    {:ok, port}
+  end
+
+  @spec normalize_transport(String.t()) :: String.t()
+  defp normalize_transport("http"), do: "streamable_http"
+  defp normalize_transport(transport), do: transport
+
   @spec build_server_config_from_opts(map()) :: map()
   defp build_server_config_from_opts(opts) do
     %{}
-    |> maybe_put("transport", opts[:transport] || "stdio")
+    |> maybe_put("transport", normalize_transport(opts[:transport] || "stdio"))
     |> maybe_put("command", opts[:command])
     |> maybe_put("args", opts[:arg] || [])
-    |> maybe_put("base_url", opts[:base_url])
+    |> maybe_put("base_url", opts[:url])
     |> maybe_put("headers", parse_kv_list(opts[:header] || []))
     |> maybe_put("env", parse_kv_list(opts[:env] || []))
     |> maybe_put("timeout_ms", opts[:timeout_ms])
@@ -261,15 +142,76 @@ defmodule Cmd.Config.MCP do
 
   # Internal dispatcher for MCP add/update/remove actions
   defp do_mcp_action(opts, :add, name) do
-    raw = build_server_config_from_opts(opts)
+    base_config = build_server_config_from_opts(opts)
     settings = Settings.new()
     scope = if opts[:global], do: :global, else: :project
 
-    case Settings.MCP.add_server(settings, scope, name, raw) do
+    # If --oauth flag present, run auto-discovery and setup
+    config_with_oauth =
+      if opts[:oauth] do
+        case opts[:url] do
+          nil ->
+            UI.error("--url is required when using --oauth")
+            exit({:shutdown, 1})
+
+          url ->
+            # Reserve a port for the loopback callback first
+            {:ok, port} = reserve_ephemeral_port()
+
+            discovery_opts = [
+              client_id: opts[:client_id],
+              client_secret: opts[:client_secret],
+              scope: opts[:scope],
+              redirect_port: port
+            ]
+
+            case MCP.OAuth2.Discovery.discover_and_setup(url, discovery_opts) do
+              {:ok, oauth_config} ->
+                # oauth_config already includes redirect_port from discovery_opts
+                Map.put(base_config, "oauth", oauth_config)
+
+              {:error, :discovery_not_found} ->
+                UI.error(
+                  "❌ OAuth discovery failed (404): Server does not support OAuth auto-discovery"
+                )
+
+                UI.puts("   Try: fnord config mcp add #{name} --url #{url} --client-id YOUR_CLIENT_ID")
+                exit({:shutdown, 1})
+
+              {:error, :no_registration_endpoint} ->
+                UI.error("❌ OAuth registration not available: Server requires pre-registered client")
+                UI.puts("   Get a client_id from the provider, then:")
+
+                UI.puts(
+                  "   fnord config mcp add #{name} --url #{url} --oauth --client-id YOUR_CLIENT_ID"
+                )
+
+                exit({:shutdown, 1})
+
+              {:error, {:incomplete_metadata, msg}} ->
+                UI.error("❌ Invalid discovery document: #{msg}")
+                UI.puts("   Server OAuth configuration is incomplete. Contact server administrator.")
+                exit({:shutdown, 1})
+
+              {:error, reason} ->
+                UI.error("❌ OAuth setup failed: #{inspect(reason)}")
+                exit({:shutdown, 1})
+            end
+        end
+      else
+        base_config
+      end
+
+    case Settings.MCP.add_server(settings, scope, name, config_with_oauth) do
       {:ok, upd} ->
-        %{name => Settings.MCP.list_servers(upd, scope)[name]}
-        |> Jason.encode!(pretty: true)
-        |> UI.puts()
+        server_config = Settings.MCP.list_servers(upd, scope)[name]
+        %{name => server_config} |> Jason.encode!(pretty: true) |> UI.puts()
+
+        # If OAuth was configured, prompt user to login
+        if opts[:oauth] do
+          UI.puts("")
+          UI.puts("  Ready for login: fnord config mcp login #{name}")
+        end
 
       {:error, :exists} ->
         UI.error("Server '#{name}' already exists")

@@ -1,10 +1,10 @@
 defmodule MCP.OAuth2.Loopback do
   @moduledoc """
-  Minimal loopback HTTP server for OAuth2/OIDC Authorization Code callback.
+  Minimal loopback HTTP server for OAuth2 Authorization Code callback.
 
   - Binds to 127.0.0.1 on an ephemeral port
   - Exposes GET /callback to capture `code` and `state`
-  - Delegates token exchange to `MCP.OAuth2.OidccAdapter.handle_callback/4`
+  - Delegates token exchange to `MCP.OAuth2.Client.handle_callback/4`
   - Persists tokens via `MCP.OAuth2.CredentialsStore`
   - Returns a tiny HTML page and stops itself
   """
@@ -83,7 +83,7 @@ defmodule MCP.OAuth2.Loopback do
     ref = :"mcp_oauth_loopback_#{System.unique_integer([:monotonic, :positive])}"
     {:ok, _pid} = Plug.Cowboy.http(plug, [], ip: {127, 0, 0, 1}, port: port, ref: ref)
 
-    port =
+    actual_port =
       case cowboy_port(ref) do
         {:ok, p} -> p
         _ -> 0
@@ -91,7 +91,7 @@ defmodule MCP.OAuth2.Loopback do
 
     state = %{
       server_ref: ref,
-      port: port,
+      port: actual_port,
       state: expected_state,
       code_verifier: code_verifier,
       cfg: cfg,
@@ -122,8 +122,9 @@ defmodule MCP.OAuth2.Loopback do
       end
 
     GenServer.reply(from, reply)
-    stop_cowboy(st.server_ref)
-    {:stop, :normal, Map.put(st, :result, result)}
+    # Keep GenServer alive - escript will exit and clean up naturally
+    # This ensures HTTP response has time to be fully sent to browser
+    {:noreply, Map.put(st, :result, result)}
   end
 
   @impl true
@@ -132,16 +133,8 @@ defmodule MCP.OAuth2.Loopback do
       GenServer.reply(elem(st.await, 0), {:error, :timeout})
     end
 
-    stop_cowboy(st.server_ref)
+    # Don't explicitly shut down - let the escript process exit handle cleanup
     {:stop, :timeout, st}
-  end
-
-  defp stop_cowboy(ref) do
-    try do
-      Plug.Cowboy.shutdown(ref)
-    catch
-      _c, _e -> :ok
-    end
   end
 
   defp cowboy_port(ref) do
@@ -162,68 +155,66 @@ defmodule MCP.OAuth2.Loopback do
 
     mod = Module.concat(__MODULE__, :"Router_#{System.unique_integer([:monotonic, :positive])}")
 
-    {:module, _name, _bin, _warnings} =
-      Module.create(
-        mod,
-        quote do
-          use Plug.Router
-          plug(:match)
-          plug(:fetch_query_params)
-          plug(:dispatch)
+    # Define the router module using defmodule at runtime
+    contents =
+      quote do
+        use Plug.Router
+        plug(:match)
+        plug(:fetch_query_params)
+        plug(:dispatch)
 
-          get "/callback" do
-            params = conn.params
+        get "/callback" do
+          params = var!(conn).params
 
-            case MCP.OAuth2.OidccAdapter.handle_callback(
-                   unquote(Macro.escape(cfg)),
-                   params,
-                   unquote(expected_state),
-                   unquote(code_verifier)
-                 ) do
-              {:ok, token_map} ->
-                case Services.Approvals.Gate.require(
-                       {:mcp, unquote(server_key), :auth_finalize},
-                       []
-                     ) do
-                  :approved ->
-                    :ok =
-                      MCP.OAuth2.CredentialsStore.write(unquote(server_key), %{
-                        "access_token" => token_map.access_token,
-                        "refresh_token" => Map.get(token_map, :refresh_token),
-                        "token_type" => token_map.token_type,
-                        "expires_at" => token_map.expires_at,
-                        "scope" => Map.get(token_map, :scope)
-                      })
+          case MCP.OAuth2.Client.handle_callback(
+                 unquote(Macro.escape(cfg)),
+                 params,
+                 unquote(expected_state),
+                 unquote(code_verifier)
+               ) do
+            {:ok, token_map} ->
+              case Services.Approvals.Gate.require(
+                     {:mcp, unquote(server_key), :auth_finalize},
+                     []
+                   ) do
+                :approved ->
+                  :ok =
+                    MCP.OAuth2.CredentialsStore.write(unquote(server_key), %{
+                      "access_token" => token_map.access_token,
+                      "refresh_token" => Map.get(token_map, :refresh_token),
+                      "token_type" => token_map.token_type,
+                      "expires_at" => token_map.expires_at,
+                      "scope" => Map.get(token_map, :scope)
+                    })
 
-                    send(unquote(parent), {:callback_result, {:ok, token_map}})
-                    send_resp(conn, 200, success_html())
+                  send(unquote(parent), {:callback_result, {:ok, token_map}})
+                  send_resp(var!(conn), 200, success_html())
 
-                  {:pending, ref} ->
-                    send(unquote(parent), {:callback_result, {:error, :approval_pending}})
-                    send_resp(conn, 202, "Approval pending; ref=" <> ref)
-                end
+                {:pending, ref} ->
+                  send(unquote(parent), {:callback_result, {:error, :approval_pending}})
+                  send_resp(var!(conn), 202, "Approval pending; ref=" <> ref)
+              end
 
-              {:error, e} ->
-                send(unquote(parent), {:callback_result, {:error, e}})
-
-                send_resp(conn, 400, failure_html())
-            end
+            {:error, e} ->
+              send(unquote(parent), {:callback_result, {:error, e}})
+              send_resp(var!(conn), 400, failure_html())
           end
+        end
 
-          match _ do
-            send_resp(conn, 404, "Not Found")
-          end
+        match _ do
+          send_resp(var!(conn), 404, "Not Found")
+        end
 
-          defp success_html do
-            "<html><body><h3>Authentication complete</h3><p>You can close this tab.</p></body></html>"
-          end
+        defp success_html do
+          "<html><body><h3>Authentication complete</h3><p>You can close this tab.</p></body></html>"
+        end
 
-          defp failure_html do
-            "<html><body><h3>Authentication failed</h3><p>Please return to the app.</p></body></html>"
-          end
-        end,
-        Macro.Env.location(__ENV__)
-      )
+        defp failure_html do
+          "<html><body><h3>Authentication failed</h3><p>Please return to the app.</p></body></html>"
+        end
+      end
+
+    Module.create(mod, contents, Macro.Env.location(__ENV__))
 
     {:ok, mod}
   end

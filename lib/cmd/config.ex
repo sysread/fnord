@@ -134,7 +134,7 @@ defmodule Cmd.Config do
                     value_name: "TRANSPORT",
                     long: "--transport",
                     short: "-t",
-                    help: "Transport type (stdio|streamable_http|websocket)",
+                    help: "Transport type (stdio|http|websocket)",
                     default: "stdio"
                   ],
                   command: [
@@ -152,9 +152,9 @@ defmodule Cmd.Config do
                     required: false,
                     multiple: true
                   ],
-                  base_url: [
+                  url: [
                     value_name: "URL",
-                    long: "--base-url",
+                    long: "--url",
                     short: "-u",
                     help: "Base URL for HTTP/WebSocket transports",
                     required: false
@@ -181,6 +181,25 @@ defmodule Cmd.Config do
                     short: "-T",
                     help: "Timeout in milliseconds",
                     required: false
+                  ],
+                  client_id: [
+                    value_name: "CLIENT_ID",
+                    long: "--client-id",
+                    help: "OAuth client ID (optional, will auto-register if not provided)",
+                    required: false
+                  ],
+                  client_secret: [
+                    value_name: "CLIENT_SECRET",
+                    long: "--client-secret",
+                    help: "OAuth client secret (optional)",
+                    required: false
+                  ],
+                  scope: [
+                    value_name: "SCOPE",
+                    long: "--scope",
+                    help: "OAuth scope (repeatable, defaults to mcp:access)",
+                    required: false,
+                    multiple: true
                   ]
                 ],
                 flags: [
@@ -188,6 +207,11 @@ defmodule Cmd.Config do
                     long: "--global",
                     short: "-g",
                     help: "Add server to global configuration",
+                    required: false
+                  ],
+                  oauth: [
+                    long: "--oauth",
+                    help: "Enable OAuth authentication with auto-discovery",
                     required: false
                   ]
                 ]
@@ -204,7 +228,7 @@ defmodule Cmd.Config do
                     value_name: "TRANSPORT",
                     long: "--transport",
                     short: "-t",
-                    help: "Transport type (stdio|streamable_http|websocket)",
+                    help: "Transport type (stdio|http|websocket)",
                     default: "stdio"
                   ],
                   command: [
@@ -222,9 +246,9 @@ defmodule Cmd.Config do
                     required: false,
                     multiple: true
                   ],
-                  base_url: [
+                  url: [
                     value_name: "URL",
-                    long: "--base-url",
+                    long: "--url",
                     short: "-u",
                     help: "Base URL for HTTP/WebSocket transports",
                     required: false
@@ -320,134 +344,6 @@ defmodule Cmd.Config do
                 ],
                 options: [
                   project: Cmd.project_arg()
-                ]
-              ],
-              oauth: [
-                name: "oauth",
-                about: "Manage OAuth server configuration",
-                subcommands: [
-                  list: [
-                    name: "list",
-                    about: "List OAuth configurations (global or project)",
-                    args: [
-                      name: [value_name: "NAME", help: "OAuth server identifier", required: true]
-                    ],
-                    options: [
-                      project: Cmd.project_arg()
-                    ],
-                    flags: [
-                      global: [
-                        long: "--global",
-                        short: "-g",
-                        help: "Use global scope",
-                        required: false
-                      ]
-                    ]
-                  ],
-                  add: [
-                    name: "add",
-                    about: "Add an OAuth server (global or project)",
-                    args: [
-                      name: [value_name: "NAME", help: "OAuth server identifier", required: true]
-                    ],
-                    options: [
-                      project: Cmd.project_arg(),
-                      discovery_url: [
-                        value_name: "URL",
-                        long: "--discovery-url",
-                        help: "Discovery URL for OAuth server",
-                        required: false
-                      ],
-                      client_id: [
-                        value_name: "ID",
-                        long: "--client-id",
-                        help: "Client ID for OAuth server",
-                        required: false
-                      ],
-                      client_secret: [
-                        value_name: "SECRET",
-                        long: "--client-secret",
-                        help: "Client secret for OAuth server",
-                        required: false
-                      ],
-                      scope: [
-                        value_name: "SCOPE",
-                        long: "--scope",
-                        help: "Scope for OAuth server",
-                        required: false,
-                        multiple: true
-                      ]
-                    ],
-                    flags: [
-                      global: [
-                        long: "--global",
-                        short: "-g",
-                        help: "Add server to global configuration",
-                        required: false
-                      ]
-                    ]
-                  ],
-                  update: [
-                    name: "update",
-                    about: "Update an OAuth server configuration",
-                    args: [
-                      name: [value_name: "NAME", help: "OAuth server identifier", required: true]
-                    ],
-                    options: [
-                      project: Cmd.project_arg(),
-                      discovery_url: [
-                        value_name: "URL",
-                        long: "--discovery-url",
-                        help: "Discovery URL for OAuth server",
-                        required: false
-                      ],
-                      client_id: [
-                        value_name: "ID",
-                        long: "--client-id",
-                        help: "Client ID for OAuth server",
-                        required: false
-                      ],
-                      client_secret: [
-                        value_name: "SECRET",
-                        long: "--client-secret",
-                        help: "Client secret for OAuth server",
-                        required: false
-                      ],
-                      scope: [
-                        value_name: "SCOPE",
-                        long: "--scope",
-                        help: "Scope for OAuth server",
-                        required: false,
-                        multiple: true
-                      ]
-                    ],
-                    flags: [
-                      global: [
-                        long: "--global",
-                        short: "-g",
-                        help: "Update server in global configuration",
-                        required: false
-                      ]
-                    ]
-                  ],
-                  remove: [
-                    name: "remove",
-                    about: "Remove an OAuth server (global or project)",
-                    args: [
-                      name: [value_name: "NAME", help: "OAuth server identifier", required: true]
-                    ],
-                    options: [
-                      project: Cmd.project_arg()
-                    ],
-                    flags: [
-                      global: [
-                        long: "--global",
-                        short: "-g",
-                        help: "Remove server from global configuration",
-                        required: false
-                      ]
-                    ]
-                  ]
                 ]
               ]
             ]

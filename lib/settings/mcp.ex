@@ -276,6 +276,12 @@ defmodule Settings.MCP do
           _ -> norm
         end
 
+      norm =
+        case Map.get(oauth, "redirect_port") do
+          port when is_integer(port) and port > 0 -> Map.put(norm, "redirect_port", port)
+          _ -> norm
+        end
+
       {:ok, norm}
     else
       nil -> {:error, "Missing required oauth fields: discovery_url, client_id, scopes"}
