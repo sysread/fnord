@@ -20,7 +20,15 @@ defmodule Cmd.Config.MCP.Login do
            adapter().start_flow(oauth),
          :ok <- browser().open(auth_url),
          {:ok, token} <-
-           await_callback(oauth, srv_cfg["base_url"], server, state, verifier, port, opts[:timeout] || 120_000) do
+           await_callback(
+             oauth,
+             srv_cfg["base_url"],
+             server,
+             state,
+             verifier,
+             port,
+             opts[:timeout] || 120_000
+           ) do
       UI.info("Auth", "Success for #{server}")
       print_tokens_redacted(token)
       # Brief delay to allow HTTP response to be sent to browser before process exits

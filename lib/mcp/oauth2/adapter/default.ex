@@ -28,7 +28,12 @@ defmodule MCP.OAuth2.Adapter.Default do
 
         _ ->
           {:ok, socket} =
-            :gen_tcp.listen(0, [:binary, {:ip, {127, 0, 0, 1}}, {:active, false}, {:reuseaddr, true}])
+            :gen_tcp.listen(0, [
+              :binary,
+              {:ip, {127, 0, 0, 1}},
+              {:active, false},
+              {:reuseaddr, true}
+            ])
 
           {:ok, {_addr, ephemeral_port}} = :inet.sockname(socket)
           :gen_tcp.close(socket)

@@ -411,10 +411,18 @@ defmodule Cmd.Config do
   def run(opts, [:mcp, :login], args), do: Cmd.Config.MCP.run(opts, [:mcp, :login], args)
   def run(opts, [:mcp, :status], args), do: Cmd.Config.MCP.run(opts, [:mcp, :status], args)
   def run(opts, [:mcp, :check], args), do: Cmd.Config.MCP.run(opts, [:mcp, :check], args)
-  def run(opts, [:mcp, :oauth, :list], args),   do: Cmd.Config.MCP.run(opts, [:mcp, :oauth, :list], args)
-  def run(opts, [:mcp, :oauth, :add], args),    do: Cmd.Config.MCP.run(opts, [:mcp, :oauth, :add], args)
-  def run(opts, [:mcp, :oauth, :update], args), do: Cmd.Config.MCP.run(opts, [:mcp, :oauth, :update], args)
-  def run(opts, [:mcp, :oauth, :remove], args), do: Cmd.Config.MCP.run(opts, [:mcp, :oauth, :remove], args)
+
+  def run(opts, [:mcp, :oauth, :list], args),
+    do: Cmd.Config.MCP.run(opts, [:mcp, :oauth, :list], args)
+
+  def run(opts, [:mcp, :oauth, :add], args),
+    do: Cmd.Config.MCP.run(opts, [:mcp, :oauth, :add], args)
+
+  def run(opts, [:mcp, :oauth, :update], args),
+    do: Cmd.Config.MCP.run(opts, [:mcp, :oauth, :update], args)
+
+  def run(opts, [:mcp, :oauth, :remove], args),
+    do: Cmd.Config.MCP.run(opts, [:mcp, :oauth, :remove], args)
 
   def run(_opts, [], _unknown) do
     UI.error("No subcommand specified. Use 'fnord help config' for help.")

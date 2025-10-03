@@ -100,7 +100,9 @@ defmodule MCP.OAuth2.ClientTest do
       end)
 
       params = %{"code" => "auth-code", "state" => "test-state"}
-      assert {:ok, tokens} = MCP.OAuth2.Client.handle_callback(cfg, params, "test-state", "verifier")
+
+      assert {:ok, tokens} =
+               MCP.OAuth2.Client.handle_callback(cfg, params, "test-state", "verifier")
 
       assert tokens.access_token == "access-123"
       assert tokens.token_type == "Bearer"

@@ -52,9 +52,25 @@ defmodule MCP.OAuth2.Loopback do
   Run the loopback flow until one callback is handled or timeout.
   Returns the token map on success.
   """
-  @spec run(map(), String.t(), String.t(), String.t(), String.t(), non_neg_integer(), non_neg_integer()) ::
+  @spec run(
+          map(),
+          String.t(),
+          String.t(),
+          String.t(),
+          String.t(),
+          non_neg_integer(),
+          non_neg_integer()
+        ) ::
           {:ok, map()} | {:error, term()}
-  def run(cfg, base_url, server_key, expected_state, code_verifier, port \\ 0, timeout_ms \\ 120_000) do
+  def run(
+        cfg,
+        base_url,
+        server_key,
+        expected_state,
+        code_verifier,
+        port \\ 0,
+        timeout_ms \\ 120_000
+      ) do
     {:ok, pid} =
       start_link(
         cfg: cfg,

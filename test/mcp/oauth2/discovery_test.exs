@@ -37,7 +37,9 @@ defmodule MCP.OAuth2.DiscoveryTest do
                  scope: ["mcp:access"]
                )
 
-      assert config["discovery_url"] == "https://example.com/.well-known/oauth-authorization-server"
+      assert config["discovery_url"] ==
+               "https://example.com/.well-known/oauth-authorization-server"
+
       assert config["client_id"] == "test-client"
       assert config["scopes"] == ["mcp:access"]
     end
@@ -48,7 +50,9 @@ defmodule MCP.OAuth2.DiscoveryTest do
       end)
 
       assert {:error, :discovery_not_found} =
-               MCP.OAuth2.Discovery.discover_and_setup("https://example.com", client_id: "test-client")
+               MCP.OAuth2.Discovery.discover_and_setup("https://example.com",
+                 client_id: "test-client"
+               )
     end
 
     test "performs dynamic registration when no client_id provided" do

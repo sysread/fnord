@@ -171,11 +171,17 @@ defmodule Cmd.Config.MCP do
                   "❌ OAuth discovery failed (404): Server does not support OAuth auto-discovery"
                 )
 
-                UI.puts("   Try: fnord config mcp add #{name} --url #{url} --client-id YOUR_CLIENT_ID")
+                UI.puts(
+                  "   Try: fnord config mcp add #{name} --url #{url} --client-id YOUR_CLIENT_ID"
+                )
+
                 exit({:shutdown, 1})
 
               {:error, :no_registration_endpoint} ->
-                UI.error("❌ OAuth registration not available: Server requires pre-registered client")
+                UI.error(
+                  "❌ OAuth registration not available: Server requires pre-registered client"
+                )
+
                 UI.puts("   Get a client_id from the provider, then:")
 
                 UI.puts(
@@ -186,7 +192,11 @@ defmodule Cmd.Config.MCP do
 
               {:error, {:incomplete_metadata, msg}} ->
                 UI.error("❌ Invalid discovery document: #{msg}")
-                UI.puts("   Server OAuth configuration is incomplete. Contact server administrator.")
+
+                UI.puts(
+                  "   Server OAuth configuration is incomplete. Contact server administrator."
+                )
+
                 exit({:shutdown, 1})
 
               {:error, reason} ->
