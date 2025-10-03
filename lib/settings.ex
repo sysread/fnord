@@ -88,8 +88,13 @@ defmodule Settings do
   end
 
   def set_project(project_name) do
+    previous = Services.Globals.get_env(:fnord, :project)
     Services.Globals.put_env(:fnord, :project, project_name)
-    UI.debug("Project selected", project_name)
+
+    if previous != project_name do
+      UI.debug("Project selected", project_name)
+    end
+
     Services.Notes.load_notes()
     :ok
   end
