@@ -44,15 +44,46 @@ defmodule Fnord.ResolveProject do
 
   @spec resolve_from_worktree() :: {:ok, project_name} | {:error, :not_in_project}
   def resolve_from_worktree() do
-    case GitCli.worktree_root() do
+    # Gather possible roots from git worktree and repo
+    candidates =
+      [GitCli.worktree_root(), GitCli.repo_root()]
+      |> Enum.filter(& &1)
+      |> Enum.map(&Path.absname/1)
+      |> Enum.uniq()
+
+    # Load configured project roots
+    projects =
+      Settings.new()
+      |> Settings.get_projects()
+      |> Enum.flat_map(fn {name, %{"root" => root}} ->
+        case root do
+          nil -> []
+          root_str -> [{Path.absname(root_str), name}]
+        end
+      end)
+
+    # Attempt direct match of candidate to configured roots
+    case Enum.find(candidates, fn candidate ->
+           Enum.any?(projects, fn {root_abs, _} -> root_abs == candidate end)
+         end) do
       nil ->
-        case GitCli.repo_root() do
-          nil -> {:error, :not_in_project}
-          root -> resolve_from_cwd(root)
+        # Fall back to resolve_from_cwd for each candidate
+        candidates
+        |> Enum.reduce_while(nil, fn cand, _ ->
+          case resolve_from_cwd(cand) do
+            {:ok, name} -> {:halt, {:ok, name}}
+            _ -> {:cont, nil}
+          end
+        end)
+        |> case do
+          {:ok, _} = ok -> ok
+          _ -> {:error, :not_in_project}
         end
 
-      root ->
-        resolve_from_cwd(root)
+      matched ->
+        # Return the project matching the candidate root
+        {_, name} = Enum.find(projects, fn {root_abs, _} -> root_abs == matched end)
+        {:ok, name}
     end
   end
 
