@@ -369,33 +369,33 @@ No manual JSON editing is required. Use the CLI to add provider details for your
 ```bash
 # Add OAuth config (public clients can omit --client-secret)
 fnord config mcp oauth add myserver \
-  --discovery-url https://example.com/.well-known/openid-configuration \
+  --discovery-url https://example.com/.well-known/oauth-authorization-server \
   --client-id my-client-id \
   --scope openid --scope offline_access
 
 # If needed, update later (e.g., to add a client secret)
 fnord config mcp oauth update myserver --client-secret 's3cr3t'
 
-# Inspect the configured OAuth block (use --global for global scope)
+# Inspect the configured OAuth block
 fnord config mcp oauth list myserver
 # To see the merged server config, use:
-fnord config mcp list --effective | glow
+fnord config mcp list --effective
 ```
 
 Confirm your settings:
 
 ```bash
-fnord config mcp list --effective | glow
+fnord config mcp list --effective
 ```
 
 3) Log in (PKCE loopback)
 
-Start a browser-based login for your server using the canonical CLI:
+Start a browser-based login for your server:
 
 ```bash
 fnord config mcp login myserver
 
-# Optional: adjust timeout (milliseconds)
+# Optional: adjust timeout (milliseconds, default 120000)
 fnord config mcp login myserver --timeout 180000
 ```
 

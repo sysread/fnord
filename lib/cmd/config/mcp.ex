@@ -73,12 +73,24 @@ defmodule Cmd.Config.MCP do
   end
 
   # Delegate login and status to submodules
-  def run(opts, [:mcp, :login], [server]) when is_binary(server) do
-    Cmd.Config.MCP.Login.run(opts, [:mcp, :login], [server])
+  def run(opts, [:mcp, :login], args) do
+    case Utils.require_key(opts, args, :server, "Server name") do
+      {:error, msg} ->
+        UI.error(msg)
+
+      {:ok, server} ->
+        Cmd.Config.MCP.Login.run(opts, [:mcp, :login], [server])
+    end
   end
 
-  def run(opts, [:mcp, :status], [server]) when is_binary(server) do
-    Cmd.Config.MCP.Status.run(opts, [:mcp, :status], [server])
+  def run(opts, [:mcp, :status], args) do
+    case Utils.require_key(opts, args, :server, "Server name") do
+      {:error, msg} ->
+        UI.error(msg)
+
+      {:ok, server} ->
+        Cmd.Config.MCP.Status.run(opts, [:mcp, :status], [server])
+    end
   end
 
   # OAuth subcommands for MCP
