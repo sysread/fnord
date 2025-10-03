@@ -384,6 +384,7 @@ defmodule Cmd.Ask do
   # ----------------------------------------------------------------------------
   defp print_result(start_time, end_time, response, usage, context, conversation_id) do
     time_taken = end_time - start_time
+    duration = Util.Duration.format(time_taken)
 
     pct_context_used =
       if usage > 0 and context > 0 do
@@ -404,7 +405,7 @@ defmodule Cmd.Ask do
     -----
 
     ### Response Summary:
-    - Response generated in #{time_taken} seconds
+    - Response generated in #{duration}
     - Tokens used: #{usage_str} | #{pct_context_used}% of context window (#{context_str})
     - Conversation saved with ID #{conversation_id} (_copied to clipboard_)
 
