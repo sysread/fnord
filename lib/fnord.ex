@@ -192,18 +192,22 @@ defmodule Fnord do
     end)
 
     # --------------------------------------------------------------------------
-    # If the user did not specify a project in ARGV, we try to set it based on
-    # the current working directory.
+    # If the user did not specify a project in ARGV, resolve it via Fnord.ResolveProject.
     # --------------------------------------------------------------------------
     unless Settings.project_is_set?() do
-      with {:ok, project} <- get_project_from_cwd() do
-        UI.info("Project not specified, but CWD is within #{project}")
-        Settings.set_project(project)
-      else
+      case Fnord.ResolveProject.resolve_from_cwd(nil) do
+        {:ok, project} ->
+          UI.info("Project not specified, but resolved to #{project}")
+          Settings.set_project(project)
+
         {:error, :not_in_project} ->
-          with {:ok, project} <- get_project_from_cwd_worktree() do
-            UI.info("Project not specified, but CWD is worktree of #{project}")
-            Settings.set_project(project)
+          case Fnord.ResolveProject.resolve_from_worktree() do
+            {:ok, project} ->
+              UI.info("Project not specified, but resolved from worktree to #{project}")
+              Settings.set_project(project)
+
+            {:error, :not_in_project} ->
+              :ok
           end
       end
     end
@@ -216,39 +220,6 @@ defmodule Fnord do
       args[:quiet] -> args
       IO.ANSI.enabled?() -> args
       true -> Map.put(args, :quiet, true)
-    end
-  end
-
-  @spec get_project_from_cwd(cwd :: binary | nil) :: {:ok, binary} | {:error, :not_in_project}
-  defp get_project_from_cwd(cwd \\ nil) do
-    # Map project roots to project names using Settings.get_projects/1
-    projects =
-      Settings.new()
-      |> Settings.get_projects()
-      |> Enum.map(fn {k, %{"root" => root}} -> {root, k} end)
-      |> Map.new()
-
-    cwd =
-      case cwd do
-        nil -> File.cwd!()
-        dir -> Path.expand(dir)
-      end
-
-    with root <- Path.expand(cwd),
-         {:ok, project} <- Map.fetch(projects, root) do
-      {:ok, project}
-    else
-      _ -> {:error, :not_in_project}
-    end
-  end
-
-  # If CWD is a worktree, use that to identify the actual project root, and
-  # then use that to find the project.
-  defp get_project_from_cwd_worktree() do
-    GitCli.repo_root()
-    |> case do
-      nil -> {:error, :not_in_project}
-      root -> get_project_from_cwd(root)
     end
   end
 end
