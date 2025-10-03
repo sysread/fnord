@@ -19,6 +19,7 @@ defmodule MCP.OAuth2.LoopbackTest do
       {:ok, pid} =
         MCP.OAuth2.Loopback.start_link(
           cfg: cfg,
+          base_url: "https://example.com",
           server_key: server_key,
           state: expected_state,
           code_verifier: code_verifier,
@@ -47,6 +48,7 @@ defmodule MCP.OAuth2.LoopbackTest do
       assert {:ok, _pid} =
                MCP.OAuth2.Loopback.start_link(
                  cfg: cfg,
+                 base_url: "https://example.com",
                  server_key: "test",
                  state: "state",
                  code_verifier: "verifier",

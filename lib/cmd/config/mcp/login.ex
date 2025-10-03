@@ -14,13 +14,13 @@ defmodule Cmd.Config.MCP.Login do
     settings = Settings.new()
     cfgs = Settings.MCP.effective_config(settings)
 
-    with {:ok, _srv_cfg} <- fetch_server(cfgs, server),
+    with {:ok, srv_cfg} <- fetch_server(cfgs, server),
          {:ok, oauth} <- fetch_oauth(cfgs[server]),
          {:ok, port, state, verifier, auth_url, _redirect_uri} <-
            adapter().start_flow(oauth),
          :ok <- browser().open(auth_url),
          {:ok, token} <-
-           await_callback(oauth, server, state, verifier, port, opts[:timeout] || 120_000) do
+           await_callback(oauth, srv_cfg["base_url"], server, state, verifier, port, opts[:timeout] || 120_000) do
       UI.info("Auth", "Success for #{server}")
       print_tokens_redacted(token)
       # Brief delay to allow HTTP response to be sent to browser before process exits
@@ -78,9 +78,9 @@ defmodule Cmd.Config.MCP.Login do
 
   defp fetch_oauth(_), do: {:error, {:oauth_missing, "No OAuth config for this server"}}
 
-  defp await_callback(oauth, server, state, verifier, port, timeout_ms) do
+  defp await_callback(oauth, base_url, server, state, verifier, port, timeout_ms) do
     cfg = Map.put(oauth, :redirect_uri, "http://127.0.0.1:#{port}/callback")
-    MCP.OAuth2.Loopback.run(cfg, server, state, verifier, port, timeout_ms)
+    MCP.OAuth2.Loopback.run(cfg, base_url, server, state, verifier, port, timeout_ms)
   end
 
   defp print_tokens_redacted(token) do

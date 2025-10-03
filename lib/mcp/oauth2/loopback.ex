@@ -52,12 +52,13 @@ defmodule MCP.OAuth2.Loopback do
   Run the loopback flow until one callback is handled or timeout.
   Returns the token map on success.
   """
-  @spec run(map(), String.t(), String.t(), String.t(), non_neg_integer(), non_neg_integer()) ::
+  @spec run(map(), String.t(), String.t(), String.t(), String.t(), non_neg_integer(), non_neg_integer()) ::
           {:ok, map()} | {:error, term()}
-  def run(cfg, server_key, expected_state, code_verifier, port \\ 0, timeout_ms \\ 120_000) do
+  def run(cfg, base_url, server_key, expected_state, code_verifier, port \\ 0, timeout_ms \\ 120_000) do
     {:ok, pid} =
       start_link(
         cfg: cfg,
+        base_url: base_url,
         server_key: server_key,
         state: expected_state,
         code_verifier: code_verifier,
@@ -72,13 +73,14 @@ defmodule MCP.OAuth2.Loopback do
   @impl true
   def init(opts) do
     cfg = Keyword.fetch!(opts, :cfg)
+    base_url = Keyword.fetch!(opts, :base_url)
     server_key = Keyword.fetch!(opts, :server_key)
     expected_state = Keyword.fetch!(opts, :state)
     code_verifier = Keyword.fetch!(opts, :code_verifier)
     port = Keyword.get(opts, :port, 0)
 
     # Build Plug router with captured state
-    {:ok, plug} = build_router(cfg, server_key, expected_state, code_verifier)
+    {:ok, plug} = build_router(cfg, base_url, server_key, expected_state, code_verifier)
 
     ref = :"mcp_oauth_loopback_#{System.unique_integer([:monotonic, :positive])}"
     {:ok, _pid} = Plug.Cowboy.http(plug, [], ip: {127, 0, 0, 1}, port: port, ref: ref)
@@ -150,7 +152,7 @@ defmodule MCP.OAuth2.Loopback do
     end
   end
 
-  defp build_router(cfg, server_key, expected_state, code_verifier) do
+  defp build_router(cfg, base_url, server_key, expected_state, code_verifier) do
     parent = self()
 
     mod = Module.concat(__MODULE__, :"Router_#{System.unique_integer([:monotonic, :positive])}")
@@ -188,7 +190,7 @@ defmodule MCP.OAuth2.Loopback do
                     })
 
                   send(unquote(parent), {:callback_result, {:ok, token_map}})
-                  send_resp(var!(conn), 200, success_html())
+                  send_resp(var!(conn), 200, success_html(unquote(server_key), unquote(base_url)))
 
                 {:pending, ref} ->
                   send(unquote(parent), {:callback_result, {:error, :approval_pending}})
@@ -205,8 +207,38 @@ defmodule MCP.OAuth2.Loopback do
           send_resp(var!(conn), 404, "Not Found")
         end
 
-        defp success_html do
-          "<html><body><h3>Authentication complete</h3><p>You can close this tab.</p></body></html>"
+        defp success_html(server_name, base_url) do
+          """
+          <html>
+          <head>
+            <meta charset="UTF-8">
+            <title>Authentication Complete</title>
+            <style>
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                max-width: 600px;
+                margin: 100px auto;
+                padding: 20px;
+                text-align: center;
+              }
+              h3 { color: #2d3748; }
+              .details {
+                color: #4a5568;
+                margin: 20px 0;
+                font-size: 0.95em;
+              }
+            </style>
+          </head>
+          <body>
+            <h3>Authentication complete</h3>
+            <div class="details">
+              <p><strong>fnord</strong> successfully authenticated</p>
+              <p><strong>#{server_name}</strong> at #{base_url}</p>
+            </div>
+            <p>You can close this tab.</p>
+          </body>
+          </html>
+          """
         end
 
         defp failure_html do
