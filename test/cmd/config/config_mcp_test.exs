@@ -185,6 +185,11 @@ defmodule Cmd.Config.MCPTest do
     end
 
     test "check shows server status" do
+      # Mock the test function to return a successful response
+      :meck.expect(Services.MCP, :test, fn _ ->
+        %{"status" => "ok", "servers" => %{"test_server" => %{"status" => "ok"}}}
+      end)
+
       # This will try to connect but fail gracefully - we're just testing the command structure
       {out, _stderr} = capture_all(fn -> MCP.run(%{global: true}, [:mcp, :check], []) end)
       assert {:ok, %{"status" => "ok", "servers" => servers}} = Jason.decode(out)
@@ -192,8 +197,8 @@ defmodule Cmd.Config.MCPTest do
     end
 
     test "check with project scope" do
-      # Mock empty response for project scope
-      :meck.expect(Services.MCP, :test, fn -> %{"status" => "ok", "servers" => %{}} end)
+      # Mock empty response for project scope (accepts any arguments)
+      :meck.expect(Services.MCP, :test, fn _ -> %{"status" => "ok", "servers" => %{}} end)
 
       mock_project("check_test")
       Settings.set_project("check_test")

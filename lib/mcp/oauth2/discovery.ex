@@ -187,9 +187,12 @@ defmodule MCP.OAuth2.Discovery do
   defp has_scope?(_, _), do: false
 
   defp log_setup_success(client_id, scopes) do
-    UI.puts("✓ OAuth configured successfully")
-    UI.puts("  Client ID: #{client_id}")
-    UI.puts("  Scopes: #{Enum.join(scopes, ", ")}")
-    UI.puts("")
+    # Only log in non-quiet mode (tests typically run with quiet mode)
+    unless UI.quiet?() do
+      UI.puts("✓ OAuth configured successfully")
+      UI.puts("  Client ID: #{client_id}")
+      UI.puts("  Scopes: #{Enum.join(scopes, ", ")}")
+      UI.puts("")
+    end
   end
 end

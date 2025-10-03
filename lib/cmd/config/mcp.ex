@@ -54,7 +54,7 @@ defmodule Cmd.Config.MCP do
     if opts[:project], do: Settings.set_project(opts[:project])
     Services.MCP.start()
 
-    Services.MCP.test()
+    Services.MCP.test(with_discovery: true)
     |> Jason.encode!(pretty: true)
     |> UI.puts()
   end
@@ -115,6 +115,7 @@ defmodule Cmd.Config.MCP do
     |> maybe_put("command", opts[:command])
     |> maybe_put("args", opts[:arg] || [])
     |> maybe_put("base_url", opts[:url])
+    |> maybe_put("mcp_path", opts[:mcp_path])
     |> maybe_put("headers", parse_kv_list(opts[:header] || []))
     |> maybe_put("env", parse_kv_list(opts[:env] || []))
     |> maybe_put("timeout_ms", opts[:timeout_ms])

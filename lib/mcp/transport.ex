@@ -23,11 +23,19 @@ defmodule MCP.Transport do
   def map(server, %{"transport" => "http"} = cfg) do
     headers = merge_oauth_header(server, cfg, cfg["headers"] || %{})
 
-    {:streamable_http,
-     [
-       base_url: cfg["base_url"],
-       headers: headers
-     ]}
+    opts = [
+      base_url: cfg["base_url"],
+      headers: headers
+    ]
+
+    # Add optional mcp_path if specified (default is "/mcp" in Hermes)
+    opts =
+      case Map.get(cfg, "mcp_path") do
+        path when is_binary(path) -> Keyword.put(opts, :mcp_path, path)
+        _ -> opts
+      end
+
+    {:streamable_http, opts}
   end
 
   def map(server, %{"transport" => "websocket"} = cfg) do

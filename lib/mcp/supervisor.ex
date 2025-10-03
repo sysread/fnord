@@ -19,7 +19,14 @@ defmodule MCP.Supervisor do
       Enum.map(servers, fn {server, scfg} ->
         {kind, t_opts} = Transport.map(server, scfg)
         spec_opts = [name: instance_name(server), transport: {kind, t_opts}]
-        Supervisor.child_spec({FnordClient, spec_opts}, id: {:mcp, server})
+
+        # Use :temporary restart to prevent infinite retry loops
+        # Failed MCP servers will be logged but won't crash the app
+        Supervisor.child_spec(
+          {FnordClient, spec_opts},
+          id: {:mcp, server},
+          restart: :temporary
+        )
       end)
 
     Supervisor.init(children, strategy: :one_for_one)

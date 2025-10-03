@@ -57,20 +57,8 @@ defmodule Cmd.Config do
           ],
           approve: [
             name: "approve",
-            about: """
-            Add an approval regex under a kind (shell|shell_full) for scope (global|project).
-
-            - shell:      Approves a *prefix* match of the shell command.
-                          This is matched against shell commands the LLM
-                          wishes to execute. It ONLY matches against the
-                          command itself and its subcommands, not arguments.
-                          Subcommands are only supported for a small number
-                          of recognized commands (e.g., git, docker).
-
-            - shell_full: Approves a *regex* match of the full command,
-                          including arguments. It is up to the user to ensure
-                          the regex is safe and properly anchored.
-            """,
+            about:
+              "Add an approval regex under a kind (shell|shell_full) for scope (global|project).",
             args: [
               pattern: [
                 value_name: "PATTERN",
@@ -84,7 +72,8 @@ defmodule Cmd.Config do
                 value_name: "KIND",
                 long: "--kind",
                 short: "-k",
-                help: "Approval kind",
+                help:
+                  "Approval kind. One of: shell (*prefix* match of command and subcommands), shell_full (*regex* match of full command with args)",
                 required: true
               ]
             ],
@@ -157,6 +146,12 @@ defmodule Cmd.Config do
                     long: "--url",
                     short: "-u",
                     help: "Base URL for HTTP/WebSocket transports",
+                    required: false
+                  ],
+                  mcp_path: [
+                    value_name: "PATH",
+                    long: "--mcp-path",
+                    help: "MCP endpoint path for HTTP transport (default: /mcp)",
                     required: false
                   ],
                   header: [
@@ -251,6 +246,12 @@ defmodule Cmd.Config do
                     long: "--url",
                     short: "-u",
                     help: "Base URL for HTTP/WebSocket transports",
+                    required: false
+                  ],
+                  mcp_path: [
+                    value_name: "PATH",
+                    long: "--mcp-path",
+                    help: "MCP endpoint path for HTTP transport (default: /mcp)",
                     required: false
                   ],
                   header: [
