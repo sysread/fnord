@@ -392,7 +392,7 @@ For maximum control, you can edit `~/.fnord/settings.json` directly:
 {
   "mcp_servers": {
     "myserver": {
-      "transport": "streamable_http",
+      "transport": "http",
       "base_url": "https://api.example.com",
       "oauth": {
         "discovery_url": "https://api.example.com/.well-known/oauth-authorization-server",

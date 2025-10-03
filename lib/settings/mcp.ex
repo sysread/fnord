@@ -10,7 +10,7 @@ defmodule Settings.MCP do
   "mcp_servers": %{server_name => server_config}
 
   server_config fields:
-    - "transport": "stdio" | "streamable_http" | "websocket"
+    - "transport": "stdio" | "http" | "websocket"
     - "timeout_ms": integer (optional)
     - stdio-specific:
       - "command": string
@@ -130,7 +130,7 @@ defmodule Settings.MCP do
 
   @spec validate_server_config(map()) :: {:ok, map()} | {:error, String.t()}
   defp validate_server_config(%{"transport" => t} = cfg)
-       when t in ["stdio", "streamable_http", "websocket"] do
+       when t in ["stdio", "http", "websocket"] do
     # Common optional field: timeout_ms
     cfg1 =
       case Map.get(cfg, "timeout_ms") do
@@ -183,12 +183,12 @@ defmodule Settings.MCP do
           {:error, msg} -> {:error, msg}
         end
 
-      "streamable_http" ->
+      "http" ->
         with base_url when is_binary(base_url) <- Map.get(cfg_oauth, "base_url"),
              headers <- Map.get(cfg_oauth, "headers", %{}),
              true <- is_map(headers) do
           normalized = %{
-            "transport" => "streamable_http",
+            "transport" => "http",
             "base_url" => base_url,
             "headers" => headers
           }
@@ -203,8 +203,8 @@ defmodule Settings.MCP do
 
           {:ok, normalized}
         else
-          nil -> {:error, "Missing 'base_url' for streamable_http transport"}
-          false -> {:error, "Invalid 'headers' for streamable_http transport"}
+          nil -> {:error, "Missing 'base_url' for http transport"}
+          false -> {:error, "Invalid 'headers' for http transport"}
           {:error, msg} -> {:error, msg}
         end
 

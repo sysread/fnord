@@ -108,14 +108,10 @@ defmodule Cmd.Config.MCP do
     {:ok, port}
   end
 
-  @spec normalize_transport(String.t()) :: String.t()
-  defp normalize_transport("http"), do: "streamable_http"
-  defp normalize_transport(transport), do: transport
-
   @spec build_server_config_from_opts(map()) :: map()
   defp build_server_config_from_opts(opts) do
     %{}
-    |> maybe_put("transport", normalize_transport(opts[:transport] || "stdio"))
+    |> maybe_put("transport", opts[:transport] || "stdio")
     |> maybe_put("command", opts[:command])
     |> maybe_put("args", opts[:arg] || [])
     |> maybe_put("base_url", opts[:url])

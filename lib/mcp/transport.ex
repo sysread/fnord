@@ -20,7 +20,7 @@ defmodule MCP.Transport do
      ]}
   end
 
-  def map(server, %{"transport" => "streamable_http"} = cfg) do
+  def map(server, %{"transport" => "http"} = cfg) do
     headers = merge_oauth_header(server, cfg, cfg["headers"] || %{})
 
     {:streamable_http,
