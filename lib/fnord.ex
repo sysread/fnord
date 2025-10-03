@@ -57,33 +57,15 @@ defmodule Fnord do
       end
 
       # While the subcommand is working, we can check for a new version in the
-      # background.
-      version_check_task =
-        if command == :upgrade do
-          nil
-        else
-          Services.Globals.Spawn.async(fn -> Util.get_latest_version() end)
-        end
+      # background (unless we're running the upgrade command itself).
+      maybe_start_version_check(command)
 
       # Run the subcommand
       Cmd.perform_command(cmd_module, opts, subcommands, unknown)
 
       # Once the command has finished, we can check if a new version is
       # available and prompt the user to upgrade if there is.
-      if !is_nil(version_check_task) do
-        with {:ok, {:ok, latest}} <- Task.yield(version_check_task, 1000) do
-          current = Util.get_running_version()
-
-          if Version.compare(current, latest) == :lt do
-            UI.info("""
-
-            A new version of fnord is available! To upgrade to v#{latest}:
-
-                fnord upgrade
-            """)
-          end
-        end
-      end
+      maybe_show_version_notification(command)
     end
   end
 
@@ -113,6 +95,8 @@ defmodule Fnord do
     ]
   end
 
+  @spec parse_options([String.t()]) ::
+          {:ok, [atom()], map(), [String.t()]} | {:error, :no_subcommand}
   defp parse_options(args) do
     spec()
     |> Optimus.new!()
@@ -249,6 +233,45 @@ defmodule Fnord do
     |> case do
       nil -> {:error, :not_in_project}
       root -> get_project_from_cwd(root)
+    end
+  end
+
+  # Start background version check unless running upgrade command
+  # Dialyzer can't infer that command is a dynamic atom from CLI args
+  @dialyzer {:no_match, maybe_start_version_check: 1}
+  @spec maybe_start_version_check(atom()) :: :ok
+  defp maybe_start_version_check(:upgrade), do: :ok
+
+  defp maybe_start_version_check(_command) do
+    task = Services.Globals.Spawn.async(fn -> Util.get_latest_version() end)
+    Process.put(:version_check_task, task)
+    :ok
+  end
+
+  # Show version notification if available
+  # Dialyzer can't infer that command is a dynamic atom from CLI args
+  @dialyzer {:no_match, maybe_show_version_notification: 1}
+  @spec maybe_show_version_notification(atom()) :: :ok
+  defp maybe_show_version_notification(:upgrade), do: :ok
+
+  defp maybe_show_version_notification(_command) do
+    case Process.get(:version_check_task) do
+      nil ->
+        :ok
+
+      task ->
+        with {:ok, {:ok, latest}} <- Task.yield(task, 1000) do
+          current = Util.get_running_version()
+
+          if Version.compare(current, latest) == :lt do
+            UI.info("""
+
+            A new version of fnord is available! To upgrade to v#{latest}:
+
+                fnord upgrade
+            """)
+          end
+        end
     end
   end
 end

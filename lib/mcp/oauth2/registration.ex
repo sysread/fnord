@@ -59,15 +59,15 @@ defmodule MCP.OAuth2.Registration do
       {:ok, %{status_code: code, body: body}} ->
         Logger.warning("Registration failed with HTTP #{code}: #{body}")
         {:error, {:registration_failed, code}}
-
-      {:error, %{reason: reason}} ->
-        Logger.warning("Registration request failed: #{inspect(reason)}")
-        {:error, {:network_error, reason}}
-
-      {:error, reason} ->
-        Logger.warning("Registration request failed: #{inspect(reason)}")
-        {:error, {:network_error, reason}}
     end
+  rescue
+    e in HTTPoison.Error ->
+      Logger.warning("Registration request failed: #{inspect(e.reason)}")
+      {:error, {:network_error, e.reason}}
+  catch
+    kind, reason ->
+      Logger.warning("Registration request failed: #{inspect({kind, reason})}")
+      {:error, {:network_error, reason}}
   end
 
   defp parse_registration_response(body) do

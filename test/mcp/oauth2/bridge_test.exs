@@ -2,12 +2,12 @@ defmodule MCP.OAuth2.BridgeTest do
   use ExUnit.Case, async: false
 
   setup do
-    # meck CredentialsStore and OidccAdapter interactions
+    # meck CredentialsStore and Client interactions
     :meck.new(MCP.OAuth2.CredentialsStore, [:non_strict])
-    :meck.new(MCP.OAuth2.OidccAdapter, [:non_strict])
+    :meck.new(MCP.OAuth2.Client, [:non_strict])
 
     on_exit(fn ->
-      for m <- [MCP.OAuth2.CredentialsStore, MCP.OAuth2.OidccAdapter] do
+      for m <- [MCP.OAuth2.CredentialsStore, MCP.OAuth2.Client] do
         try do
           :meck.unload(m)
         catch
@@ -21,10 +21,11 @@ defmodule MCP.OAuth2.BridgeTest do
 
   defp cfg(),
     do: %{
-      discovery_url: "https://example.com/.well-known/openid-configuration",
-      client_id: "c",
-      redirect_uri: "http://127.0.0.1:7/callback",
-      scopes: ["openid"]
+      "oauth" => %{
+        "discovery_url" => "https://example.com/.well-known/openid-configuration",
+        "client_id" => "c",
+        "scopes" => ["openid"]
+      }
     }
 
   test "returns header when access token is present and not near expiry" do
@@ -45,7 +46,7 @@ defmodule MCP.OAuth2.BridgeTest do
       {:ok, %{"access_token" => "old", "refresh_token" => "rt", "expires_at" => now + 10}}
     end)
 
-    :meck.expect(MCP.OAuth2.OidccAdapter, :refresh_token, fn _cfg, %{refresh_token: "rt"} ->
+    :meck.expect(MCP.OAuth2.Client, :refresh_token, fn _cfg, "rt" ->
       {:ok,
        %{
          access_token: "new",

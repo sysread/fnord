@@ -152,7 +152,7 @@ defmodule MCP.OAuth2.Discovery do
     end
   end
 
-  defp register_client(_metadata) do
+  defp register_client(_metadata, _opts) do
     {:error, :no_registration_endpoint}
   end
 
