@@ -40,6 +40,36 @@ defmodule MCP.Transport do
      ]}
   end
 
+  def map(server, %{"transport" => transport} = _cfg) do
+    Logger.error("""
+    Invalid transport '#{transport}' for MCP server '#{server}'.
+
+    Valid transports are: "stdio", "http", "websocket"
+
+    This error often occurs with outdated config values (e.g., "streamable_http" from older versions).
+
+    To fix:
+    1. Manually edit ~/.fnord/settings.json and change the transport value to a valid one
+    2. Or remove the server config and re-add it: fnord config mcp remove #{server} && fnord config mcp add #{server} [options]
+    """)
+
+    raise ArgumentError, "Invalid transport '#{transport}' for MCP server '#{server}'"
+  end
+
+  def map(server, cfg) do
+    Logger.error("""
+    Missing or invalid transport configuration for MCP server '#{server}'.
+
+    Config received: #{inspect(cfg)}
+
+    To fix:
+    1. Manually edit ~/.fnord/settings.json to add a valid "transport" field
+    2. Or remove the server config and re-add it: fnord config mcp remove #{server} && fnord config mcp add #{server} [options]
+    """)
+
+    raise ArgumentError, "Missing transport configuration for MCP server '#{server}'"
+  end
+
   # Inject OAuth Authorization header if server has oauth config and valid credentials
   defp merge_oauth_header(server, cfg, base_headers) do
     case Map.get(cfg, "oauth") do
