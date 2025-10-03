@@ -81,6 +81,103 @@ defmodule Cmd.Config.MCP do
     Cmd.Config.MCP.Status.run(opts, [:mcp, :status], [server])
   end
 
+  # OAuth subcommands for MCP
+  def run(opts, [:mcp, :oauth, :list], [name]) when is_binary(name) do
+    if opts[:project], do: Settings.set_project(opts[:project])
+    settings = Settings.new()
+    scope = if opts[:global], do: :global, else: :project
+    servers = Settings.MCP.get_config(settings, scope)
+
+    case Map.fetch(servers, name) do
+      :error ->
+        UI.error("Server '#{name}' not found")
+
+      {:ok, conf} ->
+        Map.get(conf, "oauth", %{})
+        |> Jason.encode!(pretty: true)
+        |> UI.puts()
+    end
+  end
+
+  def run(opts, [:mcp, :oauth, :add], [name]) when is_binary(name) do
+    if opts[:project], do: Settings.set_project(opts[:project])
+
+    raw_oauth =
+      %{}
+      |> maybe_put("discovery_url", opts[:discovery_url])
+      |> maybe_put("client_id", opts[:client_id])
+      |> maybe_put("client_secret", opts[:client_secret])
+      |> maybe_put("scopes", opts[:scope] || [])
+
+    settings = Settings.new()
+    scope = if opts[:global], do: :global, else: :project
+
+    case Settings.MCP.update_server(settings, scope, name, %{"oauth" => raw_oauth}) do
+      {:ok, upd} ->
+        %{name => Settings.MCP.list_servers(upd, scope)[name]}
+        |> Jason.encode!(pretty: true)
+        |> UI.puts()
+
+      {:error, :not_found} ->
+        UI.error("Server '#{name}' not found")
+
+      {:error, err} ->
+        UI.error(err)
+    end
+  end
+
+  def run(opts, [:mcp, :oauth, :update], [name]) when is_binary(name) do
+    if opts[:project], do: Settings.set_project(opts[:project])
+
+    raw_oauth =
+      %{}
+      |> maybe_put("discovery_url", opts[:discovery_url])
+      |> maybe_put("client_id", opts[:client_id])
+      |> maybe_put("client_secret", opts[:client_secret])
+      |> maybe_put("scopes", opts[:scope] || [])
+
+    settings = Settings.new()
+    scope = if opts[:global], do: :global, else: :project
+
+    case Settings.MCP.update_server(settings, scope, name, %{"oauth" => raw_oauth}) do
+      {:ok, upd} ->
+        %{name => Settings.MCP.list_servers(upd, scope)[name]}
+        |> Jason.encode!(pretty: true)
+        |> UI.puts()
+
+      {:error, :not_found} ->
+        UI.error("Server '#{name}' not found")
+
+      {:error, err} ->
+        UI.error(err)
+    end
+  end
+
+  def run(opts, [:mcp, :oauth, :remove], [name]) when is_binary(name) do
+    if opts[:project], do: Settings.set_project(opts[:project])
+    settings = Settings.new()
+    scope = if opts[:global], do: :global, else: :project
+    servers = Settings.MCP.get_config(settings, scope)
+
+    case Map.fetch(servers, name) do
+      :error ->
+        UI.error("Server '#{name}' not found")
+
+      {:ok, conf} ->
+        new_conf = Map.delete(conf, "oauth")
+
+        case Settings.MCP.update_server(settings, scope, name, new_conf) do
+          {:ok, upd} ->
+            %{name => Settings.MCP.list_servers(upd, scope)[name]}
+            |> Jason.encode!(pretty: true)
+            |> UI.puts()
+
+          {:error, err} ->
+            UI.error(err)
+        end
+    end
+  end
+
   # ----------------------------------------------------------------------------
   # Helpers
   # ----------------------------------------------------------------------------

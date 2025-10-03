@@ -341,30 +341,91 @@ fnord config mcp remove <name> [--global]
 fnord config mcp check --project <project> [--global]
 ```
 
-#### MCP OAuth (OIDC)
+#### Authentication with OAuth2
 
-`fnord` supports OAuth 2.0 / OpenID Connect for MCP servers. This includes:
+OAuth2 is supported for HTTP-based MCP servers with PKCE.
 
-- Supported flows:
-  - Discovery + Authorization Code + PKCE
-  - Token refresh
-- Not supported:
-  - Device flow
-  - private_key_jwt client authentication
-  - ID token validation
+1) Add your HTTP MCP server
+
+Add an HTTP MCP server to Fnord's config (base URL and optional headers):
 
 ```bash
-fnord mcp login <name>
-fnord mcp status <name>
+fnord config mcp add myserver \
+  --transport streamable_http \
+  --base-url https://api.example.com \
+  --header 'Accept=application/json'
 ```
 
-Troubleshooting:
+You can review the current config at any time:
 
-If the provider rejects the `redirect_uri`, make sure you have registered a loopback redirect URI in your client settings. For example:
+```bash
+fnord config mcp list --effective
+```
 
+2) Configure OAuth via CLI (OIDC discovery + PKCE)
+
+No manual JSON editing is required. Use the CLI to add provider details for your server:
+
+```bash
+# Add OAuth config (public clients can omit --client-secret)
+fnord config mcp oauth add myserver \
+  --discovery-url https://example.com/.well-known/openid-configuration \
+  --client-id my-client-id \
+  --scope openid --scope offline_access
+
+# If needed, update later (e.g., to add a client secret)
+fnord config mcp oauth update myserver --client-secret 's3cr3t'
+
+# Inspect the configured OAuth block (use --global for global scope)
+fnord config mcp oauth list myserver
+# To see the merged server config, use:
+fnord config mcp list --effective | glow
 ```
-http://127.0.0.1:<port>/callback
+
+Confirm your settings:
+
+```bash
+fnord config mcp list --effective | glow
 ```
+
+3) Log in (PKCE loopback)
+
+Start a browser-based login for your server using the canonical CLI:
+
+```bash
+fnord config mcp login myserver
+
+# Optional: adjust timeout (milliseconds)
+fnord config mcp login myserver --timeout 180000
+```
+
+Fnord will open your browser at the provider's authorization URL. After login, it waits for a loopback callback and exchanges the code for tokens.
+
+4) Check token status
+
+```bash
+fnord config mcp status myserver
+# Example output:
+# Token: present
+# Expires in: 3521s
+# Age: 27s
+```
+
+5) Security notes
+- PKCE is required for Authorization Code flow
+- Use least-privilege scopes
+- Tokens are never logged
+- Credentials are stored at `~/.fnord/credentials.json` with 0600 permissions; writes are atomic
+
+Troubleshooting
+- If your provider rejects the redirect URI, ensure a loopback redirect is registered for your client. Fnord uses an ephemeral 127.0.0.1 port; the pattern is:
+
+```bash
+http://127.0.0.1:<ephemeral-port>/callback
+```
+
+- If login times out, increase `--timeout` and confirm your provider/issuer is reachable
+- Use `fnord config mcp list --effective` to validate your `oauth` block (discovery_url, client_id, scopes)
 
 
 ## Writing code

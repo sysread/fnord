@@ -294,6 +294,134 @@ defmodule Cmd.Config do
                     required: false
                   ]
                 ]
+              ],
+              oauth: [
+                name: "oauth",
+                about: "Manage OAuth server configuration",
+                subcommands: [
+                  list: [
+                    name: "list",
+                    about: "List OAuth configurations (global or project)",
+                    args: [
+                      name: [value_name: "NAME", help: "OAuth server identifier", required: true]
+                    ],
+                    options: [
+                      project: Cmd.project_arg()
+                    ],
+                    flags: [
+                      global: [
+                        long: "--global",
+                        short: "-g",
+                        help: "Use global scope",
+                        required: false
+                      ]
+                    ]
+                  ],
+                  add: [
+                    name: "add",
+                    about: "Add an OAuth server (global or project)",
+                    args: [
+                      name: [value_name: "NAME", help: "OAuth server identifier", required: true]
+                    ],
+                    options: [
+                      project: Cmd.project_arg(),
+                      discovery_url: [
+                        value_name: "URL",
+                        long: "--discovery-url",
+                        help: "Discovery URL for OAuth server",
+                        required: false
+                      ],
+                      client_id: [
+                        value_name: "ID",
+                        long: "--client-id",
+                        help: "Client ID for OAuth server",
+                        required: false
+                      ],
+                      client_secret: [
+                        value_name: "SECRET",
+                        long: "--client-secret",
+                        help: "Client secret for OAuth server",
+                        required: false
+                      ],
+                      scope: [
+                        value_name: "SCOPE",
+                        long: "--scope",
+                        help: "Scope for OAuth server",
+                        required: false,
+                        multiple: true
+                      ]
+                    ],
+                    flags: [
+                      global: [
+                        long: "--global",
+                        short: "-g",
+                        help: "Add server to global configuration",
+                        required: false
+                      ]
+                    ]
+                  ],
+                  update: [
+                    name: "update",
+                    about: "Update an OAuth server configuration",
+                    args: [
+                      name: [value_name: "NAME", help: "OAuth server identifier", required: true]
+                    ],
+                    options: [
+                      project: Cmd.project_arg(),
+                      discovery_url: [
+                        value_name: "URL",
+                        long: "--discovery-url",
+                        help: "Discovery URL for OAuth server",
+                        required: false
+                      ],
+                      client_id: [
+                        value_name: "ID",
+                        long: "--client-id",
+                        help: "Client ID for OAuth server",
+                        required: false
+                      ],
+                      client_secret: [
+                        value_name: "SECRET",
+                        long: "--client-secret",
+                        help: "Client secret for OAuth server",
+                        required: false
+                      ],
+                      scope: [
+                        value_name: "SCOPE",
+                        long: "--scope",
+                        help: "Scope for OAuth server",
+                        required: false,
+                        multiple: true
+                      ]
+                    ],
+                    flags: [
+                      global: [
+                        long: "--global",
+                        short: "-g",
+                        help: "Update server in global configuration",
+                        required: false
+                      ]
+                    ]
+                  ],
+                  remove: [
+                    name: "remove",
+                    about: "Remove an OAuth server (global or project)",
+                    args: [
+                      name: [value_name: "NAME", help: "OAuth server identifier", required: true]
+                    ],
+                    options: [
+                      project: Cmd.project_arg()
+                    ],
+                    flags: [
+                      global: [
+                        long: "--global",
+                        short: "-g",
+                        help: "Remove server from global configuration",
+                        required: false
+                      ]
+                    ]
+                  ]
+                ]
               ]
             ]
           ]
@@ -360,6 +488,10 @@ defmodule Cmd.Config do
   def run(opts, [:mcp, :login], args), do: Cmd.Config.MCP.run(opts, [:mcp, :login], args)
   def run(opts, [:mcp, :status], args), do: Cmd.Config.MCP.run(opts, [:mcp, :status], args)
   def run(opts, [:mcp, :check], args), do: Cmd.Config.MCP.run(opts, [:mcp, :check], args)
+  def run(opts, [:mcp, :oauth, :list], args),   do: Cmd.Config.MCP.run(opts, [:mcp, :oauth, :list], args)
+  def run(opts, [:mcp, :oauth, :add], args),    do: Cmd.Config.MCP.run(opts, [:mcp, :oauth, :add], args)
+  def run(opts, [:mcp, :oauth, :update], args), do: Cmd.Config.MCP.run(opts, [:mcp, :oauth, :update], args)
+  def run(opts, [:mcp, :oauth, :remove], args), do: Cmd.Config.MCP.run(opts, [:mcp, :oauth, :remove], args)
 
   def run(_opts, [], _unknown) do
     UI.error("No subcommand specified. Use 'fnord help config' for help.")
