@@ -29,7 +29,7 @@ fnord-*.tar
 .elixir_ls
 
 # escript
-fnord
+/fnord
 
 # Temporary prototype files
 scratch*
