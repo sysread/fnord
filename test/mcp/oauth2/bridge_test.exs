@@ -1,5 +1,5 @@
 defmodule MCP.OAuth2.BridgeTest do
-  use ExUnit.Case, async: false
+  use Fnord.TestCase, async: false
 
   setup do
     # meck CredentialsStore and Client interactions

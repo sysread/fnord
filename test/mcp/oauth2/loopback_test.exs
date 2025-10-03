@@ -1,8 +1,6 @@
 defmodule MCP.OAuth2.LoopbackTest do
   use Fnord.TestCase
 
-  alias MCP.OAuth2.Loopback
-
   describe "loopback server" do
     test "can start and build router without compilation errors" do
       # This test ensures the dynamically generated Plug router compiles
@@ -19,7 +17,7 @@ defmodule MCP.OAuth2.LoopbackTest do
 
       # Start the loopback server - this will test router compilation
       {:ok, pid} =
-        Loopback.start_link(
+        MCP.OAuth2.Loopback.start_link(
           cfg: cfg,
           server_key: server_key,
           state: expected_state,
@@ -47,7 +45,7 @@ defmodule MCP.OAuth2.LoopbackTest do
 
       # This will fail to compile if there are syntax errors in the router
       assert {:ok, _pid} =
-               Loopback.start_link(
+               MCP.OAuth2.Loopback.start_link(
                  cfg: cfg,
                  server_key: "test",
                  state: "state",
