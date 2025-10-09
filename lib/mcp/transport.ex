@@ -92,16 +92,23 @@ defmodule MCP.Transport do
             Map.merge(base_headers, oauth_map)
 
           {:error, reason} when reason in [:no_credentials, :not_found] ->
-            Logger.warning(
-              "MCP server '#{server}' has OAuth config but no credentials. Run: fnord config mcp login #{server}"
+            UI.warn(
+              "MCP server '#{server}' has OAuth config but no credentials. To fix:",
+              "fnord config mcp login #{server}"
+            )
+
+            base_headers
+
+          {:error, :no_refresh_token} ->
+            UI.warn(
+              "MCP server '#{server}' has expired credentials with no refresh token. To fix:",
+              "fnord config mcp login #{server}"
             )
 
             base_headers
 
           {:error, reason} ->
-            Logger.warning(
-              "Failed to get OAuth token for MCP server '#{server}': #{inspect(reason)}"
-            )
+            UI.warn("Failed to get OAuth token for MCP server '#{server}'", reason)
 
             base_headers
         end

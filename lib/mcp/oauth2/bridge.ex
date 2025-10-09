@@ -29,7 +29,7 @@ defmodule MCP.OAuth2.Bridge do
 
   defp maybe_refresh(_server, _cfg, toks, _margin), do: {:ok, toks}
 
-  defp refresh(server, cfg, %{"refresh_token" => rt}) do
+  defp refresh(server, cfg, %{"refresh_token" => rt}) when is_binary(rt) and rt != "" do
     # Build OAuth config for refresh - need discovery_url, client_id, optional client_secret
     oauth_cfg = %{
       discovery_url: Map.get(cfg["oauth"], "discovery_url"),
