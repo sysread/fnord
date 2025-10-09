@@ -155,13 +155,16 @@ defmodule Services.MCP do
         tools =
           case safe_list_tools(server) do
             {:ok, tools} ->
-              %{status: "ok", tools: Enum.map(tools, &tool_blurb/1)}
+              %{tools: Enum.map(tools, &tool_blurb/1)}
 
             {:error, reason} ->
-              %{status: "error", error: inspect(reason)}
+              %{error: inspect(reason)}
           end
 
-        {server, info |> Map.merge(capabilities) |> Map.merge(tools)}
+        # Check authentication status
+        auth_info = check_auth_status(server, cfg)
+
+        {server, info |> Map.merge(capabilities) |> Map.merge(tools) |> Map.merge(auth_info)}
       end)
       |> Enum.into(%{})
 
@@ -284,5 +287,38 @@ defmodule Services.MCP do
   @spec tool_blurb(tool :: map()) :: map()
   defp tool_blurb(tool) do
     %{"name" => tool["name"], "description" => Map.get(tool, "description", "")}
+  end
+
+  @spec check_auth_status(String.t(), map()) :: map()
+  defp check_auth_status(server, cfg) do
+    has_oauth = Map.has_key?(cfg, "oauth") && is_map(cfg["oauth"])
+
+    if has_oauth do
+      auth_status =
+        case MCP.OAuth2.CredentialsStore.read(server) do
+          {:ok, %{"expires_at" => exp}} when is_integer(exp) ->
+            now = System.os_time(:second)
+
+            if exp > now do
+              :valid
+            else
+              :expired
+            end
+
+          {:ok, _} ->
+            # Has credentials but no expires_at - consider valid
+            :valid
+
+          {:error, :not_found} ->
+            :missing
+
+          {:error, _} ->
+            :missing
+        end
+
+      %{has_oauth: true, auth_status: auth_status}
+    else
+      %{has_oauth: false}
+    end
   end
 end

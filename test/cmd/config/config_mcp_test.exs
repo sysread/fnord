@@ -155,12 +155,13 @@ defmodule Cmd.Config.MCPTest do
 
       :meck.expect(Services.MCP, :test, fn _ ->
         %{
-          "status" => "ok",
-          "servers" => %{
+          status: "ok",
+          servers: %{
             "test_server" => %{
-              "status" => "ok",
-              "server_info" => %{"name" => "test_server-server", "status" => "running"},
-              "tools" => %{"status" => "error", "error" => ":not_started"}
+              status: "ok",
+              server_info: %{"name" => "test_server-server", "status" => "running"},
+              tools: [],
+              has_oauth: false
             }
           }
         }
@@ -186,23 +187,35 @@ defmodule Cmd.Config.MCPTest do
     test "check shows server status" do
       # Mock the test function to return a successful response
       :meck.expect(Services.MCP, :test, fn _ ->
-        %{"status" => "ok", "servers" => %{"test_server" => %{"status" => "ok"}}}
+        %{
+          status: "ok",
+          servers: %{
+            "test_server" => %{
+              status: "ok",
+              tools: [%{"name" => "test_tool", "description" => "A test tool"}],
+              capabilities: %{"tools" => true},
+              has_oauth: false
+            }
+          }
+        }
       end)
 
       # This will try to connect but fail gracefully - we're just testing the command structure
       {out, _stderr} = capture_all(fn -> MCP.run(%{global: true}, [:mcp, :check], []) end)
-      assert {:ok, %{"status" => "ok", "servers" => servers}} = Jason.decode(out)
-      assert Map.has_key?(servers, "test_server")
+      assert out =~ "Checking MCP servers"
+      assert out =~ "test_server"
+      assert out =~ "Connection"
+      assert out =~ "Tools"
     end
 
     test "check with project scope" do
       # Mock empty response for project scope (accepts any arguments)
-      :meck.expect(Services.MCP, :test, fn _ -> %{"status" => "ok", "servers" => %{}} end)
+      :meck.expect(Services.MCP, :test, fn _ -> %{status: "ok", servers: %{}} end)
 
       mock_project("check_test")
       Settings.set_project("check_test")
       {out, _stderr} = capture_all(fn -> MCP.run(%{}, [:mcp, :check], []) end)
-      assert {:ok, %{"status" => "ok", "servers" => %{}}} = Jason.decode(out)
+      assert out =~ "No MCP servers configured"
     end
   end
 

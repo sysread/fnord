@@ -58,8 +58,7 @@ defmodule Cmd.Config.MCP do
     Services.MCP.start()
 
     Services.MCP.test(with_discovery: true)
-    |> Jason.encode!(pretty: true)
-    |> UI.puts()
+    |> Cmd.Config.MCP.CheckFormatter.format_results()
   end
 
   # Unified entry for add, update, remove
