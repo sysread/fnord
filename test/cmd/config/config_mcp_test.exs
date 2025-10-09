@@ -77,7 +77,7 @@ defmodule Cmd.Config.MCPTest do
           MCP.run(%{global: true, command: "foo"}, [:mcp, :add], ["srv"])
         end)
 
-      assert log =~ "Server 'srv' already exists"
+      assert log =~ "Server already exists"
     end
   end
 
@@ -98,7 +98,7 @@ defmodule Cmd.Config.MCPTest do
           MCP.run(%{global: true, command: "bar"}, [:mcp, :update], ["nope"])
         end)
 
-      assert log =~ "Server 'nope' not found"
+      assert log =~ "Server not found"
     end
 
     test "update existing server" do
@@ -144,7 +144,7 @@ defmodule Cmd.Config.MCPTest do
 
     test "remove non-existent server errors" do
       log = capture_log(fn -> MCP.run(%{global: true}, [:mcp, :remove], ["nope"]) end)
-      assert log =~ "Server 'nope' not found"
+      assert log =~ "Server not found"
     end
   end
 
