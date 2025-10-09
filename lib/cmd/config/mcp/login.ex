@@ -95,7 +95,7 @@ defmodule Cmd.Config.MCP.Login do
   end
 
   defp print_tokens_redacted(token) do
-    red = Map.take(token, ["token_type", "expires_at", "scope"]) |> Jason.encode!(pretty: true)
+    red = Map.take(token, [:token_type, :expires_at, :scope]) |> Jason.encode!(pretty: true)
     UI.puts(red)
   end
 
