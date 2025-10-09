@@ -78,7 +78,7 @@ defmodule MCP.OAuth2.Registration do
           client_secret: Map.get(response, "client_secret")
         }
 
-        maybe_debug_mcp("MCP OAuth", "Successfully registered client: #{client_id}")
+        MCP.Util.debug("MCP OAuth", "Successfully registered client: #{client_id}")
         {:ok, result}
 
       {:ok, _} ->
@@ -86,12 +86,6 @@ defmodule MCP.OAuth2.Registration do
 
       {:error, reason} ->
         {:error, {:invalid_json, reason}}
-    end
-  end
-
-  defp maybe_debug_mcp(msg, detail) do
-    if System.get_env("FNORD_DEBUG_MCP") == "1" do
-      UI.debug(msg, detail)
     end
   end
 end

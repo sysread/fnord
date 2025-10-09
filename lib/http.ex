@@ -6,15 +6,18 @@ defmodule Http do
   @backoff_cap 10_000
 
   @type url :: String.t()
-  @type headers :: list({String.t(), String.t()})
-  @type payload :: map()
-  @type options :: keyword()
+  @type header :: {String.t(), String.t()}
+  @type headers :: list(header)
+  @type payload :: map
+  @type options :: keyword
+  @type query :: map | String.t() | nil
 
-  @type http_status :: integer()
+  @type http_status :: integer
   @type http_error :: {:http_error, {http_status, String.t()}}
-  @type transport_error :: {:transport_error, any()}
-  @type success :: {:ok, map()}
-  @type response :: success | http_error | transport_error
+  @type transport_error :: {:transport_error, any}
+  @type success :: {:ok, map}
+  @type post_response :: success | http_error | transport_error
+  @type get_response :: {:ok, String.t()} | http_error | transport_error
 
   @doc """
   Sends a POST request with a JSON payload to the specified URL with the given
@@ -24,7 +27,7 @@ defmodule Http do
   Retries up to #{@max_retries} times on 5xx HTTP responses and on select
   transient transport errors using exponential backoff with jitter.
   """
-  @spec post_json(url(), headers(), payload()) :: response()
+  @spec post_json(url, headers, payload) :: post_response
   def post_json(url, headers, payload) do
     with {:ok, body} <- Jason.encode(payload) do
       do_post_json(url, headers, body, 1)
@@ -33,9 +36,115 @@ defmodule Http do
     end
   end
 
+  @doc """
+  Sends a GET request to the specified URL with the given headers and query
+  parameters. Returns a tuple with the response status and body, or an error if
+  the request fails.
+
+  Retries up to #{@max_retries} times on 5xx HTTP responses and on select
+  transient transport errors using exponential backoff with jitter.
+  """
+  @spec get(url, headers, query) :: get_response
+  def get(url, headers \\ [], query \\ nil) do
+    do_get(url, headers, query, 1)
+  end
+
   # ---------------------------------------------------------------------------
   # Internal
   # ---------------------------------------------------------------------------
+  defp do_get(url, headers, query, attempt) when attempt <= @max_retries do
+    options = [
+      recv_timeout: @recv_timeout,
+      hackney_options: [pool: HttpPool.get()],
+      follow_redirect: true
+    ]
+
+    query =
+      cond do
+        is_map(query) -> URI.encode_query(query)
+        is_binary(query) -> query
+        true -> ""
+      end
+
+    url
+    |> URI.new!()
+    |> Map.put(:query, query)
+    |> URI.to_string()
+    |> HTTPoison.get(headers, options)
+    |> case do
+      {:ok, %{status_code: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %{status_code: status_code, body: resp_body}} ->
+        if retryable_http_status?(status_code) and attempt < @max_retries do
+          delay = backoff_delay(attempt)
+
+          UI.warn("[http] 50x response", """
+          GET:      #{url}
+          HTTP:     #{status_code}
+          Attempt:  #{attempt}/#{@max_retries}
+          Retry in: #{delay} ms
+          """)
+
+          maybe_sleep(delay)
+          do_get(url, headers, query, attempt + 1)
+        else
+          {:http_error, {status_code, resp_body}}
+        end
+
+      {:error, %HTTPoison.Error{reason: reason}} ->
+        if retryable_transport_reason?(reason) and attempt < @max_retries do
+          delay = backoff_delay(attempt)
+
+          UI.warn("[http] transport error", """
+          GET:      #{url}
+          Attempt:  #{attempt}/#{@max_retries}
+          Retry in: #{delay} ms
+          Reason:
+
+          #{inspect(reason, pretty: true)}
+          """)
+
+          maybe_sleep(delay)
+          do_get(url, headers, query, attempt + 1)
+        else
+          {:transport_error, reason}
+        end
+    end
+  end
+
+  defp do_get(url, headers, query, attempt) when attempt > @max_retries do
+    # This clause should rarely be hit because the guards above stop at max-1,
+    # but keep it for completeness. Perform one last attempt without retry.
+    options = [
+      recv_timeout: @recv_timeout,
+      hackney_options: [pool: HttpPool.get()],
+      follow_redirect: true
+    ]
+
+    query =
+      cond do
+        is_map(query) -> URI.encode_query(query)
+        is_binary(query) -> query
+        true -> ""
+      end
+
+    url
+    |> URI.new!()
+    |> Map.put(:query, query)
+    |> URI.to_string()
+    |> HTTPoison.get(headers, options)
+    |> case do
+      {:ok, %{status_code: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %{status_code: status_code, body: resp_body}} ->
+        {:http_error, {status_code, resp_body}}
+
+      {:error, %HTTPoison.Error{reason: reason}} ->
+        {:transport_error, reason}
+    end
+  end
 
   defp do_post_json(url, headers, body, attempt) when attempt <= @max_retries do
     options = [

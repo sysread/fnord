@@ -1,17 +1,12 @@
 defmodule MCP.OAuth2.CredentialsStoreTest do
-  use ExUnit.Case, async: false
+  use Fnord.TestCase, async: false
 
   @server "testsrv"
 
   setup do
-    # isolate home dir by using a tmp path via env override if supported, else ensure cleanup
-    # Here we'll just write and clean the real path; CI will run in sandbox
-    on_exit(fn ->
-      # reset file
-      path = MCP.OAuth2.CredentialsStore.path()
-      File.rm(path)
-    end)
-
+    # Clean up credentials file before each test to ensure isolation
+    path = MCP.OAuth2.CredentialsStore.path()
+    File.rm(path)
     :ok
   end
 

@@ -170,7 +170,10 @@ defmodule Services.MCP do
   defp attempt_discovery_for_server(server, cfg, settings) do
     base_url = cfg["base_url"]
 
-    case MCP.EndpointDiscovery.discover(base_url) do
+    case MCP.EndpointDiscovery.discover(base_url, ["/mcp", "/", "/api/mcp", "/mcp/v1"],
+           server: server,
+           config: cfg
+         ) do
       {:ok, path} ->
         # Determine scope (global vs project)
         scope = determine_server_scope(server, settings)

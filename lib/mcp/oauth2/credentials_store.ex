@@ -12,7 +12,7 @@ defmodule MCP.OAuth2.CredentialsStore do
 
   @spec path() :: String.t()
   def path do
-    Path.join(System.user_home!(), @default_rel)
+    Path.join(Settings.get_user_home(), @default_rel)
   end
 
   @spec read(String.t()) :: {:ok, map()} | {:error, :not_found | term()}

@@ -47,6 +47,9 @@ defmodule Cmd.Config.MCP.Login do
       {:error, :timeout} ->
         UI.error("Timed out waiting for authorization callback")
 
+      {:error, {:network_error, %HTTPoison.Error{reason: :nxdomain}}} ->
+        UI.error("No internet connection")
+
       {:error, e} ->
         UI.error("Auth error", inspect(e))
     end

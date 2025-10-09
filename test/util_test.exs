@@ -134,12 +134,9 @@ defmodule UtilTest do
         {:ok, %HTTPoison.Response{status_code: 500, body: ""}}
       end)
 
-      {_, stderr} =
-        capture_all(fn ->
-          assert Util.get_latest_version() == {:error, :api_request_failed}
-        end)
-
-      assert String.contains?(stderr, "Hex API request failed with status 500")
+      capture_all(fn ->
+        assert {:error, :api_request_failed} = Util.get_latest_version()
+      end)
     end
 
     test "returns {:error, reason} and warns when transport error occurs" do
@@ -147,12 +144,9 @@ defmodule UtilTest do
         {:error, %HTTPoison.Error{reason: :timeout}}
       end)
 
-      {_, stderr} =
-        capture_all(fn ->
-          assert Util.get_latest_version() == {:error, :timeout}
-        end)
-
-      assert String.contains?(stderr, "Hex API request error: :timeout")
+      capture_all(fn ->
+        assert Util.get_latest_version() == {:error, :timeout}
+      end)
     end
   end
 

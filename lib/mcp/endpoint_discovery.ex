@@ -10,15 +10,22 @@ defmodule MCP.EndpointDiscovery do
   @doc """
   Attempts to discover the MCP endpoint path by trying common paths.
   Returns {:ok, path} if a working path is found, {:error, reason} otherwise.
+
+  ## Options
+    * `:server` - Server name for OAuth header lookup
+    * `:config` - Server configuration map (for OAuth)
   """
-  @spec discover(String.t(), list(String.t())) :: {:ok, String.t()} | {:error, term()}
-  def discover(base_url, paths \\ @common_paths) do
+  @spec discover(String.t(), list(String.t()), keyword()) :: {:ok, String.t()} | {:error, term()}
+  def discover(base_url, paths \\ @common_paths, opts \\ []) do
     UI.info("MCP Discovery", "Endpoint not found, trying common paths...")
+
+    # Build OAuth headers if server config provided
+    headers = build_auth_headers(opts)
 
     results =
       Enum.map(paths, fn path ->
         url = Path.join(base_url, path)
-        {path, check_endpoint(url)}
+        {path, check_endpoint(url, headers)}
       end)
 
     # Show results as we go
@@ -54,21 +61,38 @@ defmodule MCP.EndpointDiscovery do
   def prompt_and_save(server_name, path, scope) do
     UI.newline()
 
-    case UI.prompt("Found MCP endpoint at #{path}. Save this to configuration? [Y/n] ") do
-      {:ok, response} ->
-        case String.trim(response) |> String.downcase() do
-          "" -> save_discovered_path(server_name, path, scope)
-          "y" -> save_discovered_path(server_name, path, scope)
-          _ ->
-            UI.info("Discovery", "Path not saved. You can manually add it to settings.json later.")
-            :ok
-        end
-
+    "Found MCP endpoint at #{path}. Save this to configuration? [Y/n] "
+    |> UI.prompt()
+    |> case do
       {:error, :no_tty} ->
         # Non-interactive mode, skip prompting
-        UI.info("Discovery", "Found endpoint at #{path} but cannot prompt in non-interactive mode")
+        UI.info(
+          "Discovery",
+          "Found endpoint at #{path} but cannot prompt in non-interactive mode"
+        )
+
         UI.info("", "Manually add \"mcp_path\": \"#{path}\" to settings.json")
         :ok
+
+      response ->
+        response
+        |> String.trim()
+        |> String.downcase()
+        |> case do
+          "" ->
+            save_discovered_path(server_name, path, scope)
+
+          "y" ->
+            save_discovered_path(server_name, path, scope)
+
+          _ ->
+            UI.info(
+              "Discovery",
+              "Path not saved. You can manually add it to settings.json later."
+            )
+
+            :ok
+        end
     end
   end
 
@@ -132,16 +156,38 @@ defmodule MCP.EndpointDiscovery do
     end
   end
 
+  # Build authorization headers for OAuth-protected endpoints
+  defp build_auth_headers(opts) do
+    case {Keyword.get(opts, :server), Keyword.get(opts, :config)} do
+      {nil, _} ->
+        []
+
+      {_server, nil} ->
+        []
+
+      {server, cfg} ->
+        case MCP.OAuth2.Bridge.authorization_header(server, cfg) do
+          {:ok, header_list} -> header_list
+          {:error, _} -> []
+        end
+    end
+  end
+
   # Check if endpoint exists using HEAD request, fallback to GET
-  defp check_endpoint(url) do
+  defp check_endpoint(url, headers) do
     # Try HEAD first
-    case HTTPoison.head(url, [], recv_timeout: 5_000, timeout: 5_000) do
+    case HTTPoison.head(url, headers, recv_timeout: 5_000, timeout: 5_000) do
       {:ok, %{status_code: status}} when status in 200..299 ->
         {:ok, status}
 
+      # 400 = Bad Request, likely because MCP endpoint expects JSON-RPC POST, not HEAD
+      # But it confirms the endpoint exists and auth worked (vs 401/403/404)
+      {:ok, %{status_code: 400}} ->
+        {:ok, 400}
+
       {:ok, %{status_code: 405}} ->
         # Method not allowed, try GET
-        check_endpoint_with_get(url)
+        check_endpoint_with_get(url, headers)
 
       {:ok, %{status_code: status}} ->
         {:error, status}
@@ -151,10 +197,15 @@ defmodule MCP.EndpointDiscovery do
     end
   end
 
-  defp check_endpoint_with_get(url) do
-    case HTTPoison.get(url, [], recv_timeout: 5_000, timeout: 5_000) do
+  defp check_endpoint_with_get(url, headers) do
+    case HTTPoison.get(url, headers, recv_timeout: 5_000, timeout: 5_000) do
       {:ok, %{status_code: status}} when status in 200..299 ->
         {:ok, status}
+
+      # 400 = Bad Request, likely because MCP endpoint expects JSON-RPC POST
+      # But it confirms the endpoint exists and auth worked
+      {:ok, %{status_code: 400}} ->
+        {:ok, 400}
 
       {:ok, %{status_code: status}} ->
         {:error, status}
