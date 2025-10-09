@@ -7,7 +7,7 @@ defmodule Services.MCP do
   alias MCP.Tools
   alias UI
 
-  @spec start(String.t() | nil) :: :ok
+  @spec start(String.t() | atom() | nil) :: :ok
   def start(command \\ nil) do
     # Configure Hermes MCP logging - only show debug output when FNORD_DEBUG_MCP=1
     log_level = if System.get_env("FNORD_DEBUG_MCP") == "1", do: :debug, else: :error

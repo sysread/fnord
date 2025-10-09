@@ -150,11 +150,10 @@ defmodule Cmd.Config.MCPTest do
 
   describe "mcp check" do
     setup do
-      # Mock Services.MCP to avoid actually starting MCP processes
-      :meck.new(Services.MCP, [:non_strict])
-      :meck.expect(Services.MCP, :start, fn -> :ok end)
+      # Mock only Services.MCP.test to avoid actually connecting to MCP servers
+      :meck.new(Services.MCP, [:passthrough])
 
-      :meck.expect(Services.MCP, :test, fn ->
+      :meck.expect(Services.MCP, :test, fn _ ->
         %{
           "status" => "ok",
           "servers" => %{

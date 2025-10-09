@@ -52,7 +52,7 @@ defmodule Cmd.Config.MCP do
 
   def run(opts, [:mcp, :check], _unknown) do
     if opts[:project], do: Settings.set_project(opts[:project])
-    Services.MCP.start()
+    Services.MCP.start(:config)
 
     Services.MCP.test(with_discovery: true)
     |> Jason.encode!(pretty: true)
