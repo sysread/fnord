@@ -104,7 +104,7 @@ defmodule MCP.EndpointDiscovery do
         :ok
 
       {:error, reason} ->
-        UI.error("Discovery", "Failed to save: #{inspect(reason)}")
+        UI.error("Failed to save MCP endpoint discovery", inspect(reason))
         {:error, reason}
     end
   end

@@ -4,8 +4,6 @@ defmodule MCP.OAuth2.Registration do
   Allows automatic registration of native clients with OAuth providers.
   """
 
-  require Logger
-
   @doc """
   Register a new OAuth client with the authorization server.
 
@@ -56,17 +54,14 @@ defmodule MCP.OAuth2.Registration do
         # Some servers return 200 instead of 201
         parse_registration_response(body)
 
-      {:ok, %{status_code: code, body: body}} ->
-        Logger.warning("Registration failed with HTTP #{code}: #{body}")
+      {:ok, %{status_code: code, body: _body}} ->
         {:error, {:registration_failed, code}}
     end
   rescue
     e in HTTPoison.Error ->
-      Logger.warning("Registration request failed: #{inspect(e.reason)}")
       {:error, {:network_error, e.reason}}
   catch
-    kind, reason ->
-      Logger.warning("Registration request failed: #{inspect({kind, reason})}")
+    _kind, reason ->
       {:error, {:network_error, reason}}
   end
 

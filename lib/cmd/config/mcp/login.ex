@@ -9,7 +9,9 @@ defmodule Cmd.Config.MCP.Login do
 
   @spec run(map(), list(), list()) :: :ok
   def run(opts, [:mcp, :login], [server]) when is_binary(server) do
-    if opts[:project], do: Settings.set_project(opts[:project])
+    if opts[:project] do
+      Settings.set_project(opts[:project])
+    end
 
     settings = Settings.new()
     cfgs = Settings.MCP.effective_config(settings)
@@ -29,26 +31,32 @@ defmodule Cmd.Config.MCP.Login do
              port,
              opts[:timeout] || 120_000
            ) do
-      UI.info("Auth", "Success for #{server}")
+      UI.info("Authentication successful", server)
       print_tokens_redacted(token)
       # Brief delay to allow HTTP response to be sent to browser before process exits
       Process.sleep(3000)
       :ok
     else
       {:error, :not_found} ->
-        UI.error("Server '#{server}' not found in config")
+        UI.error("Server not found in config", server)
 
       {:error, {:oauth_missing, reason}} ->
-        UI.error(reason)
+        UI.error("OAuth configuration error", reason)
 
       {:error, {:provider_rejected_redirect, uri}} ->
         UI.error("OAuth provider rejected redirect_uri", uri)
 
       {:error, :timeout} ->
-        UI.error("Timed out waiting for authorization callback")
+        UI.error(
+          "Timed out waiting for authorization callback",
+          "The OAuth flow did not complete within the timeout period. Please try again."
+        )
 
       {:error, {:network_error, %HTTPoison.Error{reason: :nxdomain}}} ->
-        UI.error("No internet connection")
+        UI.error(
+          "No internet connection",
+          "Unable to resolve DNS for OAuth provider. Check your network connection."
+        )
 
       {:error, e} ->
         UI.error("Auth error", inspect(e))

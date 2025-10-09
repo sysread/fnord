@@ -5,7 +5,9 @@ defmodule Cmd.Config.MCP.Status do
 
   @spec run(map(), list(), list()) :: :ok
   def run(opts, [:mcp, :status], [server]) when is_binary(server) do
-    if opts[:project], do: Settings.set_project(opts[:project])
+    if opts[:project] do
+      Settings.set_project(opts[:project])
+    end
 
     settings = Settings.new()
     cfgs = Settings.MCP.effective_config(settings)
@@ -23,7 +25,7 @@ defmodule Cmd.Config.MCP.Status do
           UI.warn("No credentials found for server", server)
       end
     else
-      {:error, :not_found} -> UI.error("Server '#{server}' not found in config")
+      {:error, :not_found} -> UI.error("Server not found in config", server)
     end
   end
 

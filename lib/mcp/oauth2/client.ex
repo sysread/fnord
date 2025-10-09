@@ -17,8 +17,6 @@ defmodule MCP.OAuth2.Client do
   - Uses secure random generation for state and verifier
   """
 
-  require Logger
-
   @type config :: %{
           required(:discovery_url) => String.t(),
           required(:client_id) => String.t(),
@@ -248,8 +246,7 @@ defmodule MCP.OAuth2.Client do
             {:error, {:invalid_json, reason}}
         end
 
-      {:ok, %{status_code: code, body: error_body}} ->
-        Logger.warning("Token request failed with HTTP #{code}: #{error_body}")
+      {:ok, %{status_code: code, body: _error_body}} ->
         {:error, {:http_error, code}}
 
       {:error, reason} ->

@@ -51,7 +51,10 @@ defmodule Cmd.Config.MCP do
   end
 
   def run(opts, [:mcp, :check], _unknown) do
-    if opts[:project], do: Settings.set_project(opts[:project])
+    if opts[:project] do
+      Settings.set_project(opts[:project])
+    end
+
     Services.MCP.start()
 
     Services.MCP.test(with_discovery: true)
@@ -61,7 +64,9 @@ defmodule Cmd.Config.MCP do
 
   # Unified entry for add, update, remove
   def run(opts, [:mcp, action], args) when action in [:add, :update, :remove] do
-    if opts[:project], do: Settings.set_project(opts[:project])
+    if opts[:project] do
+      Settings.set_project(opts[:project])
+    end
 
     case Utils.require_key(opts, args, :name, "Server name") do
       {:error, msg} ->
@@ -141,7 +146,13 @@ defmodule Cmd.Config.MCP do
   defp do_mcp_action(opts, :add, name) do
     base_config = build_server_config_from_opts(opts)
     settings = Settings.new()
-    scope = if opts[:global], do: :global, else: :project
+
+    scope =
+      if opts[:global] do
+        :global
+      else
+        :project
+      end
 
     # If --oauth flag present, run auto-discovery and setup
     config_with_oauth =
@@ -169,39 +180,40 @@ defmodule Cmd.Config.MCP do
 
               {:error, :discovery_not_found} ->
                 UI.error(
-                  "❌ OAuth discovery failed (404): Server does not support OAuth auto-discovery"
-                )
+                  "OAuth discovery failed (404)",
+                  """
+                  Server does not support OAuth auto-discovery
 
-                UI.puts(
-                  "   Try: fnord config mcp add #{name} --url #{url} --client-id YOUR_CLIENT_ID"
+                  Try: fnord config mcp add #{name} --url #{url} --client-id YOUR_CLIENT_ID
+                  """
                 )
-
                 exit({:shutdown, 1})
 
               {:error, :no_registration_endpoint} ->
                 UI.error(
-                  "❌ OAuth registration not available: Server requires pre-registered client"
+                  "OAuth registration not available",
+                  """
+                  Server requires pre-registered client
+
+                  Get a client_id from the provider, then:
+                  fnord config mcp add #{name} --url #{url} --oauth --client-id YOUR_CLIENT_ID
+                  """
                 )
-
-                UI.puts("   Get a client_id from the provider, then:")
-
-                UI.puts(
-                  "   fnord config mcp add #{name} --url #{url} --oauth --client-id YOUR_CLIENT_ID"
-                )
-
                 exit({:shutdown, 1})
 
               {:error, {:incomplete_metadata, msg}} ->
-                UI.error("❌ Invalid discovery document: #{msg}")
+                UI.error(
+                  "Invalid discovery document",
+                  """
+                  #{msg}
 
-                UI.puts(
-                  "   Server OAuth configuration is incomplete. Contact server administrator."
+                  Server OAuth configuration is incomplete. Contact server administrator.
+                  """
                 )
-
                 exit({:shutdown, 1})
 
               {:error, reason} ->
-                UI.error("❌ OAuth setup failed: #{inspect(reason)}")
+                UI.error("OAuth setup failed", inspect(reason))
                 exit({:shutdown, 1})
             end
         end
@@ -221,17 +233,23 @@ defmodule Cmd.Config.MCP do
         end
 
       {:error, :exists} ->
-        UI.error("Server '#{name}' already exists")
+        UI.error("Server already exists", name)
 
       {:error, err} ->
-        UI.error(err)
+        UI.error("Add failed", inspect(err))
     end
   end
 
   defp do_mcp_action(opts, :update, name) do
     raw = build_server_config_from_opts(opts)
     settings = Settings.new()
-    scope = if opts[:global], do: :global, else: :project
+
+    scope =
+      if opts[:global] do
+        :global
+      else
+        :project
+      end
 
     case Settings.MCP.update_server(settings, scope, name, raw) do
       {:ok, upd} ->
@@ -240,16 +258,22 @@ defmodule Cmd.Config.MCP do
         |> UI.puts()
 
       {:error, :not_found} ->
-        UI.error("Server '#{name}' not found")
+        UI.error("Server not found", name)
 
       {:error, err} ->
-        UI.error(err)
+        UI.error("Update failed", inspect(err))
     end
   end
 
   defp do_mcp_action(opts, :remove, name) do
     settings = Settings.new()
-    scope = if opts[:global], do: :global, else: :project
+
+    scope =
+      if opts[:global] do
+        :global
+      else
+        :project
+      end
 
     case Settings.MCP.remove_server(settings, scope, name) do
       {:ok, upd} ->
@@ -258,7 +282,7 @@ defmodule Cmd.Config.MCP do
         |> UI.puts()
 
       {:error, :not_found} ->
-        UI.error("Server '#{name}' not found")
+        UI.error("Server not found", name)
     end
   end
 end

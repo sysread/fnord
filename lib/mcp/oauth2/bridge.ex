@@ -24,7 +24,11 @@ defmodule MCP.OAuth2.Bridge do
   end
 
   defp maybe_refresh(server, cfg, %{"expires_at" => exp} = toks, margin) do
-    if exp - System.os_time(:second) <= margin, do: refresh(server, cfg, toks), else: {:ok, toks}
+    if exp - System.os_time(:second) <= margin do
+      refresh(server, cfg, toks)
+    else
+      {:ok, toks}
+    end
   end
 
   defp maybe_refresh(_server, _cfg, toks, _margin), do: {:ok, toks}

@@ -10,7 +10,12 @@ defmodule Services.MCP do
   @spec start(String.t() | atom() | nil) :: :ok
   def start(command \\ nil) do
     # Configure Hermes MCP logging - only show debug output when FNORD_DEBUG_MCP=1
-    log_level = if System.get_env("FNORD_DEBUG_MCP") == "1", do: :debug, else: :error
+    log_level =
+      if System.get_env("FNORD_DEBUG_MCP") == "1" do
+        :debug
+      else
+        :error
+      end
 
     Application.put_env(:hermes_mcp, :logging,
       client_events: log_level,
@@ -180,9 +185,15 @@ defmodule Services.MCP do
         MCP.EndpointDiscovery.prompt_and_save(server, path, scope)
 
       {:error, :no_working_path} ->
-        UI.error("MCP Discovery", "Could not find working endpoint for #{server} at #{base_url}")
-        UI.error("Tried: /mcp, /, /api/mcp, /mcp/v1")
-        UI.error("You can manually set mcp_path in settings.json or use --mcp-path flag")
+        UI.error(
+          "Could not find working MCP endpoint for '#{server}'",
+          """
+          Base URL: #{base_url}
+          Paths tried: /mcp, /, /api/mcp, /mcp/v1
+
+          To fix, manually set mcp_path in settings.json or use --mcp-path flag
+          """
+        )
     end
   end
 

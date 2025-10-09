@@ -1,8 +1,6 @@
 defmodule MCP.Transport do
   @moduledoc false
 
-  require Logger
-
   @typedoc "Hermes transport tuple"
   @type t ::
           {:stdio, keyword()}
@@ -49,7 +47,7 @@ defmodule MCP.Transport do
   end
 
   def map(server, %{"transport" => transport} = _cfg) do
-    Logger.error("""
+    UI.error("""
     Invalid transport '#{transport}' for MCP server '#{server}'.
 
     Valid transports are: "stdio", "http", "websocket"
@@ -65,7 +63,7 @@ defmodule MCP.Transport do
   end
 
   def map(server, cfg) do
-    Logger.error("""
+    UI.error("""
     Missing or invalid transport configuration for MCP server '#{server}'.
 
     Config received: #{inspect(cfg)}
