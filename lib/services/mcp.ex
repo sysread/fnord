@@ -9,12 +9,14 @@ defmodule Services.MCP do
 
   @spec start(String.t() | nil) :: :ok
   def start(command \\ nil) do
-    # Configure Hermes MCP logging to reduce debug output
-    Services.Globals.put_env(:hermes_mcp, :logging,
-      client_events: :info,
-      server_events: :info,
-      transport_events: :warning,
-      protocol_messages: :warning
+    # Configure Hermes MCP logging - only show debug output when FNORD_DEBUG_MCP=1
+    log_level = if System.get_env("FNORD_DEBUG_MCP") == "1", do: :debug, else: :error
+
+    Application.put_env(:hermes_mcp, :logging,
+      client_events: log_level,
+      server_events: log_level,
+      transport_events: log_level,
+      protocol_messages: log_level
     )
 
     # Skip MCP discovery for config commands to avoid premature connection attempts

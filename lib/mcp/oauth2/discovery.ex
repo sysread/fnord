@@ -71,7 +71,7 @@ defmodule MCP.OAuth2.Discovery do
 
   # Fetch OAuth authorization server metadata
   defp fetch_metadata(discovery_url) do
-    Logger.debug("Fetching OAuth metadata from #{discovery_url}")
+    maybe_debug_mcp("MCP OAuth", "Fetching metadata from #{discovery_url}")
 
     case HTTPoison.get(discovery_url, [], recv_timeout: 10_000, timeout: 10_000) do
       {:ok, %{status_code: 200, body: body}} ->
@@ -124,14 +124,14 @@ defmodule MCP.OAuth2.Discovery do
 
       client_id ->
         # Use provided client_id
-        Logger.info("Using provided client_id: #{client_id}")
+        maybe_debug_mcp("MCP OAuth", "Using provided client_id: #{client_id}")
         {:ok, client_id, opts[:client_secret]}
     end
   end
 
   # Attempt dynamic client registration
   defp register_client(%{"registration_endpoint" => endpoint}, opts) when is_binary(endpoint) do
-    Logger.info("Attempting dynamic client registration at #{endpoint}")
+    maybe_debug_mcp("MCP OAuth", "Attempting dynamic registration at #{endpoint}")
 
     # If a redirect port is provided, use it for registration
     registration_opts =
@@ -162,18 +162,18 @@ defmodule MCP.OAuth2.Discovery do
       cond do
         # User explicitly provided scopes
         opts[:scope] && length(opts[:scope]) > 0 ->
-          Logger.info("Using user-provided scopes: #{inspect(opts[:scope])}")
+          maybe_debug_mcp("MCP OAuth", "Using user-provided scopes: #{inspect(opts[:scope])}")
           opts[:scope]
 
         # Server supports mcp:access (recommended minimal scope)
         has_scope?(metadata, "mcp:access") ->
-          Logger.info("Using recommended scope: mcp:access")
+          maybe_debug_mcp("MCP OAuth", "Using recommended scope: mcp:access")
           ["mcp:access"]
 
         # Fall back to all supported scopes
         true ->
           supported = Map.get(metadata, "scopes_supported", [])
-          Logger.info("Using all supported scopes: #{inspect(supported)}")
+          maybe_debug_mcp("MCP OAuth", "Using all supported scopes: #{inspect(supported)}")
           supported
       end
 
@@ -193,6 +193,12 @@ defmodule MCP.OAuth2.Discovery do
       UI.puts("  Client ID: #{client_id}")
       UI.puts("  Scopes: #{Enum.join(scopes, ", ")}")
       UI.puts("")
+    end
+  end
+
+  defp maybe_debug_mcp(msg, detail) do
+    if System.get_env("FNORD_DEBUG_MCP") == "1" do
+      UI.debug(msg, detail)
     end
   end
 end
