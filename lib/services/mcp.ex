@@ -132,43 +132,66 @@ defmodule Services.MCP do
     servers =
       servers_cfg
       |> Enum.map(fn {server, cfg} ->
-        info =
-          case safe_get_info(server) do
-            {:ok, server_info} ->
-              %{status: "ok", server_info: server_info}
-
-            {:error, reason} ->
-              # If discovery enabled and this is an HTTP server without mcp_path
-              if with_discovery && should_attempt_discovery?(cfg) do
-                attempt_discovery_for_server(server, cfg, settings)
-              end
-
-              %{status: "error", error: inspect(reason)}
-          end
-
-        capabilities =
-          case safe_get_capabilities(server) do
-            {:ok, caps} -> %{capabilities: caps}
-            {:error, _} -> %{capabilities: %{}}
-          end
-
-        tools =
-          case safe_list_tools(server) do
-            {:ok, tools} ->
-              %{tools: Enum.map(tools, &tool_blurb/1)}
-
-            {:error, reason} ->
-              %{error: inspect(reason)}
-          end
-
-        # Check authentication status
-        auth_info = check_auth_status(server, cfg)
-
-        {server, info |> Map.merge(capabilities) |> Map.merge(tools) |> Map.merge(auth_info)}
+        {server, check_server_status(server, cfg, settings, with_discovery)}
       end)
       |> Enum.into(%{})
 
     %{status: "ok", servers: servers}
+  end
+
+  @doc """
+  Checks the status of a single MCP server by name.
+  Returns the same structure as a single server entry in test/1.
+  """
+  @spec check_single_server(String.t()) :: {:ok, map()} | {:error, :not_found}
+  def check_single_server(server_name) when is_binary(server_name) do
+    settings = Settings.new()
+    servers_cfg = MCPSettings.effective_config(settings)
+
+    case Map.fetch(servers_cfg, server_name) do
+      {:ok, cfg} ->
+        server_data = check_server_status(server_name, cfg, settings, false)
+        {:ok, %{status: "ok", servers: %{server_name => server_data}}}
+
+      :error ->
+        {:error, :not_found}
+    end
+  end
+
+  defp check_server_status(server, cfg, settings, with_discovery) do
+    info =
+      case safe_get_info(server) do
+        {:ok, server_info} ->
+          %{status: "ok", server_info: server_info}
+
+        {:error, reason} ->
+          # If discovery enabled and this is an HTTP server without mcp_path
+          if with_discovery && should_attempt_discovery?(cfg) do
+            attempt_discovery_for_server(server, cfg, settings)
+          end
+
+          %{status: "error", error: inspect(reason)}
+      end
+
+    capabilities =
+      case safe_get_capabilities(server) do
+        {:ok, caps} -> %{capabilities: caps}
+        {:error, _} -> %{capabilities: %{}}
+      end
+
+    tools =
+      case safe_list_tools(server) do
+        {:ok, tools} ->
+          %{tools: Enum.map(tools, &tool_blurb/1)}
+
+        {:error, reason} ->
+          %{error: inspect(reason)}
+      end
+
+    # Check authentication status
+    auth_info = check_auth_status(server, cfg)
+
+    info |> Map.merge(capabilities) |> Map.merge(tools) |> Map.merge(auth_info)
   end
 
   defp should_attempt_discovery?(cfg) do
@@ -310,9 +333,6 @@ defmodule Services.MCP do
             :valid
 
           {:error, :not_found} ->
-            :missing
-
-          {:error, _} ->
             :missing
         end
 
