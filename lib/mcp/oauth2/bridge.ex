@@ -34,14 +34,30 @@ defmodule MCP.OAuth2.Bridge do
   defp maybe_refresh(_server, _cfg, toks, _margin), do: {:ok, toks}
 
   defp refresh(server, cfg, %{"refresh_token" => rt}) when is_binary(rt) and rt != "" do
+    oauth = Map.get(cfg, "oauth", %{})
+
+    # Use configured redirect_uri, or build from redirect_port, or omit if neither present
+    redirect_uri =
+      cond do
+        is_binary(oauth["redirect_uri"]) ->
+          oauth["redirect_uri"]
+
+        is_integer(oauth["redirect_port"]) and oauth["redirect_port"] > 0 ->
+          "http://localhost:#{oauth["redirect_port"]}/callback"
+
+        true ->
+          nil
+      end
+
     # Build OAuth config for refresh - need discovery_url, client_id, optional client_secret
-    oauth_cfg = %{
-      discovery_url: Map.get(cfg["oauth"], "discovery_url"),
-      client_id: Map.get(cfg["oauth"], "client_id"),
-      client_secret: Map.get(cfg["oauth"], "client_secret"),
-      scopes: Map.get(cfg["oauth"], "scopes", []),
-      redirect_uri: "http://127.0.0.1/callback"
-    }
+    oauth_cfg =
+      %{
+        discovery_url: oauth["discovery_url"],
+        client_id: oauth["client_id"],
+        client_secret: oauth["client_secret"],
+        scopes: Map.get(oauth, "scopes", [])
+      }
+      |> maybe_put_redirect(redirect_uri)
 
     case Client.refresh_token(oauth_cfg, rt) do
       {:ok, new} ->
@@ -54,6 +70,9 @@ defmodule MCP.OAuth2.Bridge do
   end
 
   defp refresh(_server, _cfg, _toks), do: {:error, :no_refresh_token}
+
+  defp maybe_put_redirect(map, nil), do: map
+  defp maybe_put_redirect(map, uri), do: Map.put(map, :redirect_uri, uri)
 
   defp normalize(%{
          access_token: at,
