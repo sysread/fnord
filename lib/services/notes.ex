@@ -71,7 +71,7 @@ defmodule Services.Notes do
   exiting the application or moving on to the next step in the workflow.
   """
   def join() do
-    UI.debug("[notes-server]", "waiting for operations to complete")
+    UI.info("[notes-server]", "waiting for operations to complete")
     GenServer.call(__MODULE__, :join, :infinity)
   end
 
