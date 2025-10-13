@@ -182,16 +182,16 @@ defmodule Fnord do
     end)
 
     # --------------------------------------------------------------------------
-    # If the user did not specify a project in ARGV, resolve it via Fnord.ResolveProject.
+    # If the user did not specify a project in ARGV, resolve it via ResolveProject.
     # --------------------------------------------------------------------------
     unless Settings.project_is_set?() do
-      case Fnord.ResolveProject.resolve_from_cwd(nil) do
+      case ResolveProject.resolve_from_cwd(nil) do
         {:ok, project} ->
           UI.info("Project not specified, but resolved to #{project}")
           Settings.set_project(project)
 
         {:error, :not_in_project} ->
-          case Fnord.ResolveProject.resolve_from_worktree() do
+          case ResolveProject.resolve_from_worktree() do
             {:ok, project} ->
               UI.info("Project not specified, but resolved from worktree to #{project}")
               Settings.set_project(project)

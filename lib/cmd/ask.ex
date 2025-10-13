@@ -287,7 +287,7 @@ defmodule Cmd.Ask do
           UI.info("Skipping worktree detection due to explicit project flag")
           :ok
         else
-          case Fnord.ResolveProject.resolve_from_worktree() do
+          case ResolveProject.resolve_from_worktree() do
             {:ok, resolved_name} when resolved_name == project.name ->
               wt_root = GitCli.worktree_root()
 

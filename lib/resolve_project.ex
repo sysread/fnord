@@ -1,4 +1,4 @@
-defmodule Fnord.ResolveProject do
+defmodule ResolveProject do
   @moduledoc """
   Project resolution from cwd or git worktree root.
 

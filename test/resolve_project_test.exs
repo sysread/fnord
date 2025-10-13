@@ -1,24 +1,24 @@
-defmodule Fnord.ResolveProjectTest do
+defmodule ResolveProjectTest do
   use Fnord.TestCase, async: false
 
   describe "resolve_from_cwd/1" do
     test "discovers when cwd == project root" do
       project = mock_project("p1")
-      assert {:ok, "p1"} = Fnord.ResolveProject.resolve_from_cwd(project.source_root)
+      assert {:ok, "p1"} = ResolveProject.resolve_from_cwd(project.source_root)
     end
 
     test "discovers when cwd is a subdirectory of project root" do
       project = mock_project("p1")
       subdir = Path.join(project.source_root, "a/b/c")
       File.mkdir_p!(subdir)
-      assert {:ok, "p1"} = Fnord.ResolveProject.resolve_from_cwd(subdir)
+      assert {:ok, "p1"} = ResolveProject.resolve_from_cwd(subdir)
     end
 
     test "does not discover when cwd is outside any configured root" do
       project = mock_project("p1")
       {:ok, other} = Briefly.create(directory: true)
       refute String.starts_with?(other, project.source_root)
-      assert {:error, :not_in_project} = Fnord.ResolveProject.resolve_from_cwd(other)
+      assert {:error, :not_in_project} = ResolveProject.resolve_from_cwd(other)
     end
 
     test "chooses deepest project when multiple roots contain cwd" do
@@ -33,7 +33,7 @@ defmodule Fnord.ResolveProjectTest do
 
       deep = Path.join(child_root, "deeper/sub")
       File.mkdir_p!(deep)
-      assert {:ok, "child"} = Fnord.ResolveProject.resolve_from_cwd(deep)
+      assert {:ok, "child"} = ResolveProject.resolve_from_cwd(deep)
     end
   end
 
@@ -43,8 +43,8 @@ defmodule Fnord.ResolveProjectTest do
       sub = Path.join(project.source_root, "lib/foo")
       File.mkdir_p!(sub)
 
-      assert {:ok, "p1"} = Fnord.ResolveProject.resolve_from_cwd(project.source_root)
-      assert {:ok, "p1"} = Fnord.ResolveProject.resolve_from_cwd(sub)
+      assert {:ok, "p1"} = ResolveProject.resolve_from_cwd(project.source_root)
+      assert {:ok, "p1"} = ResolveProject.resolve_from_cwd(sub)
     end
   end
 end
