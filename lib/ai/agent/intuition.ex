@@ -1,7 +1,7 @@
 defmodule AI.Agent.Intuition do
   @behaviour AI.Agent
 
-  @model AI.Model.turbo()
+  @model AI.Model.fast()
 
   @perception """
   You are an AI agent in a larger system of AI agents that form an aggregate

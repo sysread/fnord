@@ -17,7 +17,6 @@ defmodule AI.Model do
           :smart
           | :balanced
           | :fast
-          | :turbo
 
   @type t :: %__MODULE__{
           model: String.t(),
@@ -38,7 +37,6 @@ defmodule AI.Model do
   def smart(), do: gpt5(:medium)
   def balanced(), do: gpt5_mini(:medium)
   def fast(), do: gpt41_nano()
-  def turbo(), do: gpt5_nano(:minimal)
   def reasoning(level \\ :medium), do: o4_mini(level)
   def coding(), do: o4_mini(:medium)
   def large_context(), do: gpt41()
