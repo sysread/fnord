@@ -77,7 +77,7 @@ defmodule Cmd.Config.MCPTest do
           MCP.run(%{global: true, command: "foo"}, [:mcp, :add], ["srv"])
         end)
 
-      assert log =~ "Server 'srv' already exists"
+      assert log =~ "Server already exists"
     end
   end
 
@@ -98,7 +98,7 @@ defmodule Cmd.Config.MCPTest do
           MCP.run(%{global: true, command: "bar"}, [:mcp, :update], ["nope"])
         end)
 
-      assert log =~ "Server 'nope' not found"
+      assert log =~ "Server not found"
     end
 
     test "update existing server" do
@@ -144,24 +144,24 @@ defmodule Cmd.Config.MCPTest do
 
     test "remove non-existent server errors" do
       log = capture_log(fn -> MCP.run(%{global: true}, [:mcp, :remove], ["nope"]) end)
-      assert log =~ "Server 'nope' not found"
+      assert log =~ "Server not found"
     end
   end
 
   describe "mcp check" do
     setup do
-      # Mock Services.MCP to avoid actually starting MCP processes
-      :meck.new(Services.MCP, [:non_strict])
-      :meck.expect(Services.MCP, :start, fn -> :ok end)
+      # Mock only Services.MCP.test to avoid actually connecting to MCP servers
+      :meck.new(Services.MCP, [:passthrough])
 
-      :meck.expect(Services.MCP, :test, fn ->
+      :meck.expect(Services.MCP, :test, fn _ ->
         %{
-          "status" => "ok",
-          "servers" => %{
+          status: "ok",
+          servers: %{
             "test_server" => %{
-              "status" => "ok",
-              "server_info" => %{"name" => "test_server-server", "status" => "running"},
-              "tools" => %{"status" => "error", "error" => ":not_started"}
+              status: "ok",
+              server_info: %{"name" => "test_server-server", "status" => "running"},
+              tools: [],
+              has_oauth: false
             }
           }
         }
@@ -185,20 +185,37 @@ defmodule Cmd.Config.MCPTest do
     end
 
     test "check shows server status" do
+      # Mock the test function to return a successful response
+      :meck.expect(Services.MCP, :test, fn _ ->
+        %{
+          status: "ok",
+          servers: %{
+            "test_server" => %{
+              status: "ok",
+              tools: [%{"name" => "test_tool", "description" => "A test tool"}],
+              capabilities: %{"tools" => true},
+              has_oauth: false
+            }
+          }
+        }
+      end)
+
       # This will try to connect but fail gracefully - we're just testing the command structure
       {out, _stderr} = capture_all(fn -> MCP.run(%{global: true}, [:mcp, :check], []) end)
-      assert {:ok, %{"status" => "ok", "servers" => servers}} = Jason.decode(out)
-      assert Map.has_key?(servers, "test_server")
+      assert out =~ "Checking MCP servers"
+      assert out =~ "test_server"
+      assert out =~ "Connection"
+      assert out =~ "Tools"
     end
 
     test "check with project scope" do
-      # Mock empty response for project scope
-      :meck.expect(Services.MCP, :test, fn -> %{"status" => "ok", "servers" => %{}} end)
+      # Mock empty response for project scope (accepts any arguments)
+      :meck.expect(Services.MCP, :test, fn _ -> %{status: "ok", servers: %{}} end)
 
       mock_project("check_test")
       Settings.set_project("check_test")
       {out, _stderr} = capture_all(fn -> MCP.run(%{}, [:mcp, :check], []) end)
-      assert {:ok, %{"status" => "ok", "servers" => %{}}} = Jason.decode(out)
+      assert out =~ "No MCP servers configured"
     end
   end
 

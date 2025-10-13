@@ -57,20 +57,8 @@ defmodule Cmd.Config do
           ],
           approve: [
             name: "approve",
-            about: """
-            Add an approval regex under a kind (shell|shell_full) for scope (global|project).
-
-            - shell:      Approves a *prefix* match of the shell command.
-                          This is matched against shell commands the LLM
-                          wishes to execute. It ONLY matches against the
-                          command itself and its subcommands, not arguments.
-                          Subcommands are only supported for a small number
-                          of recognized commands (e.g., git, docker).
-
-            - shell_full: Approves a *regex* match of the full command,
-                          including arguments. It is up to the user to ensure
-                          the regex is safe and properly anchored.
-            """,
+            about:
+              "Add an approval regex under a kind (shell|shell_full) for scope (global|project).",
             args: [
               pattern: [
                 value_name: "PATTERN",
@@ -84,7 +72,8 @@ defmodule Cmd.Config do
                 value_name: "KIND",
                 long: "--kind",
                 short: "-k",
-                help: "Approval kind",
+                help:
+                  "Approval kind. One of: shell (*prefix* match of command and subcommands), shell_full (*regex* match of full command with args)",
                 required: true
               ]
             ],
@@ -134,7 +123,7 @@ defmodule Cmd.Config do
                     value_name: "TRANSPORT",
                     long: "--transport",
                     short: "-t",
-                    help: "Transport type (stdio|streamable_http|websocket)",
+                    help: "Transport type (stdio|http|websocket)",
                     default: "stdio"
                   ],
                   command: [
@@ -152,11 +141,17 @@ defmodule Cmd.Config do
                     required: false,
                     multiple: true
                   ],
-                  base_url: [
+                  url: [
                     value_name: "URL",
-                    long: "--base-url",
+                    long: "--url",
                     short: "-u",
                     help: "Base URL for HTTP/WebSocket transports",
+                    required: false
+                  ],
+                  mcp_path: [
+                    value_name: "PATH",
+                    long: "--mcp-path",
+                    help: "MCP endpoint path for HTTP transport (default: /mcp)",
                     required: false
                   ],
                   header: [
@@ -181,6 +176,25 @@ defmodule Cmd.Config do
                     short: "-T",
                     help: "Timeout in milliseconds",
                     required: false
+                  ],
+                  client_id: [
+                    value_name: "CLIENT_ID",
+                    long: "--client-id",
+                    help: "OAuth client ID (optional, will auto-register if not provided)",
+                    required: false
+                  ],
+                  client_secret: [
+                    value_name: "CLIENT_SECRET",
+                    long: "--client-secret",
+                    help: "OAuth client secret (optional)",
+                    required: false
+                  ],
+                  scope: [
+                    value_name: "SCOPE",
+                    long: "--scope",
+                    help: "OAuth scope (repeatable, defaults to mcp:access)",
+                    required: false,
+                    multiple: true
                   ]
                 ],
                 flags: [
@@ -188,6 +202,11 @@ defmodule Cmd.Config do
                     long: "--global",
                     short: "-g",
                     help: "Add server to global configuration",
+                    required: false
+                  ],
+                  oauth: [
+                    long: "--oauth",
+                    help: "Enable OAuth authentication with auto-discovery",
                     required: false
                   ]
                 ]
@@ -204,7 +223,7 @@ defmodule Cmd.Config do
                     value_name: "TRANSPORT",
                     long: "--transport",
                     short: "-t",
-                    help: "Transport type (stdio|streamable_http|websocket)",
+                    help: "Transport type (stdio|http|websocket)",
                     default: "stdio"
                   ],
                   command: [
@@ -222,11 +241,17 @@ defmodule Cmd.Config do
                     required: false,
                     multiple: true
                   ],
-                  base_url: [
+                  url: [
                     value_name: "URL",
-                    long: "--base-url",
+                    long: "--url",
                     short: "-u",
                     help: "Base URL for HTTP/WebSocket transports",
+                    required: false
+                  ],
+                  mcp_path: [
+                    value_name: "PATH",
+                    long: "--mcp-path",
+                    help: "MCP endpoint path for HTTP transport (default: /mcp)",
                     required: false
                   ],
                   header: [
@@ -294,6 +319,33 @@ defmodule Cmd.Config do
                     required: false
                   ]
                 ]
+              ],
+              login: [
+                name: "login",
+                about: "Authenticate to an MCP server using OAuth2 + PKCE",
+                args: [
+                  server: [value_name: "SERVER", help: "Server identifier", required: true]
+                ],
+                options: [
+                  project: Cmd.project_arg(),
+                  timeout: [
+                    value_name: "TIMEOUT_MS",
+                    long: "--timeout",
+                    short: "-t",
+                    help: "Timeout in milliseconds for OAuth callback",
+                    required: false
+                  ]
+                ]
+              ],
+              status: [
+                name: "status",
+                about: "Show OAuth token status for an MCP server",
+                args: [
+                  server: [value_name: "SERVER", help: "Server identifier", required: true]
+                ],
+                options: [
+                  project: Cmd.project_arg()
+                ]
               ]
             ]
           ]
@@ -357,7 +409,21 @@ defmodule Cmd.Config do
   def run(opts, [:mcp, :add], args), do: Cmd.Config.MCP.run(opts, [:mcp, :add], args)
   def run(opts, [:mcp, :update], args), do: Cmd.Config.MCP.run(opts, [:mcp, :update], args)
   def run(opts, [:mcp, :remove], args), do: Cmd.Config.MCP.run(opts, [:mcp, :remove], args)
+  def run(opts, [:mcp, :login], args), do: Cmd.Config.MCP.run(opts, [:mcp, :login], args)
+  def run(opts, [:mcp, :status], args), do: Cmd.Config.MCP.run(opts, [:mcp, :status], args)
   def run(opts, [:mcp, :check], args), do: Cmd.Config.MCP.run(opts, [:mcp, :check], args)
+
+  def run(opts, [:mcp, :oauth, :list], args),
+    do: Cmd.Config.MCP.run(opts, [:mcp, :oauth, :list], args)
+
+  def run(opts, [:mcp, :oauth, :add], args),
+    do: Cmd.Config.MCP.run(opts, [:mcp, :oauth, :add], args)
+
+  def run(opts, [:mcp, :oauth, :update], args),
+    do: Cmd.Config.MCP.run(opts, [:mcp, :oauth, :update], args)
+
+  def run(opts, [:mcp, :oauth, :remove], args),
+    do: Cmd.Config.MCP.run(opts, [:mcp, :oauth, :remove], args)
 
   def run(_opts, [], _unknown) do
     UI.error("No subcommand specified. Use 'fnord help config' for help.")

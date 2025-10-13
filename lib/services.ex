@@ -33,10 +33,11 @@ defmodule Services do
   These services must be started AFTER set_globals() is called because they need
   to read configuration settings parsed from CLI arguments in set_globals().
   """
-  def start_config_dependent_services do
+  def start_config_dependent_services(command \\ nil) do
     Services.NamePool.start_link()
     Services.Approvals.start_link()
-    Services.MCP.start()
+    Services.Approvals.Gate.start_link([])
+    Services.MCP.start(command)
     :ok
   end
 end

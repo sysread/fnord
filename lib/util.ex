@@ -83,8 +83,8 @@ defmodule Util do
   end
 
   def get_latest_version do
-    case HTTPoison.get("https://hex.pm/api/packages/fnord", [], follow_redirect: true) do
-      {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
+    case Http.get("https://hex.pm/api/packages/fnord") do
+      {:ok, body} ->
         body
         |> Jason.decode()
         |> case do
@@ -92,12 +92,16 @@ defmodule Util do
           _ -> :error
         end
 
-      {:ok, %HTTPoison.Response{status_code: code}} ->
-        IO.warn("Hex API request failed with status #{code}")
+      {:http_error, {code, body}} ->
+        UI.debug("Hex API request error", "HTTP #{code}: #{body}")
         {:error, :api_request_failed}
 
-      {:error, %HTTPoison.Error{reason: reason}} ->
-        IO.warn("Hex API request error: #{inspect(reason)}")
+      {:transport_error, :nxdomain} ->
+        UI.debug("Hex API request error", "No internet connection")
+        {:error, :no_internet_connection}
+
+      {:transport_error, reason} ->
+        UI.debug("Hex API request error", reason)
         {:error, reason}
     end
   end

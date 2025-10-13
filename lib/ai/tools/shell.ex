@@ -70,18 +70,19 @@ defmodule AI.Tools.Shell do
         The user must approve execution of this command before it is run.
         It is essential to remember that you cannot launch interactive commands!
         Commands that require user input or interaction will fail after a timeout, resulting in a poor experience for the user.
-        Individual commands may not include redirection, pipes, command substitution, or other complex shell operators.
 
-        IMPORTANT: Tools that can modify files (e.g., `awk`, `find -exec`, `patch`) require explicit approval.
+        INDIVIDUAL COMMANDS MAY NOT INCLUDE REDIRECTION, PIPES, COMMAND SUBSTITUTION, OR OTHER COMPLEX SHELL OPERATORS.
+
+        IMPORTANT: Tools that can modify files (e.g., `awk`, `find -exec`, `patch`) require explicit user-approval.
         Safe, read-only `sed` invocations (without `-i`, `-f`, `e` or `w` ops) are auto-preapproved by built-in regex rules.
 
-        IMPORTANT: This uses elixir's System.cmd/3 to execute commands. It
-                   *will* `cd` into the project's source root before executing
-                   commands. Some commands DO behave differently without a tty.
-                   For example, `rg` REQUIRES a path argument when not run in a
-                   tty.
+        IMPORTANT: This uses elixir's System.cmd/3 to execute commands.
+                   It *will* `cd` into the project's source root before executing commands.
+                   Some commands DO behave differently without a tty.
+                   For example, `rg` REQUIRES a path argument when not run in a tty.
 
         For commands that vary based on OS (like grep and sed), the current OS is: #{os_name} (#{os_family}).
+        Note that the user may not be monitoring the terminal to see your command request, so pay careful attention to which commands are pre-approved.
 
         The following tools are available on your PATH with their respective versions:
         #{available_tools()}

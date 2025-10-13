@@ -1,5 +1,5 @@
 defmodule AI.Tools.File.Edit.OMFGTest do
-  use ExUnit.Case, async: false
+  use Fnord.TestCase
   alias AI.Tools.File.Edit.OMFG
 
   describe "normalize_agent_chaos/1" do

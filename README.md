@@ -29,12 +29,13 @@ If you've ever pasted multiple files into ChatGPT or worked with it iteratively 
 
 - Semantic search
 - On-demand explanations, documentation, and tutorials
+- Writing code with ~fancy autocomplete~ AI assistance
 - Git archaeology
-- Learns about your project(s) over time
+- Persistent learning about your projects over time
 - Improves its research capabilities with each interaction
-- User integrations
 - Layered approvals for shell/file operations
-- MCP server tools (Hermes/OpenAI MCP)
+- User integrations
+- MCP server support
 
 
 ## Installation
@@ -117,7 +118,6 @@ Note that semantic search requires an existing index. You can still perform text
 ```bash
 fnord prime --project blarg
 ```
-Prime uses 3 research rounds by default.
 
 
 ### Configuration
@@ -132,18 +132,7 @@ fnord config set --project blarg --root $HOME/dev/blarg --exclude 'node_modules'
 
 ### Approval patterns
 
-For safety, `fnord` requires approval for most shell and file operations.
-You can auto-approve file edits by passing `--yes` to the `ask` subcommand (in conjunction with `--edit`).
-Shell commands (beyond a hard-coded list of read-only ones), however, require explicit approval.
-You can pre-approve commands on a per-project or global basis using regular expressions.
-
-```bash
-# list project approvals (use --global for global)
-fnord config approvals --project <project>
-fnord config approve   --project <project> --kind <kind> '<regex>'
-# add to global scope instead of project:
-fnord config approve   --global --kind <kind> '<regex>'
-```
+For safety, fnord requires approval for shell commands and file operations. You'll be prompted to approve operations as fnord works. To streamline your workflow, you can pre-approve specific commands using regex patterns. See [docs/approval-patterns.md](docs/approval-patterns.md) for details.
 
 
 ### Search your code base
@@ -179,71 +168,31 @@ For rich, accurate results, index your project first.
 
 ### Generate answers on-demand
 
-`fnord` uses a combination of LLM-powered agents and tool calls to research your question within your project, including access to semantic search and git tools (read only!).
-
-As it conducts its investigation, you will see some of the research steps reported back to you in real-time. These are printed to `STDERR` so they will not interfere with redirected output. If you wish to see more of this, set `LOGGER_LEVEL=debug` in your shell.
+Fnord uses LLM-powered agents and tool calls to research your question, including semantic search and git tools (read only).
 
 ```bash
 fnord ask --project blarg --question "Where is the unit test for some_function?"
-fnord ask --project blarg --question "Please confirm that all information in the README is up-to-date and correct." --rounds 3
-fnord ask --project blarg --follow c81928aa-6ab2-4346-9b2a-0edce6a639f0 --question "Is some_function still used?"
-fnord ask --project blarg --fork c81928aa-6ab2-4346-9b2a-0edce6a639f0 --question "How do I update documentation?"
+
+# Continue a conversation
+fnord ask --project blarg --follow <ID> --question "Is some_function still used?"
 ```
 
-#### Asking questions on an unindexed project
+After each response, you'll see a conversation ID. Use `--follow <ID>` to continue the conversation or `--fork <ID>` to branch a new thread.
 
-If you haven't indexed yet, set up a project first (either run `fnord index --project <name> --dir <path>` or configure the root with `fnord config set --project <name> --root <path>`). Then you can run `fnord ask ...`. Semantic search will be unavailable until you index, but the AI may use shell_tool-assisted text searches (e.g., ripgrep) if installed and approved.
-
-#### Improve research quality
-
-By default, `ask` performs a single round of research (multiple tool calls per round notwithstanding).
-You can increase the number of rounds with the `--rounds` option.
-Increasing the number of rounds will increase the time it takes to generate a response, but can drastically improve the quality and thoroughness of the response, especially in large code bases or code bases containing multiple apps.
-
-
-After each response, you'll see:
-
-```bash
-Conversation saved with ID: c81928aa-6ab2-4346-9b2a-0edce6a639f0
-```
-Continue it with `--follow <ID>` or branch a new thread with `--fork <ID>`.
-```bash
-fnord ask --project blarg --follow c81928aa-6ab2-4346-9b2a-0edce6a639f0 --question "Is some_function still used?"
-```
-
-
-```bash
-fnord conversations --project blarg
-fnord conversations --project blarg --prune 30
-```
-
-#### Replaying a conversation
-
-You can replay a conversation (last-used or with `--follow <ID>`) using:
-```bash
-fnord ask --project blarg --replay --follow c81928aa-6ab2-4346-9b2a-0edce6a639f0 | glow
-```
-As it learns more about your project, `fnord` will be able to answer more complex questions with less research.
+For advanced options (research rounds, unindexed projects, replaying conversations), see [docs/asking-questions.md](docs/asking-questions.md).
 
 
 ### Learning over time
 
-`fnord` learns about your project over time by saving facts and inferences it makes about the project while researching your questions. These facts and inferences are saved and made
-searchable in the project's data in the `$HOME/.fnord` directory.
+Fnord learns about your project while researching your questions. It saves facts and inferences it makes, building a searchable knowledge base that improves over time. As the knowledge base grows, fnord can answer increasingly complex questions with less research.
 
-You can view the facts learned thus far, organized by topic, with the `notes` command.
-
-```bash
-fnord notes --project blarg | glow
-```
-
-Over time, these can become quite extensive, redundant, and stale over time as your code base evolves.
-
-`fnord` knows how to "prime the pump" for its learning process with an initial set of learnings.
+You can prime this learning process with:
 
 ```bash
-fnord ask --project blarg --question "Prime your research notes and report your findings"
+fnord prime --project blarg
 ```
+
+For managing and viewing learned knowledge, see [docs/learning-system.md](docs/learning-system.md).
 
 
 ### Upgrades
@@ -271,85 +220,52 @@ mix escript.install github sysread/fnord
 
 ## User integrations
 
-Users can create their own integrations, called frobs, that `fnord` can use as a tool call while researching.
-
-### Create a new integration
+Create custom tools (frobs) that fnord can use while researching. Use frobs to query project-specific APIs, check deployment status, retrieve GitHub PR details for review, or gather information from Kubernetes clusters.
 
 ```bash
 fnord frobs create --name my_frob
-```
-
-### Validate a frob
-
-```bash
 fnord frobs check --name my_frob
-```
-
-### List frobs
-
-```bash
 fnord frobs list
 ```
 
-Frobs are stored in `$HOME/fnord/tools` and are comprised of the following files:
-- `my_frob/registry.json` - a JSON file that identifies the projects for which the frob is available
-- `my_frob/spec.json` - a JSON file describing the frob's calling semantics in [OpenAI's function spec format](https://platform.openai.com/docs/guides/function-calling?api-mode=responses#defining-functions)
-- `my_frob/main` - a script or binary that performs the requested task
-
-Make your tool available to your projects: edit the `registry.json` file created when you ran `fnord frobs create` to include the project name(s) for which you want the frob to be available.
-
-```json
-{
-  // When true, the frob is available to all projects and the "projects" field is ignored.
-  "global": true,
-
-  // An array of project names for which fnord should make the frob available. Superseded by the "global" field when set to true.
-  "projects": ["blarg", "some_other_project"]
-}
-```
-
-Implementing the frob: the `main` file is a script or binary that implements the frob. `fnord` passes information to the frob via shell environment variables:
-
-- `FNORD_PROJECT`: The name of the currently selected project
-- `FNORD_CONFIG`: The project configuration from `$HOME/.fnord/settings.json` as a single JSON object
-- `FNORD_ARGS_JSON`: JSON object of LLM-provided arguments
-
-Testing your frob: if you prefix your `fnord ask` query with `testing:`, you can ask the LLM to test your frob to confirm it is working as expected.
-
-```bash
-fnord ask -p blarg -q "testing: please confirm that the 'my_frob' tool is available to you"
-fnord ask -p blarg -q "testing: please make a call to 'my_frob' with the arguments 'foo' and 'bar' and report the results"
-```
+Frobs are stored in `~/.fnord/tools`. For implementation details, see [docs/frobs-guide.md](docs/frobs-guide.md).
 
 ### MCP servers
 
-```bash
-# List configured servers (use --global for global scope, --effective for merged view)
-fnord config mcp list --project <project> [--global] [--effective]
+MCP servers extend fnord with external tools and data sources. Add servers for GitHub, Kubernetes, project-specific APIs, or any MCP-compatible service.
 
+```bash
 # Add a stdio server
-fnord config mcp add <name> --transport stdio --command ./my_server \
-  --arg --flag --env API_KEY=xyz [--global]
+fnord config mcp add <name> --transport stdio --command ./server
 
 # Add an HTTP server
-fnord config mcp add <name> --transport streamable_http --base-url https://api.example.com \
-  --header 'Authorization=Bearer ...' [--global]
+fnord config mcp add <name> --transport http --url https://api.example.com
 
-# Update or remove
-fnord config mcp update <name> [--transport ...] [--command ...] [--base-url ...] [...]
-fnord config mcp remove <name> [--global]
-
-# Validate connectivity and enumerate tools
-fnord config mcp check --project <project> [--global]
+# Add with OAuth (auto-configures everything)
+fnord config mcp add <name> --transport http --url https://api.example.com --oauth
+fnord config mcp login <name>
 ```
+
+**Advanced Configuration:** For complete command reference, custom transport options, and manual configuration, see [docs/mcp-advanced.md](docs/mcp-advanced.md).
+
+#### OAuth Authentication
+
+Fnord supports OAuth2 for MCP servers with automatic discovery and registration:
+
+```bash
+fnord config mcp add myserver --transport http --url https://example.com --oauth
+fnord config mcp login myserver
+```
+
+For advanced OAuth options, troubleshooting, and security details, see [docs/oauth-advanced.md](docs/oauth-advanced.md).
 
 
 ## Writing code
 Fnord can (optionally) automate code changes in your project using the `ask` command with the `--edit` flag.
 
-**HIGHLY EXPERIMENTAL!**
 - Use `--edit` with extreme caution.
 - AI-driven code modification is unsafe, may corrupt or break files, and must always be manually reviewed.
+- Optionally add `--yes` to pre-approve edits without prompting.
 
 ### How it works
 The LLM has access to several tools that allow it to modify code within the project directory and perform basic file management tasks.
