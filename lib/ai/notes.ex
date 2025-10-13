@@ -591,16 +591,27 @@ defmodule AI.Notes do
     Enum.join(annotated, "\n")
   end
 
+  @spec run_ai((-> any), non_neg_integer) :: any
+  defp run_ai(fun, timeout \\ 120_000) do
+    HttpPool.with_pool(:ai_notes, fn ->
+      fun
+      |> Task.async()
+      |> Task.await(timeout)
+    end)
+  end
+
   @spec complete(binary, mini_agent) :: {:ok, binary} | {:error, any}
   defp complete(input, agent) do
-    AI.Completion.get(
-      log_messages: false,
-      model: agent.model,
-      messages: [
-        AI.Util.system_msg(agent.prompt),
-        AI.Util.user_msg(input)
-      ]
-    )
+    run_ai(fn ->
+      AI.Completion.get(
+        log_messages: false,
+        model: agent.model,
+        messages: [
+          AI.Util.system_msg(agent.prompt),
+          AI.Util.user_msg(input)
+        ]
+      )
+    end)
     |> case do
       {:ok, %{response: response}} -> {:ok, response}
       {:error, reason} -> {:error, reason}
@@ -609,11 +620,17 @@ defmodule AI.Notes do
 
   @spec accumulate(binary, mini_agent) :: {:ok, binary} | {:error, any}
   defp accumulate(input, agent) do
-    AI.Accumulator.get_response(
-      model: agent.model,
-      prompt: agent.prompt,
-      input: input,
-      question: "Please consolidate the following notes according to the specified guidelines."
+    run_ai(
+      fn ->
+        AI.Accumulator.get_response(
+          model: agent.model,
+          prompt: agent.prompt,
+          input: input,
+          question:
+            "Please consolidate the following notes according to the specified guidelines."
+        )
+      end,
+      180_000
     )
     |> case do
       {:ok, %{response: response}} -> {:ok, response}

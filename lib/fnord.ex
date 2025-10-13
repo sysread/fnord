@@ -39,7 +39,7 @@ defmodule Fnord do
 
       # Start a dedicated pool for research notes (just 1 worker, since it's
       # restricted to a single genserver process and not concurrent).
-      :hackney_pool.start_pool(:ai_notes, max_connections: 1)
+      :hackney_pool.start_pool(:ai_notes, max_connections: 3)
 
       # Configure the :hackney_pool to limit the number of concurrent requests.
       :hackney_pool.start_pool(:ai_api,

@@ -97,9 +97,7 @@ defmodule Services.Notes do
   # -----------------------------------------------------------------------------
   @impl true
   def init(_opts) do
-    # Route all HTTP calls from this process through the notes-dedicated pool
-    HttpPool.set(:ai_notes)
-
+    # Pool selection is now handled per-task in AI.Notes via HttpPool.with_pool/2
     {:ok, AI.Notes.new()}
   end
 
