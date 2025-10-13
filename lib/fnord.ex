@@ -26,19 +26,25 @@ defmodule Fnord do
 
       cmd_module = to_module_name(command)
 
-      # Now that global settings are set, we can configure the :hackney_pool to
-      # limit the number of concurrent requests.
+      # -------------------------------------------------------------------------
+      # HTTP Pools
+      # -------------------------------------------------------------------------
+      # Start dedicated pool for background indexer (half workers, at least 1)
+      :hackney_pool.start_pool(:ai_indexer,
+        max_connections:
+          Services.Globals.get_env(:fnord, :workers, Cmd.default_workers())
+          |> div(2)
+          |> max(1)
+      )
+
+      # Start a dedicated pool for research notes (just 1 worker, since it's
+      # restricted to a single genserver process and not concurrent).
+      :hackney_pool.start_pool(:ai_notes, max_connections: 1)
+
+      # Configure the :hackney_pool to limit the number of concurrent requests.
       :hackney_pool.start_pool(:ai_api,
         max_connections: Services.Globals.get_env(:fnord, :workers, Cmd.default_workers())
       )
-
-      # Start dedicated pool for background indexer (half workers, at least 1)
-      indexer_size =
-        Services.Globals.get_env(:fnord, :workers, Cmd.default_workers())
-        |> div(2)
-        |> max(1)
-
-      :hackney_pool.start_pool(:ai_indexer, max_connections: indexer_size)
 
       # Start services that depend on CLI configuration now that it's available.
       # These services depend on settings parsed from CLI arguments in set_globals().

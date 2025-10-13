@@ -95,22 +95,30 @@ defmodule Services.Notes do
   # -----------------------------------------------------------------------------
   # Server API
   # -----------------------------------------------------------------------------
+  @impl true
   def init(_opts) do
+    # Route all HTTP calls from this process through the notes-dedicated pool
+    HttpPool.set(:ai_notes)
+
     {:ok, AI.Notes.new()}
   end
 
+  @impl true
   def handle_cast(:load_notes, state) do
     {:noreply, AI.Notes.init(state)}
   end
 
+  @impl true
   def handle_cast({:ingest_user_msg, msg_text}, state) do
     {:noreply, AI.Notes.ingest_user_msg(state, msg_text)}
   end
 
+  @impl true
   def handle_cast({:ingest_research, func, args_json, result}, state) do
     {:noreply, AI.Notes.ingest_research(state, func, args_json, result)}
   end
 
+  @impl true
   def handle_cast(:consolidate, state) do
     if AI.Notes.has_new_facts?() do
       state
@@ -138,18 +146,28 @@ defmodule Services.Notes do
     end
   end
 
+  @impl true
   def handle_cast(:save, state) do
     AI.Notes.commit(state)
     {:noreply, state}
   end
 
+  @impl true
   def handle_call({:ask, question}, _from, state) do
     {:reply, AI.Notes.ask(state, question), state}
   end
 
   # Just a placeholder for a no-op `call` to allow the client to know that the
   # server has completed all operations prior to the call to `join/0`.
+  @impl true
   def handle_call(:join, _from, state) do
     {:reply, :ok, state}
+  end
+
+  @impl true
+  def terminate(_reason, _state) do
+    # Clear any HttpPool override to avoid leaking process dictionary state
+    HttpPool.clear()
+    :ok
   end
 end
