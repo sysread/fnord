@@ -200,8 +200,14 @@ defmodule Cmd.Ask do
         Services.BackgroundIndexer.stop(indexer_pid)
       end
 
+      backup_start = System.monotonic_time(:millisecond)
       Services.BackupFile.offer_cleanup()
+      backup_duration = System.monotonic_time(:millisecond) - backup_start
+      UI.debug("fnord.ask.backup_cleanup_ms", backup_duration)
+      start_notes_join = System.monotonic_time(:millisecond)
       Services.Notes.join()
+      duration = System.monotonic_time(:millisecond) - start_notes_join
+      UI.debug("fnord.ask.notes_join", duration)
     end
   end
 
