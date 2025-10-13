@@ -108,59 +108,36 @@ defmodule Services.Notes do
 
   @impl true
   def handle_cast({:ingest_user_msg, msg_text}, state) do
-    t0 = System.monotonic_time(:millisecond)
-    new_state = AI.Notes.ingest_user_msg(state, msg_text)
-
-    UI.debug(
-      "[notes-server]",
-      "notes.ingest_user_msg_ms=#{System.monotonic_time(:millisecond) - t0}"
-    )
-
-    {:noreply, new_state}
+    {:noreply, AI.Notes.ingest_user_msg(state, msg_text)}
   end
 
   @impl true
   def handle_cast({:ingest_research, func, args_json, result}, state) do
-    t0 = System.monotonic_time(:millisecond)
-    new_state = AI.Notes.ingest_research(state, func, args_json, result)
-
-    UI.debug(
-      "[notes-server]",
-      "notes.ingest_research_ms=#{System.monotonic_time(:millisecond) - t0}"
-    )
-
-    {:noreply, new_state}
+    {:noreply, AI.Notes.ingest_research(state, func, args_json, result)}
   end
 
   @impl true
   def handle_cast(:consolidate, state) do
     if AI.Notes.has_new_facts?() do
-      t0 = System.monotonic_time(:millisecond)
+      state
+      |> AI.Notes.consolidate()
+      |> case do
+        {:ok, result} ->
+          UI.info("[notes-server]", "consolidated existing research notes")
+          {:noreply, result}
 
-      new_state =
-        state
-        |> AI.Notes.consolidate()
-        |> case do
-          {:ok, result} ->
-            UI.info("[notes-server]", "consolidated existing research notes")
-            result
+        {:callback_error, error} ->
+          UI.error("[notes-server]", "callback error during consolidation: #{inspect(error)}")
+          {:noreply, state}
 
-          {:callback_error, error} ->
-            UI.error("[notes-server]", "callback error during consolidation: #{inspect(error)}")
-            state
+        {:error, :lock_failed} ->
+          UI.error("[notes-server]", "failed to acquire lock for consolidation: lock_failed")
+          {:noreply, state}
 
-          {:error, :lock_failed} ->
-            UI.error("[notes-server]", "failed to acquire lock for consolidation: lock_failed")
-            state
-
-          {:error, reason} ->
-            UI.error("[notes-server]", "failed to consolidate notes: #{reason}")
-            state
-        end
-
-      ms = System.monotonic_time(:millisecond) - t0
-      UI.debug("[notes-server]", "notes.consolidate_ms=#{ms}")
-      {:noreply, new_state}
+        {:error, reason} ->
+          UI.error("[notes-server]", "failed to consolidate notes: #{reason}")
+          {:noreply, state}
+      end
     else
       UI.debug("[notes-server]", "no new notes; skipping consolidation")
       {:noreply, state}
@@ -169,9 +146,7 @@ defmodule Services.Notes do
 
   @impl true
   def handle_cast(:save, state) do
-    t0 = System.monotonic_time(:millisecond)
     AI.Notes.commit(state)
-    UI.debug("[notes-server]", "notes.save_ms=#{System.monotonic_time(:millisecond) - t0}")
     {:noreply, state}
   end
 
@@ -184,7 +159,6 @@ defmodule Services.Notes do
   # server has completed all operations prior to the call to `join/0`.
   @impl true
   def handle_call(:join, _from, state) do
-    UI.debug("[notes-server]", "join reached; replying :ok")
     {:reply, :ok, state}
   end
 

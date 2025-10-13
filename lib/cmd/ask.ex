@@ -201,11 +201,7 @@ defmodule Cmd.Ask do
       end
 
       Services.BackupFile.offer_cleanup()
-
-      start_notes_join = System.monotonic_time(:millisecond)
       Services.Notes.join()
-      duration = System.monotonic_time(:millisecond) - start_notes_join
-      UI.debug("fnord.ask.notes_join", duration)
     end
   end
 
