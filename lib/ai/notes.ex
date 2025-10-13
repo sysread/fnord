@@ -35,7 +35,7 @@ defmodule AI.Notes do
   # Mini Agent defs
   # ----------------------------------------------------------------------------
   @user %{
-    model: AI.Model.turbo(),
+    model: AI.Model.fast(),
     prompt: """
     You are a highly empathetic AI assistant that gleans knowledge about the user from the tone and content of their messages.
     Your role is to attempt to deduce the user's coding preferences, learning style, personality, and other relevant traits based on their interactions.
@@ -47,7 +47,7 @@ defmodule AI.Notes do
   }
 
   @research %{
-    model: AI.Model.turbo(),
+    model: AI.Model.fast(),
     prompt: """
     You are a research assistant that extracts facts about the project from tool call results.
     Extract **non-transient** facts about the project from the tool call result.
@@ -78,7 +78,7 @@ defmodule AI.Notes do
   }
 
   @ask %{
-    model: AI.Model.turbo(),
+    model: AI.Model.fast(),
     prompt: """
     You are a research assistant that answers questions about past research done on the project.
     Your role is to provide concise, accurate answers based on the existing project notes.
