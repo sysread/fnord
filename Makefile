@@ -31,6 +31,11 @@ dialyzer: ## Run Dialyzer
 	MIX_ENV=dev mix dialyzer
 	@echo
 
+.PHONY: docs
+docs: ## Generate documentation
+	mix docs
+	@echo
+
 .PHONY: check
 check: compile test dialyzer ## Run all checks
 	@echo "All checks passed"
@@ -43,11 +48,11 @@ format: ## Format the code
 release: publish ## Alias for publish because apparently this is what my fingers' muscle memory prefers
 
 .PHONY: publish
-publish: check ## Publish the package
+publish: check docs ## Publish the package
 	mix hex.publish
 
 .PHONY: republish
-republish: check ## Republish the package (within like 20m of publishing the last version)
+republish: check docs ## Republish the package (within like 20m of publishing the last version)
 	mix hex.publish --replace
 
 .PHONY: find-bak
