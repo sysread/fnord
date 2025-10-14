@@ -32,6 +32,7 @@ fnord-*.tar
 /fnord
 
 # Temporary prototype files
+.scratch/
 scratch*
 scratch.tar.gz
 tags
