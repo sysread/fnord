@@ -1,5 +1,5 @@
 defmodule MCP.Transport do
-  @moduledoc false
+  @moduledoc "Convert MCP server config into Hermes transport tuples and helpers for OAuth header injection"
 
   @typedoc "Hermes transport tuple"
   @type t ::

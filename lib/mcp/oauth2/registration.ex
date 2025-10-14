@@ -17,8 +17,8 @@ defmodule MCP.OAuth2.Registration do
       - :redirect_uris - Callback URIs (default: ["http://127.0.0.1/callback"])
 
   ## Returns
-    - {:ok, %{client_id: String.t(), client_secret: String.t() | nil}}
-    - {:error, reason}
+    - `{:ok, %{client_id: String.t(), client_secret: String.t() | nil}}`
+    - `{:error, reason}`
   """
   @spec register(String.t(), keyword()) ::
           {:ok, %{client_id: String.t(), client_secret: String.t() | nil}} | {:error, term()}

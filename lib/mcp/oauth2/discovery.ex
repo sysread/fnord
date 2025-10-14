@@ -19,8 +19,8 @@ defmodule MCP.OAuth2.Discovery do
       - :redirect_port - Port to use for redirect URI (for registration)
 
   ## Returns
-    - {:ok, oauth_config} - Ready-to-use OAuth configuration map
-    - {:error, reason} - Discovery or setup failed
+    - `{:ok, oauth_config}` - Ready-to-use OAuth configuration map
+    - `{:error, reason}` - Discovery or setup failed
 
   ## OAuth Config Structure
     %{

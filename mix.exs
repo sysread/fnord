@@ -24,7 +24,25 @@ defmodule Fnord.MixProject do
   defp docs do
     [
       main: "readme",
-      extras: ["README.md"],
+      extras: [
+        "README.md",
+        "docs/approval-patterns.md",
+        "docs/asking-questions.md",
+        "docs/learning-system.md",
+        "docs/frobs-guide.md",
+        "docs/mcp-advanced.md",
+        "docs/oauth-advanced.md"
+      ],
+      groups_for_extras: [
+        Guides: [
+          "docs/approval-patterns.md",
+          "docs/asking-questions.md",
+          "docs/learning-system.md",
+          "docs/frobs-guide.md",
+          "docs/mcp-advanced.md",
+          "docs/oauth-advanced.md"
+        ]
+      ],
       source_url: "https://github.com/sysread/fnord",
       homepage_url: "https://hex.pm/packages/fnord",
       format: :html
