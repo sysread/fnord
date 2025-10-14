@@ -201,7 +201,11 @@ defmodule Cmd.Ask do
       end
 
       Services.BackupFile.offer_cleanup()
-      Services.Notes.join()
+
+      UI.spin(build_notes_spinner_label(), fn ->
+        Services.Notes.join()
+        {"Notes finalized", :ok}
+      end)
     end
   end
 
@@ -468,6 +472,18 @@ defmodule Cmd.Ask do
       UI.debug("Conversation saved to file", conversation.store_path)
       UI.report_step("Conversation saved", conversation.id)
       {:ok, conversation.id}
+    end
+  end
+
+  defp build_notes_spinner_label() do
+    base = if AI.Notes.has_new_facts?(), do: "Consolidating notes...", else: "Finalizing notes..."
+
+    if Services.Notes.pending?() do
+      count = Services.Notes.pending_count()
+      suffix = if count > 0, do: " (" <> Integer.to_string(count) <> " remaining)", else: ""
+      base <> suffix
+    else
+      base
     end
   end
 end

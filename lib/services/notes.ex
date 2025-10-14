@@ -97,87 +97,107 @@ defmodule Services.Notes do
   # -----------------------------------------------------------------------------
   @impl true
   def init(_opts) do
-    # Pool selection is now handled per-task in AI.Notes via HttpPool.with_pool/2
+    ensure_ets()
     {:ok, AI.Notes.new()}
   end
 
   @impl true
   def handle_cast(:load_notes, state) do
+    inc_pending()
+
     try do
       {:noreply, AI.Notes.init(state)}
     catch
       :exit, reason ->
         UI.debug("[notes-server]", "failed to load notes: #{inspect(reason)}")
         {:noreply, state}
+    after
+      dec_pending()
     end
   end
 
   @impl true
   def handle_cast({:ingest_user_msg, msg_text}, state) do
+    inc_pending()
+
     try do
       {:noreply, AI.Notes.ingest_user_msg(state, msg_text)}
     catch
       :exit, reason ->
         UI.debug("[notes-server]", "failed to ingest user message: #{inspect(reason)}")
         {:noreply, state}
+    after
+      dec_pending()
     end
   end
 
   @impl true
   def handle_cast({:ingest_research, func, args_json, result}, state) do
+    inc_pending()
+
     try do
       {:noreply, AI.Notes.ingest_research(state, func, args_json, result)}
     catch
       :exit, reason ->
         UI.debug("[notes-server]", "failed to ingest research: #{inspect(reason)}")
         {:noreply, state}
+    after
+      dec_pending()
     end
   end
 
   @impl true
   def handle_cast(:consolidate, state) do
-    if AI.Notes.has_new_facts?() do
-      try do
-        state
-        |> AI.Notes.consolidate()
-        |> case do
-          {:ok, result} ->
-            UI.info("[notes-server]", "consolidated existing research notes")
-            {:noreply, result}
+    inc_pending()
 
-          {:callback_error, error} ->
-            UI.debug("[notes-server]", "callback error during consolidation: #{inspect(error)}")
+    try do
+      if AI.Notes.has_new_facts?() do
+        try do
+          state
+          |> AI.Notes.consolidate()
+          |> case do
+            {:ok, result} ->
+              UI.info("[notes-server]", "consolidated existing research notes")
+              {:noreply, result}
+
+            {:callback_error, error} ->
+              UI.debug("[notes-server]", "callback error during consolidation: #{inspect(error)}")
+              {:noreply, state}
+
+            {:error, :lock_failed} ->
+              UI.debug("[notes-server]", "failed to acquire lock for consolidation: lock_failed")
+              {:noreply, state}
+
+            {:error, reason} ->
+              UI.debug("[notes-server]", "failed to consolidate notes: #{reason}")
+              {:noreply, state}
+          end
+        catch
+          :exit, {:timeout, {Task, :await, _}} ->
+            UI.debug(
+              "[notes-server]",
+              "consolidation timed out - notes file may be too large. Skipping consolidation for this session."
+            )
+
             {:noreply, state}
 
-          {:error, :lock_failed} ->
-            UI.debug("[notes-server]", "failed to acquire lock for consolidation: lock_failed")
-            {:noreply, state}
-
-          {:error, reason} ->
-            UI.debug("[notes-server]", "failed to consolidate notes: #{reason}")
+          :exit, reason ->
+            UI.debug("[notes-server]", "consolidation crashed: #{inspect(reason)}")
             {:noreply, state}
         end
-      catch
-        :exit, {:timeout, {Task, :await, _}} ->
-          UI.debug(
-            "[notes-server]",
-            "consolidation timed out - notes file may be too large. Skipping consolidation for this session."
-          )
-
-          {:noreply, state}
-
-        :exit, reason ->
-          UI.debug("[notes-server]", "consolidation crashed: #{inspect(reason)}")
-          {:noreply, state}
+      else
+        UI.debug("[notes-server]", "no new notes; skipping consolidation")
+        {:noreply, state}
       end
-    else
-      UI.debug("[notes-server]", "no new notes; skipping consolidation")
-      {:noreply, state}
+    after
+      dec_pending()
     end
   end
 
   @impl true
   def handle_cast(:save, state) do
+    inc_pending()
+
     try do
       case AI.Notes.commit(state) do
         {:ok, new_state} ->
@@ -191,6 +211,8 @@ defmodule Services.Notes do
       :exit, reason ->
         UI.debug("[notes-server]", "failed to save notes (crash): #{inspect(reason)}")
         {:noreply, state}
+    after
+      dec_pending()
     end
   end
 
@@ -221,5 +243,48 @@ defmodule Services.Notes do
     # Clear any HttpPool override to avoid leaking process dictionary state
     HttpPool.clear()
     :ok
+  end
+
+  # ----------------------------------------------------------------------------
+  # Pending Operations Instrumentation (ETS)
+  # Internal helpers for tracking pending async operations non-blockingly.
+  # ----------------------------------------------------------------------------
+
+  @doc """
+  True if there are any pending asynchronous operations being processed by the
+  notes server. Backed by a non-blocking ETS counter.
+  """
+  def pending?() do
+    pending_count() > 0
+  end
+
+  @doc """
+  Returns the current number of pending operations.
+  """
+  def pending_count() do
+    ensure_ets()
+
+    case :ets.lookup(:notes_status, :pending_ops) do
+      [{:pending_ops, count}] -> count
+      [] -> 0
+    end
+  end
+
+  # Private helpers for ETS-backed pending counter
+  defp ensure_ets() do
+    case :ets.info(:notes_status) do
+      :undefined -> :ets.new(:notes_status, [:named_table, :public, read_concurrency: true])
+      _info -> :ok
+    end
+  end
+
+  defp inc_pending() do
+    ensure_ets()
+    :ets.update_counter(:notes_status, :pending_ops, {2, 1}, {:pending_ops, 0})
+  end
+
+  defp dec_pending() do
+    ensure_ets()
+    :ets.update_counter(:notes_status, :pending_ops, {2, -1}, {:pending_ops, 0})
   end
 end
