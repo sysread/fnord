@@ -103,39 +103,71 @@ defmodule Services.Notes do
 
   @impl true
   def handle_cast(:load_notes, state) do
-    {:noreply, AI.Notes.init(state)}
+    try do
+      {:noreply, AI.Notes.init(state)}
+    catch
+      :exit, reason ->
+        UI.debug("[notes-server]", "failed to load notes: #{inspect(reason)}")
+        {:noreply, state}
+    end
   end
 
   @impl true
   def handle_cast({:ingest_user_msg, msg_text}, state) do
-    {:noreply, AI.Notes.ingest_user_msg(state, msg_text)}
+    try do
+      {:noreply, AI.Notes.ingest_user_msg(state, msg_text)}
+    catch
+      :exit, reason ->
+        UI.debug("[notes-server]", "failed to ingest user message: #{inspect(reason)}")
+        {:noreply, state}
+    end
   end
 
   @impl true
   def handle_cast({:ingest_research, func, args_json, result}, state) do
-    {:noreply, AI.Notes.ingest_research(state, func, args_json, result)}
+    try do
+      {:noreply, AI.Notes.ingest_research(state, func, args_json, result)}
+    catch
+      :exit, reason ->
+        UI.debug("[notes-server]", "failed to ingest research: #{inspect(reason)}")
+        {:noreply, state}
+    end
   end
 
   @impl true
   def handle_cast(:consolidate, state) do
     if AI.Notes.has_new_facts?() do
-      state
-      |> AI.Notes.consolidate()
-      |> case do
-        {:ok, result} ->
-          UI.info("[notes-server]", "consolidated existing research notes")
-          {:noreply, result}
+      try do
+        state
+        |> AI.Notes.consolidate()
+        |> case do
+          {:ok, result} ->
+            UI.info("[notes-server]", "consolidated existing research notes")
+            {:noreply, result}
 
-        {:callback_error, error} ->
-          UI.error("[notes-server]", "callback error during consolidation: #{inspect(error)}")
+          {:callback_error, error} ->
+            UI.debug("[notes-server]", "callback error during consolidation: #{inspect(error)}")
+            {:noreply, state}
+
+          {:error, :lock_failed} ->
+            UI.debug("[notes-server]", "failed to acquire lock for consolidation: lock_failed")
+            {:noreply, state}
+
+          {:error, reason} ->
+            UI.debug("[notes-server]", "failed to consolidate notes: #{reason}")
+            {:noreply, state}
+        end
+      catch
+        :exit, {:timeout, {Task, :await, _}} ->
+          UI.debug(
+            "[notes-server]",
+            "consolidation timed out - notes file may be too large. Skipping consolidation for this session."
+          )
+
           {:noreply, state}
 
-        {:error, :lock_failed} ->
-          UI.error("[notes-server]", "failed to acquire lock for consolidation: lock_failed")
-          {:noreply, state}
-
-        {:error, reason} ->
-          UI.error("[notes-server]", "failed to consolidate notes: #{reason}")
+        :exit, reason ->
+          UI.debug("[notes-server]", "consolidation crashed: #{inspect(reason)}")
           {:noreply, state}
       end
     else
@@ -146,13 +178,35 @@ defmodule Services.Notes do
 
   @impl true
   def handle_cast(:save, state) do
-    AI.Notes.commit(state)
-    {:noreply, state}
+    try do
+      case AI.Notes.commit(state) do
+        {:ok, new_state} ->
+          {:noreply, new_state}
+
+        {:error, reason} ->
+          UI.debug("[notes-server]", "failed to save notes: #{inspect(reason)}")
+          {:noreply, state}
+      end
+    catch
+      :exit, reason ->
+        UI.debug("[notes-server]", "failed to save notes (crash): #{inspect(reason)}")
+        {:noreply, state}
+    end
   end
 
   @impl true
   def handle_call({:ask, question}, _from, state) do
-    {:reply, AI.Notes.ask(state, question), state}
+    try do
+      {:reply, AI.Notes.ask(state, question), state}
+    catch
+      :exit, {:timeout, {Task, :await, _}} ->
+        UI.debug("[notes-server]", "ask query timed out")
+        {:reply, "No relevant information found.", state}
+
+      :exit, reason ->
+        UI.debug("[notes-server]", "ask query failed: #{inspect(reason)}")
+        {:reply, "No relevant information found.", state}
+    end
   end
 
   # Just a placeholder for a no-op `call` to allow the client to know that the

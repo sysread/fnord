@@ -31,6 +31,9 @@ defmodule AI.Notes do
 
   @attempts 2
 
+  # Time (in ms) to allow for the consolidation task to complete: 10 minutes
+  @consolidation_task_timeout 1000 * 60 * 10
+
   # ----------------------------------------------------------------------------
   # Mini Agent defs
   # ----------------------------------------------------------------------------
@@ -630,7 +633,7 @@ defmodule AI.Notes do
             "Please consolidate the following notes according to the specified guidelines."
         )
       end,
-      180_000
+      @consolidation_task_timeout
     )
     |> case do
       {:ok, %{response: response}} -> {:ok, response}
