@@ -427,9 +427,27 @@ defmodule Services.Approvals.Shell do
       base in shells and Enum.any?(args, &(&1 == "-c" or &1 == "-lc")) ->
         true
 
-      # env-based shell invocation: env [VAR=val]* [flags]* bash -c '...'
+      # shell script invocation without -c/-lc: exec script file
+      base in shells and Enum.find(args, fn arg -> not String.starts_with?(arg, "-") end) != nil ->
+        true
+
+      # env-based shell invocation: env [VAR=val]* [flags]* bash -c '...' or script
       base == "env" ->
-        Enum.any?(args, &(&1 in shells)) and Enum.any?(args, &(&1 == "-c" or &1 == "-lc"))
+        has_shell = Enum.any?(args, &(&1 in shells))
+        has_flag = Enum.any?(args, &(&1 == "-c" or &1 == "-lc"))
+
+        has_non_flag_after =
+          case Enum.find_index(args, &(&1 in shells)) do
+            nil ->
+              false
+
+            idx ->
+              args
+              |> Enum.drop(idx + 1)
+              |> Enum.any?(fn arg -> not String.starts_with?(arg, "-") end)
+          end
+
+        has_shell and (has_flag or has_non_flag_after)
 
       true ->
         false

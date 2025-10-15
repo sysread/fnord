@@ -285,6 +285,12 @@ defmodule Services.Notes do
 
   defp dec_pending() do
     ensure_ets()
-    :ets.update_counter(:notes_status, :pending_ops, {2, -1}, {:pending_ops, 0})
+    new = :ets.update_counter(:notes_status, :pending_ops, {2, -1}, {:pending_ops, 0})
+
+    if new < 0 do
+      :ets.insert(:notes_status, {:pending_ops, 0})
+    end
+
+    :ok
   end
 end

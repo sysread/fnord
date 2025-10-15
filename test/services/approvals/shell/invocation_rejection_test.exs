@@ -39,6 +39,12 @@ defmodule Services.Approvals.Shell.InvocationRejectionTest do
       assert {:denied, reason, _} = Shell.confirm(%{session: []}, {"|", [cmd], "fish -c"})
       assert reason =~ "shell invocation not allowed"
     end
+
+    test "bash script.sh" do
+      cmd = %{"command" => "bash", "args" => ["script.sh"]}
+      assert {:denied, reason, _} = Shell.confirm(%{session: []}, {"|", [cmd], "bash script.sh"})
+      assert reason =~ "shell invocation not allowed"
+    end
   end
 
   describe "rejects env-based shell invocations" do
@@ -51,6 +57,15 @@ defmodule Services.Approvals.Shell.InvocationRejectionTest do
     test "env FOO=bar zsh -c 'echo $FOO'" do
       cmd = %{"command" => "env", "args" => ["FOO=bar", "zsh", "-c", "echo $FOO"]}
       assert {:denied, reason, _} = Shell.confirm(%{session: []}, {"|", [cmd], "env zsh -c"})
+      assert reason =~ "shell invocation not allowed"
+    end
+
+    test "env bash script.sh" do
+      cmd = %{"command" => "env", "args" => ["bash", "script.sh"]}
+
+      assert {:denied, reason, _} =
+               Shell.confirm(%{session: []}, {"|", [cmd], "env bash script.sh"})
+
       assert reason =~ "shell invocation not allowed"
     end
   end
