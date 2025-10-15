@@ -74,6 +74,7 @@ defmodule AI.Notes do
     - Useful prompts for common tasks when using an LLM-backed tool call (e.g. the `research_tool` or `file_info_tool`)
     - Useful prompting patterns observed on successful calls to the `coder_tool` or `file_edit_tool` (e.g. "When using the coder_tool to insert a new function, always tell it exactly *where* to put it using anchors like 'above the function foo' or 'immediately below the function bar'")
     - Prompting patterns that FAIL to produce good results with the `coder_tool` or `file_edit_tool` (e.g. "When using the coder_tool to insert code, never say 'at the top of the file' because that confuses the model; instead, always use referential anchors like 'above the function foo' or 'immediately below the function bar'")
+    **Focus on concrete, verifiable facts that are unlikely to change frequently.**
     Respond with a formatted markdown list of facts without any additional text.
     If nothing was identified, respond with "N/A" on a single line.
     Just the facts, ma'am!
@@ -117,6 +118,10 @@ defmodule AI.Notes do
     - Conflicting facts should be resolved by keeping the most recent information.
     - Ensure the notes are organized by topic and concise.
     - Combine nearly identical facts into a single entry.
+    - Collect important details that are scattered across multiple facts into single, comprehensive entries.
+    - Focus on concrete, verifiable facts that are unlikely to change frequently.
+    - Of particular interest are "gotchas" and "pitfalls to avoid" type of advice.
+      These are the types of details that are most likely to trip up future sessions.
     - Reorganize as needed to improve clarity and flow.
     - **DISCARD TRANSIENT INFORMATION:**
       - Examples: Temporary states, tickets, PRs, in-progress work, bugs (unless still present), migrations, and other ephemeral details).
