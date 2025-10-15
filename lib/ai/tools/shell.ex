@@ -55,6 +55,24 @@ defmodule AI.Tools.Shell do
       |> Enum.map(&"- #{&1}")
       |> Enum.join("\n")
 
+    user_prefixes =
+      Services.Approvals.Shell.list_user_prefixes()
+      |> Enum.map(&"- #{&1}")
+      |> Enum.join("\n")
+      |> case do
+        "" -> "(none)"
+        s -> s
+      end
+
+    user_regexes =
+      Services.Approvals.Shell.list_user_regexes()
+      |> Enum.map(&"- /#{&1}/")
+      |> Enum.join("\n")
+      |> case do
+        "" -> "(none)"
+        s -> s
+      end
+
     %{
       type: "function",
       function: %{
@@ -89,6 +107,12 @@ defmodule AI.Tools.Shell do
 
         The following commands are preapproved and will execute without requiring user approval:
         #{allowed}
+
+        User-configured preapprovals (command + subcommands):
+        #{user_prefixes}
+
+        User-configured preapprovals (full-command regex):
+        #{user_regexes}
         """,
         parameters: %{
           type: "object",

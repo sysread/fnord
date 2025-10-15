@@ -435,4 +435,45 @@ defmodule Services.Approvals.Shell do
 
   defp edit?, do: Settings.get_edit_mode()
   defp auto?, do: edit?() && Settings.get_auto_approve()
+
+  # ----------------------------------------------------------------------------
+  # Public helpers for user-configured approvals (for display/spec composition)
+  # ----------------------------------------------------------------------------
+
+  @doc """
+  Returns a sorted, de-duplicated list of user-configured prefix approvals
+  for shell commands (kind: "shell") across both global and project scopes.
+  """
+  @spec list_user_prefixes() :: [String.t()]
+  def list_user_prefixes do
+    settings = Settings.new()
+
+    global = Settings.Approvals.get_approvals(settings, :global, "shell")
+    project = Settings.Approvals.get_approvals(settings, :project, "shell")
+
+    global
+    |> Enum.concat(project)
+    |> Enum.filter(&is_binary/1)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
+  @doc """
+  Returns a sorted, de-duplicated list of user-configured full-command regex
+  approvals for shell commands (kind: "shell_full") across both global and
+  project scopes.
+  """
+  @spec list_user_regexes() :: [String.t()]
+  def list_user_regexes do
+    settings = Settings.new()
+
+    global = Settings.Approvals.get_approvals(settings, :global, "shell_full")
+    project = Settings.Approvals.get_approvals(settings, :project, "shell_full")
+
+    global
+    |> Enum.concat(project)
+    |> Enum.filter(&is_binary/1)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
 end
