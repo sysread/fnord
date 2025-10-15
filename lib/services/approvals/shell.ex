@@ -145,6 +145,7 @@ defmodule Services.Approvals.Shell do
     "git grep",
     "git log",
     "git ls-files",
+    "git ls-tree",
     "git merge-base",
     "git rev-list",
     "git rev-parse",
