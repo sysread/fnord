@@ -402,21 +402,28 @@ defmodule AI.Agent.Coordinator do
 
   @spec get_completion(t, boolean) :: t | error
   defp get_completion(state, replay \\ false) do
+    # Pre-apply any pending interrupts to the conversation messages
+    interrupts = Services.Conversation.Interrupts.take_all(state.conversation)
+
+    Enum.each(interrupts, fn msg ->
+      # Add interrupt to conversation history
+      Services.Conversation.append_msg(msg, state.conversation)
+
+      # Display interrupt in the tui
+      content = Map.get(msg, :content, "")
+      display = String.replace_prefix(content, "[User Interjection] ", "")
+      UI.info("You (rude)", display)
+    end)
+
     msgs = Services.Conversation.get_messages(state.conversation)
 
-    # Save the current conversation to the store, so that it is available in
-    # case of a crash during the completion process.
+    # Save the current conversation to the store for crash resilience
     with {:ok, conversation} <- Services.Conversation.save(state.conversation) do
       UI.report_step("Conversation state saved", conversation.id)
     else
       {:error, reason} ->
         UI.error("Failed to save conversation state", inspect(reason))
     end
-
-    # Check for any pending interrupts before starting completion
-    # Store them in state so we can display them after completion returns
-    pending_interrupts = Services.Conversation.Interrupts.take_all(state.conversation)
-    state = %{state | pending_interrupts: pending_interrupts}
 
     # Invoke completion once, ensuring conversation state is included
     AI.Agent.get_completion(state.agent,
@@ -429,10 +436,9 @@ defmodule AI.Agent.Coordinator do
       toolbox: get_tools(state),
       messages: msgs
     )
-    # Acknowledge completion result, update conversation, and log usage and response
     |> case do
       {:ok, %{response: response, messages: new_msgs, usage: usage} = completion} ->
-        # Update conversation state and log tool usage and response
+        # Update conversation state and log usage and response
         Services.Conversation.replace_msgs(new_msgs, state.conversation)
         tools_used = AI.Agent.tools_used(completion)
 
@@ -450,23 +456,38 @@ defmodule AI.Agent.Coordinator do
             Map.has_key?(tools_used, "file_edit_tool") ||
             Map.has_key?(tools_used, "apply_patch")
 
-        # Build new state
-        %{state | usage: usage, last_response: response, editing_tools_used: editing_tools_used}
-        |> log_usage()
-        |> log_response()
-        # Display any pending user interrupts after completion
-        |> display_pending_interrupts()
+        new_state =
+          state
+          |> Map.put(:usage, usage)
+          |> Map.put(:last_response, response)
+          |> Map.put(:editing_tools_used, editing_tools_used)
+          |> log_usage()
+          |> log_response()
+
+        # If more interrupts arrived during completion, process them recursively
+        if Services.Conversation.Interrupts.pending?(state.conversation) do
+          get_completion(new_state, replay)
+        else
+          new_state
+        end
 
       {:error, %{response: response}} ->
         UI.error("Derp. Completion failed.", response)
-        # Display interrupts even on error
-        display_pending_interrupts(state)
-        {:error, response}
+
+        if Services.Conversation.Interrupts.pending?(state.conversation) do
+          get_completion(state, replay)
+        else
+          {:error, response}
+        end
 
       {:error, reason} ->
         UI.error("Derp. Completion failed.", inspect(reason))
-        display_pending_interrupts(state)
-        {:error, reason}
+
+        if Services.Conversation.Interrupts.pending?(state.conversation) do
+          get_completion(state, replay)
+        else
+          {:error, reason}
+        end
     end
   end
 
@@ -1089,16 +1110,7 @@ defmodule AI.Agent.Coordinator do
   # ---------------------------------------------------------------------------
   # Delayed Interrupt Display
   # ---------------------------------------------------------------------------
-  # Display any pending user interrupts that were captured before completion
-  @spec display_pending_interrupts(t) :: t
-  defp display_pending_interrupts(%{pending_interrupts: []} = state), do: state
-
-  defp display_pending_interrupts(state) do
-    Services.Conversation.InterruptsDisplay.display_pending_interrupts(state)
-  end
-
   # Public wrapper for testing delayed interrupt display
-
   defp start_interrupt_listener(%{conversation: convo} = state) do
     # Only start in interactive TTY sessions and only for Coordinator
     cond do
