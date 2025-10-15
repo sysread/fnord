@@ -45,6 +45,7 @@ defmodule AI.Tools.Shell.BasicsTest do
     args = %{
       "description" => "Pipeline should stop on error",
       "timeout_ms" => 2_000,
+      "operator" => "|",
       "commands" => [
         # grep -q returns 1 when no match found
         %{"command" => "grep", "args" => ["-q", "pattern", "data.txt"]},
@@ -63,6 +64,7 @@ defmodule AI.Tools.Shell.BasicsTest do
     args = %{
       "description" => "Timeout short to trigger",
       "timeout_ms" => 10,
+      "operator" => "|",
       "commands" => [
         %{"command" => "sleep", "args" => ["1"]},
         %{"command" => "echo", "args" => ["done"]}
@@ -80,6 +82,7 @@ defmodule AI.Tools.Shell.BasicsTest do
 
     args = %{
       "description" => "Missing command",
+      "operator" => "&&",
       "commands" => [
         %{"command" => "i_sure_hope_this_cmd_does_not_really_exist", "args" => []},
         %{"command" => "echo", "args" => ["done"]}
@@ -95,6 +98,7 @@ defmodule AI.Tools.Shell.BasicsTest do
 
     args = %{
       "description" => "Missing command",
+      "operator" => "&&",
       "commands" => [
         %{"command" => "rg", "args" => ["pattern"]}
       ]
@@ -107,6 +111,7 @@ defmodule AI.Tools.Shell.BasicsTest do
   test "format_commands and ui notes" do
     args = %{
       "description" => "Describe",
+      "operator" => "|",
       "commands" => [
         %{"command" => "ls", "args" => ["-l"]},
         %{"command" => "grep", "args" => ["foo"]}
@@ -128,6 +133,7 @@ defmodule AI.Tools.Shell.BasicsTest do
     args1 = %{
       "description" => "invalid",
       "timeout_ms" => "oops",
+      "operator" => "&&",
       "commands" => [%{"command" => "echo", "args" => ["x"]}]
     }
 
@@ -137,6 +143,7 @@ defmodule AI.Tools.Shell.BasicsTest do
     args2 = %{
       "description" => "too large",
       "timeout_ms" => 1_000_000,
+      "operator" => "&&",
       "commands" => [%{"command" => "echo", "args" => ["y"]}]
     }
 
@@ -146,6 +153,7 @@ defmodule AI.Tools.Shell.BasicsTest do
     args3 = %{
       "description" => "negative",
       "timeout_ms" => -10,
+      "operator" => "&&",
       "commands" => [%{"command" => "echo", "args" => ["z"]}]
     }
 

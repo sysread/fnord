@@ -40,18 +40,24 @@ defmodule Services.Approvals.Shell do
           }
         end)
 
-      if Enum.all?(stages, &approved?(state, &1)) do
-        {:approved, state}
-      else
-        if !UI.is_tty?() do
-          UI.error("Shell", @no_tty)
-          {:denied, @no_tty, state}
-        else
-          UI.interact(fn ->
-            render_pipeline(state, op, commands, purpose)
-            prompt(state, stages)
-          end)
-        end
+      case reject_shell_invocations(state, commands) do
+        {:error, reason} ->
+          {:denied, reason, state}
+
+        :ok ->
+          if Enum.all?(stages, &approved?(state, &1)) do
+            {:approved, state}
+          else
+            if !UI.is_tty?() do
+              UI.error("Shell", @no_tty)
+              {:denied, @no_tty, state}
+            else
+              UI.interact(fn ->
+                render_pipeline(state, op, commands, purpose)
+                prompt(state, stages)
+              end)
+            end
+          end
       end
     else
       {:error, reason} -> {:denied, reason, state}
@@ -408,6 +414,37 @@ defmodule Services.Approvals.Shell do
   def extract_prefix(%{"command" => cmd, "args" => args}) do
     base_cmd = Path.basename(cmd)
     Services.Approvals.Shell.Prefix.extract(base_cmd, args)
+  end
+
+  # Helper to detect shell invocations
+  defp shell_invocation?(%{"command" => path, "args" => args}) do
+    base = Path.basename(path)
+    shells = ["sh", "bash", "zsh", "ksh", "dash", "fish"]
+
+    cond do
+      # direct shell invocation: bash/sh/zsh/ksh/dash/fish -c/ -lc
+      base in shells and Enum.any?(args, &(&1 == "-c" or &1 == "-lc")) ->
+        true
+
+      # env-based shell invocation: env [VAR=val]* [flags]* bash -c '...'
+      base == "env" ->
+        Enum.any?(args, &(&1 in shells)) and Enum.any?(args, &(&1 == "-c" or &1 == "-lc"))
+
+      true ->
+        false
+    end
+  end
+
+  # Reject any shell invocations in the commands list
+  @spec reject_shell_invocations(state, [map]) :: :ok | {:error, String.t()}
+  defp reject_shell_invocations(_state, commands) do
+    case Enum.find(commands, &shell_invocation?/1) do
+      invoc when not is_nil(invoc) ->
+        {:error, "shell invocation not allowed: #{format_stage(invoc)}"}
+
+      nil ->
+        :ok
+    end
   end
 
   # Prompt user for feedback when denying with feedback

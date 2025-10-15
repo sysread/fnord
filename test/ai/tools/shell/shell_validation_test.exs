@@ -8,6 +8,7 @@ defmodule AI.Tools.Shell.ValidationTest do
           %{"command" => "ls", "args" => ["-la"]},
           %{"command" => "grep", "args" => ["pattern", "file.txt"]}
         ],
+        "operator" => "|",
         "description" => "List files and grep"
       }
 
@@ -20,6 +21,7 @@ defmodule AI.Tools.Shell.ValidationTest do
           %{"command" => "ls"},
           %{"command" => "pwd"}
         ],
+        "operator" => "|",
         "description" => "Simple commands"
       }
 
@@ -39,6 +41,7 @@ defmodule AI.Tools.Shell.ValidationTest do
             ]
           }
         ],
+        "operator" => "|",
         "description" => "Apply patch"
       }
 
@@ -51,6 +54,7 @@ defmodule AI.Tools.Shell.ValidationTest do
         "commands" => [
           %{"command" => "test", "args" => ["valid", 123, "also_valid"]}
         ],
+        "operator" => "|",
         "description" => "Mixed arg types"
       }
 
@@ -61,6 +65,7 @@ defmodule AI.Tools.Shell.ValidationTest do
     test "rejects commands field as non-list" do
       invalid_args = %{
         "commands" => %{"command" => "ls"},
+        "operator" => "|",
         "description" => "Commands as map"
       }
 
@@ -70,6 +75,7 @@ defmodule AI.Tools.Shell.ValidationTest do
 
     test "rejects missing commands field" do
       invalid_args = %{
+        "operator" => "|",
         "description" => "No commands field"
       }
 
@@ -82,6 +88,7 @@ defmodule AI.Tools.Shell.ValidationTest do
         "commands" => [
           %{"command" => 123, "args" => ["arg1"]}
         ],
+        "operator" => "|",
         "description" => "Non-string command"
       }
 
@@ -94,6 +101,7 @@ defmodule AI.Tools.Shell.ValidationTest do
         "commands" => [
           %{"args" => ["arg1"]}
         ],
+        "operator" => "|",
         "description" => "Missing command field"
       }
 
@@ -111,6 +119,7 @@ defmodule AI.Tools.Shell.ValidationTest do
           # valid
           %{"command" => "pwd"}
         ],
+        "operator" => "|",
         "description" => "Mixed valid and invalid"
       }
 

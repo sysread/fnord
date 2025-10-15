@@ -23,14 +23,26 @@ defmodule AI.Tools.Shell do
   @impl AI.Tools
   def read_args(args) do
     case validate_commands(args) do
-      :ok -> {:ok, args}
-      {:error, reason} -> {:error, :invalid_argument, reason}
+      :ok ->
+        with {:ok, op} <- AI.Tools.get_arg(args, "operator"),
+             true <- op in ["|", "&&"] do
+          {:ok, args}
+        else
+          {:error, :missing_argument, _} ->
+            {:error, :invalid_argument, "missing required field 'operator'"}
+
+          false ->
+            {:error, :invalid_argument, "operator must be '|' or '&&'"}
+        end
+
+      {:error, reason} ->
+        {:error, :invalid_argument, reason}
     end
   end
 
   @impl AI.Tools
   def ui_note_on_request(%{"commands" => commands, "description" => desc} = args) do
-    op = Map.get(args, "operator", "|")
+    op = Map.fetch!(args, "operator")
     command = format_commands(op, commands)
     {"shell> #{command}", desc}
   end
@@ -41,7 +53,7 @@ defmodule AI.Tools.Shell do
 
   @impl AI.Tools
   def ui_note_on_result(%{"commands" => commands} = args, result) do
-    op = Map.get(args, "operator", "|")
+    op = Map.fetch!(args, "operator")
     command = format_commands(op, commands)
     {"shell> #{command}", result}
   end
@@ -116,7 +128,7 @@ defmodule AI.Tools.Shell do
         """,
         parameters: %{
           type: "object",
-          required: ["description", "commands"],
+          required: ["description", "commands", "operator"],
           additionalProperties: false,
           properties: %{
             description: %{
@@ -138,8 +150,8 @@ defmodule AI.Tools.Shell do
               type: "string",
               enum: ["|", "&&"],
               description: """
-              Optionally specifies whether commands are piped together (`|`) or
-              run sequentially (&&). By default, commands are run sequentially.
+              Specifies whether commands are piped together (`|`) or
+              run sequentially (`&&`). This field is required.
               """
             },
             commands: %{
