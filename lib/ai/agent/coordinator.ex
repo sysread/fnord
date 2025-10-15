@@ -488,6 +488,7 @@ defmodule AI.Agent.Coordinator do
 
   Use the `notify_tool` **extensively** to report what you are doing to the user through the UI.
   That will improve the user experience and help them understand what you are doing and why.
+  Think of it as your running, internal monologue, allowing the user to follow along with your thought process.
   They also get a kick out of it when you report interesting findings you made along the way.
 
   Analyze the user's prompt and plan out the steps you will take to answer their question or to make the changes they request.
