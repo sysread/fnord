@@ -60,6 +60,9 @@ defmodule AI.Completion do
           | {:error, binary}
           | {:error, :context_length_exceeded, non_neg_integer}
 
+  @compact_keep_rounds 2
+  @compact_target_pct 0.6
+
   @spec get(Keyword.t()) :: response
   def get(opts) do
     with {:ok, state} <- new(opts) do
@@ -534,49 +537,33 @@ defmodule AI.Completion do
     )
   end
 
+  # -----------------------------------------------------------------------------
+
+  @spec maybe_compact(t, boolean()) :: t
   defp maybe_compact(state, force \\ false)
 
   defp maybe_compact(%{usage: 0} = state, false), do: state
 
   defp maybe_compact(state, true) do
-    compact(state)
+    AI.Completion.Compaction.full_compact(state)
   end
 
   defp maybe_compact(%{usage: usage, model: %{context: context}} = state, false) do
     used_pct = Float.round(usage / context * 100, 1)
 
     if used_pct > 80 do
-      compact(state)
+      opts = %{
+        keep_rounds: @compact_keep_rounds,
+        target_pct: @compact_target_pct
+      }
+
+      AI.Completion.Compaction.partial_compact(state, opts)
     else
       state
     end
   end
 
-  defp compact(%{usage: usage, model: model, messages: messages} = state) do
-    used_pct = Float.round(usage / model.context * 100, 1)
-    context = model.context |> Util.format_number()
-    used = usage |> Util.format_number()
-
-    UI.info(
-      "Compacting conversation",
-      "Context: #{used_pct}% (#{used}/#{context} tokens)"
-    )
-
-    # Any agents triggered directly by AI.Completion must set `named?: false`
-    # to avoid circular dependency with Services.NamePool.
-    AI.Agent.Compactor
-    |> AI.Agent.new(named?: false)
-    |> AI.Agent.get_response(%{messages: messages})
-    |> case do
-      {:ok, [new_msg]} ->
-        new_tokens = AI.PretendTokenizer.guesstimate_tokens(new_msg.content)
-        %{state | messages: [new_msg], usage: new_tokens}
-
-      {:error, reason} ->
-        UI.warn("Failed to compact conversation", inspect(reason, pretty: true))
-        state
-    end
-  end
+  # full compaction now lives in AI.Completion.Compaction.full_compact/1
 
   # Updates the system message that identifies the LLM to itself by name and
   # updates it to use the name provided by the `name` arg, if any.

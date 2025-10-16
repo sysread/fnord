@@ -23,7 +23,8 @@ defmodule AI.Agent.Nomenclater do
     ~s/Puns about AI-powered research and coding that seem like names (e.g. "R. E. Search", "Otto Mated", "Matt Rix", "Dr. D. Co'deure")/,
     ~s/Buffy the Vampire Slayer characters (e.g. "Xander Harris", "Willow Rosenberg", "Rupert Giles"; or soop them up for coding like "Buffy Overflow")/,
     ~s/Spoofed names of famous AIs and robots in fiction/,
-    ~s/Skynet and terminator model designations (e.g. "T-800", "T-1000", "T-X")/
+    ~s/Skynet and terminator model designations (e.g. "T-800", "T-1000", "T-X")/,
+    ~s/Golden age sci-fi names; generally a combination of "generic captain of the football team name" + "spacey adjective" (e.g. "Buck Spacefarer", "Johnny Quantum")/
   ]
 
   @prompt """
