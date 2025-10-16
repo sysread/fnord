@@ -19,7 +19,7 @@ defmodule AI.Agent.CompactorTest do
     |> AI.Agent.get_response(%{messages: messages, attempts: attempts})
   end
 
-  test "filters system/developer/notify_tool and <think> messages to empty transcript, triggers negative savings and retries" do
+  test "filters system/developer/notify_tool and <think> messages to empty transcript -> guard triggers no-op and no model calls" do
     # Messages that all get filtered -> transcript == [] -> "[]" == 2 bytes
     msgs = [
       %{role: "system", content: "sys"},
@@ -28,9 +28,9 @@ defmodule AI.Agent.CompactorTest do
       %{role: "assistant", content: "<think>internal</think>"}
     ]
 
-    # Mock the completion to return some non-trivial summary content each time
+    # No model calls should happen due to early guard
     :meck.expect(AI.Completion, :get, fn _opts ->
-      {:ok, %AI.Completion{response: String.duplicate("x", 300)}}
+      flunk("AI.Completion.get/1 should not be called for empty transcript guard")
     end)
 
     {:ok, [summary_msg]} = run_compactor(msgs)
@@ -39,8 +39,8 @@ defmodule AI.Agent.CompactorTest do
     assert summary_msg.role == "developer"
     assert is_binary(summary_msg.content)
 
-    # 1 initial pass + 2 retries (max 3 attempts total)
-    assert :meck.num_calls(AI.Completion, :get, :_) == 4
+    # Early guard: zero model calls
+    assert :meck.num_calls(AI.Completion, :get, :_) == 0
   end
 
   test "successful compaction when transcript non-empty produces one system summary and single API call if sufficient" do
@@ -79,5 +79,21 @@ defmodule AI.Agent.CompactorTest do
     assert is_binary(summary_msg.content)
 
     assert :meck.num_calls(AI.Completion, :get, :_) == 1
+  end
+
+  test "returns error when compaction consistently produces larger summaries after all retries" do
+    # Large enough transcript (> 512 bytes) to trigger retries
+    msgs = [%{role: "user", content: String.duplicate("u", 1000)}]
+
+    # Mock returns a bloated summary every time (larger than original)
+    :meck.expect(AI.Completion, :get, fn _opts ->
+      {:ok, %AI.Completion{response: String.duplicate("x", 2000)}}
+    end)
+
+    # Should try 4 times total (initial + 3 retries), then return error
+    {:error, :compaction_failed} = run_compactor(msgs)
+
+    # 1 initial + 3 retries = 4 total calls
+    assert :meck.num_calls(AI.Completion, :get, :_) == 4
   end
 end

@@ -285,9 +285,11 @@ defmodule UI do
 
   @spec log_usage(AI.Model.t(), non_neg_integer | map) :: :ok
   def log_usage(model, usage) when is_integer(usage) do
-    percentage = Float.round(usage / model.context * 100, 2)
-    str_usage = Util.format_number(usage)
-    str_context = Util.format_number(model.context)
+    safe_usage = max(usage, 0)
+    safe_context = max(model.context, 1)
+    percentage = Float.round(safe_usage / safe_context * 100, 2)
+    str_usage = Util.format_number(safe_usage)
+    str_context = Util.format_number(safe_context)
     info("Context window usage", "#{percentage}% (#{str_usage} / #{str_context} tokens)")
   end
 

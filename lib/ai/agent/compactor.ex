@@ -3,6 +3,8 @@ defmodule AI.Agent.Compactor do
 
   @model AI.Model.large_context(:balanced)
   @max_attempts 3
+  @min_length 512
+  @target_ratio 0.65
 
   @system_prompt """
   You are an AI Agent in a larger system.
@@ -40,68 +42,110 @@ defmodule AI.Agent.Compactor do
   def get_response(%{messages: messages} = opts) do
     attempts = Map.get(opts, :attempts, 0)
 
-    transcript =
-      transcript(messages, [])
-      |> Jason.encode!(pretty: true)
+    tx_list = transcript(messages, [])
 
-    original_length = byte_size(transcript)
+    # Early guard: empty transcript -> skip model call and retries
+    if tx_list == [] do
+      UI.warn("Compaction skipped", "Transcript is empty after filtering; no-op")
 
-    AI.Completion.get(
-      model: @model,
-      prompt: @system_prompt,
-      messages: [
-        AI.Util.system_msg(@system_prompt),
-        AI.Util.system_msg("""
-        The complete message transcript in JSON format:
-        ```json
-        #{transcript}
-        ```
+      last_visible =
+        messages
+        |> Enum.reverse()
+        |> Enum.find(fn
+          %{role: role, content: content}
+          when role in ["user", "assistant"] and is_binary(content) ->
+            not String.starts_with?(content, "<think>")
 
-        Your output MUST use the specified template and include ALL sections.
-        """)
-      ]
-    )
-    |> case do
-      {:ok, %{response: response}} ->
-        summary =
-          """
-          Summary of conversation and research thus far:
-          #{response}
-          """
+          _ ->
+            false
+        end)
 
-        new_length = byte_size(summary)
-        difference = original_length - new_length
-        percent = difference / original_length * 100.0
+      base = "Summary of conversation and research thus far:\n"
 
-        UI.info("""
-        Compaction results:
-          Original: #{Util.format_number(original_length)} bytes
-         Compacted: #{Util.format_number(new_length)} bytes
-           Savings: #{percent}% (#{Util.format_number(difference)} bytes)
-        """)
-
-        if new_length >= original_length * 0.65 and attempts < @max_attempts do
-          UI.warn(
-            "Compaction insufficient",
-            "Attempting another pass (#{attempts + 1}/#{@max_attempts})"
-          )
-
-          get_response(%{messages: messages, attempts: attempts + 1})
-        else
-          UI.debug("Compacted conversation", summary)
-
-          summary
-          |> AI.Util.system_msg()
-          |> then(&{:ok, [&1]})
+      summary =
+        case last_visible do
+          nil -> base <> "<empty transcript>"
+          %{content: content} -> base <> content
         end
 
-      {:error, reason} ->
-        {:error, reason}
+      summary
+      |> AI.Util.system_msg()
+      |> then(&{:ok, [&1]})
+    else
+      transcript_json = Jason.encode!(tx_list, pretty: true)
+      original_length = byte_size(transcript_json)
+
+      AI.Completion.get(
+        model: @model,
+        prompt: @system_prompt,
+        messages: [
+          AI.Util.system_msg(@system_prompt),
+          AI.Util.system_msg("""
+          The complete message transcript in JSON format:
+          ```json
+          #{transcript_json}
+          ```
+
+          Your output MUST use the specified template and include ALL sections.
+          """)
+        ]
+      )
+      |> case do
+        {:ok, %{response: response}} ->
+          summary =
+            """
+            Summary of conversation and research thus far:
+            #{response}
+            """
+
+          new_length = byte_size(summary)
+          difference = original_length - new_length
+          percent = difference / original_length * 100.0
+
+          UI.info("""
+          Compaction results:
+            Original: #{Util.format_number(original_length)} bytes
+           Compacted: #{Util.format_number(new_length)} bytes
+             Savings: #{percent}% (#{Util.format_number(difference)} bytes)
+          """)
+
+          cond do
+            original_length < @min_length ->
+              UI.debug("Compaction skipped", "Original is too small to justify retries")
+
+              if new_length < original_length do
+                summary |> AI.Util.system_msg() |> then(&{:ok, [&1]})
+              else
+                UI.warn("Compaction failed", "Summary is larger than original; aborting")
+                {:error, :compaction_failed}
+              end
+
+            new_length > original_length * @target_ratio and attempts < @max_attempts ->
+              UI.warn(
+                "Compaction insufficient",
+                "Attempting another pass (#{attempts + 1}/#{@max_attempts})"
+              )
+
+              get_response(%{messages: messages, attempts: attempts + 1})
+
+            true ->
+              UI.debug("Compacted conversation", summary)
+
+              if new_length < original_length do
+                summary |> AI.Util.system_msg() |> then(&{:ok, [&1]})
+              else
+                UI.warn("Compaction failed", "Summary is larger than original; aborting")
+                {:error, :compaction_failed}
+              end
+          end
+
+        {:error, reason} ->
+          {:error, reason}
+      end
     end
   end
 
   defp transcript([], acc), do: Enum.reverse(acc)
-
   defp transcript([%{role: "system"} | rest], acc), do: transcript(rest, acc)
   defp transcript([%{role: "developer"} | rest], acc), do: transcript(rest, acc)
   defp transcript([%{role: "tool", name: "notify_tool"} | rest], acc), do: transcript(rest, acc)
