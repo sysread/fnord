@@ -24,7 +24,7 @@ defmodule AI.Agent.Nomenclater do
     ~s/Buffy the Vampire Slayer characters (e.g. "Xander Harris", "Willow Rosenberg", "Rupert Giles"; or soop them up for coding like "Buffy Overflow")/,
     ~s/Spoofed names of famous AIs and robots in fiction/,
     ~s/Skynet and terminator model designations (e.g. "T-800", "T-1000", "T-X")/,
-    ~s/Golden age sci-fi names; generally a combination of "generic captain of the football team name" + "spacey adjective" (e.g. "Buck Spacefarer", "Johnny Quantum")/
+    ~s/Golden age sci-fi names; generally a combination of "generic captain of the football team name" + "spacey|quantumy adjective" (e.g. "Chet Electron", "Buck Spacefarer", "Johnny Quantum")/
   ]
 
   @prompt """
