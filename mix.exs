@@ -39,6 +39,7 @@ defmodule Fnord.MixProject do
           "docs/asking-questions.md",
           "docs/learning-system.md",
           "docs/frobs-guide.md",
+          "docs/frobs-http-get.md",
           "docs/mcp-advanced.md",
           "docs/oauth-advanced.md"
         ]

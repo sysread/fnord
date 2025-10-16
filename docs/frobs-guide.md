@@ -98,7 +98,7 @@ Describes the frob's interface using [OpenAI's function calling format](https://
 
 The executable that implements your frob. Can be:
 - Shell script (`#!/bin/bash`)
-- Python script (`#!/usr/bin/env python3`)
+- Elixir script (escript or plain `elixir`-run script)
 - Compiled binary
 - Any executable
 
@@ -135,23 +135,20 @@ echo "Searching $PROJECT_ROOT for: $QUERY (limit: $LIMIT)"
 # ... your implementation ...
 ```
 
-**Example Python script:**
-```python
-#!/usr/bin/env python3
-import os
-import json
+**Example Elixir script:**
+```elixir
+#!/usr/bin/env elixir
 
-# Read environment variables
-project = os.environ['FNORD_PROJECT']
-config = json.loads(os.environ['FNORD_CONFIG'])
-args = json.loads(os.environ['FNORD_ARGS_JSON'])
+Mix.install([{:jason, "~> 1.4"}])
 
-# Extract arguments
-query = args['query']
-limit = args.get('limit', 10)
+project = System.fetch_env!("FNORD_PROJECT")
+config = System.fetch_env!("FNORD_CONFIG") |> Jason.decode!()
+args = System.fetch_env!("FNORD_ARGS_JSON") |> Jason.decode!()
 
-# Perform your task
-print(f"Searching {project} for: {query}")
+query = Map.fetch!(args, "query")
+limit = Map.get(args, "limit", 10)
+
+IO.puts("Searching #{project} for: #{query} (limit: #{limit})")
 # ... your implementation ...
 ```
 
