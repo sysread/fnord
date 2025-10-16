@@ -45,4 +45,31 @@ defmodule Cmd.AskTest do
     assert {:error, _} = apply(Cmd.Ask, :validate_auto, [%{auto_approve_after: 0}])
     assert {:error, _} = apply(Cmd.Ask, :validate_auto, [%{auto_deny_after: -1}])
   end
+
+  describe "run/3 exception handling" do
+    setup do
+      # Force exception in Services.Conversation.start_link via :meck
+      :meck.new(Services.Conversation, [:passthrough])
+      :meck.expect(Services.Conversation, :start_link, fn _args -> raise "boom" end)
+      :meck.validate(Services.Conversation)
+
+      on_exit(fn ->
+        try do
+          :meck.unload(Services.Conversation)
+        catch
+          _, _ -> :ok
+        end
+      end)
+
+      :ok
+    end
+
+    test "propagates start_link exceptions (outside try)" do
+      opts = %{question: "whoops?", rounds: 1}
+
+      assert_raise RuntimeError, "boom", fn ->
+        Cmd.Ask.run(opts, [], [])
+      end
+    end
+  end
 end

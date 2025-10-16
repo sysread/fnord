@@ -12,6 +12,14 @@ defmodule Services.Conversation do
   end
 
   @doc """
+  Get the conversation ID of the current conversation.
+  """
+  @spec get_id(pid) :: binary()
+  def get_id(pid) do
+    GenServer.call(pid, :get_id)
+  end
+
+  @doc """
   Load an existing conversation from persistent storage. If `conversation_id`
   is `nil`, a new conversation is created. If a conversation with the given ID
   does not exist or is corrupt, an error is returned.
@@ -118,6 +126,10 @@ defmodule Services.Conversation do
 
   def handle_cast({:replace_msgs, new_msgs}, state) do
     {:noreply, %{state | msgs: new_msgs}}
+  end
+
+  def handle_call(:get_id, _from, state) do
+    {:reply, state.conversation.id, state}
   end
 
   def handle_call(:get_agent, _from, state) do
