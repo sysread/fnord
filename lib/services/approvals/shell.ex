@@ -129,6 +129,7 @@ defmodule Services.Approvals.Shell do
     "nl",
     "pwd",
     "rg",
+    "shellcheck",
     "sort",
     "tac",
     "tail",
