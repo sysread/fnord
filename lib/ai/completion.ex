@@ -226,15 +226,17 @@ defmodule AI.Completion do
 
   @spec handle_response({:ok, any} | {:error, any}, t) :: response
   defp handle_response({:ok, :msg, response, usage}, state) do
-    state = maybe_compact(state)
+    updated_state =
+      %{
+        state
+        | messages: state.messages ++ [AI.Util.assistant_msg(response)],
+          response: response,
+          usage: usage
+      }
 
-    {:ok,
-     %{
-       state
-       | messages: state.messages ++ [AI.Util.assistant_msg(response)],
-         response: response,
-         usage: usage
-     }}
+    state = maybe_compact(updated_state)
+
+    {:ok, state}
   end
 
   defp handle_response({:ok, :tool, tool_calls}, state) do

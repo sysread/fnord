@@ -74,13 +74,16 @@ defmodule AI.Agent.Compactor do
     else
       transcript_json = Jason.encode!(tx_list, pretty: true)
       original_length = byte_size(transcript_json)
-      UI.info("Compaction starting", "Transcript JSON size: #{original_length} bytes. Recent messages preserved; proceeding with compaction.")
 
+      UI.info(
+        "Compaction starting",
+        "Transcript JSON size: #{original_length} bytes. Recent messages preserved; proceeding with compaction."
+      )
 
       UI.info(
         "Summarizing conversation transcript (expected)",
         "No new user prompt was added for this compaction pass. We are summarizing the transcript for compactness; " <>
-        "recent messages (including your latest prompts) remain intact."
+          "recent messages (including your latest prompts) remain intact."
       )
 
       AI.Completion.get(

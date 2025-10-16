@@ -25,7 +25,7 @@ defmodule AI.Completion.Compaction do
   defp assistant_completion_msg?(_), do: false
 
   # True when the message is an assistant tool-call request (content nil with a
-  # non-empty `tool_calls` list).
+  # `tool_calls` list). If you require non-empty, enforce it at the call site.
   defp assistant_tool_request_msg?(%{role: "assistant", content: nil, tool_calls: calls})
        when is_list(calls) do
     true
@@ -153,8 +153,9 @@ defmodule AI.Completion.Compaction do
 
   @doc """
   Summarize only the older portion of the message list while preserving the last K
-  assistant completion rounds and their tool-call messages. Returns `{state, updated?}`
-  style map; the caller is responsible for recomputing usage.
+  assistant completion rounds and their tool-call messages.
+
+  Returns an updated state map with `messages` compacted and `usage` recomputed.
   """
   @spec partial_compact(map(), map()) :: map()
   def partial_compact(state, opts) do
@@ -203,9 +204,12 @@ defmodule AI.Completion.Compaction do
 
           new_usage =
             deduped
-            |> Enum.flat_map(&Map.values/1)
-            |> Enum.filter(&is_binary/1)
-            |> Enum.map(&AI.PretendTokenizer.guesstimate_tokens/1)
+            |> Enum.map(fn msg ->
+              case Map.get(msg, :content) do
+                content when is_binary(content) -> AI.PretendTokenizer.guesstimate_tokens(content)
+                _ -> 0
+              end
+            end)
             |> Enum.sum()
 
           UI.info(
