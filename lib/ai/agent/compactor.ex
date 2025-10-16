@@ -11,6 +11,9 @@ defmodule AI.Agent.Compactor do
   You will be presented with a transcript of a conversation between a user and an AI assistant, along with any research the assistant has done.
   Your task: Reformat into compact meeting minutes while preserving all content needed for context.
   Do not use smart quotes, smart apostrophes, emojis, or other special characters.
+  Read through the messages and reason through a new, more compact narrative that preserves the key points and context.
+  Consider the conversation from the user's perspective: what expectations would they have for the assistant's memory and understanding of the conversation?
+
   Use the following output template:
 
   # Original User Prompt
