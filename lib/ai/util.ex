@@ -1,5 +1,5 @@
 defmodule AI.Util do
-  @max_msg_length 10_485_760
+  @max_msg_length 10_000_000
 
   @role_system "developer"
   @role_user "user"
@@ -203,6 +203,7 @@ defmodule AI.Util do
       tool_call_id: id,
       content: output
     }
+    |> validate_msg_length()
   end
 
   @doc """
