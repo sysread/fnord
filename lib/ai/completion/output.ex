@@ -67,7 +67,7 @@ defmodule AI.Completion.Output do
 
     name = state.name || "Assistant"
 
-    UI.warn(name, """
+    UI.debug(name, """
     Tool call failed:
     #{tool} :: #{pretty_args}
 
