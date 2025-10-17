@@ -1,4 +1,4 @@
-# Frob example: HTTP GET with 5MB truncation
+# Frob example: HTTP GET
 
 This guide shows how to create a frob that performs an HTTP GET with `curl`, automatically truncates responses larger than 5MB, and appends ` (truncated)` to the output.
 
