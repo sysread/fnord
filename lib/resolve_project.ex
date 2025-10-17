@@ -89,16 +89,8 @@ defmodule ResolveProject do
 
   # Determines if `child` is equal to or contained within `parent`.
   defp path_contains?(parent, child) do
-    parent_sep =
-      parent
-      |> Path.expand()
-      |> Path.join("")
-
-    child_sep =
-      child
-      |> Path.expand()
-      |> Path.join("")
-
-    String.starts_with?(child_sep, parent_sep)
+    parent_abs = Path.expand(parent)
+    child_abs = Path.expand(child)
+    Util.path_within_root?(child_abs, parent_abs)
   end
 end

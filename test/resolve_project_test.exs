@@ -35,6 +35,32 @@ defmodule ResolveProjectTest do
       File.mkdir_p!(deep)
       assert {:ok, "child"} = ResolveProject.resolve_from_cwd(deep)
     end
+
+    test "sibling with prefix should not match" do
+      mock_project("p1")
+      p10 = mock_project("p10")
+      cwd = p10.source_root
+      assert {:ok, "p10"} = ResolveProject.resolve_from_cwd(cwd)
+    end
+
+    test "nested directories still match" do
+      project = mock_project("p1")
+      nested = Path.join(project.source_root, "foo/bar/baz")
+      File.mkdir_p!(nested)
+      assert {:ok, "p1"} = ResolveProject.resolve_from_cwd(nested)
+    end
+
+    test "prefers super-project in parent when sibling exists" do
+      {:ok, parent_dir} = Briefly.create(directory: true)
+      settings = Settings.new()
+      Settings.set_project_data(settings, "super", %{"root" => parent_dir})
+      Settings.set_project("super")
+      thog = Path.join(parent_dir, "thog")
+      File.mkdir_p!(thog)
+      thog_deployments = Path.join(parent_dir, "thog-deployments")
+      File.mkdir_p!(thog_deployments)
+      assert {:ok, "super"} = ResolveProject.resolve_from_cwd(thog_deployments)
+    end
   end
 
   describe "resolve_from_worktree/0" do
