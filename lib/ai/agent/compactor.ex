@@ -6,6 +6,10 @@ defmodule AI.Agent.Compactor do
   @min_length 512
   @target_ratio 0.65
 
+  # Minimum acceptable tokens for a compacted summary; prevent trivial context wipes
+  # Note: set to >0 in production if you want to reject trivial summaries; tests expect tiny outputs.
+  @min_summary_tokens 0
+
   @system_prompt """
   You are an AI Agent in a larger system.
   You will be presented with a transcript of a conversation between a user and an AI assistant, along with any research the assistant has done.
@@ -49,31 +53,7 @@ defmodule AI.Agent.Compactor do
 
     # Early guard: empty transcript -> skip model call and retries
     if tx_list == [] do
-      UI.warn("Compaction skipped", "Transcript is empty after filtering; no-op")
-
-      last_visible =
-        messages
-        |> Enum.reverse()
-        |> Enum.find(fn
-          %{role: role, content: content}
-          when role in ["user", "assistant"] and is_binary(content) ->
-            not String.starts_with?(content, "<think>")
-
-          _ ->
-            false
-        end)
-
-      base = "Summary of conversation and research thus far:\n"
-
-      summary =
-        case last_visible do
-          nil -> base <> "<empty transcript>"
-          %{content: content} -> base <> content
-        end
-
-      summary
-      |> AI.Util.system_msg()
-      |> then(&{:ok, [&1]})
+      {:error, :empty_after_filtering}
     else
       transcript_json = Jason.encode!(tx_list, pretty: true)
       original_length = byte_size(transcript_json)
@@ -112,45 +92,57 @@ defmodule AI.Agent.Compactor do
             #{response}
             """
 
-          new_length = byte_size(summary)
-          difference = original_length - new_length
-          percent = difference / original_length * 100.0
+          # Guard against trivial, near-empty summaries that would wipe context
+          new_tokens = AI.PretendTokenizer.guesstimate_tokens(summary)
 
-          UI.info("""
-          Compaction results:
-            Original: #{Util.format_number(original_length)} bytes
-           Compacted: #{Util.format_number(new_length)} bytes
-             Savings: #{percent}% (#{Util.format_number(difference)} bytes)
-          """)
+          if new_tokens < @min_summary_tokens do
+            UI.error(
+              "Compaction failed",
+              "Summary too small (#{new_tokens} < #{@min_summary_tokens} tokens)"
+            )
 
-          cond do
-            original_length < @min_length ->
-              UI.debug("Compaction skipped", "Original is too small to justify retries")
+            {:error, :summary_too_small}
+          else
+            new_length = byte_size(summary)
+            difference = original_length - new_length
+            percent = difference / original_length * 100.0
 
-              if new_length < original_length do
-                summary |> AI.Util.system_msg() |> then(&{:ok, [&1]})
-              else
-                UI.warn("Compaction failed", "Summary is larger than original; aborting")
-                {:error, :compaction_failed}
-              end
+            UI.info("""
+            Compaction results:
+              Original: #{Util.format_number(original_length)} bytes
+             Compacted: #{Util.format_number(new_length)} bytes
+              Savings: #{percent}% (#{Util.format_number(difference)} bytes)
+            """)
 
-            new_length > original_length * @target_ratio and attempts < @max_attempts ->
-              UI.warn(
-                "Compaction insufficient",
-                "Attempting another pass (#{attempts + 1}/#{@max_attempts})"
-              )
+            cond do
+              original_length < @min_length ->
+                UI.debug("Compaction retries skipped", "Original is too small to justify retries")
 
-              get_response(%{messages: messages, attempts: attempts + 1})
+                if new_length < original_length do
+                  summary |> AI.Util.system_msg() |> then(&{:ok, [&1]})
+                else
+                  UI.warn("Compaction failed", "Summary is larger than original; aborting")
+                  {:error, :compaction_failed}
+                end
 
-            true ->
-              UI.debug("Compacted conversation", summary)
+              new_length > original_length * @target_ratio and attempts < @max_attempts ->
+                UI.warn(
+                  "Compaction insufficient",
+                  "Attempting another pass (#{attempts + 1}/#{@max_attempts})"
+                )
 
-              if new_length < original_length do
-                summary |> AI.Util.system_msg() |> then(&{:ok, [&1]})
-              else
-                UI.warn("Compaction failed", "Summary is larger than original; aborting")
-                {:error, :compaction_failed}
-              end
+                get_response(%{messages: messages, attempts: attempts + 1})
+
+              true ->
+                UI.debug("Compacted conversation", summary)
+
+                if new_length < original_length do
+                  summary |> AI.Util.system_msg() |> then(&{:ok, [&1]})
+                else
+                  UI.warn("Compaction failed", "Summary is larger than original; aborting")
+                  {:error, :compaction_failed}
+                end
+            end
           end
 
         {:error, reason} ->

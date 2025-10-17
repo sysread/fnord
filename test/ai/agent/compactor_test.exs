@@ -33,11 +33,7 @@ defmodule AI.Agent.CompactorTest do
       flunk("AI.Completion.get/1 should not be called for empty transcript guard")
     end)
 
-    {:ok, [summary_msg]} = run_compactor(msgs)
-
-    # We expect 1 summary system message produced
-    assert summary_msg.role == "developer"
-    assert is_binary(summary_msg.content)
+    {:error, :empty_after_filtering} = run_compactor(msgs)
 
     # Early guard: zero model calls
     assert :meck.num_calls(AI.Completion, :get, :_) == 0

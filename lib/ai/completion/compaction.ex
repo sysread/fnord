@@ -179,16 +179,14 @@ defmodule AI.Completion.Compaction do
         end)
 
       UI.info(
-        "Partial compaction (expected)",
-        "Summarizing older history only; keeping last #{keep_rounds} assistant rounds and their tool calls intact."
+        "Compacting conversation",
+        "Summarizing older history; retaining last #{keep_rounds} rounds."
       )
 
-      result =
-        AI.Agent.Compactor
-        |> AI.Agent.new(named?: false)
-        |> AI.Agent.get_response(%{messages: older})
-
-      case result do
+      AI.Agent.Compactor
+      |> AI.Agent.new(named?: false)
+      |> AI.Agent.get_response(%{messages: older})
+      |> case do
         {:ok, [summary_msg]} ->
           assembled =
             []
@@ -204,23 +202,24 @@ defmodule AI.Completion.Compaction do
 
           new_usage =
             deduped
-            |> Enum.map(fn msg ->
-              case Map.get(msg, :content) do
-                content when is_binary(content) -> AI.PretendTokenizer.guesstimate_tokens(content)
-                _ -> 0
-              end
-            end)
+            |> Enum.map(&Map.get(&1, :content))
+            |> Enum.filter(&is_binary/1)
+            |> Enum.map(&AI.PretendTokenizer.guesstimate_tokens/1)
             |> Enum.sum()
 
           UI.info(
-            "Partial compaction",
+            "Conversation compacted",
             "Kept last #{keep_rounds} assistant rounds; est tokens: #{new_usage}/#{state.model.context}; target=#{target_pct}"
           )
 
           %{state | messages: deduped, usage: new_usage}
 
+        {:error, :empty_after_filtering} ->
+          UI.error("Compaction skipped", "Empty after filtering; original conversation retained")
+          state
+
         {:error, reason} ->
-          UI.warn("Partial compaction failed", inspect(reason, pretty: true))
+          UI.warn("Compaction failed", inspect(reason, pretty: true))
           state
       end
     end
@@ -243,10 +242,16 @@ defmodule AI.Completion.Compaction do
     |> case do
       {:ok, [new_msg]} ->
         new_tokens = AI.PretendTokenizer.guesstimate_tokens(new_msg.content)
+
+        UI.info(
+          "Conversation compacted",
+          "Context replaced with summary; est. tokens: #{new_tokens}/#{state.model.context}"
+        )
+
         %{state | messages: [new_msg], usage: new_tokens}
 
       {:error, reason} ->
-        UI.warn("Failed to compact conversation", inspect(reason, pretty: true))
+        UI.error("Compaction failed", inspect(reason, pretty: true))
         state
     end
   end
