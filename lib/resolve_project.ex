@@ -76,10 +76,24 @@ defmodule ResolveProject do
 
     result =
       if selected != [] do
-        {_, name} =
-          Enum.max_by(selected, fn {root_abs, name} -> {String.length(root_abs), name} end)
+        worktree_abs = GitCli.worktree_root() && Path.absname(GitCli.worktree_root())
+        repo_abs = GitCli.repo_root() && Path.absname(GitCli.repo_root())
 
-        {:ok, name}
+        cond do
+          worktree_abs && Enum.any?(selected, fn {root_abs, _} -> root_abs == worktree_abs end) ->
+            {_, name} = Enum.find(selected, fn {root_abs, _} -> root_abs == worktree_abs end)
+            {:ok, name}
+
+          repo_abs && Enum.any?(selected, fn {root_abs, _} -> root_abs == repo_abs end) ->
+            {_, name} = Enum.find(selected, fn {root_abs, _} -> root_abs == repo_abs end)
+            {:ok, name}
+
+          true ->
+            {_, name} =
+              Enum.max_by(selected, fn {root_abs, name} -> {String.length(root_abs), name} end)
+
+            {:ok, name}
+        end
       else
         # Phase 2: nested matches
         nested =
