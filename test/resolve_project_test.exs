@@ -117,12 +117,12 @@ defmodule ResolveProjectTest do
 
       # configure child projects under repo candidates (no project at repo root)
       settings = Settings.new()
-      Settings.set_project_data(settings, "a",  %{"root" => a_root})
+      Settings.set_project_data(settings, "a", %{"root" => a_root})
       Settings.set_project_data(settings, "ab", %{"root" => nested})
 
       :meck.new(GitCli, [:non_strict])
       :meck.expect(GitCli, :worktree_root, fn -> nil end)
-      :meck.expect(GitCli, :repo_root,     fn -> repo end)
+      :meck.expect(GitCli, :repo_root, fn -> repo end)
 
       File.cd!(nested, fn ->
         assert {:ok, "ab"} = ResolveProject.resolve_from_worktree()
