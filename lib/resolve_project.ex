@@ -2,8 +2,13 @@ defmodule ResolveProject do
   @moduledoc """
   Project resolution from cwd or git worktree root.
 
-  Normalizes paths, applies robust containment, and chooses the deepest matching
-  project when roots nest. Returns {:ok, project_name} or {:error, :not_in_project}.
+  Resolution order (most-specific to least-specific):
+  - From CWD: choose the configured project whose root contains CWD with the deepest (longest) root.
+  - Git fallback: build candidate roots from worktree and repo.
+    - Prefer exact matches first (worktree exact beats repo exact; ties break by depth then name).
+    - Otherwise, pick the deepest configured project whose root lies within any candidate (ties by name).
+
+  Returns `{:ok, project_name}` or `{:error, :not_in_project}`.
   """
 
   @type project_name :: binary
@@ -63,28 +68,37 @@ defmodule ResolveProject do
       end)
 
     # Attempt direct match of candidate to configured roots
-    case Enum.find(candidates, fn candidate ->
-           Enum.any?(projects, fn {root_abs, _} -> root_abs == candidate end)
-         end) do
-      nil ->
-        # Fall back to resolve_from_cwd for each candidate
-        candidates
-        |> Enum.reduce_while(nil, fn cand, _ ->
-          case resolve_from_cwd(cand) do
-            {:ok, name} -> {:halt, {:ok, name}}
-            _ -> {:cont, nil}
-          end
-        end)
-        |> case do
-          {:ok, _} = ok -> ok
-          _ -> {:error, :not_in_project}
-        end
+    # Two-phase ranked project selection: exact then nested within worktree candidates
+    # Phase 1: exact matches
+    selected =
+      projects
+      |> Enum.filter(fn {root_abs, _} -> root_abs in candidates end)
 
-      matched ->
-        # Return the project matching the candidate root
-        {_, name} = Enum.find(projects, fn {root_abs, _} -> root_abs == matched end)
+    result =
+      if selected != [] do
+        {_, name} =
+          Enum.max_by(selected, fn {root_abs, name} -> {String.length(root_abs), name} end)
+
         {:ok, name}
-    end
+      else
+        # Phase 2: nested matches
+        nested =
+          projects
+          |> Enum.filter(fn {root_abs, _} ->
+            Enum.any?(candidates, fn cand -> Util.path_within_root?(root_abs, cand) end)
+          end)
+
+        if nested != [] do
+          {_, name} =
+            Enum.max_by(nested, fn {root_abs, name} -> {String.length(root_abs), name} end)
+
+          {:ok, name}
+        else
+          {:error, :not_in_project}
+        end
+      end
+
+    result
   end
 
   # Determines if `child` is equal to or contained within `parent`.
