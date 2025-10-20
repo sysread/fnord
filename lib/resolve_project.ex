@@ -1,3 +1,6 @@
+# This module determines the current project based on the current working directory
+# or falls back to git worktree and repository roots to ensure the most specific project
+# context is identified.
 defmodule ResolveProject do
   @moduledoc """
   Project resolution from cwd or git worktree root.
@@ -13,6 +16,7 @@ defmodule ResolveProject do
 
   @type project_name :: binary
 
+  # Find the configured project whose root most specifically contains the provided directory.
   @spec resolve_from_cwd(cwd :: binary | nil) :: {:ok, project_name} | {:error, :not_in_project}
   def resolve_from_cwd(cwd \\ nil) do
     projects =
@@ -31,14 +35,18 @@ defmodule ResolveProject do
         dir -> Path.absname(dir)
       end
 
+    # Filter to projects whose root contains the current working directory.
     matching_projects =
       projects
       |> Enum.filter(fn {root_abs, _name} -> path_contains?(root_abs, cwd_abs) end)
 
+    # Decide outcome based on whether any matching projects were found.
     case matching_projects do
+      # No matching project roots found, return error.
       [] ->
         {:error, :not_in_project}
 
+      # Select the project with the deepest root path as the most specific match.
       _ ->
         {_, project_name} =
           Enum.max_by(matching_projects, fn {root_abs, _} -> String.length(root_abs) end)
@@ -47,9 +55,10 @@ defmodule ResolveProject do
     end
   end
 
+  # Fall back to git worktree and repo roots when cwd-based resolution fails.
   @spec resolve_from_worktree() :: {:ok, project_name} | {:error, :not_in_project}
   def resolve_from_worktree() do
-    # Gather possible roots from git worktree and repo
+    # Gather unique candidate roots from git worktree and repository.
     candidates =
       [GitCli.worktree_root(), GitCli.repo_root()]
       |> Enum.filter(& &1)
@@ -67,9 +76,7 @@ defmodule ResolveProject do
         end
       end)
 
-    # Attempt direct match of candidate to configured roots
-    # Two-phase ranked project selection: exact then nested within worktree candidates
-    # Phase 1: exact matches
+    # Phase 1: attempt exact matches between configured roots and git candidates.
     selected =
       projects
       |> Enum.filter(fn {root_abs, _} -> root_abs in candidates end)
@@ -79,15 +86,19 @@ defmodule ResolveProject do
         worktree_abs = GitCli.worktree_root() && Path.absname(GitCli.worktree_root())
         repo_abs = GitCli.repo_root() && Path.absname(GitCli.repo_root())
 
+        # Prioritize exact worktree match, then repo exact, then deepest path tie-break for deterministic result
         cond do
+          # Prefer explicit worktree because it's the user's active checkout
           worktree_abs && Enum.any?(selected, fn {root_abs, _} -> root_abs == worktree_abs end) ->
             {_, name} = Enum.find(selected, fn {root_abs, _} -> root_abs == worktree_abs end)
             {:ok, name}
 
+          # Repo exact is next-strongest explicit anchor
           repo_abs && Enum.any?(selected, fn {root_abs, _} -> root_abs == repo_abs end) ->
             {_, name} = Enum.find(selected, fn {root_abs, _} -> root_abs == repo_abs end)
             {:ok, name}
 
+          # Otherwise deterministic tie-break by deepest path then name to avoid flakiness
           true ->
             {_, name} =
               Enum.max_by(selected, fn {root_abs, name} -> {String.length(root_abs), name} end)
@@ -95,7 +106,8 @@ defmodule ResolveProject do
             {:ok, name}
         end
       else
-        # Phase 2: nested matches
+        # Phase 2: find configured roots nested within any git candidate.
+        # Fallback: consider configured roots nested within worktree/repo to support deeper subprojects.
         nested =
           projects
           |> Enum.filter(fn {root_abs, _} ->
@@ -103,6 +115,7 @@ defmodule ResolveProject do
           end)
 
         if nested != [] do
+          # Choose the deepest nested project to reflect the most specific context, with name tie-break for determinism
           {_, name} =
             Enum.max_by(nested, fn {root_abs, name} -> {String.length(root_abs), name} end)
 
@@ -115,7 +128,7 @@ defmodule ResolveProject do
     result
   end
 
-  # Determines if `child` is equal to or contained within `parent`.
+  # Determines if `child` path lies within or equals the `parent` path.
   defp path_contains?(parent, child) do
     parent_abs = Path.expand(parent)
     child_abs = Path.expand(child)
