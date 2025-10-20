@@ -3,13 +3,11 @@
 # context is identified.
 defmodule ResolveProject do
   @moduledoc """
-  Project resolution from cwd or git worktree root.
+  Project resolution from the current working directory.
 
-  Resolution order (most-specific to least-specific):
-  - From CWD: choose the configured project whose root contains CWD with the deepest (longest) root.
-  - Git fallback: build candidate roots from worktree and repo.
-    - Prefer exact matches first (worktree exact beats repo exact; ties break by depth then name).
-    - Otherwise, pick the deepest configured project whose root lies within any candidate (ties by name).
+  Behavior:
+  - If inside a git worktree, `resolve/1` will map the cwd to the repository root.
+  - Select the configured project whose root contains that directory, choosing the one with the deepest (longest) root path.
 
   Returns `{:ok, project_name}` or `{:error, :not_in_project}`.
   """
@@ -17,8 +15,8 @@ defmodule ResolveProject do
   @type project_name :: binary
 
   # Find the configured project whose root most specifically contains the provided directory.
-  @spec resolve_from_cwd(cwd :: binary | nil) :: {:ok, project_name} | {:error, :not_in_project}
-  def resolve_from_cwd(cwd \\ nil) do
+  @spec resolve(cwd :: binary | nil) :: {:ok, project_name} | {:error, :not_in_project}
+  def resolve(cwd \\ nil) do
     projects =
       Settings.new()
       |> Settings.get_projects()
@@ -29,16 +27,51 @@ defmodule ResolveProject do
         end
       end)
 
-    cwd_abs =
+    # If we are inside a git worktree, prefer resolving at the primary repo root
+    # so that project selection reflects the clone from which the worktree was created.
+    base_dir =
       case cwd do
-        nil -> Path.absname(File.cwd!())
-        dir -> Path.absname(dir)
+        nil -> File.cwd!()
+        dir -> dir
       end
+
+    repo_root_in_ctx =
+      case cwd do
+        nil ->
+          case System.cmd("git", ["rev-parse", "--is-inside-work-tree"],
+                 cd: base_dir,
+                 stderr_to_stdout: true
+               ) do
+            {"true\n", 0} ->
+              case System.cmd("git", ["rev-parse", "--git-common-dir"],
+                     cd: base_dir,
+                     stderr_to_stdout: true
+                   ) do
+                {out, 0} ->
+                  out
+                  |> String.trim()
+                  |> Path.dirname()
+
+                _ ->
+                  nil
+              end
+
+            _ ->
+              nil
+          end
+
+        _ ->
+          nil
+      end
+
+    cwd_base = repo_root_in_ctx || base_dir
+
+    cwd_abs = Path.absname(cwd_base)
 
     # Filter to projects whose root contains the current working directory.
     matching_projects =
       projects
-      |> Enum.filter(fn {root_abs, _name} -> path_contains?(root_abs, cwd_abs) end)
+      |> Enum.filter(fn {root_abs, _name} -> Util.path_within_root?(cwd_abs, root_abs) end)
 
     # Decide outcome based on whether any matching projects were found.
     case matching_projects do
@@ -53,85 +86,5 @@ defmodule ResolveProject do
 
         {:ok, project_name}
     end
-  end
-
-  # Fall back to git worktree and repo roots when cwd-based resolution fails.
-  @spec resolve_from_worktree() :: {:ok, project_name} | {:error, :not_in_project}
-  def resolve_from_worktree() do
-    # Gather unique candidate roots from git worktree and repository.
-    candidates =
-      [GitCli.worktree_root(), GitCli.repo_root()]
-      |> Enum.filter(& &1)
-      |> Enum.map(&Path.absname/1)
-      |> Enum.uniq()
-
-    # Load configured project roots
-    projects =
-      Settings.new()
-      |> Settings.get_projects()
-      |> Enum.flat_map(fn {name, %{"root" => root}} ->
-        case root do
-          nil -> []
-          root_str -> [{Path.absname(root_str), name}]
-        end
-      end)
-
-    # Phase 1: attempt exact matches between configured roots and git candidates.
-    selected =
-      projects
-      |> Enum.filter(fn {root_abs, _} -> root_abs in candidates end)
-
-    result =
-      if selected != [] do
-        worktree_abs = GitCli.worktree_root() && Path.absname(GitCli.worktree_root())
-        repo_abs = GitCli.repo_root() && Path.absname(GitCli.repo_root())
-
-        # Prioritize exact worktree match, then repo exact, then deepest path tie-break for deterministic result
-        cond do
-          # Prefer explicit worktree because it's the user's active checkout
-          worktree_abs && Enum.any?(selected, fn {root_abs, _} -> root_abs == worktree_abs end) ->
-            {_, name} = Enum.find(selected, fn {root_abs, _} -> root_abs == worktree_abs end)
-            {:ok, name}
-
-          # Repo exact is next-strongest explicit anchor
-          repo_abs && Enum.any?(selected, fn {root_abs, _} -> root_abs == repo_abs end) ->
-            {_, name} = Enum.find(selected, fn {root_abs, _} -> root_abs == repo_abs end)
-            {:ok, name}
-
-          # Otherwise deterministic tie-break by deepest path then name to avoid flakiness
-          true ->
-            {_, name} =
-              Enum.max_by(selected, fn {root_abs, name} -> {String.length(root_abs), name} end)
-
-            {:ok, name}
-        end
-      else
-        # Phase 2: find configured roots nested within any git candidate.
-        # Fallback: consider configured roots nested within worktree/repo to support deeper subprojects.
-        nested =
-          projects
-          |> Enum.filter(fn {root_abs, _} ->
-            Enum.any?(candidates, fn cand -> Util.path_within_root?(root_abs, cand) end)
-          end)
-
-        if nested != [] do
-          # Choose the deepest nested project to reflect the most specific context, with name tie-break for determinism
-          {_, name} =
-            Enum.max_by(nested, fn {root_abs, name} -> {String.length(root_abs), name} end)
-
-          {:ok, name}
-        else
-          {:error, :not_in_project}
-        end
-      end
-
-    result
-  end
-
-  # Determines if `child` path lies within or equals the `parent` path.
-  defp path_contains?(parent, child) do
-    parent_abs = Path.expand(parent)
-    child_abs = Path.expand(child)
-    Util.path_within_root?(child_abs, parent_abs)
   end
 end

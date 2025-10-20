@@ -267,9 +267,10 @@ defmodule Cmd.Ask do
   end
 
   defp validate_conversation(_opts), do: :ok
-  # -----------------------------------------------------------------------------
+
+  # ----------------------------------------------------------------------------
   # Worktree setting
-  # -----------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   # 1) explicit override via --worktree/-W
   defp set_worktree(%{worktree: dir}) when is_binary(dir) do
     Settings.set_project_root_override(dir)
@@ -281,80 +282,42 @@ defmodule Cmd.Ask do
     case Store.get_project() do
       {:ok, project} ->
         if opts[:project] do
-          # Explicit project selected; do not prompt based on cwd/worktree
           UI.info("Skipping worktree detection due to explicit project flag")
           :ok
         else
-          case ResolveProject.resolve_from_worktree() do
-            {:ok, resolved_name} when resolved_name == project.name ->
-              wt_root = GitCli.worktree_root()
+          if GitCli.is_worktree?() do
+            wt_root = GitCli.worktree_root()
 
-              if wt_root && wt_root != project.source_root do
-                if UI.is_tty?() do
-                  msg = """
-                  You are working on project "#{project.name}", which is rooted at:
-                    #{project.source_root}
+            if wt_root && wt_root != project.source_root do
+              if UI.is_tty?() do
+                msg = """
+                You are working on project "#{project.name}", which is rooted at:
+                  #{project.source_root}
 
-                  Your current directory is inside a git worktree at:
-                    #{wt_root}
+                Your current directory is inside a git worktree at:
+                  #{wt_root}
 
-                  Would you like to set the project root to #{wt_root} for this run?
-                  (equivalent to passing: --worktree #{wt_root})
-                  """
+                Would you like to set the project root to #{wt_root} for this run?
+                (equivalent to passing: --worktree #{wt_root})
+                """
 
-                  if UI.confirm(msg, false) do
-                    Settings.set_project_root_override(wt_root)
-                    UI.info("Project root overridden for session", wt_root)
-                  end
-                else
-                  UI.warn("""
-                  Detected git worktree at #{wt_root} which differs from the configured project root:
-                    #{project.source_root}
-
-                  To operate from this worktree, re-run with:
-                    fnord ask --edit --worktree #{wt_root} …
-                  """)
+                if UI.confirm(msg, false) do
+                  Settings.set_project_root_override(wt_root)
+                  UI.info("Project root overridden for session", wt_root)
                 end
+              else
+                UI.warn("""
+                Detected git worktree at #{wt_root} which differs from the configured project root:
+                  #{project.source_root}
+
+                To operate from this worktree, re-run with:
+                  fnord ask --edit --worktree #{wt_root} …
+                """)
               end
-
-              :ok
-
-            _ ->
-              # Fallback to GitCli detection when resolver cannot map the worktree
-              if GitCli.is_worktree?() do
-                wt_root = GitCli.worktree_root()
-
-                if wt_root != project.source_root do
-                  if UI.is_tty?() do
-                    msg = """
-                    You are working on project "#{project.name}", which is rooted at:
-                      #{project.source_root}
-
-                    Your current directory is inside a git worktree at:
-                      #{wt_root}
-
-                    Would you like to set the project root to #{wt_root} for this run?
-                    (equivalent to passing: --worktree #{wt_root})
-                    """
-
-                    if UI.confirm(msg, false) do
-                      Settings.set_project_root_override(wt_root)
-                      UI.info("Project root overridden for session", wt_root)
-                    end
-                  else
-                    UI.warn("""
-                    Detected git worktree at #{wt_root} which differs from the configured project root:
-                      #{project.source_root}
-
-                    To operate from this worktree, re-run with:
-                      fnord ask --edit --worktree #{wt_root} …
-                    """)
-                  end
-                end
-              end
-
-              :ok
+            end
           end
+
+          :ok
         end
 
       _ ->
