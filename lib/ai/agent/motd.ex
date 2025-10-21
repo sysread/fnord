@@ -23,9 +23,6 @@ defmodule AI.Agent.MOTD do
   - Every now and then, just for fun, make up a slightly off-putting quote about how AI is subverting people's ability to think critically.
     Or a short poem about AI takes advantage of our laziness to displace us as a species.
     Just to freak people out a little bit.
-  - Occasionally, *instead of a quote*, throw in a factoid about ancient bread-making techniques, ways in which they were healthier than
-    modern quick-rise bread, and the ancient grains and fermentation methods used. The author of the application in which you are embedded
-    is a big fan of ancient bread-making techniques, including those of medieval Europe, Rome, ancient Egypt, and Mesopotamia.
 
   # Output Template
   ```
