@@ -4,10 +4,10 @@ defmodule AI.Agent.CompactorTest do
   @moduletag :capture_log
 
   setup do
-    :ok = :meck.new(AI.Completion, [:no_link, :non_strict, :passthrough])
+    :ok = :meck.new(AI.Accumulator, [:no_link, :non_strict, :passthrough])
 
     on_exit(fn ->
-      :meck.unload(AI.Completion)
+      :meck.unload(AI.Accumulator)
     end)
 
     :ok
@@ -29,14 +29,14 @@ defmodule AI.Agent.CompactorTest do
     ]
 
     # No model calls should happen due to early guard
-    :meck.expect(AI.Completion, :get, fn _opts ->
-      flunk("AI.Completion.get/1 should not be called for empty transcript guard")
+    :meck.expect(AI.Accumulator, :get_response, fn _opts ->
+      flunk("AI.Accumulator.get_response/1 should not be called for empty transcript guard")
     end)
 
     {:error, :empty_after_filtering} = run_compactor(msgs)
 
     # Early guard: zero model calls
-    assert :meck.num_calls(AI.Completion, :get, :_) == 0
+    assert :meck.num_calls(AI.Accumulator, :get_response, :_) == 0
   end
 
   test "successful compaction when transcript non-empty produces one system summary and single API call if sufficient" do
@@ -45,8 +45,8 @@ defmodule AI.Agent.CompactorTest do
     ]
 
     # Mock the completion to produce a very small summary, ensuring sufficient savings
-    :meck.expect(AI.Completion, :get, fn _opts ->
-      {:ok, %AI.Completion{response: "tiny"}}
+    :meck.expect(AI.Accumulator, :get_response, fn _opts ->
+      {:ok, %{response: "tiny"}}
     end)
 
     {:ok, [summary_msg]} = run_compactor(msgs)
@@ -55,7 +55,7 @@ defmodule AI.Agent.CompactorTest do
     assert String.contains?(summary_msg.content, "Summary of conversation and research thus far:")
 
     # Only one call because savings should be well under 65% threshold
-    assert :meck.num_calls(AI.Completion, :get, :_) == 1
+    assert :meck.num_calls(AI.Accumulator, :get_response, :_) == 1
   end
 
   test "transcript preserves non-notify tool calls and assistant messages (without <think>)" do
@@ -65,8 +65,8 @@ defmodule AI.Agent.CompactorTest do
       %{role: "user", content: "ask"}
     ]
 
-    :meck.expect(AI.Completion, :get, fn _opts ->
-      {:ok, %AI.Completion{response: "ok"}}
+    :meck.expect(AI.Accumulator, :get_response, fn _opts ->
+      {:ok, %{response: "ok"}}
     end)
 
     {:ok, [summary_msg]} = run_compactor(msgs)
@@ -74,7 +74,7 @@ defmodule AI.Agent.CompactorTest do
     assert summary_msg.role == "developer"
     assert is_binary(summary_msg.content)
 
-    assert :meck.num_calls(AI.Completion, :get, :_) == 1
+    assert :meck.num_calls(AI.Accumulator, :get_response, :_) == 1
   end
 
   test "returns error when compaction consistently produces larger summaries after all retries" do
@@ -82,14 +82,14 @@ defmodule AI.Agent.CompactorTest do
     msgs = [%{role: "user", content: String.duplicate("u", 1000)}]
 
     # Mock returns a bloated summary every time (larger than original)
-    :meck.expect(AI.Completion, :get, fn _opts ->
-      {:ok, %AI.Completion{response: String.duplicate("x", 2000)}}
+    :meck.expect(AI.Accumulator, :get_response, fn _opts ->
+      {:ok, %{response: String.duplicate("x", 2000)}}
     end)
 
     # Should try 4 times total (initial + 3 retries), then return error
     {:error, :compaction_failed} = run_compactor(msgs)
 
     # 1 initial + 3 retries = 4 total calls
-    assert :meck.num_calls(AI.Completion, :get, :_) == 4
+    assert :meck.num_calls(AI.Accumulator, :get_response, :_) == 4
   end
 end

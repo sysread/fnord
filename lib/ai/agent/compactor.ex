@@ -69,20 +69,10 @@ defmodule AI.Agent.Compactor do
           "recent messages (including your latest prompts) remain intact."
       )
 
-      AI.Completion.get(
+      AI.Accumulator.get_response(
         model: @model,
         prompt: @system_prompt,
-        messages: [
-          AI.Util.system_msg(@system_prompt),
-          AI.Util.system_msg("""
-          The complete message transcript in JSON format:
-          ```json
-          #{transcript_json}
-          ```
-
-          Your output MUST use the specified template and include ALL sections.
-          """)
-        ]
+        input: transcript_json
       )
       |> case do
         {:ok, %{response: response}} ->
