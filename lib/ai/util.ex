@@ -245,9 +245,9 @@ defmodule AI.Util do
   end
 
   defp validate_msg_length(%{content: content} = msg) when is_binary(content) do
-    if byte_size(content) > @max_msg_length do
+    if String.length(content) > @max_msg_length do
       warning = "(msg truncated due to size)"
-      wlen = byte_size(warning)
+      wlen = String.length(warning)
       max = @max_msg_length - wlen
       %{msg | content: String.slice(content, 0, max) <> warning}
     else

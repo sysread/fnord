@@ -28,4 +28,61 @@ defmodule AI.UtilTest do
     expected_similarity = dot_product / (magnitude1 * magnitude2)
     assert_in_delta similarity, expected_similarity, 1.0e-5
   end
+
+  @short_msg "This is a short message."
+  @long_msg String.duplicate("A", 60_000)
+  @long_mb_msg String.duplicate("😀", 60_000)
+
+  describe "message truncation behavior" do
+    test "system_msg does not truncate short content" do
+      result = AI.Util.system_msg(@short_msg)
+      assert result.content == @short_msg
+    end
+
+    test "system_msg truncates long content" do
+      result = AI.Util.system_msg(@long_msg)
+      assert String.ends_with?(result.content, "(msg truncated due to size)")
+      assert String.length(result.content) < String.length(@long_msg)
+    end
+
+    test "user_msg does not truncate short content" do
+      result = AI.Util.user_msg(@short_msg)
+      assert result.content == @short_msg
+    end
+
+    test "user_msg truncates long content" do
+      result = AI.Util.user_msg(@long_msg)
+      assert String.ends_with?(result.content, "(msg truncated due to size)")
+      assert String.length(result.content) < String.length(@long_msg)
+    end
+
+    test "assistant_msg does not truncate short content" do
+      result = AI.Util.assistant_msg(@short_msg)
+      assert result.content == @short_msg
+    end
+
+    test "assistant_msg truncates long content" do
+      result = AI.Util.assistant_msg(@long_msg)
+      assert String.ends_with?(result.content, "(msg truncated due to size)")
+      assert String.length(result.content) < String.length(@long_msg)
+    end
+
+    test "tool_msg does not truncate short content" do
+      result = AI.Util.tool_msg("id", "func", @short_msg)
+      assert String.contains?(result.content, @short_msg)
+      refute String.ends_with?(result.content, "(msg truncated due to size)")
+    end
+
+    test "tool_msg truncates long content" do
+      result = AI.Util.tool_msg("id", "func", @long_msg)
+      assert String.ends_with?(result.content, "(msg truncated due to size)")
+      assert String.length(result.content) < String.length(@long_msg)
+    end
+
+    test "multibyte emoji truncation works by character count" do
+      result = AI.Util.system_msg(@long_mb_msg)
+      assert String.ends_with?(result.content, "(msg truncated due to size)")
+      assert String.length(result.content) < String.length(@long_mb_msg)
+    end
+  end
 end
