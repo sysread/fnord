@@ -1,5 +1,21 @@
 defmodule AI.Util do
-  @max_msg_length 10_000_000
+  # ----------------------------------------------------------------------------
+  # On average, English words about 4.5 characters long, plus a space or
+  # punctuation. OpenAI posits that 1 token ~= 4 characters in English text.
+  #
+  # We can use these to approximate a reasonable max length for messages to
+  # mitigate the risk of a single, new message being added to a conversation
+  # that blows so far past the model's context window that it prevents even
+  # compaction from working effectively:
+  #   - 5 bytes per word * 10,000 words = 50,000 bytes
+  #
+  # The current crop of models have a context window of 400k tokens:
+  #   - 400,000 tokens * 4 bytes per token = 1,600,000 bytes
+  #   - 1,600,000 bytes / 50,000 bytes per message = 32 messages
+  #
+  # That seems like a reasonable baseline threshold to start with.
+  # ----------------------------------------------------------------------------
+  @max_msg_length 50_000
 
   @role_system "developer"
   @role_user "user"
