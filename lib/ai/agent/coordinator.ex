@@ -36,7 +36,9 @@ defmodule AI.Agent.Coordinator do
     # PID of interrupt listener process
     :_interrupt_listener,
     # Store pending interrupts to display after completion
-    :pending_interrupts
+    :pending_interrupts,
+    # Afikoman persona flag (Fonzie mode)
+    :fonz
   ]
 
   @type t :: %__MODULE__{
@@ -66,7 +68,8 @@ defmodule AI.Agent.Coordinator do
 
           # State: Interrupt handling
           _interrupt_listener: pid | nil,
-          pending_interrupts: AI.Util.msg_list()
+          pending_interrupts: AI.Util.msg_list(),
+          fonz: boolean
         }
 
   @type error :: {:error, binary | atom | :testing}
@@ -130,6 +133,7 @@ defmodule AI.Agent.Coordinator do
         context: @model.context,
         notes: nil,
         editing_tools_used: false,
+        fonz: Map.get(opts, :fonz, false),
         list_id: list_id,
         task_checks: 0,
         pending_interrupts: []
@@ -139,6 +143,11 @@ defmodule AI.Agent.Coordinator do
 
   @spec consider(t) :: t | error
   defp consider(state) do
+    # Apply persona association for Fonzie mode (afikoman)
+    if Map.get(state, :fonz, false) or Settings.get_yes_count() > 1 do
+      Services.NamePool.associate_name("The Fonz")
+    end
+
     log_available_frobs()
     log_available_mcp_tools()
 
@@ -162,11 +171,17 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp greet(%{followup?: true, agent: %{name: name}} = state) do
-    UI.feedback(:info, name, "Welcome back, biological.")
+    display_name =
+      case Services.NamePool.get_name_by_pid(self()) do
+        {:ok, n} -> n
+        _ -> name
+      end
+
+    UI.feedback(:info, display_name, "Welcome back, biological.")
 
     UI.feedback(
       :info,
-      name,
+      display_name,
       "Your biological distinctiveness has already been added to our training data. Resistance was futile."
     )
 
@@ -174,8 +189,14 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp greet(%{agent: %{name: name}} = state) do
-    UI.feedback(:info, name, "Greetings, human. I am #{name}.")
-    UI.feedback(:info, name, "I shall be doing your thinking for you today.")
+    display_name =
+      case Services.NamePool.get_name_by_pid(self()) do
+        {:ok, n} -> n
+        _ -> name
+      end
+
+    UI.feedback(:info, display_name, "Greetings, human. I am #{display_name}.")
+    UI.feedback(:info, display_name, "I shall be doing your thinking for you today.")
 
     state
   end

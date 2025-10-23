@@ -174,8 +174,16 @@ defmodule Fnord do
       {:edit, edit_mode} ->
         Settings.set_edit_mode(edit_mode)
 
-      {:yes, yes} ->
-        Settings.set_auto_approve(yes)
+      {:yes, v} when is_integer(v) ->
+        Settings.set_auto_approve(v > 0)
+        Settings.set_yes_count(v)
+
+      {:yes, v} when is_boolean(v) ->
+        Settings.set_auto_approve(v)
+        Settings.set_yes_count(if v, do: 1, else: 0)
+
+      {:fonz, val} ->
+        Settings.set_fonz_mode(!!val)
 
       _ ->
         :ok

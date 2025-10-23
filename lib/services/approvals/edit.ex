@@ -28,7 +28,17 @@ defmodule Services.Approvals.Edit do
       auto?() ->
         UI.interact(fn ->
           render_diff_box(file, diff)
-          UI.info("Edit #{file}", "Auto-approved (either --yes passed or approved for session)")
+          extra = max(Settings.get_yes_count() - 1, 0) |> min(3)
+
+          msg =
+            case extra do
+              0 -> "Auto-approved (either --yes passed or approved for session)"
+              1 -> "Auto-approved? You got it!"
+              2 -> "Auto-approved? Correct-a-mundo!"
+              3 -> "Auto-approved. Ayyyyy! Sit on it!"
+            end
+
+          UI.info("Edit #{file}", msg)
           {:approved, state}
         end)
 

@@ -470,4 +470,38 @@ defmodule Settings do
 
   defp make_key(key) when is_atom(key), do: Atom.to_string(key)
   defp make_key(key), do: key
+
+  @doc """
+  Set yes count in settings.
+  """
+  @spec set_yes_count(non_neg_integer) :: :ok
+  def set_yes_count(count) when is_integer(count) and count >= 0 do
+    Services.Globals.put_env(:fnord, :yes_count, count)
+    :ok
+  end
+
+  @doc """
+  Get yes count from settings.
+  """
+  @spec get_yes_count() :: non_neg_integer
+  def get_yes_count() do
+    Services.Globals.get_env(:fnord, :yes_count, 0)
+  end
+
+  @doc """
+  Set fonz mode for application.
+  """
+  @spec set_fonz_mode(boolean) :: :ok
+  def set_fonz_mode(fonz_mode) do
+    Services.Globals.put_env(:fnord, :fonz_mode, !!fonz_mode)
+    :ok
+  end
+
+  @doc """
+  Get fonz mode setting.
+  """
+  @spec get_fonz_mode() :: boolean
+  def get_fonz_mode() do
+    Services.Globals.get_env(:fnord, :fonz_mode, false)
+  end
 end

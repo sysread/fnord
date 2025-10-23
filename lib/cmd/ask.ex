@@ -93,6 +93,12 @@ defmodule Cmd.Ask do
             long: "--yes",
             short: "-y",
             help: "Automatically approve edit/manage prompts (requires --edit)",
+            default: false,
+            multiple: true
+          ],
+          fonz: [
+            long: "--eyyyy",
+            help: "",
             default: false
           ]
         ]
@@ -119,8 +125,20 @@ defmodule Cmd.Ask do
         Map.put(opts, :edit, false)
       end
 
+    # Handle fonz flag: auto-enable --yes
+    opts =
+      if Map.get(opts, :fonz, false) do
+        unless opts[:edit] do
+          UI.warn("--yes has no effect unless you also pass --edit; ignoring")
+        end
+
+        Map.put(opts, :yes, true)
+      else
+        opts
+      end
+
     # Handle --yes auto-approval flag
-    if opts[:yes] do
+    if opts[:yes] == true or (is_integer(opts[:yes]) and opts[:yes] > 0) do
       if opts[:edit] do
         UI.warning_banner("AUTO-CONFIRMATION ENABLED FOR CODE EDIT PROMPTS.")
         UI.warning_banner("ALL YOU'VE *REALLY* AUTO-CONFIRMED IS THAT YOU ARE INDEED NUTS.")
@@ -385,7 +403,8 @@ defmodule Cmd.Ask do
       rounds: opts.rounds,
       question: opts.question,
       replay: Map.get(opts, :replay, false),
-      yes: Map.get(opts, :yes, false)
+      yes: Map.get(opts, :yes, false),
+      fonz: Map.get(opts, :fonz, false)
     )
   end
 
