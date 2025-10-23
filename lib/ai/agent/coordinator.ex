@@ -410,15 +410,23 @@ defmodule AI.Agent.Coordinator do
   defp perform_step(%{steps: [:finalize]} = state) do
     UI.begin_step("Joining")
 
-    state
-    |> Map.put(:steps, [])
-    |> reminder_msg()
-    |> task_list_msg()
-    |> finalize_msg()
-    |> template_msg()
-    |> get_completion()
-    |> save_notes()
-    |> get_motd()
+    # Block interrupts during finalization to avoid mid-output interjections
+    Services.Conversation.Interrupts.block(state.conversation)
+
+    try do
+      state
+      |> Map.put(:steps, [])
+      |> reminder_msg()
+      |> task_list_msg()
+      |> finalize_msg()
+      |> template_msg()
+      |> get_completion()
+      |> save_notes()
+      |> get_motd()
+    after
+      # Always unblock, even if completion fails
+      Services.Conversation.Interrupts.unblock(state.conversation)
+    end
   end
 
   @spec get_completion(t, boolean) :: t | error
@@ -1160,33 +1168,45 @@ defmodule AI.Agent.Coordinator do
 
     case IO.getn(:stdio, "", 1) do
       "\n" ->
-        "What would you like to say? (empty to ignore)"
-        |> UI.prompt(optional: true)
-        |> case do
-          {:error, _} ->
-            :ok
+        # If interrupts are blocked (e.g., during finalization), refuse immediately
+        if Services.Conversation.Interrupts.blocked?(convo_pid) do
+          conv_id = Services.Conversation.get_id(convo_pid)
 
-          nil ->
-            :ok
+          UI.warn(
+            "Interruption is not allowed while the assistant is finalizing the response.",
+            "Use `-f #{conv_id}` to follow this conversation and ask a new question."
+          )
 
-          msg when is_binary(msg) ->
-            msg
-            |> String.trim()
-            |> case do
-              "" ->
-                :ok
+          listener_loop(convo_pid)
+        else
+          "What would you like to say? (empty to ignore)"
+          |> UI.prompt(optional: true)
+          |> case do
+            {:error, _} ->
+              :ok
 
-              msg ->
-                Services.Conversation.interrupt(convo_pid, msg)
-                # defer UI echo until after completion cycle
-                :ok
-            end
+            nil ->
+              :ok
 
-          _ ->
-            :ok
+            msg when is_binary(msg) ->
+              msg
+              |> String.trim()
+              |> case do
+                "" ->
+                  :ok
+
+                msg ->
+                  Services.Conversation.interrupt(convo_pid, msg)
+                  # defer UI echo until after completion cycle
+                  :ok
+              end
+
+            _ ->
+              :ok
+          end
+
+          listener_loop(convo_pid)
         end
-
-        listener_loop(convo_pid)
 
       _other ->
         # Ignore any other input

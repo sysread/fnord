@@ -64,4 +64,32 @@ defmodule Services.Conversation.InterruptsTest do
     assert [%{content: "[User Interjection] two"}] =
              Enum.map(msgs2, fn msg -> %{content: msg.content} end)
   end
+
+  test "block/unblock toggles and pending/take_all remain consistent" do
+    alias Services.Conversation.Interrupts
+
+    # Clean slate for this pid
+    _ = Interrupts.take_all(self())
+
+    # Initially not blocked and no pending
+    refute Interrupts.blocked?(self())
+    refute Interrupts.pending?(self())
+
+    # Block and verify state
+    Interrupts.block(self())
+    assert Interrupts.blocked?(self())
+    refute Interrupts.pending?(self())
+
+    # Enqueue while blocked still queues the message (listener refusal is handled elsewhere)
+    Interrupts.request(self(), "hello while blocked")
+    assert Interrupts.pending?(self())
+
+    [msg] = Interrupts.take_all(self())
+    assert msg.content == "[User Interjection] hello while blocked"
+    refute Interrupts.pending?(self())
+
+    # Unblock and verify
+    Interrupts.unblock(self())
+    refute Interrupts.blocked?(self())
+  end
 end
