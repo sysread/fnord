@@ -415,7 +415,7 @@ defmodule Cmd.Index do
   Would you like to prime the project with some initial research?
   """
 
-  defp maybe_prime_notes(%{opts: %{quiet: false}} = idx), do: idx
+  defp maybe_prime_notes(%{opts: %{quiet: true}} = idx), do: idx
   defp maybe_prime_notes(%{has_notes?: true} = idx), do: idx
 
   defp maybe_prime_notes(idx) do
