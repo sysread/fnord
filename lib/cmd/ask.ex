@@ -103,6 +103,10 @@ defmodule Cmd.Ask do
 
   @impl Cmd
   def run(opts, _subcommands, _unknown) do
+    unless UI.quiet?() do
+      UI.info("Fnord v#{Util.get_running_version()}")
+    end
+
     # Start a new performance tracking session
     Services.ModelPerformanceTracker.start_session()
 
