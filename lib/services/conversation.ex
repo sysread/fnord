@@ -181,9 +181,17 @@ defmodule Services.Conversation do
   # Internals
   # -----------------------------------------------------------------------------
   defp new() do
+    # Afikoman: override agent name when in "fonz mode"
+    agent_args =
+      if Settings.get_yes_count() > 1 do
+        [named?: true, name: "The Fonz"]
+      else
+        [named?: true]
+      end
+
     {:ok,
      %{
-       agent: AI.Agent.new(AI.Agent.Coordinator, named?: true),
+       agent: AI.Agent.new(AI.Agent.Coordinator, agent_args),
        conversation: Conversation.new(),
        msgs: [],
        ts: nil
@@ -202,6 +210,14 @@ defmodule Services.Conversation do
         |> case do
           nil -> [named?: true]
           name -> [named?: true, name: name]
+        end
+
+      # Afikoman: override agent name when in "fonz mode"
+      agent_args =
+        if Settings.get_yes_count() > 1 do
+          [named?: true, name: "The Fonz"]
+        else
+          agent_args
         end
 
       agent = AI.Agent.new(AI.Agent.Coordinator, agent_args)

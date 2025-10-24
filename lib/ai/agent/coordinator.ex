@@ -143,11 +143,6 @@ defmodule AI.Agent.Coordinator do
 
   @spec consider(t) :: t | error
   defp consider(state) do
-    # Apply persona association for Fonzie mode (afikoman)
-    if Map.get(state, :fonz, false) or Settings.get_yes_count() > 1 do
-      Services.NamePool.associate_name("The Fonz")
-    end
-
     log_available_frobs()
     log_available_mcp_tools()
 

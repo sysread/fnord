@@ -95,11 +95,6 @@ defmodule Cmd.Ask do
             help: "Automatically approve edit/manage prompts (requires --edit)",
             default: false,
             multiple: true
-          ],
-          fonz: [
-            long: "--eyyyy",
-            help: "",
-            default: false
           ]
         ]
       ]
@@ -123,18 +118,6 @@ defmodule Cmd.Ask do
         opts
       else
         Map.put(opts, :edit, false)
-      end
-
-    # Handle fonz flag: auto-enable --yes
-    opts =
-      if Map.get(opts, :fonz, false) do
-        unless opts[:edit] do
-          UI.warn("--yes has no effect unless you also pass --edit; ignoring")
-        end
-
-        Map.put(opts, :yes, true)
-      else
-        opts
       end
 
     # Handle --yes auto-approval flag
