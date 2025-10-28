@@ -47,6 +47,7 @@ defmodule AI.CompletionOutputReplayTest do
 
     # Capture any UI.report_from/2 or /3 calls
     parent = self()
+
     :meck.expect(UI, :report_from, fn name, step, msg ->
       send(parent, {:ui_step_msg, name, step, msg})
       :ok

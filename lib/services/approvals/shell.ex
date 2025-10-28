@@ -178,6 +178,7 @@ defmodule Services.Approvals.Shell do
   # approved or a stored full-command approval matches this stage.
   defp approved?(state, {prefix, full}) do
     prefix_approved?(state, prefix) or
+      full_literal_prefix_approved?(state, full) or
       full_cmd_preapproved?(state, full)
   end
 
@@ -204,6 +205,25 @@ defmodule Services.Approvals.Shell do
       |> Enum.concat(session_approvals(state, :full))
       |> Enum.map(fn re -> Regex.compile!(re, "u") end)
       |> Enum.any?(&Regex.match?(&1, full))
+  end
+
+  defp full_literal_prefix_approved?(state, full) do
+    settings = Settings.new()
+
+    stored =
+      Settings.Approvals.get_approvals(settings, :global, "shell") ++
+        Settings.Approvals.get_approvals(settings, :project, "shell")
+
+    session_prefixes =
+      state
+      |> Map.get(:session, [])
+      |> Enum.flat_map(fn
+        {:prefix, p} when is_binary(p) -> [p]
+        _ -> []
+      end)
+
+    (stored ++ session_prefixes)
+    |> Enum.any?(fn p -> is_binary(p) and String.starts_with?(full, p) end)
   end
 
   # ----------------------------------------------------------------------------
