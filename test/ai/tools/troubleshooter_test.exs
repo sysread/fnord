@@ -61,7 +61,7 @@ defmodule AI.Tools.TroubleshooterTest do
     end
 
     test "appears in all_tools list" do
-      all_tools = AI.Tools.all_tools()
+      all_tools = AI.Tools.basic_tools()
       assert Map.has_key?(all_tools, "troubleshooter_tool")
     end
 

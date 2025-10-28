@@ -97,7 +97,7 @@ defmodule AI.Agent.Troubleshooter do
   @spec get_troubleshooting_tools() :: AI.Tools.toolbox()
   defp get_troubleshooting_tools() do
     # Start with all available tools
-    base_tools = AI.Tools.all_tools()
+    base_tools = AI.Tools.basic_tools()
 
     # Add frobs (external tools like shell, file_edit, coder_tool)
     frob_tools = Frobs.module_map()

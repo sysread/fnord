@@ -60,7 +60,7 @@ defmodule AI.CompletionTest do
     end
 
     test "parses optional toolbox and toggles options when toolbox is not empty" do
-      my_toolbox = AI.Tools.all_tools()
+      my_toolbox = AI.Tools.basic_tools()
 
       opts = [
         model: "x",

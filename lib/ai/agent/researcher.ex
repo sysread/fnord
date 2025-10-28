@@ -49,9 +49,9 @@ defmodule AI.Agent.Researcher do
 
       tools =
         if can_recurse? do
-          AI.Tools.all_tools()
+          AI.Tools.basic_tools()
         else
-          AI.Tools.all_tools()
+          AI.Tools.basic_tools()
           |> Map.drop(["research_tool"])
         end
         |> AI.Tools.with_web_tools()

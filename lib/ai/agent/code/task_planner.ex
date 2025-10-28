@@ -30,7 +30,7 @@ defmodule AI.Agent.Code.TaskPlanner do
   @impl AI.Agent
   def get_response(%{agent: agent, request: request}) do
     tools =
-      AI.Tools.all_tools()
+      AI.Tools.basic_tools()
       |> AI.Tools.with_rw_tools()
 
     agent

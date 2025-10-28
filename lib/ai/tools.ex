@@ -222,8 +222,8 @@ defmodule AI.Tools do
   @doc """
   Returns a `toolbox` that includes all generally available tools and frobs.
   """
-  @spec all_tools() :: toolbox
-  def all_tools() do
+  @spec basic_tools() :: toolbox
+  def basic_tools() do
     @tools
     |> Map.merge(Frobs.module_map())
     |> Map.merge(MCP.Tools.module_map())
@@ -284,7 +284,7 @@ defmodule AI.Tools do
   def tool_module(tool_name, tools \\ nil) do
     tools =
       if is_nil(tools) do
-        all_tools()
+        basic_tools()
       else
         tools
       end

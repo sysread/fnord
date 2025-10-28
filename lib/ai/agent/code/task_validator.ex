@@ -119,7 +119,7 @@ defmodule AI.Agent.Code.TaskValidator do
     """
 
     tools =
-      AI.Tools.all_tools()
+      AI.Tools.basic_tools()
       |> AI.Tools.with_rw_tools()
 
     agent

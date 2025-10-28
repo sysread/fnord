@@ -1214,7 +1214,7 @@ defmodule AI.Agent.Coordinator do
   # -----------------------------------------------------------------------------
   @spec get_tools(t) :: AI.Tools.toolbox()
   defp get_tools(%{edit?: true}) do
-    AI.Tools.all_tools()
+    AI.Tools.basic_tools()
     |> AI.Tools.with_task_tools()
     |> AI.Tools.with_rw_tools()
     |> AI.Tools.with_coding_tools()
@@ -1222,7 +1222,7 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp get_tools(_) do
-    AI.Tools.all_tools()
+    AI.Tools.basic_tools()
     |> AI.Tools.with_task_tools()
     |> AI.Tools.with_web_tools()
   end
@@ -1345,7 +1345,7 @@ defmodule AI.Agent.Coordinator do
   defp get_test_response(%{project: project} = state) do
     # Enable all tools for testing.
     tools =
-      AI.Tools.all_tools()
+      AI.Tools.basic_tools()
       |> AI.Tools.with_task_tools()
       |> AI.Tools.with_coding_tools()
       |> AI.Tools.with_rw_tools()

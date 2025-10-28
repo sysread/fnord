@@ -128,7 +128,7 @@ defmodule AI.Completion.Output do
     # The toolbox isn't stored in the saved conversation, so we pass the
     # complete toolbox while replaying.
     all_tools =
-      AI.Tools.all_tools()
+      AI.Tools.basic_tools()
       |> AI.Tools.with_rw_tools()
       |> AI.Tools.with_coding_tools()
 
@@ -165,7 +165,7 @@ defmodule AI.Completion.Output do
     # The toolbox isn't stored in the saved conversation, so we pass the
     # complete toolbox while replaying.
     all_tools =
-      AI.Tools.all_tools()
+      AI.Tools.basic_tools()
       |> AI.Tools.with_rw_tools()
       |> AI.Tools.with_coding_tools()
 
