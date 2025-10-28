@@ -232,6 +232,22 @@ defmodule AI.Tools do
   end
 
   @doc """
+  Returns a `toolbox` that includes all tools (basic, read/write, coding, task, and web tools).
+
+  WARNING: `all_tools/0` includes mutational tools (file edits, shell commands, coding tools).
+  For normal runs, prefer `basic_tools/0` with selective `with_*` merges. Reserve `all_tools/0` for cases requiring full lookup fidelity
+  (e.g., replay, diagnostics).
+  """
+  @spec all_tools() :: toolbox
+  def all_tools() do
+    basic_tools()
+    |> with_rw_tools()
+    |> with_coding_tools()
+    |> with_task_tools()
+    |> with_web_tools()
+  end
+
+  @doc """
   Adds the task management tools to the toolbox. This includes tools that can
   create and manage task lists.
   """
