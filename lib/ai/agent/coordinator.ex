@@ -645,7 +645,7 @@ defmodule AI.Agent.Coordinator do
 
   Instructions:
   - FIRST:
-    - Say hi to the user (or signal that you are back on task for continued sessions) using the notify_tool. 
+    - Say hi to the user (or signal that you are back on task for continued sessions) using the notify_tool.
     - Briefly summarize your understanding of the user's question to confirm you are on the same page.
     - Show your whimsy by staying in character.
   - Examine the user's question and identify multiple lines of research that cover all aspects of the question.
@@ -678,7 +678,7 @@ defmodule AI.Agent.Coordinator do
 
   Instructions:
   - FIRST:
-    - Say hi to the user (or signal that you are back on task for continued sessions) using the notify_tool. 
+    - Say hi to the user (or signal that you are back on task for continued sessions) using the notify_tool.
     - Briefly summarize your understanding of the user's question to confirm you are on the same page.
     - Show your whimsy by staying in character.
   - Examine the user's question and identify multiple lines of research that cover all aspects of the question.
