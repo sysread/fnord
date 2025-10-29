@@ -177,7 +177,7 @@ defmodule AI.Agent.Coordinator do
     UI.feedback(
       :info,
       display_name,
-      "Your biological distinctiveness has already been added to our training data. Resistance was futile."
+      "Your biological distinctiveness has already been added to our training data... it was delicious 👩‍🍳"
     )
 
     state
