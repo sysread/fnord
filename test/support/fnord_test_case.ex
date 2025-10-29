@@ -266,6 +266,7 @@ defmodule Fnord.TestCase do
   """
   def mock_source_file(project, name, content \\ "") do
     path = Path.join(project.source_root, name)
+    File.mkdir_p!(Path.dirname(path))
     File.write!(path, content)
     path
   end
