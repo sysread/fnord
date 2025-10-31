@@ -119,7 +119,7 @@ defmodule AI.Completion.Output do
         log_tool_call_error(state, tool, args_json, reason_str)
 
       msg when is_binary(msg) ->
-        log_tool_call(state, "Tool call failed: #{tool}", msg)
+        log_tool_call(state, tool, msg)
 
       {title, detail} when is_binary(title) and is_binary(detail) ->
         log_tool_call(state, title, Util.truncate(detail, @max_tool_lines))
