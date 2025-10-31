@@ -164,6 +164,16 @@ defmodule AI.Tools do
   @callback spec() :: tool_spec
 
   @doc """
+  Returns a message to be displayed when a tool call fails. May return
+  :default, :ignore, a binary message, or a {label, detail} tuple.
+  """
+  @callback tool_call_failure_message(args :: map, reason :: any) ::
+              :default
+              | :ignore
+              | binary
+              | {binary, binary}
+
+  @doc """
   Calls the tool with the provided arguments and returns the response as an :ok
   tuple.
   """
@@ -466,6 +476,23 @@ defmodule AI.Tools do
 
           nil
       end
+    end
+  end
+
+  @spec on_tool_error(tool_name, parsed_args, any, toolbox | nil) ::
+          :default
+          | :ignore
+          | binary
+          | {binary, binary}
+  def on_tool_error(tool, args, reason, tools \\ nil) do
+    with {:ok, module} <- tool_module(tool, tools) do
+      try do
+        module.tool_call_failure_message(args, reason)
+      rescue
+        _ -> :default
+      end
+    else
+      _ -> :default
     end
   end
 

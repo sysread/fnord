@@ -365,6 +365,9 @@ defmodule Frobs do
           end
 
           @impl AI.Tools
+          def tool_call_failure_message(_args, _reason), do: :default
+
+          @impl AI.Tools
           def async?, do: true
         end
 

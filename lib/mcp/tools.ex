@@ -123,6 +123,9 @@ defmodule MCP.Tools do
       end
 
       @impl true
+      def tool_call_failure_message(_args, _reason), do: :default
+
+      @impl true
       def call(args) do
         timeout = min(Map.get(@spec_data, "timeout_ms", 30_000), 300_000)
         supervisor = MCP.Supervisor.instance_name(@server)

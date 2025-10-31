@@ -25,6 +25,9 @@ defmodule AI.Tools.Troubleshooter do
   end
 
   @impl AI.Tools
+  def tool_call_failure_message(_args, _reason), do: :default
+
+  @impl AI.Tools
   def read_args(args) do
     {:ok, args}
   end

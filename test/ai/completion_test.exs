@@ -259,6 +259,9 @@ defmodule AI.CompletionTest do
 
       @impl AI.Tools
       def ui_note_on_result(_args, _result), do: {"Called test_tool", "test_tool completed"}
+
+      @impl AI.Tools
+      def tool_call_failure_message(_args, _reason), do: :default
     end
 
     defmodule TestToolSync do
@@ -296,6 +299,9 @@ defmodule AI.CompletionTest do
       def ui_note_on_result(_args, _result) do
         {"Called test_tool_sync", "test_tool completed_sync"}
       end
+
+      @impl AI.Tools
+      def tool_call_failure_message(_args, _reason), do: :default
     end
 
     test "Completion.get/1 invokes local tools from toolbox" do

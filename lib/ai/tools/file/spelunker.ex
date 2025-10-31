@@ -43,6 +43,9 @@ defmodule AI.Tools.File.Spelunker do
   end
 
   @impl AI.Tools
+  def tool_call_failure_message(_args, _reason), do: :default
+
+  @impl AI.Tools
   def read_args(args) do
     with {:ok, symbol} <- read_symbol(args),
          {:ok, start_file} <- read_start_file(args),

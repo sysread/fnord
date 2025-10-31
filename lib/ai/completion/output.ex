@@ -97,14 +97,36 @@ defmodule AI.Completion.Output do
   end
 
   def on_event(state, :tool_call_error, {tool, args_json, {:error, reason}}) do
-    reason =
-      if is_binary(reason) do
-        reason
-      else
-        inspect(reason, pretty: true)
+    # Decode the arguments JSON, falling back to raw JSON on failure
+    args =
+      case Jason.decode(args_json) do
+        {:ok, decoded} -> decoded
+        _ -> args_json
       end
 
-    log_tool_call_error(state, tool, args_json, reason)
+    case AI.Tools.on_tool_error(tool, args, reason, state.toolbox) do
+      :ignore ->
+        state
+
+      :default ->
+        reason_str =
+          if is_binary(reason) do
+            reason
+          else
+            inspect(reason, pretty: true)
+          end
+
+        log_tool_call_error(state, tool, args_json, reason_str)
+
+      msg when is_binary(msg) ->
+        log_tool_call(state, "Tool call failed: #{tool}", msg)
+
+      {title, detail} when is_binary(title) and is_binary(detail) ->
+        log_tool_call(state, title, Util.truncate(detail, @max_tool_lines))
+
+      other ->
+        log_tool_call_error(state, tool, args_json, inspect(other, pretty: true))
+    end
   end
 
   def on_event(_state, _, _), do: :ok

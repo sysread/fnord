@@ -59,6 +59,9 @@ defmodule AI.Tools.Shell do
   end
 
   @impl AI.Tools
+  def tool_call_failure_message(_args, _error_message), do: :default
+
+  @impl AI.Tools
   def spec do
     {os_family, os_name} = :os.type()
 

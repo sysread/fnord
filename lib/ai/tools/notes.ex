@@ -45,6 +45,9 @@ defmodule AI.Tools.Notes do
   end
 
   @impl AI.Tools
+  def tool_call_failure_message(_args, _reason), do: :default
+
+  @impl AI.Tools
   def call(%{"question" => question}) do
     {:ok, Services.Notes.ask(question)}
   end

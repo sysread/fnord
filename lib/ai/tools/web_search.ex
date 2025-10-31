@@ -23,6 +23,9 @@ defmodule AI.Tools.WebSearch do
   end
 
   @impl AI.Tools
+  def tool_call_failure_message(_args, _reason), do: :default
+
+  @impl AI.Tools
   def read_args(args) do
     with {:ok, query} <- AI.Tools.get_arg(args, "query") do
       {:ok, %{"query" => query}}

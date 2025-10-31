@@ -28,6 +28,11 @@ defmodule AI.Tools.TaskValidation do
   end
 
   @impl AI.Tools
+  def tool_call_failure_message(_args, error) do
+    {"Tool call failed", inspect(error)}
+  end
+
+  @impl AI.Tools
   def spec do
     %{
       type: "function",

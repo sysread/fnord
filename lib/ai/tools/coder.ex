@@ -30,6 +30,9 @@ defmodule AI.Tools.Coder do
   end
 
   @impl AI.Tools
+  def tool_call_failure_message(_args, _reason), do: :default
+
+  @impl AI.Tools
   def spec do
     %{
       type: "function",
