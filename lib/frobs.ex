@@ -306,6 +306,16 @@ defmodule Frobs do
     tool_name = sanitize_module_name(name)
     mod_name = Module.concat([AI.Tools.Frob.Dynamic, tool_name])
 
+    spec =
+      spec
+      |> Map.update!(:description, fn desc ->
+        """
+        #{desc}
+
+        Note: This tool is a user-developed 'frob' using local tooling.
+        """
+      end)
+
     unless Code.ensure_loaded?(mod_name) do
       quoted =
         quote do

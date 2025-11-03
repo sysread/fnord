@@ -43,11 +43,17 @@ defmodule MCP.Tools do
     # Ensure the parameters have a required field (even if empty)
     parameters = Map.put_new(input_schema, "required", [])
 
+    desc = """
+    #{Map.get(tool_spec, "description", "")}
+
+    Note: This tool is provided by the MCP server, "#{server}".
+    """
+
     %{
       type: "function",
       function: %{
         name: "#{server}_#{tool_spec["name"]}",
-        description: Map.get(tool_spec, "description", ""),
+        description: String.trim(desc),
         parameters: parameters
       }
     }

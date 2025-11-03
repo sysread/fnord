@@ -24,7 +24,13 @@ defmodule MCP.ToolsTest do
       type: "function",
       function: %{
         name: "srv_foo",
-        description: "desc",
+        description:
+          """
+          desc
+
+          Note: This tool is provided by the MCP server, "srv".
+          """
+          |> String.trim(),
         parameters: %{"a" => "b", "required" => []}
       }
     }
