@@ -104,20 +104,24 @@ defmodule AI.Agent do
   Intended to be called by implementors of `AI.Agent` when they need to
   generate completions as part of their response processing.
   """
-  @spec get_completion(t, keyword) :: {:ok, AI.Completion.t()} | {:error, any}
+  @spec get_completion(t, keyword) :: {:ok, AI.Responses.t()} | {:error, any}
   def get_completion(agent, args) do
     args
     |> Keyword.put(:name, agent.name)
-    |> AI.Completion.get()
+    |> AI.Responses.get()
   end
 
   @doc """
   Delegate to `AI.Completion.tools_used/1` to extract the tools used from a
   completion.
   """
-  @spec tools_used(AI.Completion.t()) :: %{binary => non_neg_integer()}
-  def tools_used(completion) do
+  @spec tools_used(AI.Completion.t() | AI.Responses.t()) :: %{binary => non_neg_integer()}
+  def tools_used(%AI.Completion{} = completion) do
     AI.Completion.tools_used(completion)
+  end
+
+  def tools_used(%AI.Responses{} = responses) do
+    AI.Responses.tools_used(responses)
   end
 
   # ----------------------------------------------------------------------------

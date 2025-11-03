@@ -9,7 +9,7 @@ defmodule AI.Accumulator do
   across multiple chunks based on the `context` (max context window tokens)
   parameter supplied by the `model` parameter.
 
-  Note that while this makes use of the `AI.Completion` module, it does NOT
+  Note that while this makes use of the `AI.Responses` module, it does NOT
   have the same interface and cannot be used for long-running conversations, as
   it does not accept a list of messages as its input.
   """
@@ -80,7 +80,7 @@ defmodule AI.Accumulator do
   -----
   """
 
-  @type success :: {:ok, AI.Completion.t()}
+  @type success :: {:ok, AI.Responses.t()}
   @type error :: {:error, binary}
   @type response :: success | error
 
@@ -151,7 +151,7 @@ defmodule AI.Accumulator do
         AI.Util.user_msg(user_prompt)
       ])
 
-    AI.Completion.get(args)
+    AI.Responses.get(args)
   end
 
   defp reduce(%{splitter: %{done: false}} = acc) do
@@ -217,7 +217,7 @@ defmodule AI.Accumulator do
 
     # Call AI.Completion.get and handle responses centrally
     args
-    |> AI.Completion.get()
+    |> AI.Responses.get()
     |> case do
       {:ok, %{response: response}} ->
         {:ok, %{acc | splitter: splitter, buffer: response}}
@@ -240,7 +240,7 @@ defmodule AI.Accumulator do
           {:error, "context window length exceeded: unable to back off further to fit the input"}
         end
 
-      {:error, %AI.Completion{response: resp}} when is_binary(resp) ->
+      {:error, %AI.Responses{response: resp}} when is_binary(resp) ->
         {:error, resp}
 
       {:error, reason} ->

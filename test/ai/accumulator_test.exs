@@ -8,11 +8,11 @@ defmodule AI.Accumulator.Test do
 
   setup do
     :meck.new(AI.Splitter, [:no_link, :non_strict, :passthrough])
-    :meck.new(AI.Completion, [:no_link, :non_strict, :passthrough])
+    :meck.new(AI.Responses, [:no_link, :non_strict, :passthrough])
 
     on_exit(fn ->
       :meck.unload(AI.Splitter)
-      :meck.unload(AI.Completion)
+      :meck.unload(AI.Responses)
     end)
   end
 
@@ -38,22 +38,22 @@ defmodule AI.Accumulator.Test do
     # Mock Completion.get/1 to return two partials and final
     Process.put(:call_count, 0)
 
-    :meck.expect(AI.Completion, :get, fn _args ->
+    :meck.expect(AI.Responses, :get, fn _args ->
       n = Process.get(:call_count)
       Process.put(:call_count, n + 1)
 
       case n do
-        0 -> {:ok, %AI.Completion{response: "resp1"}}
-        1 -> {:ok, %AI.Completion{response: "resp2"}}
-        _ -> {:ok, %AI.Completion{response: "FINAL"}}
+        0 -> {:ok, %AI.Responses{response: "resp1"}}
+        1 -> {:ok, %AI.Responses{response: "resp2"}}
+        _ -> {:ok, %AI.Responses{response: "FINAL"}}
       end
     end)
 
     # Execute and assert
     opts = [model: model, prompt: "PROMPT", input: "IGNORED"]
-    assert {:ok, %AI.Completion{response: "FINAL"}} = AI.Accumulator.get_response(opts)
+    assert {:ok, %AI.Responses{response: "FINAL"}} = AI.Accumulator.get_response(opts)
     assert :meck.num_calls(AI.Splitter, :next_chunk, :_) == 2
-    assert :meck.num_calls(AI.Completion, :get, :_) == 3
+    assert :meck.num_calls(AI.Responses, :get, :_) == 3
   end
 
   test "backs off on context_length_exceeded then succeeds" do
@@ -67,7 +67,7 @@ defmodule AI.Accumulator.Test do
     # Mock Completion.get/1 with backoff
     Process.put(:call_count, 0)
 
-    :meck.expect(AI.Completion, :get, fn _args ->
+    :meck.expect(AI.Responses, :get, fn _args ->
       case Process.get(:call_count) do
         0 ->
           Process.put(:call_count, 1)
@@ -75,17 +75,17 @@ defmodule AI.Accumulator.Test do
 
         1 ->
           Process.put(:call_count, 2)
-          {:ok, %AI.Completion{response: "buf"}}
+          {:ok, %AI.Responses{response: "buf"}}
 
         _ ->
-          {:ok, %AI.Completion{response: "DONE"}}
+          {:ok, %AI.Responses{response: "DONE"}}
       end
     end)
 
     # Execute and assert backoff path
     opts = [model: model, prompt: "P", input: "X"]
-    assert {:ok, %AI.Completion{response: "DONE"}} = AI.Accumulator.get_response(opts)
-    assert :meck.num_calls(AI.Completion, :get, :_) == 3
+    assert {:ok, %AI.Responses{response: "DONE"}} = AI.Accumulator.get_response(opts)
+    assert :meck.num_calls(AI.Responses, :get, :_) == 3
   end
 
   test "backoff eventually fails when below threshold" do
@@ -97,12 +97,12 @@ defmodule AI.Accumulator.Test do
     :meck.expect(AI.Splitter, :new, fn _input, _model -> splitter0 end)
     :meck.expect(AI.Splitter, :next_chunk, fn _sp, _user, _max -> {"chunk", splitter1} end)
     # Always return context length exceeded
-    :meck.expect(AI.Completion, :get, fn _args -> {:error, :context_length_exceeded, 100} end)
+    :meck.expect(AI.Responses, :get, fn _args -> {:error, :context_length_exceeded, 100} end)
 
     opts = [model: model, prompt: "P", input: "X"]
     assert {:error, msg} = AI.Accumulator.get_response(opts)
     assert msg =~ "unable to back off further"
-    assert :meck.num_calls(AI.Completion, :get, :_) >= 3
+    assert :meck.num_calls(AI.Responses, :get, :_) >= 3
   end
 
   test "line_numbers: true prefixes each line before chunking" do
@@ -117,10 +117,10 @@ defmodule AI.Accumulator.Test do
     end)
 
     # Completion.get returns a dummy response
-    :meck.expect(AI.Completion, :get, fn _args -> {:ok, %AI.Completion{response: "resp"}} end)
+    :meck.expect(AI.Responses, :get, fn _args -> {:ok, %AI.Responses{response: "resp"}} end)
 
     opts = [model: model, prompt: "P", input: raw_input, line_numbers: true]
-    assert {:ok, %AI.Completion{response: _}} = AI.Accumulator.get_response(opts)
+    assert {:ok, %AI.Responses{response: _}} = AI.Accumulator.get_response(opts)
     assert_receive {:transformed, numbered}
     assert numbered =~ "1|apple"
     assert numbered =~ "2|banana"

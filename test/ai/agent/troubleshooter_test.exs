@@ -4,15 +4,15 @@ defmodule AI.Agent.TroubleshooterTest do
   alias AI.Agent.Troubleshooter
 
   setup do
-    :meck.new(AI.Completion, [:no_link, :passthrough, :non_strict])
-    on_exit(fn -> :meck.unload(AI.Completion) end)
+    :meck.new(AI.Responses, [:no_link, :passthrough, :non_strict])
+    on_exit(fn -> :meck.unload(AI.Responses) end)
     :ok
   end
 
   describe "get_response/1" do
     test "implements AI.Agent behavior correctly" do
       # Mock AI.Completion.get to prevent network calls
-      :meck.expect(AI.Completion, :get, fn _opts ->
+      :meck.expect(AI.Responses, :get, fn _opts ->
         {:error, %{response: "Mocked error response"}}
       end)
 
@@ -26,7 +26,7 @@ defmodule AI.Agent.TroubleshooterTest do
 
     test "accepts prompt parameter correctly" do
       # Mock AI.Completion.get to prevent network calls
-      :meck.expect(AI.Completion, :get, fn _opts ->
+      :meck.expect(AI.Responses, :get, fn _opts ->
         {:ok, %{response: "Mocked successful response"}}
       end)
 
