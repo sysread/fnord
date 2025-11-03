@@ -56,3 +56,6 @@ CLAUDE.local.md
 # excoveralls
 cover/
 *.coverdata
+
+# fnord-generated planning docs
+.fnord/*
