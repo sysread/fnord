@@ -1368,16 +1368,24 @@ defmodule AI.Agent.Coordinator do
         AI.Util.user_msg(state.question)
       ]
     )
-    |> then(fn {:ok, %{response: msg} = response} ->
-      UI.say(msg)
+    |> then(fn
+      {:ok, %{response: msg} = response} ->
+        UI.say(msg)
 
-      response
-      |> AI.Agent.tools_used()
-      |> Enum.each(fn {tool, count} ->
-        UI.report_step(tool, "called #{count} time(s)")
-      end)
+        response
+        |> AI.Agent.tools_used()
+        |> Enum.each(fn {tool, count} ->
+          UI.report_step(tool, "called #{count} time(s)")
+        end)
 
-      log_usage(response)
+        log_usage(response)
+
+      {:error, %{response: err_msg}} ->
+        # Surface the error message without crashing test mode
+        UI.error("Test completion failed", err_msg)
+
+      {:error, reason} ->
+        UI.error("Test completion failed", inspect(reason, pretty: true))
     end)
 
     {:error, :testing}

@@ -100,7 +100,7 @@ defmodule AI.Agent do
   end
 
   @doc """
-  Delegate to `AI.Completion.get/1` with the agent's name included in the args.
+  Delegate to `AI.Responses.get/1` with the agent's name included in the args.
   Intended to be called by implementors of `AI.Agent` when they need to
   generate completions as part of their response processing.
   """
@@ -112,7 +112,7 @@ defmodule AI.Agent do
   end
 
   @doc """
-  Delegate to `AI.Completion.tools_used/1` to extract the tools used from a
+  Delegate to `AI.Responses.tools_used/1` to extract the tools used from a
   completion.
   """
   @spec tools_used(AI.Completion.t() | AI.Responses.t()) :: %{binary => non_neg_integer()}

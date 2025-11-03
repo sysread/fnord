@@ -64,7 +64,7 @@ defmodule AI.Tools.WebSearch do
   end
 
   defp perform_search(query) do
-    AI.Completion.get(
+    AI.Responses.get(
       model: AI.Model.web_search(),
       messages: [
         AI.Util.system_msg("""

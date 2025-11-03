@@ -4,8 +4,8 @@ defmodule AI.NotesTest do
   alias AI.Notes
 
   setup do
-    :meck.new(AI.Completion, [:no_link, :passthrough, :non_strict])
-    on_exit(fn -> :meck.unload(AI.Completion) end)
+    :meck.new(AI.Responses, [:no_link, :passthrough, :non_strict])
+    on_exit(fn -> :meck.unload(AI.Responses) end)
 
     proj = mock_project("test_project")
     File.mkdir_p!(proj.store_path)
@@ -15,8 +15,8 @@ defmodule AI.NotesTest do
 
   describe "format_external_docs/0" do
     test "returns empty string when no external docs exist" do
-      # Mock AI.Completion.get to prevent network calls
-      :meck.expect(AI.Completion, :get, fn _opts ->
+      # Mock AI.Responses.get to prevent network calls
+      :meck.expect(AI.Responses, :get, fn _opts ->
         {:ok, %{response: "Mocked response"}}
       end)
 
@@ -44,7 +44,7 @@ defmodule AI.NotesTest do
 
     test "tags bullet facts with current branch" do
       # Arrange: mock completion to return bullet facts
-      :meck.expect(AI.Completion, :get, fn _opts ->
+      :meck.expect(AI.Responses, :get, fn _opts ->
         {:ok,
          %{
            response: """
@@ -74,7 +74,7 @@ defmodule AI.NotesTest do
 
     test "notify_tool memos remain untagged" do
       # Arrange: make completion return N/A so only memos are added
-      :meck.expect(AI.Completion, :get, fn _opts ->
+      :meck.expect(AI.Responses, :get, fn _opts ->
         {:ok, %{response: "N/A"}}
       end)
 

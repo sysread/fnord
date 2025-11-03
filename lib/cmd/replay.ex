@@ -29,7 +29,7 @@ defmodule Cmd.Replay do
     with {:ok, conversation_id} <- Map.fetch(opts, :conversation),
          {:ok, conversation} <- get_conversation(conversation_id),
          {:ok, completion} <- get_completion(conversation) do
-      AI.Completion.Output.replay_conversation_as_output(completion)
+      AI.Responses.Output.replay_conversation_as_output(completion)
     end
   end
 
@@ -44,7 +44,7 @@ defmodule Cmd.Replay do
   end
 
   defp get_completion(conversation) do
-    AI.Completion.new_from_conversation(conversation,
+    AI.Responses.new_from_conversation(conversation,
       model: "n/a",
       log_msgs: true,
       log_tool_calls: true,

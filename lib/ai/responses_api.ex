@@ -28,28 +28,47 @@ defmodule AI.ResponsesAPI do
 
     api_key = get_api_key!()
 
-    response_format =
-      if is_nil(response_format) do
-        %{type: "text"}
-      else
-        response_format
-      end
-
+    # Respect response_format when provided; default to text format
     headers = [
       {"Authorization", "Bearer #{api_key}"},
       {"Content-Type", "application/json"}
     ]
 
+    base = %{
+      model: model.model,
+      input: msgs
+    }
+
     payload =
-      %{
-        model: model.model,
-        messages: msgs,
-        response_format: response_format
-      }
+      base
+      |> Map.merge(
+        case response_format do
+          nil -> %{text: %{}}
+          %{:type => "text"} -> %{text: %{}}
+          %{"type" => "text"} -> %{text: %{}}
+          rf when is_map(rf) ->
+            fmt =
+            cond do
+                Map.has_key?(rf, :json_schema) or Map.has_key?(rf, "json_schema") ->
+                  fmt_inner = Map.get(rf, :json_schema) || Map.get(rf, "json_schema")
+                  name = Map.get(fmt_inner, :name) || Map.get(fmt_inner, "name")
+                  schema = Map.get(fmt_inner, :schema) || Map.get(fmt_inner, "schema")
+                  description = Map.get(fmt_inner, :description) || Map.get(fmt_inner, "description")
+                  base_fmt = %{type: "json_schema", name: name, schema: schema}
+                  if description, do: Map.put(base_fmt, :description, description), else: base_fmt
+                Map.has_key?(rf, :name) or Map.has_key?(rf, "name") ->
+                  rf
+                true ->
+                  rf
+              end
+
+            %{text: %{format: fmt}}
+        end
+      )
       |> Map.merge(
         case tools do
           nil -> %{}
-          t -> %{tools: t}
+          t -> %{tools: normalize_tools(t)}
         end
       )
       |> Map.merge(
@@ -75,7 +94,7 @@ defmodule AI.ResponsesAPI do
             |> case do
               {:error, %{message: msg}} = err ->
                 UI.error("HTTP error while calling OpenAI Responses API: #{msg}")
-                IO.inspect(payload[:messages] |> Enum.slice(-1, 1), label: "Last message sent")
+                IO.inspect(payload[:input] |> Enum.slice(-1, 1), label: "Last message sent")
                 err
 
               err ->
@@ -178,11 +197,54 @@ defmodule AI.ResponsesAPI do
   defp extract_output_text(output) do
     output
     |> Enum.find_value(fn
-      %{"type" => "output_text", "text" => t} when is_binary(t) -> t
-      %{"type" => "message", "content" => t} when is_binary(t) -> t
-      %{"type" => "message", "content" => [%{"type" => "text", "text" => t} | _]} -> t
-      _ -> nil
+      %{"type" => "output_text", "text" => t} when is_binary(t) ->
+        t
+
+      %{"type" => "message", "content" => t} when is_binary(t) ->
+        t
+
+      %{"type" => "message", "content" => [%{"type" => "text", "text" => t} | _]} ->
+        t
+
+      %{"content" => content} when is_list(content) ->
+        Enum.find_value(content, fn
+          %{"text" => t} when is_binary(t) -> t
+          _ -> nil
+        end)
+
+      %{"text" => t} when is_binary(t) ->
+        t
+
+      _ ->
+        nil
     end)
+  end
+
+  # Normalize tools helper functions
+  @spec normalize_tools([map()]) :: [map()]
+  defp normalize_tools(tools) when is_list(tools) do
+    Enum.map(tools, &normalize_tool/1)
+  end
+
+  @spec normalize_tool(map()) :: map()
+  defp normalize_tool(tool) when is_map(tool) do
+    normalized =
+      tool
+      |> Enum.map(fn
+        {k, v} when is_atom(k) -> {to_string(k), v}
+        {k, v} -> {k, v}
+      end)
+      |> Map.new()
+
+    if Map.has_key?(normalized, "name") do
+      normalized
+    else
+      case normalized["function"] do
+        %{"name" => fname} -> Map.put(normalized, "name", fname)
+        %{name: fname} -> Map.put(normalized, "name", fname)
+        _ -> normalized
+      end
+    end
   end
 
   defp get_error(:closed), do: {:error, "Connection closed"}

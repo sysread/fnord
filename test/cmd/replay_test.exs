@@ -10,13 +10,13 @@ defmodule Cmd.ReplayTest do
 
     test "replays an existing conversation (happy path)" do
       :meck.new(Store.Project.Conversation, [:no_link, :passthrough, :non_strict])
-      :meck.new(AI.Completion, [:no_link, :passthrough, :non_strict])
-      :meck.new(AI.Completion.Output, [:no_link, :passthrough, :non_strict])
+      :meck.new(AI.Responses, [:no_link, :passthrough, :non_strict])
+      :meck.new(AI.Responses.Output, [:no_link, :passthrough, :non_strict])
 
       on_exit(fn ->
         :meck.unload(Store.Project.Conversation)
-        :meck.unload(AI.Completion)
-        :meck.unload(AI.Completion.Output)
+        :meck.unload(AI.Responses)
+        :meck.unload(AI.Responses.Output)
       end)
 
       # Setup: conversation exists
@@ -24,14 +24,14 @@ defmodule Cmd.ReplayTest do
 
       # Stub Completion creation
       fake_conv = Store.Project.Conversation.new("abc-123")
-      fake_completion = %AI.Completion{messages: [AI.Util.user_msg("hi")], response: nil}
+      fake_completion = %AI.Responses{messages: [AI.Util.user_msg("hi")], response: nil}
 
-      :meck.expect(AI.Completion, :new_from_conversation, fn ^fake_conv, opts
-                                                             when is_list(opts) ->
+      :meck.expect(AI.Responses, :new_from_conversation, fn ^fake_conv, opts
+                                                            when is_list(opts) ->
         {:ok, fake_completion}
       end)
 
-      :meck.expect(AI.Completion.Output, :replay_conversation_as_output, fn completion ->
+      :meck.expect(AI.Responses.Output, :replay_conversation_as_output, fn completion ->
         assert completion == fake_completion
         :ok
       end)
@@ -56,17 +56,17 @@ defmodule Cmd.ReplayTest do
 
     test "propagates error when completion creation fails" do
       :meck.new(Store.Project.Conversation, [:no_link, :passthrough, :non_strict])
-      :meck.new(AI.Completion, [:no_link, :passthrough, :non_strict])
+      :meck.new(AI.Responses, [:no_link, :passthrough, :non_strict])
 
       on_exit(fn ->
         :meck.unload(Store.Project.Conversation)
-        :meck.unload(AI.Completion)
+        :meck.unload(AI.Responses)
       end)
 
       :meck.expect(Store.Project.Conversation, :exists?, fn _conv -> true end)
 
       conv = Store.Project.Conversation.new("abc-err")
-      :meck.expect(AI.Completion, :new_from_conversation, fn ^conv, _opts -> {:error, :boom} end)
+      :meck.expect(AI.Responses, :new_from_conversation, fn ^conv, _opts -> {:error, :boom} end)
 
       result = Cmd.Replay.run(%{conversation: "abc-err"}, [], [])
       assert result == {:error, :boom}

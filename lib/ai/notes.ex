@@ -611,7 +611,7 @@ defmodule AI.Notes do
   @spec complete(binary, mini_agent) :: {:ok, binary} | {:error, any}
   defp complete(input, agent) do
     run_ai(fn ->
-      AI.Completion.get(
+      AI.Responses.get(
         log_messages: false,
         model: agent.model,
         messages: [
