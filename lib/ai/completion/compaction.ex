@@ -13,7 +13,7 @@ defmodule AI.Completion.Compaction do
   """
 
   @compact_keep_rounds 2
-  @compact_target_pct 0.6
+  @compact_target_pct 0.8
 
   # True when the message is an assistant completion (binary content) and not an
   # internal `<think>` message.

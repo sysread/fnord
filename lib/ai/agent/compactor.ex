@@ -4,7 +4,7 @@ defmodule AI.Agent.Compactor do
   @model AI.Model.large_context(:balanced)
   @max_attempts 3
   @min_length 512
-  @target_ratio 0.65
+  @target_ratio 0.8
 
   # Minimum acceptable tokens for a compacted summary; prevent trivial context wipes
   # Note: set to >0 in production if you want to reject trivial summaries; tests expect tiny outputs.
@@ -18,6 +18,8 @@ defmodule AI.Agent.Compactor do
   Read through the messages and reason through a new, more compact narrative that preserves the key points and context.
   Consider the conversation from the user's perspective: what expectations would they have for the assistant's memory and understanding of the conversation?
 
+  Preserve decision points, assumptions, trade-offs, mistakes and corrections, and include rationales leading to any state changes.
+
   Use the following output template:
 
   # Original User Prompt
@@ -29,7 +31,7 @@ defmodule AI.Agent.Compactor do
   # Conversation Timeline
   [
     Present a timeline of the conversation, listing each message with its role and a brief summary of its content.
-    Messages at the end of the conversation should include WAY more detail than those at the beginning.
+    Messages at the end of the conversation should include WAY more detail than those at the beginning, reflecting the decision cascade and evolving context
     Don't waste space with formatting or JSON; just use plain text.
   ]
 

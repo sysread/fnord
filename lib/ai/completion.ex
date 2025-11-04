@@ -61,7 +61,7 @@ defmodule AI.Completion do
           | {:error, :context_length_exceeded, non_neg_integer}
 
   @compact_keep_rounds 2
-  @compact_target_pct 0.6
+  @compact_target_pct 0.8
 
   @spec get(Keyword.t()) :: response
   def get(opts) do
