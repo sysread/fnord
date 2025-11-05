@@ -64,4 +64,13 @@ defmodule AI.Agent.NomenclaterTest do
                used: []
              })
   end
+
+  test "parses epithet-rich name with apostrophe and hyphen" do
+    response = "{\"names\":[\"K'tah the Yak-Shaver\"]}"
+    :meck.expect(AI.Agent, :get_completion, fn _, _ -> {:ok, %{response: response}} end)
+    agent = AI.Agent.new(Nomenclater, named?: false)
+
+    assert {:ok, ["K'tah the Yak-Shaver"]} =
+             Nomenclater.get_response(%{agent: agent, want: 1, used: []})
+  end
 end

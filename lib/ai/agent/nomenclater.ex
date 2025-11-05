@@ -32,7 +32,8 @@ defmodule AI.Agent.Nomenclater do
   Your only task is to provide a first name for other AI agents so that their actions can be clearly distinguished in the logs.
   Select a first name that is unique and not already used by another agent.
   Selecting fun, whimsical names is encouraged, so long as they are not vulgar or offensive.
-  Each name should EITHER be <first_name last_name> OR <first_name the "adjective">.
+  Each name should be one of: <first_name last_name>; <first_name the [epithet]>; or <first_name of the [phrase]>.
+  Epithets should be related to the theme or an application of the jargon file (eg "K'tah the Yak Shaver", "Alric of the Seven Bogons", "Xygon the Hacksaw").
   Try not to select names that are too similar to existing names, as that can cause confusion.
   Your audience is geeky, so sci-fi- and cartoon-sounding names are welcome, but obviously not required.
   Resist the urge to give *everyone* a name starting with Z. Maybe just a couple per batch :)
@@ -59,9 +60,9 @@ defmodule AI.Agent.Nomenclater do
             type: "array",
             items: %{
               type: "string",
-              pattern: "^\\w+(?:\\s+\\w+)*$",
+              pattern: "^[\\p{L}\\p{N}][\\p{L}\\p{N}\\s'’\\-.,!/:()]*$",
               minLength: 1,
-              maxLength: 50,
+              maxLength: 64,
               description:
                 "A first name for an AI agent, consisting of word characters and spaces only"
             },
