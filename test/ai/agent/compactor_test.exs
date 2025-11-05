@@ -41,7 +41,8 @@ defmodule AI.Agent.CompactorTest do
 
   test "successful compaction when transcript non-empty produces one system summary and single API call if sufficient" do
     msgs = [
-      %{role: "user", content: String.duplicate("u", 10_000)}
+      %{role: "user", content: String.duplicate("u", 1000)},
+      %{role: "assistant", content: String.duplicate("a", 9000)}
     ]
 
     # Mock the completion to produce a very small summary, ensuring sufficient savings
@@ -79,7 +80,9 @@ defmodule AI.Agent.CompactorTest do
 
   test "returns error when compaction consistently produces larger summaries after all retries" do
     # Large enough transcript (> 512 bytes) to trigger retries
-    msgs = [%{role: "user", content: String.duplicate("u", 1000)}]
+    msgs = [
+      %{role: "assistant", content: String.duplicate("a", 1000)}
+    ]
 
     # Mock returns a bloated summary every time (larger than original)
     :meck.expect(AI.Accumulator, :get_response, fn _opts ->
@@ -91,5 +94,19 @@ defmodule AI.Agent.CompactorTest do
 
     # 1 initial + 3 retries = 4 total calls
     assert :meck.num_calls(AI.Accumulator, :get_response, :_) == 4
+  end
+
+  test "user-only transcripts are excluded from compaction (empty after filtering)" do
+    msgs = [
+      %{role: "user", content: String.duplicate("u", 5000)}
+    ]
+
+    :meck.expect(AI.Accumulator, :get_response, fn _opts ->
+      flunk("should not call model when transcript is user-only")
+    end)
+
+    {:error, :empty_after_filtering} = run_compactor(msgs)
+
+    assert :meck.num_calls(AI.Accumulator, :get_response, :_) == 0
   end
 end

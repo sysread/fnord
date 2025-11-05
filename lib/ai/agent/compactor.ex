@@ -146,6 +146,7 @@ defmodule AI.Agent.Compactor do
   defp transcript([], acc), do: Enum.reverse(acc)
   defp transcript([%{role: "system"} | rest], acc), do: transcript(rest, acc)
   defp transcript([%{role: "developer"} | rest], acc), do: transcript(rest, acc)
+  defp transcript([%{role: "user"} | rest], acc), do: transcript(rest, acc)
   defp transcript([%{role: "tool", name: "notify_tool"} | rest], acc), do: transcript(rest, acc)
 
   defp transcript([%{role: "tool", name: name, content: content} | rest], acc) do

@@ -178,19 +178,23 @@ defmodule AI.Completion.Compaction do
             false
         end)
 
+      older_user = Enum.filter(older, &(&1.role == "user"))
+      older_non_user = Enum.reject(older, &(&1.role == "user"))
+
       UI.info(
         "Compacting conversation",
-        "Summarizing older history; retaining last #{keep_rounds} rounds."
+        "Summarizing older assistant/tool history; retaining last #{keep_rounds} rounds and all user messages."
       )
 
       AI.Agent.Compactor
       |> AI.Agent.new(named?: false)
-      |> AI.Agent.get_response(%{messages: older})
+      |> AI.Agent.get_response(%{messages: older_non_user})
       |> case do
         {:ok, [summary_msg]} ->
           assembled =
             []
             |> Kernel.++(if name_msg, do: [name_msg], else: [])
+            |> Kernel.++(older_user)
             |> Kernel.++([summary_msg])
             |> Kernel.++(recent)
 
@@ -209,7 +213,7 @@ defmodule AI.Completion.Compaction do
 
           UI.info(
             "Conversation compacted",
-            "Kept last #{keep_rounds} assistant rounds; est tokens: #{new_usage}/#{state.model.context}; target=#{target_pct}"
+            "Kept all user messages and last #{keep_rounds} assistant rounds; est tokens: #{new_usage}/#{state.model.context}; target=#{target_pct}"
           )
 
           %{state | messages: deduped, usage: new_usage}
@@ -236,19 +240,43 @@ defmodule AI.Completion.Compaction do
 
     UI.info("Compacting conversation", "Context: #{used_pct}% (#{used}/#{context} tokens)")
 
+    name_msg =
+      messages
+      |> Enum.find(fn
+        %{role: "system", content: content} when is_binary(content) ->
+          content =~ ~r/Your name is .+\./
+
+        _ ->
+          false
+      end)
+
+    user_msgs = Enum.filter(messages, &(&1.role == "user"))
+    non_user_msgs = Enum.reject(messages, &(&1.role == "user"))
+
     AI.Agent.Compactor
     |> AI.Agent.new(named?: false)
-    |> AI.Agent.get_response(%{messages: messages})
+    |> AI.Agent.get_response(%{messages: non_user_msgs})
     |> case do
       {:ok, [new_msg]} ->
-        new_tokens = AI.PretendTokenizer.guesstimate_tokens(new_msg.content)
+        assembled =
+          []
+          |> Kernel.++(if name_msg, do: [name_msg], else: [])
+          |> Kernel.++(user_msgs)
+          |> Kernel.++([new_msg])
+
+        new_tokens =
+          assembled
+          |> Enum.map(&Map.get(&1, :content))
+          |> Enum.filter(&is_binary/1)
+          |> Enum.map(&AI.PretendTokenizer.guesstimate_tokens/1)
+          |> Enum.sum()
 
         UI.info(
           "Conversation compacted",
-          "Context replaced with summary; est. tokens: #{new_tokens}/#{state.model.context}"
+          "Kept all user messages; assistant/tool context replaced with summary; est. tokens: #{new_tokens}/#{state.model.context}"
         )
 
-        %{state | messages: [new_msg], usage: new_tokens}
+        %{state | messages: assembled, usage: new_tokens}
 
       {:error, reason} ->
         UI.error("Compaction failed", inspect(reason, pretty: true))
