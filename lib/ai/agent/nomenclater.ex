@@ -60,7 +60,7 @@ defmodule AI.Agent.Nomenclater do
             type: "array",
             items: %{
               type: "string",
-              pattern: "^[\\p{L}\\p{N}][\\p{L}\\p{N}\\s'’\\-.,!/:()]*$",
+              pattern: "^[A-Za-z0-9][A-Za-z0-9\\s'’\\-.,!/:()]*$",
               minLength: 1,
               maxLength: 64,
               description:

@@ -73,4 +73,36 @@ defmodule AI.Agent.NomenclaterTest do
     assert {:ok, ["K'tah the Yak-Shaver"]} =
              Nomenclater.get_response(%{agent: agent, want: 1, used: []})
   end
+
+  describe "response_format schema" do
+    setup do
+      :meck.expect(AI.Agent, :get_completion, fn _agent, opts ->
+        # Capture the response_format from opts
+        rf = Keyword.get(opts, :response_format)
+        send(self(), {:captured_response_format, rf})
+        {:ok, %{response: ~s/{"names": ["Alpha"]}/}}
+      end)
+
+      :ok
+    end
+
+    test "uses ECMA-262 compatible ASCII pattern" do
+      agent = AI.Agent.new(Nomenclater, named?: false)
+      used = []
+      # Trigger the call which will send us the captured response_format
+      assert {:ok, ["Alpha"]} = AI.Agent.Nomenclater.get_response(%{agent: agent, want: 1, used: used})
+
+      assert_receive {:captured_response_format, rf}, 1000
+
+      # Dig out pattern
+      pattern = get_in(rf, ["json_schema", "schema", "properties", "names", "items", "pattern"]) ||
+                get_in(rf, [:json_schema, :schema, :properties, :names, :items, :pattern])
+
+      assert is_binary(pattern)
+      assert pattern == "^[A-Za-z0-9][A-Za-z0-9\\s'’\\-.,!/:()]*$"
+      refute String.contains?(pattern, "\\p{L}")
+      refute String.contains?(pattern, "\\p{N}")
+    end
+  end
+
 end
