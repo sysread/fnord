@@ -51,6 +51,7 @@ defmodule AI.ToolsTest do
   end
 
   @tools %{"mock_tool" => MockTool}
+  alias AI.Tools.Spec
   @req_args %{"required_arg" => "blarg"}
   @empty_args %{}
 
@@ -70,8 +71,9 @@ defmodule AI.ToolsTest do
     end
 
     test "succeeds when tool is registered" do
-      spec = MockTool.spec()
-      assert {:ok, ^spec} = AI.Tools.tool_spec("mock_tool", @tools)
+      raw_spec = MockTool.spec()
+      expected = Spec.normalize_tool_spec(raw_spec)
+      assert {:ok, ^expected} = AI.Tools.tool_spec("mock_tool", @tools)
     end
   end
 
@@ -83,8 +85,9 @@ defmodule AI.ToolsTest do
     end
 
     test "succeeds when tool is registered" do
-      spec = MockTool.spec()
-      assert ^spec = AI.Tools.tool_spec!("mock_tool", @tools)
+      raw_spec = MockTool.spec()
+      expected = Spec.normalize_tool_spec(raw_spec)
+      assert ^expected = AI.Tools.tool_spec!("mock_tool", @tools)
     end
   end
 

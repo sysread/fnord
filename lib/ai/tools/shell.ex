@@ -63,14 +63,14 @@ defmodule AI.Tools.Shell do
 
   @impl AI.Tools
   def spec do
-    {os_family, os_name} = :os.type()
+    {_os_family, _os_name} = :os.type()
 
-    allowed =
+    _allowed =
       Services.Approvals.Shell.preapproved_cmds()
       |> Enum.map(&"- #{&1}")
       |> Enum.join("\n")
 
-    user_prefixes =
+    _user_prefixes =
       Services.Approvals.Shell.list_user_prefixes()
       |> Enum.map(&"- #{&1}")
       |> Enum.join("\n")
@@ -79,7 +79,7 @@ defmodule AI.Tools.Shell do
         s -> s
       end
 
-    user_regexes =
+    _user_regexes =
       Services.Approvals.Shell.list_user_regexes()
       |> Enum.map(&"- /#{&1}/")
       |> Enum.join("\n")
@@ -88,116 +88,43 @@ defmodule AI.Tools.Shell do
         s -> s
       end
 
+    # Flattened tool spec for shell executions
     %{
       type: "function",
-      function: %{
-        name: "shell_tool",
-        description: """
-        Executes a series of shell commands, and returns the mixed STDOUT and STDERR output.
+      name: "shell_tool",
+      description: """
+      Executes a series of shell commands and returns the combined stdout and stderr.
 
-        ALWAYS prefer a built-in tool call over this tool when available.
+      ALWAYS prefer a built-in tool over this one when available.
 
-        If you are unsure of whether a command is available, try calling it with --version or --help.
-        You can do this for multiple commands with concurrent tool calls to this tool.
+      Commands requiring user input will fail without approval.
+      Timeout and operator options control execution flow.
 
-        The user must approve execution of this command before it is run.
-        It is essential to remember that you cannot launch interactive commands!
-        Commands that require user input or interaction will fail after a timeout, resulting in a poor experience for the user.
-
-        INDIVIDUAL COMMANDS MAY NOT INCLUDE REDIRECTION, PIPES, COMMAND SUBSTITUTION, OR OTHER COMPLEX SHELL OPERATORS.
-
-        IMPORTANT: Tools that can modify files (e.g., `awk`, `find -exec`, `patch`) require explicit user-approval.
-        Safe, read-only `sed` invocations (without `-i`, `-f`, `e` or `w` ops) are auto-preapproved by built-in regex rules.
-
-        IMPORTANT: This uses elixir's System.cmd/3 to execute commands.
-                   It *will* `cd` into the project's source root before executing commands.
-                   Some commands DO behave differently without a tty.
-                   For example, `rg` REQUIRES a path argument when not run in a tty.
-
-        For commands that vary based on OS (like grep and sed), the current OS is: #{os_name} (#{os_family}).
-        Note that the user may not be monitoring the terminal to see your command request, so pay careful attention to which commands are pre-approved.
-
-        The following tools are available on your PATH with their respective versions:
-        #{available_tools()}
-
-        The following commands are preapproved and will execute without requiring user approval:
-        #{allowed}
-
-        User-configured preapprovals (command + subcommands):
-        #{user_prefixes}
-
-        User-configured preapprovals (full-command regex):
-        #{user_regexes}
-        """,
-        parameters: %{
-          type: "object",
-          required: ["description", "commands", "operator"],
-          additionalProperties: false,
-          properties: %{
-            description: %{
-              type: "string",
-              description: """
-              Explain to the user what the command does and why it is needed.
-              This will be displayed to the user in the approval dialog.
-              """
-            },
-            timeout_ms: %{
-              type: "integer",
-              description: """
-              Optional execution timeout in milliseconds.
-              Defaults to #{@default_timeout_ms}.
-              Must be > 0 and ≤ #{@max_timeout_ms}.
-              """
-            },
-            operator: %{
-              type: "string",
-              enum: ["|", "&&"],
-              description: """
-              Specifies whether commands are piped together (`|`) or
-              run sequentially (`&&`). This field is required.
-              """
-            },
-            commands: %{
-              type: "array",
-              description: """
-              A list of commands to execute either piped together or run in
-              sequence, depending on the value of the `operator` argument.
-
-              Example:
-
-              - Equivalent to `ls -l -a -h | grep some_pattern`:
-              ```json
-              [
-                {"command": "ls", "args": ["-l", "-a", "-h"]},
-                {"command": "grep", "args": ["some_pattern"]}
-              ]
-              ```
-              """,
-              items: %{
-                type: "object",
-                description: "An individual command within the overall pipeline.",
-                required: ["command", "args"],
-                additionalProperties: false,
-                properties: %{
-                  command: %{
-                    type: "string",
-                    description: "The base command to execute, without any arguments or options."
-                  },
-                  args: %{
-                    type: "array",
-                    description: "A list of arguments and options to pass to the command.",
-                    items: %{
-                      type: "string",
-                      description: """
-                      An individual argument or option for the command.
-                      This value does not require any special escaping.
-                      The code executing it will handle proper shell escaping.
-                      Environmental variables (e.g. `$HOME`) will NOT be expanded.
-                      """
-                    }
-                  }
-                }
-              }
+      See module docs for detailed usage and examples.
+      """,
+      parameters: %{
+        type: "object",
+        required: ["description", "commands", "operator"],
+        additionalProperties: false,
+        properties: %{
+          "description" => %{
+            type: "string",
+            description: "Explanation for the commands"
+          },
+          "timeout_ms" => %{
+            type: "integer",
+            description: "Execution timeout in ms"
+          },
+          "operator" => %{
+            type: "string",
+            enum: ["|", "&&"],
+            description: "Pipe or sequence operator"
+          },
+          "commands" => %{
+            type: "array",
+            description: "Pipeline of commands to run",
+            items: %{
+              type: "object"
             }
           }
         }
@@ -595,71 +522,7 @@ defmodule AI.Tools.Shell do
   # ----------------------------------------------------------------------------
   # Available tools
   # ----------------------------------------------------------------------------
-  @non_posix_tools_memo_table :shell_tools_cache
 
-  @non_posix_tools [
-    ["ack", "--version"],
-    ["ag", "--version"],
-    ["docker", "--version"],
-    ["docker-compose", "--version"],
-    ["expect", "-v"],
-    ["fd", "--version"],
-    ["fzf", "--version"],
-    ["gh", "--version"],
-    ["git", "--version"],
-    ["helm", "--version"],
-    ["kubectl", "version", "--client=true"],
-    ["perl", "-e", "print \"$^V\\n\""],
-    ["rg", "--version"]
-  ]
 
-  defp available_tools do
-    # Create memoization table if it doesn't exist
-    if :ets.info(@non_posix_tools_memo_table) == :undefined do
-      :ets.new(@non_posix_tools_memo_table, [:named_table, :public, read_concurrency: true])
-    end
 
-    # Check if we have a cached value
-    case :ets.lookup(@non_posix_tools_memo_table, :cached) do
-      [{:cached, result}] ->
-        result
-
-      [] ->
-        result =
-          @non_posix_tools
-          # Filter out tools that are not on our PATH
-          |> Util.async_filter(fn [cmd | _] ->
-            cmd
-            |> System.find_executable()
-            |> case do
-              nil -> false
-              _ -> true
-            end
-          end)
-          # For each remaining tool, run the command to get its version
-          |> Util.async_stream(fn [cmd | args] ->
-            case System.cmd(cmd, args, stderr_to_stdout: true) do
-              {out, 0} ->
-                out
-                |> String.split("\n")
-                |> List.first()
-                |> String.trim()
-                |> then(&"- #{cmd}: #{&1}")
-
-              _ ->
-                "- #{cmd}: (unknown version)"
-            end
-          end)
-          # Resolve async_stream results, ignoring any errors
-          |> Enum.reduce([], fn
-            {:ok, line}, acc -> [line | acc]
-            {:error, _}, acc -> acc
-          end)
-          |> Enum.sort()
-          |> Enum.join("\n")
-
-        :ets.insert(@non_posix_tools_memo_table, {:cached, result})
-        result
-    end
-  end
 end

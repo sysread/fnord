@@ -48,176 +48,86 @@ defmodule AI.Tools.File.Edit do
   end
 
   @impl AI.Tools
-  def tool_call_failure_message(_args, reason), do: reason
-
-  @impl AI.Tools
   def spec do
     %{
       type: "function",
-      function: %{
-        name: "file_edit_tool",
-        description: """
-        Perform atomic, well-anchored edits to a single file using either exact
-        string matching or AI-interpreted natural language instructions.
+      name: "file_edit_tool",
+      description: """
+      Perform atomic, well-anchored edits to a single file using either exact
+      string matching or AI-interpreted natural language instructions.
 
-        This is the best tool for simple changes that do not require extensive
-        planning, coordination, or span many files.
+      This is the best tool for simple changes that do not require extensive
+      planning, coordination, or span many files.
 
-        **Two editing modes:**
-        1. **Exact String Matching**: Provide old_string/new_string for precise,
-           reliable replacements. Use when you know the exact text to change.
-        2. **Natural Language**: Provide descriptive change instructions for the
-           AI to interpret. Use when you need contextual understanding.
+      **Two editing modes:**
+      1. **Exact String Matching**: Provide old_string/new_string for precise,
+         reliable replacements. Use when you know the exact text to change.
+      2. **Natural Language**: Provide descriptive change instructions for the
+         AI to interpret. Use when you need contextual understanding.
 
-        Use for:
-        - One-off line or block replacements
-        - Clear, unambiguous, file-local changes
-        - Fast, low-risk operations
+      Use for:
+      - One-off line or block replacements
+      - Clear, unambiguous, file-local changes
+      - Fast, low-risk operations
 
-        Supports optional creation of the file when it does not exist by
-        setting `create_if_missing: true`.
+      Supports optional creation of the file if it does not exist by
+      setting `create_if_missing: true`.
 
-        **Examples:**
+      **Examples:**
 
-        File editing with exact matching:
-        ```json
-        {
-          "file": "src/app.js",
-          "changes": [{
-            "old_string": "const API_URL = 'localhost'",
-            "new_string": "const API_URL = 'api.example.com'"
-          }]
-        }
-        ```
+      File editing with exact matching:
+      ```json
+      {"file": "src/app.js", "changes": [{"old_string": "...", "new_string": "..."}]}
+      ```
 
-        File creation (simplified UX):
-        ```json
-        {
-          "file": "config/new-config.json",
-          "create_if_missing": true,
-          "changes": [{
-            "new_string": "{\"version\": \"1.0\", \"debug\": true}"
-          }]
-        }
-        ```
+      File creation (simplified UX):
+      ```json
+      {"file": "config/new.json", "create_if_missing": true, "changes": [{"new_string": "..."}]}
+      ```
 
-        Natural language instruction:
-        ```json
-        {
-          "file": "components/Header.tsx",
-          "changes": [{
-            "instructions": "Add a new prop called 'showLogo' to the Header component and use it to conditionally render the logo"
-          }]
-        }
-        ```
+      Natural language instruction:
+      ```json
+      {"file": "Header.tsx", "changes": [{"instructions": "Add prop..."}]}
+      ```
 
-        **Best practices:**
-        - Use exact string matching for maximum reliability
-        - Use natural language for contextual changes when exact strings are impractical
-        - For new files: omit old_string and use create_if_missing: true at the TOP LEVEL
-        - Split complex edits into multiple changes/tool calls
-        - Keep diffs minimal and well-anchored with clear anchors
-        """,
-        parameters: %{
-          type: "object",
-          required: ["file"],
-          additionalProperties: false,
-          properties: %{
-            file: %{
-              type: "string",
-              description: "Path (relative to project root) of the file to edit."
-            },
-            changes: %{
-              type: "array",
-              description: """
-              A list of changes to apply to the file.
-              Steps are ordered logically, with each building on the previous.
-              They will be applied in sequence.
-
-              Each change can be either:
-              1. Natural language instructions (for AI interpretation)
-              2. Exact string replacement (for precise, reliable edits)
-              """,
-              items: %{
-                type: "object",
-                oneOf: [
-                  %{
-                    description: "Natural language change instruction",
-                    type: "object",
-                    required: ["instructions"],
-                    additionalProperties: false,
-                    properties: %{
-                      instructions: %{
-                        type: "string",
-                        description: """
-                        Clear, specific natural language instructions for the changes to make. The
-                        instructions must be concise and unambiguous.
-
-                        Clearly define the section(s) of the file to modify. Provide
-                        unambiguous "anchors" that identify the exact location of the
-                        change.
-
-                        Examples:
-                        - "Immediately after the declaration of the main function, add the following code block: ..."
-                        - "Replace the entire contents of the calculate function with: ..."
-                        - "At the top of the file, insert the following imports: ..."
-                        """
-                      }
-                    }
-                  },
-                  %{
-                    description: "Exact string replacement",
-                    type: "object",
-                    required: ["old_string", "new_string"],
-                    additionalProperties: false,
-                    properties: %{
-                      old_string: %{
-                        type: "string",
-                        description: """
-                        Exact string to replace. Must match exactly (including whitespace)
-                        or the operation will fail. For file creation, use empty string "".
-                        """
-                      },
-                      new_string: %{
-                        type: "string",
-                        description: """
-                        Exact replacement string. When used with old_string, replaces all matches.
-                        For file creation, this becomes the entire file content.
-                        """
-                      },
-                      replace_all: %{
-                        type: "boolean",
-                        description: """
-                        Whether to replace all occurrences (true) or fail if old_string appears
-                        multiple times (false). Defaults to false for safety.
-                        """,
-                        default: false
-                      }
-                    }
-                  },
-                  %{
-                    description: "File creation (simplified UX)",
-                    type: "object",
-                    required: ["new_string"],
-                    additionalProperties: false,
-                    properties: %{
-                      new_string: %{
-                        type: "string",
-                        description: """
-                        Complete file content for new file creation.
-                        Must be used with create_if_missing: true at the top level.
-                        """
-                      }
-                    }
+      **Best practices:**
+      - Use exact string matching for maximum reliability
+      - Use natural language for contextual changes when exact strings are impractical
+      - For new files: omit old_string and use create_if_missing: true at the TOP LEVEL
+      - Split complex edits into multiple changes/tool calls
+      - Keep diffs minimal and well-anchored with clear anchors
+      """,
+      parameters: %{
+        type: "object",
+        required: ["file"],
+        additionalProperties: false,
+        properties: %{
+          file: %{
+            type: "string",
+            description: "Path (relative to project root) of the file to edit."
+          },
+          changes: %{
+            type: "array",
+            description: "A list of ordered change instructions or replacements.",
+            items: %{
+              type: "object",
+              oneOf: [
+                %{required: ["instructions"], properties: %{instructions: %{type: "string"}}},
+                %{
+                  required: ["old_string", "new_string"],
+                  properties: %{
+                    old_string: %{type: "string"},
+                    new_string: %{type: "string"},
+                    replace_all: %{type: "boolean"}
                   }
-                ]
-              }
-            },
-            create_if_missing: %{
-              type: "boolean",
-              description: "If true, create the file (and parent dirs) if it doesn't exist.",
-              default: false
+                }
+              ]
             }
+          },
+          create_if_missing: %{
+            type: "boolean",
+            description: "Whether to create the file if it does not exist (default: false).",
+            default: false
           }
         }
       }
@@ -709,4 +619,7 @@ defmodule AI.Tools.File.Edit do
       false -> {false, ""}
     end
   end
+  @impl AI.Tools
+  def tool_call_failure_message(_args, _reason), do: :default
+
 end

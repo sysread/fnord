@@ -42,33 +42,44 @@ defmodule AI.ResponsesAPI do
     payload =
       base
       |> Map.merge(
+        case tools do
+          nil -> %{}
+          t -> %{tools: t}
+        end
+      )
+      |> Map.merge(
         case response_format do
-          nil -> %{text: %{}}
-          %{:type => "text"} -> %{text: %{}}
-          %{"type" => "text"} -> %{text: %{}}
+          nil ->
+            %{text: %{}}
+
+          %{:type => "text"} ->
+            %{text: %{}}
+
+          %{"type" => "text"} ->
+            %{text: %{}}
+
           rf when is_map(rf) ->
             fmt =
-            cond do
+              cond do
                 Map.has_key?(rf, :json_schema) or Map.has_key?(rf, "json_schema") ->
                   fmt_inner = Map.get(rf, :json_schema) || Map.get(rf, "json_schema")
                   name = Map.get(fmt_inner, :name) || Map.get(fmt_inner, "name")
                   schema = Map.get(fmt_inner, :schema) || Map.get(fmt_inner, "schema")
-                  description = Map.get(fmt_inner, :description) || Map.get(fmt_inner, "description")
+
+                  description =
+                    Map.get(fmt_inner, :description) || Map.get(fmt_inner, "description")
+
                   base_fmt = %{type: "json_schema", name: name, schema: schema}
                   if description, do: Map.put(base_fmt, :description, description), else: base_fmt
+
                 Map.has_key?(rf, :name) or Map.has_key?(rf, "name") ->
                   rf
+
                 true ->
                   rf
               end
 
             %{text: %{format: fmt}}
-        end
-      )
-      |> Map.merge(
-        case tools do
-          nil -> %{}
-          t -> %{tools: normalize_tools(t)}
         end
       )
       |> Map.merge(
@@ -189,10 +200,11 @@ defmodule AI.ResponsesAPI do
   defp get_response(other, _tracking_id) do
     {:error, %{http_status: 500, error: inspect(other, pretty: true)}}
   end
-
+  # Convert raw API output into internal tool call request map with flattened fields
   defp to_tool_call(%{"type" => "tool_call", "id" => id, "name" => name, "arguments" => args}) do
-    %{id: id, function: %{name: name, arguments: args}}
+    %{id: id, name: name, arguments: args}
   end
+
 
   defp extract_output_text(output) do
     output
@@ -218,33 +230,6 @@ defmodule AI.ResponsesAPI do
       _ ->
         nil
     end)
-  end
-
-  # Normalize tools helper functions
-  @spec normalize_tools([map()]) :: [map()]
-  defp normalize_tools(tools) when is_list(tools) do
-    Enum.map(tools, &normalize_tool/1)
-  end
-
-  @spec normalize_tool(map()) :: map()
-  defp normalize_tool(tool) when is_map(tool) do
-    normalized =
-      tool
-      |> Enum.map(fn
-        {k, v} when is_atom(k) -> {to_string(k), v}
-        {k, v} -> {k, v}
-      end)
-      |> Map.new()
-
-    if Map.has_key?(normalized, "name") do
-      normalized
-    else
-      case normalized["function"] do
-        %{"name" => fname} -> Map.put(normalized, "name", fname)
-        %{name: fname} -> Map.put(normalized, "name", fname)
-        _ -> normalized
-      end
-    end
   end
 
   defp get_error(:closed), do: {:error, "Connection closed"}

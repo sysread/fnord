@@ -55,41 +55,31 @@ defmodule AI.Tools.Tasks.ResolveTask do
       function: %{
         name: "tasks_resolve_task",
         description: """
-        Resolve a task in an existing task list as either success or failure.
-        The disposition and result are visible to the user, so ensure that the
-        result is clear and informative.
+          Resolve a task in an existing task list as either success or failure.
+          The disposition and result are visible to the user, so ensure that the
+          result is clear and informative.
 
-        Include as much detail as possible in the event of a problem. This will
-        help guide the user in appropriate next steps to resolve the issue.
+          Include as much detail as possible in the event of a problem. This will
+          help guide the user in appropriate next steps to resolve the issue.
         """,
         parameters: %{
           type: "object",
           additionalProperties: false,
           required: ["list_id", "task_id", "disposition", "result"],
           properties: %{
-            "list_id" => %{
-              type: :integer,
-              description: "The ID of the task list."
-            },
-            "task_id" => %{
-              type: "string",
-              description: "Identifier of the task to resolve."
-            },
+            "list_id" => %{type: :integer, description: "The ID of the task list"},
+            "task_id" => %{type: "string", description: "The ID of the task"},
             "disposition" => %{
               type: "string",
               enum: ["success", "failure"],
-              description: "Outcome of the task"
+              description: "Whether the task was resolved as success or failure"
             },
-            "result" => %{
-              type: "string",
-              description: "Outcome message used for either success or failure"
-            }
+            "result" => %{type: "string", description: "The result message for the task resolution"}
           }
         }
       }
     }
   end
-
   @impl AI.Tools
   def call(%{
         "list_id" => list_id,

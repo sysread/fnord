@@ -302,6 +302,13 @@ defmodule Frobs do
     end
   end
 
+  @doc """
+  Dynamically build an AI.Tools implementor module for the given frob.
+
+  Accepts either a `%Frobs{}` struct or explicit `name` and `spec`.
+  """
+  def create_tool_module(%__MODULE__{name: name, spec: spec}), do: create_tool_module(name, spec)
+
   def create_tool_module(name, spec) do
     tool_name = sanitize_module_name(name)
     mod_name = Module.concat([AI.Tools.Frob.Dynamic, tool_name])
@@ -329,12 +336,13 @@ defmodule Frobs do
           end
 
           @impl AI.Tools
-          def spec, do: %{type: "function", function: @tool_spec}
+          def spec do
+            Map.put(@tool_spec, :type, "function")
+          end
 
           @impl AI.Tools
           def read_args(args), do: {:ok, args}
 
-          @impl AI.Tools
           def call(args) do
             Frobs.perform_tool_call(@tool_name, Jason.encode!(args))
           end
@@ -387,9 +395,7 @@ defmodule Frobs do
     mod_name
   end
 
-  def create_tool_module(%__MODULE__{name: name, spec: spec}) do
-    create_tool_module(name, spec)
-  end
+
 
   # -----------------------------------------------------------------------------
   # Private functions

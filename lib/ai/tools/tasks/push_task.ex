@@ -76,20 +76,17 @@ defmodule AI.Tools.Tasks.PushTask do
       function: %{
         name: "tasks_push_task",
         description: """
-        Push a new task to the front of an existing task list. The task is
-        identified by a unique task_id that should be a short label, describing
-        the task at a glance (e.g. "Add some_function/3 to Some.Module") Note
-        that this is NOT a "slug" - it's a human-readable label. The data field
-        is a free-form string that can contain any details or payload for the
-        task.
+          Push a new task to the front of an existing task list. The task is
+          identified by a unique task_id, which should be a short human-readable
+          label (e.g. "Add some_function/3 to Some.Module"). The data field is a
+          free-form string containing any details or payload for the task.
 
-        Tasks are intended to help you retain state between interactions, even
-        if your context window is full. Ensure that the data field includes
-        enough context for you to understand and complete the task later, even
-        if you have forgotten the details you had in mind when creating it.
+          Tasks help you retain state between interactions, even if your context
+          window is full—ensure the data field includes enough context to
+          complete the task later.
 
-        Tasks are added IN STACK ORDER - the last task you push will be the
-        next task to be completed.
+          Tasks are added in stack order: the last task you push will be the
+          next task to be completed.
         """,
         parameters: %{
           type: "object",
@@ -102,13 +99,7 @@ defmodule AI.Tools.Tasks.PushTask do
             },
             "task_id" => %{
               type: "string",
-              description: """
-              A short task label that describes the task. This doubles as the
-              unique identifier for the task. Examples:
-              - "Add some_function/3 to Some.Module"
-              - "Write tests for Another.Module"
-              - "Identify stale documentation in Some.Module"
-              """
+              description: "A short task label describing the task."
             },
             "data" => %{
               type: "string",
@@ -124,13 +115,7 @@ defmodule AI.Tools.Tasks.PushTask do
                 properties: %{
                   "task_id" => %{
                     type: "string",
-                    description: """
-                    A short task label that describes the task. This doubles as the
-                    unique identifier for the task. Examples:
-                    - "Add some_function/3 to Some.Module"
-                    - "Write tests for Another.Module"
-                    - "Identify stale documentation in Some.Module"
-                    """
+                    description: "A short task label describing the task."
                   },
                   "data" => %{
                     type: "string",
@@ -144,7 +129,6 @@ defmodule AI.Tools.Tasks.PushTask do
       }
     }
   end
-
   @impl AI.Tools
   def call(%{"list_id" => list_id, "tasks" => tasks}) when is_list(tasks) do
     tasks

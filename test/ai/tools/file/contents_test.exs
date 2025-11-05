@@ -19,8 +19,8 @@ defmodule AI.Tools.File.ContentsTest do
       spec = AI.Tools.File.Contents.spec()
       assert is_map(spec)
       assert spec.type == "function"
-      assert spec.function.name == "file_contents_tool"
-      params = spec.function.parameters
+      assert spec.name == "file_contents_tool"
+      params = spec.parameters
       assert params.required == ["file"]
     end
   end

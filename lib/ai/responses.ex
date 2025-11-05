@@ -157,8 +157,16 @@ defmodule AI.Responses do
       |> Enum.drop(last_user_index + 1)
       |> Enum.reduce(%{}, fn
         %{tool_calls: tool_calls}, acc ->
-          Enum.reduce(tool_calls, acc, fn %{function: %{name: func}}, acc ->
-            Map.update(acc, func, 1, &(&1 + 1))
+          Enum.reduce(tool_calls, acc, fn
+            # Nested and flattened tool call entries
+            %{function: %{name: func}}, acc_inner ->
+              Map.update(acc_inner, func, 1, &(&1 + 1))
+
+            %{name: func}, acc_inner ->
+              Map.update(acc_inner, func, 1, &(&1 + 1))
+
+            _, acc_inner ->
+              acc_inner
           end)
 
         _, acc ->
@@ -260,7 +268,7 @@ defmodule AI.Responses do
 
     {async_calls, serial_calls} =
       Enum.split_with(tool_calls, fn req ->
-        AI.Tools.is_async?(req.function.name, state.toolbox)
+        AI.Tools.is_async?(req.name, state.toolbox)
       end)
 
     state =
@@ -309,7 +317,8 @@ defmodule AI.Responses do
   end
 
   @spec dedupe_key(map()) :: {String.t(), String.t()} | nil
-  defp dedupe_key(%{function: %{name: func, arguments: args_json}}) when is_binary(args_json) do
+  # Extracts the dedupe key (function name and arguments) from a flattened tool call map
+  defp dedupe_key(%{name: func, arguments: args_json}) when is_binary(args_json) do
     case Jason.decode(args_json) do
       {:ok, decoded} -> {func, inspect(decoded, custom_options: [sort_maps: true])}
       _ -> {func, args_json}
@@ -318,9 +327,9 @@ defmodule AI.Responses do
 
   defp dedupe_key(_), do: nil
 
-  @spec handle_tool_call(t, AI.Util.tool_call()) ::
-          {:ok, AI.Util.tool_request_msg(), AI.Util.tool_response_msg()}
-  def handle_tool_call(state, %{id: id, function: %{name: func, arguments: args_json}}) do
+  @spec handle_tool_call(t, map()) :: {:ok, AI.Util.tool_request_msg(), AI.Util.tool_response_msg()}
+  # Handles an individual tool call request given the flattened call map
+  def handle_tool_call(state, %{id: id, name: func, arguments: args_json}) do
     Services.NamePool.associate_name(state.name)
 
     request = AI.Util.assistant_tool_msg(id, func, args_json)

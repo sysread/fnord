@@ -39,59 +39,57 @@ defmodule AI.Tools.File.Contents do
   def spec() do
     %{
       type: "function",
-      function: %{
-        name: "file_contents_tool",
-        description: """
-        Display the contents of a file in the project. Note that this retrieves
-        the ENTIRE file. If the file is large, this may fail due to limits on
-        the size of messages, or it may pull so much content into your context
-        window that you forget the user's prompt or begin hallucinating
-        responses. If you only need to learn specific facts or extract a
-        section of code, use the file_info_tool to preserve your context
-        window.
+      name: "file_contents_tool",
+      description: """
+      Display the contents of a file in the project. Note that this retrieves
+      the ENTIRE file. If the file is large, this may fail due to limits on
+      the size of messages, or it may pull so much content into your context
+      window that you forget the user's prompt or begin hallucinating
+      responses. If you only need to learn specific facts or extract a
+      section of code, use the file_info_tool to preserve your context
+      window.
 
-        Note that this tool ONLY shows the current version of the file on the
-        currently checked-out branch. If you need to see the contents of the
-        file on a different branch (or for files that only exist on that
-        branch), you must use your git tools to retrieve that version of the
-        file.
-        """,
-        parameters: %{
-          type: "object",
-          required: ["file"],
-          properties: %{
-            file: %{
-              type: "string",
-              description: """
-              The file whose contents you wish to review. It must be the
-              complete path provided by the file_search_tool or file_list_tool.
-              """
-            },
-            line_numbers: %{
-              type: "boolean",
-              description: "If true (default), prefix each line with its 1-based line number.",
-              default: true
-            },
-            start_line: %{
-              type: "integer",
-              description: """
-              The 1-based line number to start from. If not provided, defaults
-              to the first line. If start_line is outside of the range of lines
-              in the file, it will be ignored and the first line of the file
-              will be used.
-              """,
-              default: 1
-            },
-            end_line: %{
-              type: "integer",
-              description: """
-              The 1-based line number to end at. If not provided, defaults to
-              the last line of the file. If end_line is outside of the range of
-              lines in the file, it will be ignored and the last line of the
-              file will be used.
-              """,
-              default: nil
-            }
+      Note that this tool ONLY shows the current version of the file on the
+      currently checked-out branch. If you need to see the contents of the
+      file on a different branch (or for files that only exist on that
+      branch), you must use your git tools to retrieve that version of the
+      file.
+      """,
+      parameters: %{
+        type: "object",
+        required: ["file"],
+        properties: %{
+          file: %{
+            type: "string",
+            description: """
+            The file whose contents you wish to review. It must be the
+            complete path provided by the file_search_tool or file_list_tool.
+            """
+          },
+          line_numbers: %{
+            type: "boolean",
+            description: "If true (default), prefix each line with its 1-based line number.",
+            default: true
+          },
+          start_line: %{
+            type: "integer",
+            description: """
+            The 1-based line number to start from. If not provided, defaults
+            to the first line. If start_line is outside of the range of lines
+            in the file, it will be ignored and the first line of the file
+            will be used.
+            """,
+            default: 1
+          },
+          end_line: %{
+            type: "integer",
+            description: """
+            The 1-based line number to end at. If not provided, defaults to
+            the last line of the file. If end_line is outside of the range of
+            lines in the file, it will be ignored and the last line of the
+            file will be used.
+            """,
+            default: nil
           }
         }
       }

@@ -42,8 +42,8 @@ defmodule FrobsTest do
       # Confirm tool spec is accessible through AI.Tools
       tools = %{"hello_test" => mod}
       spec = AI.Tools.tool_spec!("hello_test", tools)
-      assert spec.function.name == "hello_test"
-      assert Map.has_key?(spec.function.parameters.properties, :name)
+      assert spec.name == "hello_test"
+      assert Map.has_key?(spec.parameters.properties, :name)
 
       # Test the tool via AI.Tools.perform_tool_call/3
       args = %{"name" => "TestUser"}

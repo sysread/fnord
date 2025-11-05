@@ -49,13 +49,12 @@ defmodule MCP.Tools do
     Note: This tool is provided by the MCP server, "#{server}".
     """
 
+    # Flattened function spec: moving inner function map keys to top-level
     %{
       type: "function",
-      function: %{
-        name: "#{server}_#{tool_spec["name"]}",
-        description: String.trim(desc),
-        parameters: parameters
-      }
+      name: "#{server}_#{tool_spec["name"]}",
+      description: String.trim(desc),
+      parameters: parameters
     }
   end
 
@@ -86,7 +85,8 @@ defmodule MCP.Tools do
 
       @impl true
       def ui_note_on_request(args) do
-        tool_name = Map.get(@spec_data.function, :name, @tool)
+        # Extract the tool name from flattened spec data
+        tool_name = Map.get(@spec_data, :name, @tool)
 
         case Map.keys(args) do
           [] -> "Calling #{tool_name}"

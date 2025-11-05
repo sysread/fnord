@@ -178,8 +178,11 @@ defmodule AI.Completion do
       |> Enum.reduce(%{}, fn
         %{tool_calls: tool_calls}, acc ->
           tool_calls
-          |> Enum.reduce(acc, fn %{function: %{name: func}}, acc ->
-            Map.update(acc, func, 1, &(&1 + 1))
+          |> Enum.reduce(acc, fn
+            # Handle both legacy nested and flattened call structures
+            %{function: %{name: func}}, acc -> Map.update(acc, func, 1, &(&1 + 1))
+            %{name: func}, acc -> Map.update(acc, func, 1, &(&1 + 1))
+            _, acc -> acc
           end)
 
         _, acc ->
@@ -326,7 +329,7 @@ defmodule AI.Completion do
 
     {async_calls, serial_calls} =
       Enum.split_with(tool_calls, fn req ->
-        AI.Tools.is_async?(req.function.name, state.toolbox)
+        AI.Tools.is_async?(tool_call_name(req), state.toolbox)
       end)
 
     # First handle async tool calls concurrently
@@ -392,7 +395,13 @@ defmodule AI.Completion do
     %{state | messages: messages}
   end
 
+  @spec tool_call_name(map()) :: String.t() | nil
+  defp tool_call_name(%{function: %{name: name}}), do: name
+  defp tool_call_name(%{name: name}), do: name
+  defp tool_call_name(_), do: nil
+
   @spec dedupe_key(map()) :: {String.t(), String.t()} | nil
+  # Deduplicate based on function name and arguments (nested shape)
   defp dedupe_key(%{function: %{name: func, arguments: args_json}}) when is_binary(args_json) do
     case Jason.decode(args_json) do
       # Re-encode to get consistent ordering
@@ -402,14 +411,35 @@ defmodule AI.Completion do
     end
   end
 
+  @spec dedupe_key(map()) :: {String.t(), String.t()} | nil
+  # Deduplicate based on function name and canonicalized arguments
+  # Support nested tool call maps by inspecting the map
+  defp dedupe_key(%{name: func, arguments: args_map}) when is_map(args_map) do
+    {func, inspect(args_map, custom_options: [sort_maps: true])}
+  end
+
+  defp dedupe_key(%{name: func, arguments: args_json}) when is_binary(args_json) do
+    case Jason.decode(args_json) do
+      {:ok, decoded} -> {func, inspect(decoded, custom_options: [sort_maps: true])}
+      _ -> {func, args_json}
+    end
+  end
+
   defp dedupe_key(_), do: nil
 
-  @spec handle_tool_call(t, AI.Util.tool_call()) :: {
-          :ok,
-          AI.Util.tool_request_msg(),
-          AI.Util.tool_response_msg()
-        }
+  @spec handle_tool_call(t, map()) ::
+          {
+            :ok,
+            AI.Util.tool_request_msg(),
+            AI.Util.tool_response_msg()
+          }
+  # Handle individual tool call request with flattened map
+  # Support nested tool call map for backward compatibility
   def handle_tool_call(state, %{id: id, function: %{name: func, arguments: args_json}}) do
+    handle_tool_call(state, %{id: id, name: func, arguments: args_json})
+  end
+
+  def handle_tool_call(state, %{id: id, name: func, arguments: args_json}) do
     # --------------------------------------------------------------------------
     # Agents' names are associated with their process ID, and tool call
     # requests and results are reported from within the process that performs

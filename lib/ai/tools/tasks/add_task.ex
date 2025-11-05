@@ -75,19 +75,19 @@ defmodule AI.Tools.Tasks.AddTask do
       function: %{
         name: "tasks_add_task",
         description: """
-        Add a new task to an existing task list. The task is identified by a
-        unique task_id that should be a short label, describing the task at a
-        glance (e.g. "Add some_function/3 to Some.Module") Note that this is
-        NOT a "slug" - it's a human-readable label. The data field is a
-        free-form string that can contain any details or payload for the task.
+          Add a new task to an existing task list. The task is identified by a
+          unique task_id that should be a short label, describing the task at a
+          glance (e.g. \"Add some_function/3 to Some.Module\") Note that this is
+          NOT a \"slug\" - it's a human-readable label. The data field is a
+          free-form string that can contain any details or payload for the task.
 
-        Tasks are intended to help you retain state between interactions, even
-        if your context window is full. Ensure that the data field includes
-        enough context for you to understand and complete the task later, even
-        if you have forgotten the details you had in mind when creating it.
+          Tasks are intended to help you retain state between interactions, even
+          if your context window is full. Ensure that the data field includes
+          enough context for you to understand and complete the task later, even
+          if you have forgotten the details you had in mind when creating it.
 
-        Tasks are added IN ORDER - the first task in the list will be the
-        next task to be completed.
+          Tasks are added IN ORDER - the first task in the list will be the
+          next task to be completed.
         """,
         parameters: %{
           type: "object",
@@ -100,21 +100,15 @@ defmodule AI.Tools.Tasks.AddTask do
             },
             "task_id" => %{
               type: "string",
-              description: """
-              A short task label that describes the task. This doubles as the
-              unique identifier for the task. Examples:
-              - "Add some_function/3 to Some.Module"
-              - "Write tests for Another.Module"
-              - "Identify stale documentation in Some.Module"
-              """
+              description: "Task identifier."
             },
             "data" => %{
               type: "string",
-              description: "Free-form detail or payload for the task."
+              description: "Task payload."
             },
             "tasks" => %{
               type: "array",
-              description: "A list of tasks to add, each with a task_id and data.",
+              description: "A list of tasks to add.",
               items: %{
                 type: "object",
                 additionalProperties: false,
@@ -122,17 +116,11 @@ defmodule AI.Tools.Tasks.AddTask do
                 properties: %{
                   "task_id" => %{
                     type: "string",
-                    description: """
-                    A short task label that describes the task. This doubles as the
-                    unique identifier for the task. Examples:
-                    - "Add some_function/3 to Some.Module"
-                    - "Write tests for Another.Module"
-                    - "Identify stale documentation in Some.Module"
-                    """
+                    description: "Task identifier."
                   },
                   "data" => %{
                     type: "string",
-                    description: "The detail or payload for the task."
+                    description: "Task payload."
                   }
                 }
               }
@@ -142,7 +130,6 @@ defmodule AI.Tools.Tasks.AddTask do
       }
     }
   end
-
   @impl AI.Tools
   def call(%{"list_id" => list_id, "tasks" => tasks}) when is_list(tasks) do
     Enum.each(tasks, fn %{"task_id" => task_id, "data" => data} ->

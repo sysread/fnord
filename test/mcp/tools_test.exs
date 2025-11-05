@@ -22,17 +22,15 @@ defmodule MCP.ToolsTest do
 
     expected_spec = %{
       type: "function",
-      function: %{
-        name: "srv_foo",
-        description:
-          """
-          desc
+      name: "srv_foo",
+      description:
+        """
+        desc
 
-          Note: This tool is provided by the MCP server, "srv".
-          """
-          |> String.trim(),
-        parameters: %{"a" => "b", "required" => []}
-      }
+        Note: This tool is provided by the MCP server, "srv".
+        """
+        |> String.trim(),
+      parameters: %{"a" => "b", "required" => []}
     }
 
     assert function_exported?(mod, :spec, 0)

@@ -213,10 +213,21 @@ defmodule AI.Responses.Output do
     case message do
       %{role: "assistant", content: nil, tool_calls: tool_calls} ->
         tool_calls
-        |> Enum.each(fn %{function: %{name: func, arguments: args_json}} ->
-          with {:ok, args} <- Jason.decode(args_json) do
-            on_event(state, :tool_call, {func, args})
-          end
+        |> Enum.each(fn
+          # legacy nested structure
+          %{function: %{name: func, arguments: args_json}} ->
+            with {:ok, args} <- Jason.decode(args_json) do
+              on_event(state, :tool_call, {func, args})
+            end
+
+          # flattened structure
+          %{name: func, arguments: args_json} ->
+            with {:ok, args} <- Jason.decode(args_json) do
+              on_event(state, :tool_call, {func, args})
+            end
+
+          _ ->
+            :ok
         end)
 
       %{role: "tool", name: func, tool_call_id: id, content: content} ->
@@ -239,7 +250,13 @@ defmodule AI.Responses.Output do
       case msg do
         %{role: "assistant", content: nil, tool_calls: tool_calls} ->
           tool_calls
-          |> Enum.map(fn %{id: id, function: %{arguments: args}} -> {id, args} end)
+          |> Enum.flat_map(fn
+            # nested structure
+            %{id: id, function: %{arguments: args}} -> [{id, args}]
+            # flattened structure
+            %{id: id, arguments: args} -> [{id, args}]
+            _ -> []
+          end)
           |> Enum.into(acc)
 
         _ ->

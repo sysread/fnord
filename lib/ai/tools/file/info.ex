@@ -35,6 +35,7 @@ defmodule AI.Tools.File.Info do
 
   @impl AI.Tools
   def spec() do
+
     %{
       type: "function",
       function: %{
@@ -76,7 +77,6 @@ defmodule AI.Tools.File.Info do
       }
     }
   end
-
   @impl AI.Tools
   def call(args) do
     with {:ok, question} <- Map.fetch(args, "question"),

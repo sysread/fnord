@@ -14,79 +14,13 @@ defmodule AI.Tools do
   code it calls. What happens behind closed APIs is none of MY business.
 
   ## Skeleton Implementation
-  ```elixir
-  defmodule AI.Tools.MyNewTool do
-    @behaviour AI.Tools
 
-    @impl AI.Tools
-    def async?(), do: true
-
-    @impl AI.Tools
-    def ui_note_on_request(_args) do
-      {"Doing something", "This tool is doing something."}
-    end
-
-    @impl AI.Tools
-    def ui_note_on_result(_args, _result) do
-      {"Did something", "This tool did something."}
-    end
-
-    @impl AI.Tools
-    def read_args(args) do
-      {:ok, args}
-    end
-
-    @impl AI.Tools
-    def spec() do
-      %{
-        type: "function",
-        function: %{
-          name: "something_tool",
-          description: "This tool does something.",
-          strict: true,
-          parameters: %{
-            additionalProperties: false,
-            type: "object",
-            required: ["thing"],
-            properties: %{
-              thing: %{
-                type: "string",
-                description: "The thing to do."
-              }
-            }
-          }
-        }
-      }
-    end
-
-    @impl AI.Tools
-    def call(args) do
-      {:ok, "IMPLEMENT ME"}
-    end
-  end
-  ```
   """
 
-  @type tool_spec :: %{
-          :type => binary,
-          :function => %{
-            :name => binary,
-            :description => binary,
-            optional(:strict) => boolean,
-            :parameters => %{
-              optional(:additionalProperties) => boolean,
-              :type => binary,
-              :required => [binary],
-              :properties => %{
-                binary => %{
-                  :type => binary,
-                  :description => binary,
-                  optional(:default) => any
-                }
-              }
-            }
-          }
-        }
+  alias AI.Tools.Spec
+
+  @typedoc "A map representing the tool specification."
+  @type tool_spec :: map
 
   @type tool_name :: binary
   @type project_name :: binary | nil
@@ -161,7 +95,7 @@ defmodule AI.Tools do
   @doc """
   Returns the OpenAPI spec for the tool as an elixir map.
   """
-  @callback spec() :: tool_spec
+  @callback spec() :: map
 
   @doc """
   Returns a message to be displayed when a tool call fails. May return
@@ -299,10 +233,14 @@ defmodule AI.Tools do
   end
 
   @doc """
-  Generate a list of tool specs from a toolbox map.
+  Generate a list of normalized tool specs from a toolbox map. Each module's spec() is passed through the normalization to ensure flattened format.
   """
-  @spec toolbox_to_specs(toolbox) :: [tool_spec]
-  def toolbox_to_specs(toolbox), do: Enum.map(Map.values(toolbox), & &1.spec())
+  @spec toolbox_to_specs(toolbox) :: [map]
+  def toolbox_to_specs(toolbox) do
+    toolbox
+    |> Map.values()
+    |> Enum.map(fn mod -> mod.spec() |> Spec.normalize_tool_spec() end)
+  end
 
   @spec tool_module(tool_name, toolbox | nil) ::
           {:ok, module}
@@ -321,10 +259,10 @@ defmodule AI.Tools do
     end
   end
 
-  @spec tool_spec!(tool_name, toolbox | nil) :: tool_spec
+  @spec tool_spec!(tool_name, toolbox | nil) :: map
   def tool_spec!(tool, tools \\ nil) do
     with {:ok, module} <- tool_module(tool, tools) do
-      module.spec()
+      module.spec() |> Spec.normalize_tool_spec()
     else
       {:error, :unknown_tool, tool} ->
         raise ArgumentError, "Unknown tool: #{tool}"
@@ -332,11 +270,11 @@ defmodule AI.Tools do
   end
 
   @spec tool_spec(tool_name, toolbox | nil) ::
-          {:ok, tool_spec}
+          {:ok, map}
           | {:error, :unknown_tool, binary}
   def tool_spec(tool, tools \\ nil) do
     with {:ok, module} <- tool_module(tool, tools) do
-      {:ok, module.spec()}
+      {:ok, module.spec() |> Spec.normalize_tool_spec()}
     end
   end
 
@@ -347,8 +285,8 @@ defmodule AI.Tools do
          :ok <- validate_required_args(tool, args, tools) do
       if System.get_env("FNORD_DEBUG_TOOLS") do
         UI.debug("Performing tool call", """
-        # #{tool}
-        #{inspect(args, pretty: true)}
+        # \\#{tool}
+        \\#{inspect(args, pretty: true)}
         """)
       end
 
@@ -499,11 +437,12 @@ defmodule AI.Tools do
   @spec validate_required_args(tool_name, parsed_args, toolbox | nil) :: :ok | args_error
   def validate_required_args(tool, args, tools \\ nil) do
     with {:ok, module} <- tool_module(tool, tools) do
-      module.spec()
-      |> Map.get(:function)
-      |> Map.get(:parameters)
-      |> Map.get("required", [])
-      |> check_required_args(args)
+      # normalize spec and extract parameters
+      spec = module.spec()
+      params = spec[:parameters] || spec["parameters"] || %{}
+      # extract required fields list
+      required = params[:required] || params["required"] || []
+      check_required_args(required, args)
     end
   end
 
@@ -625,25 +564,25 @@ defmodule AI.Tools do
 
   @doc """
   Given a list of modules, returns a map from tool_name => module, using each
-  module's spec().function.name value as the key.
+  module's flattened `spec.name` value as the key.
   """
   @spec build_toolbox([module] | %{binary => module} | nil) :: toolbox
   def build_toolbox(modules) when is_list(modules) do
     Enum.reduce(modules, %{}, fn mod, acc ->
-      spec = mod.spec()
+      # retrieve and normalize the tool spec
+      spec = mod.spec() |> Spec.normalize_tool_spec()
 
-      fun_name =
-        case spec[:function] do
-          nil -> spec["function"]
-          val -> val
-        end
-
-      name = fun_name[:name] || fun_name["name"]
-
-      if is_binary(name) and name != "" do
-        Map.put(acc, name, mod)
-      else
-        acc
+      case spec do
+        spec_map when is_map(spec_map) and map_size(spec_map) > 0 ->
+          # extract tool name from flattened spec
+          name = spec_map[:name] || spec_map["name"]
+          if is_binary(name) and name != "" do
+            Map.put(acc, name, mod)
+          else
+            acc
+          end
+        _ ->
+          acc
       end
     end)
   end
