@@ -90,13 +90,15 @@ defmodule AI.Agent.NomenclaterTest do
       agent = AI.Agent.new(Nomenclater, named?: false)
       used = []
       # Trigger the call which will send us the captured response_format
-      assert {:ok, ["Alpha"]} = AI.Agent.Nomenclater.get_response(%{agent: agent, want: 1, used: used})
+      assert {:ok, ["Alpha"]} =
+               AI.Agent.Nomenclater.get_response(%{agent: agent, want: 1, used: used})
 
       assert_receive {:captured_response_format, rf}, 1000
 
       # Dig out pattern
-      pattern = get_in(rf, ["json_schema", "schema", "properties", "names", "items", "pattern"]) ||
-                get_in(rf, [:json_schema, :schema, :properties, :names, :items, :pattern])
+      pattern =
+        get_in(rf, ["json_schema", "schema", "properties", "names", "items", "pattern"]) ||
+          get_in(rf, [:json_schema, :schema, :properties, :names, :items, :pattern])
 
       assert is_binary(pattern)
       assert pattern == "^[A-Za-z0-9][A-Za-z0-9\\s'’\\-.,!/:()]*$"
@@ -104,5 +106,4 @@ defmodule AI.Agent.NomenclaterTest do
       refute String.contains?(pattern, "\\p{N}")
     end
   end
-
 end

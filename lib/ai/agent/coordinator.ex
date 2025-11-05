@@ -1163,7 +1163,9 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp listener_loop(convo_pid) do
-    UI.info("Use enter (or ctrl-j) to interrupt and send feedback to the agent.")
+    UI.info(
+      "Use enter (or ctrl-j) to interrupt and send feedback to the agent.\nNote: interrupts are applied between steps (before the next model call or after a tool batch). They do not preempt in-flight tool calls."
+    )
 
     case IO.getn(:stdio, "", 1) do
       "\n" ->
@@ -1172,8 +1174,8 @@ defmodule AI.Agent.Coordinator do
           conv_id = Services.Conversation.get_id(convo_pid)
 
           UI.warn(
-            "Interruption is not allowed while the assistant is finalizing the response.",
-            "Use `-f #{conv_id}` to follow this conversation and ask a new question."
+            "Finalizing in progress: interrupts cannot be delivered right now.",
+            "Ongoing tool operations may complete. Use `-f #{conv_id}` to follow this conversation and queue a new question."
           )
 
           listener_loop(convo_pid)
