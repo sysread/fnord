@@ -1151,7 +1151,7 @@ defmodule AI.Agent.Coordinator do
       UI.is_tty?() ->
         task =
           Task.start(fn ->
-            listener_loop(convo)
+            listener_loop(convo, true)
           end)
           |> elem(1)
 
@@ -1162,10 +1162,12 @@ defmodule AI.Agent.Coordinator do
     end
   end
 
-  defp listener_loop(convo_pid) do
-    UI.info(
-      "Use enter (or ctrl-j) to interrupt and send feedback to the agent.\nNote: interrupts are applied between steps (before the next model call or after a tool batch). They do not preempt in-flight tool calls."
-    )
+  defp listener_loop(convo_pid, show_msg? \\ false) do
+    if show_msg? do
+      UI.info(
+        "Use enter (or ctrl-j) to interrupt and send feedback to the agent.\nNote: interrupts are applied between steps (before the next model call or after a tool batch). They do not preempt in-flight tool calls."
+      )
+    end
 
     case IO.getn(:stdio, "", 1) do
       "\n" ->
@@ -1206,7 +1208,7 @@ defmodule AI.Agent.Coordinator do
               :ok
           end
 
-          listener_loop(convo_pid)
+          listener_loop(convo_pid, true)
         end
 
       _other ->
