@@ -12,7 +12,7 @@ defmodule AI.Completion.Compaction do
   - No aliasing; callers should use full module names.
   """
 
-  @compact_keep_rounds 2
+  @compact_keep_rounds 5
   @compact_target_pct 0.8
 
   # True when the message is an assistant completion (binary content) and not an

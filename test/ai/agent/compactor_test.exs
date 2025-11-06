@@ -45,9 +45,13 @@ defmodule AI.Agent.CompactorTest do
       %{role: "assistant", content: String.duplicate("a", 9000)}
     ]
 
-    # Mock the completion to produce a very small summary, ensuring sufficient savings
+    # Mock the completion to produce a valid summary (>100 tokens) with sufficient savings
     :meck.expect(AI.Accumulator, :get_response, fn _opts ->
-      {:ok, %{response: "tiny"}}
+      {:ok,
+       %{
+         response:
+           "# User Request\nThe user asked about implementing a new feature.\n\n# Key Findings\nDiscovered multiple files that need modification. The main logic resides in core.ex and tests are in core_test.exs.\n\n# Current Status\nThe assistant was analyzing the codebase structure and identifying the best approach for implementing the requested feature. Next steps include modifying the core module and adding test coverage."
+       }}
     end)
 
     {:ok, [summary_msg]} = run_compactor(msgs)
@@ -61,13 +65,17 @@ defmodule AI.Agent.CompactorTest do
 
   test "transcript preserves non-notify tool calls and assistant messages (without <think>)" do
     msgs = [
-      %{role: "tool", name: "other_tool", content: "tool-output"},
-      %{role: "assistant", content: "visible reply"},
-      %{role: "user", content: "ask"}
+      %{role: "tool", name: "other_tool", content: String.duplicate("tool-output data ", 100)},
+      %{role: "assistant", content: String.duplicate("visible reply with details ", 100)},
+      %{role: "user", content: String.duplicate("ask about something ", 50)}
     ]
 
     :meck.expect(AI.Accumulator, :get_response, fn _opts ->
-      {:ok, %{response: "ok"}}
+      {:ok,
+       %{
+         response:
+           "# User Request\nUser asked a question about the system behavior and functionality.\n\n# Key Findings\nTool outputs were generated showing relevant information about the codebase. The assistant provided a visible reply addressing the user's question with detailed context.\n\n# Current Status\nThe conversation included tool execution and assistant response. The interaction was complete at the point of compaction with all information preserved."
+       }}
     end)
 
     {:ok, [summary_msg]} = run_compactor(msgs)

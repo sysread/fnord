@@ -60,7 +60,7 @@ defmodule AI.Completion do
           | {:error, binary}
           | {:error, :context_length_exceeded, non_neg_integer}
 
-  @compact_keep_rounds 2
+  @compact_keep_rounds 5
   @compact_target_pct 0.8
 
   @spec get(Keyword.t()) :: response

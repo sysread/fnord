@@ -7,40 +7,26 @@ defmodule AI.Agent.Compactor do
   @target_ratio 0.8
 
   # Minimum acceptable tokens for a compacted summary; prevent trivial context wipes
-  # Note: set to >0 in production if you want to reject trivial summaries; tests expect tiny outputs.
-  @min_summary_tokens 0
+  @min_summary_tokens 100
 
   @system_prompt """
-  You are an AI Agent in a larger system.
-  You will be presented with a transcript of a conversation between a user and an AI assistant, along with any research the assistant has done.
-  Your task: Reformat into compact meeting minutes while preserving all content needed for context.
-  Do not use smart quotes, smart apostrophes, emojis, or other special characters.
-  Read through the messages and reason through a new, more compact narrative that preserves the key points and context.
-  Consider the conversation from the user's perspective: what expectations would they have for the assistant's memory and understanding of the conversation?
+  Summarize this conversation transcript concisely while preserving essential context.
+  You will receive a JSON transcript of messages between a user and an AI assistant, including tool outputs and research.
 
-  Preserve decision points, assumptions, trade-offs, mistakes and corrections, and include rationales leading to any state changes.
+  Focus on: what the user asked for, what was learned or discovered, decisions made, and what work is in progress.
+  Preserve specific details about files, functions, bugs, and technical decisions.
+  Use plain text without special characters.
 
-  Use the following output template:
+  Output format:
 
-  # Original User Prompt
-  [full text of the original user prompt]
+  # User Request
+  [What the user is asking for or working on]
 
-  # Research and Responses
-  [outline of facts, findings, and conclusions from the research portions of the conversation]
+  # Key Findings
+  [Important information discovered: file locations, function names, patterns, bugs found, etc.]
 
-  # Conversation Timeline
-  [
-    Present a timeline of the conversation, listing each message with its role and a brief summary of its content.
-    Messages at the end of the conversation should include WAY more detail than those at the beginning, reflecting the decision cascade and evolving context
-    Don't waste space with formatting or JSON; just use plain text.
-  ]
-
-  # Continuation Context
-  [
-    What was the assistant doing before the conversation grew too long?
-    Your response will form the complete prompt for the LLM's next response.
-    This section MUST guarantee that the LLM continues exactly where it left off.
-  ]
+  # Current Status
+  [What the assistant was doing when context limit approached. Include enough detail that work can resume exactly where it left off.]
   """
 
   @impl AI.Agent
@@ -53,8 +39,11 @@ defmodule AI.Agent.Compactor do
 
     tx_list = transcript(messages, [])
 
-    # Early guard: empty transcript -> skip model call and retries
-    if tx_list == [] do
+    # Early guard: empty transcript or user-only transcript -> skip model call and retries
+    # User messages are preserved separately, so if there's nothing but user messages, there's nothing to summarize
+    has_non_user = Enum.any?(tx_list, fn msg -> msg.role != "user" end)
+
+    if tx_list == [] or not has_non_user do
       {:error, :empty_after_filtering}
     else
       transcript_json = Jason.encode!(tx_list, pretty: true)
@@ -146,7 +135,7 @@ defmodule AI.Agent.Compactor do
   defp transcript([], acc), do: Enum.reverse(acc)
   defp transcript([%{role: "system"} | rest], acc), do: transcript(rest, acc)
   defp transcript([%{role: "developer"} | rest], acc), do: transcript(rest, acc)
-  defp transcript([%{role: "user"} | rest], acc), do: transcript(rest, acc)
+  defp transcript([%{role: "user"} = msg | rest], acc), do: transcript(rest, [msg | acc])
   defp transcript([%{role: "tool", name: "notify_tool"} | rest], acc), do: transcript(rest, acc)
 
   defp transcript([%{role: "tool", name: name, content: content} | rest], acc) do
