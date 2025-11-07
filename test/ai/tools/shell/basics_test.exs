@@ -55,7 +55,7 @@ defmodule AI.Tools.Shell.BasicsTest do
 
     assert {:ok, msg} = AI.Tools.Shell.call(args)
     assert msg =~ "Exit status: 1"
-    assert msg =~ "grep -q pattern data.txt"
+    assert msg =~ "grep -q \"pattern\" \"data.txt\""
   end
 
   test "timeout produces error and stops pipeline" do
@@ -105,7 +105,7 @@ defmodule AI.Tools.Shell.BasicsTest do
     }
 
     assert {:ok, msg} = AI.Tools.Shell.call(args)
-    assert msg =~ ~r/Command: (.+?)\/rg pattern #{project.source_root}/
+    assert msg =~ ~r/Command: (.+?)\/rg "pattern" "#{Regex.escape(project.source_root)}"/
   end
 
   test "format_commands and ui notes" do

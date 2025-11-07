@@ -583,8 +583,33 @@ defmodule AI.Tools.Shell do
     end
   end
 
+  # Check if an argument needs quoting (non-flag arguments)
+  defp needs_quoting?(arg) do
+    not String.starts_with?(arg, "-")
+  end
+
+  # Escape and quote an argument for display
+  defp quote_arg(arg) do
+    # Escape backslashes and double quotes
+    escaped =
+      arg
+      |> String.replace("\\", "\\\\")
+      |> String.replace("\"", "\\\"")
+
+    "\"#{escaped}\""
+  end
+
   defp format_command(%{"command" => command, "args" => args}) do
-    [command | args]
+    formatted_args =
+      Enum.map(args, fn arg ->
+        if needs_quoting?(arg) do
+          quote_arg(arg)
+        else
+          arg
+        end
+      end)
+
+    [command | formatted_args]
     |> Enum.join(" ")
   end
 
