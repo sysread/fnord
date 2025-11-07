@@ -73,6 +73,30 @@ defmodule AI.Agent.Compactor do
             #{response}
             """
 
+          # Append task lists if any exist
+          summary =
+            case Services.Task.list_ids() do
+              [] ->
+                summary
+
+              list_ids ->
+                task_sections =
+                  list_ids
+                  |> Enum.map(&Services.Task.as_string/1)
+                  |> Enum.join("\n\n")
+
+                """
+                #{summary}
+
+                ## Active Task Lists
+
+                The following task lists were active when compaction occurred.
+                These tasks represent work in progress and should be consulted when resuming work.
+
+                #{task_sections}
+                """
+            end
+
           # Guard against trivial, near-empty summaries that would wipe context
           new_tokens = AI.PretendTokenizer.guesstimate_tokens(summary)
 

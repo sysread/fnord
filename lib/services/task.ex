@@ -31,6 +31,14 @@ defmodule Services.Task do
   end
 
   @doc """
+  Returns all active task list IDs.
+  """
+  @spec list_ids() :: [list_id]
+  def list_ids() do
+    GenServer.call(__MODULE__, :list_ids)
+  end
+
+  @doc """
   Fetches all tasks for the given list in chronological (oldest-first) order.
   Returns `{:error, :not_found}` if the list does not exist.
   """
@@ -148,6 +156,11 @@ defmodule Services.Task do
        | lists: Map.put(lists, next_id, []),
          next_id: next_id + 1
      }}
+  end
+
+  @impl true
+  def handle_call(:list_ids, _from, state) do
+    {:reply, Map.keys(state.lists), state}
   end
 
   @impl true
