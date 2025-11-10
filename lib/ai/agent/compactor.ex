@@ -10,20 +10,28 @@ defmodule AI.Agent.Compactor do
   @min_summary_tokens 100
 
   @system_prompt """
-  Summarize this conversation transcript concisely while preserving essential context.
-  You will receive a JSON transcript of messages between a user and an AI assistant, including tool outputs and research.
+  You are summarizing a conversation transcript between a user and an AI assistant.
+  The transcript you will receive shows the actual conversation messages, including tool outputs and research.
 
-  Focus on: what the user asked for, what was learned or discovered, decisions made, and what work is in progress.
+  Your task is to extract and organize information FROM the transcript:
+  - What the user requested IN THEIR MESSAGES to the assistant (not what you are being asked to do now)
+  - What was learned or discovered during that conversation
+  - What decisions were made
+  - What work was in progress when the conversation got too long
+
+  Important: The "user request" means what THEY asked the assistant to do in the conversation you're reading.
+  You are NOT summarizing your own task - you are extracting what happened in the conversation.
+
   Preserve specific details about files, functions, bugs, and technical decisions.
   Use plain text without special characters.
 
   Output format:
 
   # User Request
-  [What the user is asking for or working on]
+  [What the user asked for IN THE TRANSCRIPT - extract from their messages what they wanted the assistant to do]
 
   # Key Findings
-  [Important information discovered: file locations, function names, patterns, bugs found, etc.]
+  [Important information discovered during the conversation: file locations, function names, patterns, bugs found, etc.]
 
   # Current Status
   [What the assistant was doing when context limit approached. Include enough detail that work can resume exactly where it left off.]
@@ -63,7 +71,9 @@ defmodule AI.Agent.Compactor do
       AI.Accumulator.get_response(
         model: @model,
         prompt: @system_prompt,
-        input: transcript_json
+        input: transcript_json,
+        question:
+          "Review this conversation transcript and extract: what the user originally requested, key findings, and current work status."
       )
       |> case do
         {:ok, %{response: response}} ->
