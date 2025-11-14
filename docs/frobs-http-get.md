@@ -19,17 +19,27 @@ mkdir -p ~/.fnord/tools/http_get
 chmod 755 ~/.fnord/tools/http_get
 ```
 
-## 2) `registry.json` (global for easy testing)
+## 2) Enable the frob
 
-Save to: `~/.fnord/tools/http_get/registry.json`
+You can enable the frob via settings or CLI. For example:
 
-```json
-{
-  "global": true,
-  "projects": []
-}
+```bash
+fnord frobs enable --name http_get --global
+```
+ 
+### Disable the frob
+
+You can disable the frob via CLI. For example:
+
+```bash
+fnord frobs disable --name http_get --global
 ```
 
+To disable for a specific project:
+
+```bash
+fnord frobs disable --name http_get --project <project_name>
+```
 ## 3) `spec.json`
 
 Save to: `~/.fnord/tools/http_get/spec.json`
@@ -162,6 +172,8 @@ Tips:
 - The frob prints `<empty body>` when the response body is empty and request succeeds.
 
 ## Safety notes
+
+Note: If you previously configured frobs via registry.json, Fnord will migrate those settings the first time frobs are listed. After migration, registry.json is no longer used.
 - GET-only by design: no `method` parameter is accepted.
 - Only `http` and `https` URLs are allowed.
 - Responses larger than `5MB` are truncated and marked with ` (truncated)`.

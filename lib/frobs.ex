@@ -4,37 +4,24 @@ defmodule Frobs do
   external actions that can be executed by the LLM while researching the user's
   query.
 
-  Frobs are stored in '$HOME/.fnord/tools/$frob_name' and are composed of:
-  - 'registry.json':  A JSON file that registers the frob for the user's projects
-  - 'spec.json':      A JSON file that defines the tool call's calling semantics
-  - 'main':           A script or binary that performs the action
-  - 'available':      A script or binary that exits non-zero if the frob is not
+  Frobs are stored in `$HOME/.fnord/tools/$frob_name` and are composed of:
+  - `spec.json`:      A JSON file that defines the tool call's calling semantics
+  - `main`:           A script or binary that performs the action
+  - `available`:      A script or binary that exits non-zero if the frob is not
                       available in the current context (e.g. dependencies,
                       environment, etc.)
 
-  The 'registry.json' file contains the following fields:
-  '''json
-  {
-    // When true, the frob is available to all projects and the "projects"
-    // field is ignored.
-    "global": true,
+  Enablement via Settings.Frobs:
+  Frobs are enabled via `settings.json` using approvals-style arrays managed by `Settings.Frobs`:
+  - Global: top-level `frobs` array of names
+  - Project: per-project `projects.<name>.frobs` arrays
+  The effective enabled set is the union of global and the currently selected project's list.
 
-    // An array of project names for which fnord should make the frob
-    // available. Superseded by the "global" field when set to true.
-    "projects": ["my_project", "other_project"]
-  }
-  '''
-
-  The "name" field in 'spec.json' is used to register the frob with the LLM.
-  This name must match the frob's directory name.
-
-  If desired, the user can add a lib/util/etc directory to hold any utility or
-  helper code to be used by 'main'.
-
+  Runtime environment:
   Fnord communicates run-time information to the frob via environment variables:
-  - FNORD_PROJECT     # The name of the currently selected project
-  - FNORD_CONFIG      # JSON object of project config
-  - FNORD_ARGS_JSON   # JSON object of LLM-provided arguments
+  - `FNORD_PROJECT`     # The name of the currently selected project
+  - `FNORD_CONFIG`      # JSON object of project config
+  - `FNORD_ARGS_JSON`   # JSON object of LLM-provided arguments
   """
 
   import Bitwise
@@ -42,7 +29,6 @@ defmodule Frobs do
   defstruct [
     :name,
     :home,
-    :registry,
     :spec,
     :available,
     :main,
@@ -51,17 +37,9 @@ defmodule Frobs do
 
   @type t :: %__MODULE__{}
 
-  @registry "registry.json"
   @json_spec "spec.json"
   @available "available"
   @main "main"
-
-  @default_registry """
-  {
-    "global": false,
-    "projects": []
-  }
-  """
 
   @default_spec """
   {
@@ -161,13 +139,11 @@ defmodule Frobs do
     init()
 
     with {:ok, home} <- validate_frob(name),
-         {:ok, registry} <- read_registry(home),
          {:ok, spec} <- read_spec(home) do
       {:ok,
        %__MODULE__{
          name: name,
          home: home,
-         registry: registry,
          spec: spec,
          available: Path.join(home, @available),
          main: Path.join(home, @main),
@@ -185,13 +161,11 @@ defmodule Frobs do
       {:error, :frob_exists}
     else
       home |> File.mkdir_p!()
-      registry = Path.join(home, @registry)
       json_spec = Path.join(home, @json_spec)
       available = Path.join(home, @available)
       main = Path.join(home, @main)
 
       [
-        fn -> File.write!(registry, @default_registry) end,
         fn -> File.write!(json_spec, String.replace(@default_spec, "%FROB_NAME%", name)) end,
         fn ->
           File.write!(available, @default_available)
@@ -232,6 +206,10 @@ defmodule Frobs do
 
   @spec list() :: [t]
   def list() do
+    Services.Once.run({:frobs, :migrate}, fn ->
+      Frobs.Migrate.maybe_migrate_registry_to_settings()
+    end)
+
     get_home()
     |> Path.join("**/main")
     |> Path.wildcard()
@@ -240,6 +218,7 @@ defmodule Frobs do
       |> Path.dirname()
       |> Path.basename()
     end)
+    |> Settings.Frobs.prune_missing!()
     |> Enum.reduce([], fn name, acc ->
       with {:ok, frob} <- load(name) do
         [frob | acc]
@@ -264,29 +243,7 @@ defmodule Frobs do
   end
 
   def is_available?(%__MODULE__{} = frob) do
-    execute_available(frob) && is_registered?(frob)
-  end
-
-  def is_registered?(%__MODULE__{registry: %{"global" => true}}), do: true
-
-  def is_registered?(%__MODULE__{registry: registry}) do
-    with {:ok, project} <- Store.get_project() do
-      Enum.member?(registry["projects"], project.name)
-    else
-      _ -> false
-    end
-  end
-
-  def is_registered?(frob) when is_binary(frob) do
-    with {:ok, home} <- validate_frob(frob),
-         {:ok, registry} <- read_registry(home) do
-      registry["global"] ||
-        with {:ok, project} <- Store.get_project() do
-          Enum.member?(registry["projects"], project)
-        else
-          _ -> false
-        end
-    end
+    execute_available(frob) && Settings.Frobs.enabled?(frob.name)
   end
 
   @spec module_map() :: %{binary => module()}
@@ -407,7 +364,6 @@ defmodule Frobs do
     home = Path.join(get_home(), name)
 
     with :ok <- validate_home(home),
-         :ok <- validate_registry(home),
          :ok <- validate_main(home),
          :ok <- validate_available(home),
          :ok <- validate_spec(home),
@@ -513,16 +469,6 @@ defmodule Frobs do
     end)
   end
 
-  defp validate_registry(home) do
-    path = Path.join(home, @registry)
-
-    if File.exists?(path) do
-      :ok
-    else
-      {:error, :registry_not_found}
-    end
-  end
-
   defp validate_main(home) do
     path = Path.join(home, @main)
 
@@ -558,12 +504,6 @@ defmodule Frobs do
 
       {:error, reason} ->
         {:error, reason}
-    end
-  end
-
-  defp read_registry(home) do
-    with {:ok, content} <- Path.join(home, @registry) |> File.read() do
-      Jason.decode(content)
     end
   end
 
@@ -624,6 +564,9 @@ defmodule Frobs do
           {_output, _} ->
             false
         end
+      else
+        _ ->
+          false
       end
     else
       true

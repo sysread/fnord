@@ -31,7 +31,7 @@ defmodule Cmd.FrobsTest do
       # Verify files exist where expected
       paths = frob_paths(name)
       assert File.exists?(paths.home)
-      assert File.exists?(paths.registry)
+      refute File.exists?(paths.registry)
       assert File.exists?(paths.spec)
       assert File.exists?(paths.main)
     end
@@ -55,12 +55,11 @@ defmodule Cmd.FrobsTest do
 
       # Make this frob appear in list():
       #  - delete 'available' to bypass dependency checks
-      #  - mark registry as global so registration passes
+      #  - enable it globally in settings
       paths = frob_paths(name)
       if File.exists?(paths.available), do: File.rm!(paths.available)
 
-      registry = %{global: true, projects: []}
-      File.write!(paths.registry, Jason.encode!(registry))
+      Settings.Frobs.enable(:global, name)
 
       {stdout, _stderr} =
         capture_all(fn ->

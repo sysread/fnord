@@ -73,6 +73,10 @@ defmodule Store do
           File.exists?(old_path) ->
             File.rename(old_path, new_path)
             UI.info("#{project_name} migrated to #{new_path}")
+
+          true ->
+            # Nothing to migrate; either both paths are missing or already handled
+            :ok
         end
       end)
     end

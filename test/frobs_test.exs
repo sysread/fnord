@@ -10,10 +10,9 @@ defmodule FrobsTest do
     # Create it
     assert {:ok, %Frobs{name: "say_hi"} = frob} = Frobs.create("say_hi")
 
-    # Should return spec + registry parsed, path set
+    # Should return spec parsed, path set
     assert frob.home == Path.join([home, "fnord", "tools", "say_hi"])
     assert frob.spec.name == "say_hi"
-    assert is_map(frob.registry)
 
     # Run it
     args_json = ~s|{"name":"Alice"}|
@@ -62,7 +61,6 @@ defmodule FrobsTest do
       path = Path.join([home, "fnord", "tools", "bad_frob"])
       File.mkdir_p!(path)
       File.write!(Path.join(path, "spec.json"), "{ not valid json ")
-      File.write!(Path.join(path, "registry.json"), ~s|{"global": true}|)
 
       File.write!(Path.join(path, "main"), "#!/bin/bash\necho ok")
       File.chmod!(Path.join(path, "main"), 0o755)
@@ -79,7 +77,6 @@ defmodule FrobsTest do
         "parameters": { "type": "object", "properties": {} }
       }|)
 
-      File.write!(Path.join(path, "registry.json"), ~s|{"global": true}|)
       File.write!(Path.join(path, "main"), "#!/bin/bash\necho ok")
       File.chmod!(Path.join(path, "main"), 0o755)
 
@@ -112,7 +109,6 @@ defmodule FrobsTest do
         }
       }|)
 
-      File.write!(Path.join(path, "registry.json"), ~s|{"global": true}|)
       File.write!(Path.join(path, "main"), "#!/bin/bash\necho ok")
       File.chmod!(Path.join(path, "main"), 0o755)
 

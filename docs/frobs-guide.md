@@ -24,7 +24,6 @@ Each frob is a directory in `~/.fnord/tools/` containing three files:
 ```
 ~/.fnord/tools/
 └── my_frob/
-    ├── registry.json    # Project availability
     ├── spec.json        # Tool specification
     └── main             # Implementation (script or binary)
 ```
@@ -37,30 +36,30 @@ fnord frobs create --name my_frob
 
 This creates the directory structure and template files.
 
+### Enabling a Frob
+
+Enable your frob for a project using the CLI or the UI Settings:
+
+```bash
+# Enable for the current project
+fnord frobs enable --name my_frob
+# Or enable globally
+fnord frobs enable --name my_frob --global
+```
+### Disabling a Frob
+```bash
+# Disable for the current project
+fnord frobs disable --name my_frob
+# Or disable globally
+fnord frobs disable --name my_frob --global
+# Or disable for a specific project
+fnord frobs disable --name my_frob --project other_project
+```
+
+
 ## Configuration Files
 
-### 1. registry.json
-
-Controls which projects can use this frob:
-
-```json
-{
-  "global": false,
-  "projects": ["myproject", "another-project"]
-}
-```
-
-**Fields:**
-- `global` (boolean) - When `true`, available to all projects (ignores `projects` field)
-- `projects` (array) - List of project names that can use this frob
-
-**To make globally available:**
-```json
-{
-  "global": true,
-  "projects": []
-}
-```
+### 1. spec.json
 
 ### 2. spec.json
 
@@ -322,7 +321,9 @@ fi
 
 ### Frob not available in ask
 
-1. Check registry.json includes your project or has `"global": true`
+1. Ensure the frob is enabled (global or project):
+   - Global: `fnord frobs enable --name my_frob --global`
+   - Project: `fnord frobs enable --name my_frob`
 2. Verify frob passes validation: `fnord frobs check --name my_frob`
 3. Test explicitly: `fnord ask -p myproject -q "testing: is my_frob available?"`
 
