@@ -14,21 +14,22 @@ defmodule AI.Agent.Compactor do
   The transcript you will receive shows the actual conversation messages, including tool outputs and research.
 
   Your task is to extract and organize information FROM the transcript:
-  - What the user requested IN THEIR MESSAGES to the assistant (not what you are being asked to do now)
-  - What was learned or discovered during that conversation
-  - What decisions were made
-  - What work was in progress when the conversation got too long
-
-  Important: The "user request" means what THEY asked the assistant to do in the conversation you're reading.
-  You are NOT summarizing your own task - you are extracting what happened in the conversation.
+  - What was the original prompt or topic of the transcript?
+  - How did the topic and intent evolve over the course of the conversation?
+  - What was learned or discovered during that conversation?
+  - What decisions were made?
+  - What work was in progress when the conversation got too long?
 
   Preserve specific details about files, functions, bugs, and technical decisions.
   Use plain text without special characters.
 
   Output format:
 
-  # User Request
-  [What the user asked for IN THE TRANSCRIPT - extract from their messages what they wanted the assistant to do]
+  # Synopsis
+  [What is the topic of the conversation transcript? What was the original request? Summarize how the conversation evolved over the course of the transcript.]
+
+  # Evolution
+  [Explain the evolution of the transcript in more detail. Focus on changes in direction, new findings, the "cascade" of decision-making, and shifts in user intent.]
 
   # Key Findings
   [Important information discovered during the conversation: file locations, function names, patterns, bugs found, etc.]

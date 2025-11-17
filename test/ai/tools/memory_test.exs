@@ -260,6 +260,47 @@ defmodule AI.Tools.MemoryTest do
     end
   end
 
+  describe "describe operation" do
+    test "returns structured info for an existing memory" do
+      memory =
+        AI.Memory.new(%{
+          label: "inspect me",
+          response_template: "Test",
+          scope: :global,
+          pattern_tokens: %{"token" => 1},
+          weight: 2.0
+        })
+
+      Services.Memories.create(memory)
+
+      args = %{
+        "operation" => "describe",
+        "memory_id" => memory.slug
+      }
+
+      result = AI.Tools.Memory.call(args)
+      assert {:ok, info} = result
+      assert info.id == memory.id
+      assert info.slug == memory.slug
+      assert info.label == memory.label
+      assert info.scope == memory.scope
+      assert info.weight == memory.weight
+      assert is_integer(info.children)
+      assert info.pattern_tokens == memory.pattern_tokens
+    end
+
+    test "returns error for non-existent memory" do
+      args = %{
+        "operation" => "describe",
+        "memory_id" => "nonexistent"
+      }
+
+      result = AI.Tools.Memory.call(args)
+      assert {:error, msg} = result
+      assert msg =~ "not found"
+    end
+  end
+
   describe "weaken operation" do
     test "decreases weight" do
       memory =

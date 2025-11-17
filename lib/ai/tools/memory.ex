@@ -31,15 +31,23 @@ defmodule AI.Tools.Memory do
     {"Forgetting memory", id}
   end
 
+  def ui_note_on_request(%{"operation" => "describe", "memory_id" => id}) do
+    {"Inspecting memory", id}
+  end
+
   def ui_note_on_request(_args) do
     {"Memory operation", "processing"}
   end
 
   @impl AI.Tools
-  def ui_note_on_result(_args, _result), do: nil
+  def ui_note_on_result(%{"operation" => op}, result) do
+    {"Memory | ✓ #{op}", result}
+  end
 
   @impl AI.Tools
-  def tool_call_failure_message(_args, _reason), do: :default
+  def tool_call_failure_message(%{"operation" => op}, reason) do
+    {"Memory | ✗ #{op}", reason}
+  end
 
   @impl AI.Tools
   def spec do
@@ -81,13 +89,14 @@ defmodule AI.Tools.Memory do
           properties: %{
             operation: %{
               type: "string",
-              enum: ["remember", "strengthen", "weaken", "forget"],
+              enum: ["remember", "strengthen", "weaken", "forget", "describe"],
               description: """
               Operation to perform:
               - 'remember': Create new memory from current conversation
               - 'strengthen': Reinforce existing memory with current conversation context
               - 'weaken': Reduce memory weight
               - 'forget': Delete memory
+              - 'describe': Inspect an existing memory without modifying it
               """
             },
             scope: %{
@@ -150,6 +159,7 @@ defmodule AI.Tools.Memory do
         "strengthen" -> handle_strengthen(args)
         "weaken" -> handle_weaken(args)
         "forget" -> handle_forget(args)
+        "describe" -> handle_describe(args)
         _ -> {:error, "Unknown operation: #{operation}"}
       end
     end
@@ -262,6 +272,25 @@ defmodule AI.Tools.Memory do
         {:error, reason} ->
           {:error, "Failed to delete memory: #{reason}"}
       end
+    end
+  end
+
+  defp handle_describe(args) do
+    with {:ok, memory_id} <- AI.Tools.get_arg(args, "memory_id"),
+         {:ok, memory} <- find_memory(memory_id) do
+      children_count = length(Services.Memories.get_children(memory.id))
+
+      {:ok,
+       %{
+         id: memory.id,
+         slug: memory.slug,
+         label: memory.label,
+         scope: memory.scope,
+         weight: memory.weight,
+         parent_id: memory.parent_id,
+         children: children_count,
+         pattern_tokens: memory.pattern_tokens
+       }}
     end
   end
 
