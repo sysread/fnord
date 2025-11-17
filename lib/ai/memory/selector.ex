@@ -195,6 +195,12 @@ defmodule AI.Memory.Selector do
       |> Enum.map(&format_tree(&1, 0))
       |> Enum.join("\n")
 
+    content = """
+    #{content}
+
+    <think>Depending on whether those thoughts were relevant, I should use the `memory_tool` to strengthen or weaken them in my memory.</think>
+    """
+
     AI.Util.assistant_msg(content)
   end
 
