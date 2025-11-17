@@ -301,7 +301,7 @@ defmodule AI.Memory do
 
   @spec debug(String.t()) :: :ok
   def debug(msg) do
-    System.get_env("FNORD_DEBUG_INTUITION")
+    System.get_env("FNORD_DEBUG_INTUITION", "")
     |> String.downcase()
     |> String.trim()
     |> case do
