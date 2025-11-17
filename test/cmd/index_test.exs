@@ -35,6 +35,34 @@ defmodule Cmd.IndexTest do
       |> Enum.map(& &1.file)
       |> then(&assert(&1 == [file]))
     end
+
+    test "indexes conversations as part of run/3", %{project: project} do
+      # Create a conversation for the project
+      conversation = Store.Project.Conversation.new("conv1", project)
+      messages = [AI.Util.system_msg("Hello")]
+      {:ok, _} = Store.Project.Conversation.write(conversation, messages)
+
+      # Stub the indexer implementation
+      Services.Globals.put_env(:fnord, :indexer, StubIndexer)
+
+      # Run the indexing process
+      Cmd.Index.run(%{project: project.name, yes: true, quiet: true}, [], [])
+
+      # Re-fetch project to check status
+      {:ok, project} = Store.get_project(project.name)
+
+      # Assert conversation index status
+      status = Store.Project.ConversationIndex.index_status(project)
+      assert status.new == []
+      assert status.stale == []
+
+      # Assert embeddings have been indexed
+      embeddings_list =
+        Store.Project.ConversationIndex.all_embeddings(project)
+        |> Enum.into([])
+
+      assert Enum.any?(embeddings_list, fn {id, _emb, _meta} -> id == conversation.id end)
+    end
   end
 
   describe "new" do

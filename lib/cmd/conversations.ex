@@ -81,7 +81,11 @@ defmodule Cmd.Conversations do
       end)
 
       if UI.confirm("Confirm deletion of the listed conversations. This action cannot be undone.") do
-        to_delete |> Enum.each(&Store.Project.Conversation.delete/1)
+        to_delete
+        |> Enum.each(fn conversation ->
+          Store.Project.Conversation.delete(conversation)
+          Store.Project.ConversationIndex.delete(project, conversation.id)
+        end)
         count = length(to_delete)
         UI.info("Deleted #{count} conversation(s).")
         :ok

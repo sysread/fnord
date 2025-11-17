@@ -291,11 +291,17 @@ defmodule Cmd.Index do
     # Ensure legacy entries are migrated to relative-path scheme before indexing
     Store.Project.Entry.MigrateAbsToRelPathKeys.ensure_relative_entry_ids(idx.project)
 
-    idx
-    |> maybe_reindex()
-    |> scan_project()
-    |> delete_entries()
-    |> index_entries()
+    status =
+      idx
+      |> maybe_reindex()
+      |> scan_project()
+      |> delete_entries()
+      |> index_entries()
+
+    # Index conversations after file entries
+    index_conversations(idx.project)
+
+    status
   end
 
   @spec scan_project(Store.Project.t()) :: Store.Project.index_status()
@@ -350,6 +356,60 @@ defmodule Cmd.Index do
     end
 
     status
+  end
+
+  @spec index_conversations(Store.Project.t()) :: :ok
+  defp index_conversations(project) do
+    %{new: new, stale: stale, deleted: deleted} =
+      Store.Project.ConversationIndex.index_status(project)
+
+    UI.spin("Deleting missing conversations from index", fn ->
+      Enum.each(deleted, &Store.Project.ConversationIndex.delete(project, &1))
+      {"Deleted #{Enum.count(deleted)} conversation(s) from the index", :ok}
+    end)
+
+    conversations = new ++ stale
+    count = Enum.count(conversations)
+
+    if count == 0 do
+      UI.warn("No conversations to index")
+      :ok
+    else
+      UI.spin("Indexing #{count} conversation(s)", fn ->
+        conversations
+        |> UI.async_stream(&process_conversation(project, &1), "Indexing conversations")
+        |> Enum.to_list()
+
+        {"All conversation indexing tasks complete", :ok}
+      end)
+    end
+  end
+
+  defp process_conversation(project, convo) do
+    with {:ok, ts, messages, metadata} <- Store.Project.Conversation.read(convo),
+         json = Jason.encode!(%{"messages" => messages}),
+         {:ok, embeddings} <- Indexer.impl().get_embeddings(json),
+         :ok <-
+           Store.Project.ConversationIndex.write_embeddings(
+             project,
+             convo.id,
+             embeddings,
+             Map.merge(metadata, %{
+               "conversation_id" => convo.id,
+               "last_indexed_ts" => DateTime.to_unix(ts),
+               "message_count" => length(messages)
+             })
+           ) do
+      :ok
+    else
+      {:error, reason} ->
+        UI.warn(
+          "Error processing conversation #{convo.id}",
+          inspect(reason, pretty: true, limit: :infinity)
+        )
+
+        :error
+    end
   end
 
   defp process_entry(entry) do

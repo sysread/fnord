@@ -32,6 +32,7 @@ If you've ever pasted multiple files into ChatGPT or worked with it iteratively 
 - Writing code with ~fancy autocomplete~ AI assistance
 - Git archaeology
 - Persistent learning about your projects over time
+- Persistent conversational memory
 - Improves its research capabilities with each interaction
 - Layered approvals for shell/file operations
 - User integrations

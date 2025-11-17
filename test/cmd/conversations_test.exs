@@ -60,6 +60,36 @@ defmodule Cmd.ConversationsTest do
     :meck.unload(UI)
   end
 
+  test "prune deletes conversation index entries", %{project: project} do
+    # Create a conversation file 40 days old
+    id = "indexed_conv"
+    conv = Store.Project.Conversation.new(id, project)
+    old_ts = DateTime.utc_now() |> DateTime.add(-40 * 24 * 3600, :second) |> DateTime.to_unix()
+    File.mkdir_p!(Path.dirname(conv.store_path))
+    File.write!(conv.store_path, "#{old_ts}:[]")
+
+    # Write a dummy index entry for the conversation
+    index_dir = Store.Project.ConversationIndex.path_for(project, id)
+    File.mkdir_p!(index_dir)
+    Store.Project.ConversationIndex.write_embeddings(project, conv.id, [%{dummy: "data"}], %{"last_indexed_ts" => old_ts})
+
+    # Stub confirmation to true
+    :ok = :meck.new(UI, [:non_strict])
+    :meck.expect(UI, :confirm, fn _ -> true end)
+    :meck.expect(UI, :info, fn msg -> IO.puts(:stderr, msg) end)
+    :meck.expect(UI, :error, fn msg -> IO.puts(:stderr, msg) end)
+
+    {_stdout, output} =
+      capture_all(fn ->
+        Cmd.Conversations.run(%{project: project.name, prune: 30}, [], [])
+      end)
+
+    assert output =~ "Pruning conversations older than 30 days"
+    refute File.exists?(conv.store_path)
+    refute File.exists?(index_dir)
+
+    :meck.unload(UI)
+  end
   test "prune cancellation prints only cancellation message", %{project: project} do
     # Create a conversation file 40 days old
     id = "old_cancel"

@@ -197,7 +197,8 @@ defmodule AI.Tools do
     "research_tool" => AI.Tools.Research,
     "shell_tool" => AI.Tools.Shell,
     "troubleshooter_tool" => AI.Tools.Troubleshooter,
-    "task_validation_tool" => AI.Tools.TaskValidation
+    "task_validation_tool" => AI.Tools.TaskValidation,
+    "conversation_tool" => AI.Tools.Conversation
   }
 
   @rw_tools %{
