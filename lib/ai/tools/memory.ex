@@ -169,21 +169,6 @@ defmodule AI.Tools.Memory do
   # Operation Handlers
   # ----------------------------------------------------------------------------
 
-  # Gets accumulated tokens from current conversation (if available)
-  defp get_current_accumulated_tokens do
-    case Services.Globals.get_env(:fnord, :current_conversation) do
-      nil ->
-        %{}
-
-      pid ->
-        metadata = Services.Conversation.get_metadata(pid)
-
-        metadata
-        |> Map.get("memory_state", %{})
-        |> Map.get("accumulated_tokens", %{})
-    end
-  end
-
   defp handle_remember(args) do
     with {:ok, scope} <- AI.Tools.get_arg(args, "scope"),
          {:ok, label} <- AI.Tools.get_arg(args, "label"),
@@ -222,11 +207,13 @@ defmodule AI.Tools.Memory do
     with {:ok, memory_id} <- AI.Tools.get_arg(args, "memory_id"),
          {:ok, memory} <- find_memory(memory_id) do
       # Get current conversation tokens automatically
+      factor = get_mutation_factor(memory.id, :strengthen)
       tokens = get_current_accumulated_tokens()
+      scaled_tokens = Enum.into(tokens, %{}, fn {token, count} -> {token, count * factor} end)
 
       # Strengthen memory pattern tokens with current conversation tokens
-      updated_pattern = AI.Memory.strengthen_tokens(memory.pattern_tokens, tokens)
-      updated_weight = AI.Memory.clamp_weight(memory.weight + 0.5)
+      updated_pattern = AI.Memory.strengthen_tokens(memory.pattern_tokens, scaled_tokens)
+      updated_weight = AI.Memory.clamp_weight(memory.weight + 0.5 * factor)
 
       strengthened = %{memory | pattern_tokens: updated_pattern, weight: updated_weight}
 
@@ -244,11 +231,13 @@ defmodule AI.Tools.Memory do
     with {:ok, memory_id} <- AI.Tools.get_arg(args, "memory_id"),
          {:ok, memory} <- find_memory(memory_id) do
       # Get current conversation tokens automatically
+      factor = get_mutation_factor(memory.id, :weaken)
       tokens = get_current_accumulated_tokens()
+      scaled_tokens = Enum.into(tokens, %{}, fn {token, count} -> {token, count * factor} end)
 
       # Weaken memory pattern tokens with current conversation tokens
-      updated_pattern = AI.Memory.weaken_tokens(memory.pattern_tokens, tokens)
-      updated_weight = AI.Memory.clamp_weight(memory.weight - 0.5)
+      updated_pattern = AI.Memory.weaken_tokens(memory.pattern_tokens, scaled_tokens)
+      updated_weight = AI.Memory.clamp_weight(memory.weight - 0.5 * factor)
 
       weakened = %{memory | pattern_tokens: updated_pattern, weight: updated_weight}
 
@@ -313,6 +302,34 @@ defmodule AI.Tools.Memory do
 
       memory ->
         {:ok, memory}
+    end
+  end
+
+  # Gets accumulated tokens from current conversation (if available)
+  defp get_current_accumulated_tokens do
+    case Services.Globals.get_env(:fnord, :current_conversation) do
+      nil ->
+        %{}
+
+      pid ->
+        metadata = Services.Conversation.get_metadata(pid)
+
+        metadata
+        |> Map.get("memory_state", %{})
+        |> Map.get("accumulated_tokens", %{})
+    end
+  end
+
+  defp get_mutation_factor(memory_id, op) do
+    case Services.Globals.get_env(:fnord, :current_conversation) do
+      nil ->
+        1.0
+
+      pid ->
+        # bump_memory_mutation/3 returns the current directional count
+        count = Services.Conversation.bump_memory_mutation(pid, memory_id, op)
+        # Use absolute value for scaling so direction is handled by op
+        1.0 / (1.0 + abs(count))
     end
   end
 end

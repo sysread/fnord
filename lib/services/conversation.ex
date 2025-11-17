@@ -81,6 +81,19 @@ defmodule Services.Conversation do
   end
 
   @doc """
+  Strengthen the memory mutation for the given memory ID.
+  """
+  @spec bump_memory_mutation(pid, String.t()) :: non_neg_integer
+  def bump_memory_mutation(pid, memory_id) do
+    bump_memory_mutation(pid, memory_id, :strengthen)
+  end
+
+  @spec bump_memory_mutation(pid, String.t(), :strengthen | :weaken) :: non_neg_integer
+  def bump_memory_mutation(pid, memory_id, op) do
+    GenServer.call(pid, {:bump_memory_mutation, memory_id, op})
+  end
+
+  @doc """
   Save the current conversation to persistent storage. This updates the
   conversation's timestamp and writes the messages to disk. If the conversation
   is successfully saved, the server state is reloaded with the latest data.
@@ -156,6 +169,11 @@ defmodule Services.Conversation do
 
   def handle_call(:get_metadata, _from, state) do
     {:reply, state.metadata, state}
+  end
+
+  def handle_call({:bump_memory_mutation, memory_id, op}, _from, state) do
+    {new_metadata, count} = update_memory_mutations(state.metadata, memory_id, op)
+    {:reply, count, %{state | metadata: new_metadata}}
   end
 
   def handle_call(:save, _from, state) do
@@ -309,14 +327,41 @@ defmodule Services.Conversation do
       # Calculate total tokens
       total_tokens = Enum.sum(Map.values(trimmed_accumulated))
 
+      # Fetch memory mutations
+      mutations = Map.get(memory_state, "memory_mutations", %{})
+
       # Update memory state
       updated_memory_state = %{
         "accumulated_tokens" => trimmed_accumulated,
         "last_processed_index" => length(msgs) - 1,
-        "total_tokens" => total_tokens
+        "total_tokens" => total_tokens,
+        "memory_mutations" => mutations
       }
 
       Map.put(metadata, "memory_state", updated_memory_state)
     end
+  end
+
+  @spec update_memory_mutations(map(), String.t(), :strengthen | :weaken) :: {map(), integer()}
+  defp update_memory_mutations(metadata, memory_id, op) do
+    memory_state = Map.get(metadata, "memory_state", %{})
+    mutations = Map.get(memory_state, "memory_mutations", %{})
+    current = Map.get(mutations, memory_id, 0)
+
+    new_count =
+      case op do
+        :strengthen ->
+          base = if current < 0, do: 0, else: current
+          base + 1
+
+        :weaken ->
+          base = if current > 0, do: 0, else: current
+          base - 1
+      end
+
+    new_mutations = Map.put(mutations, memory_id, new_count)
+    new_memory_state = Map.put(memory_state, "memory_mutations", new_mutations)
+    updated_metadata = Map.put(metadata, "memory_state", new_memory_state)
+    {updated_metadata, new_count}
   end
 end
