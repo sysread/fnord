@@ -96,12 +96,17 @@ defmodule Store.Project.Conversation do
   """
   @spec write(t, list) :: {:ok, t} | {:error, any()}
   def write(conversation, messages) do
+    write(conversation, messages, %{})
+  end
+
+  @spec write(t, list, map) :: {:ok, t} | {:error, any()}
+  def write(conversation, messages, metadata) do
     conversation.project_home
     |> build_store_dir()
     |> File.mkdir_p()
 
     timestamp = marshal_ts()
-    data = %{messages: messages}
+    data = %{messages: messages, metadata: metadata}
 
     with {:ok, json} <- Jason.encode(data),
          :ok <- File.write(conversation.store_path, "#{timestamp}:#{json}") do
@@ -110,16 +115,18 @@ defmodule Store.Project.Conversation do
   end
 
   @doc """
-  Reads the conversation from the store. Returns a tuple with the timestamp and
-  the messages in the conversation.
+  Reads the conversation from the store. Returns a tuple with the timestamp,
+  messages, and metadata in the conversation.
   """
-  @spec read(t) :: {:ok, DateTime.t(), list} | {:error, any()}
+  @spec read(t) :: {:ok, DateTime.t(), list, map} | {:error, any()}
   def read(conversation) do
     with {:ok, contents} <- File.read(conversation.store_path),
          [timestamp_str, json] <- String.split(contents, ":", parts: 2),
          {:ok, timestamp} <- unmarshal_ts(timestamp_str),
-         {:ok, %{"messages" => msgs}} <- Jason.decode(json) do
-      {:ok, timestamp, Util.string_keys_to_atoms(msgs)}
+         {:ok, data} <- Jason.decode(json) do
+      msgs = Map.get(data, "messages", [])
+      metadata = Map.get(data, "metadata", %{})
+      {:ok, timestamp, Util.string_keys_to_atoms(msgs), metadata}
     end
   end
 
@@ -130,9 +137,9 @@ defmodule Store.Project.Conversation do
   """
   @spec fork(t) :: {:ok, t} | {:error, any}
   def fork(%__MODULE__{} = conversation) do
-    with {:ok, _ts, messages} <- read(conversation),
+    with {:ok, _ts, messages, metadata} <- read(conversation),
          forked <- new(),
-         {:ok, _} <- write(forked, messages) do
+         {:ok, _} <- write(forked, messages, metadata) do
       {:ok, forked}
     else
       other -> {:error, other}
@@ -165,7 +172,7 @@ defmodule Store.Project.Conversation do
   @spec question(t) :: {:ok, binary} | {:error, :no_question}
   def question(conversation) do
     case read(conversation) do
-      {:ok, _timestamp, msgs} ->
+      {:ok, _timestamp, msgs, _metadata} ->
         case Enum.find(msgs, &(Map.get(&1, :role) == "user")) do
           nil -> {:error, :no_question}
           msg -> Map.fetch(msg, :content)
@@ -183,7 +190,7 @@ defmodule Store.Project.Conversation do
   @spec num_messages(t) :: non_neg_integer()
   def num_messages(conversation) do
     case read(conversation) do
-      {:ok, _timestamp, msgs} -> length(msgs)
+      {:ok, _timestamp, msgs, _metadata} -> length(msgs)
       _ -> 0
     end
   end

@@ -64,4 +64,3 @@ defmodule Frobs.Migrate do
     end
   end
 end
-

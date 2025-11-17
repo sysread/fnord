@@ -85,11 +85,13 @@ defmodule Settings.FrobsTest do
       # project frobs
       Settings.set_project("proj1")
       s = Settings.new()
+
       Settings.set_project_data(
         s,
         "proj1",
         Map.put(Settings.get_project_data(s, "proj1") || %{}, "frobs", [])
       )
+
       :ok = Settings.Frobs.enable(:project, "pf1")
       :ok = Settings.Frobs.enable(:project, "pf2")
 
@@ -104,7 +106,6 @@ defmodule Settings.FrobsTest do
       assert MapSet.member?(eff, "gf1")
       assert MapSet.member?(eff, "pf2")
     end
-
   end
 
   describe "Frobs migration heuristic" do
@@ -127,6 +128,7 @@ defmodule Settings.FrobsTest do
       # prepare proj1 with empty 'frobs' key
       Settings.set_project("proj1")
       s1 = Settings.new()
+
       Settings.set_project_data(
         s1,
         "proj1",
@@ -174,5 +176,4 @@ defmodule Settings.FrobsTest do
     # ensure no top-level frobs_migrated key in settings
     assert nil == Settings.get(Settings.new(), "frobs_migrated", nil)
   end
-
 end

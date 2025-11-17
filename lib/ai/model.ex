@@ -34,8 +34,8 @@ defmodule AI.Model do
     }
   end
 
-  def smart(), do: gpt5(:medium)
-  def balanced(), do: gpt5_mini(:medium)
+  def smart(), do: gpt51(:medium)
+  def balanced(), do: gpt51(:low)
   def fast(), do: gpt41_nano()
   def reasoning(level \\ :medium), do: o4_mini(level)
   def coding(), do: o4_mini(:medium)
@@ -48,7 +48,7 @@ defmodule AI.Model do
   # ----------------------------------------------------------------------------
   # OpenAI Models
   # ----------------------------------------------------------------------------
-  def gpt5(reasoning \\ :medium), do: new("gpt-5", 400_000, reasoning)
+  def gpt51(reasoning \\ :medium), do: new("gpt-5.1", 400_000, reasoning)
   def gpt5_mini(reasoning \\ :medium), do: new("gpt-5-mini", 400_000, reasoning)
   def gpt5_nano(reasoning \\ :medium), do: new("gpt-5-nano", 400_000, reasoning)
   def gpt41(), do: new("gpt-4.1", 1_000_000, :none)

@@ -88,6 +88,7 @@ defmodule Fnord.MixProject do
       {:mox, "~> 1.2", only: [:test], runtime: false},
       {:optimus, "~> 0.2"},
       {:owl, "~> 0.12"},
+      {:stemmer, "~> 1.2"},
       {:uniq, "~> 0.1"},
       # OAuth2 browser-based flow (loopback server)
       {:plug_cowboy, "~> 2.7"}

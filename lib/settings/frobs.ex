@@ -89,8 +89,6 @@ defmodule Settings.Frobs do
     MapSet.member?(effective_enabled(), name)
   end
 
-
-
   @doc """
   Prune missing frobs from settings based on the given list of present frob names.
 

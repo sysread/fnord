@@ -170,6 +170,8 @@ defmodule Fnord do
 
       {:project, project} when is_binary(project) ->
         Settings.set_project(project)
+        # Notify Services.Memories to reload with project context
+        Services.Memories.set_project(project)
 
       {:edit, edit_mode} ->
         Settings.set_edit_mode(edit_mode)
@@ -197,6 +199,8 @@ defmodule Fnord do
         {:ok, project} ->
           UI.info("Project not specified, but resolved to #{project}")
           Settings.set_project(project)
+          # Notify Services.Memories to reload with project context
+          Services.Memories.set_project(project)
 
         {:error, :not_in_project} ->
           :ok

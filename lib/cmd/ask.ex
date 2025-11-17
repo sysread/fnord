@@ -156,6 +156,11 @@ defmodule Cmd.Ask do
            :ok <- set_worktree(opts),
            {:ok, opts} <- maybe_fork_conversation(opts),
            {:ok, pid} <- Services.Conversation.start_link(opts[:follow]),
+           :ok <-
+             (
+               Services.Globals.put_env(:fnord, :current_conversation, pid)
+               :ok
+             ),
            {:ok, usage, context, response} <- get_response(opts, pid),
            {:ok, conversation_id} <- save_conversation(pid) do
         end_time = System.monotonic_time(:second)

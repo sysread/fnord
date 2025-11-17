@@ -73,6 +73,14 @@ defmodule Services.Conversation do
   end
 
   @doc """
+  Get the conversation metadata.
+  """
+  @spec get_metadata(pid) :: map
+  def get_metadata(pid) do
+    GenServer.call(pid, :get_metadata)
+  end
+
+  @doc """
   Save the current conversation to persistent storage. This updates the
   conversation's timestamp and writes the messages to disk. If the conversation
   is successfully saved, the server state is reloaded with the latest data.
@@ -121,7 +129,9 @@ defmodule Services.Conversation do
   end
 
   def handle_cast({:append_msg, new_msg}, state) do
-    {:noreply, %{state | msgs: state.msgs ++ [new_msg]}}
+    new_msgs = state.msgs ++ [new_msg]
+    new_metadata = update_memory_state(state.metadata, new_msgs)
+    {:noreply, %{state | msgs: new_msgs, metadata: new_metadata}}
   end
 
   def handle_cast({:replace_msgs, new_msgs}, state) do
@@ -144,11 +154,16 @@ defmodule Services.Conversation do
     {:reply, state.msgs, state}
   end
 
+  def handle_call(:get_metadata, _from, state) do
+    {:reply, state.metadata, state}
+  end
+
   def handle_call(:save, _from, state) do
     # Before persisting, strip recurring system prompts per settings
     msgs_to_write = filter_system_messages(state.msgs)
 
-    with {:ok, conversation} <- Conversation.write(state.conversation, msgs_to_write),
+    with {:ok, conversation} <-
+           Conversation.write(state.conversation, msgs_to_write, state.metadata),
          {:ok, state} <- new(state.conversation.id) do
       {:reply, {:ok, conversation}, state}
     else
@@ -194,6 +209,7 @@ defmodule Services.Conversation do
        agent: AI.Agent.new(AI.Agent.Coordinator, agent_args),
        conversation: Conversation.new(),
        msgs: [],
+       metadata: %{},
        ts: nil
      }}
   end
@@ -203,7 +219,7 @@ defmodule Services.Conversation do
   defp new(id) do
     conversation = Conversation.new(id)
 
-    with {:ok, ts, msgs} <- Conversation.read(conversation) do
+    with {:ok, ts, msgs, metadata} <- Conversation.read(conversation) do
       agent_args =
         msgs
         |> find_agent_name()
@@ -227,6 +243,7 @@ defmodule Services.Conversation do
          agent: agent,
          conversation: conversation,
          msgs: msgs,
+         metadata: metadata,
          ts: ts
        }}
     end
@@ -248,5 +265,58 @@ defmodule Services.Conversation do
       _ ->
         nil
     end)
+  end
+
+  # -----------------------------------------------------------------------------
+  # Memory state management
+  # -----------------------------------------------------------------------------
+
+  @top_k_tokens 5000
+
+  # Updates memory state with new messages. Filters to user/assistant roles,
+  # tokenizes, stems, removes stopwords, and accumulates into bag-of-words.
+  # Trims to top K tokens by frequency to prevent unbounded growth.
+  defp update_memory_state(metadata, msgs) do
+    memory_state = Map.get(metadata, "memory_state", %{})
+    accumulated = Map.get(memory_state, "accumulated_tokens", %{})
+    last_idx = Map.get(memory_state, "last_processed_index", -1)
+
+    # Get messages we haven't processed yet
+    new_messages =
+      msgs
+      |> Enum.drop(last_idx + 1)
+      |> Enum.filter(fn msg ->
+        Map.get(msg, :role) in ["user", "assistant"]
+      end)
+
+    # If no new messages to process, return unchanged metadata
+    if Enum.empty?(new_messages) do
+      metadata
+    else
+      # Extract and normalize text from new messages
+      new_tokens =
+        new_messages
+        |> Enum.map(&Map.get(&1, :content, ""))
+        |> Enum.join(" ")
+        |> AI.Memory.normalize_to_tokens()
+
+      # Merge into accumulated tokens
+      updated_accumulated = AI.Memory.merge_tokens(accumulated, new_tokens)
+
+      # Trim to prevent unbounded growth
+      trimmed_accumulated = AI.Memory.trim_to_top_k(updated_accumulated, @top_k_tokens)
+
+      # Calculate total tokens
+      total_tokens = Enum.sum(Map.values(trimmed_accumulated))
+
+      # Update memory state
+      updated_memory_state = %{
+        "accumulated_tokens" => trimmed_accumulated,
+        "last_processed_index" => length(msgs) - 1,
+        "total_tokens" => total_tokens
+      }
+
+      Map.put(metadata, "memory_state", updated_memory_state)
+    end
   end
 end

@@ -159,11 +159,6 @@ defmodule AI.Tools do
               | nil
 
   @doc """
-  Returns the OpenAPI spec for the tool as an elixir map.
-  """
-  @callback spec() :: tool_spec
-
-  @doc """
   Returns a message to be displayed when a tool call fails. May return
   :default, :ignore, a binary message, or a {label, detail} tuple.
   """
@@ -172,6 +167,11 @@ defmodule AI.Tools do
               | :ignore
               | binary
               | {binary, binary}
+
+  @doc """
+  Returns the OpenAPI spec for the tool as an elixir map.
+  """
+  @callback spec() :: tool_spec
 
   @doc """
   Calls the tool with the provided arguments and returns the response as an :ok
@@ -191,6 +191,7 @@ defmodule AI.Tools do
     "file_search_tool" => AI.Tools.File.Search,
     "file_spelunker_tool" => AI.Tools.File.Spelunker,
     "list_projects_tool" => AI.Tools.ListProjects,
+    "memory_tool" => AI.Tools.Memory,
     "notify_tool" => AI.Tools.Notify,
     "prior_research" => AI.Tools.Notes,
     "research_tool" => AI.Tools.Research,
