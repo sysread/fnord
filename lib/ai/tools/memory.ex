@@ -15,38 +15,26 @@ defmodule AI.Tools.Memory do
   def read_args(args), do: {:ok, args}
 
   @impl AI.Tools
-  def ui_note_on_request(%{"operation" => "remember", "label" => label, "scope" => scope}) do
-    {"Creating memory", "#{label} (#{scope})"}
-  end
+  def ui_note_on_request(%{"operation" => op} = args) do
+    id = Map.get(args, "memory_id", "")
+    label = Map.get(args, "label", "")
 
-  def ui_note_on_request(%{"operation" => "strengthen", "memory_id" => id}) do
-    {"Strengthening memory", id}
-  end
-
-  def ui_note_on_request(%{"operation" => "weaken", "memory_id" => id}) do
-    {"Weakening memory", id}
-  end
-
-  def ui_note_on_request(%{"operation" => "forget", "memory_id" => id}) do
-    {"Forgetting memory", id}
-  end
-
-  def ui_note_on_request(%{"operation" => "describe", "memory_id" => id}) do
-    {"Inspecting memory", id}
-  end
-
-  def ui_note_on_request(_args) do
-    {"Memory operation", "processing"}
+    case {id, label} do
+      {"", ""} -> {"#{op} memory", "processing"}
+      {id, ""} -> {"#{op} memory", id}
+      {"", label} -> {"#{op} memory", label}
+      {id, label} -> {"#{op} memory", "(#{id}) #{label}"}
+    end
   end
 
   @impl AI.Tools
   def ui_note_on_result(%{"operation" => op}, result) do
-    {"Memory | ✓ #{op}", result}
+    {"#{op} memory", "✓ #{result}"}
   end
 
   @impl AI.Tools
   def tool_call_failure_message(%{"operation" => op}, reason) do
-    {"Memory | ✗ #{op}", reason}
+    {"#{op} memory", "✗ #{reason}"}
   end
 
   @impl AI.Tools
@@ -77,10 +65,12 @@ defmodule AI.Tools.Memory do
         You simply decide WHEN to remember or strengthen - the system captures WHAT is being discussed at that moment.
 
         Operations:
+        Operations:
         - remember: Create new memory from current conversation context
         - strengthen: Reinforce existing memory with current conversation context (increase weight, add training tokens)
         - weaken: Reduce memory's influence (decrease weight)
         - forget: Delete memory permanently
+        - tree: List all memories in a hierarchical tree view
         """,
         parameters: %{
           type: "object",
@@ -89,7 +79,7 @@ defmodule AI.Tools.Memory do
           properties: %{
             operation: %{
               type: "string",
-              enum: ["remember", "strengthen", "weaken", "forget", "describe"],
+              enum: ["remember", "strengthen", "weaken", "forget", "describe", "tree"],
               description: """
               Operation to perform:
               - 'remember': Create new memory from current conversation
@@ -97,6 +87,7 @@ defmodule AI.Tools.Memory do
               - 'weaken': Reduce memory weight
               - 'forget': Delete memory
               - 'describe': Inspect an existing memory without modifying it
+              - 'tree': List all memories in a hierarchical tree view
               """
             },
             scope: %{
@@ -160,6 +151,7 @@ defmodule AI.Tools.Memory do
         "weaken" -> handle_weaken(args)
         "forget" -> handle_forget(args)
         "describe" -> handle_describe(args)
+        "tree" -> handle_tree(args)
         _ -> {:error, "Unknown operation: #{operation}"}
       end
     end
@@ -281,6 +273,29 @@ defmodule AI.Tools.Memory do
          pattern_tokens: memory.pattern_tokens
        }}
     end
+  end
+
+  defp handle_tree(_args) do
+    roots = Services.Memories.get_roots()
+
+    lines =
+      case roots do
+        [] -> ["(no memories)"]
+        _ -> format_tree(roots, 0, [])
+      end
+
+    {:ok, Enum.join(lines, "\n")}
+  end
+
+  defp format_tree([], _depth, acc), do: acc
+
+  defp format_tree([memory | rest], depth, acc) do
+    indent = String.duplicate("  ", depth)
+    line = "#{indent}(id:#{memory.id}) #{memory.label}"
+
+    acc = acc ++ [line]
+    acc = format_tree(Services.Memories.get_children(memory.id), depth + 1, acc)
+    format_tree(rest, depth, acc)
   end
 
   # ----------------------------------------------------------------------------

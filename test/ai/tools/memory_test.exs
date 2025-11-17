@@ -301,6 +301,59 @@ defmodule AI.Tools.MemoryTest do
     end
   end
 
+  describe "tree operation" do
+    test "prints hierarchical tree with indentation" do
+      # Create a small global memory hierarchy
+      root =
+        AI.Memory.new(%{
+          label: "root",
+          response_template: "Root",
+          scope: :global
+        })
+
+      Services.Memories.create(root)
+
+      child1 =
+        AI.Memory.new(%{
+          label: "child1",
+          response_template: "Child1",
+          scope: :global,
+          parent_id: root.id
+        })
+
+      Services.Memories.create(child1)
+
+      child2 =
+        AI.Memory.new(%{
+          label: "child2",
+          response_template: "Child2",
+          scope: :global,
+          parent_id: root.id
+        })
+
+      Services.Memories.create(child2)
+
+      grandchild =
+        AI.Memory.new(%{
+          label: "grandchild",
+          response_template: "Grandchild",
+          scope: :global,
+          parent_id: child1.id
+        })
+
+      Services.Memories.create(grandchild)
+
+      # Call tree operation
+      {:ok, output} = AI.Tools.Memory.call(%{"operation" => "tree"})
+
+      # Assert indentation
+      assert output =~ "(id:#{root.id}) #{root.label}"
+      assert output =~ "  (id:#{child1.id}) #{child1.label}"
+      assert output =~ "  (id:#{child2.id}) #{child2.label}"
+      assert output =~ "    (id:#{grandchild.id}) #{grandchild.label}"
+    end
+  end
+
   describe "weaken operation" do
     test "decreases weight" do
       memory =
