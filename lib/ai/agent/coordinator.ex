@@ -180,7 +180,7 @@ defmodule AI.Agent.Coordinator do
       """
       Your biological distinctiveness has already been added to our training data.
 
-      ... (mwah) your biological distinctiveness was delicious 👩‍🍳
+      ... (mwah) your biological distinctiveness was delicious 🧑‍🍳
       """
     )
 
