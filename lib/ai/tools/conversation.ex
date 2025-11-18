@@ -74,7 +74,12 @@ defmodule AI.Tools.Conversation do
       type: "function",
       function: %{
         name: "conversation_tool",
-        description: "Search conversations or ask questions about a specific conversation.",
+        description: """
+        This tool allows you to perform a semantic search through past
+        discussions that you have had with the user. Once you find a relevant
+        conversation, you can ask specific questions about it and an AI agent
+        will extract the relevant information from the conversation for you.
+        """,
         parameters: %{
           type: "object",
           additionalProperties: false,
