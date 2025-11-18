@@ -1,6 +1,9 @@
 defmodule AI.Embeddings do
   @endpoint "https://api.openai.com/v1/embeddings"
   @retry_interval 250
+  @rate_limit_backoff_base 200
+  @rate_limit_backoff_cap 2_000
+  @rate_limit_max_attempts 5
   @max_attempts 3
 
   @model "text-embedding-3-large"
@@ -15,6 +18,7 @@ defmodule AI.Embeddings do
           {:error, :max_attempts_reached}
           | {:error, :http_error}
           | {:error, :transport_error}
+          | {:error, :rate_limited}
           | {:error, String.t()}
 
   @type attempt :: non_neg_integer()
@@ -122,8 +126,18 @@ defmodule AI.Embeddings do
           | {:error, :token_limit_exceeded}
           | {:error, :http_error}
           | {:error, :transport_error}
-
+          | {:error, :rate_limited}
   defp endpoint(input) do
+    endpoint(input, 1)
+  end
+
+  @spec endpoint(inputs, attempt) ::
+          {:ok, embeddings}
+          | {:error, :token_limit_exceeded}
+          | {:error, :http_error}
+          | {:error, :transport_error}
+          | {:error, :rate_limited}
+  defp endpoint(input, attempt) do
     api_key = get_api_key!()
 
     headers = [
@@ -131,24 +145,47 @@ defmodule AI.Embeddings do
       {"Content-Type", "application/json"}
     ]
 
-    payload =
-      %{
-        encoding_format: "float",
-        model: @model,
-        input: input
-      }
+    payload = %{
+      encoding_format: "float",
+      model: @model,
+      input: input
+    }
 
     Http.post_json(@endpoint, headers, payload)
     |> case do
       {:ok, %{"data" => embeddings}} ->
         {:ok, Enum.map(embeddings, &Map.get(&1, "embedding"))}
 
-      {:http_error, {status_code, message}} ->
-        if token_limit_error?(message) do
-          {:error, :token_limit_exceeded}
+      {:http_error, {status_code, body}} ->
+        error_map =
+          case Jason.decode(body) do
+            {:ok, json} -> json
+            _ -> nil
+          end
+
+        if status_code == 429 and rate_limit_error?(error_map) do
+          if attempt < @rate_limit_max_attempts do
+            backoff =
+              min(@rate_limit_backoff_cap, @rate_limit_backoff_base * :math.pow(2, attempt - 1))
+
+            factor = 0.8 + :rand.uniform() * 0.4
+            delay = round(backoff * factor)
+            delay = if delay < 1, do: 1, else: delay
+
+            UI.warn("[AI.Embeddings] Rate limited, attempt #{attempt}, retrying in #{delay}ms")
+            Process.sleep(delay)
+            endpoint(input, attempt + 1)
+          else
+            UI.warn("[AI.Embeddings] Rate limit exceeded after #{attempt} attempts")
+            {:error, :rate_limited}
+          end
         else
-          UI.warn("[AI.Embeddings] Error getting embeddings: #{status_code} - #{message}")
-          {:error, :http_error}
+          if token_limit_error?(body) do
+            {:error, :token_limit_exceeded}
+          else
+            UI.warn("[AI.Embeddings] Error getting embeddings: #{status_code} - #{body}")
+            {:error, :http_error}
+          end
         end
 
       {:transport_error, error} ->
@@ -156,4 +193,7 @@ defmodule AI.Embeddings do
         {:error, :transport_error}
     end
   end
+
+  defp rate_limit_error?(%{"error" => %{"code" => "rate_limit_exceeded"}}), do: true
+  defp rate_limit_error?(_), do: false
 end
