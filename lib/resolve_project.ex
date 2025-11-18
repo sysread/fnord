@@ -20,11 +20,17 @@ defmodule ResolveProject do
     projects =
       Settings.new()
       |> Settings.get_projects()
-      |> Enum.flat_map(fn {name, %{"root" => root}} ->
-        case root do
-          nil -> []
-          root_str -> [{Path.absname(root_str), name}]
-        end
+      |> Enum.flat_map(fn
+        {name, %{"root" => nil}} ->
+          UI.warn("Project '#{name}' missing 'root' configuration, skipping.")
+          []
+
+        {name, %{"root" => root}} ->
+          [{Path.absname(root), name}]
+
+        {name, _project_config} ->
+          UI.warn("Project '#{name}' missing 'root' configuration, skipping.")
+          []
       end)
 
     # If we are inside a git worktree, prefer resolving at the primary repo root
