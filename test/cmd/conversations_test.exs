@@ -71,7 +71,10 @@ defmodule Cmd.ConversationsTest do
     # Write a dummy index entry for the conversation
     index_dir = Store.Project.ConversationIndex.path_for(project, id)
     File.mkdir_p!(index_dir)
-    Store.Project.ConversationIndex.write_embeddings(project, conv.id, [%{dummy: "data"}], %{"last_indexed_ts" => old_ts})
+
+    Store.Project.ConversationIndex.write_embeddings(project, conv.id, [%{dummy: "data"}], %{
+      "last_indexed_ts" => old_ts
+    })
 
     # Stub confirmation to true
     :ok = :meck.new(UI, [:non_strict])
@@ -90,6 +93,7 @@ defmodule Cmd.ConversationsTest do
 
     :meck.unload(UI)
   end
+
   test "prune cancellation prints only cancellation message", %{project: project} do
     # Create a conversation file 40 days old
     id = "old_cancel"

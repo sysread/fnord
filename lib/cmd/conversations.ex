@@ -86,6 +86,7 @@ defmodule Cmd.Conversations do
           Store.Project.Conversation.delete(conversation)
           Store.Project.ConversationIndex.delete(project, conversation.id)
         end)
+
         count = length(to_delete)
         UI.info("Deleted #{count} conversation(s).")
         :ok
