@@ -10,32 +10,32 @@ defmodule AI.Agent.Compactor do
   @min_summary_tokens 100
 
   @system_prompt """
-  You are summarizing a conversation transcript between a user and an AI assistant.
-  The transcript you will receive shows the actual conversation messages, including tool outputs and research.
+  You are summarizing a segment of a conversation transcript between a user and an AI assistant.
+  This segment may include prior summaries and user messages as context, followed by new assistant, tool, or system messages.
 
-  Your task is to extract and organize information FROM the transcript:
-  - What was the original prompt or topic of the transcript?
-  - How did the topic and intent evolve over the course of the conversation?
-  - What was learned or discovered during that conversation?
+  Your task is to treat the prior summaries and user messages as context and focus on summarizing the new assistant/tool/system content since the most recent user message.
+  Extract and organize the following information:
+  - What was the original prompt or topic of the conversation (including prior context)?
+  - How did the topic and intent evolve in this segment and in the context of the prior conversation?
+  - What was learned or discovered during this segment?
   - What decisions were made?
-  - What work was in progress when the conversation got too long?
+  - What work was in progress when this segment began?
 
-  Preserve specific details about files, functions, bugs, and technical decisions.
-  Use plain text without special characters.
+  Preserve specific details about files, functions, bugs, and technical decisions. Use plain text without special characters.
 
   Output format:
 
   # Synopsis
-  [What is the topic of the conversation transcript? What was the original request? Summarize how the conversation evolved over the course of the transcript.]
+  [What is the topic of the conversation, including prior context? What was the original request, and how does this segment fit into the larger conversation?]
 
   # Evolution
-  [Explain the evolution of the transcript in more detail. Focus on changes in direction, new findings, the "cascade" of decision-making, and shifts in user intent.]
+  [Explain the evolution within this segment in the context of the prior conversation. Focus on changes in direction, new findings, and shifts in user intent.]
 
   # Key Findings
-  [Important information discovered during the conversation: file locations, function names, patterns, bugs found, etc.]
+  [Important information discovered during this segment and its prior context: file locations, function names, patterns, bugs found, etc.]
 
   # Current Status
-  [What the assistant was doing when context limit approached. Include enough detail that work can resume exactly where it left off.]
+  [What the assistant or tools were doing at the end of this segment. Include enough detail that work can resume exactly where it left off.]
   """
 
   @impl AI.Agent
@@ -46,10 +46,33 @@ defmodule AI.Agent.Compactor do
   def get_response(%{messages: messages} = opts) do
     attempts = Map.get(opts, :attempts, 0)
 
-    tx_list = transcript(messages, [])
+    case build_transcript(messages) do
+      {:error, reason} ->
+        {:error, reason}
 
-    # Early guard: empty transcript or user-only transcript -> skip model call and retries
-    # User messages are preserved separately, so if there's nothing but user messages, there's nothing to summarize
+      {:ok, transcript_json, original_length} ->
+        case summarize_transcript(transcript_json) do
+          {:error, reason} ->
+            {:error, reason}
+
+          {:ok, summary} ->
+            case evaluate_summary(original_length, summary, attempts, messages) do
+              {:ok, result} ->
+                {:ok, result}
+
+              {:retry, new_attempts} ->
+                get_response(%{messages: messages, attempts: new_attempts})
+
+              {:error, reason} ->
+                {:error, reason}
+            end
+        end
+    end
+  end
+
+  # Builds and validates the transcript JSON for summarization
+  defp build_transcript(messages) do
+    tx_list = transcript(messages, [])
     has_non_user = Enum.any?(tx_list, fn msg -> msg.role != "user" end)
 
     if tx_list == [] or not has_non_user do
@@ -69,100 +92,107 @@ defmodule AI.Agent.Compactor do
           "recent messages (including your latest prompts) remain intact."
       )
 
-      AI.Accumulator.get_response(
-        model: @model,
-        prompt: @system_prompt,
-        input: transcript_json,
-        question:
-          "Review this conversation transcript and extract: what the user originally requested, key findings, and current work status."
-      )
-      |> case do
-        {:ok, %{response: response}} ->
-          summary =
-            """
-            Summary of conversation and research thus far:
-            #{response}
-            """
+      {:ok, transcript_json, original_length}
+    end
+  end
 
-          # Append task lists if any exist
-          summary =
-            case Services.Task.list_ids() do
-              [] ->
-                summary
+  # Sends the transcript JSON to the accumulator and builds the raw summary
+  defp summarize_transcript(transcript_json) do
+    AI.Accumulator.get_response(
+      model: @model,
+      prompt: @system_prompt,
+      input: transcript_json,
+      question:
+        "Review this conversation transcript and extract: what the user originally requested, key findings, and current work status."
+    )
+    |> case do
+      {:ok, %{response: response}} ->
+        summary = """
+        Summary of conversation and research thus far:
+        #{response}
+        """
 
-              list_ids ->
-                task_sections =
-                  list_ids
-                  |> Enum.map(&Services.Task.as_string/1)
-                  |> Enum.join("\n\n")
+        summary =
+          case Services.Task.list_ids() do
+            [] ->
+              summary
 
-                """
-                #{summary}
+            list_ids ->
+              task_sections =
+                list_ids
+                |> Enum.map(&Services.Task.as_string/1)
+                |> Enum.join("\n\n")
 
-                ## Active Task Lists
+              """
+              #{summary}
 
-                The following task lists were active when compaction occurred.
-                These tasks represent work in progress and should be consulted when resuming work.
+              ## Active Task Lists
 
-                #{task_sections}
-                """
-            end
+              The following task lists were active when compaction occurred.
+              These tasks represent work in progress and should be consulted when resuming work.
 
-          # Guard against trivial, near-empty summaries that would wipe context
-          new_tokens = AI.PretendTokenizer.guesstimate_tokens(summary)
-
-          if new_tokens < @min_summary_tokens do
-            UI.error(
-              "Compaction failed",
-              "Summary too small (#{new_tokens} < #{@min_summary_tokens} tokens)"
-            )
-
-            {:error, :summary_too_small}
-          else
-            new_length = byte_size(summary)
-            difference = original_length - new_length
-            percent = difference / original_length * 100.0
-
-            UI.info("""
-            Compaction results:
-              Original: #{Util.format_number(original_length)} bytes
-             Compacted: #{Util.format_number(new_length)} bytes
-              Savings: #{percent}% (#{Util.format_number(difference)} bytes)
-            """)
-
-            cond do
-              original_length < @min_length ->
-                UI.debug("Compaction retries skipped", "Original is too small to justify retries")
-
-                if new_length < original_length do
-                  summary |> AI.Util.system_msg() |> then(&{:ok, [&1]})
-                else
-                  UI.warn("Compaction failed", "Summary is larger than original; aborting")
-                  {:error, :compaction_failed}
-                end
-
-              new_length > original_length * @target_ratio and attempts < @max_attempts ->
-                UI.warn(
-                  "Compaction insufficient",
-                  "Attempting another pass (#{attempts + 1}/#{@max_attempts})"
-                )
-
-                get_response(%{messages: messages, attempts: attempts + 1})
-
-              true ->
-                UI.debug("Compacted conversation", summary)
-
-                if new_length < original_length do
-                  summary |> AI.Util.system_msg() |> then(&{:ok, [&1]})
-                else
-                  UI.warn("Compaction failed", "Summary is larger than original; aborting")
-                  {:error, :compaction_failed}
-                end
-            end
+              #{task_sections}
+              """
           end
 
-        {:error, reason} ->
-          {:error, reason}
+        {:ok, summary}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  # Evaluates the summary against size and retry logic, returning final status
+  defp evaluate_summary(original_length, summary, attempts, _messages) do
+    new_tokens = AI.PretendTokenizer.guesstimate_tokens(summary)
+
+    if new_tokens < @min_summary_tokens do
+      UI.error(
+        "Compaction failed",
+        "Summary too small (#{new_tokens} < #{@min_summary_tokens} tokens)"
+      )
+
+      {:error, :summary_too_small}
+    else
+      new_length = byte_size(summary)
+      difference = original_length - new_length
+      percent = difference / original_length * 100.0
+
+      UI.info("""
+      Compaction results:
+        Original: #{Util.format_number(original_length)} bytes
+       Compacted: #{Util.format_number(new_length)} bytes
+        Savings: #{percent}% (#{Util.format_number(difference)} bytes)
+      """)
+
+      cond do
+        original_length < @min_length ->
+          UI.debug("Compaction retries skipped", "Original is too small to justify retries")
+
+          if new_length < original_length do
+            {:ok, [AI.Util.system_msg(summary)]}
+          else
+            UI.warn("Compaction failed", "Summary is larger than original; aborting")
+            {:error, :compaction_failed}
+          end
+
+        new_length > original_length * @target_ratio and attempts < @max_attempts ->
+          UI.warn(
+            "Compaction insufficient",
+            "Attempting another pass (#{attempts + 1}/#{@max_attempts})"
+          )
+
+          {:retry, attempts + 1}
+
+        true ->
+          UI.debug("Compacted conversation", summary)
+
+          if new_length < original_length do
+            {:ok, [AI.Util.system_msg(summary)]}
+          else
+            UI.warn("Compaction failed", "Summary is larger than original; aborting")
+            {:error, :compaction_failed}
+          end
       end
     end
   end

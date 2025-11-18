@@ -540,32 +540,32 @@ defmodule AI.Completion do
   end
 
   # -----------------------------------------------------------------------------
+  defp maybe_compact(state), do: maybe_compact(state, false)
 
   @spec maybe_compact(t, boolean()) :: t
-  defp maybe_compact(state, force \\ false)
-
+  # If nothing has been used yet and we're not forcing compaction, do nothing
   defp maybe_compact(%{usage: 0} = state, false), do: state
 
+  # When forced, always compact with no additional options
   defp maybe_compact(state, true) do
-    AI.Completion.Compaction.full_compact(state)
+    AI.Completion.Compaction.compact(state, %{})
   end
 
+  # Otherwise, compact only if context utilization exceeds the target percentage
   defp maybe_compact(%{usage: usage, model: %{context: context}} = state, false) do
+    opts = %{keep_rounds: @compact_keep_rounds, target_pct: @compact_target_pct}
+
+    # Calculate the percentage of context used, rounded to one decimal place
     used_pct = Float.round(usage / context * 100, 1)
 
     if used_pct > 80 do
-      opts = %{
-        keep_rounds: @compact_keep_rounds,
-        target_pct: @compact_target_pct
-      }
-
-      AI.Completion.Compaction.partial_compact(state, opts)
+      AI.Completion.Compaction.compact(state, opts)
     else
       state
     end
   end
 
-  # full compaction now lives in AI.Completion.Compaction.full_compact/1
+  # Compaction logic is now delegated to `AI.Completion.Compaction.compact/2`.
 
   # Updates the system message that identifies the LLM to itself by name and
   # updates it to use the name provided by the `name` arg, if any.

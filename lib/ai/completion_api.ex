@@ -75,10 +75,9 @@ defmodule AI.CompletionAPI do
             error
             |> get_error()
             |> case do
-              {:error, %{message: msg}} = error ->
+              {:error, %{message: msg}} ->
                 UI.error("HTTP error while calling OpenAI API: #{msg}")
-                IO.inspect(payload.messages |> Enum.slice(-1, 1), label: "Last message sent")
-                error
+                {:error, %{message: msg}}
 
               error ->
                 error

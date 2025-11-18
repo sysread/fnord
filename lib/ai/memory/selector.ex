@@ -59,6 +59,11 @@ defmodule AI.Memory.Selector do
         AI.Memory.debug("Selected #{length(selected)} memories to fire")
 
         selected
+        |> Enum.each(fn {mem, _score} ->
+          UI.report_step("Remembering", UI.italicize(mem.response_template))
+        end)
+
+        selected
         |> Enum.map(&build_tree(&1, accumulated_tokens))
         |> limit_total_nodes(@max_thinks)
       end
