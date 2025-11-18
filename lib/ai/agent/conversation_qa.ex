@@ -15,11 +15,16 @@ defmodule AI.Agent.ConversationQA do
          {:ok, convo} <- load_conversation(project, id) do
       messages = build_messages(convo, question)
 
-      AI.Agent.get_completion(agent,
+      case AI.Agent.get_completion(agent,
         model: @model,
         messages: messages,
         toolbox: %{}
-      )
+      ) do
+        {:ok, %AI.Completion{response: response}} when is_binary(response) ->
+          {:ok, response}
+        {:error, reason} ->
+          {:error, reason}
+      end
     end
   end
 

@@ -9,11 +9,11 @@ defmodule AI.Tools.Conversation do
 
   @impl AI.Tools
   def ui_note_on_request(%{"action" => "search", "query" => query}) do
-    {"Conversation search", query}
+    {"Searching past conversations", query}
   end
 
-  def ui_note_on_request(%{"action" => "ask", "conversation_id" => id}) do
-    {"Conversation QA", "Conversation id: #{id}"}
+  def ui_note_on_request(%{"action" => "ask", "conversation_id" => id, "query" => query}) do
+    {"Recalling past conversation", "(#{id}) #{query}"}
   end
 
   def ui_note_on_request(_), do: nil
@@ -21,15 +21,43 @@ defmodule AI.Tools.Conversation do
   @impl AI.Tools
   def ui_note_on_result(%{"action" => "search"} = args, result) do
     query = Map.get(args, "query", "")
-    {"Conversation search results",
-     "Query: #{query}\nResults: #{inspect(result)}"}
+
+    titles =
+      result
+      |> Jason.decode!()
+      |> Enum.map(fn %{"conversation_id" => id, "title" => title} ->
+        title =
+          if String.contains?(title, "\n") do
+            title
+            |> String.split("\n")
+            |> List.first()
+            |> then(&(&1 <> "..."))
+          else
+            title
+          end
+
+        "- [#{id}] #{title}"
+      end)
+      |> Enum.join("\n")
+
+    {"Searched past conversations",
+     """
+     # #{query}
+
+     #{titles}
+     """}
   end
 
   def ui_note_on_result(%{"action" => "ask"} = args, result) do
     id = Map.get(args, "conversation_id", "")
     question = Map.get(args, "question", "")
-    {"Conversation QA result",
-     "Conversation id: #{id}\nQuestion: #{question}\nAnswer: #{inspect(result)}"}
+
+    {"Recalled past conversation",
+     """
+     # (#{id}) #{question}
+
+     #{result}
+     """}
   end
 
   def ui_note_on_result(_, _), do: nil
@@ -47,7 +75,6 @@ defmodule AI.Tools.Conversation do
       function: %{
         name: "conversation_tool",
         description: "Search conversations or ask questions about a specific conversation.",
-        strict: true,
         parameters: %{
           type: "object",
           additionalProperties: false,
