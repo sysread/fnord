@@ -201,6 +201,10 @@ defmodule Services.ConversationIndexer do
 
   defp get_label(conversation) do
     with {:ok, question} <- Store.Project.Conversation.question(conversation) do
+      width =
+        Owl.IO.columns() -
+          String.length("[info] ✓ Reindexed: [xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx] ")
+
       question
       |> String.split("\n")
       # Find the first line that contains alphanumeric characters
@@ -209,8 +213,9 @@ defmodule Services.ConversationIndexer do
       # If the line is long, truncate and add ellipsis
       |> then(fn line ->
         "[#{conversation.id}] " <>
-          if String.length(line) > 100 do
-            String.slice(line, 0, 47) <> "..."
+          if String.length(line) > width do
+            # -3 to account for "..."
+            String.slice(line, 0, width - 3) <> "..."
           else
             line
           end
