@@ -71,23 +71,34 @@ defmodule Store.Project.ConversationIndex do
     new_ids = MapSet.difference(source_ids, indexed_ids)
     deleted_ids = MapSet.difference(indexed_ids, source_ids)
 
+    last_updated =
+      source_conversations
+      |> Enum.map(fn c ->
+        ts = Conversation.timestamp(c)
+        ts_int = if is_integer(ts), do: ts, else: DateTime.to_unix(ts)
+        {c.id, ts_int}
+      end)
+      |> Map.new()
+
+    last_indexed =
+      source_conversations
+      |> Enum.map(fn convo ->
+        case read_metadata(project, convo.id) do
+          {:ok, %{"last_indexed_ts" => ts}} -> {convo.id, ts}
+          _ -> {convo.id, -1}
+        end
+      end)
+      |> Map.new()
+
     stale_convs =
       source_conversations
       |> Enum.filter(fn convo ->
-        case read_metadata(project, convo.id) do
-          {:ok, %{"last_indexed_ts" => ts}} ->
-            case Conversation.timestamp(convo) do
-              # 0 means unsaved and is treated as stale via `int > ts` logic
-              %DateTime{} = dt -> DateTime.to_unix(dt) > ts
-              int when is_integer(int) -> int > ts
-            end
-
-          _ ->
-            # If we cannot read metadata, treat as stale so it will be reindexed.
-            true
-        end
+        ts_updated = Map.get(last_updated, convo.id, 0)
+        ts_indexed = Map.get(last_indexed, convo.id, 0)
+        ts_indexed < ts_updated
       end)
       |> Enum.reject(fn convo -> not MapSet.member?(indexed_ids, convo.id) end)
+      |> Enum.sort_by(&Map.get(last_indexed, &1.id, 0))
 
     %{
       new:

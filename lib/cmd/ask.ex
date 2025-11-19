@@ -136,19 +136,10 @@ defmodule Cmd.Ask do
 
     start_time = System.monotonic_time(:second)
 
-    # Start silent background indexer. This must happen BEFORE any project root
-    # override is applied, so that the indexer uses the correct root.
-    indexer_pid =
-      case Store.get_project() do
-        {:ok, project} ->
-          case Services.BackgroundIndexer.start_link(project: project) do
-            {:ok, pid} -> pid
-            _ -> nil
-          end
-
-        _ ->
-          nil
-      end
+    # Start silent background indexers. This must happen BEFORE any project
+    # root override is applied, so that the indexers use the correct root.
+    file_indexer_pid = start_file_indexer()
+    conversation_indexer_pid = start_conversation_indexer()
 
     try do
       with {:ok, opts} <- validate(opts),
@@ -205,10 +196,9 @@ defmodule Cmd.Ask do
           {:error, other}
       end
     after
-      # stop background indexer if still running
-      if is_pid(indexer_pid) and Process.alive?(indexer_pid) do
-        Services.BackgroundIndexer.stop(indexer_pid)
-      end
+      # stop background indexers if still running
+      stop_file_indexer(file_indexer_pid)
+      stop_conversation_indexer(conversation_indexer_pid)
 
       Services.BackupFile.offer_cleanup()
 
@@ -277,6 +267,35 @@ defmodule Cmd.Ask do
   end
 
   defp validate_conversation(_opts), do: :ok
+
+  # ----------------------------------------------------------------------------
+  # Services
+  # ----------------------------------------------------------------------------
+  defp start_file_indexer() do
+    case Services.BackgroundIndexer.start_link() do
+      {:ok, pid} -> pid
+      _ -> nil
+    end
+  end
+
+  defp start_conversation_indexer() do
+    case Services.ConversationIndexer.start_link() do
+      {:ok, pid} -> pid
+      _ -> nil
+    end
+  end
+
+  defp stop_file_indexer(pid) do
+    if is_pid(pid) && Process.alive?(pid) do
+      Services.BackgroundIndexer.stop(pid)
+    end
+  end
+
+  defp stop_conversation_indexer(pid) do
+    if is_pid(pid) && Process.alive?(pid) do
+      Services.ConversationIndexer.stop(pid)
+    end
+  end
 
   # ----------------------------------------------------------------------------
   # Worktree setting

@@ -10,9 +10,13 @@ defmodule AI.Memory.Selector do
 
   # Configuration from settings or defaults
   @beam_width 2
+
+  # Maximum total thoughts to inject
   @max_thinks 6
+
   # Hard floor to filter complete garbage
   @minimum_score 0.01
+
   # Minimum memories needed for statistical threshold
   @min_for_stats 5
 

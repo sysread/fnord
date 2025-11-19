@@ -8,6 +8,8 @@ defmodule Services.ConversationIndexer do
   them to the conversation index.
   """
 
+  @max_per_session 10
+
   use GenServer, restart: :temporary
 
   @type state :: %{
@@ -15,7 +17,8 @@ defmodule Services.ConversationIndexer do
           impl: module(),
           convo_queue: [Store.Project.Conversation.t()],
           task: pid() | nil,
-          mon_ref: reference() | nil
+          mon_ref: reference() | nil,
+          seen: map
         }
 
   @spec start_link(keyword()) :: GenServer.on_start()
@@ -62,7 +65,8 @@ defmodule Services.ConversationIndexer do
       impl: Indexer.impl(),
       convo_queue: convo_queue,
       task: nil,
-      mon_ref: nil
+      mon_ref: nil,
+      seen: %{}
     }
 
     {:ok, state, {:continue, :process_next}}
@@ -84,16 +88,27 @@ defmodule Services.ConversationIndexer do
   @impl true
   def handle_continue(:process_next, %{task: nil, convo_queue: [], project: project} = state)
       when not is_nil(project) do
-    case next_stale_conversation(project) do
+    state
+    |> next_stale_conversation()
+    |> case do
       nil ->
         {:stop, :normal, state}
 
       convo ->
         {:ok, task_pid} =
-          Task.start_link(fn -> safe_process(convo, state.impl, state.project) end)
+          Task.start_link(fn ->
+            safe_process(convo, state.impl, state.project)
+          end)
 
         mon_ref = Process.monitor(task_pid)
-        new_state = %{state | task: task_pid, mon_ref: mon_ref}
+
+        new_state = %{
+          state
+          | task: task_pid,
+            mon_ref: mon_ref,
+            seen: Map.put(state.seen, convo.id, true)
+        }
+
         {:noreply, new_state}
     end
   end
@@ -153,8 +168,8 @@ defmodule Services.ConversationIndexer do
                     meta
                   )
 
-                detail = convo.id
-                UI.end_step("Reindexed conversation", detail)
+                label = get_label(convo)
+                UI.end_step("Reindexed", label)
 
               _ ->
                 :ok
@@ -169,11 +184,37 @@ defmodule Services.ConversationIndexer do
     end
   end
 
-  @spec next_stale_conversation(Store.Project.t()) :: Store.Project.Conversation.t() | nil
-  defp next_stale_conversation(project) do
-    project
-    |> Store.Project.ConversationIndex.index_status()
-    |> Map.get(:stale, [])
-    |> List.first()
+  @spec next_stale_conversation(state) :: Store.Project.Conversation.t() | nil
+  defp next_stale_conversation(%{project: project, seen: seen}) do
+    if map_size(seen) >= @max_per_session do
+      nil
+    else
+      project
+      |> Store.Project.ConversationIndex.index_status()
+      |> Map.take([:new, :stale])
+      |> Map.values()
+      |> List.flatten()
+      |> Enum.reject(fn convo -> Map.has_key?(seen, convo.id) end)
+      |> List.first()
+    end
+  end
+
+  defp get_label(conversation) do
+    with {:ok, question} <- Store.Project.Conversation.question(conversation) do
+      question
+      |> String.split("\n")
+      # Find the first line that contains alphanumeric characters
+      |> Enum.find("(no title)", fn line -> String.match?(line, ~r/\p{L}|\p{N}/u) end)
+      |> String.trim()
+      # If the line is long, truncate and add ellipsis
+      |> then(fn line ->
+        "[#{conversation.id}] " <>
+          if String.length(line) > 100 do
+            String.slice(line, 0, 47) <> "..."
+          else
+            line
+          end
+      end)
+    end
   end
 end
