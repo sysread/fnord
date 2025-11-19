@@ -114,23 +114,14 @@ defmodule Settings.ApprovalsTest do
     test "handles new format projects correctly" do
       Settings.set_project("new-project")
 
-      settings_path = Settings.settings_file()
+      settings =
+        Settings.new()
+        |> Settings.set_project_data("new-project", %{
+          "root" => "/new/path",
+          "approvals" => %{"shell" => ["cargo"]}
+        })
+        |> Settings.update("approvals", fn _ -> %{} end)
 
-      new_format_data = %{
-        "approvals" => %{},
-        "projects" => %{
-          "new-project" => %{
-            "root" => "/new/path",
-            "approvals" => %{
-              "shell" => ["cargo"]
-            }
-          }
-        }
-      }
-
-      File.write!(settings_path, Jason.encode!(new_format_data))
-
-      settings = Settings.new()
       result = Approvals.get_approvals(settings, :project)
       assert result["shell"] == ["cargo"]
     end
