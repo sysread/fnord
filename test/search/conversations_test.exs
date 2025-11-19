@@ -32,5 +32,17 @@ defmodule Search.ConversationsTest do
 
     assert is_list(results)
     assert Enum.all?(results, &Map.has_key?(&1, :conversation_id))
+
+    timestamps =
+      results
+      |> Enum.map(fn %{conversation_id: id} ->
+        conv = Conversation.new(id, project)
+        case Conversation.timestamp(conv) do
+          %DateTime{} = dt -> DateTime.to_unix(dt)
+          _ -> 0
+        end
+      end)
+
+    assert timestamps == Enum.sort(timestamps, :desc)
   end
 end

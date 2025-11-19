@@ -28,8 +28,18 @@ defmodule Search.Conversations do
         {:ok, nil}, acc -> acc
         {:ok, result}, acc -> [result | acc]
       end)
-      |> Enum.sort_by(& &1.score, :desc)
+      |> Enum.sort_by(fn %{score: sc} -> sc end, :desc)
       |> Enum.take(limit)
+      |> Enum.sort_by(
+        fn %{timestamp: ts} ->
+          case ts do
+            %DateTime{} = dt -> DateTime.to_unix(dt)
+            ts when is_integer(ts) -> ts
+            _ -> 0
+          end
+        end,
+        :desc
+      )
       |> then(&{:ok, &1})
     end
   end
