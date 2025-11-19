@@ -44,7 +44,7 @@ defmodule Cmd.Search do
 
   @impl Cmd
   def run(opts, _subcommands, _unknown) do
-    with {:ok, results} <- opts |> Search.new() |> Search.get_results() do
+    with {:ok, results} <- opts |> Search.Files.new() |> Search.Files.get_results() do
       results
       |> Enum.each(fn {entry, score, data} ->
         if opts.detail do

@@ -1,4 +1,4 @@
-defmodule Search do
+defmodule Search.Files do
   defstruct [
     :query,
     :limit,

@@ -129,8 +129,8 @@ defmodule AI.Tools.File.Search do
       limit: @max_search_results,
       query: query
     }
-    |> Search.new()
-    |> Search.get_results()
+    |> Search.Files.new()
+    |> Search.Files.get_results()
     |> case do
       {:ok, results} ->
         results

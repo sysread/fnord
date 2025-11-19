@@ -61,11 +61,11 @@ defmodule AI.Tools.File.SearchTest do
 
   test "call/1 returns formatted results when search and index_state succeed" do
     # Setup mocks for Search and Store modules
-    for mod <- [Search, Store.Project] do
+    for mod <- [Search.Files, Store.Project] do
       :meck.new(mod, [:passthrough])
     end
 
-    :meck.expect(Search, :get_results, fn _search ->
+    :meck.expect(Search.Files, :get_results, fn _search ->
       {:ok,
        [
          {%{rel_path: "lib/foo.ex"}, 0.42, %{"summary" => "foo summary"}},
@@ -90,25 +90,25 @@ defmodule AI.Tools.File.SearchTest do
     assert msg =~ "- Deleted files (indexed but deleted in project): 0"
 
     # Clean up mocks
-    for mod <- [Search, Store.Project] do
+    for mod <- [Search.Files, Store.Project] do
       :meck.unload(mod)
     end
   end
 
   test "call/1 propagates search errors" do
-    :meck.new(Search, [:passthrough])
-    :meck.expect(Search, :get_results, fn _ -> {:error, :boom} end)
+    :meck.new(Search.Files, [:passthrough])
+    :meck.expect(Search.Files, :get_results, fn _ -> {:error, :boom} end)
     assert AI.Tools.File.Search.call(%{"query" => "q"}) == {:error, :boom}
-    :meck.unload(Search)
+    :meck.unload(Search.Files)
   end
 
   test "call/1 propagates index_state errors" do
-    :meck.new(Search, [:passthrough])
-    :meck.expect(Search, :get_results, fn _ -> {:ok, []} end)
+    :meck.new(Search.Files, [:passthrough])
+    :meck.expect(Search.Files, :get_results, fn _ -> {:ok, []} end)
     :meck.new(Store, [:passthrough])
     :meck.expect(Store, :get_project, fn -> {:error, :proj_missing} end)
     assert AI.Tools.File.Search.call(%{"query" => "q"}) == {:error, :proj_missing}
-    :meck.unload(Search)
+    :meck.unload(Search.Files)
     :meck.unload(Store)
   end
 end
