@@ -37,6 +37,7 @@ defmodule Search.ConversationsTest do
       results
       |> Enum.map(fn %{conversation_id: id} ->
         conv = Conversation.new(id, project)
+
         case Conversation.timestamp(conv) do
           %DateTime{} = dt -> DateTime.to_unix(dt)
           _ -> 0

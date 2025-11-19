@@ -144,4 +144,60 @@ defmodule Cmd.ConversationsTest do
 
     :meck.unload(UI)
   end
+
+  test "semantic search returns formatted results", %{project: project} do
+    # Setup stub indexer
+    Services.Globals.put_env(:fnord, :indexer, StubIndexer)
+
+    # Create conversations with simple messages
+    id1 = "conv1"
+    conv1 = Store.Project.Conversation.new(id1, project)
+    File.mkdir_p!(Path.dirname(conv1.store_path))
+
+    File.write!(
+      conv1.store_path,
+      "#{DateTime.utc_now() |> DateTime.to_unix()}:{\"messages\": []}"
+    )
+
+    id2 = "conv2"
+    conv2 = Store.Project.Conversation.new(id2, project)
+    File.mkdir_p!(Path.dirname(conv2.store_path))
+
+    File.write!(
+      conv2.store_path,
+      "#{DateTime.utc_now() |> DateTime.to_unix()}:{\"messages\": []}"
+    )
+
+    # Write embeddings with dummy vectors
+    ts = DateTime.utc_now() |> DateTime.to_unix()
+
+    Store.Project.ConversationIndex.write_embeddings(
+      project,
+      conv1.id,
+      [%{embedding: [0.1, 0.2]}],
+      %{"last_indexed_ts" => ts}
+    )
+
+    Store.Project.ConversationIndex.write_embeddings(project, conv1.id, [1.0, 2.0, 3.0], %{
+      "last_indexed_ts" => ts
+    })
+
+    Store.Project.ConversationIndex.write_embeddings(project, conv2.id, [3.0, 2.0, 1.0], %{
+      "last_indexed_ts" => ts
+    })
+
+    # Run semantic search
+    {output, _stderr} =
+      capture_all(fn ->
+        Cmd.Conversations.run(%{project: project.name, query: "alpha", limit: 2}, [], [])
+      end)
+
+    lines = String.split(output, "\n", trim: true)
+    assert length(lines) == 2
+
+    for line <- lines do
+      parts = String.split(line, "\t")
+      assert length(parts) == 5
+    end
+  end
 end

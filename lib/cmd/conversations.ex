@@ -18,6 +18,21 @@ defmodule Cmd.Conversations do
             short: "-P",
             help: "Prune conversations older than this many days",
             parser: :integer
+          ],
+          query: [
+            value_name: "QUERY",
+            long: "--query",
+            short: "-q",
+            help: "Semantic search query",
+            parser: :string
+          ],
+          limit: [
+            value_name: "LIMIT",
+            long: "--limit",
+            short: "-l",
+            help: "Max search results",
+            parser: :integer,
+            default: 5
           ]
         ]
       ]
@@ -35,6 +50,18 @@ defmodule Cmd.Conversations do
     else
       {:error, :project_not_set} ->
         UI.error("No project selected; use --project or run in a project directory.")
+    end
+  end
+
+  @impl Cmd
+  def run(%{query: query} = opts, _subcommands, _unknown) when is_binary(query) do
+    with {:ok, project} <- Store.get_project() do
+      search(opts, project)
+    else
+      {:error, :project_not_set} ->
+        UI.error(
+          "No project selected; please specify --project or run inside a project directory."
+        )
     end
   end
 
@@ -125,6 +152,72 @@ defmodule Cmd.Conversations do
     end
 
     :ok
+  end
+
+  defp search(opts, project) do
+    query = Map.get(opts, :query)
+    limit = Map.get(opts, :limit, 5)
+
+    case Search.Conversations.search(project, query, limit: limit) do
+      {:ok, results} ->
+        Enum.each(results, &UI.puts(print_search_row(&1)))
+        :ok
+
+      {:error, reason} ->
+        UI.error("Search failed: #{inspect(reason)}")
+    end
+  end
+
+  defp print_search_row(%{
+         conversation_id: id,
+         score: score,
+         timestamp: timestamp,
+         title: title,
+         length: length
+       }) do
+    [
+      format_score(score),
+      format_timestamp(timestamp),
+      to_string(length),
+      to_string(id),
+      truncate_title(title)
+    ]
+    |> Enum.join("\t")
+  end
+
+  defp truncate_title(title) when is_binary(title) do
+    case String.split(title, "\n", parts: 2) do
+      [first] -> first
+      [first, _rest] -> first <> "..."
+    end
+  end
+
+  defp format_score(score) when is_number(score) do
+    :erlang.float_to_binary(score, decimals: 3)
+  end
+
+  defp format_timestamp(timestamp) do
+    case timestamp do
+      %DateTime{} ->
+        unix = DateTime.to_unix(timestamp)
+
+        {cmd, args} =
+          case :os.type() do
+            {:unix, :darwin} ->
+              {"date", ["-r", to_string(unix), "+%Y-%m-%d %H:%M:%S"]}
+
+            {:unix, _} ->
+              {"date", ["-d", "@#{unix}", "+%Y-%m-%d %H:%M:%S"]}
+          end
+
+        case System.cmd(cmd, args, stderr_to_stdout: true) do
+          {result, 0} -> String.trim(result)
+          _ -> DateTime.to_string(timestamp)
+        end
+
+      other ->
+        to_string(other)
+    end
   end
 
   defp get_question(conversation) do
