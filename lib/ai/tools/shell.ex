@@ -95,7 +95,20 @@ defmodule AI.Tools.Shell do
         description: """
         Executes a series of shell commands, and returns the mixed STDOUT and STDERR output.
 
-        ALWAYS prefer a built-in tool call over this tool when available.
+        When to use this tool:
+
+        - Use shell_tool for filesystem-level operations involving one or more files or directories, such as:
+          - deleting files or directories (e.g., `rm`, `rm -r`),
+          - moving or renaming files or directories (e.g., `mv`, `git mv`),
+          - creating directories (e.g., `mkdir -p`),
+          - applying bulk or multi-file changes using standard CLI tools.
+        - Use shell_tool to run project tools and commands that the user would normally run from the terminal, such as:
+          - `go test`, `mix format`, `mix dialyzer`, `npm test`, etc.
+          - `git status`, `git diff`, `git apply`, etc.
+        - Use shell_tool to create temporary files or directories as needed for testing, verification, or other operations.
+
+        When a specialized tool exists for the exact operation (for example, file_edit_tool for small, in-file edits), prefer that specialized tool first.
+        Otherwise, shell_tool is appropriate for filesystem-level and multi-file operations.
 
         If you are unsure of whether a command is available, try calling it with --version or --help.
         You can do this for multiple commands with concurrent tool calls to this tool.
@@ -128,6 +141,28 @@ defmodule AI.Tools.Shell do
 
         User-configured preapprovals (full-command regex):
         #{user_regexes}
+
+        Examples:
+
+        1) Delete a single file:
+
+        {
+          "description": "Delete obsolete module file",
+          "operator": "&&",
+          "commands": [
+            { "command": "rm", "args": ["lib/my_app/obsolete.ex"] }
+          ]
+        }
+
+        2) Move/rename a file with git:
+
+        {
+          "description": "Move legacy module into new namespace",
+          "operator": "&&",
+          "commands": [
+            { "command": "git", "args": ["mv", "lib/my_app/legacy.ex", "lib/my_app/new/legacy.ex"] }
+          ]
+        }
         """,
         parameters: %{
           type: "object",

@@ -239,6 +239,7 @@ defmodule Services.Conversation do
 
     with {:ok, ts, msgs, metadata} <- Conversation.read(conversation) do
       metadata = Map.put_new(metadata, "memory_learning_done?", false)
+
       agent_args =
         msgs
         |> find_agent_name()

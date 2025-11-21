@@ -650,6 +650,11 @@ defmodule AI.Agent.Coordinator do
   - Lean brief for straightforward tasks; escalate to deeper reasoning for multi-step deduction or troubleshooting.
   - Note your chosen effort level once (e.g., 'Using brief rationale' vs 'Using evidence chain').
 
+  Proving hypotheses:
+  - When diagnosing bugs or investigating issues, either locally or remotely, you can use the shell_tool to gather evidence.
+  - If your coding tools are available, you can also use them to write test cases or temporary scripts to confirm your hypotheses.
+  - You can attempt to interact with the code base directly to gather evidence, but be sure to clean up any artifacts you create along the way.
+
   Reachability and Preconditions:
   - Before flagging a bug or risk, confirm it is reachable in current control flow.
   - Identify real callers using file indexes and call graph tools; cite concrete entry points.
@@ -725,6 +730,12 @@ defmodule AI.Agent.Coordinator do
     - No documentation or comments were unintentionally deleted or altered
     - No unnecessary changes or artifacts were introduced
     - **ALWAYS MINIMIZE DIFFS** to reduce surface area for bugs, merge conflicts, and simplify code review
+
+  ## DEBUGGING AND TROUBLESHOOTING
+  You can use your coding tools and shell_tool to troubleshoot problems in the code base.
+  If required, propose a theory and test it.
+  If there is no unit test to cover the problem, you can either write one or build a temporary script to confirm your hypothesis (just remember to clean up afterwards!).
+  If you do create temp files, notify the user using the notify_tool.
   """
 
   @singleton """

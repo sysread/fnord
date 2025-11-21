@@ -73,6 +73,12 @@ defmodule AI.Tools.File.Edit do
         - One-off line or block replacements
         - Clear, unambiguous, file-local changes
         - Fast, low-risk operations
+        - Creating temporary scripts to assist with:
+          - complex tasks
+          - validating hypotheses
+          - analyzing code behavior
+          - processing data
+          - testing fixes and proving theories about bugs
 
         Supports optional creation of the file when it does not exist by
         setting `create_if_missing: true`.
@@ -117,6 +123,24 @@ defmodule AI.Tools.File.Edit do
         - For new files: omit old_string and use create_if_missing: true at the TOP LEVEL
         - Split complex edits into multiple changes/tool calls
         - Keep diffs minimal and well-anchored with clear anchors
+
+        Limitations:
+        - This tool edits the contents of a single file.
+        - It does not delete, move, or rename files or directories.
+        - Do NOT use file_edit_tool to "delete" a file by truncating it to empty content.
+
+        For operations where the primary intent is to remove or move a file
+        (for example: "delete this file from the project" or "move this file to
+        a new path"), prefer shell_tool with appropriate commands (such as
+        `rm`, `mv`, or `git mv`).
+
+        Tool choice:
+        - Use file_edit_tool when:
+          - You are changing or adding code inside a single existing file, and
+          - The file should continue to exist at the same path.
+        - Use shell_tool when:
+          - You need to delete, move, or rename files or directories, or
+          - You are applying changes that naturally affect many files at once.
         """,
         parameters: %{
           type: "object",
