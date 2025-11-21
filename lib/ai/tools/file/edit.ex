@@ -596,17 +596,26 @@ defmodule AI.Tools.File.Edit do
 
         case parts do
           [before, after_part] ->
-            # Exactly one occurrence; use WhitespaceFitter to adjust the
-            # replacement hunk to local style before applying it.
-            fitted_new =
-              AI.Tools.File.Edit.WhitespaceFitter.fit(
-                String.split(before, "\n", trim: false),
-                String.split(old, "\n", trim: false),
-                String.split(after_part, "\n", trim: false),
-                new
-              )
+            # Exactly one occurrence; allow skipping whitespace fitting based on FNORD_NO_FITTING
+            no_fitting? =
+              case System.get_env("FNORD_NO_FITTING") do
+                v when v in ["true", "True", "1"] -> true
+                _ -> false
+              end
 
-            {:ok, before <> fitted_new <> after_part}
+            replacement =
+              if no_fitting? do
+                new
+              else
+                AI.Tools.File.Edit.WhitespaceFitter.fit(
+                  String.split(before, "\n", trim: false),
+                  String.split(old, "\n", trim: false),
+                  String.split(after_part, "\n", trim: false),
+                  new
+                )
+              end
+
+            {:ok, before <> replacement <> after_part}
 
           _ ->
             # Multiple occurrences

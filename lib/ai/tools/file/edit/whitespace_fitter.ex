@@ -16,6 +16,8 @@ defmodule AI.Tools.File.Edit.WhitespaceFitter do
   calls.
   """
 
+  @tab_width 4
+
   @type indent_style :: %{type: :spaces | :tabs, width: pos_integer}
 
   @doc """
@@ -39,13 +41,24 @@ defmodule AI.Tools.File.Edit.WhitespaceFitter do
         end
       end)
 
+    # Determine total visual columns for tabs vs spaces to pick dominant style
+    total_space_cols = Enum.sum(stats.space_counts)
+    total_tab_cols = stats.tabs * @tab_width
+
     cond do
+      # Only tabs present
       stats.tabs > 0 and stats.space_counts == [] ->
         %{type: :tabs, width: 1}
 
+      # Both tabs and spaces: choose based on total visual width
+      stats.tabs > 0 and stats.space_counts != [] and total_tab_cols > total_space_cols ->
+        %{type: :tabs, width: 1}
+
+      # Spaces present (dominant or tie)
       stats.space_counts != [] ->
         %{type: :spaces, width: pick_space_width(stats.space_counts)}
 
+      # Fallback: no indentation info
       true ->
         # Degenerate case: no useful indentation; default to 2 spaces
         %{type: :spaces, width: 2}
@@ -170,8 +183,6 @@ defmodule AI.Tools.File.Edit.WhitespaceFitter do
         :none
     end
   end
-
-  @tab_width 4
 
   @spec visual_width(String.t()) :: non_neg_integer
   defp visual_width(ws) do

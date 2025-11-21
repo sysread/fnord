@@ -264,6 +264,42 @@ defmodule AI.Tools.File.EditTest do
       refute String.contains?(contents, "fmt.Println(\"hello\")")
     end
 
+    test "raw replacement skips whitespace fitter when FNORD_NO_FITTING is true", %{project: project} do
+      file =
+        mock_source_file(project, "test_go_like.txt", """
+        package main
+
+        import "fmt"
+
+        func main() {
+        	fmt.Println("hello")
+        }
+        """)
+
+      System.put_env("FNORD_NO_FITTING", "true")
+      on_exit(fn -> System.delete_env("FNORD_NO_FITTING") end)
+
+      {:ok, _result} =
+        Edit.call(%{
+          "file" => file,
+          "changes" => [
+            %{
+              "instructions" => "Change Go-style print without whitespace fitting",
+              "old_string" => "\tfmt.Println(\"hello\")",
+              "new_string" => "    fmt.Println(\"hi\")\n        fmt.Println(\"there\")"
+            }
+          ]
+        })
+
+      contents = File.read!(file)
+
+      assert String.contains?(contents, "    fmt.Println(\"hi\")")
+      assert String.contains?(contents, "        fmt.Println(\"there\")")
+      refute String.contains?(contents, "\tfmt.Println(\"hi\")")
+      refute String.contains?(contents, "\t\tfmt.Println(\"there\")")
+      refute String.contains?(contents, "fmt.Println(\"hello\")")
+    end
+
     test "mixed exact and natural language changes", %{project: project} do
       file =
         mock_source_file(project, "test.txt", """

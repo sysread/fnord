@@ -20,6 +20,27 @@ defmodule AI.Tools.File.Edit.WhitespaceFitterTest do
       assert %{type: :spaces, width: width} = style
       assert is_integer(width) and width >= 1
     end
+
+    test "prefers tabs when tabs dominate mixed indentation" do
+      lines = [
+        "\tfoo()",
+        "\t\tbar()",
+        "    baz()"
+      ]
+      style = WhitespaceFitter.infer_indent_style(lines)
+      assert %{type: :tabs, width: 1} = style
+    end
+
+    test "prefers spaces when spaces dominate mixed indentation" do
+      lines = [
+        "    foo()",
+        "        bar()",
+        "\tqux()"
+      ]
+      style = WhitespaceFitter.infer_indent_style(lines)
+      assert %{type: :spaces, width: width} = style
+      assert is_integer(width) and width >= 1
+    end
   end
 
   describe "fit/4" do
