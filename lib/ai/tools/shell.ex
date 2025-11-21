@@ -620,7 +620,8 @@ defmodule AI.Tools.Shell do
 
   # Check if an argument needs quoting (non-flag arguments)
   defp needs_quoting?(arg) do
-    not String.starts_with?(arg, "-")
+    # Only quote non-flag arguments that contain a space
+    not String.starts_with?(arg, "-") and String.contains?(arg, " ")
   end
 
   # Escape and quote an argument for display
