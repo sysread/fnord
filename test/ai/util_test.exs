@@ -75,8 +75,24 @@ defmodule AI.UtilTest do
 
     test "tool_msg truncates long content" do
       result = AI.Util.tool_msg("id", "func", @long_msg)
-      assert String.ends_with?(result.content, "(msg truncated due to size)")
-      assert String.length(result.content) < String.length(@long_msg)
+
+      # Very large tool outputs should be spilled to a tmp file with a header that
+      # explains how to inspect the file using shell_tool, plus a truncated preview.
+      assert String.contains?(result.content, "[fnord: tool output truncated]")
+
+      # We no longer assert on an exact file path; instead, ensure that the header
+      # mentions a temp file path and that the same path is used in the shell_tool
+      # instructions. This keeps the test robust while allowing Briefly to choose
+      # safe, unique filenames.
+      assert String.contains?(result.content, "Full output saved to:")
+
+      assert String.contains?(
+               result.content,
+               "To inspect more of this output, use `shell_tool` with a command like:"
+             )
+
+      assert String.contains?(result.content, "--- Begin truncated preview ---")
+      assert String.contains?(result.content, "--- End truncated preview ---")
     end
 
     test "multibyte emoji truncation works by character count" do

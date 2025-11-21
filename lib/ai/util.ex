@@ -207,6 +207,8 @@ defmodule AI.Util do
         inspect(output, pretty: true)
       end
 
+    output = spill_tool_output_if_needed(id, func, output)
+
     output = """
     #{output}
 
@@ -221,6 +223,69 @@ defmodule AI.Util do
     }
     |> validate_msg_length()
   end
+
+  # When a tool produces a very large output, writing the entire contents into the
+  # conversation can blow past the model's context window. For tool outputs, we
+  # instead spill the full content to a temporary file and return a preview plus
+  # explicit instructions for using `shell_tool` to inspect the file.
+  defp spill_tool_output_if_needed(_id, _func, output) when is_binary(output) do
+    if String.length(output) <= @max_msg_length do
+      output
+    else
+      # Use a temp path that the model can reference with shell_tool. We rely
+      # on Briefly for atomic, race-safe temp file creation and cleanup when
+      # the owning process or BEAM exits.
+      with dir when is_binary(dir) <- System.tmp_dir(),
+           {:ok, filename} =
+             Briefly.create(
+               directory: dir,
+               prefix: "fnord-tool-",
+               extname: ".log"
+             ),
+           # Best-effort write; if it fails, we fall back to normal truncation.
+           :ok <- File.write(filename, output) do
+        bytes = byte_size(output)
+        lines = output |> String.split("\n") |> length()
+
+        header = """
+        [fnord: tool output truncated]
+
+        Full output saved to: #{filename}
+        Size: #{bytes} bytes (#{lines} lines)
+
+        This file will be automatically cleaned up after your next complete response to the user.
+        To inspect more of this output, use `shell_tool` with a command like:
+
+        - `cat #{filename}`
+        - `sed -n 'START,ENDp' #{filename}`
+
+        --- Begin truncated preview ---
+        """
+
+        # Reserve room for the header and a closing footer inside @max_msg_length.
+        # This keeps validate_msg_length/1 as a final safety net rather than the
+        # primary truncation mechanism for tool outputs.
+        header_len = String.length(header)
+        footer = "\n--- End truncated preview ---"
+        footer_len = String.length(footer)
+
+        # Leave a bit of extra slack so that validate_msg_length/1 is less likely
+        # to trim off the footer we add here.
+        safety_margin = 200
+
+        max_preview_len = max(@max_msg_length - header_len - footer_len - safety_margin, 0)
+        preview = String.slice(output, 0, max_preview_len)
+        header <> preview <> footer
+      else
+        {:error, _reason} ->
+          # If we cannot write the tmp file, fall back to the original output and
+          # let validate_msg_length/1 handle truncation.
+          output
+      end
+    end
+  end
+
+  defp spill_tool_output_if_needed(_id, _func, output), do: output
 
   @doc """
   This is the tool call message, which must come immediately before the
