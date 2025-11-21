@@ -51,13 +51,17 @@ defmodule AI.Agent.Compactor do
         {:error, reason}
 
       {:ok, transcript_json, original_length} ->
+        UI.begin_step("Compacting conversation", "Original size: #{original_length} bytes")
+
         case summarize_transcript(transcript_json) do
           {:error, reason} ->
+            UI.end_step("Compacting failed", reason)
             {:error, reason}
 
           {:ok, summary} ->
             case evaluate_summary(original_length, summary, attempts, messages) do
               {:ok, result} ->
+                UI.end_step("Compaction complete", result)
                 {:ok, result}
 
               {:retry, new_attempts} ->
@@ -80,18 +84,6 @@ defmodule AI.Agent.Compactor do
     else
       transcript_json = Jason.encode!(tx_list, pretty: true)
       original_length = byte_size(transcript_json)
-
-      UI.info(
-        "Compaction starting",
-        "Transcript JSON size: #{original_length} bytes. Recent messages preserved; proceeding with compaction."
-      )
-
-      UI.info(
-        "Summarizing conversation transcript (expected)",
-        "No new user prompt was added for this compaction pass. We are summarizing the transcript for compactness; " <>
-          "recent messages (including your latest prompts) remain intact."
-      )
-
       {:ok, transcript_json, original_length}
     end
   end
@@ -147,18 +139,13 @@ defmodule AI.Agent.Compactor do
     new_tokens = AI.PretendTokenizer.guesstimate_tokens(summary)
 
     if new_tokens < @min_summary_tokens do
-      UI.error(
-        "Compaction failed",
-        "Summary too small (#{new_tokens} < #{@min_summary_tokens} tokens)"
-      )
-
       {:error, :summary_too_small}
     else
       new_length = byte_size(summary)
       difference = original_length - new_length
       percent = difference / original_length * 100.0
 
-      UI.info("""
+      UI.report_step("Compacting conversation", """
       Compaction results:
         Original: #{Util.format_number(original_length)} bytes
        Compacted: #{Util.format_number(new_length)} bytes
@@ -167,30 +154,24 @@ defmodule AI.Agent.Compactor do
 
       cond do
         original_length < @min_length ->
-          UI.debug("Compaction retries skipped", "Original is too small to justify retries")
-
           if new_length < original_length do
             {:ok, [AI.Util.system_msg(summary)]}
           else
-            UI.warn("Compaction failed", "Summary is larger than original; aborting")
             {:error, :compaction_failed}
           end
 
         new_length > original_length * @target_ratio and attempts < @max_attempts ->
-          UI.warn(
-            "Compaction insufficient",
-            "Attempting another pass (#{attempts + 1}/#{@max_attempts})"
+          UI.report_step(
+            "Compacting conversation",
+            "Compaction insufficient. Attempting another pass (#{attempts + 1}/#{@max_attempts})"
           )
 
           {:retry, attempts + 1}
 
         true ->
-          UI.debug("Compacted conversation", summary)
-
           if new_length < original_length do
             {:ok, [AI.Util.system_msg(summary)]}
           else
-            UI.warn("Compaction failed", "Summary is larger than original; aborting")
             {:error, :compaction_failed}
           end
       end
