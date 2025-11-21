@@ -25,7 +25,6 @@ defmodule Services do
     Services.Conversation.Interrupts.start_link([])
     AI.Agent.Researcher.start_link()
     Services.BackupFile.start_link()
-    Services.ModelPerformanceTracker.start_link()
   end
 
   @doc """

@@ -1241,16 +1241,6 @@ defmodule AI.Agent.Coordinator do
 
   defp log_usage(%{usage: usage} = state) do
     UI.log_usage(@model, usage)
-
-    # Show performance report if model debugging is enabled
-    if Settings.debug_models?() do
-      performance_report = Services.ModelPerformanceTracker.generate_report()
-
-      if performance_report != "" do
-        UI.say(performance_report)
-      end
-    end
-
     state
   end
 

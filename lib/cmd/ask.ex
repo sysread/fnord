@@ -107,9 +107,6 @@ defmodule Cmd.Ask do
       UI.info("fnord version", Util.get_running_version())
     end
 
-    # Start a new performance tracking session
-    Services.ModelPerformanceTracker.start_session()
-
     opts =
       if opts[:edit] do
         UI.warning_banner("EDITING MODE ENABLED! THE AI CAN MODIFY FILES. YOU MUST BE NUTS.")

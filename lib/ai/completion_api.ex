@@ -20,8 +20,6 @@ defmodule AI.CompletionAPI do
 
   @spec get(model, msgs, tools, response_format, web_search?) :: response
   def get(model, msgs, tools \\ nil, response_format \\ nil, web_search? \\ false) do
-    tracking_id = Services.ModelPerformanceTracker.begin_tracking(model)
-
     api_key = get_api_key!()
 
     response_format =
@@ -84,7 +82,7 @@ defmodule AI.CompletionAPI do
             end
 
           {:ok, response} ->
-            get_response(response, tracking_id)
+            get_response(response)
         end
       rescue
         e in Jason.DecodeError ->
@@ -118,16 +116,6 @@ defmodule AI.CompletionAPI do
            }}
       end
 
-    # Handle error cases for tracking
-    case result do
-      {:error, _} ->
-        Services.ModelPerformanceTracker.end_tracking(tracking_id, %{})
-
-      _ ->
-        # Success cases are already handled in get_response functions
-        :ok
-    end
-
     result
   end
 
@@ -147,27 +135,17 @@ defmodule AI.CompletionAPI do
     end
   end
 
-  defp get_response(
-         %{
-           "choices" => [%{"message" => response}],
-           "usage" => usage
-         },
-         tracking_id
-       ) do
+  defp get_response(%{"choices" => [%{"message" => response}], "usage" => usage}) do
     response
     |> Map.put("usage", usage)
-    |> get_response(tracking_id)
+    |> get_response()
   end
 
-  defp get_response(%{"tool_calls" => tool_calls}, tracking_id) do
-    # Track tool calls with empty usage data
-    Services.ModelPerformanceTracker.end_tracking(tracking_id, %{})
+  defp get_response(%{"tool_calls" => tool_calls}) do
     {:ok, :tool, Enum.map(tool_calls, &get_tool_call/1)}
   end
 
-  defp get_response(%{"content" => response, "usage" => usage}, tracking_id) do
-    # Track the full usage data for performance metrics
-    Services.ModelPerformanceTracker.end_tracking(tracking_id, usage)
+  defp get_response(%{"content" => response, "usage" => usage}) do
     # Return total_tokens for backward compatibility
     total_tokens = Map.get(usage, "total_tokens", 0)
     {:ok, :msg, response, total_tokens}
