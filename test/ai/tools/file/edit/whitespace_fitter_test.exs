@@ -118,5 +118,33 @@ defmodule AI.Tools.File.Edit.WhitespaceFitterTest do
       assert line1 == "    if x < y:"
       assert line2 == "        return y"
     end
+
+    test "preserves fine-grained relative indentation for space-indented contexts" do
+      context_before = [
+        "def foo(x, y):",
+        "    if x > y:",
+        "        return x"
+      ]
+      orig_hunk = ["    if x > y:"]
+      context_after = ["    return x"]
+      new_hunk_raw = "    a()\n      b()\n        c()"
+      fitted = WhitespaceFitter.fit(context_before, orig_hunk, context_after, new_hunk_raw)
+      [line1, line2, line3] = String.split(fitted, "\n", trim: false)
+      assert line1 == "    a()"
+      assert line2 == "      b()"
+      assert line3 == "        c()"
+    end
+
+    test "preserves relative indentation for multi-level tab-indented contexts" do
+      context_before = ["func main() {", "\tif cond {", "\t\tfoo()", "\t}"]
+      orig_hunk = ["\t\tfoo()"]
+      context_after = ["\t}"]
+      new_hunk_raw = "\t\tfoo()\n\t\t\tbar()\n\t\t\t\tbaz()"
+      fitted = WhitespaceFitter.fit(context_before, orig_hunk, context_after, new_hunk_raw)
+      [line1, line2, line3] = String.split(fitted, "\n", trim: false)
+      assert line1 == "\t\tfoo()"
+      assert line2 == "\t\t\tbar()"
+      assert line3 == "\t\t\t\tbaz()"
+    end
   end
 end
