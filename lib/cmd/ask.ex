@@ -469,11 +469,23 @@ defmodule Cmd.Ask do
   end
 
   defp build_notes_spinner_label() do
-    base = if AI.Notes.has_new_facts?(), do: "Consolidating notes...", else: "Finalizing notes..."
+    base =
+      if AI.Notes.has_new_facts?() do
+        "Consolidating notes..."
+      else
+        "Finalizing notes..."
+      end
 
     if Services.Notes.pending?() do
       count = Services.Notes.pending_count()
-      suffix = if count > 0, do: " (" <> Integer.to_string(count) <> " remaining)", else: ""
+
+      suffix =
+        if count > 0 do
+          " (" <> Integer.to_string(count) <> " remaining)"
+        else
+          ""
+        end
+
       base <> suffix
     else
       base

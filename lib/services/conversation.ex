@@ -227,7 +227,7 @@ defmodule Services.Conversation do
        agent: AI.Agent.new(AI.Agent.Coordinator, agent_args),
        conversation: Conversation.new(),
        msgs: [],
-       metadata: %{},
+       metadata: %{"memory_learning_done?" => false},
        ts: nil
      }}
   end
@@ -238,6 +238,7 @@ defmodule Services.Conversation do
     conversation = Conversation.new(id)
 
     with {:ok, ts, msgs, metadata} <- Conversation.read(conversation) do
+      metadata = Map.put_new(metadata, "memory_learning_done?", false)
       agent_args =
         msgs
         |> find_agent_name()

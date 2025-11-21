@@ -437,6 +437,7 @@ defmodule AI.Agent.Coordinator do
       |> template_msg()
       |> get_completion()
       |> save_notes()
+      |> maybe_learn_from_conversation()
       |> get_motd()
     after
       # Always unblock, even if completion fails
@@ -532,6 +533,42 @@ defmodule AI.Agent.Coordinator do
         else
           {:error, reason}
         end
+    end
+  end
+
+  # -----------------------------------------------------------------------------
+  # One-shot associative memory learning for new conversations
+  # -----------------------------------------------------------------------------
+
+  # For new conversations (followup? == false) and non-replay flows, run a
+  # single pass of associative memory learning before we dive into the main
+  # reasoning steps. This calls AI.Agent.Memory.AssociativeLearning with the
+  # current conversation messages and all loaded memories, then applies small
+  # strengthen/weaken training deltas based on the returned scores.
+  @spec maybe_learn_from_conversation(t) :: t
+  defp maybe_learn_from_conversation(%{followup?: true} = state), do: state
+  defp maybe_learn_from_conversation(%{replay: true} = state), do: state
+
+  defp maybe_learn_from_conversation(state) do
+    # If there are no memories loaded, there is nothing to learn from.
+    memories = Services.Memories.get_all()
+
+    if Enum.empty?(memories) do
+      state
+    else
+      UI.begin_step("Memory", "Doing my homework")
+      conv_id = Services.Conversation.get_id(state.conversation)
+      messages = Services.Conversation.get_messages(state.conversation)
+
+      AI.Agent.Memory.AssociativeLearning
+      |> AI.Agent.new(named?: false)
+      |> AI.Agent.get_response(%{
+        conversation: %{id: conv_id, messages: messages},
+        memories: memories
+      })
+
+      UI.end_step("Memory", "Homework complete")
+      state
     end
   end
 
@@ -1135,6 +1172,7 @@ defmodule AI.Agent.Coordinator do
     %{state | notes: notes}
   end
 
+  @spec save_notes(t) :: t
   defp save_notes(passthrough) do
     Services.Notes.save()
     passthrough
@@ -1160,9 +1198,7 @@ defmodule AI.Agent.Coordinator do
   # -----------------------------------------------------------------------------
   # MOTD
   # -----------------------------------------------------------------------------
-  @spec get_motd(t | {:error, any}) :: t | {:error, any}
-  defp get_motd({:error, reason}), do: {:error, reason}
-
+  @spec get_motd(t) :: t
   defp get_motd(state) do
     AI.Agent.MOTD
     |> AI.Agent.new(named?: false)
