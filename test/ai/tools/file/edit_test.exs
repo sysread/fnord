@@ -230,6 +230,40 @@ defmodule AI.Tools.File.EditTest do
       refute String.contains?(contents, "print(\"Hello\")")
     end
 
+    test "exact replacement uses whitespace fitter for multi-line hunks", %{project: project} do
+      file =
+        mock_source_file(project, "test_go_like.txt", """
+        package main
+
+        import "fmt"
+
+        func main() {
+        	fmt.Println("hello")
+        }
+        """)
+
+      # Intentionally provide a space-indented replacement for a tab-indented line
+      {:ok, _result} =
+        Edit.call(%{
+          "file" => file,
+          "changes" => [
+            %{
+              "instructions" => "Change Go-style print",
+              "old_string" => "\tfmt.Println(\"hello\")",
+              "new_string" => "    fmt.Println(\"hi\")\n        fmt.Println(\"there\")"
+            }
+          ]
+        })
+
+      contents = File.read!(file)
+
+      # WhitespaceFitter should have normalized indentation to tabs, preserving
+      # relative depth between lines.
+      assert String.contains?(contents, "\tfmt.Println(\"hi\")")
+      assert String.contains?(contents, "\t\tfmt.Println(\"there\")")
+      refute String.contains?(contents, "fmt.Println(\"hello\")")
+    end
+
     test "mixed exact and natural language changes", %{project: project} do
       file =
         mock_source_file(project, "test.txt", """

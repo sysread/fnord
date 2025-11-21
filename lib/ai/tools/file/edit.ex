@@ -595,9 +595,18 @@ defmodule AI.Tools.File.Edit do
         parts = String.split(contents, old)
 
         case parts do
-          [_before, _after] ->
-            # Exactly one occurrence
-            {:ok, String.replace(contents, old, new)}
+          [before, after_part] ->
+            # Exactly one occurrence; use WhitespaceFitter to adjust the
+            # replacement hunk to local style before applying it.
+            fitted_new =
+              AI.Tools.File.Edit.WhitespaceFitter.fit(
+                String.split(before, "\n", trim: false),
+                String.split(old, "\n", trim: false),
+                String.split(after_part, "\n", trim: false),
+                new
+              )
+
+            {:ok, before <> fitted_new <> after_part}
 
           _ ->
             # Multiple occurrences
