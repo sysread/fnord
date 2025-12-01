@@ -33,7 +33,8 @@ defmodule AI.Completion do
     :tool_call_requests,
     :response,
     :compact?,
-    :conversation_pid
+    :conversation_pid,
+    compaction_stage: 0
   ]
 
   @type t :: %__MODULE__{
@@ -51,7 +52,8 @@ defmodule AI.Completion do
           messages: list(AI.Util.msg()),
           tool_call_requests: list(),
           response: String.t() | nil,
-          compact?: bool
+          compact?: bool,
+          compaction_stage: non_neg_integer()
         }
 
   @type response ::
@@ -130,7 +132,8 @@ defmodule AI.Completion do
           messages: messages,
           tool_call_requests: [],
           response: nil,
-          compact?: compact?
+          compact?: compact?,
+          compaction_stage: 0
         }
 
       {:ok, state}
@@ -248,12 +251,35 @@ defmodule AI.Completion do
   end
 
   defp handle_response({:error, :context_length_exceeded, usage}, state) do
-    if state.compact? do
-      %{state | usage: usage}
-      |> maybe_compact(true)
-      |> send_request()
-    else
+    if not state.compact? do
       {:error, :context_length_exceeded, usage}
+    else
+      case state.compaction_stage || 0 do
+        0 ->
+          state
+          |> Map.put(:usage, usage)
+          |> Map.put(:compaction_stage, 1)
+          |> maybe_compact(true)
+          |> send_request()
+
+        1 ->
+          state
+          |> Map.put(:usage, usage)
+          |> Map.put(:compaction_stage, 2)
+          |> tersify_messages_fallback()
+          |> send_request()
+
+        _ ->
+          error_msg =
+            "The conversation is too large to handle even after aggressive compaction and tersification."
+
+          state =
+            state
+            |> Map.put(:usage, usage)
+            |> Map.put(:response, error_msg)
+
+          {:error, state}
+      end
     end
   end
 
@@ -563,6 +589,73 @@ defmodule AI.Completion do
     else
       state
     end
+  end
+
+  @spec tersify_messages_fallback(t) :: t
+  defp tersify_messages_fallback(state) do
+    # Partition out non-system messages for tersification
+    non_system_msgs =
+      state.messages
+      |> Enum.reject(fn msg -> Map.get(msg, :role) == "system" end)
+
+    # Determine which non-system messages to tersify with their index
+    msgs_to_tersify =
+      non_system_msgs
+      |> Enum.with_index()
+      |> Enum.filter(fn {msg, _idx} ->
+        is_binary(Map.get(msg, :content)) and Map.get(msg, :role) in ["assistant", "user"]
+      end)
+
+    # Perform tersification asynchronously, collecting results into a map of index -> new content
+    tersified_results =
+      msgs_to_tersify
+      |> Util.async_stream(
+        fn {msg, idx} ->
+          agent = AI.Agent.new(AI.Agent.Tersifier, named?: false)
+
+          case AI.Agent.get_response(agent, %{message: msg}) do
+            {:ok, new_content} when is_binary(new_content) and new_content != "" ->
+              {:ok, idx, new_content}
+
+            _ ->
+              {:error, idx}
+          end
+        end,
+        ordered: true
+      )
+      |> Enum.reduce(%{}, fn
+        {:ok, idx, new_content}, acc -> Map.put(acc, idx, new_content)
+        {:error, _idx}, acc -> acc
+        _, acc -> acc
+      end)
+
+    # Rebuild messages, replacing content for tersified messages, preserving original order
+    {new_messages, _} =
+      Enum.map_reduce(state.messages, 0, fn msg, non_sys_idx ->
+        if Map.get(msg, :role) == "system" do
+          {msg, non_sys_idx}
+        else
+          if Map.has_key?(tersified_results, non_sys_idx) do
+            updated = Map.put(msg, :content, tersified_results[non_sys_idx])
+            {updated, non_sys_idx + 1}
+          else
+            {msg, non_sys_idx + 1}
+          end
+        end
+      end)
+
+    # Recompute usage based on tersified contents
+    new_usage =
+      new_messages
+      |> Enum.reduce(0, fn
+        %{content: content}, acc when is_binary(content) ->
+          acc + AI.PretendTokenizer.guesstimate_tokens(content)
+
+        _, acc ->
+          acc
+      end)
+
+    %{state | messages: new_messages, usage: new_usage}
   end
 
   # Compaction logic is now delegated to `AI.Completion.Compaction.compact/2`.
