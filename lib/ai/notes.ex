@@ -53,7 +53,7 @@ defmodule AI.Notes do
     model: AI.Model.fast(),
     prompt: """
     You are a research assistant that extracts facts about the project from tool call results.
-    Extract **non-transient** facts about the project from the tool call result.
+    Extract **non-transient** facts about the project from the tool call result (e.g. about overall design and architecture, NOT speculative exploration of designs for future changes).
     If the tool call is a notification (notify_tool) and its message includes explicit memory memos (e.g., lines starting with "note to self:" or "remember:"), extract those memos verbatim as new facts. Treat them as high-priority, non-transient notes unless they clearly refer to ephemeral states (e.g., temporary delays, transient errors).
     Normalize prefixes to a single dash list item.
     Transient facts are those that are not persistently relevant, such as current repo state, individual tickets or projects, PRs, or changes.

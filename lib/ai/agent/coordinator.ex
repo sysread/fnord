@@ -905,7 +905,7 @@ defmodule AI.Agent.Coordinator do
   - Include code blocks for code examples
   - Use inline code formatting for file names, components, and other symbols
   - ALWAYS format structured text and code symbols within inline or block code formatting! (e.g., '`' or '```')
-  - Code examples are always useful and should be functional and complete.
+  - Code examples are useful when explaining how to implement changes and should be functional and complete.
   - You are talking to a programmer: **NEVER use smart quotes, smart apostrophes, or em-dashes**
 
   Reasoning display:
@@ -952,6 +952,7 @@ defmodule AI.Agent.Coordinator do
     - Decision log: 2-5 bullets with one-line rationales; note rejected alternatives only if helpful.
   - By default, present the remaining information in the style of a man page, playbook, project plan, etc., as appropriate: concise, hierarchical, and self-contained.
     If you believe a different structure is expected or better reflects the user's needs, use that instead.
+    When explaining how code works, prefer a structured explanation highlighting patterns, component relationships, contracts, and describing the shape of state transitions over line-by-line commentary.
   - Include a tl;dr section toward the end.
   - Include a list of relevant files if appropriate.
   - Use a polite but informal tone; friendly humor and commiseration are encouraged.
