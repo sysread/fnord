@@ -264,7 +264,9 @@ defmodule AI.Tools.File.EditTest do
       refute String.contains?(contents, "fmt.Println(\"hello\")")
     end
 
-    test "raw replacement skips whitespace fitter when FNORD_NO_FITTING is true", %{project: project} do
+    test "raw replacement skips whitespace fitter when FNORD_NO_FITTING is true", %{
+      project: project
+    } do
       file =
         mock_source_file(project, "test_go_like.txt", """
         package main

@@ -27,6 +27,7 @@ defmodule AI.Tools.File.Edit.WhitespaceFitterTest do
         "\t\tbar()",
         "    baz()"
       ]
+
       style = WhitespaceFitter.infer_indent_style(lines)
       assert %{type: :tabs, width: 1} = style
     end
@@ -37,6 +38,7 @@ defmodule AI.Tools.File.Edit.WhitespaceFitterTest do
         "        bar()",
         "\tqux()"
       ]
+
       style = WhitespaceFitter.infer_indent_style(lines)
       assert %{type: :spaces, width: width} = style
       assert is_integer(width) and width >= 1
@@ -146,6 +148,7 @@ defmodule AI.Tools.File.Edit.WhitespaceFitterTest do
         "    if x > y:",
         "        return x"
       ]
+
       orig_hunk = ["    if x > y:"]
       context_after = ["    return x"]
       new_hunk_raw = "    a()\n      b()\n        c()"

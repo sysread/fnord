@@ -254,7 +254,10 @@ defmodule AI.Agent.Memory.AssociativeLearning do
 
   defp apply_scores({:error, reason}, _, _), do: {:error, reason}
 
-  defp apply_scores({:ok, scores}, match_input, memories) do
+  defp apply_scores({:ok, scores}, conversation, memories) do
+    # Derive a textual transcript from the conversation for training
+    match_input = format_conversation(conversation)
+
     memories
     |> Enum.each(fn memory ->
       scores

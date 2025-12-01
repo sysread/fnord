@@ -115,17 +115,21 @@ defmodule AI.Tools.File.Edit.WhitespaceFitter do
       cond do
         content == "" ->
           ""
+
         true ->
           delta = ic - base_new
           target_cols = max(base_target + delta, 0)
+
           indent =
             case style.type do
               :spaces ->
                 String.duplicate(" ", target_cols)
+
               :tabs ->
                 level = indent_level(target_cols, style)
                 indent_string(level, style)
             end
+
           indent <> content
       end
     end)
