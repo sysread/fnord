@@ -297,7 +297,10 @@ defmodule Settings do
   @spec set_project_data(t, binary, map) :: t
   def set_project_data(settings, project_name, data) do
     projects_map = get(settings, "projects", %{})
-    updated_projects_map = Map.put(projects_map, project_name, data)
+    # Merge new data into any existing project entry
+    existing = Map.get(projects_map, project_name, %{})
+    merged = Map.merge(existing, data)
+    updated_projects_map = Map.put(projects_map, project_name, merged)
     update(settings, "projects", fn _ -> updated_projects_map end)
   end
 

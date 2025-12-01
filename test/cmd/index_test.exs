@@ -36,6 +36,24 @@ defmodule Cmd.IndexTest do
       |> then(&assert(&1 == [file]))
     end
 
+    test "project-level approvals are preserved when indexing persists settings", %{project: project} do
+      # Approve a shell command at project level
+      Settings.new()
+      |> Settings.Approvals.approve(:project, "shell", "git status")
+
+      # Run indexing with explicit directory to persist settings
+      capture_all(fn ->
+        Cmd.Index.run(%{project: project.name, directory: project.source_root, yes: true, quiet: true}, [], [])
+      end)
+
+      # Assert the approval still exists
+      approvals =
+        Settings.new()
+        |> Settings.Approvals.get_approvals(:project, "shell")
+
+      assert "git status" in approvals
+    end
+
     test "indexes conversations as part of run/3", %{project: project} do
       # Create a conversation for the project
       conversation = Store.Project.Conversation.new("conv1", project)
