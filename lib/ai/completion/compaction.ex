@@ -111,8 +111,11 @@ defmodule AI.Completion.Compaction do
         compacted_head ++
         raw_last_msgs
 
+    # Filter out all but the latest summary system message
+    filtered_first_messages = keep_latest_summary(first_pass_messages)
+
     new_usage_1 =
-      first_pass_messages
+      filtered_first_messages
       |> Enum.map(&Map.get(&1, :content))
       |> Enum.filter(&is_binary/1)
       |> Enum.map(&AI.PretendTokenizer.guesstimate_tokens/1)
@@ -120,7 +123,7 @@ defmodule AI.Completion.Compaction do
 
     {:ok,
      %{
-       messages: first_pass_messages,
+       messages: filtered_first_messages,
        usage: new_usage_1,
        compacted_head: compacted_head,
        ctx_after_head: ctx_after_head,
@@ -170,15 +173,17 @@ defmodule AI.Completion.Compaction do
           compacted_head ++
           compacted_last
 
+      filtered_second_messages = keep_latest_summary(second_pass_messages)
+
       new_usage_2 =
-        second_pass_messages
+        filtered_second_messages
         |> Enum.map(&Map.get(&1, :content))
         |> Enum.filter(&is_binary/1)
         |> Enum.map(&AI.PretendTokenizer.guesstimate_tokens/1)
         |> Enum.sum()
 
       UI.info("Compaction run", "Simplified partial compaction completed")
-      {:ok, %{state | messages: second_pass_messages, usage: new_usage_2}}
+      {:ok, %{state | messages: filtered_second_messages, usage: new_usage_2}}
     end
   end
 
@@ -187,4 +192,38 @@ defmodule AI.Completion.Compaction do
   end
 
   defp meets_target?(_context, _usage, _target_pct), do: true
+
+  # Retains only the latest summary system message, removing earlier ones with the same prefix
+  defp keep_latest_summary(messages) do
+    prefix = "Summary of conversation and research thus far:"
+
+    # Helper to identify summary system messages
+    summary_system_msg? = fn msg ->
+      case msg do
+        %{role: "system", content: content} when is_binary(content) ->
+          String.starts_with?(content, prefix)
+
+        _ ->
+          false
+      end
+    end
+
+    last_summary_index =
+      messages
+      |> Enum.with_index()
+      |> Enum.filter(fn {msg, _idx} -> summary_system_msg?.(msg) end)
+      |> Enum.map(fn {_msg, idx} -> idx end)
+      |> List.last()
+
+    if last_summary_index == nil do
+      messages
+    else
+      messages
+      |> Enum.with_index()
+      |> Enum.reject(fn {msg, idx} ->
+        summary_system_msg?.(msg) and idx != last_summary_index
+      end)
+      |> Enum.map(fn {msg, _idx} -> msg end)
+    end
+  end
 end
