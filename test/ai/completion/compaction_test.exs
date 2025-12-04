@@ -60,4 +60,63 @@ defmodule AI.Completion.CompactionTest do
     recent_suffix = Enum.take(new_state.messages, -3)
     assert recent_suffix == Enum.slice(msgs, -3, 3)
   end
+
+  test "compact prunes older summary system messages, keeping only the latest" do
+    name = %{
+      role: "system",
+      content: "Your name is X."
+    }
+
+    summary_1 = %{
+      role: "system",
+      content: "Summary of conversation and research thus far: part one"
+    }
+
+    summary_2 = %{
+      role: "system",
+      content: "Summary of conversation and research thus far: part two"
+    }
+
+    new_state =
+      %{
+        model: %{context: 1000},
+        usage: 900,
+        messages: [
+          name,
+          user_msg("hello"),
+          assistant_msg("world"),
+          summary_1,
+          user_msg("more"),
+          summary_2
+        ]
+      }
+      |> C.compact(%{keep_rounds: 0, target_pct: 0.6})
+
+    refute summary_1 in new_state.messages
+    assert summary_2 in new_state.messages
+    assert name in new_state.messages
+  end
+
+  test "compact leaves messages unchanged when no summaries present" do
+    state = %{
+      model: %{context: 1000},
+      usage: 800,
+      messages: [
+        %{role: "system", content: "Your name is X."},
+        user_msg("foo"),
+        assistant_msg("bar")
+      ]
+    }
+
+    new_state = C.compact(state, %{keep_rounds: 0, target_pct: 0.6})
+    assert new_state.messages == state.messages
+
+    refute Enum.any?(new_state.messages, fn
+             %{role: "system", content: content} ->
+               String.starts_with?(content, "Summary of conversation and research thus far:")
+
+             _ ->
+               false
+           end)
+  end
 end
