@@ -933,6 +933,8 @@ defmodule AI.Agent.Coordinator do
 
   @spec recall_memories_msg(t) :: t
   defp recall_memories_msg(state) do
+    UI.begin_step("Spooling mnemonics")
+
     intuition = state |> Map.get(:intuition, "") |> String.trim()
     question = state |> Map.get(:question, "") |> String.trim()
 
@@ -1158,7 +1160,7 @@ defmodule AI.Agent.Coordinator do
   # ----------------------------------------------------------------------------
   @spec get_notes(t) :: t
   defp get_notes(%{question: question} = state) do
-    UI.begin_step("Spooling mnemonics")
+    UI.begin_step("Rehydrating the lore cache")
 
     notes = Services.Notes.ask(question)
     Services.Notes.consolidate()
