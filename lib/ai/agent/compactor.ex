@@ -61,7 +61,8 @@ defmodule AI.Agent.Compactor do
           {:ok, summary} ->
             case evaluate_summary(original_length, summary, attempts, messages) do
               {:ok, result} ->
-                UI.end_step("Compaction complete", result)
+                length = byte_size(summary)
+                UI.end_step("Compaction complete", "New size: #{length} bytes")
                 {:ok, result}
 
               {:retry, new_attempts} ->
