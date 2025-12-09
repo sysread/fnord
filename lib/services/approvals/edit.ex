@@ -108,10 +108,12 @@ defmodule Services.Approvals.Edit do
     # Build the box content
     UI.box(diff,
       title: " #{render_file_path(file)} ",
-      min_width: max(safe_columns() - 8, 80),
       padding: 1,
       horizontal_align: :left,
-      border_tag: [:red, :bright]
+      border_tag: [:red, :bright],
+      border_style: :solid_rounded,
+      min_width: max(safe_columns() - 8, 80),
+      truncate_lines: true
     )
   end
 
