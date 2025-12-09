@@ -149,6 +149,7 @@ defmodule Cmd.Ask do
                Services.Globals.put_env(:fnord, :current_conversation, pid)
                :ok
              ),
+           :ok <- Memory.init(),
            {:ok, usage, context, response} <- get_response(opts, pid),
            {:ok, conversation_id} <- save_conversation(pid) do
         end_time = System.monotonic_time(:second)

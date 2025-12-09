@@ -1,41 +1,88 @@
 defmodule AI.Tools.Memory do
-  @moduledoc """
-  Tool for managing learned memories - patterns from experience that fire automatic thoughts.
-  """
+  @nada "Nothing! Forget my own head next if it weren't attached."
 
   @behaviour AI.Tools
 
   @impl AI.Tools
-  def async?, do: false
+  def async?, do: true
 
   @impl AI.Tools
-  def is_available?, do: true
+  def is_available?(), do: Memory.is_available?()
 
   @impl AI.Tools
-  def read_args(args), do: {:ok, args}
+  def ui_note_on_request(%{"action" => "list"}) do
+    {"Listing memories", "Listing all memories grouped by scope (session, project, global)."}
+  end
+
+  def ui_note_on_request(%{"action" => "recall", "what" => what}) do
+    {"Recalling memories", what}
+  end
+
+  def ui_note_on_request(%{"action" => "remember", "title" => title}) do
+    {"Remembering", "Creating a new memory: #{title}"}
+  end
+
+  def ui_note_on_request(%{"action" => "update", "title" => title}) do
+    {"Updating memory", "Appending to memory: #{title}"}
+  end
+
+  def ui_note_on_request(%{"action" => "forget", "title" => title}) do
+    {"Forgetting memory", "Deleting memory: #{title}"}
+  end
+
+  def ui_note_on_request(_), do: nil
 
   @impl AI.Tools
-  def ui_note_on_request(%{"operation" => op} = args) do
-    id = Map.get(args, "memory_id", "")
-    label = Map.get(args, "label", "")
+  def ui_note_on_result(%{"action" => "list"}, result) do
+    memories = decode_result(result, [])
 
-    case {id, label} do
-      {"", ""} -> {"#{op} memory", "processing"}
-      {id, ""} -> {"#{op} memory", id}
-      {"", label} -> {"#{op} memory", label}
-      {id, label} -> {"#{op} memory", "(#{id}) #{label}"}
+    if Enum.empty?(memories) do
+      {"Listed memories", "No memories found (empty result)."}
+    else
+      count = length(memories)
+      {"Listed memories", "Found #{count} memory/memories across all scopes."}
     end
   end
 
-  @impl AI.Tools
-  def ui_note_on_result(%{"operation" => op}, result) do
-    {"#{op} memory", "✓ #{result}"}
+  def ui_note_on_result(%{"action" => "recall"}, result) do
+    result
+    |> case do
+      nil ->
+        {"Recalled memories", @nada}
+
+      "" ->
+        {"Recalled memories", @nada}
+
+      result ->
+        result
+        |> Jason.decode!(keys: :atoms)
+        |> Enum.map(fn mem ->
+          "- <#{mem.scope} | score: #{Float.round(mem.score, 4)}> #{mem.title}"
+        end)
+        |> Enum.join("\n")
+        |> then(&{"Recalled memories", &1})
+    end
   end
 
-  @impl AI.Tools
-  def tool_call_failure_message(%{"operation" => op}, reason) do
-    {"#{op} memory", "✗ #{reason}"}
+  def ui_note_on_result(%{"action" => "remember", "title" => title}, _result) do
+    {"Remembered", "Created memory: #{title}"}
   end
+
+  def ui_note_on_result(%{"action" => "update", "title" => title}, _result) do
+    {"Updated memory", "Appended content to memory: #{title}"}
+  end
+
+  def ui_note_on_result(%{"action" => "forget", "title" => title}, _result) do
+    {"Forgot memory", "Deleted memory: #{title} (or it did not exist)."}
+  end
+
+  def ui_note_on_result(_, _), do: nil
+
+  @impl AI.Tools
+  def tool_call_failure_message(_args, _reason), do: :default
+
+  @impl AI.Tools
+  def read_args(args), do: {:ok, args}
 
   @impl AI.Tools
   def spec do
@@ -44,97 +91,85 @@ defmodule AI.Tools.Memory do
       function: %{
         name: "memory_tool",
         description: """
-        Manage your learnings to improve yourself and become more effective over time.
-        Your memory system is a decision-tree where each "node" performs a Bayesian match against the current conversation.
-        When a memory matches, it, along with any "child" memories that match the current context, will be presented to you as your own internal thoughts.
+        Interact with long-term memories across session, project, and global scopes.
 
-        Use memories **extensively** to develop your personality and behavior over time.
-
-        Treat memories as a small, curated library of reusable habits, not as a log of every observation.
-        Prefer to create memories for patterns likely to recur across sessions or tasks.
-        Memories are an excellent way to avoid pitfalls, rabbit holes in the project code, misunderstandings that upset the user, and to internalize lessons from how to use your tool calls effectively.
-
-        Memories can be 'global' (apply everywhere) or 'project' (current project only).
-        Choose scope carefully:
-        - Use 'global' for universal preferences, habits, and patterns
-        - Use 'project' for project-specific conventions, requirements, or patterns
-
-        IMPORTANT: Keep thoughts brief (12-20 words recommended, max #{AI.Memory.max_label_chars()} characters).
-
-        The system automatically captures the current conversation context when you create or strengthen a memory.
-        You simply decide WHEN to remember or strengthen - the system captures WHAT is being discussed at that moment.
-
-        Operations:
-        Operations:
-        - remember: Create new memory from current conversation context
-        - strengthen: Reinforce existing memory with current conversation context (increase weight, add training tokens)
-        - weaken: Reduce memory's influence (decrease weight)
-        - forget: Delete memory permanently
-        - tree: List all memories in a hierarchical tree view
+        Do NOT store or rely on the assistant's current conversation name in long-term memory; that name is assigned per conversation and may change. Focus on stable traits, preferences, and project facts instead.
         """,
         parameters: %{
           type: "object",
-          required: ["operation"],
           additionalProperties: false,
+          required: ["action"],
           properties: %{
-            operation: %{
+            "action" => %{
               type: "string",
-              enum: ["remember", "strengthen", "weaken", "forget", "describe", "tree"],
+              enum: ["list", "recall", "remember", "update", "forget"],
               description: """
-              Operation to perform:
-              - 'remember': Create new memory from current conversation
-              - 'strengthen': Reinforce existing memory with current conversation context
-              - 'weaken': Reduce memory weight
-              - 'forget': Delete memory
-              - 'describe': Inspect an existing memory without modifying it
-              - 'tree': List all memories in a hierarchical tree view
+              Which memory operation to perform.
+
+              - list: List all memories
+                - args: none
+
+              - recall: Search for similar memories
+                - args:
+                  - required: what
+                  - optional: limit
+
+              - remember: Create a new memory
+                - args:
+                  - required: scope, title, content
+                  - optional: topics
+
+              - update: Append content to an existing memory
+                - args:
+                  - required: scope, title, new_content
+                  - optional: new_topics
+
+              - forget: Delete a memory
+                - args:
+                  - required: title
+                  - optional: scope
               """
             },
-            scope: %{
+            "scope" => %{
               type: "string",
-              enum: ["global", "project"],
+              enum: ["session", "project", "global"],
               description: """
-              Memory scope.
-              REQUIRED for 'remember' operation.
-              - 'global': Applies across all projects (for universal preferences)
-              - 'project': Current project only (for project-specific patterns)
-              Must match parent's scope if parent_id provided.
+              Memory scope for remember/update/forget operations.
+              - session: Memory lasts for the current session only. This is appropriate for ephemeral notes about the current conversation, such as current goals, tasks, or decision-making while brainstorming.
+              - project: Memory is stored within the current project and shared across sessions. This is appropriate for project-specific information that should persist, such as project organization, terminology, gotchas and closet skeletons related to the project.
+              - global: Memory is stored globally and shared across all projects and sessions. This is appropriate for general knowledge, preferences, observations about the user, and other information that should be globally available to you.
               """
             },
-            label: %{
+            "what" => %{
               type: "string",
-              description: """
-              Short human-readable label.
-              REQUIRED for 'remember' operation.
-              Max 50 characters. Used to generate filename slug.
-              Example: "prefers concise examples"
-              """
+              description: "Text to search for similar memories (action=recall)."
             },
-            response_template: %{
-              type: "string",
-              description: """
-              Automatic thought when memory fires.
-              REQUIRED for 'remember' operation.
-              Max #{AI.Memory.max_label_chars()} characters (12-20 words recommended).
-              Example: "User prefers concise, practical examples."
-              """
+            "limit" => %{
+              type: "integer",
+              description: "Maximum number of memories to return (action=recall).",
+              default: 5
             },
-            memory_id: %{
+            "title" => %{
               type: "string",
-              description: """
-              Slug or UUID of memory to modify.
-              REQUIRED for 'strengthen', 'weaken', 'forget' operations.
-              Available from <think memory="slug"> tags in automatic thoughts.
-              Example: "user-prefer-concis-exampl"
-              """
+              description: "Title of the memory (remember/update/forget)."
             },
-            parent_id: %{
+            "content" => %{
               type: "string",
-              description: """
-              UUID of parent memory for hierarchical organization (optional for 'remember').
-              Creates more specific variant of parent pattern.
-              Child scope must match parent scope.
-              """
+              description: "Content of the memory (remember)."
+            },
+            "topics" => %{
+              type: "array",
+              items: %{type: "string"},
+              description: "Optional list of topics related to the memory (remember)."
+            },
+            "new_content" => %{
+              type: "string",
+              description: "Content to append to an existing memory (update)."
+            },
+            "new_topics" => %{
+              type: "array",
+              items: %{type: "string"},
+              description: "Optional list of new topics to add to the memory (update)."
             }
           }
         }
@@ -143,208 +178,191 @@ defmodule AI.Tools.Memory do
   end
 
   @impl AI.Tools
-  def call(args) do
-    with {:ok, operation} <- AI.Tools.get_arg(args, "operation") do
-      case operation do
-        "remember" -> handle_remember(args)
-        "strengthen" -> handle_strengthen(args)
-        "weaken" -> handle_weaken(args)
-        "forget" -> handle_forget(args)
-        "describe" -> handle_describe(args)
-        "tree" -> handle_tree(args)
-        _ -> {:error, "Unknown operation: #{operation}"}
+  def call(%{"action" => "list"} = _args), do: do_list()
+  def call(%{"action" => "recall"} = args), do: do_recall(args)
+  def call(%{"action" => "remember"} = args), do: do_remember(args)
+  def call(%{"action" => "update"} = args), do: do_update(args)
+  def call(%{"action" => "forget"} = args), do: do_forget(args)
+  def call(_), do: {:error, "Invalid or missing 'action' for memory_tool"}
+
+  # ---------------------------------------------------------------------------
+  # Operations
+  # ---------------------------------------------------------------------------
+  @default_search_limit 5
+
+  defp do_list() do
+    case Memory.list() do
+      {:ok, memories} -> {:ok, Enum.map(memories, &format_memory/1)}
+      {:error, reason} -> {:error, inspect(reason)}
+    end
+  end
+
+  defp do_recall(%{"what" => query} = args) do
+    limit = Map.get(args, "limit", @default_search_limit)
+
+    query
+    |> String.trim()
+    |> Memory.search(limit)
+    |> case do
+      {:ok, results} ->
+        payload =
+          results
+          |> Enum.map(fn {mem, score} ->
+            # Drop embeddings from the result for cleaner JSON output
+            %{
+              title: mem.title,
+              scope: Atom.to_string(mem.scope),
+              topics: Enum.join(mem.topics, " | "),
+              score: score,
+              content: mem.content
+            }
+          end)
+
+        {:ok, payload}
+
+      {:error, :not_implemented} ->
+        # Treat not-implemented search as an empty result for now.
+        {:ok, []}
+
+      {:error, reason} ->
+        {:error, inspect(reason)}
+    end
+  end
+
+  defp do_recall(_) do
+    {:error, "Missing required field 'what' for action 'recall'"}
+  end
+
+  defp do_remember(%{"scope" => scope, "title" => title, "content" => content} = args) do
+    with {:ok, scope_atom} <- parse_scope(scope),
+         topics <- Map.get(args, "topics", []),
+         {:ok, memory} <- Memory.new(scope_atom, title, content, topics),
+         {:ok, saved} <- wrap_save(Memory.save(memory), memory) do
+      {:ok, format_memory(saved)}
+    end
+  end
+
+  defp do_remember(_) do
+    {:error, "Missing required fields 'scope', 'title', and 'content' for action 'remember'"}
+  end
+
+  defp do_update(%{"scope" => scope, "title" => title, "new_content" => new_content} = args) do
+    with {:ok, scope_atom} <- parse_scope(scope),
+         {:ok, memory} <- Memory.read(scope_atom, title) do
+      new_topics = Map.get(args, "new_topics", [])
+
+      updated =
+        memory
+        |> Memory.append(new_content)
+        |> maybe_add_topics(new_topics)
+
+      with {:ok, saved} <- wrap_save(Memory.save(updated), updated) do
+        {:ok, format_memory(saved)}
       end
     end
   end
 
-  # ----------------------------------------------------------------------------
-  # Operation Handlers
-  # ----------------------------------------------------------------------------
+  defp do_update(_) do
+    {:error, "Missing required fields 'scope', 'title', and 'new_content' for action 'update'"}
+  end
 
-  defp handle_remember(args) do
-    with {:ok, scope} <- AI.Tools.get_arg(args, "scope"),
-         {:ok, label} <- AI.Tools.get_arg(args, "label"),
-         {:ok, response_template} <- AI.Tools.get_arg(args, "response_template"),
-         {:ok, scope_atom} <- parse_scope(scope) do
-      # Get current conversation tokens automatically
-      tokens = get_current_accumulated_tokens()
+  defp do_forget(%{"title" => title} = args) do
+    scope_opt = Map.get(args, "scope")
 
-      # Build memory with conversation tokens
-      memory =
-        AI.Memory.new(%{
-          label: label,
-          response_template: response_template,
-          scope: scope_atom,
-          parent_id: Map.get(args, "parent_id"),
-          pattern_tokens: tokens
-        })
+    scopes =
+      case scope_opt do
+        nil ->
+          [:session, :project, :global]
 
-      # Validate
-      with {:ok, memory} <- AI.Memory.validate(memory) do
-        # Create via Services.Memories (validates parent scope)
-        case Services.Memories.create(memory) do
-          :ok ->
-            {:ok, "Memory created: #{memory.slug} (#{scope})"}
-
-          {:error, reason} ->
-            {:error, "Failed to create memory: #{reason}"}
-        end
-      else
-        {:error, reason} -> {:error, reason}
+        s ->
+          with {:ok, atom} <- parse_scope(s) do
+            [atom]
+          end
       end
+
+    case find_memory_by_title(scopes, title) do
+      {:ok, memory} -> Memory.forget(memory)
+      :not_found -> :ok
+      {:error, reason} -> {:error, inspect(reason)}
     end
   end
 
-  defp handle_strengthen(args) do
-    with {:ok, memory_id} <- AI.Tools.get_arg(args, "memory_id"),
-         {:ok, memory} <- find_memory(memory_id) do
-      # Get current conversation tokens automatically
-      factor = get_mutation_factor(memory.id, :strengthen)
-      tokens = get_current_accumulated_tokens()
-      scaled_tokens = Enum.into(tokens, %{}, fn {token, count} -> {token, count * factor} end)
-
-      # Strengthen memory pattern tokens with current conversation tokens
-      updated_pattern = AI.Memory.strengthen_tokens(memory.pattern_tokens, scaled_tokens)
-      updated_weight = AI.Memory.clamp_weight(memory.weight + 0.5 * factor)
-
-      strengthened = %{memory | pattern_tokens: updated_pattern, weight: updated_weight}
-
-      case Services.Memories.update(strengthened) do
-        :ok ->
-          {:ok, "Memory strengthened: #{memory.slug} (weight: #{strengthened.weight})"}
-
-        {:error, reason} ->
-          {:error, "Failed to strengthen memory: #{reason}"}
-      end
-    end
+  defp do_forget(_) do
+    {:error, "Missing required field 'title' for action 'forget'"}
   end
 
-  defp handle_weaken(args) do
-    with {:ok, memory_id} <- AI.Tools.get_arg(args, "memory_id"),
-         {:ok, memory} <- find_memory(memory_id) do
-      # Get current conversation tokens automatically
-      factor = get_mutation_factor(memory.id, :weaken)
-      tokens = get_current_accumulated_tokens()
-      scaled_tokens = Enum.into(tokens, %{}, fn {token, count} -> {token, count * factor} end)
-
-      # Weaken memory pattern tokens with current conversation tokens
-      updated_pattern = AI.Memory.weaken_tokens(memory.pattern_tokens, scaled_tokens)
-      updated_weight = AI.Memory.clamp_weight(memory.weight - 0.5 * factor)
-
-      weakened = %{memory | pattern_tokens: updated_pattern, weight: updated_weight}
-
-      case Services.Memories.update(weakened) do
-        :ok ->
-          {:ok, "Memory weakened: #{memory.slug} (weight: #{weakened.weight})"}
-
-        {:error, reason} ->
-          {:error, "Failed to weaken memory: #{reason}"}
-      end
-    end
-  end
-
-  defp handle_forget(args) do
-    with {:ok, memory_id} <- AI.Tools.get_arg(args, "memory_id"),
-         {:ok, memory} <- find_memory(memory_id) do
-      case Services.Memories.delete(memory.id) do
-        :ok ->
-          {:ok, "Memory deleted: #{memory.slug}"}
-
-        {:error, reason} ->
-          {:error, "Failed to delete memory: #{reason}"}
-      end
-    end
-  end
-
-  defp handle_describe(args) do
-    with {:ok, memory_id} <- AI.Tools.get_arg(args, "memory_id"),
-         {:ok, memory} <- find_memory(memory_id) do
-      children_count = length(Services.Memories.get_children(memory.id))
-
-      {:ok,
-       %{
-         id: memory.id,
-         slug: memory.slug,
-         label: memory.label,
-         scope: memory.scope,
-         weight: memory.weight,
-         parent_id: memory.parent_id,
-         children: children_count,
-         pattern_tokens: memory.pattern_tokens
-       }}
-    end
-  end
-
-  defp handle_tree(_args) do
-    roots = Services.Memories.get_roots()
-
-    lines =
-      case roots do
-        [] -> ["(no memories)"]
-        _ -> format_tree(roots, 0, [])
-      end
-
-    {:ok, Enum.join(lines, "\n")}
-  end
-
-  defp format_tree([], _depth, acc), do: acc
-
-  defp format_tree([memory | rest], depth, acc) do
-    indent = String.duplicate("  ", depth)
-    line = "#{indent}(id:#{memory.id}) #{memory.label}"
-
-    acc = acc ++ [line]
-    acc = format_tree(Services.Memories.get_children(memory.id), depth + 1, acc)
-    format_tree(rest, depth, acc)
-  end
-
-  # ----------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
   # Helpers
-  # ----------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
 
-  defp parse_scope("global"), do: {:ok, :global}
+  defp parse_scope("session"), do: {:ok, :session}
   defp parse_scope("project"), do: {:ok, :project}
-  defp parse_scope(other), do: {:error, "Invalid scope: #{other}. Must be 'global' or 'project'."}
+  defp parse_scope("global"), do: {:ok, :global}
 
-  defp find_memory(memory_id) do
-    # Try by slug first, then by ID
-    case Services.Memories.get_by_slug(memory_id) do
-      nil ->
-        case Services.Memories.get_by_id(memory_id) do
-          nil -> {:error, "Memory not found: #{memory_id}"}
-          memory -> {:ok, memory}
-        end
+  defp parse_scope(other) do
+    {:error, "Invalid scope '#{inspect(other)}'; expected 'session', 'project', or 'global'"}
+  end
 
-      memory ->
-        {:ok, memory}
+  defp maybe_add_topics(memory, []), do: memory
+
+  defp maybe_add_topics(memory, topics) when is_list(topics) do
+    existing = Map.get(memory, :topics, [])
+    %{memory | topics: Enum.uniq(existing ++ topics)}
+  end
+
+  defp maybe_add_topics(memory, _), do: memory
+
+  defp wrap_save({:ok, saved}, _memory), do: {:ok, saved}
+  defp wrap_save({:error, _} = error, _memory), do: error
+
+  defp find_memory_by_title(scopes, title) do
+    scopes
+    |> Enum.reduce_while(:not_found, fn scope, _acc ->
+      case Memory.read(scope, title) do
+        {:ok, memory} -> {:halt, {:ok, memory}}
+        {:error, _} -> {:cont, :not_found}
+      end
+    end)
+  end
+
+  defp decode_result(result, default) when is_binary(result) do
+    case Jason.decode(result) do
+      {:ok, value} -> value
+      _ -> default
     end
   end
 
-  # Gets accumulated tokens from current conversation (if available)
-  defp get_current_accumulated_tokens do
-    case Services.Globals.get_env(:fnord, :current_conversation) do
-      nil ->
-        %{}
+  defp decode_result(result, _default), do: result
 
-      pid ->
-        metadata = Services.Conversation.get_metadata(pid)
-
-        metadata
-        |> Map.get("memory_state", %{})
-        |> Map.get("accumulated_tokens", %{})
-    end
+  defp format_memory(%Memory{} = memory) do
+    """
+    Title: #{memory.title}
+    Scope: #{Atom.to_string(memory.scope)}
+    Topics: #{Enum.join(memory.topics, " | ")}
+    Content:
+    #{memory.content}
+    """
   end
 
-  defp get_mutation_factor(memory_id, op) do
-    case Services.Globals.get_env(:fnord, :current_conversation) do
-      nil ->
-        1.0
+  defp format_memory({%Memory{} = memory, score}) do
+    """
+    Title: #{memory.title}
+    Score: #{Float.round(score, 4)}
+    Scope: #{Atom.to_string(memory.scope)}
+    Topics: #{Enum.join(memory.topics, " | ")}
+    Content:
+    #{memory.content}
+    """
+  end
 
-      pid ->
-        # bump_memory_mutation/3 returns the current directional count
-        count = Services.Conversation.bump_memory_mutation(pid, memory_id, op)
-        # Use absolute value for scaling so direction is handled by op
-        1.0 / (1.0 + abs(count))
-    end
+  defp format_memory({scope, title}) when is_atom(scope) and is_binary(title) do
+    """
+    Title: #{title}
+    Scope: #{Atom.to_string(scope)}
+    """
+  end
+
+  defp format_memory(other) do
+    inspect(other)
   end
 end

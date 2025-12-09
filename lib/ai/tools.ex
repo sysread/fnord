@@ -191,14 +191,14 @@ defmodule AI.Tools do
     "file_search_tool" => AI.Tools.File.Search,
     "file_spelunker_tool" => AI.Tools.File.Spelunker,
     "list_projects_tool" => AI.Tools.ListProjects,
-    "memory_tool" => AI.Tools.Memory,
     "notify_tool" => AI.Tools.Notify,
     "prior_research" => AI.Tools.Notes,
     "research_tool" => AI.Tools.Research,
     "shell_tool" => AI.Tools.Shell,
     "troubleshooter_tool" => AI.Tools.Troubleshooter,
     "task_validation_tool" => AI.Tools.TaskValidation,
-    "conversation_tool" => AI.Tools.Conversation
+    "conversation_tool" => AI.Tools.Conversation,
+    "memory_tool" => AI.Tools.Memory
   }
 
   @rw_tools %{

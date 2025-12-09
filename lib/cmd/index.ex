@@ -386,7 +386,7 @@ defmodule Cmd.Index do
   end
 
   defp process_conversation(project, convo) do
-    with {:ok, ts, messages, metadata} <- Store.Project.Conversation.read(convo),
+    with {:ok, ts, messages, metadata, _memory} <- Store.Project.Conversation.read(convo),
          json = Jason.encode!(%{"messages" => messages}),
          {:ok, embeddings} <- Indexer.impl().get_embeddings(json),
          :ok <-

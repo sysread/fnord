@@ -74,7 +74,8 @@ defmodule Store.Project.ConversationTest do
     assert Conversation.exists?(convo)
 
     # Read it back
-    assert {:ok, ts, ^messages, _metadata} = Conversation.read(convo)
+    assert {:ok, ts, ^messages, _metadata, memory} = Conversation.read(convo)
+    assert memory == []
     assert ^ts = Conversation.timestamp(convo)
     assert {:ok, "Hello, I am User."} = Conversation.question(convo)
   end
@@ -111,17 +112,18 @@ defmodule Store.Project.ConversationTest do
     assert {:ok, forked} = Conversation.fork(orig)
     assert forked.id != orig.id
     assert Conversation.exists?(forked)
-    assert {:ok, _ts, forked_msgs, _metadata} = Conversation.read(forked)
+    assert {:ok, _ts, forked_msgs, _metadata, forked_memory} = Conversation.read(forked)
     assert forked_msgs == messages
-    assert {:ok, _ts1, ^messages, _metadata} = Conversation.read(orig)
-    assert {:ok, _ts2, ^messages, _metadata} = Conversation.read(forked)
+    assert forked_memory == []
+    assert {:ok, _ts1, ^messages, _metadata, _orig_memory1} = Conversation.read(orig)
+    assert {:ok, _ts2, ^messages, _metadata, _forked_memory1} = Conversation.read(forked)
 
     # Ensure independence after fork
     new_msgs = messages ++ [AI.Util.user_msg("Forked world!")]
     assert {:ok, forked} = Conversation.write(forked, new_msgs)
-    assert {:ok, _ts, updated_forked_msgs, _metadata} = Conversation.read(forked)
+    assert {:ok, _ts, updated_forked_msgs, _metadata, _forked_memory2} = Conversation.read(forked)
     assert updated_forked_msgs == new_msgs
-    assert {:ok, _ts, orig_msgs, _metadata} = Conversation.read(orig)
+    assert {:ok, _ts, orig_msgs, _metadata, _orig_memory2} = Conversation.read(orig)
     assert orig_msgs == messages
   end
 end

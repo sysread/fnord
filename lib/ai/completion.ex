@@ -145,7 +145,7 @@ defmodule AI.Completion do
           | {:error, :conversation_not_found}
   def new_from_conversation(conversation, opts) do
     if Store.Project.Conversation.exists?(conversation) do
-      with {:ok, _ts, msgs, _metadata} <- Store.Project.Conversation.read(conversation) do
+      with {:ok, _ts, msgs, _metadata, _memory} <- Store.Project.Conversation.read(conversation) do
         opts
         |> Keyword.put(:messages, msgs)
         |> new()

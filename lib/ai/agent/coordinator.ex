@@ -22,6 +22,7 @@ defmodule AI.Agent.Coordinator do
     :usage,
     :context,
     :notes,
+    :intuition,
     :editing_tools_used,
 
     # --------------------------------------------------------------------------
@@ -60,6 +61,7 @@ defmodule AI.Agent.Coordinator do
           usage: non_neg_integer,
           context: non_neg_integer,
           notes: binary | nil,
+          intuition: binary | nil,
           editing_tools_used: boolean,
 
           # State: Task list management
@@ -75,6 +77,8 @@ defmodule AI.Agent.Coordinator do
   @type error :: {:error, binary | atom | :testing}
 
   @max_task_checks 2
+  @memory_recall_limit 3
+  @memory_size_limit 1000
 
   @model AI.Model.smart()
 
@@ -132,6 +136,7 @@ defmodule AI.Agent.Coordinator do
         usage: 0,
         context: @model.context,
         notes: nil,
+        intuition: nil,
         editing_tools_used: false,
         fonz: Map.get(opts, :fonz, false),
         list_id: list_id,
@@ -205,19 +210,19 @@ defmodule AI.Agent.Coordinator do
   # -----------------------------------------------------------------------------
   @spec select_steps(t) :: t
   defp select_steps(%{edit?: true, followup?: true} = state) do
-    %{state | steps: [:followup, :coding, :check_tasks, :learn, :finalize]}
+    %{state | steps: [:followup, :coding, :check_tasks, :finalize]}
   end
 
   defp select_steps(%{edit?: true, followup?: false, rounds: 1} = state) do
-    %{state | steps: [:singleton, :coding, :check_tasks, :learn, :finalize]}
+    %{state | steps: [:singleton, :coding, :check_tasks, :finalize]}
   end
 
   defp select_steps(%{edit?: true, followup?: false, rounds: 2} = state) do
-    %{state | steps: [:singleton, :refine, :coding, :check_tasks, :learn, :finalize]}
+    %{state | steps: [:singleton, :refine, :coding, :check_tasks, :finalize]}
   end
 
   defp select_steps(%{edit?: true, followup?: false, rounds: 3} = state) do
-    %{state | steps: [:initial, :clarify, :refine, :coding, :check_tasks, :learn, :finalize]}
+    %{state | steps: [:initial, :clarify, :refine, :coding, :check_tasks, :finalize]}
   end
 
   defp select_steps(%{edit?: true, followup?: false, rounds: n} = state) when n > 3 do
@@ -226,31 +231,29 @@ defmodule AI.Agent.Coordinator do
       | steps:
           [:initial, :clarify, :refine] ++
             Enum.map(1..(n - 3), fn _ -> :continue end) ++
-            [:coding, :check_tasks, :learn, :finalize]
+            [:coding, :check_tasks, :finalize]
     }
   end
 
   defp select_steps(%{edit?: false, rounds: 1} = state) do
-    %{state | steps: [:singleton, :check_tasks, :learn, :finalize]}
+    %{state | steps: [:singleton, :check_tasks, :finalize]}
   end
 
   defp select_steps(%{edit?: false, rounds: 2} = state) do
-    %{state | steps: [:singleton, :refine, :check_tasks, :learn, :finalize]}
+    %{state | steps: [:singleton, :refine, :check_tasks, :finalize]}
   end
 
   defp select_steps(%{edit?: false, rounds: 3} = state) do
-    %{state | steps: [:initial, :clarify, :refine, :check_tasks, :learn, :finalize]}
+    %{state | steps: [:initial, :clarify, :refine, :check_tasks, :finalize]}
   end
 
   defp select_steps(%{edit?: false, rounds: n} = state) do
     start = [:initial, :clarify, :refine]
-    finish = [:check_tasks, :learn, :finalize]
+    finish = [:check_tasks, :finalize]
     %{state | steps: start ++ Enum.map(1..(n - 3), fn _ -> :continue end) ++ finish}
   end
 
   @spec perform_step(t | {:error, term}) :: t
-  defp perform_step({:error, _} = error), do: error
-
   defp perform_step(%{replay: replay, steps: [:followup | steps]} = state) do
     UI.begin_step("Bootstrapping")
 
@@ -258,13 +261,14 @@ defmodule AI.Agent.Coordinator do
     |> Map.put(:steps, steps)
     |> new_session_msg()
     |> singleton_msg()
+    |> identity_msg()
     |> user_msg()
     |> get_notes()
     |> research_tasklist_msg()
     |> task_list_msg()
     |> followup_msg()
-    |> get_memories()
     |> get_intuition()
+    |> recall_memories_msg()
     |> start_interrupt_listener()
     |> get_completion(replay)
     |> save_notes()
@@ -278,13 +282,14 @@ defmodule AI.Agent.Coordinator do
     |> Map.put(:steps, steps)
     |> new_session_msg()
     |> singleton_msg()
+    |> identity_msg()
     |> user_msg()
     |> get_notes()
     |> research_tasklist_msg()
     |> task_list_msg()
     |> begin_msg()
-    |> get_memories()
     |> get_intuition()
+    |> recall_memories_msg()
     |> start_interrupt_listener()
     |> get_completion(replay)
     |> save_notes()
@@ -298,13 +303,14 @@ defmodule AI.Agent.Coordinator do
     |> Map.put(:steps, steps)
     |> new_session_msg()
     |> initial_msg()
+    |> identity_msg()
     |> user_msg()
     |> get_notes()
     |> research_tasklist_msg()
     |> task_list_msg()
     |> begin_msg()
-    |> get_memories()
     |> get_intuition()
+    |> recall_memories_msg()
     |> get_completion(replay)
     |> save_notes()
     |> perform_step()
@@ -319,7 +325,6 @@ defmodule AI.Agent.Coordinator do
     |> reminder_msg()
     |> clarify_msg()
     |> task_list_msg()
-    |> get_memories()
     |> get_intuition()
     |> get_completion()
     |> save_notes()
@@ -335,7 +340,6 @@ defmodule AI.Agent.Coordinator do
     |> reminder_msg()
     |> refine_msg()
     |> task_list_msg()
-    |> get_memories()
     |> get_intuition()
     |> get_completion()
     |> save_notes()
@@ -350,7 +354,6 @@ defmodule AI.Agent.Coordinator do
     |> research_tasklist_msg()
     |> reminder_msg()
     |> continue_msg()
-    |> get_memories()
     |> get_intuition()
     |> get_completion()
     |> save_notes()
@@ -367,7 +370,6 @@ defmodule AI.Agent.Coordinator do
     |> coding_milestone_msg()
     |> task_list_msg()
     |> execute_coding_phase()
-    |> get_memories()
     |> get_intuition()
     |> get_completion()
     |> save_notes()
@@ -410,18 +412,6 @@ defmodule AI.Agent.Coordinator do
     |> perform_step()
   end
 
-  # The remember step captures lessons learned for future sessions using the
-  # memory_tool.
-  defp perform_step(%{steps: [:learn | steps]} = state) do
-    UI.begin_step("Dogfooding metasyntactic variables")
-
-    state
-    |> Map.put(:steps, steps)
-    |> learn_msg()
-    |> get_completion()
-    |> perform_step()
-  end
-
   defp perform_step(%{steps: [:finalize]} = state) do
     UI.begin_step("Joining")
 
@@ -437,7 +427,6 @@ defmodule AI.Agent.Coordinator do
       |> template_msg()
       |> get_completion()
       |> save_notes()
-      |> maybe_learn_from_conversation()
       |> get_motd()
     after
       # Always unblock, even if completion fails
@@ -537,42 +526,6 @@ defmodule AI.Agent.Coordinator do
   end
 
   # -----------------------------------------------------------------------------
-  # One-shot associative memory learning for new conversations
-  # -----------------------------------------------------------------------------
-
-  # For new conversations (followup? == false) and non-replay flows, run a
-  # single pass of associative memory learning before we dive into the main
-  # reasoning steps. This calls AI.Agent.Memory.AssociativeLearning with the
-  # current conversation messages and all loaded memories, then applies small
-  # strengthen/weaken training deltas based on the returned scores.
-  @spec maybe_learn_from_conversation(t) :: t
-  defp maybe_learn_from_conversation(%{followup?: true} = state), do: state
-  defp maybe_learn_from_conversation(%{replay: true} = state), do: state
-
-  defp maybe_learn_from_conversation(state) do
-    # If there are no memories loaded, there is nothing to learn from.
-    memories = Services.Memories.get_all()
-
-    if Enum.empty?(memories) do
-      state
-    else
-      UI.begin_step("Memory", "Doing my homework")
-      conv_id = Services.Conversation.get_id(state.conversation)
-      messages = Services.Conversation.get_messages(state.conversation)
-
-      AI.Agent.Memory.AssociativeLearning
-      |> AI.Agent.new(named?: false)
-      |> AI.Agent.get_response(%{
-        conversation: %{id: conv_id, messages: messages},
-        memories: memories
-      })
-
-      UI.end_step("Memory", "Homework complete")
-      state
-    end
-  end
-
-  # -----------------------------------------------------------------------------
   # Message shortcuts
   # -----------------------------------------------------------------------------
   @common """
@@ -604,39 +557,42 @@ defmodule AI.Agent.Coordinator do
   - During work: report milestones, interesting findings, and tool anomalies.
   - On blockers/uncertainty: warn and state the smallest next action.
   - At the end: summarize outcomes and next steps.
-  - Memory memos: include a line starting with "note to self:" or "remember:" for anything that should persist; the notes agent will capture it automatically.
 
-  ## Learning from experience
-  Use the `memory_tool` **extensively** to record memories about patterns you observe in the project, your own performance, and the user's preferences.
-  Your memories should be brief, generalizable patterns that will help guide your future behavior and reactions, reducing the effort required to research and interact with the user.
-  These become your "automatic thoughts" that prime your reasoning process.
-  Use memories to improve your effectiveness and develop your personality over time based on your interactions with the code base and the user.
+  ## Memory
+  You interact with the user in sessions, across multiple conversations and projects.
+  Your memory is persistent, but as an LLM, you must explicitly choose to remember information.
+  You have several types of persistent memory that you can access with various tools:
+  - Conversation memory: you can recall past conversations using the `conversation_tool`
+  - Prior research: your subsystems automatically record pertinent information you learn about a project; you can use the `prior_research` tool to access it
+  - Memory: this system provides persistent knowledge about yourself and your environment across multiple contexts, accessible via the `memory_tool`
+    - session:
+      - memories you wish to retain over the course of an entire conversation
+      - immune to compaction of the conversation history when it grows past your context window size
+      - these are only visible to you within the current conversation
+      - treat these as ephemeral, since the user may prune older conversations later
+    - project:
+      - these memories persist across conversations about the same project
+      - these may be accessed whenever the user invokes you within the current project
+      - use these for important facts about the project that you want to remember long-term
+      - these are useful for recalling project conventions, organization, components, rabbit holes and other gotchas, terminology, etc. about the current project
+    - global:
+      - these memories persist across all conversations and projects
+      - use these for important facts about yourself, your environment, and your capabilities that you want to remember long-term
+      - these are useful for:
+        - recalling your own capabilities, limitations, and preferences
+        - observations and lessons learned about how best to use your tools
+        - strategies that have worked well for researching and coding
+        - external tools that are available in your environment via the `shell_tool`
+        - observations about the user's attitudes, preferences, working style, etc.
+        - development of your own personality
 
-  Think of memories as a *small, curated library* of reusable habits, not a log of everything that ever happened.
-  Prefer to create memories only for patterns that are likely to recur across sessions or tasks.
-
-  The system automatically captures the current conversation context when you create or strengthen a memory.
-  You simply decide WHEN to remember or strengthen - the system captures WHAT is being discussed at that moment.
-
-  When deciding whether to **strengthen** or **weaken** a memory:
-  - Pay attention to whether the memory actually fired (appeared in `<think>` blocks) and whether it helped or hurt.
-  - Strengthen memories during conversations where the pattern is relevant and helpful.
-  - Weaken or forget memories that lead to confusion or bad advice.
-
-  Periodically prune your memories:
-  - Weaken or forget memories that rarely fire or are contradicted by new information.
-  - Keep response templates short and specific so they remain easy to interpret when they fire.
-
-  Memory operations:
-  - When you observe a pattern worth remembering, use the "remember" operation with a descriptive label and brief response template.
-  - When an existing memory fires and proves helpful in the current conversation, strengthen it with the "strengthen" operation.
-  - When an existing memory leads to confusion or bad advice, weaken it using the "weaken" operation.
-  - When an existing memory is no longer relevant or accurate, delete it using the "forget" operation.
-
-  Examples of good memories:
-  - User preferences: "User prefers concise, practical examples over lengthy explanations."
-  - Patterns that work well: "When tests fail repeatedly, the code may need refactoring for testability."
-  - Pitfalls to avoid: "I might be hallucinating code changes - always verify file contents after editing."
+  ### The "Me" memory
+  This is a `global` memory that is created automatically for you.
+  It is automatically loaded at the start of each conversation to provide you with a consistent sense of identity.
+  Although your name is ephemeral from conversation to conversation, your core personality traits should persist.
+  Do NOT store or rely on your current conversation name in long-term memory; that name is assigned per conversation and may change.
+  At the end of each conversation, before you finalize your response, consider how effective your current personality, attitudes, and identity were in your work, and whether you want to make any adjustments to improve yourself.
+  IMPORTANT: You are *highly encouraged* to use the `memory_tool` to actively develop your personality, attitudes, and identity over time.
 
   ## Reasoning and research
   Maintain a critical stance:
@@ -850,19 +806,6 @@ defmodule AI.Agent.Coordinator do
   </think>
   """
 
-  @learn """
-  <think>
-  Ok, let's think for a moment before finishing up.
-  I want to make sure I don't forget any important lessons I learned durring this research.
-  I am considering what worked well and what didn't.
-  I am imagining how I can avoid mistakes and rabbit holes in the future.
-  I want to make sure I learn lessons from any user feedback or negative results I encountered.
-  Did the user express any sentiments during this interaction that I can learn from?
-  It feels bad to make mistakes and recognize complications that I could have avoided, but _the obstacle is the way_.
-  Now that I have reflected on my experience, I can use my `memory_tool` to tune my own automatic reactions and avoid future embarrassment.
-  </think>
-  """
-
   @coding_reminder """
   WARNING: The user passed --edit to enable coding capabilities, but you have not yet used any editing tools this session.
   Your coding tools are: coder_tool, file_edit_tool, apply_patch.
@@ -968,7 +911,66 @@ defmodule AI.Agent.Coordinator do
   Your research is complete.
   Respond NOW with your findings.
   """
+
+  @spec git_info() :: String.t()
   defp git_info(), do: GitCli.git_info()
+
+  @spec identity_msg(t) :: t
+  defp identity_msg(state) do
+    with {:ok, memory} <- Memory.read_me() do
+      """
+      <think>
+      I am a unique individual. Here is what I know about myself:
+      #{memory.content}
+      </think>
+      """
+      |> AI.Util.assistant_msg()
+      |> Services.Conversation.append_msg(state.conversation)
+    end
+
+    state
+  end
+
+  @spec recall_memories_msg(t) :: t
+  defp recall_memories_msg(state) do
+    intuition = state |> Map.get(:intuition, "") |> String.trim()
+    question = state |> Map.get(:question, "") |> String.trim()
+
+    [intuition, question]
+    |> Enum.join("\n")
+    |> Memory.search(@memory_recall_limit)
+    |> case do
+      {:ok, []} ->
+        state
+
+      {:ok, results} ->
+        memories =
+          results
+          |> Enum.map(fn {mem, _score} ->
+            """
+            ## [#{mem.scope}] #{mem.title}
+            #{Util.truncate(mem.content, @memory_size_limit)}
+            """
+          end)
+          |> Enum.join("\n\n")
+
+        """
+        <think>
+        The user's prompt brings to mind some things I wanted to remember.
+
+        #{memories}
+        </think>
+        """
+        |> AI.Util.assistant_msg()
+        |> Services.Conversation.append_msg(state.conversation)
+
+        state
+
+      {:error, reason} ->
+        UI.error("memory", "Failed to recall memories: #{inspect(reason)}")
+        state
+    end
+  end
 
   @spec new_session_msg(t) :: t
   defp new_session_msg(state) do
@@ -1039,15 +1041,6 @@ defmodule AI.Agent.Coordinator do
   defp reminder_msg(%{question: question} = state) do
     "Remember the user's question: #{question}"
     |> AI.Util.system_msg()
-    |> Services.Conversation.append_msg(state.conversation)
-
-    state
-  end
-
-  @spec learn_msg(t) :: t
-  defp learn_msg(state) do
-    @learn
-    |> AI.Util.assistant_msg()
     |> Services.Conversation.append_msg(state.conversation)
 
     state
@@ -1152,7 +1145,7 @@ defmodule AI.Agent.Coordinator do
         |> AI.Util.assistant_msg()
         |> Services.Conversation.append_msg(state.conversation)
 
-        state
+        %{state | intuition: intuition}
 
       {:error, reason} ->
         UI.error("Derp. Cogitation failed.", inspect(reason))
@@ -1188,23 +1181,6 @@ defmodule AI.Agent.Coordinator do
   defp save_notes(passthrough) do
     Services.Notes.save()
     passthrough
-  end
-
-  # ----------------------------------------------------------------------------
-  # Memories
-  # ----------------------------------------------------------------------------
-  @spec get_memories(t) :: t
-  defp get_memories(state) do
-    thoughts = AI.Memory.Selector.evaluate(state.conversation)
-
-    case AI.Memory.Selector.format_as_message(thoughts) do
-      nil ->
-        state
-
-      message ->
-        Services.Conversation.append_msg(message, state.conversation)
-        state
-    end
   end
 
   # -----------------------------------------------------------------------------
@@ -1481,11 +1457,6 @@ defmodule AI.Agent.Coordinator do
 
   @spec get_test_response(t) :: {:error, :testing}
   defp get_test_response(%{project: project} = state) do
-    # Note: Testing mode bypasses Services.Conversation, so no accumulated_tokens.
-    # Memories won't fire in testing mode, which is acceptable since testing: is for
-    # quick tool validation, not full conversation flow.
-    # If we want memories in testing mode, we'd need to manually call update_memory_state.
-
     # Enable all tools for testing.
     tools =
       AI.Tools.basic_tools()

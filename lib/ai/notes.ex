@@ -295,12 +295,6 @@ defmodule AI.Notes do
     end
   end
 
-  @spec ingest_memo(t, binary) :: t
-  def ingest_memo(state, memo) do
-    memo = "Important note to self: #{memo}"
-    %{state | new_facts: [memo | state.new_facts]}
-  end
-
   @spec ingest_research(t, binary, binary, any) :: t
   def ingest_research(state, func, args_json, result) do
     # Prepare input for AI and detect any memos from notify_tool

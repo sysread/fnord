@@ -7,6 +7,8 @@ defmodule Store.Project.Conversation do
 
   The JSON object currently has the following keys:
   - `messages`: a list of messages in the conversation
+  - `metadata`: a map of metadata for the conversation
+  - `memory`: a list of memory objects associated with the conversation
 
   Existing conversations are retrieved by their UUID identifier.
   """
@@ -95,18 +97,23 @@ defmodule Store.Project.Conversation do
   to the current time.
   """
   @spec write(t, list) :: {:ok, t} | {:error, any()}
+  @spec write(t, list, map) :: {:ok, t} | {:error, any()}
+  @spec write(t, list, map, list) :: {:ok, t} | {:error, any()}
   def write(conversation, messages) do
-    write(conversation, messages, %{})
+    write(conversation, messages, %{}, [])
   end
 
-  @spec write(t, list, map) :: {:ok, t} | {:error, any()}
-  def write(conversation, messages, metadata) do
+  def write(conversation, messages, metadata) when is_list(messages) and is_map(metadata) do
+    write(conversation, messages, metadata, [])
+  end
+
+  def write(conversation, messages, metadata, memory) do
     conversation.project_home
     |> build_store_dir()
     |> File.mkdir_p()
 
     timestamp = marshal_ts()
-    data = %{messages: messages, metadata: metadata}
+    data = %{messages: messages, metadata: metadata, memory: memory}
 
     with {:ok, json} <- Jason.encode(data),
          :ok <- File.write(conversation.store_path, "#{timestamp}:#{json}") do
@@ -116,17 +123,31 @@ defmodule Store.Project.Conversation do
 
   @doc """
   Reads the conversation from the store. Returns a tuple with the timestamp,
-  messages, and metadata in the conversation.
+  messages, metadata, and memory in the conversation.
   """
-  @spec read(t) :: {:ok, DateTime.t(), list, map} | {:error, any()}
+  @spec read(t) :: {:ok, DateTime.t(), list, map, list(Memory.t())} | {:error, any()}
   def read(conversation) do
     with {:ok, contents} <- File.read(conversation.store_path),
          [timestamp_str, json] <- String.split(contents, ":", parts: 2),
          {:ok, timestamp} <- unmarshal_ts(timestamp_str),
          {:ok, data} <- Jason.decode(json) do
-      msgs = Map.get(data, "messages", [])
-      metadata = Map.get(data, "metadata", %{})
-      {:ok, timestamp, Util.string_keys_to_atoms(msgs), metadata}
+      msgs =
+        data
+        |> Map.get("messages", [])
+        |> Util.string_keys_to_atoms()
+
+      metadata =
+        data
+        |> Map.get("metadata", %{})
+        |> Util.string_keys_to_atoms()
+
+      memories =
+        data
+        |> Map.get("memory", [])
+        |> Util.string_keys_to_atoms()
+        |> Enum.map(&Memory.new_from_map/1)
+
+      {:ok, timestamp, msgs, metadata, memories}
     end
   end
 
@@ -137,9 +158,9 @@ defmodule Store.Project.Conversation do
   """
   @spec fork(t) :: {:ok, t} | {:error, any}
   def fork(%__MODULE__{} = conversation) do
-    with {:ok, _ts, messages, metadata} <- read(conversation),
+    with {:ok, _ts, messages, metadata, memory} <- read(conversation),
          forked <- new(),
-         {:ok, _} <- write(forked, messages, metadata) do
+         {:ok, _} <- write(forked, messages, metadata, memory) do
       {:ok, forked}
     else
       other -> {:error, other}
@@ -172,7 +193,7 @@ defmodule Store.Project.Conversation do
   @spec question(t) :: {:ok, binary} | {:error, :no_question}
   def question(conversation) do
     case read(conversation) do
-      {:ok, _timestamp, msgs, _metadata} ->
+      {:ok, _timestamp, msgs, _metadata, _memory} ->
         case Enum.find(msgs, &(Map.get(&1, :role) == "user")) do
           nil -> {:error, :no_question}
           msg -> Map.fetch(msg, :content)
@@ -190,7 +211,7 @@ defmodule Store.Project.Conversation do
   @spec num_messages(t) :: non_neg_integer()
   def num_messages(conversation) do
     case read(conversation) do
-      {:ok, _timestamp, msgs, _metadata} -> length(msgs)
+      {:ok, _timestamp, msgs, _metadata, _memory} -> length(msgs)
       _ -> 0
     end
   end

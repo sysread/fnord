@@ -146,7 +146,7 @@ defmodule Services.ConversationIndexer do
   defp safe_process(convo, impl, project) do
     try do
       case Store.Project.Conversation.read(convo) do
-        {:ok, ts, messages, metadata} ->
+        {:ok, ts, messages, metadata, _memory} ->
           json = Jason.encode!(%{"messages" => messages})
 
           with {:ok, embeddings} <- impl.get_embeddings(json) do
