@@ -206,7 +206,8 @@ defmodule AI.Accumulator do
 
     args =
       acc.completion_args
-      # Auto-compaction could bork the accumulator
+      # Auto-compaction could bork the accumulator. The accumulator is also
+      # used for compaction, so we want to avoid recursion.
       |> Keyword.put(:compact?, false)
       |> Keyword.put(:model, acc.model)
       |> Keyword.put(:toolbox, acc.toolbox)

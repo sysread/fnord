@@ -468,6 +468,7 @@ defmodule AI.Agent.Coordinator do
       log_msgs: true,
       log_tool_calls: true,
       archive_notes: true,
+      compact?: true,
       replay_conversation: replay,
       conversation: state.conversation,
       model: @model,

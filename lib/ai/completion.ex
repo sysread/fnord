@@ -239,8 +239,17 @@ defmodule AI.Completion do
     |> send_request()
   end
 
-  defp handle_response({:error, :context_length_exceeded, usage}, _state) do
+  defp handle_response({:error, :context_length_exceeded, usage}, %{compact?: false}) do
     {:error, :context_length_exceeded, usage}
+  end
+
+  defp handle_response({:error, :context_length_exceeded, usage}, %{messages: msgs} = state) do
+    with {:ok, compacted, new_usage} <- AI.Completion.Compaction.compact(msgs) do
+      %{state | messages: compacted, usage: new_usage}
+      |> send_request()
+    else
+      {:error, _reason} -> {:error, :context_length_exceeded, usage}
+    end
   end
 
   defp handle_response({:error, :api_unavailable, reason}, _state) do
