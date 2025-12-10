@@ -33,8 +33,7 @@ defmodule AI.Completion do
     :tool_call_requests,
     :response,
     :compact?,
-    :conversation_pid,
-    compaction_stage: 0
+    :conversation_pid
   ]
 
   @type t :: %__MODULE__{
@@ -52,8 +51,7 @@ defmodule AI.Completion do
           messages: list(AI.Util.msg()),
           tool_call_requests: list(),
           response: String.t() | nil,
-          compact?: bool,
-          compaction_stage: non_neg_integer()
+          compact?: bool
         }
 
   @type response ::
@@ -61,9 +59,6 @@ defmodule AI.Completion do
           | {:error, t}
           | {:error, binary}
           | {:error, :context_length_exceeded, non_neg_integer}
-
-  @compact_keep_rounds 5
-  @compact_target_pct 0.8
 
   @spec get(Keyword.t()) :: response
   def get(opts) do
@@ -84,7 +79,7 @@ defmodule AI.Completion do
          {:ok, messages} <- Keyword.fetch(opts, :messages) do
       response_format = Keyword.get(opts, :response_format, nil)
       name = Keyword.get(opts, :name, nil)
-      compact? = Keyword.get(opts, :compact?, true)
+      compact? = Keyword.get(opts, :compact?, false)
       web_search? = Keyword.get(opts, :web_search?, false)
 
       toolbox_opt = Keyword.get(opts, :toolbox, nil)
@@ -132,8 +127,7 @@ defmodule AI.Completion do
           messages: messages,
           tool_call_requests: [],
           response: nil,
-          compact?: compact?,
-          compaction_stage: 0
+          compact?: compact?
         }
 
       {:ok, state}
@@ -211,7 +205,6 @@ defmodule AI.Completion do
     end
   end
 
-  @doc false
   @spec send_request(t) :: response
   defp send_request(state) do
     # Inject any pending user interrupts before calling the model
@@ -229,17 +222,13 @@ defmodule AI.Completion do
 
   @spec handle_response({:ok, any} | {:error, any}, t) :: response
   defp handle_response({:ok, :msg, response, usage}, state) do
-    updated_state =
-      %{
-        state
-        | messages: state.messages ++ [AI.Util.assistant_msg(response)],
-          response: response,
-          usage: usage
-      }
-
-    state = maybe_compact(updated_state)
-
-    {:ok, state}
+    {:ok,
+     %{
+       state
+       | messages: state.messages ++ [AI.Util.assistant_msg(response)],
+         response: response,
+         usage: usage
+     }}
   end
 
   defp handle_response({:ok, :tool, tool_calls}, state) do
@@ -250,37 +239,8 @@ defmodule AI.Completion do
     |> send_request()
   end
 
-  defp handle_response({:error, :context_length_exceeded, usage}, state) do
-    if not state.compact? do
-      {:error, :context_length_exceeded, usage}
-    else
-      case state.compaction_stage || 0 do
-        0 ->
-          state
-          |> Map.put(:usage, usage)
-          |> Map.put(:compaction_stage, 1)
-          |> maybe_compact(true)
-          |> send_request()
-
-        1 ->
-          state
-          |> Map.put(:usage, usage)
-          |> Map.put(:compaction_stage, 2)
-          |> tersify_messages_fallback()
-          |> send_request()
-
-        _ ->
-          error_msg =
-            "The conversation is too large to handle even after aggressive compaction and tersification."
-
-          state =
-            state
-            |> Map.put(:usage, usage)
-            |> Map.put(:response, error_msg)
-
-          {:error, state}
-      end
-    end
+  defp handle_response({:error, :context_length_exceeded, usage}, _state) do
+    {:error, :context_length_exceeded, usage}
   end
 
   defp handle_response({:error, :api_unavailable, reason}, _state) do
@@ -564,101 +524,6 @@ defmodule AI.Completion do
       {tool, args_json, {:error, safe_reason}}
     )
   end
-
-  # -----------------------------------------------------------------------------
-  defp maybe_compact(state), do: maybe_compact(state, false)
-
-  @spec maybe_compact(t, boolean()) :: t
-  # If nothing has been used yet and we're not forcing compaction, do nothing
-  defp maybe_compact(%{usage: 0} = state, false), do: state
-
-  # When forced, always compact with no additional options
-  defp maybe_compact(state, true) do
-    AI.Completion.Compaction.compact(state, %{})
-  end
-
-  # Otherwise, compact only if context utilization exceeds the target percentage
-  defp maybe_compact(%{usage: usage, model: %{context: context}} = state, false) do
-    opts = %{keep_rounds: @compact_keep_rounds, target_pct: @compact_target_pct}
-
-    # Calculate the percentage of context used, rounded to one decimal place
-    used_pct = Float.round(usage / context * 100, 1)
-
-    if used_pct > 80 do
-      AI.Completion.Compaction.compact(state, opts)
-    else
-      state
-    end
-  end
-
-  @spec tersify_messages_fallback(t) :: t
-  defp tersify_messages_fallback(state) do
-    # Partition out non-system messages for tersification
-    non_system_msgs =
-      state.messages
-      |> Enum.reject(fn msg -> Map.get(msg, :role) == "system" end)
-
-    # Determine which non-system messages to tersify with their index
-    msgs_to_tersify =
-      non_system_msgs
-      |> Enum.with_index()
-      |> Enum.filter(fn {msg, _idx} ->
-        is_binary(Map.get(msg, :content)) and Map.get(msg, :role) in ["assistant", "user"]
-      end)
-
-    # Perform tersification asynchronously, collecting results into a map of index -> new content
-    tersified_results =
-      msgs_to_tersify
-      |> Util.async_stream(
-        fn {msg, idx} ->
-          agent = AI.Agent.new(AI.Agent.Tersifier, named?: false)
-
-          case AI.Agent.get_response(agent, %{message: msg}) do
-            {:ok, new_content} when is_binary(new_content) and new_content != "" ->
-              {:ok, idx, new_content}
-
-            _ ->
-              {:error, idx}
-          end
-        end,
-        ordered: true
-      )
-      |> Enum.reduce(%{}, fn
-        {:ok, idx, new_content}, acc -> Map.put(acc, idx, new_content)
-        {:error, _idx}, acc -> acc
-        _, acc -> acc
-      end)
-
-    # Rebuild messages, replacing content for tersified messages, preserving original order
-    {new_messages, _} =
-      Enum.map_reduce(state.messages, 0, fn msg, non_sys_idx ->
-        if Map.get(msg, :role) == "system" do
-          {msg, non_sys_idx}
-        else
-          if Map.has_key?(tersified_results, non_sys_idx) do
-            updated = Map.put(msg, :content, tersified_results[non_sys_idx])
-            {updated, non_sys_idx + 1}
-          else
-            {msg, non_sys_idx + 1}
-          end
-        end
-      end)
-
-    # Recompute usage based on tersified contents
-    new_usage =
-      new_messages
-      |> Enum.reduce(0, fn
-        %{content: content}, acc when is_binary(content) ->
-          acc + AI.PretendTokenizer.guesstimate_tokens(content)
-
-        _, acc ->
-          acc
-      end)
-
-    %{state | messages: new_messages, usage: new_usage}
-  end
-
-  # Compaction logic is now delegated to `AI.Completion.Compaction.compact/2`.
 
   # Updates the system message that identifies the LLM to itself by name and
   # updates it to use the name provided by the `name` arg, if any.
