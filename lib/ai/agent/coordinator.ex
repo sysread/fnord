@@ -75,6 +75,7 @@ defmodule AI.Agent.Coordinator do
         }
 
   @type error :: {:error, binary | atom | :testing}
+  @type state :: t | error
 
   @max_task_checks 2
   @memory_recall_limit 3
@@ -146,7 +147,7 @@ defmodule AI.Agent.Coordinator do
     end
   end
 
-  @spec consider(t) :: t | error
+  @spec consider(t) :: state
   defp consider(state) do
     log_available_frobs()
     log_available_mcp_tools()
@@ -170,6 +171,7 @@ defmodule AI.Agent.Coordinator do
     end
   end
 
+  @spec greet(t) :: t
   defp greet(%{followup?: true, agent: %{name: name}} = state) do
     display_name =
       case Services.NamePool.get_name_by_pid(self()) do
@@ -253,7 +255,7 @@ defmodule AI.Agent.Coordinator do
     %{state | steps: start ++ Enum.map(1..(n - 3), fn _ -> :continue end) ++ finish}
   end
 
-  @spec perform_step(t | {:error, term}) :: t
+  @spec perform_step(state) :: state
   defp perform_step(%{replay: replay, steps: [:followup | steps]} = state) do
     UI.begin_step("Bootstrapping")
 
@@ -434,7 +436,9 @@ defmodule AI.Agent.Coordinator do
     end
   end
 
-  @spec get_completion(t, boolean) :: t | error
+  defp perform_step(state), do: state
+
+  @spec get_completion(t, boolean) :: state
   defp get_completion(state, replay \\ false) do
     # Pre-apply any pending interrupts to the conversation messages
     interrupts = Services.Conversation.Interrupts.take_all(state.conversation)
@@ -912,11 +916,11 @@ defmodule AI.Agent.Coordinator do
   Respond NOW with your findings.
   """
 
-  @spec git_info() :: String.t()
+  @spec git_info() :: binary
   defp git_info(), do: GitCli.git_info()
 
   @spec identity_msg(t) :: t
-  defp identity_msg(state) do
+  defp identity_msg(%{conversation: conversation} = state) do
     with {:ok, memory} <- Memory.read_me() do
       """
       <think>
@@ -925,14 +929,14 @@ defmodule AI.Agent.Coordinator do
       </think>
       """
       |> AI.Util.assistant_msg()
-      |> Services.Conversation.append_msg(state.conversation)
+      |> Services.Conversation.append_msg(conversation)
     end
 
     state
   end
 
   @spec recall_memories_msg(t) :: t
-  defp recall_memories_msg(state) do
+  defp recall_memories_msg(%__MODULE__{} = state) do
     UI.begin_step("Spooling mnemonics")
 
     intuition = state |> Map.get(:intuition, "") |> String.trim()
@@ -969,13 +973,13 @@ defmodule AI.Agent.Coordinator do
         state
 
       {:error, reason} ->
-        UI.error("memory", "Failed to recall memories: #{inspect(reason)}")
+        UI.error("memory", reason)
         state
     end
   end
 
   @spec new_session_msg(t) :: t
-  defp new_session_msg(state) do
+  defp new_session_msg(%{conversation: conversation} = state) do
     """
     Beginning a new session.
     Artifacts from previous sessions within this conversation may be stale.
@@ -983,85 +987,85 @@ defmodule AI.Agent.Coordinator do
     **RE-READ FILES AND RE-CHECK DELTAS TO ENSURE YOU ARE NOT USING STALE INFORMATION.**
     """
     |> AI.Util.system_msg()
-    |> Services.Conversation.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(conversation)
 
     state
   end
 
   @spec singleton_msg(t) :: t
-  defp singleton_msg(%{project: project, edit?: true} = state) do
+  defp singleton_msg(%{conversation: conversation, project: project, edit?: true} = state) do
     @coding
     |> String.replace("$$PROJECT$$", project)
     |> String.replace("$$GIT_INFO$$", git_info())
     |> AI.Util.system_msg()
-    |> Services.Conversation.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(conversation)
 
     state
   end
 
-  defp singleton_msg(%{project: project} = state) do
+  defp singleton_msg(%{conversation: conversation, project: project} = state) do
     @singleton
     |> String.replace("$$PROJECT$$", project)
     |> String.replace("$$GIT_INFO$$", git_info())
     |> AI.Util.system_msg()
-    |> Services.Conversation.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(conversation)
 
     state
   end
 
   @spec initial_msg(t) :: t
-  defp initial_msg(%{project: project, edit?: true} = state) do
+  defp initial_msg(%{conversation: conversation, project: project, edit?: true} = state) do
     @coding
     |> String.replace("$$PROJECT$$", project)
     |> String.replace("$$GIT_INFO$$", git_info())
     |> AI.Util.system_msg()
-    |> Services.Conversation.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(conversation)
 
     state
   end
 
-  defp initial_msg(%{project: project} = state) do
+  defp initial_msg(%{conversation: conversation, project: project} = state) do
     @initial
     |> String.replace("$$PROJECT$$", project)
     |> String.replace("$$GIT_INFO$$", git_info())
     |> AI.Util.system_msg()
-    |> Services.Conversation.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(conversation)
 
     state
   end
 
   @spec user_msg(t) :: t
-  defp user_msg(%{question: question} = state) do
+  defp user_msg(%{conversation: conversation, question: question} = state) do
     question
     |> AI.Util.user_msg()
-    |> Services.Conversation.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(conversation)
 
     state
   end
 
   @spec reminder_msg(t) :: t
-  defp reminder_msg(%{question: question} = state) do
+  defp reminder_msg(%{conversation: conversation, question: question} = state) do
     "Remember the user's question: #{question}"
     |> AI.Util.system_msg()
-    |> Services.Conversation.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(conversation)
 
     state
   end
 
   @spec followup_msg(t) :: t
-  defp followup_msg(state) do
+  defp followup_msg(%{conversation: conversation} = state) do
     @followup
     |> AI.Util.assistant_msg()
-    |> Services.Conversation.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(conversation)
 
     state
   end
 
   @spec begin_msg(t) :: t
-  defp begin_msg(state) do
+  defp begin_msg(%{conversation: conversation} = state) do
     @begin
     |> AI.Util.assistant_msg()
-    |> Services.Conversation.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(conversation)
 
     state
   end
@@ -1076,19 +1080,19 @@ defmodule AI.Agent.Coordinator do
   end
 
   @spec refine_msg(t) :: t
-  defp refine_msg(state) do
+  defp refine_msg(%{conversation: conversation} = state) do
     @refine
     |> AI.Util.assistant_msg()
-    |> Services.Conversation.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(conversation)
 
     state
   end
 
   @spec continue_msg(t) :: t
-  defp continue_msg(state) do
+  defp continue_msg(%{conversation: conversation} = state) do
     @continue
     |> AI.Util.assistant_msg()
-    |> Services.Conversation.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(conversation)
 
     state
   end
@@ -1102,22 +1106,20 @@ defmodule AI.Agent.Coordinator do
     state
   end
 
-  defp execute_coding_phase(state), do: state
-
   @spec finalize_msg(t) :: t
-  defp finalize_msg(state) do
+  defp finalize_msg(%{conversation: conversation} = state) do
     @finalize
     |> AI.Util.assistant_msg()
-    |> Services.Conversation.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(conversation)
 
     state
   end
 
   @spec template_msg(t) :: t
-  defp template_msg(state) do
+  defp template_msg(%{conversation: conversation} = state) do
     @template
     |> AI.Util.system_msg()
-    |> Services.Conversation.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(conversation)
 
     state
   end
@@ -1126,7 +1128,7 @@ defmodule AI.Agent.Coordinator do
   # Intuition
   # ----------------------------------------------------------------------------
   @spec get_intuition(t) :: t
-  defp get_intuition(state) do
+  defp get_intuition(%__MODULE__{} = state) do
     UI.begin_step("Cogitating")
 
     AI.Agent.Intuition
@@ -1179,7 +1181,7 @@ defmodule AI.Agent.Coordinator do
     %{state | notes: notes}
   end
 
-  @spec save_notes(t) :: t
+  @spec save_notes(state) :: state
   defp save_notes(passthrough) do
     Services.Notes.save()
     passthrough
@@ -1188,20 +1190,22 @@ defmodule AI.Agent.Coordinator do
   # -----------------------------------------------------------------------------
   # MOTD
   # -----------------------------------------------------------------------------
-  @spec get_motd(t) :: t
-  defp get_motd(state) do
+  @spec get_motd(state) :: state
+  defp get_motd(%{question: question, last_response: last_response} = state) do
     AI.Agent.MOTD
     |> AI.Agent.new(named?: false)
-    |> AI.Agent.get_response(%{prompt: state.question})
+    |> AI.Agent.get_response(%{prompt: question})
     |> case do
       {:ok, motd} ->
-        %{state | last_response: state.last_response <> "\n\n" <> motd}
+        %{state | last_response: last_response <> "\n\n" <> motd}
 
       {:error, reason} ->
         UI.error("Failed to retrieve MOTD: #{inspect(reason)}")
         state
     end
   end
+
+  defp get_motd(state), do: state
 
   # -----------------------------------------------------------------------------
   # Output
@@ -1247,6 +1251,7 @@ defmodule AI.Agent.Coordinator do
   # Delayed Interrupt Display
   # ---------------------------------------------------------------------------
   # Public wrapper for testing delayed interrupt display
+  @spec start_interrupt_listener(t) :: t
   defp start_interrupt_listener(%{conversation: convo} = state) do
     # Only start in interactive TTY sessions and only for Coordinator
     cond do
@@ -1347,7 +1352,7 @@ defmodule AI.Agent.Coordinator do
   # Tasking Guidance
   # -----------------------------------------------------------------------------
   @spec research_tasklist_msg(t) :: t
-  defp research_tasklist_msg(state) do
+  defp research_tasklist_msg(%{conversation: conversation} = state) do
     """
     Use your task list to manage ALL research lines of inquiry.
 
@@ -1358,13 +1363,13 @@ defmodule AI.Agent.Coordinator do
     - Do NOT rely on ad-hoc text; track lines of inquiry explicitly in the task list.
     """
     |> AI.Util.system_msg()
-    |> Services.Conversation.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(conversation)
 
     state
   end
 
   @spec coding_milestone_msg(t) :: t
-  defp coding_milestone_msg(state) do
+  defp coding_milestone_msg(%{conversation: conversation} = state) do
     """
     - Treat the coder tool's iterative goals as sub-steps toward milestones.
     - At each coding iteration:
@@ -1373,13 +1378,13 @@ defmodule AI.Agent.Coordinator do
     - Use `tasks_show_list` to render current status before each iteration.
     """
     |> AI.Util.system_msg()
-    |> Services.Conversation.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(conversation)
 
     state
   end
 
   @spec penultimate_tasks_check_msg(t) :: t
-  defp penultimate_tasks_check_msg(state) do
+  defp penultimate_tasks_check_msg(%{conversation: conversation} = state) do
     """
     ALL tasks must be resolved before final output!
     - Call `tasks_show_list` and read it carefully.
@@ -1389,13 +1394,13 @@ defmodule AI.Agent.Coordinator do
     YOU WILL CONTINUE TO BE SENT BACK TO THIS STEP UNTIL ALL TASKS ARE RESOLVED OR CANCELED.
     """
     |> AI.Util.system_msg()
-    |> Services.Conversation.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(conversation)
 
     state
   end
 
   @spec task_list_msg(t) :: t
-  defp task_list_msg(%{list_id: list_id} = state) do
+  defp task_list_msg(%{conversation: conversation, list_id: list_id} = state) do
     tasks = Services.Task.as_string(list_id)
 
     """
@@ -1408,7 +1413,7 @@ defmodule AI.Agent.Coordinator do
     detail, including detailed descriptions and statuses.
     """
     |> AI.Util.system_msg()
-    |> Services.Conversation.append_msg(state.conversation)
+    |> Services.Conversation.append_msg(conversation)
 
     state
   end
@@ -1480,17 +1485,21 @@ defmodule AI.Agent.Coordinator do
         AI.Util.user_msg(state.question)
       ]
     )
-    |> then(fn {:ok, %{response: msg} = response} ->
-      UI.say(msg)
+    |> case do
+      {:ok, %{response: msg} = response} ->
+        UI.say(msg)
 
-      response
-      |> AI.Agent.tools_used()
-      |> Enum.each(fn {tool, count} ->
-        UI.report_step(tool, "called #{count} time(s)")
-      end)
+        response
+        |> AI.Agent.tools_used()
+        |> Enum.each(fn {tool, count} ->
+          UI.report_step(tool, "called #{count} time(s)")
+        end)
 
-      log_usage(response)
-    end)
+        log_usage(response)
+
+      {:error, reason} ->
+        UI.error(inspect(reason))
+    end
 
     {:error, :testing}
   end
