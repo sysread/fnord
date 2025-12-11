@@ -90,7 +90,7 @@ defmodule AI.Completion.Compaction do
       end)
       # Note that this step extracts from the original msgs, not the reversed one
       |> then(fn
-        nil -> [[], msgs]
+        nil -> {[], msgs}
         idx -> Enum.split(msgs, length(msgs) - idx - 1)
       end)
 
@@ -126,7 +126,6 @@ defmodule AI.Completion.Compaction do
   defp tersify_msg(%{content: content} = msg) do
     # Do not tersify previously generated summaries
     if is_summary_msg?(msg) do
-      IO.inspect(msg, label: "SUMMARY MSG - skipping tersification")
       {:ok, msg}
     else
       is_thought? = has_think_tags?(msg)
