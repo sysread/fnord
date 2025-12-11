@@ -140,4 +140,65 @@ defmodule AI.Tools.PlanTest do
       refute File.exists?(path)
     end
   end
+
+  describe "call/1 with decision_* args" do
+    setup do
+      project = mock_project("plan_test_project")
+      {:ok, store_project} = Store.get_project("plan_test_project")
+      %{project: project, store_project: store_project}
+    end
+
+    test "appends a single decision entry correctly using decision_* args", %{
+      store_project: store_project
+    } do
+      plan_name = "decision_plan"
+      context = "some context"
+      change = %{"key" => "value"}
+      reason = "test reason"
+      affected = ["item1", "item2"]
+
+      AI.Tools.Plan.call(%{
+        "plan_name" => plan_name,
+        "decision_context" => context,
+        "decision_change" => change,
+        "decision_reason" => reason,
+        "decision_affected" => affected
+      })
+
+      path = Store.Project.Plan.plan_path(store_project, plan_name)
+      assert File.exists?(path)
+
+      %{"meta" => meta, "decisions" => decisions} =
+        path |> File.read!() |> Jason.decode!()
+
+      assert length(decisions) == 1
+      [entry] = decisions
+      assert is_binary(entry["id"])
+      assert is_binary(entry["timestamp"])
+      assert entry["context"] == context
+      assert entry["change"] == change
+      assert entry["reason"] == reason
+      assert entry["affected"] == affected
+      assert is_binary(meta["updated_at"])
+    end
+
+    test "appends multiple decision entries with correct ids", %{store_project: store_project} do
+      plan_name = "decision_plan_ids"
+
+      args = %{
+        "plan_name" => plan_name,
+        "decision_context" => "First decision",
+        "decision_change" => %{},
+        "decision_reason" => "R1"
+      }
+
+      AI.Tools.Plan.call(args)
+      AI.Tools.Plan.call(Map.put(args, "decision_context", "Second decision"))
+
+      path = Store.Project.Plan.plan_path(store_project, plan_name)
+      %{"decisions" => decisions} = path |> File.read!() |> Jason.decode!()
+
+      assert Enum.map(decisions, & &1["id"]) == ["dec-1", "dec-2"]
+    end
+  end
 end

@@ -66,6 +66,23 @@ defmodule AI.Tools.Plan do
             "implementation" => %{
               type: "object",
               description: "Implementation plan (milestones list) to store in the plan"
+            },
+            "decision_context" => %{
+              type: "string",
+              description: "Context in which the decision was made"
+            },
+            "decision_change" => %{
+              type: "string",
+              description: "What changed as a result of the decision"
+            },
+            "decision_reason" => %{
+              type: "string",
+              description: "Why the decision was made"
+            },
+            "decision_affected" => %{
+              type: "array",
+              items: %{type: "string"},
+              description: "Optional list of identifiers or sections affected by the decision"
             }
           }
         }
@@ -81,6 +98,19 @@ defmodule AI.Tools.Plan do
   @impl AI.Tools
   def call(%{"plan_name" => plan_name, "implementation" => implementation_map}) do
     plan_set_implementation(plan_name, implementation_map)
+  end
+
+  @impl AI.Tools
+  def call(
+        %{
+          "plan_name" => plan_name,
+          "decision_context" => context,
+          "decision_change" => change,
+          "decision_reason" => reason
+        } = args
+      ) do
+    affected = Map.get(args, "decision_affected", [])
+    plan_append_decision(plan_name, context, change, reason, affected)
   end
 
   @impl AI.Tools
@@ -237,6 +267,56 @@ defmodule AI.Tools.Plan do
                 {:error, reason} -> {:error, reason}
               end
             else
+              {:error, reason} -> {:error, reason}
+            end
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp plan_append_decision(plan_name, context, change, reason, affected) do
+    case Store.get_project() do
+      {:ok, project} ->
+        path = Store.Project.Plan.plan_path(project, plan_name)
+
+        plan_or_error =
+          case Store.Project.Plan.read(path) do
+            {:ok, plan} -> plan
+            {:error, :enoent} -> %Store.Project.Plan{meta: %{}, decisions: []}
+            {:error, reason} -> {:error, reason}
+          end
+
+        case plan_or_error do
+          {:error, reason} ->
+            {:error, reason}
+
+          plan ->
+            decisions = plan.decisions || []
+            next_id = "dec-#{length(decisions) + 1}"
+            timestamp = DateTime.utc_now() |> DateTime.to_iso8601()
+
+            entry = %{
+              "id" => next_id,
+              "timestamp" => timestamp,
+              "context" => context,
+              "change" => change,
+              "reason" => reason,
+              "affected" => affected
+            }
+
+            new_decisions = decisions ++ [entry]
+
+            new_meta =
+              plan.meta
+              |> Map.put("updated_at", DateTime.utc_now() |> DateTime.to_iso8601())
+
+            updated_plan =
+              %Store.Project.Plan{plan | decisions: new_decisions, meta: new_meta}
+
+            case Store.Project.Plan.write(path, updated_plan) do
+              :ok -> {:ok, updated_plan}
               {:error, reason} -> {:error, reason}
             end
         end
