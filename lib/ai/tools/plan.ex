@@ -21,13 +21,13 @@ defmodule AI.Tools.Plan do
   end
 
   @impl AI.Tools
-  def ui_note_on_request(_args), do: nil
+  def ui_note_on_request(_args), do: "plan_tool: inspecting plan"
 
   @impl AI.Tools
-  def ui_note_on_result(_args, _result), do: nil
+  def ui_note_on_result(_args, _result), do: "plan_tool: finished"
 
   @impl AI.Tools
-  def tool_call_failure_message(_args, _reason), do: :default
+  def tool_call_failure_message(_args, _reason), do: "plan_tool failed"
 
   @impl AI.Tools
   def spec do
