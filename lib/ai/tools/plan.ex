@@ -36,7 +36,7 @@ defmodule AI.Tools.Plan do
       function: %{
         name: "plan_tool",
         description:
-          "Read-only access to a project plan stored in the fnord project store.",
+          "Read-only access to a project plan stored in the fnord project store. When `meta_delta` is provided, the tool will merge the given metadata into the plan's meta section.",
         parameters: %{
           type: "object",
           required: ["plan_name"],
@@ -50,11 +50,21 @@ defmodule AI.Tools.Plan do
               enum: ["meta", "design", "implementation", "decisions", "work_log"],
               description:
                 "Optional section of the plan to return; if omitted, the full plan is returned"
+            },
+            "meta_delta" => %{
+              type: "object",
+              description: "Map of metadata keys to merge into the plan's meta section"
             }
           }
+
         }
       }
     }
+  end
+
+  @impl AI.Tools
+  def call(%{"plan_name" => plan_name, "meta_delta" => meta_delta}) do
+    plan_set_meta(plan_name, meta_delta)
   end
 
   @impl AI.Tools
@@ -83,4 +93,39 @@ defmodule AI.Tools.Plan do
   defp select_section(plan, "work_log"), do: plan.work_log
 
   defp select_section(_plan, _unknown), do: nil
+
+  defp plan_set_meta(plan_name, meta_delta) do
+    case Store.get_project() do
+      {:ok, project} ->
+        path = Store.Project.Plan.plan_path(project, plan_name)
+
+        plan_or_error =
+          case Store.Project.Plan.read(path) do
+            {:ok, plan} -> plan
+            {:error, :enoent} -> %Store.Project.Plan{meta: %{}}
+            {:error, reason} -> {:error, reason}
+          end
+
+        case plan_or_error do
+          {:error, reason} ->
+            {:error, reason}
+
+          plan ->
+            new_meta =
+              plan.meta
+              |> Map.merge(meta_delta)
+              |> Map.put("updated_at", DateTime.utc_now() |> DateTime.to_iso8601())
+
+            updated_plan = %Store.Project.Plan{plan | meta: new_meta}
+
+            case Store.Project.Plan.write(path, updated_plan) do
+              :ok -> {:ok, updated_plan}
+              {:error, reason} -> {:error, reason}
+            end
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
 end

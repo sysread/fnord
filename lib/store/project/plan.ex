@@ -121,6 +121,9 @@ defmodule Store.Project.Plan do
       "decisions" => plan.decisions || [],
       "work_log" => plan.work_log || []
     }
+    dir = Path.dirname(path)
+    File.mkdir_p!(dir)
+
 
     with {:ok, json} <- Jason.encode(data),
          :ok <- File.write(path, json) do
