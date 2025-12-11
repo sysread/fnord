@@ -236,8 +236,8 @@ defmodule AI.Util do
       # on Briefly for atomic, race-safe temp file creation and cleanup when
       # the owning process or BEAM exits.
       with dir when is_binary(dir) <- System.tmp_dir(),
-           {:ok, filename} =
-             Briefly.create(
+           {:ok, filename} <-
+             Services.TempFile.mktemp(
                directory: dir,
                prefix: "fnord-tool-",
                extname: ".log"
