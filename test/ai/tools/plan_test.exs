@@ -98,4 +98,46 @@ defmodule AI.Tools.PlanTest do
       assert meta["updated_at"] != first_updated
     end
   end
+
+  describe "call/1 with implementation" do
+    setup do
+      project = mock_project("plan_test_project")
+      {:ok, store_project} = Store.get_project("plan_test_project")
+      %{project: project, store_project: store_project}
+    end
+
+    test "stores valid implementation with milestones", %{store_project: store_project} do
+      plan_name = "implementation_plan"
+
+      implementation = %{
+        "milestones" => [
+          %{
+            "id" => "ms-1",
+            "title" => "Introduce FooBus",
+            "status" => "planned",
+            "steps" => ["Create module", "Add tests"]
+          }
+        ]
+      }
+
+      AI.Tools.Plan.call(%{"plan_name" => plan_name, "implementation" => implementation})
+
+      path = Store.Project.Plan.plan_path(store_project, plan_name)
+      assert File.exists?(path)
+
+      %{"meta" => meta, "implementation" => impl} = path |> File.read!() |> Jason.decode!()
+      assert impl == implementation
+      assert is_binary(meta["updated_at"])
+    end
+
+    test "rejects malformed implementation without milestones", %{store_project: store_project} do
+      plan_name = "bad_implementation_plan"
+      malformed_impl = %{"details" => "missing milestones"}
+
+      AI.Tools.Plan.call(%{"plan_name" => plan_name, "implementation" => malformed_impl})
+
+      path = Store.Project.Plan.plan_path(store_project, plan_name)
+      refute File.exists?(path)
+    end
+  end
 end

@@ -62,6 +62,10 @@ defmodule AI.Tools.Plan do
             "design_format" => %{
               type: "string",
               description: "Format of the design content, e.g. markdown"
+            },
+            "implementation" => %{
+              type: "object",
+              description: "Implementation plan (milestones list) to store in the plan"
             }
           }
         }
@@ -72,6 +76,11 @@ defmodule AI.Tools.Plan do
   @impl AI.Tools
   def call(%{"plan_name" => plan_name, "meta_delta" => meta_delta}) do
     plan_set_meta(plan_name, meta_delta)
+  end
+
+  @impl AI.Tools
+  def call(%{"plan_name" => plan_name, "implementation" => implementation_map}) do
+    plan_set_implementation(plan_name, implementation_map)
   end
 
   @impl AI.Tools
@@ -170,6 +179,64 @@ defmodule AI.Tools.Plan do
 
             case Store.Project.Plan.write(path, updated_plan) do
               :ok -> {:ok, updated_plan}
+              {:error, reason} -> {:error, reason}
+            end
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp validate_implementation(%{"milestones" => milestones}) when is_list(milestones) do
+    if Enum.all?(milestones, &valid_milestone?/1) do
+      :ok
+    else
+      {:error, :invalid_milestones}
+    end
+  end
+
+  defp validate_implementation(_), do: {:error, :invalid_implementation}
+
+  defp valid_milestone?(m) when is_map(m) do
+    Map.has_key?(m, "id") and
+      Map.has_key?(m, "title") and
+      Map.has_key?(m, "status") and
+      Map.has_key?(m, "steps")
+  end
+
+  defp valid_milestone?(_), do: false
+
+  defp plan_set_implementation(plan_name, implementation_map) do
+    case Store.get_project() do
+      {:ok, project} ->
+        path = Store.Project.Plan.plan_path(project, plan_name)
+
+        plan_or_error =
+          case Store.Project.Plan.read(path) do
+            {:ok, plan} -> plan
+            {:error, :enoent} -> %Store.Project.Plan{meta: %{}, implementation: nil}
+            {:error, reason} -> {:error, reason}
+          end
+
+        case plan_or_error do
+          {:error, reason} ->
+            {:error, reason}
+
+          plan ->
+            with :ok <- validate_implementation(implementation_map) do
+              new_meta =
+                plan.meta
+                |> Map.put("updated_at", DateTime.utc_now() |> DateTime.to_iso8601())
+
+              updated_plan =
+                %Store.Project.Plan{plan | implementation: implementation_map, meta: new_meta}
+
+              case Store.Project.Plan.write(path, updated_plan) do
+                :ok -> {:ok, updated_plan}
+                {:error, reason} -> {:error, reason}
+              end
+            else
               {:error, reason} -> {:error, reason}
             end
         end
