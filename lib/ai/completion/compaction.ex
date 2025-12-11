@@ -3,12 +3,12 @@ defmodule AI.Completion.Compaction do
 
   @spec compact(AI.Util.msg_list()) :: {:ok, AI.Util.msg_list(), non_neg_integer}
   def compact(msgs) do
-    UI.report_step("[compaction]", "Compacting conversation")
-
     original_usage =
       msgs
       |> Jason.encode!()
       |> AI.PretendTokenizer.guesstimate_tokens()
+
+    UI.report_step("[compaction]", "Compacting conversation (~#{original_usage} tokens)")
 
     with {:ok, tersified_msgs} <- tersified(msgs) do
       new_usage =

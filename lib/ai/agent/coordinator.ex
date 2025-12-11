@@ -1107,6 +1107,8 @@ defmodule AI.Agent.Coordinator do
     state
   end
 
+  defp execute_coding_phase(state), do: state
+
   @spec finalize_msg(t) :: t
   defp finalize_msg(%{conversation: conversation} = state) do
     @finalize
