@@ -36,7 +36,7 @@ defmodule AI.Tools.Plan do
       function: %{
         name: "plan_tool",
         description:
-          "Read-only access to a project plan stored in the fnord project store. When `meta_delta` is provided, the tool will merge the given metadata into the plan's meta section.",
+          "Read-only access to a project plan stored in the fnord project store. When `meta_delta` is provided, the tool will merge the given metadata into the plan's meta section. When `design_content` is provided, the tool will update the plan's design section with the given content.",
         parameters: %{
           type: "object",
           required: ["plan_name"],
@@ -54,9 +54,16 @@ defmodule AI.Tools.Plan do
             "meta_delta" => %{
               type: "object",
               description: "Map of metadata keys to merge into the plan's meta section"
+            },
+            "design_content" => %{
+              type: "string",
+              description: "Design content to merge into the plan's design section"
+            },
+            "design_format" => %{
+              type: "string",
+              description: "Format of the design content, e.g. markdown"
             }
           }
-
         }
       }
     }
@@ -65,6 +72,12 @@ defmodule AI.Tools.Plan do
   @impl AI.Tools
   def call(%{"plan_name" => plan_name, "meta_delta" => meta_delta}) do
     plan_set_meta(plan_name, meta_delta)
+  end
+
+  @impl AI.Tools
+  def call(%{"plan_name" => plan_name, "design_content" => content} = args) do
+    format = Map.get(args, "design_format", "markdown")
+    plan_set_design(plan_name, content, format)
   end
 
   @impl AI.Tools
@@ -117,6 +130,43 @@ defmodule AI.Tools.Plan do
               |> Map.put("updated_at", DateTime.utc_now() |> DateTime.to_iso8601())
 
             updated_plan = %Store.Project.Plan{plan | meta: new_meta}
+
+            case Store.Project.Plan.write(path, updated_plan) do
+              :ok -> {:ok, updated_plan}
+              {:error, reason} -> {:error, reason}
+            end
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp plan_set_design(plan_name, content, format) do
+    case Store.get_project() do
+      {:ok, project} ->
+        path = Store.Project.Plan.plan_path(project, plan_name)
+
+        plan_or_error =
+          case Store.Project.Plan.read(path) do
+            {:ok, plan} -> plan
+            {:error, :enoent} -> %Store.Project.Plan{meta: %{}, design: nil}
+            {:error, reason} -> {:error, reason}
+          end
+
+        case plan_or_error do
+          {:error, reason} ->
+            {:error, reason}
+
+          plan ->
+            new_design = %{"format" => format, "content" => content}
+
+            new_meta =
+              plan.meta
+              |> Map.put("updated_at", DateTime.utc_now() |> DateTime.to_iso8601())
+
+            updated_plan =
+              %Store.Project.Plan{plan | design: new_design, meta: new_meta}
 
             case Store.Project.Plan.write(path, updated_plan) do
               :ok -> {:ok, updated_plan}

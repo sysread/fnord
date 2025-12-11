@@ -9,7 +9,7 @@ defmodule AI.Tools.PlanTest do
       assert (function["name"] || function[:name]) == "plan_tool"
     end
   end
-  
+
   describe "call/1 with meta_delta" do
     setup do
       project = mock_project("plan_test_project")
@@ -31,7 +31,9 @@ defmodule AI.Tools.PlanTest do
       assert is_binary(meta["updated_at"])
     end
 
-    test "merges meta_delta and preserves unrelated keys for existing plan", %{store_project: store_project} do
+    test "merges meta_delta and preserves unrelated keys for existing plan", %{
+      store_project: store_project
+    } do
       plan_name = "existing_plan"
       initial_meta = %{"a" => 1, "b" => 2}
 
@@ -48,6 +50,52 @@ defmodule AI.Tools.PlanTest do
       assert meta["b"] == 3
       assert meta["c"] == 4
       assert is_binary(meta["updated_at"])
+    end
+  end
+
+  describe "call/1 with design_content" do
+    setup do
+      project = mock_project("plan_test_project")
+      {:ok, store_project} = Store.get_project("plan_test_project")
+      %{project: project, store_project: store_project}
+    end
+
+    test "creates new plan file when design_content is provided for missing plan", %{
+      store_project: store_project
+    } do
+      plan_name = "new_design_plan"
+      design_content = %{"layout" => ["header", "footer"]}
+
+      AI.Tools.Plan.call(%{"plan_name" => plan_name, "design_content" => design_content})
+
+      path = Store.Project.Plan.plan_path(store_project, plan_name)
+      assert File.exists?(path)
+
+      %{"meta" => meta, "design" => design} = path |> File.read!() |> Jason.decode!()
+      assert design["content"] == design_content
+      assert design["format"] == "markdown"
+      assert is_binary(meta["updated_at"])
+    end
+
+    test "replaces design_content cleanly and preserves other sections", %{
+      store_project: store_project
+    } do
+      plan_name = "new_design_plan"
+      initial_design = %{"layout" => ["intro"]}
+      AI.Tools.Plan.call(%{"plan_name" => plan_name, "design_content" => initial_design})
+      path = Store.Project.Plan.plan_path(store_project, plan_name)
+      %{"meta" => first_meta} = path |> File.read!() |> Jason.decode!()
+      first_updated = first_meta["updated_at"]
+      :timer.sleep(1)
+      updated_design = %{"layout" => ["updated"]}
+      AI.Tools.Plan.call(%{"plan_name" => plan_name, "design_content" => updated_design})
+
+      %{"meta" => meta, "design" => design} = path |> File.read!() |> Jason.decode!()
+      assert design["content"] == updated_design
+      assert design["format"] == "markdown"
+      assert is_binary(meta["updated_at"])
+      assert meta["updated_at"] != first_updated
+      assert meta["updated_at"] != first_updated
     end
   end
 end
