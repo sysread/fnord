@@ -293,7 +293,7 @@ defmodule AI.Tools.Plan do
             {:error, reason}
 
           plan ->
-            decisions = plan.decisions || []
+            decisions = plan.decisions
             next_id = "dec-#{length(decisions) + 1}"
             timestamp = DateTime.utc_now() |> DateTime.to_iso8601()
 
