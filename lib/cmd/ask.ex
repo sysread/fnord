@@ -131,6 +131,13 @@ defmodule Cmd.Ask do
       end
     end
 
+    # Handle --auto-approve-after warning
+    if Map.has_key?(opts, :auto_approve_after) do
+      UI.warning_banner("APPROVALS WILL BE GRANTED AFTER #{opts[:auto_approve_after]} SECONDS.")
+      UI.warning_banner("MAY YOUR FUTURE SELF FORGIVE YOU FOR THIS DECISION.")
+      UI.warning_banner("...AND MAY THE ON-CALL HAVE MERCY ON YOUR SOUL.")
+    end
+
     start_time = System.monotonic_time(:second)
 
     # Start silent background indexers. This must happen BEFORE any project
