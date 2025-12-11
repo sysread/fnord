@@ -83,6 +83,18 @@ defmodule AI.Tools.Plan do
               type: "array",
               items: %{type: "string"},
               description: "Optional list of identifiers or sections affected by the decision"
+            },
+            "work_summary" => %{
+              type: "string",
+              description: "Summary of work performed in this log entry"
+            },
+            "work_detail" => %{
+              type: "string",
+              description: "Detailed description of the work done"
+            },
+            "work_milestone_id" => %{
+              type: "string",
+              description: "Identifier of the related milestone for this work log entry"
             }
           }
         }
@@ -111,6 +123,13 @@ defmodule AI.Tools.Plan do
       ) do
     affected = Map.get(args, "decision_affected", [])
     plan_append_decision(plan_name, context, change, reason, affected)
+  end
+
+  @impl AI.Tools
+  def call(%{"plan_name" => plan_name, "work_summary" => summary} = args) do
+    detail = Map.get(args, "work_detail", nil)
+    milestone_id = Map.get(args, "work_milestone_id", nil)
+    plan_append_work_log(plan_name, summary, detail, milestone_id)
   end
 
   @impl AI.Tools
@@ -314,6 +333,55 @@ defmodule AI.Tools.Plan do
 
             updated_plan =
               %Store.Project.Plan{plan | decisions: new_decisions, meta: new_meta}
+
+            case Store.Project.Plan.write(path, updated_plan) do
+              :ok -> {:ok, updated_plan}
+              {:error, reason} -> {:error, reason}
+            end
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp plan_append_work_log(plan_name, summary, detail, milestone_id) do
+    case Store.get_project() do
+      {:ok, project} ->
+        path = Store.Project.Plan.plan_path(project, plan_name)
+
+        plan_or_error =
+          case Store.Project.Plan.read(path) do
+            {:ok, plan} -> plan
+            {:error, :enoent} -> %Store.Project.Plan{meta: %{}, work_log: []}
+            {:error, reason} -> {:error, reason}
+          end
+
+        case plan_or_error do
+          {:error, reason} ->
+            {:error, reason}
+
+          plan ->
+            logs = plan.work_log
+            next_id = "work-#{length(logs) + 1}"
+            timestamp = DateTime.utc_now() |> DateTime.to_iso8601()
+
+            entry = %{
+              "id" => next_id,
+              "timestamp" => timestamp,
+              "summary" => summary,
+              "detail" => detail,
+              "milestone_id" => milestone_id
+            }
+
+            new_logs = logs ++ [entry]
+
+            new_meta =
+              plan.meta
+              |> Map.put("updated_at", DateTime.utc_now() |> DateTime.to_iso8601())
+
+            updated_plan =
+              %Store.Project.Plan{plan | work_log: new_logs, meta: new_meta}
 
             case Store.Project.Plan.write(path, updated_plan) do
               :ok -> {:ok, updated_plan}

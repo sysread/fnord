@@ -201,4 +201,60 @@ defmodule AI.Tools.PlanTest do
       assert Enum.map(decisions, & &1["id"]) == ["dec-1", "dec-2"]
     end
   end
+
+  describe "call/1 with work_* args" do
+    setup do
+      project = mock_project("plan_test_project")
+      {:ok, store_project} = Store.get_project("plan_test_project")
+      %{project: project, store_project: store_project}
+    end
+
+    test "appends a single work log entry correctly using work_* args", %{
+      store_project: store_project
+    } do
+      plan_name = "work_plan"
+      summary = "some summary"
+      detail = "details of work"
+      milestone_id = "ms-1"
+
+      AI.Tools.Plan.call(%{
+        "plan_name" => plan_name,
+        "work_summary" => summary,
+        "work_detail" => detail,
+        "work_milestone_id" => milestone_id
+      })
+
+      path = Store.Project.Plan.plan_path(store_project, plan_name)
+      assert File.exists?(path)
+
+      %{"meta" => meta, "work_log" => work_log} =
+        path |> File.read!() |> Jason.decode!()
+
+      assert length(work_log) == 1
+      [entry] = work_log
+      assert is_binary(entry["id"])
+      assert is_binary(entry["timestamp"])
+      assert entry["summary"] == summary
+      assert entry["detail"] == detail
+      assert entry["milestone_id"] == milestone_id
+      assert is_binary(meta["updated_at"])
+    end
+
+    test "appends multiple work log entries with correct ids", %{store_project: store_project} do
+      plan_name = "work_plan_ids"
+
+      args = %{
+        "plan_name" => plan_name,
+        "work_summary" => "First work"
+      }
+
+      AI.Tools.Plan.call(args)
+      AI.Tools.Plan.call(Map.put(args, "work_summary", "Second work"))
+
+      path = Store.Project.Plan.plan_path(store_project, plan_name)
+      %{"work_log" => work_log} = path |> File.read!() |> Jason.decode!()
+
+      assert Enum.map(work_log, & &1["id"]) == ["work-1", "work-2"]
+    end
+  end
 end
