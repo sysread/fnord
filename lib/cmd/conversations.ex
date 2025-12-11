@@ -16,8 +16,8 @@ defmodule Cmd.Conversations do
             value_name: "PRUNE",
             long: "--prune",
             short: "-P",
-            help: "Prune conversations older than this many days",
-            parser: :integer
+            help: "Prune by age (days) or delete a specific conversation by ID",
+            parser: :string
           ],
           query: [
             value_name: "QUERY",
@@ -40,12 +40,14 @@ defmodule Cmd.Conversations do
   end
 
   @impl Cmd
-  def run(%{prune: days} = opts, _subcommands, _unknown) when is_integer(days) do
+  def run(%{prune: prune} = opts, _subcommands, _unknown)
+      when is_integer(prune) or is_binary(prune) do
     with {:ok, project} <- Store.get_project() do
       case prune(opts, project) do
         :ok -> :ok
         {:error, :cancelled} -> UI.error("Operation cancelled.")
-        {:error, :invalid_prune_value} -> UI.error("Invalid --prune value: #{days}")
+        {:error, :invalid_prune_value} -> UI.error("Invalid --prune value: #{prune}")
+        {:error, :not_found} -> UI.error("Conversation #{prune} not found.")
       end
     else
       {:error, :project_not_set} ->
@@ -75,6 +77,16 @@ defmodule Cmd.Conversations do
         UI.error(
           "No project selected; please specify --project or run inside a project directory."
         )
+    end
+  end
+
+  defp prune(%{prune: prune_str} = opts, project) when is_binary(prune_str) do
+    case Integer.parse(prune_str) do
+      {days, ""} ->
+        prune(%{opts | prune: days}, project)
+
+      _ ->
+        prune_by_id(prune_str, project)
     end
   end
 
@@ -128,6 +140,35 @@ defmodule Cmd.Conversations do
   end
 
   defp prune(_opts, _project), do: :ok
+
+  defp prune_by_id(id, project) do
+    conversation = Store.Project.Conversation.new(id, project)
+
+    with true <- Store.Project.Conversation.exists?(conversation),
+         {:ok, question} <- Store.Project.Conversation.question(conversation) do
+      message =
+        "Confirm deletion of conversation #{id} (\"#{question}\"). This action cannot be undone."
+
+      if UI.confirm(message) do
+        case Store.Project.Conversation.delete(conversation) do
+          :ok ->
+            Store.Project.ConversationIndex.delete(project, id)
+            UI.info("Deleted conversation #{id}.")
+            :ok
+
+          {:error, :not_found} ->
+            {:error, :not_found}
+        end
+      else
+        UI.error("Operation cancelled for conversation #{id}.")
+        {:error, :cancelled}
+      end
+    else
+      _ ->
+        UI.error("Conversation #{id} not found.")
+        {:error, :not_found}
+    end
+  end
 
   defp display(_opts, project) do
     project

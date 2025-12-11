@@ -22,7 +22,7 @@ defmodule Cmd.ConversationsTest do
 
     {_stdout, output} =
       capture_all(fn ->
-        Cmd.Conversations.run(%{project: project.name, prune: 30}, [], [])
+        Cmd.Conversations.run(%{project: project.name, prune: "30"}, [], [])
       end)
 
     assert output =~ "Pruning conversations older than 30 days"
@@ -48,7 +48,7 @@ defmodule Cmd.ConversationsTest do
 
     {_stdout, output} =
       capture_all(fn ->
-        Cmd.Conversations.run(%{project: project.name, prune: 30}, [], [])
+        Cmd.Conversations.run(%{project: project.name, prune: "30"}, [], [])
       end)
 
     assert output =~ "Pruning conversations older than 30 days"
@@ -84,7 +84,7 @@ defmodule Cmd.ConversationsTest do
 
     {_stdout, output} =
       capture_all(fn ->
-        Cmd.Conversations.run(%{project: project.name, prune: 30}, [], [])
+        Cmd.Conversations.run(%{project: project.name, prune: "30"}, [], [])
       end)
 
     assert output =~ "Pruning conversations older than 30 days"
@@ -115,7 +115,7 @@ defmodule Cmd.ConversationsTest do
 
     {_stdout, output} =
       capture_all(fn ->
-        Cmd.Conversations.run(%{project: project.name, prune: 30}, [], [])
+        Cmd.Conversations.run(%{project: project.name, prune: "30"}, [], [])
       end)
 
     assert output =~ "Pruning conversations older than 30 days"
@@ -128,7 +128,80 @@ defmodule Cmd.ConversationsTest do
     :meck.unload(UI)
   end
 
-  # TODO: Add tests for --prune and default listing behavior.
+  test "prune by id deletes specific conversation", %{project: project} do
+    id = "by_id"
+    conv = Store.Project.Conversation.new(id, project)
+    File.mkdir_p!(Path.dirname(conv.store_path))
+    File.write!(conv.store_path, "#{DateTime.utc_now() |> DateTime.to_unix()}:#{Jason.encode!(%{"messages" => [%{"role" => "user", "content" => "test question"}], "metadata" => %{}, "memory" => []})}")
+
+    # Write a dummy index entry for the conversation
+    index_dir = Store.Project.ConversationIndex.path_for(project, id)
+    File.mkdir_p!(index_dir)
+
+    Store.Project.ConversationIndex.write_embeddings(project, conv.id, [%{dummy: "data"}], %{
+      "last_indexed_ts" => DateTime.utc_now() |> DateTime.to_unix()
+    })
+
+    # Stub confirmation to true
+    :ok = :meck.new(UI, [:non_strict])
+    :meck.expect(UI, :confirm, fn _ -> true end)
+    :meck.expect(UI, :info, fn msg -> IO.puts(:stderr, msg) end)
+    :meck.expect(UI, :error, fn msg -> IO.puts(:stderr, msg) end)
+
+    {_stdout, output} =
+      capture_all(fn ->
+        Cmd.Conversations.run(%{project: project.name, prune: id}, [], [])
+      end)
+
+    assert output =~ "Deleted conversation #{id}."
+    refute File.exists?(conv.store_path)
+    refute File.exists?(index_dir)
+
+    :meck.unload(UI)
+  end
+
+  test "prune by id non-existent id prints not found", %{project: project} do
+    id = "nope"
+
+    :ok = :meck.new(UI, [:non_strict])
+    :meck.expect(UI, :confirm, fn _ -> true end)
+    :meck.expect(UI, :info, fn msg -> IO.puts(:stderr, msg) end)
+    :meck.expect(UI, :error, fn msg -> IO.puts(:stderr, msg) end)
+
+    {_stdout, output} =
+      capture_all(fn ->
+        Cmd.Conversations.run(%{project: project.name, prune: id}, [], [])
+      end)
+
+    assert output =~ "Conversation #{id} not found."
+
+    :meck.unload(UI)
+  end
+
+  test "prune by id cancellation leaves conversation intact", %{project: project} do
+    id = "cancel_id"
+    conv = Store.Project.Conversation.new(id, project)
+    File.mkdir_p!(Path.dirname(conv.store_path))
+    File.write!(conv.store_path, "#{DateTime.utc_now() |> DateTime.to_unix()}:#{Jason.encode!(%{"messages" => [%{"role" => "user", "content" => "test question"}], "metadata" => %{}, "memory" => []})}")
+
+    # Stub confirmation to false
+    :ok = :meck.new(UI, [:non_strict])
+    :meck.expect(UI, :confirm, fn _ -> false end)
+    :meck.expect(UI, :info, fn msg -> IO.puts(:stderr, msg) end)
+    :meck.expect(UI, :error, fn msg -> IO.puts(:stderr, msg) end)
+
+    {_stdout, output} =
+      capture_all(fn ->
+        Cmd.Conversations.run(%{project: project.name, prune: id}, [], [])
+      end)
+
+    assert output =~ id
+    assert output =~ "Operation cancelled."
+    assert File.exists?(conv.store_path)
+
+    :meck.unload(UI)
+  end
+
   test "invalid prune value emits error and does not list", %{project: project} do
     :ok = :meck.new(UI, [:non_strict])
     :meck.expect(UI, :info, fn msg -> IO.puts(:stderr, msg) end)
@@ -136,7 +209,7 @@ defmodule Cmd.ConversationsTest do
 
     {_stdout, output} =
       capture_all(fn ->
-        Cmd.Conversations.run(%{project: project.name, prune: -5}, [], [])
+        Cmd.Conversations.run(%{project: project.name, prune: "-5"}, [], [])
       end)
 
     assert output =~ "Invalid --prune value: -5"
