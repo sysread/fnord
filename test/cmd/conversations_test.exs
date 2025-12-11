@@ -132,7 +132,11 @@ defmodule Cmd.ConversationsTest do
     id = "by_id"
     conv = Store.Project.Conversation.new(id, project)
     File.mkdir_p!(Path.dirname(conv.store_path))
-    File.write!(conv.store_path, "#{DateTime.utc_now() |> DateTime.to_unix()}:#{Jason.encode!(%{"messages" => [%{"role" => "user", "content" => "test question"}], "metadata" => %{}, "memory" => []})}")
+
+    File.write!(
+      conv.store_path,
+      "#{DateTime.utc_now() |> DateTime.to_unix()}:#{Jason.encode!(%{"messages" => [%{"role" => "user", "content" => "test question"}], "metadata" => %{}, "memory" => []})}"
+    )
 
     # Write a dummy index entry for the conversation
     index_dir = Store.Project.ConversationIndex.path_for(project, id)
@@ -182,7 +186,11 @@ defmodule Cmd.ConversationsTest do
     id = "cancel_id"
     conv = Store.Project.Conversation.new(id, project)
     File.mkdir_p!(Path.dirname(conv.store_path))
-    File.write!(conv.store_path, "#{DateTime.utc_now() |> DateTime.to_unix()}:#{Jason.encode!(%{"messages" => [%{"role" => "user", "content" => "test question"}], "metadata" => %{}, "memory" => []})}")
+
+    File.write!(
+      conv.store_path,
+      "#{DateTime.utc_now() |> DateTime.to_unix()}:#{Jason.encode!(%{"messages" => [%{"role" => "user", "content" => "test question"}], "metadata" => %{}, "memory" => []})}"
+    )
 
     # Stub confirmation to false
     :ok = :meck.new(UI, [:non_strict])

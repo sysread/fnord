@@ -235,7 +235,7 @@ defmodule Services.BackgroundIndexer do
             entry.file
           end
 
-        UI.end_step("Reindexed", detail)
+        UI.end_step_background("Reindexed", detail)
       end
     rescue
       _ -> :ok

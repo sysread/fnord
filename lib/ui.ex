@@ -186,6 +186,21 @@ defmodule UI do
     )
   end
 
+  def end_step_background(msg) do
+    IO.ANSI.format([:light_black, "✓ ", msg, :reset], colorize?())
+    |> info()
+  end
+
+  def end_step_background(msg, detail) do
+    output_module().log(
+      :info,
+      IO.ANSI.format(
+        [:light_black, "✓ ", msg, :reset, ": ", :light_black, clean_detail(detail), :reset],
+        colorize?()
+      )
+    )
+  end
+
   # Directly write to ensure visibility even if output is paused.
   def printf_debug(item) do
     Logger.debug(inspect(item, pretty: true))

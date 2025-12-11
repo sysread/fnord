@@ -169,7 +169,7 @@ defmodule Services.ConversationIndexer do
                   )
 
                 label = get_label(convo)
-                UI.end_step("Reindexed", label)
+                UI.end_step_background("Reindexed", label)
 
               _ ->
                 :ok
