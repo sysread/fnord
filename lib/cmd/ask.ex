@@ -53,6 +53,14 @@ defmodule Cmd.Ask do
             default: @default_rounds,
             required: false
           ],
+          plan: [
+            value_name: "PLAN",
+            long: "--plan",
+            short: "-P",
+            help: "Name of the plan to use for this run",
+            parser: :string,
+            required: false
+          ],
           worktree: [
             value_name: "WORKTREE",
             long: "--worktree",
@@ -411,6 +419,7 @@ defmodule Cmd.Ask do
       edit: opts.edit,
       rounds: opts.rounds,
       question: opts.question,
+      plan: Map.get(opts, :plan, nil),
       replay: Map.get(opts, :replay, false),
       yes: Map.get(opts, :yes, false),
       fonz: Map.get(opts, :fonz, false)
