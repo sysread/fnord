@@ -72,6 +72,7 @@ defmodule AI.Completion.Compaction do
   The message below is part of a conversation between the user and an AI assistant.
   Drop filler. Use short words. Abbrev where possible. Skip mb chars unless critical.
   Keep just enough to preserve context. It's an LLM, so it will hallucinate to fill in the gaps.
+  If there are numbered items or bullets, keep them (the user may have referenced them by number later, and we don't want to break that), but shorten them as much as possible.
   You must respond ONLY with the compacted message content, reduced in length as much as possible while preserving original meaning.
   Do not include ANY additional commentary or explanation.
   Your response most ONLY be the compacted message in the same voice as the original.
