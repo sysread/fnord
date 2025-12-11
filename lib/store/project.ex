@@ -8,17 +8,16 @@ defmodule Store.Project do
     :exclude_cache
   ]
 
-  alias Store.Project.Entry
-
   @type t :: %__MODULE__{}
 
   @type index_status :: %{
-          new: [Entry.t()],
-          stale: [Entry.t()],
-          deleted: [Entry.t()]
+          new: [Store.Project.Entry.t()],
+          stale: [Store.Project.Entry.t()],
+          deleted: [Store.Project.Entry.t()]
         }
 
   @conversation_dir "conversations"
+  @files_dir "files"
 
   @spec new(String.t(), String.t()) :: t
   def new(project_name, store_path) do
@@ -88,20 +87,31 @@ defmodule Store.Project do
 
   @spec create(t) :: t
   def create(project) do
+    # Ensure base store directory
     project.store_path |> File.mkdir_p!()
-    project.store_path |> Path.join("conversations") |> File.mkdir_p!()
-    File.touch!(project.store_path |> Path.join("notes.md"))
+    # Create conversations directory
+    project.conversation_dir |> File.mkdir_p!()
+    # Create files directory for future file entries
+    project |> files_root() |> File.mkdir_p!()
+    # Initialize notes
+    Path.join(project.store_path, "notes.md") |> File.touch!()
     project
   end
 
+  @spec files_root(t) :: String.t()
+  def files_root(%__MODULE__{store_path: store_path}), do: Path.join(store_path, @files_dir)
+
   @spec delete(t) :: :ok
   def delete(project) do
+    Store.Project.FilesDirMigration.ensure_files_dir_layout(project)
     # Delete indexed files
-    project.store_path
+    files_root(project)
     |> Path.join("*/metadata.json")
     |> Path.wildcard()
     |> Enum.map(&Path.dirname/1)
-    |> Enum.each(fn path -> File.rm_rf!(path) end)
+    |> Enum.each(&File.rm_rf!/1)
+
+    :ok
   end
 
   @spec torch(t) :: :ok
@@ -138,7 +148,10 @@ defmodule Store.Project do
   # ----------------------------------------------------------------------------
   @spec has_index?(t) :: boolean()
   def has_index?(project) do
-    glob = Path.join(project.store_path, "**/embeddings.json")
+    glob =
+      project
+      |> files_root()
+      |> Path.join("**/embeddings.json")
 
     System.cmd("bash", ["-c", ~s[compgen -G "$1" > /dev/null], "--", glob])
     |> case do
@@ -194,13 +207,12 @@ defmodule Store.Project do
 
   @spec stored_files(t) :: Enumerable.t()
   def stored_files(project) do
+    Store.Project.FilesDirMigration.ensure_files_dir_layout(project)
     # Ensure legacy entries are migrated to relative-path scheme
     Store.Project.Entry.MigrateAbsToRelPathKeys.ensure_relative_entry_ids(project)
-
-    # Start with the path to the project in the store
-    project.store_path
-    # Each entry is a dir that contains metadata.json; this step ignores things
-    # like the conversations directory.
+    # Scan the files directory for entry metadata
+    project
+    |> files_root()
     |> Path.join("*/metadata.json")
     # Expand the glob
     |> Path.wildcard()
@@ -271,11 +283,13 @@ defmodule Store.Project do
 
     new =
       source
-      |> Enum.filter(fn entry -> not Entry.exists_in_store?(entry) end)
+      |> Enum.filter(fn entry -> not Store.Project.Entry.exists_in_store?(entry) end)
 
     stale =
       source
-      |> Enum.filter(fn entry -> Entry.exists_in_store?(entry) and Entry.is_stale?(entry) end)
+      |> Enum.filter(fn entry ->
+        Store.Project.Entry.exists_in_store?(entry) and Store.Project.Entry.is_stale?(entry)
+      end)
 
     deleted =
       stored

@@ -23,7 +23,8 @@ defmodule Store.Project.Entry do
     rel_path = Store.Project.relative_path(abs_path, project)
 
     key = id_for_rel_path(rel_path)
-    store_path = Path.join(project.store_path, key)
+    store_base = Store.Project.files_root(project)
+    store_path = Path.join(store_base, key)
     metadata = Store.Project.Entry.Metadata.new(store_path, abs_path)
     summary = Store.Project.Entry.Summary.new(store_path, abs_path)
     outline = Store.Project.Entry.Outline.new(store_path, abs_path)
@@ -93,30 +94,15 @@ defmodule Store.Project.Entry do
     end
   end
 
-  @spec hash_is_current?(t()) :: boolean()
-  def hash_is_current?(entry) do
-    with {:ok, hash} <- get_last_hash(entry) do
-      hash == file_sha256(entry.file)
-    else
-      _ -> false
-    end
-  end
-
   @spec is_stale?(t()) :: boolean()
   def is_stale?(entry) do
     cond do
-      # Never indexed
       !exists_in_store?(entry) -> true
-      # Files that are missing or have missing indexes must be reindexed
       is_incomplete?(entry) -> true
-      # File contents have changed
       !hash_is_current?(entry) -> true
       true -> false
     end
   end
-
-  @spec read_source_file(t()) :: {:ok, String.t()} | {:error, any()}
-  def read_source_file(entry), do: File.read(entry.file)
 
   @spec read(t()) :: {:ok, map()} | {:error, any()}
   def read(entry) do
@@ -124,7 +110,6 @@ defmodule Store.Project.Entry do
          {:ok, summary} <- read_summary(entry),
          {:ok, outline} <- read_outline(entry),
          {:ok, embeddings} <- read_embeddings(entry) do
-      # Ensure the "file" field always contains the absolute path for API compatibility
       info =
         metadata
         |> Map.put("file", entry.file)
@@ -148,6 +133,18 @@ defmodule Store.Project.Entry do
       :ok
     end
   end
+
+  @spec hash_is_current?(t()) :: boolean()
+  def hash_is_current?(entry) do
+    with {:ok, hash} <- get_last_hash(entry) do
+      hash == file_sha256(entry.file)
+    else
+      _ -> false
+    end
+  end
+
+  @spec read_source_file(t()) :: {:ok, String.t()} | {:error, any()}
+  def read_source_file(entry), do: File.read(entry.file)
 
   # -----------------------------------------------------------------------------
   # metadata.json

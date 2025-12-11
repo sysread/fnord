@@ -18,7 +18,8 @@ defmodule Store.Project.Entry.MigrateAbsToRelPathKeys do
   """
   @spec ensure_relative_entry_ids(Store.Project.t()) :: :ok
   def ensure_relative_entry_ids(project) do
-    lockfile_path = Path.join(project.store_path, ".migration_in_progress")
+    files_root = Store.Project.files_root(project)
+    lockfile_path = Path.join(files_root, ".migration_in_progress")
 
     case check_migration_lock(lockfile_path) do
       :no_migration_needed ->
@@ -150,8 +151,10 @@ defmodule Store.Project.Entry.MigrateAbsToRelPathKeys do
 
   defp migrate_legacy_entries(project) do
     # Find all entry directories with metadata.json
+    files_root = Store.Project.files_root(project)
+
     metadata_files =
-      project.store_path
+      files_root
       |> Path.join("*/metadata.json")
       |> Path.wildcard()
 
@@ -168,9 +171,10 @@ defmodule Store.Project.Entry.MigrateAbsToRelPathKeys do
       cond do
         # New relative path but wrong dir name -> rename to expected reversible ID
         is_binary(file_path) and not String.starts_with?(file_path, "/") ->
+          files_root = Store.Project.files_root(project)
           expected_id = Store.Project.Entry.id_for_rel_path(file_path)
           current_id = Path.basename(entry_dir)
-          expected_dir = Path.join(project.store_path, expected_id)
+          expected_dir = Path.join(files_root, expected_id)
 
           if current_id != expected_id do
             if File.exists?(expected_dir) do
@@ -200,6 +204,8 @@ defmodule Store.Project.Entry.MigrateAbsToRelPathKeys do
   end
 
   defp migrate_entry(project, old_entry_dir, metadata_file, abs_file_path, metadata) do
+    files_root = Store.Project.files_root(project)
+
     # Calculate relative path and new entry ID
     case Path.relative_to(abs_file_path, project.source_root) do
       ^abs_file_path ->
@@ -210,7 +216,7 @@ defmodule Store.Project.Entry.MigrateAbsToRelPathKeys do
       rel_path ->
         # File is within source root, migrate it
         new_entry_id = Store.Project.Entry.id_for_rel_path(rel_path)
-        new_entry_dir = Path.join(project.store_path, new_entry_id)
+        new_entry_dir = Path.join(files_root, new_entry_id)
 
         # Skip if already migrated (shouldn't happen, but be safe)
         if old_entry_dir == new_entry_dir do

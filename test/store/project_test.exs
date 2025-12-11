@@ -5,6 +5,13 @@ defmodule Store.ProjectTest do
 
   alias Store.Project
 
+  describe "files_root/1" do
+    test "returns the store_path/files directory path", %{project: project} do
+      expected = Path.join(project.store_path, "files")
+      assert Project.files_root(project) == expected
+    end
+  end
+
   describe "path helpers" do
     test "expand_path/2 returns absolute path", %{project: project} do
       relative = "foo.txt"
@@ -104,8 +111,12 @@ defmodule Store.ProjectTest do
 
   test "create/1 and exists_in_store?/1", %{project: project} do
     refute Project.exists_in_store?(project)
-    Project.create(project)
+    project = Project.create(project)
+    # The project store should now exist and be non-empty
     assert Project.exists_in_store?(project)
+    # The new files directory should also be created
+    files_dir = Project.files_root(project)
+    assert File.dir?(files_dir), "expected files directory to exist at #{files_dir}"
   end
 
   describe "index_status/1" do
@@ -180,6 +191,53 @@ defmodule Store.ProjectTest do
 
       status = Store.Project.index_status(project)
       assert status == %{new: [], stale: [], deleted: []}
+    end
+  end
+
+  describe "delete/1" do
+    test "removes entry dirs under files_root/1 only", %{project: project} do
+      files_root = Project.files_root(project)
+
+      # Create two entry dirs under files_root with metadata.json
+      entry1 = Path.join(files_root, "e1")
+      File.mkdir_p!(entry1)
+      File.write!(Path.join(entry1, "metadata.json"), "{}")
+
+      entry2 = Path.join(files_root, "e2")
+      File.mkdir_p!(entry2)
+      File.write!(Path.join(entry2, "metadata.json"), "{}")
+
+      # Create a sibling directory outside files_root
+      other_dir = Path.join(project.store_path, "other")
+      File.mkdir_p!(other_dir)
+
+      # Ensure setup correct
+      assert File.exists?(Path.join(entry1, "metadata.json"))
+      assert File.exists?(Path.join(entry2, "metadata.json"))
+
+      # Call delete
+      assert :ok == Project.delete(project)
+
+      # Entries under files_root should be removed
+      refute File.dir?(entry1)
+      refute File.dir?(entry2)
+
+      # Directory outside files_root should remain
+      assert File.dir?(other_dir)
+    end
+  end
+
+  describe "has_index?/1" do
+    test "returns true when embeddings.json exists under files_root", %{project: project} do
+      files_root = Project.files_root(project)
+      entry = Path.join(files_root, "e1")
+      File.mkdir_p!(entry)
+      File.write!(Path.join(entry, "embeddings.json"), "{}")
+      assert Project.has_index?(project)
+    end
+
+    test "returns false when no embeddings.json present", %{project: project} do
+      refute Project.has_index?(project)
     end
   end
 end

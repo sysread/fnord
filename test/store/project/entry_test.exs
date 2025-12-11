@@ -13,7 +13,8 @@ defmodule Store.Project.EntryTest do
       assert entry.project == ctx.project
       assert entry.file == Path.join(ctx.project.source_root, "a.txt")
       assert entry.rel_path == "a.txt"
-      assert String.starts_with?(entry.store_path, ctx.project.store_path)
+      files_root = Store.Project.files_root(ctx.project)
+      assert String.starts_with?(entry.store_path, files_root)
       assert String.ends_with?(entry.store_path, entry.key)
 
       refute is_nil(entry.metadata)

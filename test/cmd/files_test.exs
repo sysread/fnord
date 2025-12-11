@@ -1,5 +1,6 @@
 defmodule Cmd.FilesTest do
   use Fnord.TestCase, async: false
+  import LayoutMigrationHelpers
 
   setup do: set_log_level(:none)
 
@@ -38,6 +39,17 @@ defmodule Cmd.FilesTest do
 
       assert stdout == ""
       assert result == {:error, :project_not_set}
+    end
+
+    test "moves legacy entries into files/ before listing" do
+      project = mock_project("files_phase6")
+      {basename, rel_file} = create_legacy_entry(project)
+
+      {stdout, _stderr} = capture_all(fn -> Cmd.Files.run(%{}, [], []) end)
+      lines = String.split(stdout, "\n", trim: true)
+
+      assert lines == [rel_file]
+      assert_migrated(project, basename, rel_file)
     end
   end
 end

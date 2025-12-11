@@ -1,6 +1,8 @@
 defmodule Cmd.SearchTest do
   use Fnord.TestCase, async: false
 
+  import LayoutMigrationHelpers
+
   setup do: set_log_level(:none)
   setup do: {:ok, project: mock_project("test_project")}
 
@@ -69,5 +71,31 @@ defmodule Cmd.SearchTest do
     # Assert that file2.txt and file3.txt are not in the results (since they have lower similarity)
     refute Enum.member?(results, file2)
     refute Enum.member?(results, file3)
+  end
+
+  describe "migration of legacy root-level entries" do
+    test "migrates legacy entries and is idempotent", %{project: project} do
+      # Create a legacy entry at project root
+      {basename, rel_file} = create_legacy_entry(project)
+      legacy_dir = Path.join(project.store_path, basename)
+      # Provide minimal embeddings.json for search
+      File.write!(Path.join(legacy_dir, "embeddings.json"), Jason.encode!(%{"embeddings" => []}))
+      # Stub indexer to return zero-vector embeddings
+      MockIndexer |> Mox.stub(:get_embeddings, fn _text -> {:ok, List.duplicate(0.0, 3072)} end)
+      # Define search options
+      search_opts = %{
+        project: project.name,
+        query: rel_file,
+        limit: 10,
+        detail: false
+      }
+
+      # First run: should migrate and find the file
+      {out1, _} = capture_all(fn -> Cmd.Search.run(search_opts, [], []) end)
+      assert_migrated(project, basename, rel_file)
+      # Second run: idempotent, same output
+      {out2, _} = capture_all(fn -> Cmd.Search.run(search_opts, [], []) end)
+      assert out2 == out1
+    end
   end
 end
