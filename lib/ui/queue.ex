@@ -254,6 +254,8 @@ defmodule UI.Queue do
 
   defp exec({:puts, dev, data}) do
     try do
+      data = sanitize_chardata(data)
+
       case dev do
         :stdio -> Owl.IO.puts(data)
         _ -> IO.puts(dev, data)
@@ -267,6 +269,7 @@ defmodule UI.Queue do
 
   defp exec({:log, level, chardata, md}) do
     try do
+      chardata = sanitize_chardata(chardata)
       Logger.log(level, chardata, md)
       :ok
     rescue
@@ -290,4 +293,15 @@ defmodule UI.Queue do
   defp in_ctx?(server), do: Process.get(pd_key(server)) != nil
   defp put_token(server, token), do: Process.put(pd_key(server), token)
   defp del_token(server), do: Process.delete(pd_key(server))
+
+  # Sanitize any chardata or input into valid UTF-8 binary
+  defp sanitize_chardata(input) do
+    binary =
+      cond do
+        is_binary(input) or is_list(input) -> IO.iodata_to_binary(input)
+        true -> inspect(input)
+      end
+
+    String.replace_invalid(binary, "�")
+  end
 end

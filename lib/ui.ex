@@ -464,6 +464,7 @@ defmodule UI do
     end
     |> IO.ANSI.format(colorize?())
     |> IO.iodata_to_binary()
+    |> String.replace_invalid("�")
     |> String.trim()
     |> then(fn str ->
       if String.contains?(str, "\n") do

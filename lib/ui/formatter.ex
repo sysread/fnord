@@ -16,41 +16,61 @@ defmodule UI.Formatter do
 
   @spec format_output(binary) :: binary
   def format_output(input) do
-    if UI.quiet?() do
-      input
-    else
-      case System.get_env("FNORD_FORMATTER") do
-        nil ->
-          input
+    # Sanitize input to valid UTF-8 binary
+    input =
+      if(is_binary(input), do: input, else: to_string(input))
+      |> String.replace_invalid("�")
 
-        "" ->
-          input
+    try do
+      if UI.quiet?() do
+        input
+      else
+        case System.get_env("FNORD_FORMATTER") do
+          nil ->
+            input
 
-        formatter ->
-          shell = System.get_env("SHELL") || "/bin/sh"
+          "" ->
+            input
 
-          Util.Temp.with_tmp(input, fn tmpfile ->
-            task =
-              Services.Globals.Spawn.async(fn ->
-                System.cmd(shell, ["-c", "cat #{tmpfile} | #{formatter}"], stderr_to_stdout: true)
-              end)
+          formatter ->
+            shell = System.get_env("SHELL") || "/bin/sh"
 
-            case Task.yield(task, @timeout_ms) do
-              {:ok, {output, 0}} ->
-                output
+            Util.Temp.with_tmp(input, fn tmpfile ->
+              task =
+                Services.Globals.Spawn.async(fn ->
+                  System.cmd(shell, ["-c", "cat #{tmpfile} | #{formatter}"],
+                    stderr_to_stdout: true
+                  )
+                end)
 
-              {:ok, {_, exit_code}} ->
-                Logger.warning("Formatter command failed: #{formatter} (exit code: #{exit_code})")
-                input
+              case Task.yield(task, @timeout_ms) do
+                {:ok, {output, 0}} ->
+                  # Sanitize output to valid UTF-8 binary
+                  output = String.replace_invalid(output, "�")
+                  output
 
-              nil ->
-                # Timed out; make sure we don’t leak the task and fall back safely.
-                Task.shutdown(task, :brutal_kill)
-                Logger.warning("Formatter command timed out after #{@timeout_ms}ms: #{formatter}")
-                input
-            end
-          end)
+                {:ok, {_, exit_code}} ->
+                  Logger.warning(
+                    "Formatter command failed: #{formatter} (exit code: #{exit_code})"
+                  )
+
+                  input
+
+                nil ->
+                  # Timed out; make sure we don’t leak the task and fall back safely.
+                  Task.shutdown(task, :brutal_kill)
+
+                  Logger.warning(
+                    "Formatter command timed out after #{@timeout_ms}ms: #{formatter}"
+                  )
+
+                  input
+              end
+            end)
+        end
       end
+    rescue
+      _ -> input
     end
   end
 end

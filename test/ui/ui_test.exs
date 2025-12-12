@@ -25,6 +25,13 @@ defmodule UI.UITest do
       assert UI.clean_detail(nested) == "foo bar"
     end
 
+    test "sanitizes invalid UTF-8 binaries" do
+      input = <<225, 10, 117>>
+      result = UI.clean_detail(input)
+      assert String.contains?(result, "�")
+      assert String.contains?(result, "\n")
+    end
+
     test "prefixes newline for multi-line binary input" do
       input = "line1\nline2\nline3"
       assert UI.clean_detail(input) == "\nline1\nline2\nline3"

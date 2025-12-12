@@ -125,4 +125,18 @@ defmodule UI.Queue.Test do
       assert is_list(stack)
     end
   end
+
+  describe "log/3 with invalid UTF-8 binary" do
+    test "does not crash on invalid UTF-8 and returns :ok" do
+      invalid = <<0xFF, 0xFE, 0xFA>>
+
+      output =
+        ExUnit.CaptureIO.capture_io(:stderr, fn ->
+          result = UI.Queue.log(UI.Queue, :error, invalid)
+          assert result == :ok
+        end)
+
+      assert is_binary(output)
+    end
+  end
 end
