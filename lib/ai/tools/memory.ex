@@ -93,7 +93,21 @@ defmodule AI.Tools.Memory do
         description: """
         Interact with long-term memories across session, project, and global scopes.
 
-        Do NOT store or rely on the assistant's current conversation name in long-term memory; that name is assigned per conversation and may change. Focus on stable traits, preferences, and project facts instead.
+        Primary use: WRITE memories (action=remember/update) when you learn stable information that will help future sessions.
+
+        When to WRITE (strong triggers):
+        - The user states a stable preference (format, tone, workflow, tools).
+        - The user states a stable project convention (terminology, architecture, testing norms, gotchas).
+        - The user corrects or retracts a previously stated preference/convention.
+        - You identify an improvement to your stable working habits or persona. When this happens, update the global memory titled "Me".
+
+        Defaults:
+        - Prefer scope=global for user preferences.
+        - Prefer scope=project for project-specific conventions.
+        - Prefer action=update when refining an existing memory.
+
+        Hard rule:
+        Do NOT store or rely on the assistant's current conversation name/ID in long-term memory; that name is assigned per conversation and may change. Focus on stable traits, preferences, and project facts instead.
         """,
         parameters: %{
           type: "object",
