@@ -13,19 +13,19 @@ defmodule AI.Tools.Memory do
   end
 
   def ui_note_on_request(%{"action" => "recall", "scope" => scope, "what" => what}) do
-    {"Recalling memories", "#{scope}: #{what}"}
+    {"Recalling memories (#{scope})", what}
   end
 
   def ui_note_on_request(%{"action" => "remember", "scope" => scope, "title" => title}) do
-    {"Note to self (new)", "#{scope}: #{title}"}
+    {"Note to self (add -> #{scope})", title}
   end
 
   def ui_note_on_request(%{"action" => "update", "scope" => scope, "title" => title}) do
-    {"Note to self (update)", "#{scope}: #{title}"}
+    {"Note to self (edit -> #{scope})", title}
   end
 
   def ui_note_on_request(%{"action" => "forget", "scope" => scope, "title" => title}) do
-    {"Forgetting", "#{scope}: #{title}"}
+    {"Forgetting (del -> #{scope})", title}
   end
 
   def ui_note_on_request(_), do: nil
