@@ -352,7 +352,30 @@ defmodule Settings do
       end)
       |> Map.new()
 
-    Map.merge(old_format_projects, projects_map)
+    # Merge old format projects into the new format
+    old_format_projects
+    |> Map.merge(projects_map)
+    |> fix_current_project_bug()
+  end
+
+  # There was a bug at one point where an empty project named "current" was
+  # created without a "root" defined. If that's found, delete it from settings,
+  # then return the projects map with it removed. This is a one-time fix.
+  #
+  # If it was not found or it had a legitimate "root" defined, return the
+  # projects map unchanged.
+  defp fix_current_project_bug(projects) do
+    with {:ok, current} <- Map.fetch(projects, "current"),
+         false <- Map.has_key?(current, "root"),
+         {:ok, project} <- Store.get_project("current") do
+      # Delete the project from the store
+      Store.Project.torch(project)
+      # Remove from projects map
+      Map.delete(projects, "current")
+    else
+      # Not found or "current" has a "root" -> looks like a real project
+      _ -> projects
+    end
   end
 
   @doc """
