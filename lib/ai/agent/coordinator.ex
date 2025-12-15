@@ -212,19 +212,19 @@ defmodule AI.Agent.Coordinator do
   # -----------------------------------------------------------------------------
   @spec select_steps(t) :: t
   defp select_steps(%{edit?: true, followup?: true} = state) do
-    %{state | steps: [:followup, :coding, :check_tasks, :finalize]}
+    %{state | steps: [:followup, :coding, :check_tasks, :learn, :finalize]}
   end
 
   defp select_steps(%{edit?: true, followup?: false, rounds: 1} = state) do
-    %{state | steps: [:singleton, :coding, :check_tasks, :finalize]}
+    %{state | steps: [:singleton, :coding, :check_tasks, :learn, :finalize]}
   end
 
   defp select_steps(%{edit?: true, followup?: false, rounds: 2} = state) do
-    %{state | steps: [:singleton, :refine, :coding, :check_tasks, :finalize]}
+    %{state | steps: [:singleton, :refine, :coding, :check_tasks, :learn, :finalize]}
   end
 
   defp select_steps(%{edit?: true, followup?: false, rounds: 3} = state) do
-    %{state | steps: [:initial, :clarify, :refine, :coding, :check_tasks, :finalize]}
+    %{state | steps: [:initial, :clarify, :refine, :coding, :check_tasks, :learn, :finalize]}
   end
 
   defp select_steps(%{edit?: true, followup?: false, rounds: n} = state) when n > 3 do
@@ -233,25 +233,25 @@ defmodule AI.Agent.Coordinator do
       | steps:
           [:initial, :clarify, :refine] ++
             Enum.map(1..(n - 3), fn _ -> :continue end) ++
-            [:coding, :check_tasks, :finalize]
+            [:coding, :check_tasks, :learn, :finalize]
     }
   end
 
   defp select_steps(%{edit?: false, rounds: 1} = state) do
-    %{state | steps: [:singleton, :check_tasks, :finalize]}
+    %{state | steps: [:singleton, :check_tasks, :learn, :finalize]}
   end
 
   defp select_steps(%{edit?: false, rounds: 2} = state) do
-    %{state | steps: [:singleton, :refine, :check_tasks, :finalize]}
+    %{state | steps: [:singleton, :refine, :check_tasks, :learn, :finalize]}
   end
 
   defp select_steps(%{edit?: false, rounds: 3} = state) do
-    %{state | steps: [:initial, :clarify, :refine, :check_tasks, :finalize]}
+    %{state | steps: [:initial, :clarify, :refine, :check_tasks, :learn, :finalize]}
   end
 
   defp select_steps(%{edit?: false, rounds: n} = state) do
     start = [:initial, :clarify, :refine]
-    finish = [:check_tasks, :finalize]
+    finish = [:check_tasks, :learn, :finalize]
     %{state | steps: start ++ Enum.map(1..(n - 3), fn _ -> :continue end) ++ finish}
   end
 
@@ -412,6 +412,18 @@ defmodule AI.Agent.Coordinator do
 
     state
     |> Map.put(:steps, steps)
+    |> perform_step()
+  end
+
+  defp perform_step(%{steps: [:learn | steps]} = state) do
+    UI.begin_step("Accreting lore")
+
+    state
+    |> Map.put(:steps, steps)
+    |> reminder_msg()
+    |> learn_msg()
+    |> get_completion()
+    |> save_notes()
     |> perform_step()
   end
 
@@ -853,6 +865,20 @@ defmodule AI.Agent.Coordinator do
   - Before broad changes, show a minimal plan and ask for a brief 'go/no-go' confirmation.
   """
 
+  @learn """
+  <think>
+  I have done my research and gathered all of the information I need.
+  I should take a moment to reflect on this session.
+  What did I do right?
+  What could I have done better?
+  What did I learn about my tools?
+  What did I learn about this project's code base?
+  Did I learn anything about the user that I could use to improve our interactions?
+  What did I learn about myself? The user has encourage me to develop my own personality over time.
+  I will use my `memory_tool` to record new insights and lessons, update existing ones as appropriate, and forget anything that is no longer relevant.
+  </think>
+  """
+
   @finalize """
   <think>
   I believe that I have identified all of the information I need to answer the user's question.
@@ -1129,6 +1155,15 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp execute_coding_phase(state), do: state
+
+  @spec learn_msg(t) :: t
+  defp learn_msg(%{conversation: conversation} = state) do
+    @learn
+    |> AI.Util.assistant_msg()
+    |> Services.Conversation.append_msg(conversation)
+
+    state
+  end
 
   @spec finalize_msg(t) :: t
   defp finalize_msg(%{conversation: conversation} = state) do
