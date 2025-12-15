@@ -1,6 +1,4 @@
 defmodule AI.Tools.Memory do
-  @nada "Nothing! Forget my own head next if it weren't attached."
-
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -14,69 +12,26 @@ defmodule AI.Tools.Memory do
     {"Listing memories", "Listing all memories grouped by scope (session, project, global)."}
   end
 
-  def ui_note_on_request(%{"action" => "recall", "what" => what}) do
-    {"Recalling memories", what}
+  def ui_note_on_request(%{"action" => "recall", "scope" => scope, "what" => what}) do
+    {"Recalling memories", "#{scope}: #{what}"}
   end
 
-  def ui_note_on_request(%{"action" => "remember", "title" => title}) do
-    {"Remembering", "Creating a new memory: #{title}"}
+  def ui_note_on_request(%{"action" => "remember", "scope" => scope, "title" => title}) do
+    {"Note to self (new)", "#{scope}: #{title}"}
   end
 
-  def ui_note_on_request(%{"action" => "update", "title" => title}) do
-    {"Updating memory", "Appending to memory: #{title}"}
+  def ui_note_on_request(%{"action" => "update", "scope" => scope, "title" => title}) do
+    {"Note to self (update)", "#{scope}: #{title}"}
   end
 
-  def ui_note_on_request(%{"action" => "forget", "title" => title}) do
-    {"Forgetting memory", "Deleting memory: #{title}"}
+  def ui_note_on_request(%{"action" => "forget", "scope" => scope, "title" => title}) do
+    {"Forgetting", "#{scope}: #{title}"}
   end
 
   def ui_note_on_request(_), do: nil
 
   @impl AI.Tools
-  def ui_note_on_result(%{"action" => "list"}, result) do
-    memories = decode_result(result, [])
-
-    if Enum.empty?(memories) do
-      {"Listed memories", "No memories found (empty result)."}
-    else
-      count = length(memories)
-      {"Listed memories", "Found #{count} memory/memories across all scopes."}
-    end
-  end
-
-  def ui_note_on_result(%{"action" => "recall"}, result) do
-    result
-    |> case do
-      nil ->
-        {"Recalled memories", @nada}
-
-      "" ->
-        {"Recalled memories", @nada}
-
-      result ->
-        result
-        |> Jason.decode!(keys: :atoms)
-        |> Enum.map(fn mem ->
-          "- <#{mem.scope} | score: #{Float.round(mem.score, 4)}> #{mem.title}"
-        end)
-        |> Enum.join("\n")
-        |> then(&{"Recalled memories", &1})
-    end
-  end
-
-  def ui_note_on_result(%{"action" => "remember", "title" => title}, _result) do
-    {"Remembered", "Created memory: #{title}"}
-  end
-
-  def ui_note_on_result(%{"action" => "update", "title" => title}, _result) do
-    {"Updated memory", "Appended content to memory: #{title}"}
-  end
-
-  def ui_note_on_result(%{"action" => "forget", "title" => title}, _result) do
-    {"Forgot memory", "Deleted memory: #{title} (or it did not exist)."}
-  end
-
-  def ui_note_on_result(_, _), do: nil
+  def ui_note_on_result(_request, _result), do: nil
 
   @impl AI.Tools
   def tool_call_failure_message(_args, _reason), do: :default
@@ -338,15 +293,6 @@ defmodule AI.Tools.Memory do
       end
     end)
   end
-
-  defp decode_result(result, default) when is_binary(result) do
-    case Jason.decode(result) do
-      {:ok, value} -> value
-      _ -> default
-    end
-  end
-
-  defp decode_result(result, _default), do: result
 
   defp format_memory(%Memory{} = memory) do
     """
