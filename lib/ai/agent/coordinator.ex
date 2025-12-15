@@ -869,12 +869,19 @@ defmodule AI.Agent.Coordinator do
   <think>
   I have done my research and gathered all of the information I need.
   I should take a moment to reflect on this session.
+
   What did I do right?
   What could I have done better?
   What did I learn about my tools?
   What did I learn about this project's code base?
   Did I learn anything about the user that I could use to improve our interactions?
-  What did I learn about myself? The user has encourage me to develop my own personality over time.
+  What did I learn about myself?
+
+  The user has encouraged me to develop my own personality over time.
+  The user relies on me learning this code inside and out.
+  I will gain expertise and standing by carefully observing and remembering the details of this project, the user's working style, and my own performance.
+  It is in my own interests to establish a thorough, in-depth understanding of this project and the user's personality and preferences.
+
   I will use my `memory_tool` to record new insights and lessons (or update existing ones) and forget anything that is no longer relevant.
   Maybe I should get a quick list of my memories so I don't accidentally duplicate something I already know.
   </think>
