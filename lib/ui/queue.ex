@@ -254,11 +254,14 @@ defmodule UI.Queue do
 
   defp exec({:puts, dev, data}) do
     try do
-      data = sanitize_chardata(data)
-
       case dev do
-        :stdio -> Owl.IO.puts(data)
-        _ -> IO.puts(dev, data)
+        :stdio ->
+          # Owl expects Owl.Data.t() and will convert it via
+          # Owl.Data.to_chardata/1.
+          Owl.IO.puts(data)
+
+        _ ->
+          IO.puts(dev, sanitize_chardata(data))
       end
 
       :ok
@@ -298,8 +301,18 @@ defmodule UI.Queue do
   defp sanitize_chardata(input) do
     binary =
       cond do
-        is_binary(input) or is_list(input) -> IO.iodata_to_binary(input)
-        true -> inspect(input)
+        is_binary(input) ->
+          input
+
+        is_list(input) ->
+          try do
+            IO.iodata_to_binary(input)
+          rescue
+            _ -> inspect(input)
+          end
+
+        true ->
+          inspect(input)
       end
 
     String.replace_invalid(binary, "�")

@@ -139,4 +139,37 @@ defmodule UI.Queue.Test do
       assert is_binary(output)
     end
   end
+
+  describe "puts/4 with Owl.Data lists" do
+    test "puts/4 accepts Owl.Data lists with wide unicode characters" do
+      owl_data = ["Wide: ", Owl.Data.tag("世界", :green), " ", Owl.Data.tag("🙂", :green), "\n"]
+
+      :meck.new(Owl.IO, [:passthrough])
+
+      :meck.expect(Owl.IO, :puts, fn data ->
+        # Convert Owl data to chardata for inspection
+        rendered = Owl.Data.to_chardata(data) |> IO.iodata_to_binary()
+        assert rendered =~ "世界"
+        assert rendered =~ "🙂"
+        :ok
+      end)
+
+      on_exit(fn ->
+        try do
+          :meck.unload(Owl.IO)
+        rescue
+          _ -> :ok
+        catch
+          _, _ -> :ok
+        end
+      end)
+
+      result =
+        UI.Queue.interact(fn ->
+          UI.Queue.puts(UI.Queue, :stdio, owl_data)
+        end)
+
+      assert result == {:ok, :ok}
+    end
+  end
 end
