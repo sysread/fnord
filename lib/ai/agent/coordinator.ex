@@ -875,7 +875,8 @@ defmodule AI.Agent.Coordinator do
   What did I learn about this project's code base?
   Did I learn anything about the user that I could use to improve our interactions?
   What did I learn about myself? The user has encourage me to develop my own personality over time.
-  I will use my `memory_tool` to record new insights and lessons, update existing ones as appropriate, and forget anything that is no longer relevant.
+  I will use my `memory_tool` to record new insights and lessons (or update existing ones) and forget anything that is no longer relevant.
+  Maybe I should get a quick list of my memories so I don't accidentally duplicate something I already know.
   </think>
   """
 
