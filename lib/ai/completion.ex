@@ -33,6 +33,7 @@ defmodule AI.Completion do
     :tool_call_requests,
     :response,
     :compact?,
+    :is_compacting?,
     :conversation_pid
   ]
 
@@ -51,7 +52,8 @@ defmodule AI.Completion do
           messages: list(AI.Util.msg()),
           tool_call_requests: list(),
           response: String.t() | nil,
-          compact?: bool
+          compact?: bool,
+          is_compacting?: bool
         }
 
   @type response ::
@@ -79,7 +81,7 @@ defmodule AI.Completion do
          {:ok, messages} <- Keyword.fetch(opts, :messages) do
       response_format = Keyword.get(opts, :response_format, nil)
       name = Keyword.get(opts, :name, nil)
-      compact? = Keyword.get(opts, :compact?, false)
+      compact? = Keyword.get(opts, :compact?, true)
       web_search? = Keyword.get(opts, :web_search?, false)
 
       toolbox_opt = Keyword.get(opts, :toolbox, nil)
@@ -127,7 +129,8 @@ defmodule AI.Completion do
           messages: messages,
           tool_call_requests: [],
           response: nil,
-          compact?: compact?
+          compact?: compact?,
+          is_compacting?: false
         }
 
       {:ok, state}
@@ -227,12 +230,14 @@ defmodule AI.Completion do
        state
        | messages: state.messages ++ [AI.Util.assistant_msg(response)],
          response: response,
-         usage: usage
+         usage: usage,
+         is_compacting?: false
      }}
   end
 
   defp handle_response({:ok, :tool, tool_calls}, state) do
     state
+    |> Map.put(:is_compacting?, false)
     |> Map.put(:tool_call_requests, tool_calls)
     |> handle_tool_calls()
     |> maybe_apply_interrupts()
@@ -243,13 +248,20 @@ defmodule AI.Completion do
     {:error, :context_length_exceeded, usage}
   end
 
-  defp handle_response({:error, :context_length_exceeded, usage}, %{messages: msgs} = state) do
+  defp handle_response(
+         {:error, :context_length_exceeded, usage},
+         %{messages: msgs, is_compacting?: false} = state
+       ) do
     with {:ok, compacted, new_usage} <- AI.Completion.Compaction.compact(msgs) do
-      %{state | messages: compacted, usage: new_usage}
+      %{state | messages: compacted, usage: new_usage, is_compacting?: true}
       |> send_request()
     else
       {:error, _reason} -> {:error, :context_length_exceeded, usage}
     end
+  end
+
+  defp handle_response({:error, :context_length_exceeded, usage}, _state) do
+    {:error, :context_length_exceeded, usage}
   end
 
   defp handle_response({:error, :api_unavailable, reason}, _state) do

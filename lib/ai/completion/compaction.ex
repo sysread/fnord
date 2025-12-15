@@ -202,6 +202,7 @@ defmodule AI.Completion.Compaction do
 
       result =
         AI.Accumulator.get_response(
+          compact?: false,
           model: @summarize_model,
           prompt: @summarize_prompt,
           question: @summarizer_task,

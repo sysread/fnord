@@ -22,7 +22,8 @@ defmodule AI.Accumulator do
     :prompt,
     :question,
     :completion_args,
-    :line_numbers
+    :line_numbers,
+    :compact?
   ]
 
   @type t :: %__MODULE__{
@@ -32,7 +33,8 @@ defmodule AI.Accumulator do
           toolbox: AI.Tools.toolbox() | nil,
           prompt: binary,
           question: binary,
-          completion_args: Keyword.t()
+          completion_args: Keyword.t(),
+          compact?: boolean
         }
 
   @line_numbers_prompt """
@@ -91,6 +93,7 @@ defmodule AI.Accumulator do
          {:ok, input} <- Keyword.fetch(opts, :input) do
       question = Keyword.get(opts, :question, nil)
       line_numbers = Keyword.get(opts, :line_numbers, false)
+      compact? = Keyword.get(opts, :compact?, true)
 
       input =
         if line_numbers do
@@ -111,7 +114,9 @@ defmodule AI.Accumulator do
         toolbox: toolbox,
         prompt: prompt,
         question: question,
-        completion_args: Keyword.get(opts, :completion_args, [])
+        completion_args: Keyword.get(opts, :completion_args, []),
+        line_numbers: line_numbers,
+        compact?: compact?
       }
       |> reduce()
     else
@@ -208,7 +213,7 @@ defmodule AI.Accumulator do
       acc.completion_args
       # Auto-compaction could bork the accumulator. The accumulator is also
       # used for compaction, so we want to avoid recursion.
-      |> Keyword.put(:compact?, false)
+      |> Keyword.put(:compact?, acc.compact?)
       |> Keyword.put(:model, acc.model)
       |> Keyword.put(:toolbox, acc.toolbox)
       |> Keyword.put(:messages, [
