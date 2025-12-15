@@ -64,10 +64,12 @@ defmodule AI.Tools.File.Edit do
         planning, coordination, or span many files.
 
         **Two editing modes:**
-        1. **Exact String Matching**: Provide old_string/new_string for precise,
-           reliable replacements. Use when you know the exact text to change.
-        2. **Natural Language**: Provide descriptive change instructions for the
-           AI to interpret. Use when you need contextual understanding.
+        1. **Exact String Matching**: Provide old_string/new_string for precise, reliable replacements.
+           Use when you know the exact text to change.
+        2. **Natural Language**: Provide descriptive change instructions for the AI to interpret.
+           Use when you need contextual understanding.
+           Do not assume the AI has the same context as you!
+           Be explicit, as though instructing someone seeing the file for the first time.
 
         Use for:
         - One-off line or block replacements
@@ -658,11 +660,12 @@ defmodule AI.Tools.File.Edit do
     Error: #{reason}
 
     Suggestions:
-    - Try using exact string replacement for more reliable results:
+    - Use *exact string replacement* for more reliable results:
       {"old_string": "exact text to find", "new_string": "replacement text"}
     - Make instructions more specific with clear anchors (line numbers, function names)
     - For new files, use create_if_missing: true at the TOP LEVEL, not inside changes
     - Break complex changes into smaller, more specific steps
+    - **Don't assume the LLM implementing your semantic change has the same context as you**
     """
   end
 
