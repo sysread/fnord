@@ -33,22 +33,11 @@ defmodule AI.Tools.MemoryTest do
     end
   end
 
-  describe "ui_note_on_result/2 for recall" do
-    test "uses @nada when recall payload is nil" do
-      {title, desc} = Memory.ui_note_on_result(%{"action" => "recall"}, nil)
+  describe "ui_note_on_result/2" do
+    test "returns nil (UI result notes are no longer emitted)" do
+      assert Memory.ui_note_on_result(%{"action" => "recall"}, nil) == nil
+      assert Memory.ui_note_on_result(%{"action" => "recall"}, "") == nil
 
-      assert title == "Recalled memories"
-      assert desc == "Nothing! Forget my own head next if it weren't attached."
-    end
-
-    test "uses @nada when recall payload is empty string" do
-      {title, desc} = Memory.ui_note_on_result(%{"action" => "recall"}, "")
-
-      assert title == "Recalled memories"
-      assert desc == "Nothing! Forget my own head next if it weren't attached."
-    end
-
-    test "formats non-empty JSON result" do
       result =
         [
           %{
@@ -61,12 +50,7 @@ defmodule AI.Tools.MemoryTest do
         ]
         |> Jason.encode!()
 
-      {title, desc} = Memory.ui_note_on_result(%{"action" => "recall"}, result)
-
-      assert title == "Recalled memories"
-      assert desc =~ "Test Memory 1"
-      assert desc =~ "global"
-      assert desc =~ "0.9"
+      assert Memory.ui_note_on_result(%{"action" => "recall"}, result) == nil
     end
   end
 end

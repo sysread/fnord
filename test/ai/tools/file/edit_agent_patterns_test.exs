@@ -174,7 +174,7 @@ defmodule AI.Tools.File.EditAgentPatternsTest do
 
       # Verify the error message provides actionable suggestions
       assert String.contains?(msg, "Natural language instruction failed")
-      assert String.contains?(msg, "Try using exact string replacement")
+      assert String.contains?(msg, "exact string replacement")
       assert String.contains?(msg, "old_string")
       assert String.contains?(msg, "new_string")
       assert String.contains?(msg, "TOP LEVEL")
