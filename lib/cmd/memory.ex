@@ -1,4 +1,6 @@
 defmodule Cmd.Memory do
+  @min_match_threshold 0.2
+
   @behaviour Cmd
 
   @impl Cmd
@@ -105,7 +107,7 @@ defmodule Cmd.Memory do
                     {:ok, %Memory{embeddings: embeddings} = mem} ->
                       score = AI.Util.cosine_similarity(needle, embeddings)
 
-                      if score > 0.0 do
+                      if score > @min_match_threshold do
                         {[{mem, score} | acc], stale}
                       else
                         {acc, stale}
