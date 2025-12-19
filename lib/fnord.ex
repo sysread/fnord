@@ -86,6 +86,7 @@ defmodule Fnord do
       Cmd.Notes,
       Cmd.Prime,
       Cmd.Projects,
+      Cmd.Memory,
       Cmd.Replay,
       Cmd.Search,
       Cmd.Summary,
