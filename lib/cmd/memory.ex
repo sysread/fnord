@@ -177,8 +177,8 @@ defmodule Cmd.Memory do
   # Scope helpers
   # ----------------------------------------------------------------------------
 
-  defp parse_scopes(nil), do: [:global, :project, :session]
-  defp parse_scopes([]), do: [:global, :project, :session]
+  defp parse_scopes(nil), do: [:global, :project]
+  defp parse_scopes([]), do: [:global, :project]
 
   defp parse_scopes(scopes) when is_list(scopes) do
     scopes
