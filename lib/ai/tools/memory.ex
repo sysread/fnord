@@ -225,7 +225,7 @@ defmodule AI.Tools.Memory do
   defp do_remember(%{"scope" => scope, "title" => title, "content" => content} = args) do
     with {:ok, scope_atom} <- parse_scope(scope),
          topics <- Map.get(args, "topics", []),
-         {:ok, memory} <- Memory.new(scope_atom, title, content, topics),
+         {:ok, memory} <- new_memory(scope_atom, title, content, topics),
          {:ok, saved} <- wrap_save(Memory.save(memory), memory) do
       {:ok, format_memory(saved)}
     end
@@ -236,18 +236,35 @@ defmodule AI.Tools.Memory do
   end
 
   defp do_update(%{"scope" => scope, "title" => title, "new_content" => new_content} = args) do
-    with {:ok, scope_atom} <- parse_scope(scope),
-         {:ok, memory} <- Memory.read(scope_atom, title) do
-      new_topics = Map.get(args, "new_topics", [])
+    case parse_scope(scope) do
+      {:ok, scope_atom} ->
+        case Memory.read(scope_atom, title) do
+          {:ok, memory} ->
+            new_topics = Map.get(args, "new_topics", [])
 
-      updated =
-        memory
-        |> Memory.append(new_content)
-        |> maybe_add_topics(new_topics)
+            updated =
+              memory
+              |> Memory.append(new_content)
+              |> maybe_add_topics(new_topics)
 
-      with {:ok, saved} <- wrap_save(Memory.save(updated), updated) do
-        {:ok, format_memory(saved)}
-      end
+            case wrap_save(Memory.save(updated), updated) do
+              {:ok, saved} ->
+                {:ok, format_memory(saved)}
+
+              {:error, _} = error ->
+                error
+            end
+
+          {:error, :not_found} ->
+            {:error,
+             "No memory found with title #{inspect(title)} in #{Atom.to_string(scope_atom)} scope. Use action=list to see available memories."}
+
+          {:error, reason} ->
+            {:error, inspect(reason)}
+        end
+
+      {:error, _} = error ->
+        error
     end
   end
 
@@ -289,7 +306,7 @@ defmodule AI.Tools.Memory do
   defp parse_scope("global"), do: {:ok, :global}
 
   defp parse_scope(other) do
-    {:error, "Invalid scope '#{inspect(other)}'; expected 'session', 'project', or 'global'"}
+    {:error, "Invalid scope #{inspect(other)}; expected 'session', 'project', or 'global'"}
   end
 
   defp maybe_add_topics(memory, []), do: memory
@@ -303,6 +320,41 @@ defmodule AI.Tools.Memory do
 
   defp wrap_save({:ok, saved}, _memory), do: {:ok, saved}
   defp wrap_save({:error, _} = error, _memory), do: error
+
+  defp new_memory(scope_atom, title, content, topics) do
+    case Memory.new(scope_atom, title, content, topics) do
+      {:ok, memory} ->
+        {:ok, memory}
+
+      {:error, :invalid_title} ->
+        reasons =
+          case Memory.validate_title(title) do
+            {:error, reasons} -> reasons
+            :ok -> ["title failed validation (no further details available)"]
+          end
+
+        bullet_reasons = Enum.map_join(reasons, "\n", fn reason -> "- " <> reason end)
+
+        {:error,
+         """
+         Invalid memory title #{inspect(title)}.
+         Reasons:
+         #{bullet_reasons}
+
+         Examples of valid titles:
+         - "Meeting Notes"
+         - "Project Architecture"
+         - "User Preferences"
+         """}
+
+      {:error, :duplicate_title} ->
+        {:error,
+         "Memory title #{inspect(title)} already exists in #{Atom.to_string(scope_atom)} scope. Use action=update to modify the existing memory."}
+
+      {:error, reason} ->
+        {:error, inspect(reason)}
+    end
+  end
 
   defp find_memory_by_title(scopes, title) do
     scopes

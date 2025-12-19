@@ -303,11 +303,40 @@ defmodule Memory do
   """
   @spec is_valid_title?(binary) :: boolean
   def is_valid_title?(title) do
-    cond do
-      String.trim(title) == "" -> false
-      String.match?(title, ~r/[^a-zA-Z0-9](?:[^a-zA-Z0-9]|$)/) -> false
-      String.match?(title, ~r/^(?:[^a-zA-Z0-9]|.*[^a-zA-Z0-9]$)/) -> false
-      true -> true
+    case validate_title(title) do
+      :ok -> true
+      {:error, _reasons} -> false
+    end
+  end
+
+  @spec validate_title(binary) :: :ok | {:error, [binary]}
+  def validate_title(title) do
+    errors = []
+
+    errors =
+      if String.trim(title) == "" do
+        ["must not be empty" | errors]
+      else
+        errors
+      end
+
+    errors =
+      if String.match?(title, ~r/[^a-zA-Z0-9](?:[^a-zA-Z0-9]|$)/) do
+        ["must not contain two non-alphanumeric characters in a row (including spaces)" | errors]
+      else
+        errors
+      end
+
+    errors =
+      if String.match?(title, ~r/^(?:[^a-zA-Z0-9]|.*[^a-zA-Z0-9]$)/) do
+        ["must start and end with a letter or number" | errors]
+      else
+        errors
+      end
+
+    case Enum.reverse(errors) do
+      [] -> :ok
+      errs -> {:error, errs}
     end
   end
 

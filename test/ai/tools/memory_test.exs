@@ -53,4 +53,25 @@ defmodule AI.Tools.MemoryTest do
       assert Memory.ui_note_on_result(%{"action" => "recall"}, result) == nil
     end
   end
+
+  describe "perform_tool_call/3 invalid-title behavior" do
+    test "remember returns unhelpful invalid_title error today" do
+      assert {:error, msg} =
+               AI.Tools.perform_tool_call(
+                 "memory_tool",
+                 %{
+                   "action" => "remember",
+                   "scope" => "global",
+                   "title" => " ",
+                   "content" => "x"
+                 },
+                 AI.Tools.tools()
+               )
+
+      assert msg =~ "Invalid memory title"
+      assert msg =~ "Reasons:"
+      assert msg =~ "Examples of valid titles"
+      assert msg =~ inspect(" ")
+    end
+  end
 end

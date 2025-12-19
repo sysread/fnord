@@ -6,6 +6,12 @@ defmodule MemoryTest do
       assert {:error, :invalid_title} = Memory.new(:global, " ", "content", [])
     end
 
+    test "validate_title/1 returns errors for invalid titles" do
+      assert {:error, reasons} = Memory.validate_title(" ")
+      assert is_list(reasons)
+      assert "must not be empty" in reasons
+    end
+
     test "rejects duplicate titles within the same scope" do
       title = "Dup Title"
       base = Path.join(Store.store_home(), "memory")
