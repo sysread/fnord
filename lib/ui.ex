@@ -321,6 +321,11 @@ defmodule UI do
     IO.ANSI.format([:italic, text, :reset], colorize?())
   end
 
+  @spec bold(binary) :: iodata
+  def bold(text) do
+    IO.ANSI.format([:bright, text, :reset], colorize?())
+  end
+
   # ----------------------------------------------------------------------------
   # TUI/Animated elements
   # ----------------------------------------------------------------------------
