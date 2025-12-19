@@ -350,9 +350,6 @@ defmodule AI.Tools.Memory do
       {:error, :duplicate_title} ->
         {:error,
          "Memory title #{inspect(title)} already exists in #{Atom.to_string(scope_atom)} scope. Use action=update to modify the existing memory."}
-
-      {:error, reason} ->
-        {:error, inspect(reason)}
     end
   end
 
