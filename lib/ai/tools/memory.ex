@@ -22,12 +22,7 @@ defmodule AI.Tools.Memory do
         "title" => title,
         "content" => content
       }) do
-    {"Note to self (add -> #{scope})",
-     """
-     #{title}
-     -----
-     #{UI.italicize(content)}
-     """}
+    {"Note to self (new in #{scope})", "#{UI.bold(title)}: #{UI.italicize(content)}"}
   end
 
   def ui_note_on_request(%{
@@ -36,16 +31,11 @@ defmodule AI.Tools.Memory do
         "title" => title,
         "new_content" => new_content
       }) do
-    {"Note to self (edit -> #{scope})",
-     """
-     #{title}
-     -----
-     #{UI.italicize(new_content)}
-     """}
+    {"Note to self (append to #{scope})", "#{UI.bold(title)}: #{UI.italicize(new_content)}"}
   end
 
   def ui_note_on_request(%{"action" => "forget", "scope" => scope, "title" => title}) do
-    {"Forgetting (del -> #{scope})", title}
+    {"Forgetting (#{scope})", title}
   end
 
   def ui_note_on_request(_), do: nil
