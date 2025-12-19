@@ -117,7 +117,19 @@ defmodule AI.Tools.Shell do
         It is essential to remember that you cannot launch interactive commands!
         Commands that require user input or interaction will fail after a timeout, resulting in a poor experience for the user.
 
-        INDIVIDUAL COMMANDS MAY NOT INCLUDE REDIRECTION, PIPES, COMMAND SUBSTITUTION, OR OTHER COMPLEX SHELL OPERATORS.
+        INDIVIDUAL COMMANDS SHOULD BE SIMPLE:
+          - Do not include redirection (`>`, `<`), pipes (`|`, `&&`), command substitution (`$()`, backticks), semicolons (`;`), or other complex shell syntax inside a single command's "command" or "args".
+          - Pipelines are supported by supplying multiple command objects and setting "operator" to "|".
+
+        Example:
+
+        {
+          "operator": "|",
+          "commands": [
+            { "command": "ls", "args": ["-l"] },
+            { "command": "grep", "args": ["foo"] }
+          ]
+        }
 
         IMPORTANT: Tools that can modify files (e.g., `awk`, `find -exec`, `patch`) require explicit user-approval.
         Safe, read-only `sed` invocations (without `-i`, `-f`, `e` or `w` ops) are auto-preapproved by built-in regex rules.
