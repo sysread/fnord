@@ -15,7 +15,7 @@ defmodule Cmd.Memory do
             value_name: "SCOPE",
             long: "--scope",
             short: "-s",
-            help: "Limit to scope(s): global, project, session (may be repeated)",
+            help: "Limit to scope(s): global, project (may be repeated)",
             required: false,
             multiple: true
           ],
@@ -195,24 +195,18 @@ defmodule Cmd.Memory do
       "project" ->
         :project
 
-      "session" ->
-        :session
-
       other ->
-        UI.fatal("Invalid --scope #{inspect(other)}; expected global, project, or session")
+        UI.fatal("Invalid --scope #{inspect(other)}; expected global, project")
         exit({:shutdown, 1})
     end
   end
 
   defp scope_order(:global), do: 1
   defp scope_order(:project), do: 2
-  defp scope_order(:session), do: 3
 
   defp available?(:global), do: true
   defp available?(:project), do: Memory.Project.is_available?()
-  defp available?(:session), do: Memory.Session.is_available?()
 
   defp list_titles(:global), do: Memory.Global.list()
   defp list_titles(:project), do: Memory.Project.list()
-  defp list_titles(:session), do: Memory.Session.list()
 end
