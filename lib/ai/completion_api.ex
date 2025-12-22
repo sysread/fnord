@@ -1,5 +1,6 @@
 defmodule AI.CompletionAPI do
-  @endpoint "https://api.openai.com/v1/chat/completions"
+  @behaviour AI.Endpoint
+  @base_url "https://api.openai.com"
 
   @type model :: AI.Model.t()
   @type msgs :: [map()]
@@ -17,6 +18,9 @@ defmodule AI.CompletionAPI do
           | {:error, map}
           | {:error, :api_unavailable, any}
           | {:error, :context_length_exceeded, non_neg_integer}
+
+  @impl AI.Endpoint
+  def endpoint_path, do: "#{@base_url}/v1/chat/completions"
 
   @spec get(model, msgs, tools, response_format, web_search?) :: response
   def get(model, msgs, tools \\ nil, response_format \\ nil, web_search? \\ false) do
@@ -64,7 +68,7 @@ defmodule AI.CompletionAPI do
 
     result =
       try do
-        Http.post_json(@endpoint, headers, payload)
+        AI.Endpoint.post_json(__MODULE__, headers, payload)
         |> case do
           {:transport_error, error} ->
             get_error(error)

@@ -1,0 +1,68 @@
+defmodule AI.EndpointTest do
+  use Fnord.TestCase, async: false
+
+  setup do
+    :meck.new(HTTPoison, [:no_link, :passthrough, :non_strict])
+    on_exit(fn -> :meck.unload(HTTPoison) end)
+    :ok
+  end
+
+  defmodule DummyEndpoint do
+    @behaviour AI.Endpoint
+
+    @impl AI.Endpoint
+    def endpoint_path, do: "http://example"
+  end
+
+  defp json_headers, do: [{"Content-Type", "application/json"}]
+
+  test "retries on 429 when throttling error code is rate_limit_exceeded" do
+    call_count_ref = make_ref()
+    Process.put(call_count_ref, 0)
+
+    throttled_body =
+      Jason.encode!(%{
+        "error" => %{
+          "code" => "rate_limit_exceeded",
+          "message" => "Rate limit reached. Please try again in 1ms."
+        }
+      })
+
+    :meck.expect(HTTPoison, :post, fn _url, _body, _headers, _opts ->
+      n = (Process.get(call_count_ref) || 0) + 1
+      Process.put(call_count_ref, n)
+
+      case n do
+        1 -> {:ok, %{status_code: 429, body: throttled_body}}
+        _ -> {:ok, %{status_code: 200, body: ~s({"ok":true})}}
+      end
+    end)
+
+    assert {:ok, %{"ok" => true}} == AI.Endpoint.post_json(DummyEndpoint, json_headers(), %{a: 1})
+    assert (Process.get(call_count_ref) || 0) == 2
+  end
+
+  test "does not retry on 429 when throttling error code is not recognized" do
+    call_count_ref = make_ref()
+    Process.put(call_count_ref, 0)
+
+    body =
+      Jason.encode!(%{
+        "error" => %{
+          "code" => "insufficient_quota",
+          "message" => "No soup for you"
+        }
+      })
+
+    :meck.expect(HTTPoison, :post, fn _url, _body, _headers, _opts ->
+      n = (Process.get(call_count_ref) || 0) + 1
+      Process.put(call_count_ref, n)
+      {:ok, %{status_code: 429, body: body}}
+    end)
+
+    assert {:http_error, {429, ^body}} =
+             AI.Endpoint.post_json(DummyEndpoint, json_headers(), %{a: 1})
+
+    assert (Process.get(call_count_ref) || 0) == 1
+  end
+end
