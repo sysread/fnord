@@ -111,6 +111,7 @@ This is done by running the same command again.
 
 Note that semantic search requires an existing index. You can still perform text searches via the shell tool (e.g., ripgrep) if installed and approved, but indexing is recommended for full capabilities.
 
+**Warning:** If you have _just_ created your OpenAI API key, you are likely to encounter rate limits when indexing project (or otherwise using fnord).  OpenAI has API rate limits restricted by [usage tiers](https://platform.openai.com/docs/guides/rate-limits#usage-tiers).
 
 ### Prime the knowledge base
 
