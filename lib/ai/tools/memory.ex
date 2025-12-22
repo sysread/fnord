@@ -141,7 +141,8 @@ defmodule AI.Tools.Memory do
             },
             "title" => %{
               type: "string",
-              description: "Title of the memory (remember/update/forget)."
+              description:
+                "Title of the memory (remember/update/forget). Must be unique within the specified scope and alphanumeric (single spaces are fine)."
             },
             "content" => %{
               type: "string",
