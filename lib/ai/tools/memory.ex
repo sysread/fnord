@@ -1,4 +1,5 @@
 defmodule AI.Tools.Memory do
+  alias Memory.Presentation
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -364,22 +365,46 @@ defmodule AI.Tools.Memory do
   end
 
   defp format_memory(%Memory{} = memory) do
+    now = DateTime.utc_now()
+    age = Presentation.age_line(memory, now)
+    warning = Presentation.warning_line(memory, now)
+
+    warning_line =
+      if warning do
+        "#{warning}\n"
+      else
+        ""
+      end
+
     """
     Title: #{memory.title}
     Scope: #{Atom.to_string(memory.scope)}
     Topics: #{Enum.join(memory.topics, " | ")}
-    Content:
+    #{age}
+    #{warning_line}Content:
     #{memory.content}
     """
   end
 
   defp format_memory({%Memory{} = memory, score}) do
+    now = DateTime.utc_now()
+    age = Presentation.age_line(memory, now)
+    warning = Presentation.warning_line(memory, now)
+
+    warning_line =
+      if warning do
+        "#{warning}\n"
+      else
+        ""
+      end
+
     """
     Title: #{memory.title}
     Score: #{Float.round(score, 4)}
     Scope: #{Atom.to_string(memory.scope)}
     Topics: #{Enum.join(memory.topics, " | ")}
-    Content:
+    #{age}
+    #{warning_line}Content:
     #{memory.content}
     """
   end

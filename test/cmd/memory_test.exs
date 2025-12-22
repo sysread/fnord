@@ -64,7 +64,7 @@ defmodule Cmd.MemoryTest do
       {stdout, _stderr} = capture_all(fn -> Cmd.Memory.run(%{query: "anything"}, [], []) end)
 
       assert stdout =~ "### Scored"
-      assert stdout =~ "_Score: "
+      assert stdout =~ "_Score:_ "
       assert stdout =~ "queryable content"
     end
   end

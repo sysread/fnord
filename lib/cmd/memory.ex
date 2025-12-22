@@ -1,6 +1,8 @@
 defmodule Cmd.Memory do
   @min_match_threshold 0.2
 
+  alias Memory.Presentation
+
   @behaviour Cmd
 
   @impl Cmd
@@ -79,7 +81,11 @@ defmodule Cmd.Memory do
         end
       end)
 
-    "# Memories\n\n" <> Enum.join(sections, "\n\n")
+    """
+    # Memories
+
+    #{Enum.join(sections, "\n\n")}
+    """
   end
 
   # ----------------------------------------------------------------------------
@@ -125,10 +131,18 @@ defmodule Cmd.Memory do
             end
           end)
 
-        "# Memories\n\n" <> Enum.join(sections, "\n\n")
+        """
+        # Memories
+
+        #{Enum.join(sections, "\n\n")}
+        """
 
       {:error, reason} ->
-        "# Memories\n\nFailed to generate embeddings for query: #{inspect(reason)}\n"
+        """
+        # Memories
+
+        Failed to generate embeddings for query: #{inspect(reason)}
+        """
     end
   end
 
@@ -139,40 +153,85 @@ defmodule Cmd.Memory do
   defp render_scope_section(scope, memories, %{mode: :list}) do
     body =
       case memories do
-        [] -> "_No memories._\n"
-        _ -> memories |> Enum.map(&render_memory/1) |> Enum.join("\n\n")
+        [] ->
+          "_No memories._"
+
+        _ ->
+          memories
+          |> Enum.map(&render_memory/1)
+          |> Enum.join("\n\n")
       end
 
-    "## #{scope}\n\n" <> body
+    """
+    ## #{scope}
+
+    #{body}
+    """
   end
 
   defp render_scope_section(scope, memories, %{mode: :search, stale_count: stale_count}) do
     stale_note =
       if stale_count > 0 do
-        "_Skipped #{stale_count} stale memorie(s) missing embeddings._\n\n"
+        "_Skipped #{stale_count} stale memorie(s) missing embeddings._"
       else
         ""
       end
 
     body =
       case memories do
-        [] -> "_No matches._\n"
-        _ -> memories |> Enum.map(&render_memory/1) |> Enum.join("\n\n")
+        [] ->
+          "_No matches._\n"
+
+        _ ->
+          memories
+          |> Enum.map(&render_memory/1)
+          |> Enum.join("\n\n")
       end
 
-    "## #{scope}\n\n" <> stale_note <> body
+    """
+    ## #{scope}
+
+    #{stale_note}
+
+    #{body}
+    """
   end
 
   defp render_unavailable_scope_section(scope) do
-    "## #{scope}\n\n_Unavailable in the current context._\n"
+    """
+    ## #{scope}
+
+    _Unavailable in the current context._
+    """
   end
 
   defp render_memory({%Memory{} = mem, nil}) do
-    "### #{mem.title}\n\n#{mem.content}"
+    now = DateTime.utc_now()
+    age = Presentation.age_line(mem, now)
+    warning = Presentation.warning_line(mem, now)
+
+    """
+    ### #{mem.title}
+    _#{age}_
+    _#{warning}_
+
+    #{mem.content}
+    """
   end
 
   defp render_memory({%Memory{} = mem, score}) when is_number(score) do
-    "### #{mem.title}\n\n_Score: #{Float.round(score, 4)}_\n\n#{mem.content}"
+    now = DateTime.utc_now()
+    age = Presentation.age_line(mem, now)
+    warning = Presentation.warning_line(mem, now)
+
+    """
+    ### #{mem.title}
+    _Score:_ #{Float.round(score, 4)}
+    _#{age}_
+    _#{warning}_
+
+    #{mem.content}
+    """
   end
 
   # ----------------------------------------------------------------------------

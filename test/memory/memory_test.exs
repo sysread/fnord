@@ -30,13 +30,18 @@ defmodule MemoryTest do
 
   describe "marshal/unmarshal" do
     test "round trips a memory struct" do
+      ts1 = DateTime.utc_now() |> DateTime.to_iso8601()
+      ts2 = DateTime.utc_now() |> DateTime.to_iso8601()
+
       mem = %Memory{
         scope: :global,
         title: "Round Trip",
         slug: Memory.title_to_slug("Round Trip"),
         content: "hello",
         topics: ["t"],
-        embeddings: [0.1, 0.2]
+        embeddings: [0.1, 0.2],
+        inserted_at: ts1,
+        updated_at: ts2
       }
 
       assert {:ok, json} = Memory.marshal(mem)
@@ -48,6 +53,88 @@ defmodule MemoryTest do
       assert decoded.content == mem.content
       assert decoded.topics == mem.topics
       assert decoded.embeddings == mem.embeddings
+      assert decoded.inserted_at == mem.inserted_at
+      assert decoded.updated_at == mem.updated_at
+    end
+
+    test "unmarshal tolerates legacy json missing timestamps" do
+      legacy =
+        %{
+          "scope" => "global",
+          "title" => "Legacy",
+          "slug" => "legacy",
+          "content" => "hello",
+          "topics" => [],
+          "embeddings" => [0.1]
+        }
+        |> Jason.encode!()
+
+      assert {:ok, decoded} = Memory.unmarshal(legacy)
+      assert decoded.inserted_at == nil
+      assert decoded.updated_at == nil
+    end
+  end
+
+  describe "save/1 timestamp migration" do
+    test "save fills missing timestamps" do
+      base = Path.join(Store.store_home(), "memory")
+      File.mkdir_p!(base)
+
+      mem = %Memory{
+        scope: :global,
+        title: "Fill Missing",
+        slug: "fill-missing",
+        content: "hello",
+        topics: [],
+        # Ensure save does not try to call the embeddings API.
+        embeddings: [0.1],
+        inserted_at: nil,
+        updated_at: nil
+      }
+
+      assert {:ok, saved} = Memory.save(mem)
+      assert is_binary(saved.inserted_at)
+      assert saved.inserted_at != ""
+      assert is_binary(saved.updated_at)
+      assert saved.updated_at != ""
+    end
+
+    test "read auto-saves when timestamps missing" do
+      title = "Legacy Read"
+      slug = Memory.title_to_slug(title)
+
+      base = Path.join(Store.store_home(), "memory")
+      File.mkdir_p!(base)
+
+      file = Path.join(base, "#{slug}.json")
+
+      legacy =
+        %{
+          "scope" => "global",
+          "title" => title,
+          "slug" => slug,
+          "content" => "hello",
+          "topics" => [],
+          # Ensure the auto-save path does not try to call the embeddings API.
+          "embeddings" => [0.1]
+        }
+        |> Jason.encode!()
+
+      File.write!(file, legacy)
+
+      assert {:ok, migrated} = Memory.read(:global, title)
+      assert is_binary(migrated.inserted_at)
+      assert migrated.inserted_at != ""
+      assert is_binary(migrated.updated_at)
+      assert migrated.updated_at != ""
+
+      on_disk = file |> File.read!() |> Jason.decode!()
+      assert Map.has_key?(on_disk, "inserted_at")
+      assert Map.has_key?(on_disk, "updated_at")
+      assert is_binary(on_disk["inserted_at"])
+      assert on_disk["inserted_at"] != ""
+      assert is_binary(on_disk["updated_at"])
+      assert on_disk["updated_at"] != ""
     end
   end
 
@@ -59,7 +146,9 @@ defmodule MemoryTest do
         slug: nil,
         content: "c",
         topics: [],
-        embeddings: nil
+        embeddings: nil,
+        inserted_at: nil,
+        updated_at: nil
       }
 
       assert Memory.is_stale?(mem)
@@ -72,12 +161,16 @@ defmodule MemoryTest do
         slug: nil,
         content: "c",
         topics: [],
-        embeddings: [0.1]
+        embeddings: [0.1],
+        inserted_at: nil,
+        updated_at: nil
       }
 
       updated = Memory.append(mem, " more")
       assert updated.content == "c more"
       assert updated.embeddings == nil
+      assert is_binary(updated.updated_at)
+      assert updated.updated_at != ""
     end
   end
 end

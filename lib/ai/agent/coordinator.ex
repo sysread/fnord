@@ -1014,11 +1014,24 @@ defmodule AI.Agent.Coordinator do
         state
 
       {:ok, results} ->
+        now = DateTime.utc_now()
+
         memories =
           results
           |> Enum.map(fn {mem, _score} ->
+            age = Memory.Presentation.age_line(mem, now)
+            warning = Memory.Presentation.warning_line(mem, now)
+
+            warning_md =
+              if warning do
+                "\n_#{warning}_"
+              else
+                ""
+              end
+
             """
             ## [#{mem.scope}] #{mem.title}
+            _#{age}_#{warning_md}
             #{Util.truncate(mem.content, @memory_size_limit)}
             """
           end)

@@ -1,12 +1,25 @@
 defmodule Memory do
-  @derive {Jason.Encoder, only: [:scope, :title, :slug, :content, :topics, :embeddings]}
+  @derive {Jason.Encoder,
+           only: [
+             :scope,
+             :title,
+             :slug,
+             :content,
+             :topics,
+             :embeddings,
+             :inserted_at,
+             :updated_at
+           ]}
+
   defstruct [
     :scope,
     :title,
     :slug,
     :content,
     :topics,
-    :embeddings
+    :embeddings,
+    :inserted_at,
+    :updated_at
   ]
 
   @type scope ::
@@ -20,7 +33,9 @@ defmodule Memory do
           slug: binary | nil,
           content: binary,
           topics: list(binary),
-          embeddings: list(float) | nil
+          embeddings: list(float) | nil,
+          inserted_at: binary | nil,
+          updated_at: binary | nil
         }
 
   @me_title "Me"
@@ -156,9 +171,11 @@ defmodule Memory do
   end
 
   @spec read(scope, binary) :: {:ok, t} | {:error, term}
-  def read(:global, title), do: Memory.Global.read(title)
-  def read(:project, title), do: Memory.Project.read(title)
-  def read(:session, title), do: Memory.Session.read(title)
+  def read(scope, title) do
+    scope
+    |> do_read(title)
+    |> maybe_migrate_on_read()
+  end
 
   @spec read_me() :: {:ok, t} | {:error, term}
   def read_me, do: read(:global, @me_title)
@@ -189,6 +206,8 @@ defmodule Memory do
         {:error, :duplicate_title}
 
       true ->
+        timestamp = DateTime.utc_now() |> DateTime.to_iso8601()
+
         {:ok,
          %Memory{
            scope: scope,
@@ -196,7 +215,9 @@ defmodule Memory do
            slug: title_to_slug(title),
            content: content,
            topics: topics,
-           embeddings: nil
+           embeddings: nil,
+           inserted_at: timestamp,
+           updated_at: timestamp
          }}
     end
   end
@@ -213,7 +234,9 @@ defmodule Memory do
       slug: Map.get(data, :slug),
       content: Map.get(data, :content),
       topics: Map.get(data, :topics),
-      embeddings: Map.get(data, :embeddings)
+      embeddings: Map.get(data, :embeddings),
+      inserted_at: Map.get(data, :inserted_at),
+      updated_at: Map.get(data, :updated_at)
     }
   end
 
@@ -222,7 +245,8 @@ defmodule Memory do
     %Memory{
       memory
       | content: memory.content <> new_content,
-        embeddings: nil
+        embeddings: nil,
+        updated_at: DateTime.utc_now() |> DateTime.to_iso8601()
     }
   end
 
@@ -242,6 +266,8 @@ defmodule Memory do
 
   @spec save(t) :: {:ok, t} | {:error, term}
   def save(%Memory{} = memory) do
+    memory = ensure_timestamps(memory)
+
     with {:ok, memory} <- ensure_embeddings(memory),
          :ok <- do_save(memory) do
       {:ok, memory}
@@ -287,7 +313,9 @@ defmodule Memory do
          slug: slug,
          content: content,
          topics: topics,
-         embeddings: embeddings
+         embeddings: embeddings,
+         inserted_at: Map.get(data, "inserted_at"),
+         updated_at: Map.get(data, "updated_at")
        }}
     else
       :error -> {:error, :invalid_memory_structure}
@@ -404,6 +432,52 @@ defmodule Memory do
     end
   end
 
+  @spec maybe_migrate_on_read({:ok, t} | {:error, term}) :: {:ok, t} | {:error, term}
+  defp maybe_migrate_on_read({:ok, memory}) do
+    if memory.inserted_at in [nil, ""] or memory.updated_at in [nil, ""] do
+      case save(memory) do
+        {:ok, migrated} ->
+          {:ok, migrated}
+
+        {:error, reason} ->
+          UI.warn("memory", "Failed to update memory format: #{inspect(reason)}")
+          {:ok, memory}
+      end
+    else
+      {:ok, memory}
+    end
+  end
+
+  defp maybe_migrate_on_read(error), do: error
+
+  # Ensures memory timestamps are set. If inserted_at is missing or empty, uses
+  # updated_at. If updated_at is missing or empty, uses the current timestamp.
+  defp ensure_timestamps(memory) do
+    now =
+      DateTime.utc_now()
+      |> DateTime.to_iso8601()
+
+    inserted_at =
+      [
+        memory.inserted_at,
+        memory.updated_at
+      ]
+      |> Enum.find(now, fn
+        nil -> false
+        "" -> false
+        _ -> true
+      end)
+
+    updated_at =
+      case memory.updated_at do
+        nil -> now
+        "" -> now
+        x -> x
+      end
+
+    %{memory | inserted_at: inserted_at, updated_at: updated_at}
+  end
+
   @spec ensure_me() :: {:ok, t} | {:error, term}
   defp ensure_me() do
     if exists?(:global, @me_title) do
@@ -431,4 +505,9 @@ defmodule Memory do
   defp do_save(%{scope: :global} = memory), do: Memory.Global.save(memory)
   defp do_save(%{scope: :project} = memory), do: Memory.Project.save(memory)
   defp do_save(%{scope: :session} = memory), do: Memory.Session.save(memory)
+
+  @spec do_read(scope, binary) :: {:ok, t} | {:error, term}
+  defp do_read(:global, title), do: Memory.Global.read(title)
+  defp do_read(:project, title), do: Memory.Project.read(title)
+  defp do_read(:session, title), do: Memory.Session.read(title)
 end
