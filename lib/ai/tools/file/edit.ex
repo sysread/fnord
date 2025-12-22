@@ -70,6 +70,7 @@ defmodule AI.Tools.File.Edit do
            Use when you need contextual understanding.
            Do not assume the AI has the same context as you!
            Be explicit, as though instructing someone seeing the file for the first time.
+           **TIP:** Split non-contiguous changes into separate tool call requests for the same file.
 
         Use for:
         - One-off line or block replacements
