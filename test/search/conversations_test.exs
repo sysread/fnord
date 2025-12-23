@@ -14,8 +14,8 @@ defmodule Search.ConversationsTest do
     convo2 = Conversation.new("two", project)
 
     messages = [AI.Util.user_msg("topic alpha")]
-    {:ok, _} = Conversation.write(convo1, messages)
-    {:ok, _} = Conversation.write(convo2, messages)
+    {:ok, _} = Conversation.write(convo1, %{messages: messages})
+    {:ok, _} = Conversation.write(convo2, %{messages: messages})
 
     # Set embeddings with 3-element vectors to match StubIndexer
     ConversationIndex.write_embeddings(project, convo1.id, [1.0, 2.0, 3.0], %{

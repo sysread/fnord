@@ -68,7 +68,7 @@ defmodule Store.Project.ConversationTest do
     assert {:error, :enoent} = Conversation.read(convo)
 
     # Save it to disk
-    assert {:ok, convo} = Conversation.write(convo, messages)
+    assert {:ok, convo} = Conversation.write(convo, %{messages: messages})
 
     # File now exists
     assert Conversation.exists?(convo)
@@ -112,7 +112,7 @@ defmodule Store.Project.ConversationTest do
     ]
 
     orig = Conversation.new()
-    assert {:ok, orig} = Conversation.write(orig, messages)
+    assert {:ok, orig} = Conversation.write(orig, %{messages: messages})
 
     assert {:ok, forked} = Conversation.fork(orig)
     assert forked.id != orig.id
@@ -124,7 +124,7 @@ defmodule Store.Project.ConversationTest do
 
     # Forked conversation is independent of the original
     new_msgs = messages ++ [AI.Util.user_msg("Forked world!")]
-    assert {:ok, forked} = Conversation.write(forked, new_msgs)
+    assert {:ok, forked} = Conversation.write(forked, %{messages: new_msgs})
     assert {:ok, %{messages: ^new_msgs}} = Conversation.read(forked)
     assert {:ok, %{messages: ^messages}} = Conversation.read(orig)
   end

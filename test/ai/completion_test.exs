@@ -100,7 +100,7 @@ defmodule AI.CompletionTest do
       ]
 
       conv = Store.Project.Conversation.new()
-      assert {:ok, conv} = Store.Project.Conversation.write(conv, messages)
+      assert {:ok, conv} = Store.Project.Conversation.write(conv, %{messages: messages, metadata: %{}, memories: []})
       assert :error = AI.Completion.new_from_conversation(conv, [])
     end
 
@@ -112,7 +112,7 @@ defmodule AI.CompletionTest do
       ]
 
       conv = Store.Project.Conversation.new()
-      assert {:ok, conv} = Store.Project.Conversation.write(conv, messages)
+      assert {:ok, conv} = Store.Project.Conversation.write(conv, %{messages: messages, metadata: %{}, memories: []})
 
       model = AI.Model.new("fake", 42)
       assert {:ok, state} = AI.Completion.new_from_conversation(conv, model: model)

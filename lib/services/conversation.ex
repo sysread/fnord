@@ -182,16 +182,14 @@ defmodule Services.Conversation do
   end
 
   def handle_call(:save, _from, state) do
-    # Before persisting, strip recurring system prompts per settings
-    msgs_to_write = filter_system_messages(state.msgs)
+    data = %{
+      # Before persisting, strip recurring system prompts per settings
+      messages: filter_system_messages(state.msgs),
+      metadata: state.metadata,
+      memory: state.memory
+    }
 
-    with {:ok, conversation} <-
-           Store.Project.Conversation.write(
-             state.conversation,
-             msgs_to_write,
-             state.metadata,
-             state.memory
-           ),
+    with {:ok, conversation} <- Store.Project.Conversation.write(state.conversation, data),
          {:ok, state} <- new(state.conversation.id) do
       {:reply, {:ok, conversation}, state}
     else
@@ -204,7 +202,8 @@ defmodule Services.Conversation do
   # -----------------------------------------------------------------------------
   @spec filter_system_messages([AI.Util.msg()]) :: [AI.Util.msg()]
   defp filter_system_messages(msgs) do
-    Enum.filter(msgs, fn
+    msgs
+    |> Enum.filter(fn
       %{role: "system", content: content} ->
         cond do
           # Preserve the agent name-line to avoid churn

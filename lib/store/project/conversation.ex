@@ -103,24 +103,20 @@ defmodule Store.Project.Conversation do
   Saves the conversation in the store. The conversation's timestamp is updated
   to the current time.
   """
-  @spec write(t, list) :: {:ok, t} | {:error, any()}
-  @spec write(t, list, map) :: {:ok, t} | {:error, any()}
-  @spec write(t, list, map, list) :: {:ok, t} | {:error, any()}
-  def write(conversation, messages) do
-    write(conversation, messages, %{}, [])
-  end
-
-  def write(conversation, messages, metadata) when is_list(messages) and is_map(metadata) do
-    write(conversation, messages, metadata, [])
-  end
-
-  def write(conversation, messages, metadata, memory) do
+  @spec write(t, map) :: {:ok, t} | {:error, any()}
+  def write(conversation, data) do
+    # Ensure the project store directory exists
     conversation.project_home
     |> build_store_dir()
     |> File.mkdir_p()
 
     timestamp = marshal_ts()
-    data = %{messages: messages, metadata: metadata, memory: memory}
+
+    data =
+      data
+      |> Map.put_new("messages", [])
+      |> Map.put_new("metadata", %{})
+      |> Map.put_new("memory", [])
 
     with {:ok, json} <- Jason.encode(data),
          :ok <- File.write(conversation.store_path, "#{timestamp}:#{json}") do
@@ -170,13 +166,10 @@ defmodule Store.Project.Conversation do
   current timestamp.
   """
   @spec fork(t) :: {:ok, t} | {:error, any}
-  def fork(%__MODULE__{} = conversation) do
+  def fork(conversation) do
     with {:ok, data} <- read(conversation),
-         forked <- new(),
-         {:ok, _} <- write(forked, data.messages, data.metadata, data.memory) do
+         {:ok, forked} <- write(new(), data) do
       {:ok, forked}
-    else
-      other -> {:error, other}
     end
   end
 
