@@ -114,9 +114,9 @@ defmodule Store.Project.Conversation do
 
     data =
       data
-      |> Map.put_new("messages", [])
-      |> Map.put_new("metadata", %{})
-      |> Map.put_new("memory", [])
+      |> Map.put_new(:messages, [])
+      |> Map.put_new(:metadata, %{})
+      |> Map.put_new(:memory, [])
 
     with {:ok, json} <- Jason.encode(data),
          :ok <- File.write(conversation.store_path, "#{timestamp}:#{json}") do
