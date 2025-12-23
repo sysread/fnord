@@ -242,7 +242,7 @@ defmodule Http do
     factor = 0.8 + :rand.uniform() * 0.4
     delay = round(base * factor)
 
-    if delay < 1, do: 1, else: delay
+    max(delay, 1)
   end
 
   defp maybe_sleep(ms) do

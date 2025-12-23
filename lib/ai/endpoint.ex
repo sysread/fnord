@@ -109,6 +109,7 @@ defmodule AI.Endpoint do
     |> then(&(&1 * jitter))
     |> min(@backoff_cap_ms)
     |> max(1)
+    |> round()
   end
 
   defp maybe_sleep(ms) do
