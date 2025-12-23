@@ -35,8 +35,20 @@ defmodule AI.Agent.ConversationQA do
     conversation = Store.Project.Conversation.new(id, project)
 
     if Store.Project.Conversation.exists?(conversation) do
-      {:ok, _ts, messages, metadata, memory} = Store.Project.Conversation.read(conversation)
-      {:ok, %{id: id, messages: messages, metadata: metadata, memory: memory}}
+      {:ok,
+       %{
+         messages: messages,
+         metadata: metadata,
+         memory: memory
+       }} = Store.Project.Conversation.read(conversation)
+
+      {:ok,
+       %{
+         id: id,
+         messages: messages,
+         metadata: metadata,
+         memory: memory
+       }}
     else
       {:error, :conversation_not_found}
     end

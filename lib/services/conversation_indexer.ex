@@ -142,11 +142,11 @@ defmodule Services.ConversationIndexer do
   # Per-conversation processing
   # ---------------------------------------------------------------------------
 
-  @spec safe_process(Store.Project.Conversation.t(), module(), Store.Project.t() | nil) :: :ok
+  @spec safe_process(Store.Project.Conversation.t(), module, Store.Project.t() | nil) :: :ok
   defp safe_process(convo, impl, project) do
     try do
       case Store.Project.Conversation.read(convo) do
-        {:ok, ts, messages, metadata, _memory} ->
+        {:ok, %{timestamp: ts, messages: messages, metadata: metadata}} ->
           json = Jason.encode!(%{"messages" => messages})
 
           with {:ok, embeddings} <- impl.get_embeddings(json) do

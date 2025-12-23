@@ -21,6 +21,13 @@ defmodule Store.Project.Conversation do
 
   @type t :: %__MODULE__{}
 
+  @type data :: %{
+          timestamp: DateTime.t(),
+          messages: AI.Util.msg_list(),
+          metadata: map,
+          memory: list
+        }
+
   @store_dir "conversations"
 
   @doc """
@@ -125,7 +132,7 @@ defmodule Store.Project.Conversation do
   Reads the conversation from the store. Returns a tuple with the timestamp,
   messages, metadata, and memory in the conversation.
   """
-  @spec read(t) :: {:ok, DateTime.t(), list, map, list(Memory.t())} | {:error, any()}
+  @spec read(t) :: {:ok, data} | {:error, any}
   def read(conversation) do
     with {:ok, contents} <- File.read(conversation.store_path),
          [timestamp_str, json] <- String.split(contents, ":", parts: 2),
@@ -147,7 +154,13 @@ defmodule Store.Project.Conversation do
         |> Util.string_keys_to_atoms()
         |> Enum.map(&Memory.new_from_map/1)
 
-      {:ok, timestamp, msgs, metadata, memories}
+      {:ok,
+       %{
+         timestamp: timestamp,
+         messages: msgs,
+         metadata: metadata,
+         memory: memories
+       }}
     end
   end
 
@@ -158,9 +171,9 @@ defmodule Store.Project.Conversation do
   """
   @spec fork(t) :: {:ok, t} | {:error, any}
   def fork(%__MODULE__{} = conversation) do
-    with {:ok, _ts, messages, metadata, memory} <- read(conversation),
+    with {:ok, data} <- read(conversation),
          forked <- new(),
-         {:ok, _} <- write(forked, messages, metadata, memory) do
+         {:ok, _} <- write(forked, data.messages, data.metadata, data.memory) do
       {:ok, forked}
     else
       other -> {:error, other}
@@ -193,8 +206,8 @@ defmodule Store.Project.Conversation do
   @spec question(t) :: {:ok, binary} | {:error, :no_question}
   def question(conversation) do
     case read(conversation) do
-      {:ok, _timestamp, msgs, _metadata, _memory} ->
-        case Enum.find(msgs, &(Map.get(&1, :role) == "user")) do
+      {:ok, data} ->
+        case Enum.find(data.messages, &(Map.get(&1, :role) == "user")) do
           nil -> {:error, :no_question}
           msg -> Map.fetch(msg, :content)
         end
@@ -211,7 +224,7 @@ defmodule Store.Project.Conversation do
   @spec num_messages(t) :: non_neg_integer()
   def num_messages(conversation) do
     case read(conversation) do
-      {:ok, _timestamp, msgs, _metadata, _memory} -> length(msgs)
+      {:ok, data} -> length(data.messages)
       _ -> 0
     end
   end

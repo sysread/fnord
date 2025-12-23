@@ -386,18 +386,18 @@ defmodule Cmd.Index do
   end
 
   defp process_conversation(project, convo) do
-    with {:ok, ts, messages, metadata, _memory} <- Store.Project.Conversation.read(convo),
-         json = Jason.encode!(%{"messages" => messages}),
+    with {:ok, data} <- Store.Project.Conversation.read(convo),
+         {:ok, json} <- Jason.encode(%{"messages" => data.messages}),
          {:ok, embeddings} <- Indexer.impl().get_embeddings(json),
          :ok <-
            Store.Project.ConversationIndex.write_embeddings(
              project,
              convo.id,
              embeddings,
-             Map.merge(metadata, %{
+             Map.merge(data.metadata, %{
                "conversation_id" => convo.id,
-               "last_indexed_ts" => DateTime.to_unix(ts),
-               "message_count" => length(messages)
+               "last_indexed_ts" => DateTime.to_unix(data.timestamp),
+               "message_count" => length(data.messages)
              })
            ) do
       :ok

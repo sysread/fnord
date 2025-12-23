@@ -1,8 +1,6 @@
 defmodule Services.Conversation do
   use GenServer
 
-  alias Store.Project.Conversation
-
   # -----------------------------------------------------------------------------
   # Client API
   # -----------------------------------------------------------------------------
@@ -59,7 +57,7 @@ defmodule Services.Conversation do
   @doc """
   Get the current conversation object.
   """
-  @spec get_conversation(pid) :: Conversation.t()
+  @spec get_conversation(pid) :: Store.Project.Conversation.t()
   def get_conversation(pid) do
     GenServer.call(pid, :get_conversation)
   end
@@ -104,7 +102,7 @@ defmodule Services.Conversation do
   conversation's timestamp and writes the messages to disk. If the conversation
   is successfully saved, the server state is reloaded with the latest data.
   """
-  @spec save(pid) :: {:ok, Conversation.t()} | {:error, any}
+  @spec save(pid) :: {:ok, Store.Project.Conversation.t()} | {:error, any}
   def save(pid) do
     GenServer.call(pid, :save)
   end
@@ -188,7 +186,7 @@ defmodule Services.Conversation do
     msgs_to_write = filter_system_messages(state.msgs)
 
     with {:ok, conversation} <-
-           Conversation.write(
+           Store.Project.Conversation.write(
              state.conversation,
              msgs_to_write,
              state.metadata,
@@ -237,7 +235,7 @@ defmodule Services.Conversation do
     {:ok,
      %{
        agent: AI.Agent.new(AI.Agent.Coordinator, agent_args),
-       conversation: Conversation.new(),
+       conversation: Store.Project.Conversation.new(),
        msgs: [],
        metadata: %{},
        ts: nil,
@@ -248,9 +246,16 @@ defmodule Services.Conversation do
   defp new(nil), do: new()
 
   defp new(id) do
-    conversation = Conversation.new(id)
+    conversation = Store.Project.Conversation.new(id)
 
-    with {:ok, ts, msgs, metadata, memory} <- Conversation.read(conversation) do
+    with {:ok, data} <- Store.Project.Conversation.read(conversation) do
+      %{
+        timestamp: ts,
+        messages: msgs,
+        metadata: metadata,
+        memory: memory
+      } = data
+
       agent_args =
         msgs
         |> find_agent_name()
