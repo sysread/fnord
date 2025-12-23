@@ -1,6 +1,20 @@
 defmodule Services.TaskTest do
   use Fnord.TestCase, async: false
 
+  setup do
+    # Create a mock project
+    project = mock_project("test_project_task_service")
+    %{conversation: conversation, conversation_pid: pid} = mock_conversation()
+
+    # Return the setup data
+    {:ok,
+     %{
+       project: project,
+       conversation: conversation,
+       conversation_pid: pid
+     }}
+  end
+
   test "start_list/0" do
     assert 1 = Services.Task.start_list()
     assert 2 = Services.Task.start_list()
@@ -127,4 +141,34 @@ defmodule Services.TaskTest do
       assert [%{id: "task2", outcome: :failed, result: "error"}] = Services.Task.get_list(list2)
     end
   end
+
+  describe "persistence and rehydration across restart" do
+    test "persists state and rehydrates after restart", %{conversation: conversation, conversation_pid: pid} do
+      list_id = Services.Task.start_list()
+      assert :ok = Services.Task.add_task(list_id, "Persistent", %{foo: "bar"})
+      assert :ok = Services.Task.complete_task(list_id, "Persistent", "Done")
+      # Ensure the conversation has up-to-date tasks before saving
+      # Poll until conversation returns the expected tasks
+      saved_tasks =
+        Enum.reduce_while(1..50, nil, fn _, _ ->
+          case Services.Conversation.get_task_list(pid, list_id) do
+            tasks = [%{id: "Persistent", outcome: :done, result: "Done", data: _} | _] ->
+              {:halt, tasks}
+            _ ->
+              Process.sleep(10)
+              {:cont, nil}
+          end
+        end)
+
+      assert match?([%{id: "Persistent", outcome: :done, result: "Done", data: _}], saved_tasks)
+      {:ok, _} = Services.Conversation.save(pid)
+      GenServer.stop(Services.Task)
+      GenServer.stop(pid)
+      {:ok, new_pid} = Services.Conversation.start_link(conversation.id)
+      {:ok, _} = Services.Task.start_link(conversation_pid: new_pid)
+      tasks = Services.Task.get_list(list_id)
+      assert [%{id: "Persistent", outcome: :done, result: "Done"}] = tasks
+    end
+  end
+
 end

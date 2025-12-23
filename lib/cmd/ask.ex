@@ -151,6 +151,7 @@ defmodule Cmd.Ask do
            :ok <- set_worktree(opts),
            {:ok, opts} <- maybe_fork_conversation(opts),
            {:ok, pid} <- Services.Conversation.start_link(opts[:follow]),
+           {:ok, _pid} <- Services.Task.start_link(conversation_pid: pid),
            :ok <-
              (
                Services.Globals.put_env(:fnord, :current_conversation, pid)

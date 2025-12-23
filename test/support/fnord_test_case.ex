@@ -49,6 +49,7 @@ defmodule Fnord.TestCase do
           git_checkout_branch!: 2,
           git_checkout_detached!: 2,
           setup_git_repo!: 2,
+          mock_conversation: 0,
           set_log_level: 1,
           set_config: 1,
           set_config: 2
@@ -371,6 +372,32 @@ defmodule Fnord.TestCase do
     git_empty_commit!(project)
     git_checkout_branch!(project, branch)
     :ok
+  end
+
+  @doc """
+  Sets up a mock conversation service and task service. Assumes that
+  `mock_project/1` has already been called to set up the project.
+  """
+  def mock_conversation() do
+    # Start a conversation
+    {:ok, conversation} =
+      Store.Project.Conversation.new()
+      |> Store.Project.Conversation.write()
+
+    # Start the conversation service
+    {:ok, conversation_pid} = Services.Conversation.start_link(conversation.id)
+
+    # Store the current conversation PID in the global environment for access
+    Services.Globals.put_env(:fnord, :current_conversation, conversation_pid)
+
+    # Start the task service
+    {:ok, task_pid} = Services.Task.start_link(conversation_pid: conversation_pid)
+
+    %{
+      conversation: conversation,
+      conversation_pid: conversation_pid,
+      task_pid: task_pid
+    }
   end
 
   @doc """

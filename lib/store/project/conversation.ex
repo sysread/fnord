@@ -25,7 +25,10 @@ defmodule Store.Project.Conversation do
           timestamp: DateTime.t(),
           messages: AI.Util.msg_list(),
           metadata: map,
-          memory: list
+          memory: list,
+          tasks: %{
+            Services.Task.list_id() => Services.Task.task_list()
+          }
         }
 
   @store_dir "conversations"
@@ -104,7 +107,7 @@ defmodule Store.Project.Conversation do
   to the current time.
   """
   @spec write(t, map) :: {:ok, t} | {:error, any()}
-  def write(conversation, data) do
+  def write(conversation, data \\ %{}) do
     # Ensure the project store directory exists
     conversation.project_home
     |> build_store_dir()
@@ -117,6 +120,7 @@ defmodule Store.Project.Conversation do
       |> Map.put_new(:messages, [])
       |> Map.put_new(:metadata, %{})
       |> Map.put_new(:memory, [])
+      |> Map.put_new(:tasks, %{})
 
     with {:ok, json} <- Jason.encode(data),
          :ok <- File.write(conversation.store_path, "#{timestamp}:#{json}") do
@@ -150,12 +154,35 @@ defmodule Store.Project.Conversation do
         |> Util.string_keys_to_atoms()
         |> Enum.map(&Memory.new_from_map/1)
 
+      tasks =
+        data
+        |> Map.get("tasks", %{})
+        |> Enum.map(fn {list_id, task_list} ->
+          list_id = String.to_integer(list_id)
+
+          tasks =
+            task_list
+            |> Util.string_keys_to_atoms()
+            |> Enum.map(fn %{id: task_id, data: data} = task_data ->
+              opts =
+                task_data
+                |> Map.drop([:id, :data])
+                |> Keyword.new()
+
+              Services.Task.new_task(task_id, data, opts)
+            end)
+
+          {list_id, tasks}
+        end)
+        |> Map.new()
+
       {:ok,
        %{
          timestamp: timestamp,
          messages: msgs,
          metadata: metadata,
-         memory: memories
+         memory: memories,
+         tasks: tasks
        }}
     end
   end

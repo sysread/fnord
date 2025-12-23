@@ -1,5 +1,6 @@
 defmodule Services.Task do
   defstruct [
+    :conversation_pid,
     :next_id,
     :lists
   ]
@@ -8,6 +9,8 @@ defmodule Services.Task do
   @type task_id :: binary
   @type task_data :: any
   @type task_result :: any
+  @type task_list :: list(task)
+
   @type task :: %{
           id: task_id,
           outcome: :todo | :done | :failed,
@@ -17,12 +20,33 @@ defmodule Services.Task do
 
   use GenServer
 
+  @doc """
+  Creates a new task with the given ID and data. Optionally accepts `:outcome`
+  (default `:todo`) and `:result` (default `nil`).
+  """
+  @spec new_task(task_id, task_data, keyword) :: task
+  def new_task(task_id, data, opts \\ []) do
+    outcome = Keyword.get(opts, :outcome, :todo)
+    result = Keyword.get(opts, :result, nil)
+
+    %{
+      id: task_id,
+      data: data,
+      outcome: outcome,
+      result: result
+    }
+  end
+
   # ----------------------------------------------------------------------------
   # Client API
   # ----------------------------------------------------------------------------
   @spec start_link(any) :: GenServer.on_start()
   def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+    with {:ok, _conversation_pid} <- Keyword.fetch(opts, :conversation_pid) do
+      GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+    else
+      :error -> {:error, :missing_conversation_pid}
+    end
   end
 
   @spec start_list() :: list_id
@@ -42,7 +66,7 @@ defmodule Services.Task do
   Fetches all tasks for the given list in chronological (oldest-first) order.
   Returns `{:error, :not_found}` if the list does not exist.
   """
-  @spec get_list(list_id) :: [task] | {:error, :not_found}
+  @spec get_list(list_id) :: task_list | {:error, :not_found}
   def get_list(list_id) do
     GenServer.call(__MODULE__, {:get_list, list_id})
   end
@@ -67,7 +91,8 @@ defmodule Services.Task do
 
   @doc """
   Marks the first task matching `task_id` as :done and stores the result.
-  Only the first matching ID is updated; others are unchanged. No-op if list or task not found.
+  Only the first matching ID is updated; others are unchanged.
+  No-op if list or task not found.
   """
   @spec complete_task(list_id, task_id, task_result) :: :ok
   def complete_task(list_id, task_id, result) do
@@ -76,7 +101,8 @@ defmodule Services.Task do
 
   @doc """
   Marks the first task matching `task_id` as :failed and stores the result.
-  Only the first matching ID is updated; others are unchanged. No-op if list or task not found.
+  Only the first matching ID is updated; others are unchanged.
+  No-op if list or task not found.
   """
   @spec fail_task(list_id, task_id, task_result) :: :ok
   def fail_task(list_id, task_id, msg) do
@@ -90,6 +116,17 @@ defmodule Services.Task do
   @spec peek_task(list_id) :: {:ok, task} | {:error, :not_found} | {:error, :empty}
   def peek_task(list_id) do
     GenServer.call(__MODULE__, {:peek_task, list_id})
+  end
+
+  @doc """
+  Returns `true` if there are no remaining `:todo`s in the list.
+  """
+  @spec all_tasks_complete?(list_id) :: {:ok, boolean}
+  def all_tasks_complete?(list_id) do
+    case get_list(list_id) do
+      {:error, :not_found} -> {:error, :not_found}
+      tasks -> {:ok, Enum.all?(tasks, &(&1.outcome != :todo))}
+    end
   end
 
   # ----------------------------------------------------------------------------
@@ -144,8 +181,17 @@ defmodule Services.Task do
   # Server Callbacks
   # ----------------------------------------------------------------------------
   @impl true
-  def init(_) do
-    {:ok, %__MODULE__{next_id: 1, lists: %{}}}
+  def init(opts) do
+    conversation_pid = Keyword.fetch!(opts, :conversation_pid)
+    tasks = rehydrate_tasks(conversation_pid)
+    max_id = [0 | Map.keys(tasks)] |> Enum.max()
+
+    {:ok,
+     %__MODULE__{
+       conversation_pid: conversation_pid,
+       next_id: max_id + 1,
+       lists: tasks
+     }}
   end
 
   @impl true
@@ -202,10 +248,11 @@ defmodule Services.Task do
         if Enum.any?(tasks, &(&1.id == task_id)) do
           {:noreply, state}
         else
-          task = %{id: task_id, data: task_data, outcome: :todo, result: nil}
+          task = new_task(task_id, task_data)
           # Prepend new task to the front of the list
-          new_lists = Map.put(state.lists, list_id, [task | tasks])
-          {:noreply, %{state | lists: new_lists}}
+          %{state | lists: Map.put(state.lists, list_id, [task | tasks])}
+          |> save_tasks()
+          |> then(&{:noreply, &1})
         end
     end
   end
@@ -221,10 +268,11 @@ defmodule Services.Task do
         if Enum.any?(tasks, &(&1.id == task_id)) do
           {:noreply, state}
         else
-          task = %{id: task_id, data: task_data, outcome: :todo, result: nil}
+          task = new_task(task_id, task_data)
           # Append new task to preserve insertion order
-          new_lists = Map.put(state.lists, list_id, tasks ++ [task])
-          {:noreply, %{state | lists: new_lists}}
+          %{state | lists: Map.put(state.lists, list_id, tasks ++ [task])}
+          |> save_tasks()
+          |> then(&{:noreply, &1})
         end
     end
   end
@@ -236,9 +284,11 @@ defmodule Services.Task do
         {:noreply, state}
 
       {:ok, tasks} ->
-        {updated_tasks, _} = resolve_task(tasks, task_id, outcome, result)
-        new_lists = Map.put(state.lists, list_id, updated_tasks)
-        {:noreply, %{state | lists: new_lists}}
+        with {updated_tasks, _} <- resolve_task(tasks, task_id, outcome, result) do
+          %{state | lists: Map.put(state.lists, list_id, updated_tasks)}
+          |> save_tasks()
+          |> then(&{:noreply, &1})
+        end
     end
   end
 
@@ -260,5 +310,33 @@ defmodule Services.Task do
         updated = %{first | outcome: outcome, result: result}
         {before ++ [updated | tail], true}
     end
+  end
+
+  defp save_tasks(%{conversation_pid: pid} = state) do
+    state.lists
+    |> Enum.map(fn {list_id, tasks} ->
+      Services.Conversation.upsert_task_list(pid, list_id, tasks)
+    end)
+
+    state
+  end
+
+  defp rehydrate_tasks(pid) do
+    pid
+    |> Services.Conversation.get_task_lists()
+    |> Enum.map(fn task_list_id ->
+      case Services.Conversation.get_task_list(pid, task_list_id) do
+        nil ->
+          {task_list_id, []}
+
+        tasks ->
+          tasks
+          |> Enum.map(fn task ->
+            %{task | outcome: String.to_existing_atom(task.outcome)}
+          end)
+          |> then(&{task_list_id, &1})
+      end
+    end)
+    |> Map.new()
   end
 end

@@ -30,7 +30,8 @@ defmodule Services.Conversation do
   end
 
   @doc """
-  Append a new message to the conversation. Does not save the conversation.
+  Append a new message to the conversation.
+  Does not save the conversation.
   """
   @spec append_msg(AI.Util.msg(), pid) :: :ok
   def append_msg(new_msg, pid) do
@@ -98,6 +99,31 @@ defmodule Services.Conversation do
   end
 
   @doc """
+  Get all task lists for this conversation.
+  """
+  @spec get_task_lists(pid) :: [Services.Task.task_id()]
+  def get_task_lists(pid) do
+    GenServer.call(pid, :get_task_lists)
+  end
+
+  @doc """
+  Get the task list with the given ID for this conversation.
+  """
+  @spec get_task_list(pid, Services.Task.task_id()) :: Services.Task.task_list() | nil
+  def get_task_list(pid, task_list_id) do
+    GenServer.call(pid, {:get_task_list, task_list_id})
+  end
+
+  @doc """
+  Upsert (insert or update) the given task list in the conversation's task
+  store, replacing any existing list with the same ID.
+  """
+  @spec upsert_task_list(pid, Services.Task.task_id(), Services.Task.task_list()) :: :ok
+  def upsert_task_list(pid, task_list_id, tasks) do
+    GenServer.cast(pid, {:upsert_task_list, task_list_id, tasks})
+  end
+
+  @doc """
   Save the current conversation to persistent storage. This updates the
   conversation's timestamp and writes the messages to disk. If the conversation
   is successfully saved, the server state is reloaded with the latest data.
@@ -157,6 +183,10 @@ defmodule Services.Conversation do
     {:noreply, %{state | memory: memory}}
   end
 
+  def handle_cast({:upsert_task_list, task_list_id, tasks}, state) do
+    {:noreply, %{state | tasks: Map.put(state.tasks, task_list_id, tasks)}}
+  end
+
   def handle_call(:get_id, _from, state) do
     {:reply, state.conversation.id, state}
   end
@@ -181,12 +211,21 @@ defmodule Services.Conversation do
     {:reply, state.memory, state}
   end
 
+  def handle_call(:get_task_lists, _from, state) do
+    {:reply, Map.keys(state.tasks), state}
+  end
+
+  def handle_call({:get_task_list, task_list_id}, _from, state) do
+    {:reply, Map.get(state.tasks, task_list_id), state}
+  end
+
   def handle_call(:save, _from, state) do
     data = %{
       # Before persisting, strip recurring system prompts per settings
       messages: filter_system_messages(state.msgs),
       metadata: state.metadata,
-      memory: state.memory
+      memory: state.memory,
+      tasks: state.tasks
     }
 
     with {:ok, conversation} <- Store.Project.Conversation.write(state.conversation, data),
@@ -238,7 +277,8 @@ defmodule Services.Conversation do
        msgs: [],
        metadata: %{},
        ts: nil,
-       memory: []
+       memory: [],
+       tasks: %{}
      }}
   end
 
@@ -252,7 +292,8 @@ defmodule Services.Conversation do
         timestamp: ts,
         messages: msgs,
         metadata: metadata,
-        memory: memory
+        memory: memory,
+        tasks: tasks
       } = data
 
       agent_args =
@@ -277,10 +318,11 @@ defmodule Services.Conversation do
        %{
          agent: agent,
          conversation: conversation,
+         ts: ts,
          msgs: msgs,
          metadata: metadata,
-         ts: ts,
-         memory: memory
+         memory: memory,
+         tasks: tasks
        }}
     end
   end
@@ -291,9 +333,7 @@ defmodule Services.Conversation do
     msgs
     |> Enum.find_value(fn
       %{role: "system", content: content} ->
-        re
-        |> Regex.run(content)
-        |> case do
+        case Regex.run(re, content) do
           [_, name] -> name
           _ -> nil
         end

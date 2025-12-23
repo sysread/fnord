@@ -3,14 +3,17 @@ defmodule Cmd.AskTest do
 
   setup do
     Services.Globals.delete_env(:fnord, :auto_policy)
+
     # Ensure settings directory exists without deleting it to avoid races
     settings_file = Settings.settings_file()
     settings_dir = Path.dirname(settings_file)
     File.mkdir_p!(settings_dir)
+
     # Ensure lock directory parent exists so FileLock can create locks without errors
     lock_dir = settings_file <> ".lock"
     lock_parent = Path.dirname(lock_dir)
     File.mkdir_p!(lock_parent)
+
     :ok
   end
 

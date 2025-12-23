@@ -24,7 +24,6 @@ defmodule AI.Agent.Coordinator do
     # --------------------------------------------------------------------------
     # Task list management
     # --------------------------------------------------------------------------
-    :list_id,
     :task_checks,
 
     # --------------------------------------------------------------------------
@@ -61,7 +60,6 @@ defmodule AI.Agent.Coordinator do
           editing_tools_used: boolean,
 
           # State: Task list management
-          list_id: Services.Task.list_id(),
           task_checks: non_neg_integer | nil,
 
           # State: Interrupt handling
@@ -112,8 +110,6 @@ defmodule AI.Agent.Coordinator do
       GenServer.stop(Services.Approvals, :normal)
       {:ok, _pid} = Services.Approvals.start_link()
 
-      list_id = Services.Task.start_list()
-
       %__MODULE__{
         # Agent
         agent: agent,
@@ -136,7 +132,6 @@ defmodule AI.Agent.Coordinator do
         intuition: nil,
         editing_tools_used: false,
         fonz: Map.get(opts, :fonz, false),
-        list_id: list_id,
         task_checks: 0,
         pending_interrupts: []
       }
@@ -380,24 +375,33 @@ defmodule AI.Agent.Coordinator do
   # out.
   defp perform_step(%{steps: [:check_tasks | steps], task_checks: task_checks} = state)
        when task_checks < @max_task_checks do
-    UI.begin_step("Flushing the queue")
-
-    state.list_id
-    |> Services.Task.peek_task()
+    Services.Task.list_ids()
+    |> Enum.reject(fn list_id ->
+      list_id
+      |> Services.Task.all_tasks_complete?()
+      |> case do
+        {:ok, true} -> true
+        _ -> false
+      end
+    end)
     |> case do
-      {:ok, _task} ->
+      [] ->
+        UI.info("All tasks complete!")
+
+        state
+        |> Map.put(:steps, steps)
+        |> perform_step()
+
+      list_ids ->
+        UI.begin_step("Flushing the queue")
+
         state
         |> Map.put(:steps, [:check_tasks | steps])
         |> Map.put(:task_checks, task_checks + 1)
         |> task_list_msg()
-        |> penultimate_tasks_check_msg()
+        |> penultimate_tasks_check_msg(list_ids)
         |> get_completion()
         |> save_notes()
-        |> perform_step()
-
-      _ ->
-        state
-        |> Map.put(:steps, steps)
         |> perform_step()
     end
   end
@@ -1467,8 +1471,13 @@ defmodule AI.Agent.Coordinator do
     state
   end
 
-  @spec penultimate_tasks_check_msg(t) :: t
-  defp penultimate_tasks_check_msg(%{conversation: conversation} = state) do
+  @spec penultimate_tasks_check_msg(t, list) :: t
+  defp penultimate_tasks_check_msg(%{conversation: conversation} = state, list_ids) do
+    md_list =
+      list_ids
+      |> Enum.map(&" - `#{&1}`")
+      |> Enum.join("\n")
+
     """
     ALL tasks must be resolved before final output!
     - Call `tasks_show_list` and read it carefully.
@@ -1476,6 +1485,9 @@ defmodule AI.Agent.Coordinator do
     - Do not produce the final response until tasks are resolved OR explicitly carried forward with clear follow-ups.
 
     YOU WILL CONTINUE TO BE SENT BACK TO THIS STEP UNTIL ALL TASKS ARE RESOLVED OR CANCELED.
+
+    The following task lists still have incomplete tasks:
+    #{md_list}
     """
     |> AI.Util.system_msg()
     |> Services.Conversation.append_msg(conversation)
@@ -1484,17 +1496,22 @@ defmodule AI.Agent.Coordinator do
   end
 
   @spec task_list_msg(t) :: t
-  defp task_list_msg(%{conversation: conversation, list_id: list_id} = state) do
-    tasks = Services.Task.as_string(list_id)
+  defp task_list_msg(%{conversation: conversation} = state) do
+    Services.Task.list_ids()
+    |> Enum.each(fn list_id ->
+      tasks = Services.Task.as_string(list_id)
+
+      """
+      ## Task list ID: `#{list_id}`
+      Use this ID when invoking task management tools for this list.
+      #{tasks}
+      """
+      |> AI.Util.system_msg()
+      |> Services.Conversation.append_msg(conversation)
+    end)
 
     """
-    Task list ID: `#{list_id}` (use this ID when invoking task management tools)
-
-    Current task list:
-    #{tasks}
-
-    The `tasks_show_list` tool can be used to display these tasks in more
-    detail, including detailed descriptions and statuses.
+    The `tasks_show_list` tool displays these tasks in more detail, including descriptions and statuses.
     """
     |> AI.Util.system_msg()
     |> Services.Conversation.append_msg(conversation)

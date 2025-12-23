@@ -20,7 +20,6 @@ defmodule Services do
     Registry.start_link(keys: :unique, name: MCP.ClientRegistry)
     Services.Once.start_link()
     Services.Notes.start_link()
-    Services.Task.start_link()
     Services.Conversation.Interrupts.start_link([])
     AI.Agent.Researcher.start_link()
     Services.BackupFile.start_link()
