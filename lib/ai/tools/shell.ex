@@ -1,5 +1,5 @@
 defmodule AI.Tools.Shell do
-  @default_timeout_ms 5_000
+  @default_timeout_ms 30_000
   @max_timeout_ms 300_000
 
   @runner """
