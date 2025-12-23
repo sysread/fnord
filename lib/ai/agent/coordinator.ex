@@ -1,11 +1,7 @@
 defmodule AI.Agent.Coordinator do
   @moduledoc """
-  This agent uses a combination of the reasoning features of the OpenAI o3-mini
-  model as well as its own reasoning process to research and answer the input
-  question.
-
-  It is able to use most of the tools available and will save notes for future
-  use before finalizing its response.
+  This agent applies a multi-step reasoning process to research, debug, and
+  code in response to the user's prompt.
   """
 
   defstruct [
