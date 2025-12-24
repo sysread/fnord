@@ -370,4 +370,13 @@ defmodule Util do
     lines = String.split(input, ~r/\r\n|\n/, trim: false)
     do_truncate(lines, limit)
   end
+
+  @spec truncate_chars(binary, non_neg_integer) :: binary
+  def truncate_chars(input, max_chars) when is_binary(input) and is_integer(max_chars) and max_chars > 0 do
+    if String.length(input) > max_chars do
+      String.slice(input, 0, max_chars) <> "..."
+    else
+      input
+    end
+  end
 end

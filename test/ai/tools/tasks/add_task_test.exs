@@ -78,6 +78,36 @@ defmodule AI.Tools.Tasks.AddTaskTest do
     end
   end
 
+  describe "ui_note_on_request/1" do
+    test "truncates long single task_id" do
+      long_id = String.duplicate("a", 17)
+      {truncated, data} = AI.Tools.Tasks.AddTask.ui_note_on_request(%{"task_id" => long_id, "data" => "b"})
+      assert truncated == String.slice(long_id, 0, 16) <> "..."
+      assert data == "b"
+    end
+
+    test "truncates long task_id in tasks list" do
+      long_id = String.duplicate("a", 17)
+      {truncated, data} = AI.Tools.Tasks.AddTask.ui_note_on_request(%{"tasks" => [%{"task_id" => long_id, "data" => "x"}]})
+      assert truncated == String.slice(long_id, 0, 16) <> "..."
+      assert data == "x"
+    end
+
+    test "ui note for multiple tasks returns count and truncated ids" do
+      long_ids = ["id1_long_id_1", String.duplicate("b", 20), String.duplicate("c", 18)]
+      tasks = Enum.map(long_ids, fn id -> %{"task_id" => id, "data" => "d"} end)
+      {msg, ids_str} = AI.Tools.Tasks.AddTask.ui_note_on_request(%{"tasks" => tasks})
+      assert msg == "Adding #{length(tasks)} tasks"
+      expected_ids =
+        long_ids
+        |> Enum.map(fn id ->
+          if String.length(id) > 16, do: String.slice(id, 0, 16) <> "...", else: id
+        end)
+        |> Enum.join(", ")
+      assert ids_str == expected_ids
+    end
+  end
+
   describe "read_args/1 batch" do
     test "normalizes single-element tasks list" do
       args = %{"list_id" => 1, "tasks" => [%{"task_id" => "a", "data" => "A"}]}

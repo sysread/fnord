@@ -35,20 +35,25 @@ defmodule AI.Tools.Tasks.AddTask do
 
   @impl AI.Tools
   def ui_note_on_request(%{"tasks" => [%{"task_id" => task_id, "data" => data}]}) do
-    {task_id, data}
+    {Util.truncate_chars(task_id, 16), data}
   end
 
   @impl AI.Tools
   def ui_note_on_request(%{"tasks" => tasks}) when is_list(tasks) do
     count = length(tasks)
-    ids = Enum.map(tasks, & &1["task_id"])
-    preview = ids |> Enum.take(3) |> Enum.join(", ")
+
+    preview =
+      tasks
+      |> Enum.map(&Util.truncate_chars(&1["task_id"], 16))
+      |> Enum.take(3)
+      |> Enum.join(", ")
+
     {"Adding #{count} tasks", preview}
   end
 
   @impl AI.Tools
   def ui_note_on_request(%{"task_id" => task_id, "data" => data}) do
-    {task_id, data}
+    {Util.truncate_chars(task_id, 16), data}
   end
 
   @impl AI.Tools
