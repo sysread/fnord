@@ -22,11 +22,6 @@ defmodule AI.Agent.Coordinator do
     :editing_tools_used,
 
     # --------------------------------------------------------------------------
-    # Task list management
-    # --------------------------------------------------------------------------
-    :task_checks,
-
-    # --------------------------------------------------------------------------
     # Interrupt handling
     # --------------------------------------------------------------------------
     # PID of interrupt listener process
@@ -59,9 +54,6 @@ defmodule AI.Agent.Coordinator do
           intuition: binary | nil,
           editing_tools_used: boolean,
 
-          # State: Task list management
-          task_checks: non_neg_integer | nil,
-
           # State: Interrupt handling
           _interrupt_listener: pid | nil,
           pending_interrupts: AI.Util.msg_list(),
@@ -71,7 +63,6 @@ defmodule AI.Agent.Coordinator do
   @type error :: {:error, binary | atom | :testing}
   @type state :: t | error
 
-  @max_task_checks 2
   @memory_recall_limit 3
   @memory_size_limit 1000
 
@@ -132,7 +123,6 @@ defmodule AI.Agent.Coordinator do
         intuition: nil,
         editing_tools_used: false,
         fonz: Map.get(opts, :fonz, false),
-        task_checks: 0,
         pending_interrupts: []
       }
     end
@@ -370,21 +360,21 @@ defmodule AI.Agent.Coordinator do
     |> perform_step()
   end
 
-  # Check for remaining tasks in the list, up to a maximum number of checks. If
-  # tasks remain, let the agent know and give it another chance to flush them
-  # out.
-  defp perform_step(%{steps: [:check_tasks | steps], task_checks: task_checks} = state)
-       when task_checks < @max_task_checks do
-    Services.Task.list_ids()
-    |> Enum.reject(fn list_id ->
-      list_id
-      |> Services.Task.all_tasks_complete?()
-      |> case do
-        {:ok, true} -> true
-        _ -> false
-      end
-    end)
-    |> case do
+  # Check for remaining tasks in task lists. Task lists are persisted with the
+  # conversation, so it is OK to carry tasks forward across multiple sessions.
+  defp perform_step(%{steps: [:check_tasks | steps]} = state) do
+    incomplete_list_ids =
+      Services.Task.list_ids()
+      |> Enum.reject(fn list_id ->
+        list_id
+        |> Services.Task.all_tasks_complete?()
+        |> case do
+          {:ok, true} -> true
+          _ -> false
+        end
+      end)
+
+    case incomplete_list_ids do
       [] ->
         UI.info("All tasks complete!")
 
@@ -393,26 +383,16 @@ defmodule AI.Agent.Coordinator do
         |> perform_step()
 
       list_ids ->
-        UI.begin_step("Flushing the queue")
+        UI.begin_step("Reviewing task lists")
 
         state
-        |> Map.put(:steps, [:check_tasks | steps])
-        |> Map.put(:task_checks, task_checks + 1)
+        |> Map.put(:steps, steps)
         |> task_list_msg()
         |> penultimate_tasks_check_msg(list_ids)
         |> get_completion()
         |> save_notes()
         |> perform_step()
     end
-  end
-
-  # Max checks reached, but tasks remain. Give up and move on to finalization.
-  defp perform_step(%{steps: [:check_tasks | steps]} = state) do
-    UI.info("Tasks remaining, but max checks reached. Moving on.")
-
-    state
-    |> Map.put(:steps, steps)
-    |> perform_step()
   end
 
   defp perform_step(%{steps: [:learn | steps]} = state) do
@@ -1475,16 +1455,18 @@ defmodule AI.Agent.Coordinator do
   defp penultimate_tasks_check_msg(%{conversation: conversation} = state, list_ids) do
     md_list =
       list_ids
-      |> Enum.map(&" - `#{&1}`")
+      |> Enum.map(&" - ID: `#{&1}`")
       |> Enum.join("\n")
 
     """
-    ALL tasks must be resolved before final output!
-    - Call `tasks_show_list` and read it carefully.
-    - If any tasks remain open, either resolve them immediately or convert them into concrete follow-ups (label + detailed description + rationale).
-    - Do not produce the final response until tasks are resolved OR explicitly carried forward with clear follow-ups.
+    # Task lists check-in
+    Task lists are persisted with the conversation.
 
-    YOU WILL CONTINUE TO BE SENT BACK TO THIS STEP UNTIL ALL TASKS ARE RESOLVED OR CANCELED.
+    It is OK to leave tasks open across multiple sessions when they represent real follow-up work.
+    - Use `tasks_show_list` and read it carefully.
+    - If a task is done, resolve it.
+    - If a task should not persist (stale, superseded, or no longer relevant), resolve it with a short note explaining why.
+    - If a task is vague, rewrite it into a concrete follow-up (label + detailed description + rationale).
 
     The following task lists still have incomplete tasks:
     #{md_list}
@@ -1497,21 +1479,23 @@ defmodule AI.Agent.Coordinator do
 
   @spec task_list_msg(t) :: t
   defp task_list_msg(%{conversation: conversation} = state) do
-    Services.Task.list_ids()
-    |> Enum.each(fn list_id ->
-      tasks = Services.Task.as_string(list_id)
+    tasks =
+      Services.Task.list_ids()
+      |> Enum.each(fn list_id ->
+        tasks = Services.Task.as_string(list_id)
 
-      """
-      ## Task list ID: `#{list_id}`
-      Use this ID when invoking task management tools for this list.
-      #{tasks}
-      """
-      |> AI.Util.system_msg()
-      |> Services.Conversation.append_msg(conversation)
-    end)
+        """
+        ## Task list ID: `#{list_id}`
+        Use this ID when invoking task management tools for this list.
+        #{tasks}
+        """
+      end)
+      |> Enum.join("\n\n")
 
     """
+    # Tasks
     The `tasks_show_list` tool displays these tasks in more detail, including descriptions and statuses.
+    #{tasks}
     """
     |> AI.Util.system_msg()
     |> Services.Conversation.append_msg(conversation)

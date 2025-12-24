@@ -84,7 +84,7 @@ defmodule Store.Project.ConversationTest do
     assert ^ts = Conversation.timestamp(convo)
     assert {:ok, "Hello, I am User."} = Conversation.question(convo)
   end
-  
+
   test "tasks round-trip through write/2 and read/1" do
     tasks = %{
       1 => [
@@ -99,12 +99,13 @@ defmodule Store.Project.ConversationTest do
 
     assert {:ok, %{messages: [], memory: [], tasks: tasks_map}} = Conversation.read(convo)
     assert Map.has_key?(tasks_map, 1)
-    assert [
-      %{id: "t1", data: "d1", outcome: "todo", result: nil},
-      %{id: "t2", data: "d2", outcome: "done", result: "ok"}
-    ] = tasks_map[1]
 
+    assert [
+             %{id: "t1", data: "d1", outcome: "todo", result: nil},
+             %{id: "t2", data: "d2", outcome: "done", result: "ok"}
+           ] = tasks_map[1]
   end
+
   test "list/1 returns conversations in descending timestamp order", ctx do
     id1 = "one"
     id2 = "two"

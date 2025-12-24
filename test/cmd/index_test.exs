@@ -64,7 +64,13 @@ defmodule Cmd.IndexTest do
       # Create a conversation for the project
       conversation = Store.Project.Conversation.new("conv1", project)
       messages = [AI.Util.system_msg("Hello")]
-      {:ok, _} = Store.Project.Conversation.write(conversation, %{messages: messages, metadata: %{}, memories: []})
+
+      {:ok, _} =
+        Store.Project.Conversation.write(conversation, %{
+          messages: messages,
+          metadata: %{},
+          memories: []
+        })
 
       # Stub the indexer implementation
       Services.Globals.put_env(:fnord, :indexer, StubIndexer)

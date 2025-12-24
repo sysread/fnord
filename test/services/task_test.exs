@@ -143,7 +143,10 @@ defmodule Services.TaskTest do
   end
 
   describe "persistence and rehydration across restart" do
-    test "persists state and rehydrates after restart", %{conversation: conversation, conversation_pid: pid} do
+    test "persists state and rehydrates after restart", %{
+      conversation: conversation,
+      conversation_pid: pid
+    } do
       list_id = Services.Task.start_list()
       assert :ok = Services.Task.add_task(list_id, "Persistent", %{foo: "bar"})
       assert :ok = Services.Task.complete_task(list_id, "Persistent", "Done")
@@ -154,6 +157,7 @@ defmodule Services.TaskTest do
           case Services.Conversation.get_task_list(pid, list_id) do
             tasks = [%{id: "Persistent", outcome: :done, result: "Done", data: _} | _] ->
               {:halt, tasks}
+
             _ ->
               Process.sleep(10)
               {:cont, nil}
@@ -170,5 +174,4 @@ defmodule Services.TaskTest do
       assert [%{id: "Persistent", outcome: :done, result: "Done"}] = tasks
     end
   end
-
 end

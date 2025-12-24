@@ -40,8 +40,12 @@ defmodule Services.ConversationIndexerTest do
     convo2 = Store.Project.Conversation.new("two", project)
 
     messages = [AI.Util.system_msg("hello")]
-    {:ok, _} = Store.Project.Conversation.write(convo1, %{messages: messages, metadata: %{}, memories: []})
-    {:ok, _} = Store.Project.Conversation.write(convo2, %{messages: messages, metadata: %{}, memories: []})
+
+    {:ok, _} =
+      Store.Project.Conversation.write(convo1, %{messages: messages, metadata: %{}, memories: []})
+
+    {:ok, _} =
+      Store.Project.Conversation.write(convo2, %{messages: messages, metadata: %{}, memories: []})
 
     {:ok, pid} = ConversationIndexer.start_link(project: project, conversations: [convo1, convo2])
     ref = Process.monitor(pid)
