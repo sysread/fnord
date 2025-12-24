@@ -1481,7 +1481,7 @@ defmodule AI.Agent.Coordinator do
   defp task_list_msg(%{conversation: conversation} = state) do
     tasks =
       Services.Task.list_ids()
-      |> Enum.each(fn list_id ->
+      |> Enum.map(fn list_id ->
         tasks = Services.Task.as_string(list_id)
 
         """
