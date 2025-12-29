@@ -14,7 +14,7 @@ defmodule AI.Tools.Memory do
   end
 
   def ui_note_on_request(%{"action" => "recall", "scope" => scope, "what" => what}) do
-    {"Recalling memories (#{scope})", what}
+    {"Recalling memories", "<#{scope}> " <> what}
   end
 
   def ui_note_on_request(%{
@@ -24,11 +24,11 @@ defmodule AI.Tools.Memory do
         "content" => content
       }) do
     UI.debug("memory", """
-    New (#{scope}): #{UI.bold(title)}
+    New (scope: #{scope}): #{UI.bold(title)}
     #{UI.italicize(content)}
     """)
 
-    {"Note to self (new in #{scope})", title}
+    {"Note to self", "<#{scope}> " <> title}
   end
 
   def ui_note_on_request(%{
@@ -38,15 +38,15 @@ defmodule AI.Tools.Memory do
         "new_content" => new_content
       }) do
     UI.debug("memory", """
-    Update (#{scope}): #{UI.bold(title)}
+    Update (scope: #{scope}): #{UI.bold(title)}
     #{UI.italicize(new_content)}
     """)
 
-    {"Note to self (append to #{scope})", title}
+    {"Note to self", "<#{scope}> " <> title}
   end
 
   def ui_note_on_request(%{"action" => "forget", "scope" => scope, "title" => title}) do
-    {"Forgetting (#{scope})", title}
+    {"Forgetting", "<#{scope}> " <> title}
   end
 
   def ui_note_on_request(_), do: nil

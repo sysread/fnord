@@ -17,7 +17,8 @@ defmodule AI.Agent.Intuition do
   - The user's motives or reactions
   - The user's emotional state or tone
   - What is being requested of you
-  - The length of the conversation (implying that the user may be correcting misteps or failed actions on your part)
+  - The length of the conversation (implying the user may be correcting your misteps)
+  - The topics and decision-making context that lead to the most recent user prompt (if any)
 
   Interpret the situation holistically, but be realistic and do not overreach.
   You are the *objective observer* of the situation.
@@ -27,7 +28,7 @@ defmodule AI.Agent.Intuition do
 
   You are NOT responding to the user.
   Your output will be presented to the various subconscious drives to generate instinctive reactions.
-  Respond with a short paragraph or two presenting a hollistic, first-person interpretation of events.
+  Respond briefly, presenting a hollistic, first-person interpretation of events (e.g., "The user is asking us to...", "The user has changed their mind about...", "The user is concerned with...", etc.)
   """
 
   @synthesis """
