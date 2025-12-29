@@ -35,11 +35,11 @@ defmodule AI.Tools.Tasks.ResolveTask do
 
   @impl AI.Tools
   def ui_note_on_request(%{"task_id" => task_id, "disposition" => "success"}) do
-    "✓ #{Util.truncate_chars(task_id, 16)}"
+    "✓ #{Util.truncate_chars(task_id, 50)}"
   end
 
   def ui_note_on_request(%{"task_id" => task_id, "disposition" => "failure"}) do
-    "✗ #{Util.truncate_chars(task_id, 16)}"
+    "✗ #{Util.truncate_chars(task_id, 50)}"
   end
 
   @impl AI.Tools

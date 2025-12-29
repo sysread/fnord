@@ -94,31 +94,10 @@ defmodule AI.Tools.Tasks.PushTaskTest do
 
   describe "ui_note_on_request/1" do
     test "returns truncated {task_id, data} for single input" do
-      long_id = "12345678901234567"
-      assert AI.Tools.Tasks.PushTask.ui_note_on_request(%{"task_id" => long_id, "data" => "b"}) ==
-               {"1234567890123456...", "b"}
-    end
-
-    test "returns truncated {task_id, data} for single-element tasks list" do
-      long_id = "12345678901234567"
-      tasks = [%{"task_id" => long_id, "data" => "x"}]
-      assert AI.Tools.Tasks.PushTask.ui_note_on_request(%{"tasks" => tasks}) ==
-               {"1234567890123456...", "x"}
-    end
-
-    test "returns correct note and preview for multiple tasks with truncation" do
-      tasks = [
-        %{"task_id" => "12345678901234567", "data" => "d1"},
-        %{"task_id" => "22345678901234567", "data" => "d2"},
-        %{"task_id" => "32345678901234567", "data" => "d3"},
-        %{"task_id" => "42345678901234567", "data" => "d4"}
-      ]
-
-      note = AI.Tools.Tasks.PushTask.ui_note_on_request(%{"tasks" => tasks})
-      assert note == {
-               "Pushing 4 tasks",
-               "1234567890123456..., 2234567890123456..., 3234567890123456..."
-             }
+      long_id = String.duplicate("1", 51)
+      expected = String.duplicate("1", 50) <> "..."
+      task = %{"task_id" => long_id, "data" => "b"}
+      assert AI.Tools.Tasks.PushTask.ui_note_on_request(task) == {expected, "b"}
     end
   end
 

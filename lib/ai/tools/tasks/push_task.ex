@@ -36,7 +36,7 @@ defmodule AI.Tools.Tasks.PushTask do
 
   @impl AI.Tools
   def ui_note_on_request(%{"tasks" => [%{"task_id" => task_id, "data" => data}]}) do
-    {Util.truncate_chars(task_id, 16), data}
+    {Util.truncate_chars(task_id, 50), data}
   end
 
   @impl AI.Tools
@@ -45,7 +45,7 @@ defmodule AI.Tools.Tasks.PushTask do
 
     preview =
       tasks
-      |> Enum.map(&Util.truncate_chars(&1["task_id"], 16))
+      |> Enum.map(&Util.truncate_chars(&1["task_id"], 50))
       |> Enum.take(3)
       |> Enum.join(", ")
 
@@ -54,7 +54,7 @@ defmodule AI.Tools.Tasks.PushTask do
 
   @impl AI.Tools
   def ui_note_on_request(%{"task_id" => task_id, "data" => data}) do
-    {Util.truncate_chars(task_id, 16), data}
+    {Util.truncate_chars(task_id, 50), data}
   end
 
   @impl AI.Tools
