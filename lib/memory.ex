@@ -630,9 +630,10 @@ defmodule Memory do
   end
 
   defp get_label(conversation, response) do
-    width =
-      Owl.IO.columns() -
-        String.length("[info] ✓ Remembered: [xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx] ")
+    cols = Owl.IO.columns() || 120
+    prefix_len = String.length("[info] ✓ Remembered: [xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx] ")
+    min_width = 20
+    width = max(cols - prefix_len, min_width)
 
     response
     |> String.split("\n")

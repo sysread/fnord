@@ -16,7 +16,10 @@ defmodule AI.Agent.Memory.IngestTest do
 
     on_exit(fn ->
       :meck.unload(AI.CompletionAPI)
-      Agent.stop(capture)
+
+      if Process.alive?(capture) do
+        Agent.stop(capture)
+      end
     end)
 
     msgs = [
@@ -24,7 +27,10 @@ defmodule AI.Agent.Memory.IngestTest do
       AI.Util.user_msg("User asks a thing"),
       AI.Util.assistant_msg("<think>secret reasoning</think>"),
       AI.Util.assistant_msg("Visible assistant content"),
-      %{role: "assistant", tool_calls: [%{id: "t1", function: %{name: "memory_tool", arguments: "{}"}}]},
+      %{
+        role: "assistant",
+        tool_calls: [%{id: "t1", function: %{name: "memory_tool", arguments: "{}"}}]
+      },
       %{role: "tool", content: "tool result", tool_call_id: "t1"}
     ]
 
@@ -47,14 +53,30 @@ defmodule AI.Agent.Memory.IngestTest do
            end)
 
     # Should keep user messages, visible assistant messages, tool calls, and tool results
-    assert Enum.any?(seen, fn %{role: "user", content: "User asks a thing"} -> true; _ -> false end)
-    assert Enum.any?(seen, fn %{role: "assistant", content: "Visible assistant content"} -> true; _ -> false end)
-    assert Enum.any?(seen, fn %{role: "assistant", tool_calls: _} -> true; _ -> false end)
-    assert Enum.any?(seen, fn %{role: "tool", content: "tool result"} -> true; _ -> false end)
+    assert Enum.any?(seen, fn
+             %{role: "user", content: "User asks a thing"} -> true
+             _ -> false
+           end)
+
+    assert Enum.any?(seen, fn
+             %{role: "assistant", content: "Visible assistant content"} -> true
+             _ -> false
+           end)
+
+    assert Enum.any?(seen, fn
+             %{role: "assistant", tool_calls: _} -> true
+             _ -> false
+           end)
+
+    assert Enum.any?(seen, fn
+             %{role: "tool", content: "tool result"} -> true
+             _ -> false
+           end)
 
     # Ensure the ingestion system prompt is present
     assert Enum.any?(seen, fn
-             %{role: "system", content: content} when is_binary(content) ->
+             %{role: role, content: content}
+             when role in ["system", "developer"] and is_binary(content) ->
                String.contains?(content, "You are the Long Term Memory Agent")
 
              _ ->

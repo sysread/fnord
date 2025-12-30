@@ -163,7 +163,7 @@ defmodule Cmd.Ask do
         end_time = System.monotonic_time(:second)
 
         # shut down long-term memory ingestion task
-        Task.shutdown(memory_task, :brutal_kill)
+        Task.shutdown(memory_task, 1_000) || Task.shutdown(memory_task, :brutal_kill)
 
         print_result(start_time, end_time, response, usage, context, conversation_id)
         Clipboard.copy(conversation_id)

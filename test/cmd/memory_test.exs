@@ -24,7 +24,7 @@ defmodule Cmd.MemoryTest do
 
       assert stdout =~ "# Memories"
       assert stdout =~ "## global"
-      assert stdout =~ "### Global Test"
+      assert stdout =~ "### [global] Global Test"
       assert stdout =~ "some content"
     end
 
@@ -45,7 +45,7 @@ defmodule Cmd.MemoryTest do
       assert stdout =~ "## global"
       refute stdout =~ "## project"
       refute stdout =~ "## session"
-      assert stdout =~ "### Only Global"
+      assert stdout =~ "### [global] Only Global"
     end
 
     test "semantic search includes score line" do
