@@ -106,8 +106,12 @@ defmodule Store.Project.Conversation do
   end
 
   @doc """
-  Saves the conversation in the store. The conversation's timestamp is updated
-  to the current time.
+  Saves the conversation in the store.
+
+  For new conversations, generates a fresh timestamp.
+  For existing conversations, only updates the on-disk timestamp if the conversation's messages have changed;
+  otherwise reuses the existing timestamp. Incoming data is merged with existing conversation data so
+  that missing keys fallback to the existing values.
   """
   @spec write(t, map) :: {:ok, t} | {:error, any()}
   def write(conversation, data \\ %{}) do
@@ -116,16 +120,69 @@ defmodule Store.Project.Conversation do
     |> build_store_dir()
     |> File.mkdir_p()
 
-    timestamp = marshal_ts()
+    {timestamp, final_data} =
+      if exists?(conversation) do
+        case read(conversation) do
+          {:ok, existing} ->
+            # Prepare existing fields for merge
+            existing_data = %{
+              messages: existing.messages,
+              metadata: existing.metadata,
+              memory: existing.memory,
+              tasks: existing.tasks
+            }
 
-    data =
-      data
-      |> Map.put_new(:messages, [])
-      |> Map.put_new(:metadata, %{})
-      |> Map.put_new(:memory, [])
-      |> Map.put_new(:tasks, %{})
+            # Merge incoming data over existing data
+            merged = Map.merge(existing_data, data)
 
-    with {:ok, json} <- Jason.encode(data),
+            # Normalize incoming messages (string vs atom keys) before comparing
+            merged_messages =
+              merged
+              |> Map.get(:messages, [])
+              |> Util.string_keys_to_atoms()
+
+            merged = Map.put(merged, :messages, merged_messages)
+
+            # Reuse timestamp if messages unchanged
+            existing_msgs = existing_data.messages
+
+            timestamp =
+              if merged_messages == existing_msgs do
+                DateTime.to_unix(existing.timestamp)
+              else
+                marshal_ts()
+              end
+
+            {timestamp, merged}
+
+          _ ->
+            # Unable to read existing; treat as new
+            ts = marshal_ts()
+
+            new_data =
+              data
+              |> Map.put_new(:messages, [])
+              |> Map.put_new(:metadata, %{})
+              |> Map.put_new(:memory, [])
+              |> Map.put_new(:tasks, %{})
+
+            {ts, new_data}
+        end
+      else
+        # New conversation
+        ts = marshal_ts()
+
+        new_data =
+          data
+          |> Map.put_new(:messages, [])
+          |> Map.put_new(:metadata, %{})
+          |> Map.put_new(:memory, [])
+          |> Map.put_new(:tasks, %{})
+
+        {ts, new_data}
+      end
+
+    with {:ok, json} <- Jason.encode(final_data),
          :ok <- File.write(conversation.store_path, "#{timestamp}:#{json}") do
       {:ok, conversation}
     end

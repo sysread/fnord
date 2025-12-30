@@ -81,5 +81,33 @@ defmodule Memory.IngestionTest do
       new_hash = msgs |> Jason.encode!() |> :erlang.md5() |> Base.encode16()
       assert meta.long_term_memory_hash == new_hash
     end
+
+    test "does not update timestamp when only hash changes" do
+      msgs = [AI.Util.user_msg("hello")]
+      conv = Store.Project.Conversation.new()
+
+      assert {:ok, _} =
+               Store.Project.Conversation.write(conv, %{
+                 messages: msgs,
+                 metadata: %{},
+                 memory: []
+               })
+
+      initial_ts = Store.Project.Conversation.timestamp(conv)
+      assert %DateTime{} = initial_ts
+
+      :meck.expect(AI.CompletionAPI, :get, fn _model, _msgs, _specs, _res_fmt, _web_search? ->
+        {:ok, :msg, "Learned a thing.", 0}
+      end)
+
+      assert :ok = Memory.ingest_conversation(conv)
+
+      final_ts = Store.Project.Conversation.timestamp(conv)
+      assert initial_ts == final_ts
+
+      {:ok, %{metadata: meta}} = Store.Project.Conversation.read(conv)
+      new_hash = msgs |> Jason.encode!() |> :erlang.md5() |> Base.encode16()
+      assert meta.long_term_memory_hash == new_hash
+    end
   end
 end

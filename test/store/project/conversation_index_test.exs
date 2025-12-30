@@ -121,4 +121,32 @@ defmodule Store.Project.ConversationIndexTest do
     # deleted: conv_deleted only
     assert [^conv_deleted_id] = status.deleted
   end
+
+  test "metadata-only conversation write does not make an indexed conversation stale", %{
+    project: project
+  } do
+    convo = Conversation.new("meta_only", project)
+
+    {:ok, _} =
+      Conversation.write(convo, %{
+        messages: [AI.Util.user_msg("hello")],
+        metadata: %{},
+        memory: []
+      })
+
+    {:ok, data} = Conversation.read(convo)
+    ts = DateTime.to_unix(data.timestamp)
+
+    :ok = ConversationIndex.write_embeddings(project, convo.id, [0.0], %{"last_indexed_ts" => ts})
+
+    status = ConversationIndex.index_status(project)
+    assert [] == Enum.filter(status.stale, &(&1.id == convo.id))
+    assert [] == Enum.filter(status.new, &(&1.id == convo.id))
+
+    {:ok, _} = Conversation.write(convo, %{metadata: %{foo: "bar"}})
+
+    status = ConversationIndex.index_status(project)
+    assert [] == Enum.filter(status.stale, &(&1.id == convo.id))
+    assert [] == Enum.filter(status.new, &(&1.id == convo.id))
+  end
 end
