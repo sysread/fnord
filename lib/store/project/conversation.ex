@@ -36,6 +36,9 @@ defmodule Store.Project.Conversation do
   @doc """
   Lists all conversations in the given project in ascending order by timestamp.
   """
+  @spec list(Store.Project.t()) :: [t]
+  def list(%Store.Project{store_path: store_path}), do: list(store_path)
+
   @spec list(binary) :: [t]
   def list(project_home) do
     project_home
@@ -129,7 +132,7 @@ defmodule Store.Project.Conversation do
   end
 
   @doc """
-  Reads the conversation from the store. Returns a tuple with the timestamp,
+  Reads the conversation from the store. Returns a map with the timestamp,
   messages, metadata, and memory in the conversation.
   """
   @spec read(t) :: {:ok, data} | {:error, any}

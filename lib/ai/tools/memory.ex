@@ -17,31 +17,11 @@ defmodule AI.Tools.Memory do
     {"Recalling memories", "<#{scope}> " <> what}
   end
 
-  def ui_note_on_request(%{
-        "action" => "remember",
-        "scope" => scope,
-        "title" => title,
-        "content" => content
-      }) do
-    UI.debug("memory", """
-    New (scope: #{scope}): #{UI.bold(title)}
-    #{UI.italicize(content)}
-    """)
-
+  def ui_note_on_request(%{"action" => "remember", "scope" => scope, "title" => title}) do
     {"Note to self", "<#{scope}> " <> title}
   end
 
-  def ui_note_on_request(%{
-        "action" => "update",
-        "scope" => scope,
-        "title" => title,
-        "new_content" => new_content
-      }) do
-    UI.debug("memory", """
-    Update (scope: #{scope}): #{UI.bold(title)}
-    #{UI.italicize(new_content)}
-    """)
-
+  def ui_note_on_request(%{"action" => "update", "scope" => scope, "title" => title}) do
     {"Note to self", "<#{scope}> " <> title}
   end
 

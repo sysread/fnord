@@ -37,6 +37,14 @@ defmodule Fnord do
           |> max(1)
       )
 
+      # Start a dedicated pool for memory ingestion (half workers, at least 1)
+      :hackney_pool.start_pool(:ai_memory,
+        max_connections:
+          Services.Globals.get_env(:fnord, :workers, Cmd.default_workers())
+          |> div(2)
+          |> max(1)
+      )
+
       # Start a dedicated pool for research notes (just 1 worker, since it's
       # restricted to a single genserver process and not concurrent).
       :hackney_pool.start_pool(:ai_notes, max_connections: 3)

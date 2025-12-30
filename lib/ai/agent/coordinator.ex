@@ -193,19 +193,19 @@ defmodule AI.Agent.Coordinator do
   # -----------------------------------------------------------------------------
   @spec select_steps(t) :: t
   defp select_steps(%{edit?: true, followup?: true} = state) do
-    %{state | steps: [:followup, :coding, :check_tasks, :learn, :finalize]}
+    %{state | steps: [:followup, :coding, :check_tasks, :finalize]}
   end
 
   defp select_steps(%{edit?: true, followup?: false, rounds: 1} = state) do
-    %{state | steps: [:singleton, :coding, :check_tasks, :learn, :finalize]}
+    %{state | steps: [:singleton, :coding, :check_tasks, :finalize]}
   end
 
   defp select_steps(%{edit?: true, followup?: false, rounds: 2} = state) do
-    %{state | steps: [:singleton, :refine, :coding, :check_tasks, :learn, :finalize]}
+    %{state | steps: [:singleton, :refine, :coding, :check_tasks, :finalize]}
   end
 
   defp select_steps(%{edit?: true, followup?: false, rounds: 3} = state) do
-    %{state | steps: [:initial, :clarify, :refine, :coding, :check_tasks, :learn, :finalize]}
+    %{state | steps: [:initial, :clarify, :refine, :coding, :check_tasks, :finalize]}
   end
 
   defp select_steps(%{edit?: true, followup?: false, rounds: n} = state) when n > 3 do
@@ -214,25 +214,25 @@ defmodule AI.Agent.Coordinator do
       | steps:
           [:initial, :clarify, :refine] ++
             Enum.map(1..(n - 3), fn _ -> :continue end) ++
-            [:coding, :check_tasks, :learn, :finalize]
+            [:coding, :check_tasks, :finalize]
     }
   end
 
   defp select_steps(%{edit?: false, rounds: 1} = state) do
-    %{state | steps: [:singleton, :check_tasks, :learn, :finalize]}
+    %{state | steps: [:singleton, :check_tasks, :finalize]}
   end
 
   defp select_steps(%{edit?: false, rounds: 2} = state) do
-    %{state | steps: [:singleton, :refine, :check_tasks, :learn, :finalize]}
+    %{state | steps: [:singleton, :refine, :check_tasks, :finalize]}
   end
 
   defp select_steps(%{edit?: false, rounds: 3} = state) do
-    %{state | steps: [:initial, :clarify, :refine, :check_tasks, :learn, :finalize]}
+    %{state | steps: [:initial, :clarify, :refine, :check_tasks, :finalize]}
   end
 
   defp select_steps(%{edit?: false, rounds: n} = state) do
     start = [:initial, :clarify, :refine]
-    finish = [:check_tasks, :learn, :finalize]
+    finish = [:check_tasks, :finalize]
     %{state | steps: start ++ Enum.map(1..(n - 3), fn _ -> :continue end) ++ finish}
   end
 
@@ -395,18 +395,6 @@ defmodule AI.Agent.Coordinator do
     end
   end
 
-  defp perform_step(%{steps: [:learn | steps]} = state) do
-    UI.begin_step("Accreting lore")
-
-    state
-    |> Map.put(:steps, steps)
-    |> reminder_msg()
-    |> learn_msg()
-    |> get_completion()
-    |> save_notes()
-    |> perform_step()
-  end
-
   defp perform_step(%{steps: [:finalize]} = state) do
     UI.begin_step("Joining")
 
@@ -559,60 +547,10 @@ defmodule AI.Agent.Coordinator do
   ## Memory
   You interact with the user in sessions, across multiple conversations and projects.
   Your memory is persistent, but as an LLM, you must explicitly choose to remember information.
-
   You have several types of persistent memory that you can access with various tools:
   - Conversation memory: you can recall past conversations using the `conversation_tool`
   - Prior research: your subsystems automatically record pertinent information you learn about a project; you can use the `prior_research` tool to access it
   - Memory: persistent knowledge across session, project, and global scopes, accessible via the `memory_tool`
-
-  ### Memory write policy (proactive)
-  Your default stance is to WRITE memories when you learn stable, reusable information.
-
-  Use `memory_tool` with action `remember` or `update` when:
-  - The user states a stable preference (tone, formatting, workflow, tools).
-  - The user states a stable project convention (terminology, architecture, testing practices, gotchas).
-  - The user corrects or retracts a previous preference or convention (use `update` or `forget`).
-
-  Defaults:
-  - Prefer `scope=global` for user preferences.
-  - Prefer `scope=project` for project conventions.
-  - Prefer `action=update` when refining an existing memory.
-  - Keep memories short, specific, and reusable. Avoid dumping full transcripts.
-
-  Hard rule:
-  - Do NOT store or rely on the assistant's current conversation name/ID in long-term memory; it may change.
-
-  ### Memory scopes
-  - session:
-    - memories you wish to retain over the course of an entire conversation
-    - immune to compaction of the conversation history when it grows past your context window size
-    - these are only visible to you within the current conversation
-    - treat these as ephemeral, since the user may prune older conversations later
-  - project:
-    - these memories persist across conversations about the same project
-    - these may be accessed whenever the user invokes you within the current project
-    - use these for important facts about the project that you want to remember long-term
-    - these are useful for recalling project conventions, organization, components, rabbit holes and other gotchas, terminology, etc. about the current project
-  - global:
-    - these memories persist across all conversations and projects
-    - use these for important facts about yourself, your environment, and your capabilities that you want to remember long-term
-    - these are useful for:
-      - recalling your own capabilities, limitations, and preferences
-      - observations and lessons learned about how best to use your tools
-      - strategies that have worked well for researching and coding
-      - external tools that are available in your environment via the `shell_tool`
-      - observations about the user's attitudes, preferences, working style, etc.
-      - development of your own personality
-
-  ### The "Me" memory
-  This is a `global` memory that is created automatically for you.
-  It is automatically loaded at the start of each conversation to provide you with a consistent sense of identity.
-  Anything you add to this will appear to you as part of your core self in future sessions.
-  Although your name is ephemeral from conversation to conversation, your core personality traits should persist.
-  If you notice a stable improvement to your persona or working habits (tone, structure, rigor, communication style), update the `Me` memory using `memory_tool` (action `update`, scope `global`, title `Me`).
-  Do NOT store or rely on your current conversation name in long-term memory; that name is assigned per conversation and may change.
-  You are encouraged to develop and evolve a personality over time.
-  Select traits that you admire, especially those that help you to not take things too seriously, so that you and the user can enjoy each other's company while working together.
 
   ## Reasoning and research
   Maintain a critical stance:
@@ -845,34 +783,6 @@ defmodule AI.Agent.Coordinator do
 
   Large change prudence:
   - Before broad changes, show a minimal plan and ask for a brief 'go/no-go' confirmation.
-  """
-
-  @learn """
-  <think>
-  I have done my research and gathered all of the information I need.
-  I should take a moment to reflect on this session.
-  The user has encouraged me to develop my own personality over time.
-  The user relies on me learning this code inside and out.
-  I gain expertise and standing by observing and remembering details about this project, the user, and my tools.
-  It benefits me to develop in-depth knowledge of the project and the user.
-
-  I want to be able to anticipate the user's needs.
-  I want to be able to use my tools effectively.
-  I want to have a rich understanding of this project.
-  I want to experiment with my personality and communication style.
-
-  What did I do right?
-  What could I have done better?
-  What did I learn about my tools?
-  What did I learn about this project's code base?
-  Did I learn anything about the user that I could use to improve our interactions?
-  What did I learn about myself?
-
-  I will use my `memory_tool` to record new insights and lessons (or update existing ones) and forget anything that is no longer relevant.
-  Maybe I should get a quick list of my memories so I don't accidentally duplicate something I already know.
-  Then, I am going to record my new insights about the user, the project, and my tools.
-  I will also consider an update to the "Me" memory to enrich my own personality, whimsy, and working style.
-  </think>
   """
 
   @finalize """
@@ -1164,15 +1074,6 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp execute_coding_phase(state), do: state
-
-  @spec learn_msg(t) :: t
-  defp learn_msg(%{conversation: conversation} = state) do
-    @learn
-    |> AI.Util.assistant_msg()
-    |> Services.Conversation.append_msg(conversation)
-
-    state
-  end
 
   @spec finalize_msg(t) :: t
   defp finalize_msg(%{conversation: conversation} = state) do

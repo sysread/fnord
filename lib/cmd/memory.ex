@@ -211,7 +211,7 @@ defmodule Cmd.Memory do
     warning = Presentation.warning_line(mem, now)
 
     """
-    ### #{mem.title}
+    ### [#{mem.scope}] #{mem.title}
     _#{age}_
     _#{warning}_
 

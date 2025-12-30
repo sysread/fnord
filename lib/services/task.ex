@@ -173,9 +173,9 @@ defmodule Services.Task do
     "[✗] #{id}: #{result}"
   end
 
-  def as_string(%{id: id, outcome: :todo}, _), do: "[ ] #{Util.truncate_chars(id, 16)}"
-  def as_string(%{id: id, outcome: :done}, _), do: "[✓] #{Util.truncate_chars(id, 16)}"
-  def as_string(%{id: id, outcome: :failed}, _), do: "[✗] #{Util.truncate_chars(id, 16)}"
+  def as_string(%{id: id, outcome: :todo}, _), do: "[ ] #{Util.truncate_chars(id, 50)}"
+  def as_string(%{id: id, outcome: :done}, _), do: "[✓] #{Util.truncate_chars(id, 50)}"
+  def as_string(%{id: id, outcome: :failed}, _), do: "[✗] #{Util.truncate_chars(id, 50)}"
 
   # ----------------------------------------------------------------------------
   # Server Callbacks

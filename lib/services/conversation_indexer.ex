@@ -210,15 +210,15 @@ defmodule Services.ConversationIndexer do
       # Find the first line that contains alphanumeric characters
       |> Enum.find("(no title)", fn line -> String.match?(line, ~r/\p{L}|\p{N}/u) end)
       |> String.trim()
-      # If the line is long, truncate and add ellipsis
       |> then(fn line ->
-        "[#{conversation.id}] " <>
-          if String.length(line) > width do
-            # -3 to account for "..."
-            String.slice(line, 0, width - 3) <> "..."
-          else
-            line
-          end
+        Owl.Data.truncate(
+          [
+            Owl.Data.tag("[#{conversation.id}] ", :normal),
+            Owl.Data.tag(line, [:italic, :light_black])
+          ],
+          width
+        )
+        |> Owl.Data.to_chardata()
       end)
     end
   end
