@@ -219,6 +219,7 @@ defmodule Services.ConversationIndexer do
           width
         )
         |> Owl.Data.to_chardata()
+        |> to_string()
       end)
     end
   end

@@ -631,7 +631,7 @@ defmodule Memory do
     |> Base.encode16()
   end
 
-  defp get_label(conversation, response) do
+  defp get_label(_conversation, response) do
     cols = Owl.IO.columns() || 120
     prefix_len = String.length("[info] ✓ #{@log_verb}: [xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx] ")
     min_width = 20
@@ -643,14 +643,11 @@ defmodule Memory do
     |> String.trim()
     # If the line is long, truncate and add ellipsis
     |> then(fn line ->
-      Owl.Data.truncate(
-        [
-          Owl.Data.tag("[#{conversation.id}] ", :normal),
-          Owl.Data.tag(line, [:italic, :light_black])
-        ],
-        width
-      )
+      line
+      |> Owl.Data.tag([:italic, :light_black])
+      |> Owl.Data.truncate(width)
       |> Owl.Data.to_chardata()
+      |> to_string()
     end)
   end
 end
