@@ -221,8 +221,8 @@ defmodule Services.Conversation do
 
   def handle_call(:save, _from, state) do
     data = %{
-      # Before persisting, strip recurring system prompts per settings
-      messages: filter_system_messages(state.msgs),
+      # Before persisting, strip boilerplat messages
+      messages: filter_boilerplate(state.msgs),
       metadata: state.metadata,
       memory: state.memory,
       tasks: state.tasks
@@ -234,28 +234,6 @@ defmodule Services.Conversation do
     else
       other -> {:reply, other, state}
     end
-  end
-
-  # -----------------------------------------------------------------------------
-  # System message filtering
-  # -----------------------------------------------------------------------------
-  @spec filter_system_messages([AI.Util.msg()]) :: [AI.Util.msg()]
-  defp filter_system_messages(msgs) do
-    msgs
-    |> Enum.filter(fn
-      %{role: "system", content: content} ->
-        cond do
-          # Preserve the agent name-line to avoid churn
-          Regex.run(~r/^Your name is (.*)\.$/, content) != nil -> true
-          # Preserve compactor summary so follow-ups and replays retain the compressed context
-          String.starts_with?(content, "Summary of conversation and research thus far:") -> true
-          # Drop other system scaffolding
-          true -> false
-        end
-
-      _ ->
-        true
-    end)
   end
 
   # -----------------------------------------------------------------------------
@@ -340,6 +318,37 @@ defmodule Services.Conversation do
 
       _ ->
         nil
+    end)
+  end
+
+  @re_name_msg ~r/^Your name is (.*)\.$/
+  @re_summary_msg ~r/^Summary of conversation and research thus far:/
+  @re_reasoning_msg ~r/^<think>/
+
+  @spec filter_boilerplate([AI.Util.msg()]) :: [AI.Util.msg()]
+  defp filter_boilerplate(msgs) do
+    msgs
+    |> Enum.filter(fn
+      # ...filter boilerplate system/developer messages
+      %{role: "system", content: c} when is_binary(c) ->
+        cond do
+          # ...preserve the agent name-line to avoid churn
+          Regex.run(@re_name_msg, c) != nil -> true
+          # ...preserve compactor summary so follow-ups and replays retain the compressed context
+          Regex.run(@re_summary_msg, c) != nil -> true
+          # ...drop other system scaffolding
+          true -> false
+        end
+
+      # ...drop reasoning messages
+      %{role: "assistant", content: c} when is_binary(c) ->
+        @re_reasoning_msg
+        |> Regex.run(c)
+        |> is_nil()
+
+      # ...keep everything else
+      _ ->
+        true
     end)
   end
 end
