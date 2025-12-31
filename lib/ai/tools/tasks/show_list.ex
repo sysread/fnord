@@ -23,7 +23,7 @@ defmodule AI.Tools.Tasks.ShowList do
   def ui_note_on_request(_args), do: nil
 
   @impl AI.Tools
-  def ui_note_on_result(_args, result), do: result
+  def ui_note_on_result(_args, _result), do: nil
 
   @impl AI.Tools
   def tool_call_failure_message(_args, _reason), do: :default
