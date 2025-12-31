@@ -4,7 +4,7 @@ defmodule Fnord.MixProject do
   def project do
     [
       app: :fnord,
-      version: "0.8.93",
+      version: "0.8.94",
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       description: "AI code archaeology",
