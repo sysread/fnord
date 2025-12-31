@@ -530,15 +530,15 @@ defmodule Memory do
       # with other API calls. This pool is scoped to the current process.
       HttpPool.set(:ai_memory)
 
-      UI.begin_step("Accreting lore")
+      UI.begin_step("Lore", "Accreting long-term memories from past conversations")
 
       ingest_all_conversations()
       |> case do
         :ok ->
-          UI.end_step_background("Accreting lore", "Yum. Tastes like en-graham crackers.")
+          UI.end_step_background("Lore", "Yum. Tasted like en-graham crackers.")
 
         {:error, reason} ->
-          UI.end_step_background("Accreting lore", reason)
+          UI.end_step_background("Lore", reason)
       end
     end)
   end
@@ -614,6 +614,7 @@ defmodule Memory do
         |> case do
           {:ok, {:ok, _result}} -> :ok
           {:ok, {:error, reason}} -> {:error, reason}
+          {:ok, nil} -> :ok
           {:error, reason} -> {:error, reason}
         end
       else
