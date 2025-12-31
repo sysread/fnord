@@ -232,7 +232,10 @@ defmodule AI.Tools.Shell do
                   },
                   args: %{
                     type: "array",
-                    description: "A list of arguments and options to pass to the command.",
+                    description: """
+                    A list of arguments and options to pass to the command.
+                    This does NOT include the command itself.
+                    """,
                     items: %{
                       type: "string",
                       description: """

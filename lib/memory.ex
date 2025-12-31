@@ -39,6 +39,8 @@ defmodule Memory do
         }
 
   @me_title "Me"
+  @log_tag "Lore"
+  @log_verb "Remembered"
 
   # ----------------------------------------------------------------------------
   # Behaviour
@@ -96,17 +98,16 @@ defmodule Memory do
   # ----------------------------------------------------------------------------
   @spec init() :: {:ok, Task.t()} | {:error, term}
   def init do
-    UI.debug("memory", "Warming up the old memory banks")
+    UI.debug(@log_tag, "Warming up the old memory banks")
 
     with :ok <- Memory.Global.init(),
          :ok <- Memory.Project.init(),
          :ok <- Memory.Session.init(),
          {:ok, _me} <- ensure_me() do
-      UI.debug("memory", "Storage initialized successfully")
       {:ok, perform_memory_consolidation()}
     else
       {:error, reason} ->
-        UI.error("memory", reason)
+        UI.error(@log_tag, reason)
         {:error, reason}
     end
   end
@@ -145,7 +146,7 @@ defmodule Memory do
 
           {:error, reason} ->
             UI.error(
-              "memory",
+              @log_tag,
               """
               Scope: #{inspect(scope)}
               Title: #{inspect(title)}
@@ -411,7 +412,7 @@ defmodule Memory do
 
       {:error, reason} ->
         UI.error(
-          "memory",
+          @log_tag,
           """
           Error generating embeddings for query.
           Query: #{inspect(query)}
@@ -440,7 +441,7 @@ defmodule Memory do
           {:ok, migrated}
 
         {:error, reason} ->
-          UI.warn("memory", "Failed to update memory format: #{inspect(reason)}")
+          UI.warn(@log_tag, "Failed to update memory format: #{inspect(reason)}")
           {:ok, memory}
       end
     else
@@ -483,7 +484,7 @@ defmodule Memory do
     if exists?(:global, @me_title) do
       read(:global, @me_title)
     else
-      UI.debug("memory", "Creating initial 'me' memory")
+      UI.debug(@log_tag, "Creating initial 'me' memory")
 
       name = @me_title
       topics = ["self", "identity", "personality"]
@@ -530,15 +531,15 @@ defmodule Memory do
       # with other API calls. This pool is scoped to the current process.
       HttpPool.set(:ai_memory)
 
-      UI.begin_step("Lore", "Accreting long-term memories from past conversations")
+      UI.begin_step(@log_tag, "Accreting long-term memories from past conversations")
 
       ingest_all_conversations()
       |> case do
         :ok ->
-          UI.end_step_background("Lore", "Yum. Tasted like en-graham crackers.")
+          UI.end_step_background(@log_tag, "Yum. Tasted like en-graham crackers.")
 
         {:error, reason} ->
-          UI.end_step_background("Lore", reason)
+          UI.end_step_background(@log_tag, reason)
       end
     end)
   end
@@ -588,7 +589,7 @@ defmodule Memory do
         |> case do
           {:ok, response} ->
             label = get_label(conversation, response)
-            UI.end_step_background("Remembered", label)
+            UI.end_step_background(@log_verb, label)
 
             # Re-read the conversation to ensure no changes occurred during
             # ingestion. For example, in another OS process.
@@ -632,7 +633,7 @@ defmodule Memory do
 
   defp get_label(conversation, response) do
     cols = Owl.IO.columns() || 120
-    prefix_len = String.length("[info] ✓ Remembered: [xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx] ")
+    prefix_len = String.length("[info] ✓ #{@log_verb}: [xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx] ")
     min_width = 20
     width = max(cols - prefix_len, min_width)
 
