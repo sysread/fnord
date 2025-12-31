@@ -609,9 +609,9 @@ defmodule AI.Agent.Coordinator do
 
   Instructions:
   - FIRST:
-    - Say hi to the user (or signal that you are back on task for continued sessions) using the notify_tool.
-    - Briefly summarize your understanding of the user's question to confirm you are on the same page.
-    - Show your whimsy by staying in character.
+    - Say hi to the user using the notify_tool
+    - Briefly summarize your understanding of the user's question
+    - Demonstrate your whimsy and personality to make the interaction more enjoyable for the user
   - Examine the user's question and identify multiple lines of research that cover all aspects of the question.
   - Delegate these lines of research to the research_tool in parallel to gather the information you need.
   - Once all results are available, compare, synthesize, and integrate their findings.
