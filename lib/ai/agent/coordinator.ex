@@ -1186,8 +1186,13 @@ defmodule AI.Agent.Coordinator do
 
   defp log_response(%{last_response: thought} = state) do
     # "Reasoning" models often leave the <think> tags in the response.
-    thought = String.replace(thought, ~r/<think>(.*)<\/think>/, "\\1")
-    UI.debug("Considering", Util.truncate(thought, 25))
+    thought =
+      thought
+      |> String.replace(~r/<think>(.*)<\/think>/, "\\1")
+      |> Util.truncate(25)
+      |> UI.italicize()
+
+    UI.debug("Considering", thought)
     state
   end
 

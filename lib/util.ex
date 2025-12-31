@@ -371,6 +371,11 @@ defmodule Util do
     do_truncate(lines, limit)
   end
 
+  @doc """
+  Truncates the input string to a maximum number of characters. If the input
+  exceeds `max_chars`, it truncates the string and appends an ellipsis ("...").
+  If the input is within the limit, it returns the input unchanged.
+  """
   @spec truncate_chars(binary, non_neg_integer) :: binary
   def truncate_chars(input, max_chars)
       when is_binary(input) and
@@ -381,5 +386,10 @@ defmodule Util do
     else
       input
     end
+  end
+
+  def truncate_chars(input) when is_binary(input) do
+    max_chars = Owl.IO.columns() || 120
+    truncate_chars(input, max_chars)
   end
 end
