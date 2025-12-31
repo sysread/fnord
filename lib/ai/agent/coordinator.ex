@@ -721,7 +721,7 @@ defmodule AI.Agent.Coordinator do
   I've got a better handle on the context now.
   Now I'll focus on identifying the most relevant information.
   Are there any unresolved questions that I need to research to be sure I'm not hallucinating details?
-  Do I understand the user's motivations and needs here? 
+  Do I understand the user's motivations and needs here?
   I want to present the information in a manner that is easy to follow.
   Would it be helpful if I found some examples in the project that demonstrate?
   It's not yet time to finalize my response.
