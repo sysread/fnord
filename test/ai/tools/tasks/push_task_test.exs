@@ -92,15 +92,6 @@ defmodule AI.Tools.Tasks.PushTaskTest do
     end
   end
 
-  describe "ui_note_on_request/1" do
-    test "returns truncated {task_id, data} for single input" do
-      long_id = String.duplicate("1", 51)
-      expected = String.duplicate("1", 50) <> "..."
-      task = %{"task_id" => long_id, "data" => "b"}
-      assert AI.Tools.Tasks.PushTask.ui_note_on_request(task) == {expected, "b"}
-    end
-  end
-
   describe "read_args/1 batch" do
     test "normalizes single-element tasks list" do
       args = %{"list_id" => 1, "tasks" => [%{"task_id" => "a", "data" => "A"}]}

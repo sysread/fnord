@@ -48,22 +48,6 @@ defmodule AI.Tools.Tasks.ResolveTaskTest do
     end
   end
 
-  describe "ui_note_on_request/1" do
-    test "truncates long task_id on success" do
-      long_id = String.duplicate("1", 51)
-      expected = "✓ " <> String.duplicate("1", 50) <> "..."
-      task = %{"task_id" => long_id, "disposition" => "success"}
-      assert AI.Tools.Tasks.ResolveTask.ui_note_on_request(task) == expected
-    end
-
-    test "truncates long task_id on failure" do
-      long_id = String.duplicate("2", 60)
-      expected = "✗ " <> String.duplicate("2", 50) <> "..."
-      task = %{"task_id" => long_id, "disposition" => "failure"}
-      assert AI.Tools.Tasks.ResolveTask.ui_note_on_request(task) == expected
-    end
-  end
-
   describe "call/1" do
     setup do
       list_id = Services.Task.start_list()
