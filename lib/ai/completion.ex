@@ -110,7 +110,13 @@ defmodule AI.Completion do
 
       archive? = Keyword.get(opts, :archive_notes, false)
       messages = set_name(messages, name)
-      conversation_pid = Keyword.get(opts, :conversation)
+
+      # Back-compat: historically this option key was `:conversation` even
+      # though the value was a PID. Prefer the explicit `:conversation_pid`
+      # going forward.
+      conversation_pid =
+        Keyword.get(opts, :conversation_pid) ||
+          Keyword.get(opts, :conversation)
 
       state =
         %__MODULE__{

@@ -144,14 +144,14 @@ defmodule Services.Conversation do
   @doc """
   Get a response from the AI.Agent.Coordinator. The `opts` is passed directly
   to `AI.Agent.get_response/2` after converting to a map and adding the
-  `:conversation` server's `pid`.
+  conversation server's PID under `:conversation_pid`.
   """
   @spec get_response(pid, keyword) :: {:ok, any} | {:error, any}
   def get_response(pid, opts) do
     args =
       opts
       |> Enum.into(%{})
-      |> Map.put(:conversation, pid)
+      |> Map.put(:conversation_pid, pid)
 
     pid
     |> get_agent()
