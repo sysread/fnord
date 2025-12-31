@@ -20,7 +20,7 @@ defmodule AI.CompletionOutputReplayTest do
             "id" => tool_call_id,
             "type" => "function",
             "function" => %{
-              "name" => "tasks_show_list",
+              "name" => "file_list_tool",
               "arguments" => %{"list_id" => 1} |> Jason.encode!()
             }
           }
@@ -28,9 +28,9 @@ defmodule AI.CompletionOutputReplayTest do
       },
       %{
         "role" => "tool",
-        "name" => "tasks_show_list",
+        "name" => "file_list_tool",
         "tool_call_id" => tool_call_id,
-        "content" => {:ok, "[task list output goes here]"}
+        "content" => {:ok, "[output goes here]"}
       }
     ]
 
