@@ -40,7 +40,7 @@ defmodule Memory do
 
   @me_title "Me"
   @log_tag "Lore"
-  @log_verb "Remembered"
+  @log_verb "Chunked"
 
   # ----------------------------------------------------------------------------
   # Behaviour
@@ -98,7 +98,7 @@ defmodule Memory do
   # ----------------------------------------------------------------------------
   @spec init() :: {:ok, Task.t()} | {:error, term}
   def init do
-    UI.debug(@log_tag, "Warming up the old memory banks")
+    UI.begin_step(@log_tag, "Warming up the old memory banks")
 
     with :ok <- Memory.Global.init(),
          :ok <- Memory.Project.init(),
