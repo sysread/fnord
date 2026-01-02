@@ -283,6 +283,27 @@ fnord ask --project myproj --edit --question "Add a docstring to foo/thing.ex"
 fnord ask --project myproj --worktree /path/to/myproj-wt --edit --question "Add a docstring to foo/thing.ex"
 ```
 
+**Backup files:** The `file_edit_tool` can create `.bak` backup files when editing.
+
+Backup file behavior is controlled by the `edit-mode.backup-file-handling` setting in `~/.fnord/settings.json`.
+
+Valid values are:
+
+- `never-create`
+- `auto-delete`
+- `ask-to-delete`
+- `create-and-ignore`
+
+Example:
+
+```json
+{
+  "edit-mode": {
+    "backup-file-handling": "ask-to-delete"
+  }
+}
+```
+
 Code modification by an LLM is *unreliable* and is not safe for unsupervised use.
 The AI may behave unpredictably.
 

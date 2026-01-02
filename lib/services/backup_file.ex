@@ -146,6 +146,53 @@ defmodule Services.BackupFile do
     end
   end
 
+
+  @doc """
+  Lists the backup files created during this session, but does not delete them.
+
+  This is useful when backup files should be created but not cleaned up
+  interactively (e.g., "create-and-ignore" or "auto-delete").
+  """
+  @spec list_session_backups() :: :ok
+  def list_session_backups do
+    backup_files = get_session_backups()
+
+    if Enum.empty?(backup_files) do
+      :ok
+    else
+      UI.warning_banner("Backup files were created during this session")
+
+      backup_files
+      |> Enum.reverse()
+      |> Enum.map(&format_backup_file_for_display/1)
+      |> Enum.sort()
+      |> Enum.join("\n")
+      |> UI.say()
+
+      :ok
+    end
+  end
+
+  @doc """
+  Lists backup files created during this session and then deletes them.
+
+  Prints a note explaining that auto-delete is enabled.
+  """
+  @spec auto_delete_session_backups() :: :ok
+  def auto_delete_session_backups do
+    backup_files = get_session_backups()
+
+    if Enum.empty?(backup_files) do
+      :ok
+    else
+      list_session_backups()
+      UI.say("_Auto-delete is enabled. Deleting backup files now._")
+      cleanup_session_backups(backup_files)
+      reset()
+      :ok
+    end
+  end
+
   @doc """
   Delete all backup files created during this session.
   """
@@ -300,5 +347,31 @@ defmodule Services.BackupFile do
   @spec cleanup_session_backups([binary]) :: :ok
   defp cleanup_session_backups(backup_files) do
     Enum.each(backup_files, fn f -> File.rm(f) end)
+  end
+
+  # Backup file format: $filename.X.Y.bak
+  # Collect each $filename as $filename.X1..Xn.Y1..Yn.bak
+  defp format_backup_file_for_display(backup_file) do
+    re = ~r/^(.*?)\.(\d+?)\.(\d+?)\.bak$/
+
+    case Regex.run(re, backup_file) do
+      [_, filename, global_str, change_str] ->
+        global = String.to_integer(global_str)
+        change = String.to_integer(change_str)
+
+        display_path =
+          case Store.get_project() do
+            {:ok, project} when is_binary(project.source_root) ->
+              Store.Project.relative_path(filename, project)
+
+            _ ->
+              Path.basename(filename)
+          end
+
+        "- #{display_path}.#{global}.#{change}.bak"
+
+      _ ->
+        "- #{Path.basename(backup_file)}"
+    end
   end
 end
