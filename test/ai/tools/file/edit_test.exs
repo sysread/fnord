@@ -68,6 +68,51 @@ defmodule AI.Tools.File.EditTest do
     assert :meck.num_calls(AI.Agent.Code.Patcher, :get_response, :_) == 1
   end
 
+  test "call/1 respects backup-file-handling=never-create", %{project: project} do
+    Settings.update(Settings.new(), "edit-mode", fn cur ->
+      cur = if is_map(cur), do: cur, else: %{}
+      Map.put(cur, "backup-file-handling", "never-create")
+    end)
+
+
+    file =
+      mock_source_file(project, "example.txt", """
+      This is an example file.
+      It contains some text that we will edit.
+      How now, brown cow?
+      """)
+
+    :meck.expect(AI.Agent.Code.Patcher, :get_response, fn args ->
+      assert args[:file] == file
+
+      assert args[:changes] == [
+               ~s{Replace the word "cow" with "bureaucrat" in the final sentence.}
+             ]
+
+      {:ok,
+       """
+       This is an example file.
+       It contains some text that we will edit.
+       How now, brown bureaucrat?
+       """}
+    end)
+
+    assert {:ok, result} =
+             Edit.call(%{
+               "file" => file,
+               "changes" => [
+                 %{
+                   "instructions" => """
+                   Replace the word "cow" with "bureaucrat" in the final sentence.
+                   """
+                 }
+               ]
+             })
+
+    assert result.backup_file == ""
+    refute File.exists?(file <> ".0.0.bak")
+  end
+
   describe "create_if_missing" do
     test "file is created and patch applied", %{project: project} do
       path = Path.join(project.source_root, "newdir/foo.txt")
