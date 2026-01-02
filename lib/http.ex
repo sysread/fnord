@@ -153,6 +153,7 @@ defmodule Http do
     ]
 
     HTTPoison.post(url, body, headers, options)
+    |> Store.APIUsage.record()
     |> case do
       {:ok, %{status_code: 200, body: json}} ->
         Jason.decode(json)
