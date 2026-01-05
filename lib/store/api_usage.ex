@@ -48,7 +48,7 @@ defmodule Store.APIUsage do
     with {:ok, model} <- identify_model(headers, body),
          {:ok, usage} <- collect_usage_data(headers),
          :ok <- update_file(model, usage) do
-      case System.get_env(@debug_env_var) do
+      case System.get_env(@debug_env_var, nil) do
         "" -> false
         "0" -> false
         0 -> false
