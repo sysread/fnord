@@ -8,6 +8,7 @@ defmodule Store.APIUsage do
   @path "usage.json"
   @tag "[usage]"
   @re_reset ~r/^(\d+)(ms|s)$/
+  @debug_env_var "FNORD_DEBUG_API_USAGE"
 
   @type model_usage :: %{
           updated_at: non_neg_integer,
@@ -47,7 +48,12 @@ defmodule Store.APIUsage do
     with {:ok, model} <- identify_model(headers, body),
          {:ok, usage} <- collect_usage_data(headers),
          :ok <- update_file(model, usage) do
-      UI.debug(@tag, "#{model}: #{inspect(usage, pretty: true)}")
+      case System.get_env(@debug_env_var) do
+        "" -> false
+        "0" -> false
+        0 -> false
+        _ -> UI.debug(@tag, "#{model}: #{inspect(usage, pretty: true)}")
+      end
     else
       reason ->
         UI.warn(@tag, """
