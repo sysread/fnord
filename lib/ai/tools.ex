@@ -433,10 +433,16 @@ defmodule AI.Tools do
           nil
       end
     else
-      {:error, :missing_argument, _key} ->
+      {:error, :missing_argument, key} ->
+        UI.debug("[tools]", "missing arg to tool #{tool}: #{key}")
         nil
 
-      {:error, :invalid_argument, _key} ->
+      {:error, :invalid_argument, key} ->
+        UI.debug("[tools]", "invalid arg to tool #{tool}: #{key}")
+        nil
+
+      {:error, :unknown_tool, tool} ->
+        UI.debug("[tools]", "unknown tool: #{tool}")
         nil
 
       error ->
