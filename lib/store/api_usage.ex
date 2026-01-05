@@ -52,6 +52,7 @@ defmodule Store.APIUsage do
         "" -> false
         "0" -> false
         0 -> false
+        nil -> false
         _ -> UI.debug(@tag, "#{model}: #{inspect(usage, pretty: true)}")
       end
     else
