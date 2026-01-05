@@ -7,7 +7,8 @@ defmodule Store.APIUsage do
 
   @path "usage.json"
   @tag "[usage]"
-  @re_reset ~r/^(\d+)(ms|s)$/
+  # OpenAI can return fractional reset windows (e.g. "1.043s"), so accept floats.
+  @re_reset ~r/^(\d+(?:\.\d+)?)(ms|s)$/
   @debug_env_var "FNORD_DEBUG_API_USAGE"
 
   @type model_usage :: %{
@@ -176,7 +177,7 @@ defmodule Store.APIUsage do
     end
   end
 
-  @spec collect_usage_metric(map, binary) :: {:ok, integer} | {:error, atom, binary}
+  @spec collect_usage_metric(map, binary) :: {:ok, non_neg_integer} | {:error, atom, binary}
   defp collect_usage_metric(headers, key) do
     headers
     |> Map.fetch(key)
@@ -194,7 +195,7 @@ defmodule Store.APIUsage do
     end
   end
 
-  @spec collect_reset_metric(map, binary) :: {:ok, integer} | {:error, atom, binary}
+  @spec collect_reset_metric(map, binary) :: {:ok, non_neg_integer} | {:error, atom, binary}
   defp collect_reset_metric(headers, key) do
     headers
     |> Map.fetch(key)
@@ -208,12 +209,16 @@ defmodule Store.APIUsage do
   @spec parse_reset_metric(binary) :: {:ok, non_neg_integer} | {:error, atom, binary}
   defp parse_reset_metric(value) do
     with [amount, unit] <- Regex.run(@re_reset, value, capture: :all_but_first),
-         {int_value, _} <- Integer.parse(amount, 10) do
+         {float_value, _rest} <- Float.parse(amount) do
       ms_value =
         case unit do
-          "ms" -> int_value
-          "s" -> int_value * 1000
+          "ms" -> float_value
+          "s" -> float_value * 1000.0
         end
+        # Be conservative: never under-wait.
+        |> Float.ceil()
+        |> trunc()
+        |> max(0)
 
       {:ok, ms_value}
     else

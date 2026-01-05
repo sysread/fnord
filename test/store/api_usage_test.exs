@@ -45,6 +45,32 @@ defmodule Store.APIUsageTest do
     assert updated_at > 0
   end
 
+  test "record/1 accepts float reset headers and stores integer milliseconds" do
+    refute File.exists?(usage_path())
+
+    response = %HTTPoison.Response{
+      status_code: 200,
+      headers: [
+        {"openai-model", "gpt-4o-mini"},
+        {"x-ratelimit-limit-requests", "10"},
+        {"x-ratelimit-remaining-requests", "5"},
+        {"x-ratelimit-reset-requests", "1.043s"},
+        {"x-ratelimit-limit-tokens", "100"},
+        {"x-ratelimit-remaining-tokens", "50"},
+        {"x-ratelimit-reset-tokens", "0.5s"}
+      ],
+      body: ~s({})
+    }
+
+    assert {:ok, ^response} = Store.APIUsage.record({:ok, response})
+    data = read_usage_file!()
+
+    assert %{
+             "requests_reset" => 1043,
+             "tokens_reset" => 500
+           } = Map.fetch!(data, "gpt-4o-mini")
+  end
+
   test "record/1 creates the store file but leaves it empty when usage headers are missing" do
     refute File.exists?(usage_path())
 
