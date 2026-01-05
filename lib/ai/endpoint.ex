@@ -6,7 +6,8 @@ defmodule AI.Endpoint do
   `Http.post_json/3` and applying API-level retry semantics.
 
   In particular, OpenAI rate limiting is surfaced as HTTP `429` with a JSON
-  body containing an error code (`"rate_limit_exceeded"`).
+  body containing an error code (commonly `"rate_limit_exceeded"` or
+  `"rate_limit"`).
 
   Callers implement `endpoint_path/0` and then call `AI.Endpoint.post_json/3`.
   """
@@ -55,10 +56,18 @@ defmodule AI.Endpoint do
     |> case do
       {:http_error, {429, body}} = err ->
         if throttling_error?(body) and attempt < @retry_limit do
-          delay = throttling_delay_ms(body) || backoff_delay_ms(attempt)
+          model = model_from_payload(payload)
+          usage_wait = usage_wait_ms(model)
+          body_wait = throttling_delay_ms(body)
+          backoff_wait = backoff_delay_ms(attempt)
+
+          delay =
+            [usage_wait, body_wait, backoff_wait]
+            |> Enum.reject(&is_nil/1)
+            |> Enum.max()
 
           UI.warn(
-            "[AI.Endpoint] Throttled (429), attempt #{attempt}/#{@retry_limit}, retrying in #{delay}ms"
+            "[AI.Endpoint] Throttled (429), model=#{inspect(model)}, attempt #{attempt}/#{@retry_limit}, retrying in #{delay}ms"
           )
 
           maybe_sleep(delay)
@@ -80,8 +89,29 @@ defmodule AI.Endpoint do
 
   defp throttling_error?(body) when is_binary(body) do
     case Jason.decode(body) do
-      {:ok, %{"error" => %{"code" => "rate_limit_exceeded"}}} -> true
-      _ -> false
+      {:ok, %{"error" => %{"code" => code}}} when code in ["rate_limit_exceeded", "rate_limit"] ->
+        true
+
+      _ ->
+        false
+    end
+  end
+
+  defp model_from_payload(payload) when is_map(payload) do
+    cond do
+      is_binary(Map.get(payload, :model)) -> Map.get(payload, :model)
+      is_binary(Map.get(payload, "model")) -> Map.get(payload, "model")
+      true -> nil
+    end
+  end
+
+  defp usage_wait_ms(nil), do: nil
+
+  defp usage_wait_ms(model) when is_binary(model) do
+    case Store.APIUsage.check(model) do
+      :ok -> 0
+      {:wait, ms} when is_integer(ms) and ms >= 0 -> ms
+      {:error, _} -> nil
     end
   end
 

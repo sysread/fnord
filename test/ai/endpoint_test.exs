@@ -42,6 +42,56 @@ defmodule AI.EndpointTest do
     assert (Process.get(call_count_ref) || 0) == 2
   end
 
+  test "consults Store.APIUsage when deciding to retry based on API usage" do
+    call_count_ref = make_ref()
+    Process.put(call_count_ref, 0)
+
+    # Write API usage file in the same format Store.APIUsage persists:
+    # a map keyed by model name with integer timestamps (ms).
+    now = DateTime.utc_now() |> DateTime.to_unix(:millisecond)
+
+    File.write!(
+      Store.APIUsage.store_path(),
+      Jason.encode!(%{
+        "gpt-4o-mini" => %{
+          "updated_at" => now,
+          "requests_max" => 100,
+          "requests_left" => 0,
+          "requests_reset" => 10_000,
+          "tokens_max" => 1000,
+          "tokens_left" => 0,
+          "tokens_reset" => 10_000
+        }
+      })
+    )
+
+    throttled_body =
+      Jason.encode!(%{
+        "error" => %{
+          "code" => "rate_limit_exceeded",
+          "message" => "Rate limit reached."
+        }
+      })
+
+    :meck.expect(HTTPoison, :post, fn _url, _body, _headers, _opts ->
+      n = (Process.get(call_count_ref) || 0) + 1
+      Process.put(call_count_ref, n)
+
+      case n do
+        1 ->
+          {:ok, %{status_code: 429, body: throttled_body}}
+
+        _ ->
+          {:ok, %{status_code: 200, body: ~s({"ok":true})}}
+      end
+    end)
+
+    assert {:ok, %{"ok" => true}} ==
+             AI.Endpoint.post_json(DummyEndpoint, json_headers(), %{a: 1, model: "gpt-4o-mini"})
+
+    assert (Process.get(call_count_ref) || 0) == 2
+  end
+
   test "does not retry on 429 when throttling error code is not recognized" do
     call_count_ref = make_ref()
     Process.put(call_count_ref, 0)
