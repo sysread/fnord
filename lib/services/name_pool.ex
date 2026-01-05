@@ -53,9 +53,20 @@ defmodule Services.NamePool do
 
   Returns `{:ok, name}` or `{:error, reason}`.
   """
-  @spec checkout_name(atom() | pid()) :: {:ok, String.t()} | {:error, String.t()}
+  @spec checkout_name(atom() | pid()) :: {:ok, String.t()} | {:error, term()}
+  @spec checkout_name(atom() | pid(), pos_integer()) :: {:ok, String.t()} | {:error, term()}
   def checkout_name(server \\ @name) do
-    GenServer.call(server, :checkout_name, 30_000)
+    # Backward-compatible: default timeout of 30_000 ms
+    checkout_name(server, 30_000)
+  end
+
+  def checkout_name(server, timeout_ms) do
+    try do
+      GenServer.call(server, :checkout_name, timeout_ms)
+    catch
+      :exit, {:timeout, _} -> {:error, :timeout}
+      :exit, :timeout -> {:error, :timeout}
+    end
   end
 
   @doc """

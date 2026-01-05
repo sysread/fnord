@@ -38,4 +38,33 @@ defmodule Services.NamePoolTest do
 
     assert length(names) == 4
   end
+
+  test "checkout_name/0 returns error on timeout" do
+    NamePool.reset()
+
+    # Define a dummy GenServer that never replies to handle_call(:checkout_name)
+    defmodule NoReplyServer do
+      use GenServer
+
+      def init(:ok), do: {:ok, %{}}
+
+      def handle_call(:checkout_name, _from, state) do
+        # Do not reply, causing the call to timeout
+        {:noreply, state}
+      end
+    end
+
+    # Start the dummy server
+    {:ok, pid} = GenServer.start_link(NoReplyServer, :ok)
+
+    # Ensure the dummy server is stopped when the test exits
+    on_exit(fn ->
+      if Process.alive?(pid) do
+        GenServer.stop(pid)
+      end
+    end)
+
+    # Call checkout_name with a short timeout and assert timeout error
+    assert {:error, :timeout} = NamePool.checkout_name(pid, 1)
+  end
 end
