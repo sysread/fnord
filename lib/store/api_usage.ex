@@ -51,7 +51,6 @@ defmodule Store.APIUsage do
       case System.get_env(@debug_env_var, nil) do
         "" -> false
         "0" -> false
-        0 -> false
         nil -> false
         _ -> UI.debug(@tag, "#{model}: #{inspect(usage, pretty: true)}")
       end
