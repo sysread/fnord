@@ -436,6 +436,9 @@ defmodule AI.Tools do
       {:error, :missing_argument, _key} ->
         nil
 
+      {:error, :invalid_argument, _key} ->
+        nil
+
       error ->
         UI.debug(
           "Error logging tool call request",

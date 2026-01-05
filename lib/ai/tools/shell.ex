@@ -28,8 +28,8 @@ defmodule AI.Tools.Shell do
              true <- op in ["|", "&&"] do
           {:ok, args}
         else
-          {:error, :missing_argument, _} ->
-            {:error, :invalid_argument, "missing required field 'operator'"}
+          {:error, :missing_argument, arg} ->
+            {:error, :invalid_argument, "missing required field '#{arg}'"}
 
           false ->
             {:error, :invalid_argument, "operator must be '|' or '&&'"}
@@ -94,6 +94,7 @@ defmodule AI.Tools.Shell do
         name: "shell_tool",
         description: """
         Executes a series of shell commands, and returns the mixed STDOUT and STDERR output.
+        Commands are combined either as a pipeline (`|`) or run sequentially (`&&`), based on the *required* `operator` argument.
 
         When to use this tool:
 
@@ -118,8 +119,8 @@ defmodule AI.Tools.Shell do
         Commands that require user input or interaction will fail after a timeout, resulting in a poor experience for the user.
 
         INDIVIDUAL COMMANDS SHOULD BE SIMPLE:
-          - Do not include redirection (`>`, `<`), pipes (`|`, `&&`), command substitution (`$()`, backticks), semicolons (`;`), or other complex shell syntax inside a single command's "command" or "args".
-          - Pipelines are supported by supplying multiple command objects and setting "operator" to "|".
+        - Do not include redirection (`>`, `<`), pipes (`|`, `&&`), command substitution (`$()`, backticks), semicolons (`;`), or other complex shell syntax inside a single command's "command" or "args".
+        - Pipelines are supported by supplying multiple command objects and setting "operator" to "|".
 
         Example:
 
