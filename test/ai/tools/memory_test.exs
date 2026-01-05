@@ -74,4 +74,73 @@ defmodule AI.Tools.MemoryTest do
       assert msg =~ inspect(" ")
     end
   end
+
+  describe "remember topics normalization" do
+    test "accepts topics as comma-separated string" do
+      mock_project("test_proj")
+      mock_conversation()
+
+      assert {:ok, result} =
+               AI.Tools.perform_tool_call(
+                 "memory_tool",
+                 %{
+                   "action" => "remember",
+                   "scope" => "session",
+                   "title" => "Topics CSV Comma",
+                   "content" => "x",
+                   "topics" => "user, ci, troubleshooting"
+                 },
+                 AI.Tools.tools()
+               )
+
+      assert result =~ "Topics: user | ci | troubleshooting"
+      # cleanup
+      case AI.Tools.perform_tool_call(
+             "memory_tool",
+             %{
+               "action" => "forget",
+               "scope" => "session",
+               "title" => "Topics CSV Comma"
+             },
+             AI.Tools.tools()
+           ) do
+        {:ok, _} -> :ok
+        _ -> :ok
+      end
+    end
+
+    test "accepts topics as pipe-separated string" do
+      mock_project("test_proj")
+      mock_conversation()
+
+      assert {:ok, result} =
+               AI.Tools.perform_tool_call(
+                 "memory_tool",
+                 %{
+                   "action" => "remember",
+                   "scope" => "session",
+                   "title" => "Topics CSV Pipe",
+                   "content" => "x",
+                   "topics" => "user | ci | troubleshooting"
+                 },
+                 AI.Tools.tools()
+               )
+
+      assert result =~ "Topics: user | ci | troubleshooting"
+      refute result =~ "user, ci, troubleshooting"
+      # cleanup
+      case AI.Tools.perform_tool_call(
+             "memory_tool",
+             %{
+               "action" => "forget",
+               "scope" => "session",
+               "title" => "Topics CSV Pipe"
+             },
+             AI.Tools.tools()
+           ) do
+        {:ok, _} -> :ok
+        _ -> :ok
+      end
+    end
+  end
 end

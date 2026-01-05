@@ -206,7 +206,7 @@ defmodule AI.Tools.Memory do
 
   defp do_remember(%{"scope" => scope, "title" => title, "content" => content} = args) do
     with {:ok, scope_atom} <- parse_scope(scope),
-         topics <- Map.get(args, "topics", []),
+         topics = normalize_topics(Map.get(args, "topics")),
          {:ok, memory} <- new_memory(scope_atom, title, content, topics),
          {:ok, saved} <- wrap_save(Memory.save(memory), memory) do
       {:ok, format_memory(saved)}
@@ -222,7 +222,7 @@ defmodule AI.Tools.Memory do
       {:ok, scope_atom} ->
         case Memory.read(scope_atom, title) do
           {:ok, memory} ->
-            new_topics = Map.get(args, "new_topics", [])
+            new_topics = normalize_topics(Map.get(args, "new_topics"))
 
             updated =
               memory
@@ -291,14 +291,40 @@ defmodule AI.Tools.Memory do
     {:error, "Invalid scope #{inspect(other)}; expected 'session', 'project', or 'global'"}
   end
 
-  defp maybe_add_topics(memory, []), do: memory
+  defp normalize_topics(nil), do: []
 
-  defp maybe_add_topics(memory, topics) when is_list(topics) do
-    existing = Map.get(memory, :topics, [])
-    %{memory | topics: Enum.uniq(existing ++ topics)}
+  defp normalize_topics(topics) when is_list(topics) do
+    topics
+    |> Enum.reject(&is_nil/1)
+    |> Enum.map(&to_string/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
   end
 
-  defp maybe_add_topics(memory, _), do: memory
+  defp normalize_topics(topic) when is_binary(topic) do
+    topic
+    |> String.split(~r/[\|,]/)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp normalize_topics(_), do: []
+
+  defp maybe_add_topics(memory, topics) do
+    normalized = normalize_topics(topics)
+
+    if normalized == [] do
+      memory
+    else
+      existing =
+        case Map.get(memory, :topics) do
+          list when is_list(list) -> list
+          _ -> []
+        end
+
+      %{memory | topics: Enum.uniq(existing ++ normalized)}
+    end
+  end
 
   defp wrap_save({:ok, saved}, _memory), do: {:ok, saved}
   defp wrap_save({:error, _} = error, _memory), do: error

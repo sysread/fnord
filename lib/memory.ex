@@ -251,12 +251,19 @@ defmodule Memory do
     }
   end
 
-  @spec generate_embeddings(t) :: {:ok, t} | {:error, term}
   def generate_embeddings(%Memory{} = memory) do
+    topics =
+      case memory.topics do
+        list when is_list(list) -> list
+        nil -> []
+        other -> [to_string(other)]
+      end
+
     input =
-      [memory.title, memory.content | memory.topics]
+      [memory.title, memory.content | topics]
       |> Enum.reject(&is_nil/1)
       |> Enum.reject(&(&1 == ""))
+      |> Enum.map(&to_string/1)
       |> Enum.join("\n\n")
 
     case Indexer.impl().get_embeddings(input) do
