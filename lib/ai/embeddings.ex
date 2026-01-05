@@ -16,6 +16,10 @@ defmodule AI.Embeddings do
   @impl AI.Endpoint
   def endpoint_path(), do: "#{@base_url}/v1/embeddings"
 
+  @doc "Returns the embeddings model name."
+  @spec model_name() :: String.t()
+  def model_name(), do: @model
+
   @type embedding :: list(float())
   @type embeddings :: list(embedding())
 

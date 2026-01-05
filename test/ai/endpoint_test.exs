@@ -115,4 +115,35 @@ defmodule AI.EndpointTest do
 
     assert (Process.get(call_count_ref) || 0) == 1
   end
+
+  test "pauses background indexing after consecutive throttling reaches threshold for a model" do
+    Services.Globals.put_env(:fnord, :http_retry_skip_sleep, true)
+    Services.BgIndexingControl.set_threshold(3)
+    call_count_ref = make_ref()
+    Process.put(call_count_ref, 0)
+
+    throttled_body =
+      Jason.encode!(%{
+        "error" => %{
+          "code" => "rate_limit_exceeded",
+          "message" => "Too many requests"
+        }
+      })
+
+    :meck.expect(HTTPoison, :post, fn _url, _body, _headers, _opts ->
+      n = (Process.get(call_count_ref) || 0) + 1
+      Process.put(call_count_ref, n)
+      {:ok, %{status_code: 429, body: throttled_body}}
+    end)
+
+    on_exit(fn ->
+      Services.BgIndexingControl.clear_pause(AI.Model.fast().model)
+    end)
+
+    Enum.each(1..3, fn _ ->
+      AI.Endpoint.post_json(DummyEndpoint, json_headers(), %{a: 1, model: AI.Model.fast().model})
+    end)
+
+    assert Services.BgIndexingControl.paused?(AI.Model.fast().model)
+  end
 end

@@ -58,4 +58,30 @@ defmodule Services.ConversationIndexerTest do
     assert Enum.any?(embeddings, fn {id, _emb, _meta} -> id == convo1.id end)
     assert Enum.any?(embeddings, fn {id, _emb, _meta} -> id == convo2.id end)
   end
+
+  test "does not process queued conversations when embeddings model is paused", %{
+    project: project
+  } do
+    convo1 = Store.Project.Conversation.new("one", project)
+    convo2 = Store.Project.Conversation.new("two", project)
+
+    messages = [AI.Util.system_msg("hello")]
+
+    {:ok, _} =
+      Store.Project.Conversation.write(convo1, %{messages: messages, metadata: %{}, memories: []})
+
+    {:ok, _} =
+      Store.Project.Conversation.write(convo2, %{messages: messages, metadata: %{}, memories: []})
+
+    Services.BgIndexingControl.pause(AI.Embeddings.model_name())
+    on_exit(fn -> Services.BgIndexingControl.clear_pause(AI.Embeddings.model_name()) end)
+
+    {:ok, pid} = ConversationIndexer.start_link(project: project, conversations: [convo1, convo2])
+    ref = Process.monitor(pid)
+    assert_receive {:DOWN, ^ref, :process, ^pid, reason}, 2_000
+    assert reason in [:normal, :noproc]
+
+    refute StubIndexer.processed?(convo1.id)
+    refute StubIndexer.processed?(convo2.id)
+  end
 end

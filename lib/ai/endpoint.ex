@@ -57,6 +57,7 @@ defmodule AI.Endpoint do
       {:http_error, {429, body}} = err ->
         if throttling_error?(body) and attempt < @retry_limit do
           model = model_from_payload(payload)
+          Services.BgIndexingControl.note_throttle(model)
           usage_wait = usage_wait_ms(model)
           body_wait = throttling_delay_ms(body)
           backoff_wait = backoff_delay_ms(attempt)
@@ -75,6 +76,11 @@ defmodule AI.Endpoint do
         else
           err
         end
+
+      {:ok, _} = ok ->
+        model = model_from_payload(payload)
+        Services.BgIndexingControl.note_success(model)
+        ok
 
       other ->
         other

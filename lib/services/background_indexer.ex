@@ -80,6 +80,7 @@ defmodule Services.BackgroundIndexer do
     # Configure the HTTP connection pool for downstream embedding and summary
     # API calls.
     HttpPool.set(:ai_indexer)
+    Services.BgIndexingControl.ensure_init()
 
     project =
       case Keyword.get(opts, :project) do
@@ -131,15 +132,20 @@ defmodule Services.BackgroundIndexer do
 
   @impl true
   def handle_continue(:process_next, %{task: nil, files_queue: [entry | rest]} = state) do
-    # Start per-file work in a linked Task so the GenServer stays responsive
-    {:ok, task_pid} = Task.start_link(fn -> safe_process(entry, state.impl, state.project) end)
+    if Services.BgIndexingControl.paused?(AI.Model.fast().model) or
+         Services.BgIndexingControl.paused?(AI.Embeddings.model_name()) do
+      {:stop, :normal, state}
+    else
+      # Start per-file work in a linked Task so the GenServer stays responsive
+      {:ok, task_pid} = Task.start_link(fn -> safe_process(entry, state.impl, state.project) end)
 
-    # Monitor the Task to receive a :DOWN message on completion
-    mon_ref = Process.monitor(task_pid)
-    new_state = %{state | task: task_pid, mon_ref: mon_ref, files_queue: rest}
+      # Monitor the Task to receive a :DOWN message on completion
+      mon_ref = Process.monitor(task_pid)
+      new_state = %{state | task: task_pid, mon_ref: mon_ref, files_queue: rest}
 
-    # We only schedule the next step when the Task completes
-    {:noreply, new_state}
+      # We only schedule the next step when the Task completes
+      {:noreply, new_state}
+    end
   end
 
   @impl true
@@ -151,12 +157,18 @@ defmodule Services.BackgroundIndexer do
         {:stop, :normal, state}
 
       entry ->
-        {:ok, task_pid} =
-          Task.start_link(fn -> safe_process(entry, state.impl, state.project) end)
+        if Services.BgIndexingControl.paused?(AI.Model.fast().model) or
+             Services.BgIndexingControl.paused?(AI.Embeddings.model_name()) do
+          {:stop, :normal, state}
+        else
+          {:ok, task_pid} =
+            Task.start_link(fn -> safe_process(entry, state.impl, state.project) end)
 
-        mon_ref = Process.monitor(task_pid)
-        new_state = %{state | task: task_pid, mon_ref: mon_ref}
-        {:noreply, new_state}
+          mon_ref = Process.monitor(task_pid)
+          new_state = %{state | task: task_pid, mon_ref: mon_ref}
+
+          {:noreply, new_state}
+        end
     end
   end
 

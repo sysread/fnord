@@ -64,6 +64,21 @@ defmodule Services.BackgroundIndexerTest do
     assert StubIndexer.processed?("a.ex")
     assert StubIndexer.processed?("b.ex")
   end
+
+  test "does not process files when required model is paused", %{entries: entries} do
+    # Pause the required model to simulate unavailability
+    Services.BgIndexingControl.pause(AI.Embeddings.model_name())
+    on_exit(fn -> Services.BgIndexingControl.clear_pause(AI.Embeddings.model_name()) end)
+
+    # Start indexer and expect it to stop immediately without processing files
+    {:ok, pid} = BackgroundIndexer.start_link(files: entries)
+    ref = Process.monitor(pid)
+    assert_receive {:DOWN, ^ref, :process, ^pid, reason}, 1_000
+    assert reason in [:normal, :noproc]
+
+    refute StubIndexer.processed?("a.ex")
+    refute StubIndexer.processed?("b.ex")
+  end
 end
 
 defmodule UI.Output.Collector do

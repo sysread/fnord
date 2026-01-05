@@ -41,6 +41,7 @@ defmodule Services.ConversationIndexer do
   def init(opts) do
     # Use the dedicated AI indexer HTTP pool
     HttpPool.set(:ai_indexer)
+    Services.BgIndexingControl.ensure_init()
 
     project =
       case Keyword.get(opts, :project) do
@@ -79,10 +80,14 @@ defmodule Services.ConversationIndexer do
 
   @impl true
   def handle_continue(:process_next, %{task: nil, convo_queue: [convo | rest]} = state) do
-    {:ok, task_pid} = Task.start_link(fn -> safe_process(convo, state.impl, state.project) end)
-    mon_ref = Process.monitor(task_pid)
-    new_state = %{state | task: task_pid, mon_ref: mon_ref, convo_queue: rest}
-    {:noreply, new_state}
+    if Services.BgIndexingControl.paused?(AI.Embeddings.model_name()) do
+      {:stop, :normal, state}
+    else
+      {:ok, task_pid} = Task.start_link(fn -> safe_process(convo, state.impl, state.project) end)
+      mon_ref = Process.monitor(task_pid)
+      new_state = %{state | task: task_pid, mon_ref: mon_ref, convo_queue: rest}
+      {:noreply, new_state}
+    end
   end
 
   @impl true
@@ -95,21 +100,25 @@ defmodule Services.ConversationIndexer do
         {:stop, :normal, state}
 
       convo ->
-        {:ok, task_pid} =
-          Task.start_link(fn ->
-            safe_process(convo, state.impl, state.project)
-          end)
+        if Services.BgIndexingControl.paused?(AI.Embeddings.model_name()) do
+          {:stop, :normal, state}
+        else
+          {:ok, task_pid} =
+            Task.start_link(fn ->
+              safe_process(convo, state.impl, state.project)
+            end)
 
-        mon_ref = Process.monitor(task_pid)
+          mon_ref = Process.monitor(task_pid)
 
-        new_state = %{
-          state
-          | task: task_pid,
-            mon_ref: mon_ref,
-            seen: Map.put(state.seen, convo.id, true)
-        }
+          new_state = %{
+            state
+            | task: task_pid,
+              mon_ref: mon_ref,
+              seen: Map.put(state.seen, convo.id, true)
+          }
 
-        {:noreply, new_state}
+          {:noreply, new_state}
+        end
     end
   end
 
