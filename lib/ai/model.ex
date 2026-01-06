@@ -42,7 +42,7 @@ defmodule AI.Model do
   def coding(), do: o4_mini(:medium)
   def web_search(), do: gpt_4o_mini_search_preview()
 
-  def large_context(), do: gpt41()
+  def large_context(), do: gpt41_mini()
   def large_context(:smart), do: gpt41()
   def large_context(:balanced), do: gpt41_mini()
   def large_context(:fast), do: gpt41_nano()
