@@ -38,49 +38,37 @@ defmodule Store.APIUsage do
   end
 
   @doc """
-  Records API usage data from an HTTPoison response. If the response does not
-  contain usage data, it is returned unmodified.
+  Records API usage for a provided model. If model is nil, returns http_result unchanged.
+  For 2xx {:ok, %HTTPoison.Response{}} responses and a binary model, records usage data and updates the store.
+  Other responses or errors are returned unchanged.
   """
-  @spec record(http_response) :: http_response
-  def record({:ok, %HTTPoison.Response{headers: headers, body: body} = response}) do
+  @spec record_for_model(binary | nil, http_response) :: http_response
+  def record_for_model(nil, http_result), do: http_result
+
+  def record_for_model(
+        model,
+        {:ok, %HTTPoison.Response{headers: headers, status_code: code} = response}
+      )
+      when is_binary(model) and code >= 200 and code < 300 do
     ensure_store_file()
-    headers = Enum.into(headers, %{})
+    headers_map = Enum.into(headers, %{})
 
-    # Only attempt to record usage for successful responses that include
-    # rate limit headers. Error responses (4xx/5xx) commonly lack the
-    # `openai-model` header and may not contain a top-level `model` key in
-    # the JSON body. Attempting to identify the model in those cases just
-    # produces noisy warnings (e.g. {:error, :model_not_found}).
-    #
-    # To keep logs clean, skip recording for non-2xx responses.
-    case response.status_code do
-      code when code >= 200 and code < 300 ->
-        with {:ok, model} <- identify_model(headers, body),
-             {:ok, usage} <- collect_usage_data(headers),
-             :ok <- update_file(model, usage) do
-          case System.get_env(@debug_env_var, nil) do
-            "" -> false
-            "0" -> false
-            nil -> false
-            _ -> UI.debug(@tag, "#{model}: #{inspect(usage, pretty: true)}")
-          end
-        else
-          reason ->
-            UI.warn(
-              @tag,
-              "Failed to record API usage data\n\nReason:\n#{inspect(reason, pretty: true)}\n\nResponse:\n#{inspect(response, pretty: true)}"
-            )
-        end
-
-      _other ->
-        # Skip recording on non-2xx responses to avoid misleading warnings.
-        :ok
+    with {:ok, usage} <- collect_usage_data(headers_map),
+         :ok <- update_file(model, usage) do
+      case System.get_env(@debug_env_var, nil) do
+        "" -> :ok
+        "0" -> :ok
+        nil -> :ok
+        _ -> UI.debug(@tag, "#{model}: #{inspect(usage, pretty: true)}")
+      end
+    else
+      _reason -> :ok
     end
 
     {:ok, response}
   end
 
-  def record(other), do: other
+  def record_for_model(_model, http_result), do: http_result
 
   @doc """
   Checks if a request can be made for the given model based on the last
@@ -232,34 +220,6 @@ defmodule Store.APIUsage do
       {:ok, ms_value}
     else
       _ -> {:error, :invalid_reset_format, value}
-    end
-  end
-
-  @spec identify_model(map, binary) :: {:ok, binary} | {:error, atom}
-  defp identify_model(headers, body) do
-    with :error <- identify_model_from_headers(headers),
-         :error <- identify_model_from_body(body) do
-      {:error, :model_not_found}
-    end
-  end
-
-  @spec identify_model_from_headers(map) :: {:ok, binary} | :error
-  defp identify_model_from_headers(headers) do
-    headers
-    |> Map.fetch("openai-model")
-    |> case do
-      {:ok, model} -> {:ok, model}
-      :error -> :error
-    end
-  end
-
-  @spec identify_model_from_body(binary) :: {:ok, binary} | :error
-  defp identify_model_from_body(body) do
-    body
-    |> Jason.decode()
-    |> case do
-      {:ok, %{"model" => model}} -> {:ok, model}
-      _ -> :error
     end
   end
 

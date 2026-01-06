@@ -9,13 +9,12 @@ defmodule Store.APIUsageTest do
     |> Jason.decode!()
   end
 
-  test "record/1 creates the store file (if missing) and persists rate limit headers keyed by model" do
+  test "record_for_model/2 creates the store file (if missing) and persists rate limit headers keyed by model" do
     refute File.exists?(usage_path())
 
     response = %HTTPoison.Response{
       status_code: 200,
       headers: [
-        {"openai-model", "gpt-4o-mini"},
         {"x-ratelimit-limit-requests", "100"},
         {"x-ratelimit-remaining-requests", "99"},
         {"x-ratelimit-reset-requests", "2ms"},
@@ -26,7 +25,7 @@ defmodule Store.APIUsageTest do
       body: ~s({"model":"ignored-because-header-wins"})
     }
 
-    assert {:ok, ^response} = Store.APIUsage.record({:ok, response})
+    assert {:ok, ^response} = Store.APIUsage.record_for_model("gpt-4o-mini", {:ok, response})
     assert File.exists?(usage_path())
 
     data = read_usage_file!()
@@ -45,13 +44,12 @@ defmodule Store.APIUsageTest do
     assert updated_at > 0
   end
 
-  test "record/1 accepts float reset headers and stores integer milliseconds" do
+  test "record_for_model/2 accepts float reset headers and stores integer milliseconds" do
     refute File.exists?(usage_path())
 
     response = %HTTPoison.Response{
       status_code: 200,
       headers: [
-        {"openai-model", "gpt-4o-mini"},
         {"x-ratelimit-limit-requests", "10"},
         {"x-ratelimit-remaining-requests", "5"},
         {"x-ratelimit-reset-requests", "1.043s"},
@@ -62,7 +60,7 @@ defmodule Store.APIUsageTest do
       body: ~s({})
     }
 
-    assert {:ok, ^response} = Store.APIUsage.record({:ok, response})
+    assert {:ok, ^response} = Store.APIUsage.record_for_model("gpt-4o-mini", {:ok, response})
     data = read_usage_file!()
 
     assert %{
@@ -71,20 +69,46 @@ defmodule Store.APIUsageTest do
            } = Map.fetch!(data, "gpt-4o-mini")
   end
 
-  test "record/1 creates the store file but leaves it empty when usage headers are missing" do
+  test "record_for_model/2 creates the store file but leaves it empty when usage headers are missing" do
     refute File.exists?(usage_path())
 
     response = %HTTPoison.Response{
       status_code: 200,
-      headers: [{"openai-model", "gpt-4o-mini"}],
+      headers: [],
       body: "{}"
     }
 
-    assert {:ok, ^response} = Store.APIUsage.record({:ok, response})
+    assert {:ok, ^response} = Store.APIUsage.record_for_model("gpt-4o-mini", {:ok, response})
     assert File.exists?(usage_path())
 
     # No required rate-limit headers were present, so store should remain unchanged.
     assert %{} = read_usage_file!()
+  end
+
+  test "record_for_model/2 is a no-op when model is nil" do
+    refute File.exists?(usage_path())
+
+    response = %HTTPoison.Response{
+      status_code: 200,
+      headers: [],
+      body: "{}"
+    }
+
+    assert Store.APIUsage.record_for_model(nil, {:ok, response}) == {:ok, response}
+    refute File.exists?(usage_path())
+  end
+
+  test "record_for_model/2 is a no-op for non-2xx responses" do
+    refute File.exists?(usage_path())
+
+    response = %HTTPoison.Response{
+      status_code: 429,
+      headers: [],
+      body: "{}"
+    }
+
+    assert Store.APIUsage.record_for_model("gpt-4o-mini", {:ok, response}) == {:ok, response}
+    refute File.exists?(usage_path())
   end
 
   test "check/1 creates the store file when missing" do

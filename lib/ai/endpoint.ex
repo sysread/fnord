@@ -52,11 +52,13 @@ defmodule AI.Endpoint do
   end
 
   defp do_post_json(url, headers, payload, attempt) when attempt <= @retry_limit do
-    Http.post_json(url, headers, payload)
-    |> case do
+    result = Http.post_json(url, headers, payload)
+    model = model_from_payload(payload)
+    Store.APIUsage.record_for_model(model, result)
+
+    case result do
       {:http_error, {429, body}} = err ->
         if throttling_error?(body) and attempt < @retry_limit do
-          model = model_from_payload(payload)
           Services.BgIndexingControl.note_throttle(model)
           usage_wait = usage_wait_ms(model)
           body_wait = throttling_delay_ms(body)
@@ -78,7 +80,6 @@ defmodule AI.Endpoint do
         end
 
       {:ok, _} = ok ->
-        model = model_from_payload(payload)
         Services.BgIndexingControl.note_success(model)
         ok
 

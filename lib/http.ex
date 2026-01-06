@@ -152,9 +152,9 @@ defmodule Http do
       hackney_options: [pool: HttpPool.get()]
     ]
 
-    HTTPoison.post(url, body, headers, options)
-    |> Store.APIUsage.record()
-    |> case do
+    result = HTTPoison.post(url, body, headers, options)
+
+    case result do
       {:ok, %{status_code: 200, body: json}} ->
         Jason.decode(json)
 
@@ -204,8 +204,9 @@ defmodule Http do
       hackney_options: [pool: HttpPool.get()]
     ]
 
-    HTTPoison.post(url, body, headers, options)
-    |> case do
+    result = HTTPoison.post(url, body, headers, options)
+
+    case result do
       {:ok, %{status_code: 200, body: json}} ->
         Jason.decode(json)
 
