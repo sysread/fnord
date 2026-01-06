@@ -46,26 +46,35 @@ defmodule Store.APIUsage do
     ensure_store_file()
     headers = Enum.into(headers, %{})
 
-    with {:ok, model} <- identify_model(headers, body),
-         {:ok, usage} <- collect_usage_data(headers),
-         :ok <- update_file(model, usage) do
-      case System.get_env(@debug_env_var, nil) do
-        "" -> false
-        "0" -> false
-        nil -> false
-        _ -> UI.debug(@tag, "#{model}: #{inspect(usage, pretty: true)}")
-      end
-    else
-      reason ->
-        UI.warn(@tag, """
-        Failed to record API usage data
+    # Only attempt to record usage for successful responses that include
+    # rate limit headers. Error responses (4xx/5xx) commonly lack the
+    # `openai-model` header and may not contain a top-level `model` key in
+    # the JSON body. Attempting to identify the model in those cases just
+    # produces noisy warnings (e.g. {:error, :model_not_found}).
+    #
+    # To keep logs clean, skip recording for non-2xx responses.
+    case response.status_code do
+      code when code >= 200 and code < 300 ->
+        with {:ok, model} <- identify_model(headers, body),
+             {:ok, usage} <- collect_usage_data(headers),
+             :ok <- update_file(model, usage) do
+          case System.get_env(@debug_env_var, nil) do
+            "" -> false
+            "0" -> false
+            nil -> false
+            _ -> UI.debug(@tag, "#{model}: #{inspect(usage, pretty: true)}")
+          end
+        else
+          reason ->
+            UI.warn(
+              @tag,
+              "Failed to record API usage data\n\nReason:\n#{inspect(reason, pretty: true)}\n\nResponse:\n#{inspect(response, pretty: true)}"
+            )
+        end
 
-        Reason:
-        #{inspect(reason, pretty: true)}
-
-        Response:
-        #{inspect(response, pretty: true)}
-        """)
+      _other ->
+        # Skip recording on non-2xx responses to avoid misleading warnings.
+        :ok
     end
 
     {:ok, response}

@@ -74,15 +74,16 @@ defmodule AI.CompletionAPI do
             get_error(error)
 
           {:http_error, error} ->
-            error
-            |> get_error()
-            |> case do
+            case get_error(error) do
+              {:error, :context_length_exceeded, _usage} = err ->
+                err
+
               {:error, %{message: msg}} ->
                 UI.error("HTTP error while calling OpenAI API: #{msg}")
                 {:error, %{message: msg}}
 
-              error ->
-                error
+              other ->
+                other
             end
 
           {:ok, response} ->

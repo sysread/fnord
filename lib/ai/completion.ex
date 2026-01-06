@@ -258,6 +258,8 @@ defmodule AI.Completion do
          {:error, :context_length_exceeded, usage},
          %{messages: msgs, is_compacting?: false} = state
        ) do
+    UI.warn("[compaction] Context length exceeded, compacting conversation and retrying...")
+
     with {:ok, compacted, new_usage} <- AI.Completion.Compaction.compact(msgs) do
       %{state | messages: compacted, usage: new_usage, is_compacting?: true}
       |> send_request()
