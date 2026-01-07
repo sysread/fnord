@@ -216,7 +216,7 @@ fnord ask -p myproject -q "What is the overall architecture of this project?"
 
 **Solution:** Provide feedback:
 ```bash
-fnord ask -p myproject -q "Review all prior research. Use the memory tool to remove redundant, dated, and incorrect information."
+fnord ask -p myproject -q "Review your memories. Use the memory tool to remove redundant, dated, and incorrect information."
 ```
 
 **Solution:** Re-prime to consolidate:
