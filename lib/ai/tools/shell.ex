@@ -99,18 +99,17 @@ defmodule AI.Tools.Shell do
         Use to create tmp files as needed for testing, debugging, etc.
         If a specialized tool exists for the exact operation, prefer.
         Test if cli tools exist with `which <tool>` or `command -v <tool>` (tip: check several concurrently with multiple tool calls)
-        The user must approve execution of this command before it is run.
-        Safe, read-only `sed` invocations (without -i/-f/e/w) are preapproved.
 
         IMPORTANT: Interactive commands are NOT supported through this interface.
         IMPORTANT: Tools that can modify files (e.g., `awk`, `find -exec`, `patch`) require explicit user-approval.
+                   Safe, read-only `sed` invocations (without -i/-f/e/w) are preapproved.
+                   If the user is not monitoring, command approvals may be auto-denied.
         IMPORTANT: This uses elixir's System.cmd/3 to execute commands.
                    It *will* `cd` into the project's source root before executing commands.
                    Some commands DO behave differently without a tty.
                    For example, `rg` REQUIRES a path argument when not run in a tty.
 
         For commands that vary based on OS (eg grep/sed), the current OS is: #{os_name} (#{os_family}).
-        If the user is not monitoring, command approvals may be auto-denied.
 
         Available tools on PATH:
         #{available_tools()}
