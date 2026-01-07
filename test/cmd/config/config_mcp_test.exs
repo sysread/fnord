@@ -152,6 +152,7 @@ defmodule Cmd.Config.MCPTest do
     setup do
       # Mock only Services.MCP.test to avoid actually connecting to MCP servers
       :meck.new(Services.MCP, [:passthrough])
+      :meck.expect(Services.MCP, :start, fn _ -> :ok end)
 
       :meck.expect(Services.MCP, :test, fn _ ->
         %{

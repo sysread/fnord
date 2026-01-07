@@ -28,4 +28,3 @@ defmodule AI.EndpointCatchAllTest do
     assert result == {:transport_error, :closed}
   end
 end
-
