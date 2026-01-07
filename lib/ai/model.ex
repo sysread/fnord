@@ -50,7 +50,7 @@ defmodule AI.Model do
   # ----------------------------------------------------------------------------
   # OpenAI Models
   # ----------------------------------------------------------------------------
-  def gpt5(reasoning \\ :medium), do: new("gpt-5.2", 400_000, reasoning)
+  def gpt5(reasoning \\ :medium), do: new("gpt-5.1", 400_000, reasoning)
   def gpt5_mini(reasoning \\ :medium), do: new("gpt-5-mini", 400_000, reasoning)
   def gpt5_nano(reasoning \\ :medium), do: new("gpt-5-nano", 400_000, reasoning)
 
