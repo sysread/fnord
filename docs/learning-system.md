@@ -225,6 +225,12 @@ mv ~/.fnord/myproject/notes ~/.fnord/myproject/notes.old
 fnord prime --project myproject
 ```
 
+**Solution:** Edit notes manually:
+As a final resort, you can directly edit the notes file:
+```bash
+nvim ~/.fnord/projects/<myproject>/notes.md
+```
+
 ## Future Enhancements
 
 Potential improvements to the learning system:
