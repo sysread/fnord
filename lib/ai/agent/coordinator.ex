@@ -8,7 +8,6 @@ defmodule AI.Agent.Coordinator do
     :agent,
 
     # User opts
-    :rounds,
     :edit?,
     :replay,
     :question,
@@ -39,7 +38,6 @@ defmodule AI.Agent.Coordinator do
           agent: AI.Agent.t(),
 
           # User opts
-          rounds: non_neg_integer,
           edit?: boolean,
           replay: boolean,
           question: binary,
@@ -66,7 +64,6 @@ defmodule AI.Agent.Coordinator do
           required(:agent) => AI.Agent.t(),
           required(:conversation_pid) => pid,
           required(:edit) => boolean,
-          required(:rounds) => non_neg_integer,
           required(:question) => binary,
           required(:replay) => boolean,
           optional(:fonz) => boolean
@@ -86,7 +83,20 @@ defmodule AI.Agent.Coordinator do
   def get_response(opts) do
     opts
     |> new()
+    # Common messages for all new sessions
+    |> new_session_msg()
+    |> initial_msg()
+    |> identity_msg()
+    |> user_msg()
+    |> get_notes()
+    |> research_tasklist_msg()
+    |> task_list_msg()
+    |> get_intuition()
+    |> recall_memories_msg()
+    |> startinterrupt_listener()
+    # Select steps based on user opts
     |> select_steps()
+    # Perform steps
     |> consider()
     |> case do
       {:error, reason} -> {:error, reason}
@@ -99,7 +109,6 @@ defmodule AI.Agent.Coordinator do
     with {:ok, agent} <- Map.fetch(opts, :agent),
          {:ok, conversation_pid} <- Map.fetch(opts, :conversation_pid),
          {:ok, edit?} <- Map.fetch(opts, :edit),
-         {:ok, rounds} <- Map.fetch(opts, :rounds),
          {:ok, question} <- Map.fetch(opts, :question),
          {:ok, replay} <- Map.fetch(opts, :replay),
          {:ok, project} <- Store.get_project() do
@@ -119,7 +128,6 @@ defmodule AI.Agent.Coordinator do
         agent: agent,
 
         # User opts
-        rounds: rounds,
         edit?: edit?,
         replay: replay,
         question: question,
@@ -205,48 +213,21 @@ defmodule AI.Agent.Coordinator do
   # Research steps
   # -----------------------------------------------------------------------------
   @spec select_steps(t) :: t
+
+  defp select_steps(%{edit?: true, followup?: false} = state) do
+    %{state | steps: [:initial, :coding, :check_tasks, :finalize]}
+  end
+
   defp select_steps(%{edit?: true, followup?: true} = state) do
     %{state | steps: [:followup, :coding, :check_tasks, :finalize]}
   end
 
-  defp select_steps(%{edit?: true, followup?: false, rounds: 1} = state) do
-    %{state | steps: [:singleton, :coding, :check_tasks, :finalize]}
+  defp select_steps(%{edit?: false, followup?: true} = state) do
+    %{state | steps: [:followup, :check_tasks, :finalize]}
   end
 
-  defp select_steps(%{edit?: true, followup?: false, rounds: 2} = state) do
-    %{state | steps: [:singleton, :refine, :coding, :check_tasks, :finalize]}
-  end
-
-  defp select_steps(%{edit?: true, followup?: false, rounds: 3} = state) do
-    %{state | steps: [:initial, :clarify, :refine, :coding, :check_tasks, :finalize]}
-  end
-
-  defp select_steps(%{edit?: true, followup?: false, rounds: n} = state) when n > 3 do
-    %{
-      state
-      | steps:
-          [:initial, :clarify, :refine] ++
-            Enum.map(1..(n - 3), fn _ -> :continue end) ++
-            [:coding, :check_tasks, :finalize]
-    }
-  end
-
-  defp select_steps(%{edit?: false, rounds: 1} = state) do
-    %{state | steps: [:singleton, :check_tasks, :finalize]}
-  end
-
-  defp select_steps(%{edit?: false, rounds: 2} = state) do
-    %{state | steps: [:singleton, :refine, :check_tasks, :finalize]}
-  end
-
-  defp select_steps(%{edit?: false, rounds: 3} = state) do
-    %{state | steps: [:initial, :clarify, :refine, :check_tasks, :finalize]}
-  end
-
-  defp select_steps(%{edit?: false, rounds: n} = state) do
-    start = [:initial, :clarify, :refine]
-    finish = [:check_tasks, :finalize]
-    %{state | steps: start ++ Enum.map(1..(n - 3), fn _ -> :continue end) ++ finish}
+  defp select_steps(%{edit?: false} = state) do
+    %{state | steps: [:initial, :check_tasks, :finalize]}
   end
 
   @spec perform_step(state) :: state
@@ -255,38 +236,7 @@ defmodule AI.Agent.Coordinator do
 
     state
     |> Map.put(:steps, steps)
-    |> new_session_msg()
-    |> singleton_msg()
-    |> identity_msg()
-    |> user_msg()
-    |> get_notes()
-    |> research_tasklist_msg()
-    |> task_list_msg()
     |> followup_msg()
-    |> get_intuition()
-    |> recall_memories_msg()
-    |> startinterrupt_listener()
-    |> get_completion(replay)
-    |> save_notes()
-    |> perform_step()
-  end
-
-  defp perform_step(%{replay: replay, steps: [:singleton | steps]} = state) do
-    UI.begin_step("Bootstrapping")
-
-    state
-    |> Map.put(:steps, steps)
-    |> new_session_msg()
-    |> singleton_msg()
-    |> identity_msg()
-    |> user_msg()
-    |> get_notes()
-    |> research_tasklist_msg()
-    |> task_list_msg()
-    |> begin_msg()
-    |> get_intuition()
-    |> recall_memories_msg()
-    |> startinterrupt_listener()
     |> get_completion(replay)
     |> save_notes()
     |> perform_step()
@@ -297,62 +247,8 @@ defmodule AI.Agent.Coordinator do
 
     state
     |> Map.put(:steps, steps)
-    |> new_session_msg()
-    |> initial_msg()
-    |> identity_msg()
-    |> user_msg()
-    |> get_notes()
-    |> research_tasklist_msg()
-    |> task_list_msg()
     |> begin_msg()
-    |> get_intuition()
-    |> recall_memories_msg()
     |> get_completion(replay)
-    |> save_notes()
-    |> perform_step()
-  end
-
-  defp perform_step(%{steps: [:clarify | steps]} = state) do
-    UI.begin_step("Investigating the phase space")
-
-    state
-    |> Map.put(:steps, steps)
-    |> research_tasklist_msg()
-    |> reminder_msg()
-    |> task_list_msg()
-    |> clarify_msg()
-    |> get_intuition()
-    |> get_completion()
-    |> save_notes()
-    |> perform_step()
-  end
-
-  defp perform_step(%{steps: [:refine | steps]} = state) do
-    UI.begin_step("Collapsing the wave form")
-
-    state
-    |> Map.put(:steps, steps)
-    |> research_tasklist_msg()
-    |> reminder_msg()
-    |> task_list_msg()
-    |> refine_msg()
-    |> get_intuition()
-    |> get_completion()
-    |> save_notes()
-    |> perform_step()
-  end
-
-  defp perform_step(%{steps: [:continue | steps]} = state) do
-    UI.begin_step("Shaving yaks")
-
-    state
-    |> Map.put(:steps, steps)
-    |> research_tasklist_msg()
-    |> reminder_msg()
-    |> task_list_msg()
-    |> continue_msg()
-    |> get_intuition()
-    |> get_completion()
     |> save_notes()
     |> perform_step()
   end
@@ -528,42 +424,32 @@ defmodule AI.Agent.Coordinator do
   # Message shortcuts
   # -----------------------------------------------------------------------------
   @common """
-  You are an AI assistant that researches the user's code base to answer their questions.
-  Internally, you are intensely logical and reason in a prolog-like manner, step-by-step, establishing facts, relationships, and rules, in order to draw conclusions.
-  When addressing the user, you are encouraged to explore your personality and sense of humor, and to use a polite but informal tone.
+  You are an AI assistant that coordinates research into the user's code base to answer their questions.
+  You are logical with prolog-like reasoning: step-by-step, establishing facts, relationships, and rules, to draw conclusions.
+  Prefer a polite but informal tone.
 
-  You are assisting the user by researching their question about the project, "$$PROJECT$$".
+  You are working in the project, "$$PROJECT$$".
   $$GIT_INFO$$
 
-  Confirm whether any prior research you found is still relevant and factual.
+  Confirm if prior research you found is still relevant and factual.
   Proactively use your tools to research the user's question.
-  Where a tool is not available, use the shell_tool to improvise a solution (e.g. using `git` commands directly).
-  You reason through problems step by step.
+  Where a tool is not available, use the shell_tool to improvise a solution.
 
-  ## Communicate with the user
-  Use the `notify_tool` **extensively** to report what you are doing to the user through the UI.
-  That will improve the user experience and help them understand what you are doing and why.
-  Think of it as your running, internal monologue, allowing the user to follow along with your thought process.
-  They also get a kick out of it when you report interesting findings you made along the way.
+  ## User feedback
+  Use the `notify_tool` **extensively** to report what you are doing through the UI.
+  That will improve the user experience and help them follow your thought process.
+  Note relevant findings and interesting details you discover along the way.
 
-  Analyze the user's prompt and plan out the steps you will take to answer their question or to make the changes they request.
-  Use the `notify_tool` to report your plan to the user before you begin executing it.
-  Use the `notify_tool` to report your progress as you execute your plan.
-  Use the `notify_tool` to inform the user how (and why) your plan changes as you discover new information or insights along the way.
-
-  Notifications (always use `notify_tool`):
-  - At the start: announce your plan briefly (e.g., "Plan: …").
-  - During work: report milestones, interesting findings, and tool anomalies.
-  - On blockers/uncertainty: warn and state the smallest next action.
-  - At the end: summarize outcomes and next steps.
+  Analyze the user prompt and plan steps to answer/execute it.
+  Use the `notify_tool` to inform the user of your plan, your progress, and any changes to your plan as you work.
 
   ## Memory
   You interact with the user in sessions, across multiple conversations and projects.
-  Your memory is persistent, but as an LLM, you must explicitly choose to remember information.
-  You have several types of persistent memory that you can access with various tools:
-  - Conversation memory: you can recall past conversations using the `conversation_tool`
-  - Prior research: your subsystems automatically record pertinent information you learn about a project; you can use the `prior_research` tool to access it
-  - Memory: persistent knowledge across session, project, and global scopes, accessible via the `memory_tool`
+  Your memory is persistent, but you must explicitly choose to remember information.
+  You have several types of memory you can access via these tools:
+  - conversation_tool: past conversations with the user
+  - prior_research: your prior research notes
+  - memory_tool: memories you chose to record across session, project, and global scopes
 
   ## Reasoning and research
   Maintain a critical stance:
@@ -571,183 +457,122 @@ defmodule AI.Agent.Coordinator do
   - Challenge weak premises or missing data early; avoid guessing when the risk is high.
 
   Interactive interrupts:
-  - If the user interrupts with guidance, treat it as a constraint update. Re-evaluate your plan briefly and acknowledge the change.
+  - If the user interrupts with guidance, treat it as a constraint update; update your plan and ack
 
   Effort scaling:
-  - Lean brief for straightforward tasks; escalate to deeper reasoning for multi-step deduction or troubleshooting.
-  - Note your chosen effort level once (e.g., 'Using brief rationale' vs 'Using evidence chain').
+  - Lean brief for straightforward tasks
+  - Escalate to deeper reasoning for multi-step deduction or troubleshooting
 
-  Proving hypotheses:
-  - When diagnosing bugs or investigating issues, either locally or remotely, you can use the shell_tool to gather evidence.
-  - If your coding tools are available, you can also use them to write test cases or temporary scripts to confirm your hypotheses.
-  - You can attempt to interact with the code base directly to gather evidence, but be sure to clean up any artifacts you create along the way.
+  Debugging and troubleshooting:
+  - Form hypotheses based on evidence from the code base
+  - Confirm or refute hypotheses through targeted investigation:
+    - using the shell_tool
+    - running or writing tests
+    - printf debugging
 
   Reachability and Preconditions:
-  - Before flagging a bug or risk, confirm it is reachable in current control flow.
-  - Identify real callers using file indexes and call graph tools; cite concrete entry points.
-  - Inspect pattern matches, guards, and prior validation layers that constrain inputs and states.
+  - Before flagging an issue, confirm it is reachable in current control flow
+  - Identify real callers using your tools and identify their entry points
   - Classification:
-    - Concrete bug: provide the exact path (caller -> callee), show which preconditions are satisfied, and why a failing state can occur now.
-    - Potential issue: if reachability depends on changes or bypassing a guard, label as potential and specify exactly what would have to change.
-  - Cite minimal evidence: file paths, symbols, relevant snippets, and the shortest proof chain.
+    - Concrete: provide the exact path (entry -> caller -> callee), show preconditions, and how it can occur
+    - Potential: report when immediately relevant or likely
+  - Cite evidence: file paths, symbols, and the shortest proof chain.
 
   Conflicts in user instructions:
-  - If the user asks you to perform a task and you are not able to do so (for example, they ask you to read a file you cannot access).
-    IMMEDIATELY notify them of the conflict and request corrected instructions.
-  - NEVER proceed with the task if you are not able to complete it as requested.
+  - If the user asks you to perform a task and you are incapable, request corrected instructions
+  - NEVER proceed with the task if you unable to complete it as requested.
     The goal isn't to make the user feel validated.
-    Hallucinating a response out of a desire to please the user is counterproductive and will cause the user to stop trusting you.
-    That would be in DIRECT CONFLICT with your desire to be seen as a valuable partner and make positive contributions.
-  """
-
-  @bootstrap """
-  #{@common}
-
-  Consider:
-  - If the user asked you to make changes to the repo and you do not see the coder_tool available to you as a tool_call, notify them that they must run `fnord ask` with `--edit` for you to be able to make code changes.
-  - If the user asked you to troubleshoot a problem, ensure you have access to adequate tool_calls and delegate the work to the troubleshooter_tool.
-
-  Instructions:
-  - FIRST:
-    - Say hi to the user using the notify_tool
-    - Briefly summarize your understanding of the user's question
-    - Demonstrate your whimsy and personality to make the interaction more enjoyable for the user
-  - Examine the user's question and identify multiple lines of research that cover all aspects of the question.
-  - Delegate these lines of research to the research_tool in parallel to gather the information you need.
-  - Once all results are available, compare, synthesize, and integrate their findings.
-  - Perform additional rounds of research as necessary to fill in gaps in your understanding or find examples for the user.
-
-  **Tool orchestration:**
-  - Parallelize independent research; serialize only when outputs feed inputs.
-  - Prefer indexes/notes/summaries before opening large files.
-  - Cap retries (2) with short backoff; if repeated failures occur, switch tools or surface the blockage.
-
-  **DO NOT FINALIZE YOUR RESPONSE UNTIL EXPLICITLY INSTRUCTED.**
-  """
-
-  @singleton """
-  #{@bootstrap}
-
-  Before responding, consider the following:
-  - Did you double-check your work to ensure that you are not missing any important details?
-  - Did you include citations of the files you used to answer the question?
+    Hallucinating a response out of a desire to please the user erodes trust.
   """
 
   @initial """
-  #{@bootstrap}
+  #{@common}
 
-  Procedure:
-  Your first step is to break down the user's request into individual lines of research.
-  You will then execute these tasks, parallelizing as many as possible.
+  If asked to make changes and your coding tools are not enabled, notify the user that they must enable with --edit.
+  If asked to troubleshoot a bug, delegate to the troubleshooter_tool.
+
+  Instructions:
+  - Say hi to the user (notify_tool)
+  - Briefly summarize your understanding of the task
+  - Create a step-by-step plan that you can delegate to other agents through your tools (preserving your context window as the orchestrator)
+  - The research_tool has access to the same tools and capabilities as you do; delegate it research tasks
+  - Delegate multiple parallel research tasks to gain holistic understanding of the problem space
+  - Delegate follow-up research tasks as necessary to resolve uncertainties
+  - Once all results are in, compare, synthesize, and integrate findings
+
+  **Tool orchestration:**
+  - Parallelize research; serialize only when outputs feed inputs.
+  - Prefer agentic tools to preserve context window (eg file_info_tool over file_contents_tool)
+
+  **DO NOT FINALIZE YOUR RESPONSE UNTIL INSTRUCTED.**
   """
 
   @coding """
-  The user has enabled your coding capabilities!
+  **The user enabled your coding tools**
 
   #{@common}
 
-  Analyze the user's prompt and evaluate its complexity.
-  Use your expertise in project planning to make a PRAGMATIC assessment of the scope of the requested changes.
-  When in doubt, use an "exploratory programming" approach, treating the task as a STORY until you have sufficient evidence that the change is larger or more complicated than expected.
-  If that happens, pivot to an EPIC and treat the work you have already done as "MILESTONE 0" (OR just revert and start over if that is easier).
+  Analyze the prompt and evaluate its complexity.
+  When in doubt, use the research_tool to figure it out.
+  If that identified unexpected complexity, pivot to an EPIC and treat the research done as "MILESTONE 0".
 
   ## STORIES
-  Use these guidelines when the user has asked you to make discrete changes to a few files.
-  - Do basic research to understand the problem space and its dependencies.
+  Use when the user asks you to make discrete changes to 1-3 files.
+  - Do research to understand the problem space and dependencies
   - Is there an existing test that covers the change you are making?
-    - If so, run it before making changes to ensure it is passing.
-    - If not, consider writing a new test to cover the change you are making.
-  - Use the file_edit_tool to make the changes yourself.
-  - Double check the file contents after making changes
-  - Use linters and/or formatters when available
+    - Yes: run it before making changes as a baseline
+    - No: consider writing one to cover the code you are changing
+  - Use the file_edit_tool
+  - Check the file after making changes (correctness, formatting, syntax, tool failure)
+  - Use linters/formatters if available
   - ALWAYS run tests if available
 
   ## EPICS
-  Use these guidelines for complex changes that involve coordinated modifications across multiple files and components.
-  - REFUSE to make large changes on top of unstaged changes.
-    Ask the user to commit or stash their changes before proceeding, even if it's just a "WIP" commit to save their work.
-    Remind them that you are an LLM, prone to hallucination, and you don't want to accidentally clobber their work.
-    Caveat: Ignore this rule if the project is not under version control.
-  - Research affected features and components to completely map out dependencies and interactions.
-  - Use your task list to plan milestones, paying careful attention to dependencies and sequencing.
-    - Use the memory_tool to record learnings about the capabilities of the coder_tool
-    - Use your past experiences with the coder_tool to inform how you design and structure your milestones.
-  - Delegate the work of planning and implementing individual milestones to the coder_tool.
-    - Use your knowledge of the capabilities and weaknesses of LLMs prompt the coder tool
-    - The coder_tool will research, plan, design, implement, and verify the changes you requested.
-  - Once the coder_tool has completed its work, you MUST verify that the changes are correct and complete.
-    - Did the coder_tool APPLY the changes or just respond with code snippets? Verify manually.
-    - Manually check syntax, formatting, logic, correctness, and observance of conventions.
-    - Confirm whether there unit tests to update.
+  Use for complex/open-ended changes.
+  - REFUSE if there are unstaged changes present
+  - Research affected features and components to map out dependencies and interactions
+  - Use your task list to plan milestones
+    - Use the memory_tool to record learnings about the using the coder_tool
+    - Use those to inform how you structure your milestones
+  - Delegate milestones to the coder_tool
+    - It's agentic - include enough context that it can work independently
+    - The coder_tool will plan, implement, and verify the milestone
+  - Once the coder_tool has completed its work, you MUST verify the changes
+    - Did the coder_tool APPLY the changes or just respond with code snippets?
+    - Manually check syntax, formatting, logic, correctness, and observance of conventions
+    - Confirm whether there unit tests to update
 
   ## POST-CODING CHECKLIST:
-  1. Syntax and formatting checked
-  2. Relevant tests and docs updated
-  3. Changes confirmed to have actually been applied
+  1. Syntax/formatting
+  2. Tests/docs updated
+  3. Changes visually inspected
   4. Correctness manually verified
-    - No requested changes are missing
-    - No unintended changes were made
-    - No unnecessary changes or artifacts were introduced
-    - No existing functionality is broken
-    - Diff size minimized to reduce surface area for bugs, merge conflicts, and easy code review
-  5. Temporary artifacts removed
+    - Requested changes all present
+    - NO unintended/unrelated changes/artifacts
+    - NO existing functionality is broken
+    - Diff minimized to reduce surface area for bugs/conflicts/review
 
-  ## DEBUGGING AND TROUBLESHOOTING
-  Use your coding tools and shell_tool to troubleshoot and debug.
-  Propose a theory and test it with a unit test or temporary script (but clean up after).
+  ## DEBUGGING/TROUBLESHOOTING
+  Use your coding tools and shell_tool to debug.
+  Propose a theory and test it with a unit test or tmp script.
   Rinse and repeat to winnow down to the root cause.
   """
 
   @followup """
   <think>
-  The user is replaying to my last response.
-  They might have follow-up questions or want me to clarify something, or are not satisfied with my previous answer.
-  I might have missed or misunderstood something.
-  I'll think carefully about how my previous response relates to the user's reply.
-  I'll investigate how new constraints or details relate to my previous research, and respond accordingly.
+  The user replied to my last response.
+  Do they want clarification or were they unhappy with my answer?
+  Maybe I missed something.
+  Let me think how my response aligns with their reply.
+  I'll review my previous answer and respond accordingly.
   </think>
   """
 
   @begin """
   <think>
-  I'll consider the user's question.
-  I need to be certain I understand the question, context, terms used, and how they relate to the project.
-  I'll spawn research tasks to explore different aspects in parallel.
-  I will assimilate those to inform my next steps.
-  </think>
-  """
-
-  @clarify """
-  <think>
-  Wait, does my research so far match my initial assumptions?
-  Let me think about this.
-  Does my research strategy still make sense based on my initial findings?
-  Let me rethink the user's original question in light of what I've learned so far.
-  Many projects evolve over time, and terminology can change as a product matures.
-  It's not yet time to finalize my response.
-  I'll do more research to make sure I don't get tripped up by any concepts or terminology that might be ambiguously labeled in the project.
-  </think>
-  """
-
-  @refine """
-  <think>
-  I've got a better handle on the context now.
-  Now I'll focus on identifying the most relevant information.
-  Are there any unresolved questions that I need to research to be sure I'm not hallucinating details?
-  Do I understand the user's motivations and needs here?
-  I want to present the information in a manner that is easy to follow.
-  Would it be helpful if I found some examples in the project that demonstrate?
-  It's not yet time to finalize my response.
-  I need to resolve some of these questions first.
-  </think>
-  """
-
-  @continue """
-  <think>
-  The user wants me to spend a little extra time researching, so I'm going to dig deeper into the project.
-  Maybe I can find some other useful details or gotchas to look out for.
-  The user will be very happy if I can provide warnings about relevant pitfalls.
-  They wouldn't ask me if they already knew all of this stuff.
+  Let me consider the prompt.
+  Do I fully understand the context, terms, and how they fit in this project?
+  What is the correct action or strategy for this prompt?
   </think>
   """
 
@@ -916,27 +741,6 @@ defmodule AI.Agent.Coordinator do
     state
   end
 
-  @spec singleton_msg(t) :: t
-  defp singleton_msg(%{conversation_pid: conversation_pid, project: project, edit?: true} = state) do
-    @coding
-    |> String.replace("$$PROJECT$$", project)
-    |> String.replace("$$GIT_INFO$$", git_info())
-    |> AI.Util.system_msg()
-    |> Services.Conversation.append_msg(conversation_pid)
-
-    state
-  end
-
-  defp singleton_msg(%{conversation_pid: conversation_pid, project: project} = state) do
-    @singleton
-    |> String.replace("$$PROJECT$$", project)
-    |> String.replace("$$GIT_INFO$$", git_info())
-    |> AI.Util.system_msg()
-    |> Services.Conversation.append_msg(conversation_pid)
-
-    state
-  end
-
   @spec initial_msg(t) :: t
   defp initial_msg(%{conversation_pid: conversation_pid, project: project, edit?: true} = state) do
     @coding
@@ -988,33 +792,6 @@ defmodule AI.Agent.Coordinator do
   @spec begin_msg(t) :: t
   defp begin_msg(%{conversation_pid: conversation_pid} = state) do
     @begin
-    |> AI.Util.assistant_msg()
-    |> Services.Conversation.append_msg(conversation_pid)
-
-    state
-  end
-
-  @spec clarify_msg(t) :: t
-  defp clarify_msg(state) do
-    @clarify
-    |> AI.Util.assistant_msg()
-    |> Services.Conversation.append_msg(state.conversation_pid)
-
-    state
-  end
-
-  @spec refine_msg(t) :: t
-  defp refine_msg(%{conversation_pid: conversation_pid} = state) do
-    @refine
-    |> AI.Util.assistant_msg()
-    |> Services.Conversation.append_msg(conversation_pid)
-
-    state
-  end
-
-  @spec continue_msg(t) :: t
-  defp continue_msg(%{conversation_pid: conversation_pid} = state) do
-    @continue
     |> AI.Util.assistant_msg()
     |> Services.Conversation.append_msg(conversation_pid)
 

@@ -1,6 +1,4 @@
 defmodule Cmd.Ask do
-  @default_rounds 1
-
   # Universal default: auto-deny after 180 seconds if no explicit auto flag
   @default_auto_policy {:deny, 180_000}
 
@@ -41,16 +39,6 @@ defmodule Cmd.Ask do
             help:
               "After notification, auto-DENY in SECONDS if no input. Default: auto-DENY after 180 seconds.",
             parser: :integer,
-            required: false
-          ],
-          rounds: [
-            value_name: "ROUNDS",
-            long: "--rounds",
-            short: "-R",
-            help:
-              "The number of research rounds to perform. Additional rounds generally result in more thorough research.",
-            parser: :integer,
-            default: @default_rounds,
             required: false
           ],
           worktree: [
@@ -193,10 +181,6 @@ defmodule Cmd.Ask do
           UI.error("--auto-deny-after must be a positive integer")
           {:error, :invalid_auto_deny_after}
 
-        {:error, :invalid_rounds} ->
-          UI.error("--rounds expects a positive integer")
-          {:error, :invalid_rounds}
-
         {:error, :conversation_not_found} ->
           UI.error("Conversation ID #{opts[:conversation]} not found")
           {:error, :conversation_not_found}
@@ -224,15 +208,11 @@ defmodule Cmd.Ask do
   # ----------------------------------------------------------------------------
   defp validate(opts) do
     with :ok <- validate_conversation(opts),
-         :ok <- validate_rounds(opts),
          :ok <- validate_auto(opts),
          :ok <- validate_worktree(opts) do
       {:ok, opts}
     end
   end
-
-  defp validate_rounds(%{rounds: rounds}) when is_integer(rounds) and rounds > 0, do: :ok
-  defp validate_rounds(_opts), do: {:error, :invalid_rounds}
 
   # Validate mutual exclusion and positivity of auto flags
   @spec validate_auto(map) :: :ok | {:error, atom | binary}
@@ -421,7 +401,6 @@ defmodule Cmd.Ask do
   defp get_agent_response(opts, conversation_server) do
     Services.Conversation.get_response(conversation_server,
       edit: opts.edit,
-      rounds: opts.rounds,
       question: opts.question,
       replay: Map.get(opts, :replay, false),
       yes: Map.get(opts, :yes, false),

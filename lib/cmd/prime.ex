@@ -47,7 +47,6 @@ defmodule Cmd.Prime do
   @impl Cmd
   def run(opts, subcommands, unknown) do
     opts
-    |> Map.put(:rounds, 3)
     |> Map.put(:question, @primer_prompt)
     |> Cmd.Ask.run(subcommands, unknown)
   end
