@@ -83,20 +83,7 @@ defmodule AI.Agent.Coordinator do
   def get_response(opts) do
     opts
     |> new()
-    # Common messages for all new sessions
-    |> new_session_msg()
-    |> initial_msg()
-    |> identity_msg()
-    |> user_msg()
-    |> get_notes()
-    |> research_tasklist_msg()
-    |> task_list_msg()
-    |> get_intuition()
-    |> recall_memories_msg()
-    |> startinterrupt_listener()
-    # Select steps based on user opts
     |> select_steps()
-    # Perform steps
     |> consider()
     |> case do
       {:error, reason} -> {:error, reason}
@@ -169,6 +156,7 @@ defmodule AI.Agent.Coordinator do
 
       state
       |> greet()
+      |> bootstrap()
       |> perform_step()
     end
   end
@@ -196,6 +184,7 @@ defmodule AI.Agent.Coordinator do
     state
   end
 
+  @spec greet(t) :: t
   defp greet(%{agent: %{name: name}} = state) do
     display_name =
       case Services.NamePool.get_name_by_pid(self()) do
@@ -207,6 +196,21 @@ defmodule AI.Agent.Coordinator do
     UI.feedback(:info, display_name, "I shall be doing your thinking for you today.")
 
     state
+  end
+
+  @spec bootstrap(t) :: t
+  defp bootstrap(state) do
+    state
+    |> new_session_msg()
+    |> initial_msg()
+    |> identity_msg()
+    |> user_msg()
+    |> get_intuition()
+    |> get_notes()
+    |> recall_memories_msg()
+    |> research_tasklist_msg()
+    |> task_list_msg()
+    |> startinterrupt_listener()
   end
 
   # -----------------------------------------------------------------------------
@@ -672,7 +676,7 @@ defmodule AI.Agent.Coordinator do
   end
 
   @spec recall_memories_msg(t) :: t
-  defp recall_memories_msg(%__MODULE__{} = state) do
+  defp recall_memories_msg(state) do
     UI.begin_step("Spooling mnemonics")
 
     intuition = state |> Map.get(:intuition, "") |> String.trim()
@@ -1062,13 +1066,10 @@ defmodule AI.Agent.Coordinator do
   @spec research_tasklist_msg(t) :: t
   defp research_tasklist_msg(%{conversation_pid: conversation_pid} = state) do
     """
-    Use your task list to manage ALL research lines of inquiry.
-
-    - For every new line of inquiry, create a task (short label + detailed description).
-      Include rationale, next actions, and expected signals (files/components/behaviors).
-    - When you conclude or drop a line, resolve its task with a clear outcome.
-    - Before moving to the next step, call `tasks_show_list` to review open tasks and add follow-ups if needed.
-    - Do NOT rely on ad-hoc text; track lines of inquiry explicitly in the task list.
+    Use your task list to manage all research:
+    - For every new line of inquiry, create a task
+    - When you conclude or drop a line, resolve it with a clear outcome
+    - Before moving to the next, call `tasks_show_list` to review and update open tasks
     """
     |> AI.Util.system_msg()
     |> Services.Conversation.append_msg(conversation_pid)
@@ -1079,11 +1080,10 @@ defmodule AI.Agent.Coordinator do
   @spec coding_milestone_msg(t) :: t
   defp coding_milestone_msg(%{conversation_pid: conversation_pid} = state) do
     """
-    - Treat the coder tool's iterative goals as sub-steps toward milestones.
-    - At each coding iteration:
-      - Review your task list for milestone tasks; update/add as needed.
-      - Ensure current work aligns with milestones; if not, record follow-ups and adjust plan.
-    - Use `tasks_show_list` to render current status before each iteration.
+    - Milestone check point:
+    - Review your task list for milestone tasks; update/add as needed
+    - Ensure current work aligns with milestones; if not, adjust tasks
+    - Use `tasks_show_list` to render current status before each iteration
     """
     |> AI.Util.system_msg()
     |> Services.Conversation.append_msg(conversation_pid)

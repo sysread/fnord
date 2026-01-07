@@ -181,7 +181,7 @@ fnord ask --project blarg --follow <ID> --question "Is some_function still used?
 
 After each response, you'll see a conversation ID. Use `--follow <ID>` to continue the conversation or `--fork <ID>` to branch a new thread.
 
-For advanced options (research rounds, unindexed projects, replaying conversations), see [docs/asking-questions.md](docs/asking-questions.md).
+For advanced options (e.g., unindexed projects, replaying conversations), see [docs/asking-questions.md](docs/asking-questions.md).
 
 
 ### Learning over time

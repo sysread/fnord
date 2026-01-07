@@ -4,7 +4,7 @@ defmodule Services.Conversation.Interrupts do
 
   This GenServer stores a FIFO list of pending injected user messages per
   conversation pid. AI.Completion will drain and apply these messages at safe
-  checkpoints before sending a model request or between tool-call rounds.
+  checkpoints before sending a model request or between tool-call checkpoints.
 
   Additionally, it supports temporarily blocking interrupts for a conversation
   during critical phases (e.g., finalization). When blocked, attempts to

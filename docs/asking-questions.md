@@ -6,46 +6,23 @@ Deep dive into fnord's `ask` command and research capabilities.
 
 For basic usage, see the [main README](../README.md#generate-answers-on-demand).
 
-## Research Rounds
+## Persistent Research Notes
 
-By default, fnord performs one round of research per question. A round consists of:
-1. Analyzing the question
-2. Planning research strategy
-3. Executing tool calls (search, read files, git commands, etc.)
-4. Synthesizing findings
+fnord learns from each session and retains knowledge across questions in the same project.
+This allows it to build a knowledge base over time.
+To provide baseline context, use `fnord prime --project <project>` before asking questions.
 
-### Increasing Research Depth
-
-Use `--rounds` to perform multiple rounds of research:
+Examples:
 
 ```bash
-fnord ask --project myproject --rounds 3 --question "How does authentication work?"
-```
-
-**What happens with multiple rounds:**
-- Round 1: Initial research, broad exploration
-- Round 2: Deeper investigation of interesting findings
-- Round 3: Synthesis and connection-making across components
-
-**When to use more rounds:**
-- Complex architectural questions
-- Questions spanning multiple subsystems
-- Large codebases with many interconnected parts
-- When initial answer seems incomplete
-
-**Trade-offs:**
-- More rounds = better quality, deeper analysis
-- More rounds = longer wait time, more API usage
-- Default (1 round) is usually sufficient for focused questions
-
-**Examples:**
-
-```bash
-# Simple question - 1 round is fine
 fnord ask -p myproject -q "Where is the login function defined?"
 
-# Complex question - use more rounds
-fnord ask -p myproject --rounds 5 -q "Explain the complete authentication flow from login to token refresh"
+# Follow-up question – retains context
+fnord ask -p myproject -f <conversation_id> -q "Where is the idp configuration loaded?"
+
+# Prime project knowledge before deep questions
+fnord prime -p myproject
+fnord ask -p myproject -q "Trace the complete flow from HTTP request to database query and back"
 ```
 
 ## Asking Questions on Unindexed Projects
@@ -75,7 +52,7 @@ fnord config set --project myproject --root /path/to/project
 **Example:**
 ```bash
 fnord ask -p myproject -q "Find all files that reference 'authentication'"
-# Uses ripgrep instead of semantic search
+# ...uses ripgrep instead of semantic search
 ```
 
 ### With Index (Recommended)
@@ -84,7 +61,7 @@ For best results, index first:
 ```bash
 fnord index --project myproject --dir /path/to/project
 fnord ask -p myproject -q "How does authentication work?"
-# Uses semantic search + tool calls + learning system
+# ...uses semantic search + tool calls + learning system
 ```
 
 ## Conversation Management
@@ -235,29 +212,19 @@ fnord ask -p myproject --follow <ID> -q "How does it integrate with the database
 fnord ask -p myproject --follow <ID> -q "What happens if token validation fails?"
 ```
 
-### 3. Use More Rounds for Complex Questions
-
-```bash
-# Complex architectural question
-fnord ask -p myproject --rounds 5 \
-  -q "Trace the complete flow from HTTP request to database query and back"
-```
-
-### 4. Prime First for New Projects
+### 3. Prime First for New Projects
 
 ```bash
 fnord index --project myproject --dir /path/to/project
-fnord prime --project myproject --rounds 3
 # Now ask questions - fnord has baseline knowledge
 ```
 
-### 5. Leverage Learning System
+### 4. Leverage Learning System
 
 Ask fnord to review its notes first:
 
 ```bash
-fnord ask -p myproject --rounds 3 \
-  -q "Review your notes about the authentication system, then explain how password reset works"
+fnord ask -p myproject -q "Review your notes about the authentication system, then explain how password reset works"
 ```
 
 ## Advanced Options
@@ -319,7 +286,6 @@ fnord notes -p myproject | grep -i error
 ### Incomplete Answers
 
 **Try:**
-- Increase rounds: `--rounds 3` or `--rounds 5`
 - Ask follow-up questions
 - Be more specific in your question
 - Ensure project is indexed
@@ -335,13 +301,11 @@ fnord notes -p myproject | grep -i error
 
 **Causes:**
 - Large codebase with many potential matches
-- High number of rounds
 - Many tool calls needed
 - API rate limiting
 
 **Solutions:**
 - Use more specific questions
-- Reduce rounds if appropriate
 - Ensure good semantic index quality
 - Prime knowledge base for better context
 

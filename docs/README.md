@@ -10,7 +10,7 @@ New to fnord? Start with the [main README](../README.md).
 - [Frobs Developer Guide](frobs-guide.md) - Create custom tools for fnord to use while researching
 
 ### Research and Learning
-- [Advanced Asking Questions](asking-questions.md) - Research rounds, conversation management, debugging
+- [Advanced Asking Questions](asking-questions.md) - Research, conversation management, debugging
 - [Learning System](learning-system.md) - Knowledge management, priming, notes
 - [Approval Patterns](approval-patterns.md) - Pre-approve shell commands, configure safety patterns
 

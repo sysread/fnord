@@ -39,8 +39,7 @@ defmodule Cmd.Ask.WorktreeTest do
                  Cmd.Ask.run(
                    %{
                      worktree: dir,
-                     question: "hello",
-                     rounds: 1
+                     question: "hello"
                    },
                    [],
                    []
@@ -58,8 +57,7 @@ defmodule Cmd.Ask.WorktreeTest do
              Cmd.Ask.run(
                %{
                  worktree: bad,
-                 question: "hello",
-                 rounds: 1
+                 question: "hello"
                },
                [],
                []
@@ -90,7 +88,7 @@ defmodule Cmd.Ask.WorktreeTest do
 
     # Run in edit mode without --worktree
     capture_all(fn ->
-      assert :ok = Cmd.Ask.run(%{question: "Q", rounds: 1, edit: true}, [], [])
+      assert :ok = Cmd.Ask.run(%{question: "Q", edit: true}, [], [])
     end)
 
     # Override should now be set to worktree root
@@ -119,7 +117,7 @@ defmodule Cmd.Ask.WorktreeTest do
 
     # Run in edit mode without --worktree
     capture_all(fn ->
-      assert :ok = Cmd.Ask.run(%{question: "Q", rounds: 1, edit: true}, [], [])
+      assert :ok = Cmd.Ask.run(%{question: "Q", edit: true}, [], [])
     end)
 
     # Override should remain nil

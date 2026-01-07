@@ -8,13 +8,13 @@ defmodule Cmd.PrimeTest do
       :ok
     end
 
-    test "delegates to Cmd.Ask.run/3 with rounds=3 and primer question (happy path)" do
+    test "delegates to Cmd.Ask.run/3 with primer question (happy path)" do
       :meck.new(Cmd.Ask, [:no_link, :passthrough, :non_strict])
       on_exit(fn -> :meck.unload(Cmd.Ask) end)
 
       :meck.expect(Cmd.Ask, :run, fn opts, subcommands, unknown ->
         # Overrides
-        assert Map.get(opts, :rounds) == 3
+
         question = Map.get(opts, :question)
         assert is_binary(question)
         assert String.starts_with?(question, "Please provide an overview of the current project.")
@@ -28,29 +28,6 @@ defmodule Cmd.PrimeTest do
 
       result = Cmd.Prime.run(%{}, [], [])
       assert result == :ok
-    end
-
-    test "overrides existing rounds and question while preserving other opts" do
-      :meck.new(Cmd.Ask, [:no_link, :passthrough, :non_strict])
-      on_exit(fn -> :meck.unload(Cmd.Ask) end)
-
-      :meck.expect(Cmd.Ask, :run, fn opts, subcommands, unknown ->
-        # Overridden
-        assert Map.get(opts, :rounds) == 3
-        q = Map.get(opts, :question)
-        assert is_binary(q)
-        assert String.starts_with?(q, "Please provide an overview of the current project.")
-
-        # Preserved misc opt
-        assert Map.get(opts, :edit) == true
-
-        assert subcommands == []
-        assert unknown == []
-        {:ok, :delegated}
-      end)
-
-      result = Cmd.Prime.run(%{rounds: 99, question: "ignored", edit: true}, [], [])
-      assert result == {:ok, :delegated}
     end
 
     test "propagates error from Cmd.Ask.run/3" do

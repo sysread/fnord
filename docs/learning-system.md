@@ -55,11 +55,8 @@ fnord prime --project myproject
 
 **Options:**
 ```bash
-# Use more research rounds for deeper analysis (default: 3)
-fnord prime --project myproject --rounds 5
-
-# Prime and view results
-fnord prime --project myproject && fnord notes --project myproject | glow
+fnord prime --project myproject
+fnord notes --project myproject | glow
 ```
 
 **When to prime:**
@@ -120,7 +117,7 @@ As your codebase evolves, some learned facts may become outdated:
 mv ~/.fnord/myproject/notes ~/.fnord/myproject/notes.backup
 
 # Re-prime
-fnord prime --project myproject --rounds 5
+fnord prime --project myproject
 ```
 
 2. **Targeted updates** - Ask specific questions about changed areas
@@ -162,22 +159,11 @@ Together, these create a comprehensive understanding of your project.
    fnord index --project myproject
    fnord prime --project myproject
    ```
-
 2. **Let it grow naturally** - Ask questions as they arise, knowledge accumulates
-
 3. **Use follow-up questions** - Builds deeper, more connected understanding
-
-4. **Re-prime periodically** - After major changes or when notes feel stale
-
-5. **Review notes occasionally** - Understand what fnord knows about your project
-   ```bash
-   fnord notes --project myproject | glow > project-knowledge.md
-   ```
-
-6. **More rounds for depth** - Use `--rounds` for thorough analysis
-   ```bash
-   fnord ask -p myproject --rounds 5 -q "complex architectural question"
-   ```
+4. **Provide feedback** - Correct the LLM with `--follow` when it makes a mistake, confuses concepts, or breaks conventions
+5. **Re-prime periodically** - After major changes or when notes feel stale
+6. **Review notes occasionally** - Understand what fnord knows about your project: `fnord notes --project myproject | glow > project-knowledge.md`
 
 ## Technical Details
 
@@ -228,10 +214,15 @@ fnord ask -p myproject -q "What is the overall architecture of this project?"
 
 **Cause:** Overlapping learning from multiple research sessions
 
+**Solution:** Provide feedback:
+```bash
+fnord ask -p myproject -q "Review all prior research. Use the memory tool to remove redundant, dated, and incorrect information."
+```
+
 **Solution:** Re-prime to consolidate:
 ```bash
 mv ~/.fnord/myproject/notes ~/.fnord/myproject/notes.old
-fnord prime --project myproject --rounds 5
+fnord prime --project myproject
 ```
 
 ## Future Enhancements

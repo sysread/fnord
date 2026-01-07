@@ -68,7 +68,7 @@ defmodule Cmd.AskTest do
     end
 
     test "propagates start_link exceptions (outside try)" do
-      opts = %{question: "whoops?", rounds: 1}
+      opts = %{question: "whoops?"}
 
       assert_raise RuntimeError, "boom", fn ->
         Cmd.Ask.run(opts, [], [])
