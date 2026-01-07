@@ -68,6 +68,10 @@ defmodule Fnord.TestCase do
         # Disable any sleep calls during HTTP retries to speed up tests.
         Services.Globals.put_env(:fnord, :http_retry_skip_sleep, true)
 
+        case Services.Once.start_link() do
+          {:error, {:already_started, _}} -> :ok
+          {:ok, _} -> :ok
+        end
         :ok
       end
 

@@ -15,7 +15,14 @@ defmodule Http do
   @type http_status :: integer
   @type http_error :: {:http_error, {http_status, String.t()}}
   @type transport_error :: {:transport_error, any}
-  @type success :: {:ok, map}
+
+  @type json_response :: %{
+          body: map,
+          headers: list,
+          status: http_status
+        }
+
+  @type success :: {:ok, json_response}
   @type post_response :: success | http_error | transport_error
   @type get_response :: {:ok, String.t()} | http_error | transport_error
 
@@ -155,10 +162,13 @@ defmodule Http do
     result = HTTPoison.post(url, body, headers, options)
 
     case result do
-      {:ok, %{status_code: 200, body: json}} ->
-        Jason.decode(json)
+      {:ok, %HTTPoison.Response{status_code: 200, body: json, headers: headers}} ->
+        case Jason.decode(json) do
+          {:ok, decoded} -> {:ok, %{body: decoded, headers: headers, status: 200}}
+          {:error, _} -> {:transport_error, :invalid_json_response}
+        end
 
-      {:ok, %{status_code: status_code, body: resp_body}} ->
+      {:ok, %HTTPoison.Response{status_code: status_code, body: resp_body}} ->
         if retryable_http_status?(status_code) and attempt < @max_retries do
           delay = backoff_delay(attempt)
 
@@ -207,10 +217,13 @@ defmodule Http do
     result = HTTPoison.post(url, body, headers, options)
 
     case result do
-      {:ok, %{status_code: 200, body: json}} ->
-        Jason.decode(json)
+      {:ok, %HTTPoison.Response{status_code: 200, body: json, headers: headers}} ->
+        case Jason.decode(json) do
+          {:ok, decoded} -> {:ok, %{body: decoded, headers: headers, status: 200}}
+          {:error, _} -> {:transport_error, :invalid_json_response}
+        end
 
-      {:ok, %{status_code: status_code, body: resp_body}} ->
+      {:ok, %HTTPoison.Response{status_code: status_code, body: resp_body}} ->
         {:http_error, {status_code, resp_body}}
 
       {:error, %HTTPoison.Error{reason: reason}} ->

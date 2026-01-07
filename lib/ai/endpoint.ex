@@ -19,7 +19,7 @@ defmodule AI.Endpoint do
   @type http_error :: {:http_error, {http_status, String.t()}}
   @type transport_error :: {:transport_error, any()}
 
-  @type success :: {:ok, map()}
+  @type success :: {:ok, %{body: map(), headers: headers(), status: http_status()}}
   @type response :: success | http_error | transport_error
 
   @type endpoint :: module()
@@ -51,14 +51,15 @@ defmodule AI.Endpoint do
     do_post_json(url, headers, payload, 1)
   end
 
-  defp do_post_json(url, headers, payload, attempt) when attempt <= @retry_limit do
+  defp do_post_json(url, headers, payload, attempt) do
     result = Http.post_json(url, headers, payload)
     model = model_from_payload(payload)
     Store.APIUsage.record_for_model(model, result)
 
     case result do
-      {:http_error, {429, body}} = err ->
-        if throttling_error?(body) and attempt < @retry_limit do
+      {:http_error, {429, body}} ->
+        # Retry on throttling errors up to the retry limit
+        if attempt < retry_limit() and throttling_error?(body) do
           Services.BgIndexingControl.note_throttle(model)
           usage_wait = usage_wait_ms(model)
           body_wait = throttling_delay_ms(body)
@@ -70,28 +71,26 @@ defmodule AI.Endpoint do
             |> Enum.max()
 
           UI.warn(
-            "[AI.Endpoint] Throttled (429), model=#{inspect(model)}, attempt #{attempt}/#{@retry_limit}, retrying in #{delay}ms"
+            "[AI.Endpoint] Throttled (429), model=#{inspect(model)}, attempt #{attempt}/#{retry_limit()}, retrying in #{delay}ms"
           )
 
           maybe_sleep(delay)
           do_post_json(url, headers, payload, attempt + 1)
         else
-          err
+          # Non-throttling or max retries reached: return HTTP error
+          {:http_error, {429, body}}
         end
 
-      {:ok, _} = ok ->
+      {:ok, %{body: _body} = payload} ->
         Services.BgIndexingControl.note_success(model)
-        ok
+        {:ok, payload}
 
-      other ->
-        other
+      {:http_error, error} ->
+        {:http_error, error}
+
+      {:transport_error, reason} ->
+        {:transport_error, reason}
     end
-  end
-
-  defp do_post_json(url, headers, payload, attempt) when attempt > @retry_limit do
-    # Should be unreachable because we stop retrying at max-1, but keep for
-    # completeness.
-    Http.post_json(url, headers, payload)
   end
 
   defp throttling_error?(body) when is_binary(body) do

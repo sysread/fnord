@@ -316,7 +316,7 @@ defmodule AI.Agent.Intuition do
     end
   end
 
-  defp get_subconscious_union(state), do: state
+  defp get_subconscious_union(%{error: msg}), do: {:error, msg}
 
   defp log(:perception, msg) do
     UI.report_step("Perception", UI.italicize(msg))

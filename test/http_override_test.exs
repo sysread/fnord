@@ -15,10 +15,11 @@ defmodule HttpOverrideTest do
   test "post_json uses default :ai_api pool" do
     :meck.expect(HTTPoison, :post, fn _url, _body, _headers, opts ->
       assert opts[:hackney_options] == [pool: :ai_api]
-      {:ok, %{status_code: 200, body: ~s({})}}
+      {:ok, %HTTPoison.Response{status_code: 200, headers: [], body: ~s({})}}
     end)
 
-    assert {:ok, %{}} == Http.post_json("http://example", json_headers(), %{})
+    assert {:ok, %{body: %{}, status: 200, headers: _}} =
+             Http.post_json("http://example", json_headers(), %{})
   end
 
   test "post_json uses overridden :ai_indexer pool" do
@@ -26,10 +27,12 @@ defmodule HttpOverrideTest do
 
     :meck.expect(HTTPoison, :post, fn _url, _body, _headers, opts ->
       assert opts[:hackney_options] == [pool: :ai_indexer]
-      {:ok, %{status_code: 200, body: ~s({})}}
+      {:ok, %HTTPoison.Response{status_code: 200, headers: [], body: ~s({})}}
     end)
 
-    assert {:ok, %{}} == Http.post_json("http://example", json_headers(), %{})
+    assert {:ok, %{body: %{}, status: 200, headers: _}} =
+             Http.post_json("http://example", json_headers(), %{})
+
     HttpPool.clear()
   end
 end

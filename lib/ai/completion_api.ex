@@ -16,6 +16,7 @@ defmodule AI.CompletionAPI do
           msg_response
           | tool_response
           | {:error, map}
+          | {:error, binary}
           | {:error, :api_unavailable, any}
           | {:error, :context_length_exceeded, non_neg_integer}
 
@@ -86,7 +87,7 @@ defmodule AI.CompletionAPI do
                 other
             end
 
-          {:ok, response} ->
+          {:ok, %{body: response} = _payload} ->
             get_response(response)
         end
       rescue
@@ -156,6 +157,15 @@ defmodule AI.CompletionAPI do
     {:ok, :msg, response, total_tokens}
   end
 
+  # Fallback clause for unexpected response shapes
+  defp get_response(unexpected) do
+    {:error,
+     %{
+       http_status: 500,
+       error: "Unexpected response #{inspect(unexpected)}"
+     }}
+  end
+
   defp get_tool_call(%{"id" => id, "function" => %{"name" => name, "arguments" => args}}) do
     %{id: id, function: %{name: name, arguments: args}}
   end
@@ -204,5 +214,9 @@ defmodule AI.CompletionAPI do
     end
   end
 
+  # Catch-all for non-tuple errors: convert to binary
+  defp get_error(other) when not is_tuple(other), do: {:error, to_string(other)}
+
+  # Catch-all for other error tuples: inspect for debugging
   defp get_error(other), do: {:error, inspect(other, pretty: true)}
 end

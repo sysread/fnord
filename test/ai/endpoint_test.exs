@@ -33,12 +33,14 @@ defmodule AI.EndpointTest do
       Process.put(call_count_ref, n)
 
       case n do
-        1 -> {:ok, %{status_code: 429, body: throttled_body}}
-        _ -> {:ok, %{status_code: 200, body: ~s({"ok":true})}}
+        1 -> {:ok, %HTTPoison.Response{status_code: 429, headers: [], body: throttled_body}}
+        _ -> {:ok, %HTTPoison.Response{status_code: 200, headers: [], body: ~s({"ok":true})}}
       end
     end)
 
-    assert {:ok, %{"ok" => true}} == AI.Endpoint.post_json(DummyEndpoint, json_headers(), %{a: 1})
+    assert {:ok, %{body: %{"ok" => true}, status: 200, headers: _}} =
+             AI.Endpoint.post_json(DummyEndpoint, json_headers(), %{a: 1})
+
     assert (Process.get(call_count_ref) || 0) == 2
   end
 
@@ -79,14 +81,14 @@ defmodule AI.EndpointTest do
 
       case n do
         1 ->
-          {:ok, %{status_code: 429, body: throttled_body}}
+          {:ok, %HTTPoison.Response{status_code: 429, headers: [], body: throttled_body}}
 
         _ ->
-          {:ok, %{status_code: 200, body: ~s({"ok":true})}}
+          {:ok, %HTTPoison.Response{status_code: 200, headers: [], body: ~s({"ok":true})}}
       end
     end)
 
-    assert {:ok, %{"ok" => true}} ==
+    assert {:ok, %{body: %{"ok" => true}, status: 200, headers: _}} =
              AI.Endpoint.post_json(DummyEndpoint, json_headers(), %{a: 1, model: "gpt-4o-mini"})
 
     assert (Process.get(call_count_ref) || 0) == 2
@@ -107,7 +109,7 @@ defmodule AI.EndpointTest do
     :meck.expect(HTTPoison, :post, fn _url, _body, _headers, _opts ->
       n = (Process.get(call_count_ref) || 0) + 1
       Process.put(call_count_ref, n)
-      {:ok, %{status_code: 429, body: body}}
+      {:ok, %HTTPoison.Response{status_code: 429, headers: [], body: body}}
     end)
 
     assert {:http_error, {429, ^body}} =
@@ -133,7 +135,7 @@ defmodule AI.EndpointTest do
     :meck.expect(HTTPoison, :post, fn _url, _body, _headers, _opts ->
       n = (Process.get(call_count_ref) || 0) + 1
       Process.put(call_count_ref, n)
-      {:ok, %{status_code: 429, body: throttled_body}}
+      {:ok, %HTTPoison.Response{status_code: 429, headers: [], body: throttled_body}}
     end)
 
     on_exit(fn ->

@@ -12,8 +12,8 @@ defmodule Store.APIUsageTest do
   test "record_for_model/2 creates the store file (if missing) and persists rate limit headers keyed by model" do
     refute File.exists?(usage_path())
 
-    response = %HTTPoison.Response{
-      status_code: 200,
+    ok_payload = %{
+      status: 200,
       headers: [
         {"x-ratelimit-limit-requests", "100"},
         {"x-ratelimit-remaining-requests", "99"},
@@ -22,10 +22,10 @@ defmodule Store.APIUsageTest do
         {"x-ratelimit-remaining-tokens", "900"},
         {"x-ratelimit-reset-tokens", "1s"}
       ],
-      body: ~s({"model":"ignored-because-header-wins"})
+      body: %{}
     }
 
-    assert {:ok, ^response} = Store.APIUsage.record_for_model("gpt-4o-mini", {:ok, response})
+    assert {:ok, ^ok_payload} = Store.APIUsage.record_for_model("gpt-4o-mini", {:ok, ok_payload})
     assert File.exists?(usage_path())
 
     data = read_usage_file!()
@@ -47,8 +47,8 @@ defmodule Store.APIUsageTest do
   test "record_for_model/2 accepts float reset headers and stores integer milliseconds" do
     refute File.exists?(usage_path())
 
-    response = %HTTPoison.Response{
-      status_code: 200,
+    ok_payload = %{
+      status: 200,
       headers: [
         {"x-ratelimit-limit-requests", "10"},
         {"x-ratelimit-remaining-requests", "5"},
@@ -57,10 +57,10 @@ defmodule Store.APIUsageTest do
         {"x-ratelimit-remaining-tokens", "50"},
         {"x-ratelimit-reset-tokens", "0.5s"}
       ],
-      body: ~s({})
+      body: %{}
     }
 
-    assert {:ok, ^response} = Store.APIUsage.record_for_model("gpt-4o-mini", {:ok, response})
+    assert {:ok, ^ok_payload} = Store.APIUsage.record_for_model("gpt-4o-mini", {:ok, ok_payload})
     data = read_usage_file!()
 
     assert %{
@@ -72,13 +72,13 @@ defmodule Store.APIUsageTest do
   test "record_for_model/2 creates the store file but leaves it empty when usage headers are missing" do
     refute File.exists?(usage_path())
 
-    response = %HTTPoison.Response{
-      status_code: 200,
+    ok_payload = %{
+      status: 200,
       headers: [],
-      body: "{}"
+      body: %{}
     }
 
-    assert {:ok, ^response} = Store.APIUsage.record_for_model("gpt-4o-mini", {:ok, response})
+    assert {:ok, ^ok_payload} = Store.APIUsage.record_for_model("gpt-4o-mini", {:ok, ok_payload})
     assert File.exists?(usage_path())
 
     # No required rate-limit headers were present, so store should remain unchanged.
@@ -88,26 +88,26 @@ defmodule Store.APIUsageTest do
   test "record_for_model/2 is a no-op when model is nil" do
     refute File.exists?(usage_path())
 
-    response = %HTTPoison.Response{
-      status_code: 200,
+    ok_payload = %{
+      status: 200,
       headers: [],
-      body: "{}"
+      body: %{}
     }
 
-    assert Store.APIUsage.record_for_model(nil, {:ok, response}) == {:ok, response}
+    assert Store.APIUsage.record_for_model(nil, {:ok, ok_payload}) == {:ok, ok_payload}
     refute File.exists?(usage_path())
   end
 
   test "record_for_model/2 is a no-op for non-2xx responses" do
     refute File.exists?(usage_path())
 
-    response = %HTTPoison.Response{
-      status_code: 429,
+    ok_payload = %{
+      status: 429,
       headers: [],
-      body: "{}"
+      body: %{}
     }
 
-    assert Store.APIUsage.record_for_model("gpt-4o-mini", {:ok, response}) == {:ok, response}
+    assert Store.APIUsage.record_for_model("gpt-4o-mini", {:ok, ok_payload}) == {:ok, ok_payload}
     refute File.exists?(usage_path())
   end
 

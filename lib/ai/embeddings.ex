@@ -161,7 +161,7 @@ defmodule AI.Embeddings do
 
     AI.Endpoint.post_json(__MODULE__, headers, payload)
     |> case do
-      {:ok, %{"data" => embeddings}} ->
+      {:ok, %{body: %{"data" => embeddings}}} ->
         {:ok, Enum.map(embeddings, &Map.get(&1, "embedding"))}
 
       {:http_error, {status_code, body}} ->

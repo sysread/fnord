@@ -7,7 +7,6 @@ defmodule Store.APIUsage do
 
   @path "usage.json"
   @tag "[usage]"
-  # OpenAI can return fractional reset windows (e.g. "1.043s"), so accept floats.
   @re_reset ~r/^(\d+(?:\.\d+)?)(ms|s)$/
   @debug_env_var "FNORD_DEBUG_API_USAGE"
 
@@ -25,9 +24,20 @@ defmodule Store.APIUsage do
           optional(binary) => model_usage
         }
 
-  @typep http_response ::
-           {:ok, HTTPoison.Response.t()}
-           | {:error, HTTPoison.Error.t()}
+  @type status :: non_neg_integer
+
+  @type ok_result ::
+          {:ok,
+           %{
+             body: map,
+             headers: list,
+             status: status
+           }}
+
+  @type http_result ::
+          ok_result
+          | {:http_error, {status, String.t()}}
+          | {:transport_error, any}
 
   @doc """
   Returns the path to the usage store file.
@@ -38,18 +48,24 @@ defmodule Store.APIUsage do
   end
 
   @doc """
-  Records API usage for a provided model. If model is nil, returns http_result unchanged.
-  For 2xx {:ok, %HTTPoison.Response{}} responses and a binary model, records usage data and updates the store.
-  Other responses or errors are returned unchanged.
+  Records API usage for a provided model. If model is nil, returns http_result
+  unchanged. For 2xx {:ok, %{headers: headers, status: code}} results and a
+  binary model, records usage data and updates the store. Other responses or
+  errors are returned unchanged.
   """
-  @spec record_for_model(binary | nil, http_response) :: http_response
+  @spec record_for_model(binary | nil, http_result) :: http_result
   def record_for_model(nil, http_result), do: http_result
+  def record_for_model(_, {:http_error, _} = http_result), do: http_result
+  def record_for_model(_, {:transport_error, _} = http_result), do: http_result
 
-  def record_for_model(
-        model,
-        {:ok, %HTTPoison.Response{headers: headers, status_code: code} = response}
-      )
-      when is_binary(model) and code >= 200 and code < 300 do
+  def record_for_model(_, {:ok, %{status: code} = payload})
+      when code < 200 or
+             code >= 300 do
+    {:ok, payload}
+  end
+
+  # HTTP success responses
+  def record_for_model(model, {:ok, %{headers: headers} = payload}) do
     ensure_store_file()
     headers_map = Enum.into(headers, %{})
 
@@ -65,10 +81,8 @@ defmodule Store.APIUsage do
       _reason -> :ok
     end
 
-    {:ok, response}
+    {:ok, payload}
   end
-
-  def record_for_model(_model, http_result), do: http_result
 
   @doc """
   Checks if a request can be made for the given model based on the last
