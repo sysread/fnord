@@ -389,12 +389,82 @@ defmodule Settings do
 
   def is_valid_project_name?(_), do: false
 
+
   @doc """
-  Get the list of global configuration keys that should not be treated as project names.
+Get the list of global configuration keys that should not be treated as project names.
+"""
+@spec global_config_keys() :: [binary]
+def global_config_keys() do
+    ["approvals", "projects", "version", "edit-mode"]
+  end
+  @doc """
+  How fnord should handle `.bak` backup files created by the `file_edit_tool`.
+
+  Valid values (strings):
+
+    - "never-create"
+    - "auto-delete"
+    - "ask-to-delete"
+    - "create-and-ignore"
+
+  Config keys (in `~/.fnord/settings.json`):
+
+    - Global:  `edit-mode.backup-file-handling`
+    - Project: `projects.<name>.edit-mode.backup-file-handling`
+
+  Default: "ask-to-delete" (preserves historical behavior).
   """
-  @spec global_config_keys() :: [binary]
-  def global_config_keys() do
-    ["approvals", "projects", "version"]
+  @spec backup_file_handling() :: binary
+  def backup_file_handling() do
+    settings = Settings.new()
+
+    project_value =
+      case Settings.get_project(settings) do
+        {:ok, %{"edit-mode" => edit_mode_cfg}} when is_map(edit_mode_cfg) ->
+          Map.get(edit_mode_cfg, "backup-file-handling")
+
+        {:ok, %{"name" => name}} ->
+          # Project exists but has no edit-mode map
+          _ = name
+          nil
+
+        _ ->
+          nil
+      end
+
+    value =
+      cond do
+        is_binary(project_value) ->
+          project_value
+
+        is_map(Settings.get(settings, "edit-mode", nil)) and is_binary(Map.get(Settings.get(settings, "edit-mode", %{}), "backup-file-handling")) ->
+          Map.get(Settings.get(settings, "edit-mode", %{}), "backup-file-handling")
+
+        true ->
+          "ask-to-delete"
+      end
+
+    case value do
+      "never-create" -> "never-create"
+      "auto-delete" -> "auto-delete"
+      "ask-to-delete" -> "ask-to-delete"
+      "create-and-ignore" -> "create-and-ignore"
+      _ -> "ask-to-delete"
+    end
+  end
+
+  @spec backup_files_available_to_user?() :: boolean
+  def backup_files_available_to_user?() do
+    case backup_file_handling() do
+      "ask-to-delete" -> true
+      "create-and-ignore" -> true
+      _ -> false
+    end
+  end
+
+  @spec should_create_backup_files?() :: boolean
+  def should_create_backup_files?() do
+    backup_file_handling() != "never-create"
   end
 
   @doc """
