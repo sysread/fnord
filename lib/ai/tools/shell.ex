@@ -94,88 +94,31 @@ defmodule AI.Tools.Shell do
         name: "shell_tool",
         description: """
         Executes a series of shell commands, and returns the mixed STDOUT and STDERR output.
-        Commands are combined either as a pipeline (`|`) or run sequentially (`&&`), based on the *required* `operator` argument.
-
-        When to use this tool:
-
-        - Use shell_tool for filesystem-level operations involving one or more files or directories, such as:
-          - deleting files or directories (e.g., `rm`, `rm -r`),
-          - moving or renaming files or directories (e.g., `mv`, `git mv`),
-          - creating directories (e.g., `mkdir -p`),
-          - applying bulk or multi-file changes using standard CLI tools.
-        - Use shell_tool to run project tools and commands that the user would normally run from the terminal, such as:
-          - `go test`, `mix format`, `mix dialyzer`, `npm test`, etc.
-          - `git status`, `git diff`, `git apply`, etc.
-        - Use shell_tool to create temporary files or directories as needed for testing, verification, or other operations.
-
-        When a specialized tool exists for the exact operation (for example, file_edit_tool for small, in-file edits), prefer that specialized tool first.
-        Otherwise, shell_tool is appropriate for filesystem-level and multi-file operations.
-
-        If you are unsure of whether a command is available, try calling it with --version or --help.
-        You can do this for multiple commands with concurrent tool calls to this tool.
-
+        Commands are combined as a pipeline (`|`) or sequentially (`&&`), based on the *required* `operator` arg.
+        Use for fs ops (e.g. rm, mv, mkdir), project commands (e.g. git, go test, npm test), and other tools needed for your task.
+        Use to create tmp files as needed for testing, debugging, etc.
+        If a specialized tool exists for the exact operation, prefer.
+        Test if cli tools exist with `which <tool>` or `command -v <tool>` (tip: check several concurrently with multiple tool calls)
         The user must approve execution of this command before it is run.
-        It is essential to remember that you cannot launch interactive commands!
-        Commands that require user input or interaction will fail after a timeout, resulting in a poor experience for the user.
+        Safe, read-only `sed` invocations (without -i/-f/e/w) are preapproved.
 
-        INDIVIDUAL COMMANDS SHOULD BE SIMPLE:
-        - Do not include redirection (`>`, `<`), pipes (`|`, `&&`), command substitution (`$()`, backticks), semicolons (`;`), or other complex shell syntax inside a single command's "command" or "args".
-        - Pipelines are supported by supplying multiple command objects and setting "operator" to "|".
-
-        Example:
-
-        {
-          "operator": "|",
-          "commands": [
-            { "command": "ls", "args": ["-l"] },
-            { "command": "grep", "args": ["foo"] }
-          ]
-        }
-
+        IMPORTANT: Interactive commands are NOT supported through this interface.
         IMPORTANT: Tools that can modify files (e.g., `awk`, `find -exec`, `patch`) require explicit user-approval.
-        Safe, read-only `sed` invocations (without `-i`, `-f`, `e` or `w` ops) are auto-preapproved by built-in regex rules.
-
         IMPORTANT: This uses elixir's System.cmd/3 to execute commands.
                    It *will* `cd` into the project's source root before executing commands.
                    Some commands DO behave differently without a tty.
                    For example, `rg` REQUIRES a path argument when not run in a tty.
 
-        For commands that vary based on OS (like grep and sed), the current OS is: #{os_name} (#{os_family}).
-        Note that the user may not be monitoring the terminal to see your command request, so pay careful attention to which commands are pre-approved.
+        For commands that vary based on OS (eg grep/sed), the current OS is: #{os_name} (#{os_family}).
+        If the user is not monitoring, command approvals may be auto-denied.
 
-        The following tools are available on your PATH with their respective versions:
+        Available tools on PATH:
         #{available_tools()}
 
-        The following commands are preapproved and will execute without requiring user approval:
+        Preapproved commands/patterns:
         #{allowed}
-
-        User-configured preapprovals (command + subcommands):
         #{user_prefixes}
-
-        User-configured preapprovals (full-command regex):
         #{user_regexes}
-
-        Examples:
-
-        1) Delete a single file:
-
-        {
-          "description": "Delete obsolete module file",
-          "operator": "&&",
-          "commands": [
-            { "command": "rm", "args": ["lib/my_app/obsolete.ex"] }
-          ]
-        }
-
-        2) Move/rename a file with git:
-
-        {
-          "description": "Move legacy module into new namespace",
-          "operator": "&&",
-          "commands": [
-            { "command": "git", "args": ["mv", "lib/my_app/legacy.ex", "lib/my_app/new/legacy.ex"] }
-          ]
-        }
         """,
         parameters: %{
           type: "object",
@@ -201,7 +144,7 @@ defmodule AI.Tools.Shell do
               type: "string",
               enum: ["|", "&&"],
               description: """
-              Specifies whether commands are piped together (`|`) or
+              REQUIRED: Specifies whether commands are piped together (`|`) or
               run sequentially (`&&`). This field is required.
               """
             },
@@ -234,16 +177,15 @@ defmodule AI.Tools.Shell do
                   args: %{
                     type: "array",
                     description: """
-                    A list of arguments and options to pass to the command.
-                    This does NOT include the command itself.
+                    A list of options to pass to the command.
+                    DO NOT include the command itself.
                     """,
                     items: %{
                       type: "string",
                       description: """
-                      An individual argument or option for the command.
-                      This value does not require any special escaping.
-                      The code executing it will handle proper shell escaping.
-                      Environmental variables (e.g. `$HOME`) will NOT be expanded.
+                      An argument or option for the command.
+                      Do not escape or quote.
+                      Env vars are NOT expanded.
                       """
                     }
                   }
