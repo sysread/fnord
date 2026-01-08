@@ -108,6 +108,11 @@ defmodule AI.Tools.Shell do
                    It *will* `cd` into the project's source root before executing commands.
                    Some commands DO behave differently without a tty.
                    For example, `rg` REQUIRES a path argument when not run in a tty.
+        IMPORTANT: Environment variables are NOT expanded in command args.
+                   If you need env vars, use a specialized tool or create a temp script file.
+        IMPORTANT: Your commands will be run in a non-interactive, non-login shell environment.
+                   Shell binaries themselves (bash, sh, zsh, etc) cannot be invoked directly.
+                   Do not include the shell as part of your command.
 
         For commands that vary based on OS (eg grep/sed), the current OS is: #{os_name} (#{os_family}).
 
@@ -171,7 +176,15 @@ defmodule AI.Tools.Shell do
                 properties: %{
                   command: %{
                     type: "string",
-                    description: "The base command to execute, without any arguments or options."
+                    description: """
+                    The base command to execute, without any arguments or options.
+
+                    MUST be either:
+                    1. A bare command name on the user's PATH (e.g., "git", "rg", "npm")
+                    2. An abs path **starting with `./`** within the project (eg "./fnord" or "./scripts/run-tests.sh")
+
+                    Relative paths are NOT allowed for security reasons.
+                    """
                   },
                   args: %{
                     type: "array",
@@ -202,10 +215,12 @@ defmodule AI.Tools.Shell do
     with {:ok, desc} <- AI.Tools.get_arg(opts, "description"),
          {:ok, commands} <- AI.Tools.get_arg(opts, "commands"),
          timeout_ms <- sanitize_timeout(opts),
-         {:ok, commands} <- resolve_commands(commands),
          {:ok, project} <- Store.get_project() do
       opts
       |> Map.get("operator", "&&")
+      # NOTE: do NOT resolve commands before approvals; we want approvals to see
+      # the literal command string (e.g. ./make) and we want missing commands to
+      # error out cleanly without having to approve them first.
       |> route(commands, desc, timeout_ms, project.source_root)
     end
   end
@@ -231,11 +246,11 @@ defmodule AI.Tools.Shell do
   # ----------------------------------------------------------------------------
   # Resolve commands to absolute paths where possible.
   # ----------------------------------------------------------------------------
-  defp resolve_commands(commands) do
+  defp resolve_commands(commands, root) do
     commands
     |> Enum.reduce_while([], fn command, acc ->
       command
-      |> find_executable()
+      |> find_executable(root)
       |> case do
         {:ok, resolved_cmd} -> {:cont, [resolved_cmd | acc]}
         {:error, msg} -> {:halt, {:error, msg}}
@@ -248,22 +263,8 @@ defmodule AI.Tools.Shell do
   end
 
   # ----------------------------------------------------------------------------
-  # Command resolution
-  # ----------------------------------------------------------------------------
-  defp find_executable(command) when is_binary(command) do
-    cond do
-      String.starts_with?(command, "/") -> Path.expand(command)
-      String.starts_with?(command, "~") -> Path.expand(command)
-      true -> command
-    end
-    |> System.find_executable()
-    |> case do
-      nil -> {:error, :not_found}
-      path -> {:ok, path}
-    end
-  end
-
-  # -----------------------------------------------------------------------------
+  # Command resolution (project-aware)
+  #
   # LLMs *love* `rg`, but they often forget to provide a path argument, even
   # when it's explicitly called out in the tool spec. This special case adds
   # the project's source_root as a path argument if no other path-like
@@ -271,24 +272,56 @@ defmodule AI.Tools.Shell do
   # a path, and no other path-like args, we can't do anything sensible, since
   # we don't know *which* arg they borked, so we just let the command fail.
   # -----------------------------------------------------------------------------
-  defp find_executable(%{"command" => "rg", "args" => args})
+  defp find_executable(command, root) when is_binary(command) do
+    cond do
+      String.starts_with?(command, "/") ->
+        path = Path.expand(command)
+        if executable?(path), do: {:ok, path}, else: {:error, :not_found}
+
+      String.starts_with?(command, "~") ->
+        path = Path.expand(command)
+        if executable?(path), do: {:ok, path}, else: {:error, :not_found}
+
+      String.starts_with?(command, "./") ->
+        # explicit local relative path: interpret relative to project root, but only if it stays within
+        # the project root after expansion (fail closed on ../ escapes).
+        path = Path.expand(command, root)
+
+        cond do
+          Util.path_within_root?(path, root) and executable?(path) -> {:ok, path}
+          true -> {:error, :not_found}
+        end
+
+      String.contains?(command, "/") ->
+        # Any other slash-containing command is rejected: local execution must be explicit via "./".
+        {:error, :not_found}
+
+      true ->
+        # bare command: resolve ONLY via PATH
+        case System.find_executable(command) do
+          nil -> {:error, :not_found}
+          path -> {:ok, path}
+        end
+    end
+  end
+
+  defp find_executable(%{"command" => "rg", "args" => args}, root)
        when is_list(args) do
-    with {:ok, path} <- find_executable("rg") do
+    with {:ok, path} <- find_executable("rg", root) do
       args
       # Filter out options, leaving only positional args
       |> Enum.filter(fn arg -> not String.starts_with?(arg, "-") end)
       # See if any of the positional args look like a path (contain a dot or slash)
-      |> Enum.filter(fn arg -> String.starts_with?(arg, ".") or String.starts_with?(arg, "/") end)
+      |> Enum.filter(fn arg ->
+        String.starts_with?(arg, "./") or String.starts_with?(arg, "/")
+      end)
       # If no positional args look like a path, add the project's source_root to search current dir
       |> case do
         # None found.
         [] ->
-          with {:ok, project} <- Store.get_project() do
-            {:ok, %{"command" => path, "args" => args ++ [project.source_root]}}
-          else
-            # This shouldn't be possible, but if it does happen, just return as-is
-            _ -> {:ok, %{"command" => path, "args" => args}}
-          end
+          if root,
+            do: {:ok, %{"command" => path, "args" => args ++ [root]}},
+            else: {:ok, %{"command" => path, "args" => args}}
 
         _ ->
           {:ok, %{"command" => path, "args" => args}}
@@ -296,39 +329,48 @@ defmodule AI.Tools.Shell do
     end
   end
 
-  defp find_executable(%{"command" => command, "args" => args} = cmd)
+  defp find_executable(%{"command" => command, "args" => args} = cmd, root)
        when is_list(args) do
     if String.contains?(command, " ") do
       command
-      |> find_executable()
+      |> find_executable(root)
       |> case do
-        {:ok, cmd} ->
-          {:ok, %{"command" => cmd, "args" => args}}
+        {:ok, resolved} ->
+          {:ok, %{"command" => resolved, "args" => args}}
 
         # Try splitting on spaces and see if the first part is executable
         {:error, :not_found} ->
           [base | extra_args] = String.split(command, " ")
-          find_executable(%{"command" => base, "args" => extra_args ++ args})
+
+          case find_executable(base, root) do
+            {:ok, resolved} -> {:ok, %{"command" => resolved, "args" => extra_args ++ args}}
+            {:error, :not_found} -> {:error, "Command not found: #{format_command(cmd)}"}
+          end
       end
     else
-      command
-      |> find_executable()
-      |> case do
-        {:ok, cmd} -> {:ok, %{"command" => cmd, "args" => args}}
+      case find_executable(command, root) do
+        {:ok, resolved} -> {:ok, %{"command" => resolved, "args" => args}}
         {:error, :not_found} -> {:error, "Command not found: #{format_command(cmd)}"}
       end
     end
   end
 
-  defp find_executable(%{"command" => _} = cmd) do
+  defp find_executable(%{"command" => _} = cmd, _root) do
     cmd
     |> Map.put("args", [])
-    |> find_executable()
+    |> find_executable("")
   end
 
-  # -----------------------------------------------------------------------------
+  defp executable?(path) do
+    case File.stat(path) do
+      {:ok, %File.Stat{mode: mode}} -> :erlang.band(mode, 0o111) != 0
+      _ -> false
+    end
+  end
+
+  # ----------------------------------------------------------------------------
   # Execution and routing
-  # -----------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
 
   # ----------------------------------------------------------------------------
   # The fact that this function exists at all is so, *so* frustrating.
@@ -389,11 +431,19 @@ defmodule AI.Tools.Shell do
   end
 
   defp run_as_shell_commands(op, commands, desc, timeout_ms, root) do
+    # Ask approvals about the original (unresolved) commands first. If approved,
+    # resolve to concrete executables using the project root and then run.
     {op, commands, desc}
     |> Services.Approvals.confirm(:shell)
     |> case do
-      {:ok, :approved} -> run_pipeline(op, commands, timeout_ms, root)
-      other -> other
+      {:ok, :approved} ->
+        case resolve_commands(commands, root) do
+          {:ok, resolved} -> run_pipeline(op, resolved, timeout_ms, root)
+          {:error, reason} -> {:error, reason}
+        end
+
+      other ->
+        other
     end
   end
 

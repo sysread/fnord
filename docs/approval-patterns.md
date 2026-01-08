@@ -35,6 +35,25 @@ fnord ask -p myproject --edit --yes -q "Add validation to the user model"
 
 The `--yes` flag auto-approves file writes/edits. Shell commands still require approval.
 
+## Shell tool path and local executable behavior
+
+Fnord runs shell tool commands from the project root. For bare commands (no `/`), fnord resolves them only via `PATH`.
+
+Project-local execution is only allowed when the command starts with `./` (for example `./make` or `./scripts/build`), and only if the resolved path stays within the project root (fail closed).
+
+Commands like `scripts/foo` (without the leading `./`) are rejected; use `./scripts/foo` instead.
+
+Approval patterns treat `./cmd` as distinct from `cmd` (you must explicitly include `./` in a prefix or regex to approve it).
+
+**Examples:**
+```bash
+# Approving 'make check' does not approve './make check'
+fnord config approve --project myproject --kind shell '^make check$'
+
+# To approve './make check' explicitly:
+fnord config approve --project myproject --kind shell '^\./make check$'
+```
+
 ## Pre-Approval Patterns
 
 You can pre-approve commands using regex patterns, either per-project or globally.

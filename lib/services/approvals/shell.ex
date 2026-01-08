@@ -278,7 +278,13 @@ defmodule Services.Approvals.Shell do
 
   # Build the string used for shell_full matching: use basename(command) + args
   defp format_stage_for_match(%{"command" => cmd, "args" => args}) do
-    base = Path.basename(cmd)
+    base =
+      if String.starts_with?(cmd, "./") do
+        cmd
+      else
+        Path.basename(cmd)
+      end
+
     Enum.join([base | args], " ")
   end
 
@@ -434,8 +440,14 @@ defmodule Services.Approvals.Shell do
   Delegate to the pure prefix extraction logic.
   """
   def extract_prefix(%{"command" => cmd, "args" => args}) do
-    base_cmd = Path.basename(cmd)
-    Services.Approvals.Shell.Prefix.extract(base_cmd, args)
+    # If the command appears to be a path (contains a slash), preserve the literal
+    # command (including leading ./) so approvals can distinguish `./make` vs `make`.
+    if String.starts_with?(cmd, "./") do
+      cmd
+    else
+      base_cmd = Path.basename(cmd)
+      Services.Approvals.Shell.Prefix.extract(base_cmd, args)
+    end
   end
 
   # Helper to detect shell invocations
