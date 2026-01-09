@@ -29,7 +29,7 @@ defmodule AI.Accumulator do
   @type t :: %__MODULE__{
           splitter: AI.Splitter.t(),
           buffer: binary,
-          model: binary,
+          model: AI.Model.t(),
           toolbox: AI.Tools.toolbox() | nil,
           prompt: binary,
           question: binary,
