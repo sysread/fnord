@@ -1,4 +1,4 @@
-defmodule Services.ConversationSaveTest do
+defmodule Services.Conversation.SaveTest do
   use Fnord.TestCase, async: false
 
   import AI.Util

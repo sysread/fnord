@@ -213,6 +213,7 @@ defmodule AI.Agent.Coordinator do
     |> get_intuition()
     |> get_notes()
     |> recall_memories_msg()
+    |> project_prompt_msg()
     |> research_tasklist_msg()
     |> task_list_msg()
     |> startinterrupt_listener()
@@ -662,6 +663,21 @@ defmodule AI.Agent.Coordinator do
   @spec git_info() :: binary
   defp git_info(), do: GitCli.git_info()
 
+  @spec project_prompt_msg(t) :: t
+  defp project_prompt_msg(%{conversation_pid: conversation_pid} = state) do
+    with {:ok, project} <- Store.get_project(),
+         {:ok, prompt} <- Store.Project.project_prompt(project) do
+      """
+      While working within this project, the following instructions apply:
+      #{prompt}
+      """
+      |> AI.Util.system_msg()
+      |> Services.Conversation.append_msg(conversation_pid)
+    end
+
+    state
+  end
+
   @spec identity_msg(t) :: t
   defp identity_msg(%{conversation_pid: conversation_pid} = state) do
     with {:ok, memory} <- Memory.read_me() do
@@ -738,7 +754,7 @@ defmodule AI.Agent.Coordinator do
   defp new_session_msg(%{conversation_pid: conversation_pid} = state) do
     """
     Beginning a new session.
-    Artifacts from previous sessions within this conversation may be stale.
+    Artifacts from prior sessions in this conversation may be stale.
     This is important - you want to provide the user with a good experience, and stale data wastes their time.
     **RE-READ FILES AND RE-CHECK DELTAS TO ENSURE YOU ARE NOT USING STALE INFORMATION.**
     """

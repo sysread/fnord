@@ -1,7 +1,5 @@
-defmodule Services.ConversationIndexerTest do
+defmodule Services.Conversation.IndexerTest do
   use Fnord.TestCase, async: false
-
-  alias Services.ConversationIndexer
 
   defmodule StubIndexer do
     use Agent
@@ -47,7 +45,9 @@ defmodule Services.ConversationIndexerTest do
     {:ok, _} =
       Store.Project.Conversation.write(convo2, %{messages: messages, metadata: %{}, memories: []})
 
-    {:ok, pid} = ConversationIndexer.start_link(project: project, conversations: [convo1, convo2])
+    {:ok, pid} =
+      Services.ConversationIndexer.start_link(project: project, conversations: [convo1, convo2])
+
     ref = Process.monitor(pid)
     assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 2_000
 
@@ -76,7 +76,9 @@ defmodule Services.ConversationIndexerTest do
     Services.BgIndexingControl.pause(AI.Embeddings.model_name())
     on_exit(fn -> Services.BgIndexingControl.clear_pause(AI.Embeddings.model_name()) end)
 
-    {:ok, pid} = ConversationIndexer.start_link(project: project, conversations: [convo1, convo2])
+    {:ok, pid} =
+      Services.ConversationIndexer.start_link(project: project, conversations: [convo1, convo2])
+
     ref = Process.monitor(pid)
     assert_receive {:DOWN, ^ref, :process, ^pid, reason}, 2_000
     assert reason in [:normal, :noproc]

@@ -189,6 +189,11 @@ Fnord learns:
 - ✅ Domain-specific terminology
 - ❌ Not: Sensitive data, credentials, secrets
 
+## Project context
+If present in the project root, the contents of `FNORD.md` are injected as system instructions to the LLM each session.
+This may be used to provide project-specific instructions, guideliness, project organization details, or other relevant context to improve the LLM's understanding of the project.
+This is an appropriate place to document preferences, style guidelines, or other details that you wish to be part of every LLM interaction.
+
 ## Troubleshooting
 
 ### Notes command returns nothing

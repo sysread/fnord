@@ -211,7 +211,6 @@ Note that this is just a shortcut for:
 mix escript.install github sysread/fnord
 ```
 
-
 ### Other commands
 - List projects:        `fnord projects`
 - List files:           `fnord files --project <project>`
@@ -222,6 +221,10 @@ mix escript.install github sysread/fnord
 
 ## User integrations
 
+### Project prompts
+Create a project-level FNORD.md file named `FNORD.md` at your project's root to surface important, project-specific guidance to the AI during new conversations. When present, fnord will read this file at the start of a new conversation and inject it as a system message so agents see the project's rules, constraints, or important notes early in the session. The file is preserved in conversation history and tests live in `test/services/fnord_md_injection_test.exs`.
+
+### Frobs
 Create custom tools (frobs) that fnord can use while researching. Use frobs to query project-specific APIs, check deployment status, retrieve GitHub PR details for review, or gather information from Kubernetes clusters.
 
 ```bash
@@ -232,7 +235,7 @@ fnord frobs list
 
 Frobs are stored in `~/.fnord/tools`. For implementation details, see [docs/frobs-guide.md](docs/frobs-guide.md).
 
-### MCP servers
+### MCP support
 
 MCP servers extend fnord with external tools and data sources. Add servers for GitHub, Kubernetes, project-specific APIs, or any MCP-compatible service.
 

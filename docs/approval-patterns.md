@@ -134,6 +134,10 @@ Approvals are stored in `~/.fnord/settings.json`:
 
 Pre-approving commands reduces security prompts but increases risk:
 
+**Prompt injection:**
+- If `FNORD.md` is present in the root of the project, its contents are injected into every conversation
+- Avoid including secrets or other sensitive information in that file
+
 **Safe patterns:**
 - Read-only operations (`git log`, `cat`, `grep`)
 - Specific, bounded commands (`npm test`, `make check`)

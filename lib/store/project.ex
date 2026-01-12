@@ -132,8 +132,8 @@ defmodule Store.Project do
   end
 
   @doc """
-  Resolves `path` within the project's source root. Returns `{:ok, path}` if the file exists,
-  or `{:error, :enoent}` if it does not.
+  Resolves `path` within the project's source root. Returns `{:ok, path}` if
+  the file exists, or `{:error, :enoent}` if it does not.
   """
   @spec find_file(t, binary) ::
           {:ok, binary}
@@ -141,6 +141,23 @@ defmodule Store.Project do
           | {:error, File.posix()}
   def find_file(project, path) do
     Util.find_file_within_root(path, project.source_root)
+  end
+
+  @doc """
+  Reads the project prompt from `FNORD.md` in the source root if present.
+  Returns `{:ok, prompt}` or `{:error, :not_found}`.
+  Returns `{:error, :not_found}` if the file is present but empty.
+  """
+  @spec project_prompt(t) :: {:ok, binary} | {:error, :not_found}
+  def project_prompt(project) do
+    project.source_root
+    |> Path.join("FNORD.md")
+    |> File.read()
+    |> case do
+      {:ok, ""} -> {:error, :not_found}
+      {:ok, content} -> {:ok, content}
+      _ -> {:error, :not_found}
+    end
   end
 
   # ----------------------------------------------------------------------------
