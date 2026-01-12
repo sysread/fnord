@@ -1,6 +1,8 @@
 defmodule Services.ConversationSaveTest do
   use Fnord.TestCase, async: false
 
+  import AI.Util
+
   describe "save/1 message filtering" do
     test "drops boilerplate system scaffolding and assistant <think> messages, but preserves name + summary" do
       mock_project("test_project_conversation_save_filtering")
@@ -8,13 +10,13 @@ defmodule Services.ConversationSaveTest do
 
       msgs = [
         # Dropped: non-essential system/developer scaffolding
-        %{role: "system", content: "(system scaffolding that should be dropped)"},
+        AI.Util.system_msg("(system scaffolding that should be dropped)"),
 
         # Preserved: agent naming line (used to rehydrate agent name)
-        %{role: "system", content: "Your name is Eldon the Echo."},
+        AI.Util.system_msg("Your name is Eldon the Echo."),
 
         # Preserved: compactor summary
-        %{role: "system", content: "Summary of conversation and research thus far: blah blah"},
+        AI.Util.system_msg("Summary of conversation and research thus far: blah blah"),
 
         # Keep: actual conversation
         AI.Util.user_msg("hello"),
@@ -47,8 +49,13 @@ defmodule Services.ConversationSaveTest do
       # dropped
       refute Enum.any?(
                saved_msgs,
-               &(&1.role == "system" and
-                   &1.content == "(system scaffolding that should be dropped)")
+               fn
+                 %{content: c} = m when is_system_msg?(m) ->
+                   c == "(system scaffolding that should be dropped)"
+
+                 _ ->
+                   false
+               end
              )
 
       refute Enum.any?(
@@ -59,11 +66,17 @@ defmodule Services.ConversationSaveTest do
       # preserved
       assert Enum.any?(
                saved_msgs,
-               &(&1.role == "system" and &1.content == "Your name is Eldon the Echo.")
+               fn
+                 %{content: c} = m when is_system_msg?(m) ->
+                   c == "Your name is Eldon the Echo."
+
+                 _ ->
+                   false
+               end
              )
 
       assert Enum.any?(saved_msgs, fn
-               %{role: "system", content: c} ->
+               %{content: c} = m when is_system_msg?(m) ->
                  String.starts_with?(c, "Summary of conversation and research thus far:")
 
                _ ->

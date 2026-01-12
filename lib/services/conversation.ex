@@ -1,4 +1,6 @@
 defmodule Services.Conversation do
+  import AI.Util
+
   use GenServer
 
   # -----------------------------------------------------------------------------
@@ -221,7 +223,7 @@ defmodule Services.Conversation do
 
   def handle_call(:save, _from, state) do
     data = %{
-      # Before persisting, strip boilerplat messages
+      # Before persisting, strip boilerplate messages
       messages: filter_boilerplate(state.msgs),
       metadata: state.metadata,
       memory: state.memory,
@@ -310,7 +312,7 @@ defmodule Services.Conversation do
 
     msgs
     |> Enum.find_value(fn
-      %{role: "system", content: content} ->
+      %{content: content} = msg when is_system_msg?(msg) ->
         case Regex.run(re, content) do
           [_, name] -> name
           _ -> nil
@@ -330,7 +332,7 @@ defmodule Services.Conversation do
     msgs
     |> Enum.filter(fn
       # ...filter boilerplate system/developer messages
-      %{role: "system", content: c} when is_binary(c) ->
+      %{content: c} = msg when is_system_msg?(msg) ->
         cond do
           # ...preserve the agent name-line to avoid churn
           Regex.run(@re_name_msg, c) != nil -> true

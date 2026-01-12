@@ -224,6 +224,13 @@ defmodule AI.Util do
     |> validate_msg_length()
   end
 
+  @doc """
+  A guard to identify system messages.
+  """
+  defguard is_system_msg?(msg)
+           when is_map(msg) and
+                  msg.role in [@role_system, "system"]
+
   # When a tool produces a very large output, writing the entire contents into the
   # conversation can blow past the model's context window. For tool outputs, we
   # instead spill the full content to a temporary file and return a preview plus

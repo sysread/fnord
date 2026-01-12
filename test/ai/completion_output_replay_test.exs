@@ -8,10 +8,7 @@ defmodule AI.CompletionOutputReplayTest do
     tool_call_id = "call-1"
 
     messages = [
-      %{
-        "role" => "system",
-        "content" => "agent system prompt"
-      },
+      AI.Util.system_msg("agent system prompt"),
       %{
         "role" => "assistant",
         "content" => nil,

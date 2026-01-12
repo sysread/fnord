@@ -17,6 +17,8 @@ defmodule AI.Completion do
 
   `LOGGER_LEVEL` must be set to `debug` to see the output of tool call results.
   """
+  import AI.Util
+
   defstruct [
     :model,
     :web_search?,
@@ -563,17 +565,20 @@ defmodule AI.Completion do
   defp set_name(messages, name) do
     messages
     |> Enum.any?(fn
-      %{role: "system", content: content} -> content =~ ~r/Your name is .+\./
-      _ -> false
+      %{content: content} = msg when is_system_msg?(msg) ->
+        content =~ ~r/Your name is .+\./
+
+      _ ->
+        false
     end)
     |> case do
       true ->
         Enum.map(messages, fn
-          %{role: "system", content: content} ->
+          %{content: content} = msg when is_system_msg?(msg) ->
             if content =~ ~r/Your name is .+\./ do
-              %{role: "system", content: "Your name is #{name}."}
+              AI.Util.system_msg("Your name is #{name}.")
             else
-              %{role: "system", content: content}
+              AI.Util.system_msg(content)
             end
 
           msg ->
@@ -581,7 +586,7 @@ defmodule AI.Completion do
         end)
 
       false ->
-        [%{role: "system", content: "Your name is #{name}."} | messages]
+        [AI.Util.system_msg("Your name is #{name}.") | messages]
     end
   end
 end

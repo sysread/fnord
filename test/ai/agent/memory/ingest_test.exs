@@ -1,6 +1,8 @@
 defmodule AI.Agent.Memory.IngestTest do
   use Fnord.TestCase, async: false
 
+  import AI.Util
+
   test "filters messages and prepends the ingestion system prompt" do
     test_pid = self()
 
@@ -42,8 +44,12 @@ defmodule AI.Agent.Memory.IngestTest do
 
     # Should NOT pass through the original system/developer message
     refute Enum.any?(seen, fn
-             %{role: "system", content: "(developer/system noise that should be dropped)"} -> true
-             _ -> false
+             %{content: "(developer/system noise that should be dropped)"} = m
+             when is_system_msg?(m) ->
+               true
+
+             _ ->
+               false
            end)
 
     # Should NOT pass through <think> content
@@ -75,8 +81,7 @@ defmodule AI.Agent.Memory.IngestTest do
 
     # Ensure the ingestion system prompt is present
     assert Enum.any?(seen, fn
-             %{role: role, content: content}
-             when role in ["system", "developer"] and is_binary(content) ->
+             %{content: content} = msg when is_system_msg?(msg) and is_binary(content) ->
                String.contains?(content, "You are the Long Term Memory Agent")
 
              _ ->
