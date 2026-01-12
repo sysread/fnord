@@ -380,6 +380,13 @@ defmodule AI.Tools.Shell do
     |> Jason.encode(pretty: true)
     |> case do
       {:ok, json} ->
+        has_shell_invocation? =
+          Enum.any?(commands, fn %{"command" => cmd, "args" => args} ->
+            is_version_check? = "--version" in args
+            is_shell? = Path.basename(cmd) in ~w(sh ash bash csh dash fish ksh tcsh zsh)
+            is_shell? and !is_version_check?
+          end)
+
         # Ok, so we can fudge things this way, but the shell_tool is available
         # outside of edit mode, so we need to double-check that the user
         # actually wants to allow editing before we let them do it.
@@ -409,6 +416,14 @@ defmodule AI.Tools.Shell do
         is_edit_mode? = Settings.get_edit_mode()
 
         cond do
+          has_shell_invocation? ->
+            {:denied,
+             """
+             Execute commands directly; do not invoke through a shell within
+             the shell_tool. If you need specific shell features, write a temp
+             script file and execute that directly.
+             """}
+
           is_edit_mode? and is_apply_patch? ->
             UI.info("Oof", "The LLM attempted to apply a patch with the shell_tool. Rerouting.")
             AI.Tools.ApplyPatch.call(%{"patch" => json})
