@@ -850,6 +850,18 @@ defmodule AI.Agent.Coordinator do
     state
   end
 
+  # Appends a system message showing the LLM how many context tokens remain
+  # before their conversation history will be compacted and returns the state.
+  @spec append_context_remaining(t) :: t
+  defp append_context_remaining(state) do
+    remaining = max(state.context - state.usage, 0)
+
+    AI.Util.system_msg("Context tokens remaining before compaction: #{remaining}")
+    |> Services.Conversation.append_msg(state.conversation_pid)
+
+    state
+  end
+
   # ----------------------------------------------------------------------------
   # Intuition
   # ----------------------------------------------------------------------------
@@ -938,7 +950,9 @@ defmodule AI.Agent.Coordinator do
   # -----------------------------------------------------------------------------
   defp log_response(%{steps: []} = state) do
     UI.debug("Response complete")
+
     state
+    |> append_context_remaining()
   end
 
   defp log_response(%{last_response: thought} = state) do
@@ -950,7 +964,9 @@ defmodule AI.Agent.Coordinator do
       |> UI.italicize()
 
     UI.debug("Considering", thought)
+
     state
+    |> append_context_remaining()
   end
 
   defp log_usage(%{usage: usage} = state) do
