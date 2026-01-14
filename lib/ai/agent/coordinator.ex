@@ -608,7 +608,14 @@ defmodule AI.Agent.Coordinator do
   @finalize """
   <think>
   I believe I have identified all the information I need.
-  How best to organize it for the user?
+
+  First, I must reflect on any learnings I want to remember using the memory_tool.
+  What did I learn about the code base? 
+  What did I learn about the user?
+  What did I learn about my tools?
+  This is how I improve myself and become a better partner for the user.
+
+  Then... how best to organize it for the user?
   I know a lot about instructional design, technical writing, and learning.
   The user is probably a programmer or engineer.
 
