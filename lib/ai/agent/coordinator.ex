@@ -14,6 +14,8 @@ defmodule AI.Agent.Coordinator do
     :conversation_pid,
     :followup?,
     :project,
+    # ...controlled by setting option smart:true
+    :model,
     # ...afikoman persona flag (Fonzie mode)
     :fonz,
 
@@ -44,6 +46,7 @@ defmodule AI.Agent.Coordinator do
           conversation_pid: pid,
           followup?: boolean,
           project: binary,
+          model: AI.Model.t(),
           fonz: boolean,
 
           # State
@@ -66,6 +69,7 @@ defmodule AI.Agent.Coordinator do
           required(:edit) => boolean,
           required(:question) => binary,
           required(:replay) => boolean,
+          required(:smart) => boolean,
           optional(:fonz) => boolean
         }
 
@@ -75,7 +79,8 @@ defmodule AI.Agent.Coordinator do
   @memory_recall_limit 3
   @memory_size_limit 1000
 
-  @model AI.Model.smart()
+  @default_model AI.Model.smart()
+  @smarter_model AI.Model.smart()
 
   @behaviour AI.Agent
 
@@ -104,6 +109,13 @@ defmodule AI.Agent.Coordinator do
         |> Services.Conversation.get_conversation()
         |> Store.Project.Conversation.exists?()
 
+      model =
+        if Map.get(opts, :smart, false) do
+          @smarter_model
+        else
+          @default_model
+        end
+
       Settings.set_edit_mode(edit?)
 
       # Restart approvals service to pick up edit mode setting
@@ -121,16 +133,17 @@ defmodule AI.Agent.Coordinator do
         conversation_pid: conversation_pid,
         followup?: followup?,
         project: project.name,
+        model: model,
+        fonz: Map.get(opts, :fonz, false),
 
         # State
         last_response: nil,
         steps: [],
         usage: 0,
-        context: @model.context,
+        context: model.context,
         notes: nil,
         intuition: nil,
         editing_tools_used: false,
-        fonz: Map.get(opts, :fonz, false),
         pending_interrupts: []
       }
     end
@@ -371,7 +384,7 @@ defmodule AI.Agent.Coordinator do
       compact?: true,
       replay_conversation: replay,
       conversation_pid: state.conversation_pid,
-      model: @model,
+      model: state.model,
       toolbox: get_tools(state),
       messages: msgs
     )
@@ -400,6 +413,7 @@ defmodule AI.Agent.Coordinator do
           |> Map.put(:usage, usage)
           |> Map.put(:last_response, response)
           |> Map.put(:editing_tools_used, editing_tools_used)
+          |> Map.put(:model, state.model)
           |> log_usage()
           |> log_response()
 
@@ -969,9 +983,9 @@ defmodule AI.Agent.Coordinator do
     |> append_context_remaining()
   end
 
-  defp log_usage(%{usage: usage} = state) do
-    UI.log_usage(@model, usage)
-    state
+  defp log_usage(%{usage: usage, model: model} = response) do
+    UI.log_usage(model, usage)
+    response
   end
 
   defp log_available_frobs do
@@ -1235,7 +1249,7 @@ defmodule AI.Agent.Coordinator do
     AI.Agent.get_completion(state.agent,
       log_msgs: true,
       log_tool_calls: true,
-      model: AI.Model.fast(),
+      model: state.model,
       toolbox: tools,
       messages: [
         @test_prompt
@@ -1255,7 +1269,9 @@ defmodule AI.Agent.Coordinator do
           UI.report_step(tool, "called #{count} time(s)")
         end)
 
-        log_usage(response)
+        response
+        |> Map.put(:model, state.model)
+        |> log_usage()
 
       {:error, reason} ->
         UI.error(inspect(reason))

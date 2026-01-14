@@ -83,6 +83,14 @@ defmodule Cmd.Ask do
             help: "Automatically approve edit/manage prompts (requires --edit)",
             default: false,
             multiple: true
+          ],
+          smart: [
+            long: "--smart",
+            short: "-s",
+            default: false,
+            help: """
+            Use a pricier model, trading speed and cash for improved accuracy on large, complex tasks
+            """
           ]
         ]
       ]
