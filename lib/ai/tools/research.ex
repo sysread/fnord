@@ -126,7 +126,7 @@ defmodule AI.Tools.Research do
   defp do_research(project, prompt) do
     System.cmd(
       "fnord",
-      ["ask", "--project", project, "--question", prompt],
+      ["ask", "--quiet", "--project", project, "--question", prompt],
       env: [
         {"LOGGER_LEVEL", "error"},
         {"FNORD_FORMATTER", ""}
