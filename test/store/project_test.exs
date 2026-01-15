@@ -240,4 +240,74 @@ defmodule Store.ProjectTest do
       refute Project.has_index?(project)
     end
   end
+
+  describe "project_prompt/1" do
+    test "returns shared header and content when only FNORD.md exists", %{project: project} do
+      shared_path = Path.join(project.source_root, "FNORD.md")
+      shared_content = "Shared prompt content"
+      File.write!(shared_path, shared_content)
+
+      assert {:ok, prompt} = Project.project_prompt(project)
+      assert prompt =~ "FNORD.md"
+      assert prompt =~ shared_content
+      refute prompt =~ "FNORD.local.md"
+    end
+
+    test "returns local header, precedence note, and content when only FNORD.local.md exists", %{
+      project: project
+    } do
+      local_path = Path.join(project.source_root, "FNORD.local.md")
+      local_content = "Local prompt content"
+      File.write!(local_path, local_content)
+
+      assert {:ok, prompt} = Project.project_prompt(project)
+      assert prompt =~ "FNORD.local.md"
+      assert prompt =~ "Note: if these local instructions conflict with earlier instructions"
+      assert prompt =~ local_content
+      refute prompt =~ "FNORD.md"
+    end
+
+    test "returns both shared and local sections with shared first when both files exist", %{
+      project: project
+    } do
+      shared_path = Path.join(project.source_root, "FNORD.md")
+      shared_content = "Shared prompt"
+      File.write!(shared_path, shared_content)
+
+      local_path = Path.join(project.source_root, "FNORD.local.md")
+      local_content = "Local prompt"
+      File.write!(local_path, local_content)
+
+      assert {:ok, prompt} = Project.project_prompt(project)
+      assert prompt =~ shared_content
+      assert prompt =~ local_content
+      # shared section should appear before local section
+      {shared_pos, _} = :binary.match(prompt, shared_content)
+      {local_pos, _} = :binary.match(prompt, local_content)
+      assert shared_pos < local_pos
+    end
+
+    test "ignores empty FNORD.local.md and returns shared content only", %{project: project} do
+      shared_path = Path.join(project.source_root, "FNORD.md")
+      shared_content = "Shared prompt content"
+      File.write!(shared_path, shared_content)
+
+      local_path = Path.join(project.source_root, "FNORD.local.md")
+      File.write!(local_path, "")
+
+      assert {:ok, prompt} = Project.project_prompt(project)
+      assert prompt =~ shared_content
+      refute prompt =~ "FNORD.local.md"
+    end
+
+    test "returns error when neither prompt file exists", %{project: project} do
+      # Ensure no prompt files exist
+      shared_path = Path.join(project.source_root, "FNORD.md")
+      local_path = Path.join(project.source_root, "FNORD.local.md")
+      File.rm_rf!(shared_path)
+      File.rm_rf!(local_path)
+
+      assert {:error, :not_found} = Project.project_prompt(project)
+    end
+  end
 end

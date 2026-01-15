@@ -46,9 +46,8 @@ tags
 # Fnord generates backups when it writes code. Ignore them and use `make clean-bak` to remove them.
 **/*.*.bak
 
-# We aren't *quite* good enough to bootstrap our own compilation, so to speak :)
-.claude
-CLAUDE.local.md
+# local fnord config
+FNORD.local.md
 
 # Notes and plans
 .notes

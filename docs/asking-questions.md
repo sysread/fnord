@@ -227,9 +227,9 @@ Ask fnord to review its notes first:
 fnord ask -p myproject -q "Review your notes about the authentication system, then explain how password reset works"
 ```
 
-### 5. Use FNORD.md for Project Context
+### 5. Use FNORD.md (and FNORD.local.md) for Project Context
 
-If `FNORD.md` is located in your project root, it is used to enrich the conversation with project-specific context. To get the best results, keep `FNORD.md` concise (ideally under 500 lines) and focused on key architectural notes, important modules, and coding conventions. Note that if `FNORD.md` is large, it will affect context window management and attention allocation.
+If `FNORD.md` is located in your project root, it is used to enrich the conversation with project-specific context. You can also include an optional `FNORD.local.md` for personal or local instructions; it is appended after the shared FNORD.md and takes precedence on conflicts unless the user's prompt explicitly overrides. To get the best results, keep these files concise (ideally under 500 lines) and focused on key architectural notes, important modules, and coding conventions. Note that if they are large, they will affect context window management and attention allocation.
 
 
 ## Advanced Options

@@ -1253,18 +1253,39 @@ defmodule AI.Agent.Coordinator do
       |> AI.Tools.with_rw_tools()
       |> AI.Tools.with_web_tools()
 
+    test_prompt_msg =
+      @test_prompt
+      |> String.replace("$$PROJECT$$", project)
+      |> String.replace("$$GIT_INFO$$", git_info())
+      |> AI.Util.system_msg()
+
+    project_prompt_msgs =
+      case Store.get_project() do
+        {:ok, proj} ->
+          case Store.Project.project_prompt(proj) do
+            {:ok, prompt} ->
+              [
+                """
+                While working within this project, the following instructions apply:
+                #{prompt}
+                """
+                |> AI.Util.system_msg()
+              ]
+
+            _ ->
+              []
+          end
+
+        _ ->
+          []
+      end
+
     AI.Agent.get_completion(state.agent,
       log_msgs: true,
       log_tool_calls: true,
       model: state.model,
       toolbox: tools,
-      messages: [
-        @test_prompt
-        |> String.replace("$$PROJECT$$", project)
-        |> String.replace("$$GIT_INFO$$", git_info())
-        |> AI.Util.system_msg(),
-        AI.Util.user_msg(state.question)
-      ]
+      messages: [test_prompt_msg] ++ project_prompt_msgs ++ [AI.Util.user_msg(state.question)]
     )
     |> case do
       {:ok, %{response: msg} = response} ->

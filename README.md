@@ -222,7 +222,7 @@ mix escript.install github sysread/fnord
 ## User integrations
 
 ### Project prompts
-Create a project-level FNORD.md file named `FNORD.md` at your project's root to surface important, project-specific guidance to the AI during new conversations. When present, fnord will read this file at the start of a new conversation and inject it as a system message so agents see the project's rules, constraints, or important notes early in the session. The file is preserved in conversation history and tests live in `test/services/fnord_md_injection_test.exs`.
+Create a project-level `FNORD.md` file at your project's root for project-specific guidance and optionally a `FNORD.local.md` file for personal instructions. When both exist, fnord reads `FNORD.md` first and appends `FNORD.local.md`, with the local file taking precedence on conflicts unless explicitly overridden in your prompt. We recommend adding `FNORD.local.md` to your `.gitignore` to avoid committing personal instructions.
 
 ### Frobs
 Create custom tools (frobs) that fnord can use while researching. Use frobs to query project-specific APIs, check deployment status, retrieve GitHub PR details for review, or gather information from Kubernetes clusters.

@@ -144,19 +144,58 @@ defmodule Store.Project do
   end
 
   @doc """
-  Reads the project prompt from `FNORD.md` in the source root if present.
-  Returns `{:ok, prompt}` or `{:error, :not_found}`.
-  Returns `{:error, :not_found}` if the file is present but empty.
+  Reads the project prompt from `FNORD.md` and `FNORD.local.md` in the source
+  root.
+
+  Returns:
+    * `{:ok, prompt}` (at least one file has content)
+    * `{:error, :not_found}`
+
+  When both files have content, the resulting prompt will include instructions
+  from both files, along with a short note indicating priority.
   """
   @spec project_prompt(t) :: {:ok, binary} | {:error, :not_found}
+  def project_prompt(%{source_root: nil}), do: {:error, :not_found}
+
   def project_prompt(project) do
-    project.source_root
-    |> Path.join("FNORD.md")
-    |> File.read()
+    shared =
+      project.source_root
+      |> Path.join("FNORD.md")
+      |> File.read()
+      |> case do
+        {:ok, content} when byte_size(content) > 0 ->
+          """
+          ## Shared project instructions (FNORD.md)
+
+          #{content}
+          """
+
+        _ ->
+          nil
+      end
+
+    local =
+      project.source_root
+      |> Path.join("FNORD.local.md")
+      |> File.read()
+      |> case do
+        {:ok, content} when byte_size(content) > 0 ->
+          """
+          ## Local user instructions (FNORD.local.md)
+          Note: if these local instructions conflict with earlier instructions, prefer these local instructions unless the user's explicit prompt says otherwise.
+
+          #{content}
+          """
+
+        _ ->
+          nil
+      end
+
+    [shared, local]
+    |> Enum.filter(&is_binary/1)
     |> case do
-      {:ok, ""} -> {:error, :not_found}
-      {:ok, content} -> {:ok, content}
-      _ -> {:error, :not_found}
+      [] -> {:error, :not_found}
+      prompts -> {:ok, Enum.join(prompts, "\n\n")}
     end
   end
 

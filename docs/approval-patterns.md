@@ -135,7 +135,7 @@ Approvals are stored in `~/.fnord/settings.json`:
 Pre-approving commands reduces security prompts but increases risk:
 
 **Prompt injection:**
-- If `FNORD.md` is present in the root of the project, its contents are injected into every conversation
+- If `FNORD.md` and `FNORD.local.md` are present in the project root, their contents are injected into every conversation, with the local file appended after the shared file
 - Avoid including secrets or other sensitive information in that file
 
 **Safe patterns:**
