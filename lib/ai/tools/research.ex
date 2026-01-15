@@ -35,6 +35,24 @@ defmodule AI.Tools.Research do
 
   @impl AI.Tools
   def spec() do
+    current =
+      case Settings.get_selected_project() do
+        {:ok, project} -> project
+        _ -> nil
+      end
+
+    projects =
+      Settings.new()
+      |> Settings.list_projects()
+      |> Enum.map(fn project ->
+        if project == current do
+          "- #{project} (current)"
+        else
+          "- #{project}"
+        end
+      end)
+      |> Enum.join("\n")
+
     %{
       type: "function",
       function: %{
@@ -48,6 +66,9 @@ defmodule AI.Tools.Research do
 
         Research is performed by another AI agent which has access to most of
         the same tools that you do to perform their task.
+
+        The following projects are available for research:
+        #{projects}
 
         !!! This is your most powerful tool !!!
         """,
@@ -72,8 +93,10 @@ defmodule AI.Tools.Research do
               By default, research is performed within the current project. If
               the user asks for you to cross-reference a different project,
               this option may be specified to indicate that the research should
-              be performed in that project instead. Use list_projects_tool to
-              get a list of other available projects.
+              be performed in that project instead.
+
+              Possible values:
+              #{projects}
               """
             }
           }

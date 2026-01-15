@@ -55,9 +55,11 @@ defmodule AI.Tools.ListProjects do
       end
 
     filtered =
-      if current_project,
-        do: Enum.reject(all_projects, &(&1 == current_project)),
-        else: all_projects
+      if current_project do
+        Enum.reject(all_projects, &(&1 == current_project))
+      else
+        all_projects
+      end
 
     {:ok, filtered}
   end
