@@ -445,7 +445,7 @@ defmodule Settings do
     end
   end
 
-  defp slurp(settings) do
+  defp slurp(%Settings{} = settings) do
     data =
       with {:ok, content} <- File.read(settings.path),
            {:ok, parsed} <- Jason.decode(content) do

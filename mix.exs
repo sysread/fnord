@@ -5,15 +5,24 @@ defmodule Fnord.MixProject do
     [
       app: :fnord,
       version: "0.8.99",
-      elixir: "~> 1.18",
+      elixir: "~> 1.19",
       start_permanent: Mix.env() == :prod,
       description: "AI code archaeology",
       package: package(),
       deps: deps(),
       escript: escript(),
+      cli: cli(),
       docs: docs(),
       test_coverage: [tool: ExCoveralls],
-      preferred_cli_env: [
+      test_ignore_filters: [
+        ~r/^test\/support\/.*\.ex/
+      ]
+    ]
+  end
+
+  def cli do
+    [
+      preferred_envs: [
         coveralls: :test,
         "coveralls.html": :test,
         "coveralls.json": :test

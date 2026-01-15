@@ -242,7 +242,7 @@ defmodule Memory do
   end
 
   @spec append(t, binary) :: t
-  def append(memory, new_content) do
+  def append(%Memory{} = memory, new_content) do
     %Memory{
       memory
       | content: memory.content <> new_content,
