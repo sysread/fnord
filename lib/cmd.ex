@@ -31,4 +31,13 @@ defmodule Cmd do
       default: default_workers()
     ]
   end
+
+  def quiet_flag do
+    [
+      long: "--quiet",
+      short: "-Q",
+      help: "Suppress interactive and extraneous output",
+      required: false
+    ]
+  end
 end

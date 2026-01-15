@@ -65,6 +65,7 @@ defmodule Cmd.Ask do
           ]
         ],
         flags: [
+          quiet: Cmd.quiet_flag(),
           replay: [
             long: "--replay",
             short: "-r",
