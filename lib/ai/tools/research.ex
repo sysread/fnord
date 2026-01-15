@@ -124,8 +124,13 @@ defmodule AI.Tools.Research do
   end
 
   defp do_research(project, prompt) do
+    fnord =
+      :escript.script_name()
+      |> Path.expand()
+      |> Path.absname()
+
     System.cmd(
-      "fnord",
+      fnord,
       ["ask", "--quiet", "--project", project, "--question", prompt],
       env: [
         {"LOGGER_LEVEL", "error"},
