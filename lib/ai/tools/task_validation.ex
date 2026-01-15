@@ -67,12 +67,13 @@ defmodule AI.Tools.TaskValidation do
   @impl AI.Tools
   def call(args) do
     with {:ok, task_list_id} <- AI.Tools.get_arg(args, "task_list_id"),
-         {:ok, requirements} <- AI.Tools.get_arg(args, "requirements") do
+         {:ok, requirements} <- AI.Tools.get_arg(args, "requirements"),
+         {:ok, list_id} <- normalize_list_id(task_list_id) do
       # Compute change summary if not provided
       change_summary =
         case Map.get(args, "change_summary") do
           s when is_binary(s) and s != "" -> s
-          _ -> Services.Task.as_string(task_list_id, true)
+          _ -> Services.Task.as_string(list_id, true)
         end
 
       AI.Agent.Code.TaskValidator
@@ -84,4 +85,15 @@ defmodule AI.Tools.TaskValidation do
       })
     end
   end
+
+  defp normalize_list_id(id) when is_integer(id), do: {:ok, id}
+
+  defp normalize_list_id(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {int, ""} -> {:ok, int}
+      _ -> {:error, :invalid_argument, "task_list_id"}
+    end
+  end
+
+  defp normalize_list_id(_), do: {:error, :invalid_argument, "task_list_id"}
 end

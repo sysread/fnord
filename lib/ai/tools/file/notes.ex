@@ -93,6 +93,9 @@ defmodule AI.Tools.File.Notes do
           {:error, "Unable to load notes: #{inspect(reason)}"}
       end
     else
+      {:error, :project_not_set} ->
+        {:error, "This project has not yet been indexed by the user."}
+
       :error ->
         {:error, "Missing required parameter: file."}
     end

@@ -67,4 +67,45 @@ defmodule Services.NamePoolTest do
     # Call checkout_name with a short timeout and assert timeout error
     assert {:error, :timeout} = NamePool.checkout_name(pid, 1)
   end
+
+  test "checkin_name/1 is a no-op for default name" do
+    NamePool.reset()
+    assert :ok = NamePool.checkin_name(NamePool.default_name())
+  end
+
+  test "checkin_name/1 warns but preserves state when name not checked out" do
+    NamePool.reset()
+    {:ok, name} = NamePool.checkout_name()
+    NamePool.checkin_name("not checked out")
+    assert {:ok, ^name} = NamePool.get_name_by_pid(self())
+  end
+
+  test "associate_name/1 is a no-op for nil" do
+    NamePool.reset()
+    assert :ok = NamePool.associate_name(nil)
+  end
+
+  test "associate_name/1 remaps name ownership from previous pid" do
+    NamePool.reset()
+    {:ok, name} = NamePool.checkout_name()
+    old_pid = self()
+
+    spawn(fn ->
+      NamePool.associate_name(name)
+      send(old_pid, {:spawned, self()})
+    end)
+
+    assert_receive {:spawned, new_pid}
+    assert {:error, :not_found} = NamePool.get_name_by_pid(old_pid)
+    assert {:ok, ^name} = NamePool.get_name_by_pid(new_pid)
+  end
+
+  test "pool_stats reflects checked-out and available counts" do
+    NamePool.reset()
+    {:ok, _name1} = NamePool.checkout_name()
+    {:ok, _name2} = NamePool.checkout_name()
+    stats = NamePool.pool_stats()
+    assert stats.checked_out_count == 2
+    assert stats.all_used_count >= 2
+  end
 end
