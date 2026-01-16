@@ -70,7 +70,7 @@ defmodule Cmd.Ask do
             long: "--save",
             short: "-S",
             help: """
-            Saves the response to ~/fnord/outputs/projects/<project_id>/outputs/<slug>.md
+            Saves the response to ~/fnord/outputs/<project_id>/<slug>.md
             """,
             default: false
           ],

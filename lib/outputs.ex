@@ -4,7 +4,7 @@ defmodule Outputs do
 
   Outputs are written under:
 
-      ~/fnord/outputs/projects/<project_id>/outputs/<slug>.md
+      ~/fnord/outputs/<project_id>/<slug>.md
 
   The content saved is the *raw* assistant response.
   """
@@ -48,7 +48,7 @@ defmodule Outputs do
 
   @doc """
   Returns the directory path for outputs for a given project.
-  Uses Settings.get_user_home() and returns ~/fnord/outputs/projects/<project_id>/outputs.
+  Uses Settings.get_user_home() and returns ~/fnord/outputs/<project_id>.
   """
   @spec outputs_dir(project_id()) :: String.t()
   def outputs_dir(project_id) when is_binary(project_id) do
@@ -56,9 +56,7 @@ defmodule Outputs do
       Settings.get_user_home(),
       "fnord",
       "outputs",
-      "projects",
-      project_id,
-      "outputs"
+      project_id
     ])
   end
 

@@ -13,6 +13,11 @@ defmodule OutputsTest do
       {:ok, project: project_struct, raw: raw}
     end
 
+    test "outputs_dir/1 uses flattened ~/fnord/outputs/<project> layout", %{project: project} do
+      expected = Path.join([Settings.get_user_home(), "fnord", "outputs", project.name])
+      assert Outputs.outputs_dir(project.name) == expected
+    end
+
     test "first save writes to slugged title file", %{project: project, raw: raw} do
       assert {:ok, path} = Outputs.save(project.name, raw)
 
