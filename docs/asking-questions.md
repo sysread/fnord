@@ -247,6 +247,14 @@ fnord ask -p myproject -q "..."
 fnord ask -p myproject -q "..." > answer.md
 ```
 
+### Saving Formatted Output 
+
+You can also use `--save` (`-S`) to save the raw markdown output (before `FNORD_FORMATTER`):
+```bash
+fnord ask -p myproject -S -q "..."
+```
+The file is saved to `~/fnord/outputs/<project_id>/<slug>.md`, where the slug is derived from the first `# Title: ...` line.
+
 ### Quiet Mode
 
 Suppress research progress (only show answer):

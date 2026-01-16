@@ -181,6 +181,13 @@ fnord ask --project blarg --follow <ID> --question "Is some_function still used?
 
 After each response, you'll see a conversation ID. Use `--follow <ID>` to continue the conversation or `--fork <ID>` to branch a new thread.
 
+Use the `--save` (or `-S`) flag to save the raw assistant response (before `FNORD_FORMATTER`) to a file.
+By default, files are written under `~/fnord/outputs/<project_id>/<slug>.md`.
+The `<slug>` comes from the first line `# Title: ...` in the response.
+```bash
+fnord ask --project blarg -S --question "Explain foo's behavior"
+```
+
 For advanced options (e.g., unindexed projects, replaying conversations), see [docs/asking-questions.md](docs/asking-questions.md).
 
 
