@@ -122,7 +122,7 @@ defmodule Services.Conversation do
   """
   @spec upsert_task_list(pid, Services.Task.task_id(), Services.Task.task_list()) :: :ok
   def upsert_task_list(pid, task_list_id, tasks) do
-    GenServer.cast(pid, {:upsert_task_list, task_list_id, tasks})
+    GenServer.call(pid, {:upsert_task_list, task_list_id, tasks})
   end
 
   @doc """
@@ -185,10 +185,6 @@ defmodule Services.Conversation do
     {:noreply, %{state | memory: memory}}
   end
 
-  def handle_cast({:upsert_task_list, task_list_id, tasks}, state) do
-    {:noreply, %{state | tasks: Map.put(state.tasks, task_list_id, tasks)}}
-  end
-
   def handle_call(:get_id, _from, state) do
     {:reply, state.conversation.id, state}
   end
@@ -219,6 +215,10 @@ defmodule Services.Conversation do
 
   def handle_call({:get_task_list, task_list_id}, _from, state) do
     {:reply, Map.get(state.tasks, task_list_id), state}
+  end
+
+  def handle_call({:upsert_task_list, task_list_id, tasks}, _from, state) do
+    {:reply, :ok, %{state | tasks: Map.put(state.tasks, task_list_id, tasks)}}
   end
 
   def handle_call(:save, _from, state) do

@@ -152,19 +152,9 @@ defmodule Services.TaskTest do
       assert :ok = Services.Task.complete_task(list_id, "Persistent", "Done")
       # Ensure the conversation has up-to-date tasks before saving
       # Poll until conversation returns the expected tasks
-      saved_tasks =
-        Enum.reduce_while(1..50, nil, fn _, _ ->
-          case Services.Conversation.get_task_list(pid, list_id) do
-            tasks = [%{id: "Persistent", outcome: :done, result: "Done", data: _} | _] ->
-              {:halt, tasks}
+      assert [%{id: "Persistent", outcome: :done, result: "Done", data: _}] =
+               Services.Conversation.get_task_list(pid, list_id)
 
-            _ ->
-              Process.sleep(10)
-              {:cont, nil}
-          end
-        end)
-
-      assert match?([%{id: "Persistent", outcome: :done, result: "Done", data: _}], saved_tasks)
       {:ok, _} = Services.Conversation.save(pid)
       GenServer.stop(Services.Task)
       GenServer.stop(pid)

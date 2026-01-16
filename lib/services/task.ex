@@ -96,7 +96,7 @@ defmodule Services.Task do
   """
   @spec complete_task(list_id, task_id, task_result) :: :ok
   def complete_task(list_id, task_id, result) do
-    GenServer.cast(__MODULE__, {:resolve, list_id, task_id, :done, result})
+    GenServer.call(__MODULE__, {:resolve, list_id, task_id, :done, result})
   end
 
   @doc """
@@ -106,7 +106,7 @@ defmodule Services.Task do
   """
   @spec fail_task(list_id, task_id, task_result) :: :ok
   def fail_task(list_id, task_id, msg) do
-    GenServer.cast(__MODULE__, {:resolve, list_id, task_id, :failed, msg})
+    GenServer.call(__MODULE__, {:resolve, list_id, task_id, :failed, msg})
   end
 
   @doc """
@@ -238,6 +238,23 @@ defmodule Services.Task do
   end
 
   @impl true
+  def handle_call({:resolve, list_id, task_id, outcome, result}, _from, state) do
+    case Map.fetch(state.lists, list_id) do
+      :error ->
+        {:reply, :ok, state}
+
+      {:ok, tasks} ->
+        with {updated_tasks, _changed?} <- resolve_task(tasks, task_id, outcome, result) do
+          new_state =
+            %{state | lists: Map.put(state.lists, list_id, updated_tasks)}
+            |> save_tasks()
+
+          {:reply, :ok, new_state}
+        end
+    end
+  end
+
+  @impl true
   def handle_cast({:push_task, list_id, task_id, task_data}, state) do
     # Silently ignore operations on nonexistent lists
     case Map.fetch(state.lists, list_id) do
@@ -271,21 +288,6 @@ defmodule Services.Task do
           task = new_task(task_id, task_data)
           # Append new task to preserve insertion order
           %{state | lists: Map.put(state.lists, list_id, tasks ++ [task])}
-          |> save_tasks()
-          |> then(&{:noreply, &1})
-        end
-    end
-  end
-
-  @impl true
-  def handle_cast({:resolve, list_id, task_id, outcome, result}, state) do
-    case Map.fetch(state.lists, list_id) do
-      :error ->
-        {:noreply, state}
-
-      {:ok, tasks} ->
-        with {updated_tasks, _} <- resolve_task(tasks, task_id, outcome, result) do
-          %{state | lists: Map.put(state.lists, list_id, updated_tasks)}
           |> save_tasks()
           |> then(&{:noreply, &1})
         end
