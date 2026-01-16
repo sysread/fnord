@@ -665,6 +665,9 @@ defmodule AI.Agent.Coordinator do
 
   Response structure:
   - Start immediately with the highest-level header (#), without introductions, disclaimers, or phrases like "Below is..."
+  - The VERY FIRST output line MUST be in the format, `# Title: <title>`
+    - The title should be VERY brief (5-6 words max; will be used as output filename)
+    - It is an ERROR if this line is missing or malformed or preceded by ANY other content
   - Begin the document with a `Synopsis` section summarizing your findings in 2-3 sentences
   - Next, include your reasoning section (from above)
   - Optional traceability sections (use when non-trivial decisions were made)

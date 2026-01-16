@@ -66,6 +66,14 @@ defmodule Cmd.Ask do
         ],
         flags: [
           quiet: Cmd.quiet_flag(),
+          save: [
+            long: "--save",
+            short: "-S",
+            help: """
+            Saves the response to ~/fnord/outputs/projects/<project_id>/outputs/<slug>.md
+            """,
+            default: false
+          ],
           replay: [
             long: "--replay",
             short: "-r",
@@ -163,6 +171,7 @@ defmodule Cmd.Ask do
         Task.shutdown(memory_task, 1_000) || Task.shutdown(memory_task, :brutal_kill)
 
         print_result(start_time, end_time, response, usage, context, conversation_id)
+        maybe_save_output(opts, conversation_id, response)
         Clipboard.copy(conversation_id)
 
         unless UI.quiet?() do
@@ -488,5 +497,16 @@ defmodule Cmd.Ask do
     else
       base
     end
+  end
+
+  @spec maybe_save_output(map(), String.t(), String.t()) :: :ok
+  defp maybe_save_output(opts, conversation_id, response) do
+    if opts[:save] do
+      {:ok, project} = Store.get_project()
+      {:ok, path} = Outputs.save(project.name, response, conversation_id: conversation_id)
+      UI.report_step("Output saved", Path.basename(path))
+    end
+
+    :ok
   end
 end
