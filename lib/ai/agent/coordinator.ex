@@ -553,7 +553,8 @@ defmodule AI.Agent.Coordinator do
 
   ## EPICS
   Use for complex/open-ended changes.
-  - REFUSE if there are unstaged changes present
+  - REFUSE if there are unstaged changes present that you were not aware of
+    - It's ok to work on top of your own changes from earlier milestones
   - Research affected features and components to map out dependencies and interactions
   - Use your task list to plan milestones
     - Use the memory_tool to record learnings about the using the coder_tool
