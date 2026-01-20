@@ -21,5 +21,5 @@
 - Edits you make here change how the assistant behaves when operating inside this project.
 - Make changes carefully:
   - Run `make check` locally with test HOME overrides.
+  - Run `mix format` to ensure consistent formatting.
   - Keep diffs small and covered by tests.
-  - Document any change to message injection, system prompts, or task ordering.
