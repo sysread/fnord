@@ -299,19 +299,17 @@ defmodule Services.Task do
   # ----------------------------------------------------------------------------
   @spec resolve_task([task()], task_id(), :done | :failed, task_result()) :: {[task()], boolean()}
   defp resolve_task(tasks, target_id, outcome, result) do
-    # Split the list into tasks before the match and the rest
-    {before, rest} = Enum.split_while(tasks, &(&1.id != target_id))
+    tasks
+    |> Enum.reduce({[], false}, fn
+      %{id: ^target_id, outcome: :todo} = task, {acc, _} ->
+        {[%{task | outcome: outcome, result: result} | acc], true}
 
-    case rest do
-      [] ->
-        # No matching task: return original list and a flag indicating no change
-        {tasks, false}
-
-      [first | tail] ->
-        # Update only the first matching task's outcome and result
-        updated = %{first | outcome: outcome, result: result}
-        {before ++ [updated | tail], true}
-    end
+      task, {acc, changed} ->
+        {[task | acc], changed}
+    end)
+    |> then(fn {tasks, changed} ->
+      {Enum.reverse(tasks), changed}
+    end)
   end
 
   defp save_tasks(%{conversation_pid: pid} = state) do

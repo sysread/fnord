@@ -17,6 +17,8 @@ defmodule AI.Tools.Tasks.ResolveTask do
          true <- is_integer(list_id) or {:error, :invalid_argument, "list_id must be an integer"},
          {:ok, task_id} <- AI.Tools.get_arg(args, "task_id"),
          true <- is_binary(task_id) or {:error, :invalid_argument, "task_id must be a string"},
+         task_id <- String.trim(task_id),
+         true <- task_id != "" or {:error, :invalid_argument, "task_id cannot be empty"},
          {:ok, disposition} <- AI.Tools.get_arg(args, "disposition"),
          true <-
            disposition in ["success", "failure"] or

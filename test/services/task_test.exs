@@ -100,15 +100,16 @@ defmodule Services.TaskTest do
   end
 
   describe "adding duplicate task IDs" do
-    test "allows duplicate task IDs and preserves order" do
+    test "resolving a task id resolves all matching todo duplicates", %{conversation_pid: pid} do
       list_id = Services.Task.start_list()
-      data1 = %{foo: 1}
-      data2 = %{bar: 2}
-      assert :ok = Services.Task.add_task(list_id, "dup", data1)
-      assert :ok = Services.Task.add_task(list_id, "dup", data2)
-      tasks = Services.Task.get_list(list_id)
-
-      assert [%{id: "dup", outcome: :todo, data: ^data1, result: nil}] = tasks
+      task1 = %{id: "dup", data: %{foo: 1}, outcome: "todo", result: nil}
+      task2 = %{id: "dup", data: %{bar: 2}, outcome: "todo", result: nil}
+      assert :ok = Services.Conversation.upsert_task_list(pid, list_id, [task1, task2])
+      GenServer.stop(Services.Task)
+      {:ok, _} = Services.Task.start_link(conversation_pid: pid)
+      assert [%{id: "dup", outcome: :todo}, %{id: "dup", outcome: :todo}] = Services.Task.get_list(list_id)
+      assert :ok = Services.Task.complete_task(list_id, "dup", "ok")
+      assert [%{id: "dup", outcome: :done, result: "ok"}, %{id: "dup", outcome: :done, result: "ok"}] = Services.Task.get_list(list_id)
     end
   end
 

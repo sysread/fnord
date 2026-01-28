@@ -25,6 +25,8 @@ defmodule AI.Tools.Tasks.AddTask do
           with {:ok, task_id} <- AI.Tools.get_arg(args, "task_id"),
                true <-
                  is_binary(task_id) or {:error, :invalid_argument, "task_id must be a string"},
+               task_id <- String.trim(task_id),
+               true <- task_id != "" or {:error, :invalid_argument, "task_id cannot be empty"},
                {:ok, data} <- AI.Tools.get_arg(args, "data"),
                true <- is_binary(data) or {:error, :invalid_argument, "data must be a string"} do
             {:ok, %{"list_id" => list_id, "tasks" => [%{"task_id" => task_id, "data" => data}]}}
@@ -157,7 +159,13 @@ defmodule AI.Tools.Tasks.AddTask do
         |> Enum.reduce_while({:ok, []}, fn
           %{"task_id" => task_id, "data" => data}, {:ok, acc}
           when is_binary(task_id) and is_binary(data) ->
-            {:cont, {:ok, [%{"task_id" => task_id, "data" => data} | acc]}}
+            task_id = String.trim(task_id)
+
+            if task_id == "" do
+              {:halt, {:error, :invalid_argument, "task_id cannot be empty"}}
+            else
+              {:cont, {:ok, [%{"task_id" => task_id, "data" => data} | acc]}}
+            end
 
           %{"task_id" => _, "data" => _}, _ ->
             {:halt, {:error, :invalid_argument, "each task must have string task_id and data"}}
