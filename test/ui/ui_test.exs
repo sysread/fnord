@@ -146,4 +146,19 @@ defmodule UI.UITest do
       UI.box("hello", title: "T")
     end
   end
+
+  describe "spin/1 when registry is absent" do
+    setup do
+      Settings.set_quiet(false)
+      :ok
+    end
+
+    test "returns :ok and does not raise when registry is not running" do
+      # Ensure Owl WidgetsRegistry is not running
+      assert Registry.whereis_name({Owl.WidgetsRegistry, :fnord}) in [nil, :undefined]
+
+      result = Spinner.run(fn -> {"Conversation summarized", :ok} end, "Summarizing conversation")
+      assert result == :ok
+    end
+  end
 end

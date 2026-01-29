@@ -107,9 +107,16 @@ defmodule Services.TaskTest do
       assert :ok = Services.Conversation.upsert_task_list(pid, list_id, [task1, task2])
       GenServer.stop(Services.Task)
       {:ok, _} = Services.Task.start_link(conversation_pid: pid)
-      assert [%{id: "dup", outcome: :todo}, %{id: "dup", outcome: :todo}] = Services.Task.get_list(list_id)
+
+      assert [%{id: "dup", outcome: :todo}, %{id: "dup", outcome: :todo}] =
+               Services.Task.get_list(list_id)
+
       assert :ok = Services.Task.complete_task(list_id, "dup", "ok")
-      assert [%{id: "dup", outcome: :done, result: "ok"}, %{id: "dup", outcome: :done, result: "ok"}] = Services.Task.get_list(list_id)
+
+      assert [
+               %{id: "dup", outcome: :done, result: "ok"},
+               %{id: "dup", outcome: :done, result: "ok"}
+             ] = Services.Task.get_list(list_id)
     end
   end
 
