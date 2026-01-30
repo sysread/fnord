@@ -13,8 +13,7 @@ defmodule Services.BgIndexingControl do
 
   - **model-agnostic**: any model string encountered can be tracked
   - **boolean-only**: models are either paused or not paused (no timers)
-  - **session-local**: state is stored in `Services.Globals` and initialized
-    once via `Services.Once`
+  - **session-local**: state is stored in `Services.Globals` and seeded idempotently
 
   ## State
 
@@ -33,20 +32,19 @@ defmodule Services.BgIndexingControl do
 
   @spec ensure_init() :: :ok
   def ensure_init do
-    # Ensure Services.Once is started in test/runtime contexts
-    case Services.Once.start_link() do
-      {:ok, _pid} -> :ok
-      {:error, {:already_started, _}} -> :ok
+    ensure_default(@paused_key, %{})
+    ensure_default(@counts_key, %{})
+    ensure_default(@threshold_key, @default_threshold)
+    :ok
+  end
+
+  defp ensure_default(key, default) do
+    sentinel = :__bg_indexing_control_missing__
+
+    case Services.Globals.get_env(:fnord, key, sentinel) do
+      ^sentinel -> Services.Globals.put_env(:fnord, key, default)
       _ -> :ok
     end
-
-    Services.Once.run({:globals_init, __MODULE__}, fn ->
-      Services.Globals.put_env(:fnord, @paused_key, %{})
-      Services.Globals.put_env(:fnord, @counts_key, %{})
-      Services.Globals.put_env(:fnord, @threshold_key, @default_threshold)
-    end)
-
-    :ok
   end
 
   @spec paused?(binary | nil) :: boolean
