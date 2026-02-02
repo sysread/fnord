@@ -41,25 +41,6 @@ defmodule AI.Tools.Tasks.ResolveTask do
         "task_id" => task_id,
         "disposition" => disposition
       }) do
-    {total, resolved} =
-      list_id
-      |> Services.Task.get_list()
-      |> case do
-        {:error, _reason} -> []
-        tasks -> tasks
-      end
-      |> Enum.reduce({0, 0}, fn
-        %{outcome: :todo}, {t, r} -> {t + 1, r}
-        _, {t, r} -> {t + 1, r + 1}
-      end)
-      |> then(fn {t, r} ->
-        if disposition == "success" do
-          {t, r + 1}
-        else
-          {t, r}
-        end
-      end)
-
     glyph =
       if disposition == "success" do
         "✓"
@@ -67,7 +48,13 @@ defmodule AI.Tools.Tasks.ResolveTask do
         "✗"
       end
 
-    {"Task resolved", Util.truncate_chars("(#{resolved}/#{total}) #{glyph} #{task_id}")}
+    case get_task_counts(list_id, disposition) do
+      {total, resolved} ->
+        {"Task resolved", Util.truncate_chars("(#{resolved}/#{total}) #{glyph} #{task_id}")}
+
+      nil ->
+        {"Task resolved", Util.truncate_chars("#{glyph} #{task_id}")}
+    end
   end
 
   @impl AI.Tools
@@ -131,5 +118,37 @@ defmodule AI.Tools.Tasks.ResolveTask do
     end
 
     {:ok, Services.Task.as_string(list_id)}
+  end
+
+  # ----------------------------------------------------------------------------
+  # Private Functions
+  # ----------------------------------------------------------------------------
+
+  # Returns {total, resolved} task counts if the Services.Task GenServer is
+  # running, or nil if it's not available (e.g., during replay).
+  defp get_task_counts(list_id, disposition) do
+    case Process.whereis(Services.Task) do
+      nil ->
+        nil
+
+      _pid ->
+        list_id
+        |> Services.Task.get_list()
+        |> case do
+          {:error, _reason} -> []
+          tasks -> tasks
+        end
+        |> Enum.reduce({0, 0}, fn
+          %{outcome: :todo}, {t, r} -> {t + 1, r}
+          _, {t, r} -> {t + 1, r + 1}
+        end)
+        |> then(fn {t, r} ->
+          if disposition == "success" do
+            {t, r + 1}
+          else
+            {t, r}
+          end
+        end)
+    end
   end
 end
