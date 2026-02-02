@@ -63,11 +63,18 @@ defmodule Cmd.Ask do
             help: "Fork (branch) an existing conversation by UUID",
             required: false
           ],
+          frippery: [
+            value_name: "LEVEL",
+            long: "--frippery",
+            short: "-V",
+            help: "Set the model verbosity level (low, medium, high)",
+            required: false
+          ],
           reasoning: [
             value_name: "LEVEL",
             long: "--reasoning",
             short: "-R",
-            help: "Set the AI's reasoning level (minimal, low, medium, high).",
+            help: "Set the AI's reasoning level (minimal, low, medium, high)",
             required: false
           ]
         ],
@@ -429,6 +436,7 @@ defmodule Cmd.Ask do
       question: opts.question,
       replay: Map.get(opts, :replay, false),
       yes: Map.get(opts, :yes, false),
+      verbosity: Map.get(opts, :frippery, nil),
       fonz: Map.get(opts, :fonz, false)
     )
   end

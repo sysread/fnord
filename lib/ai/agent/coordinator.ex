@@ -71,6 +71,7 @@ defmodule AI.Agent.Coordinator do
           required(:replay) => boolean,
           required(:smart) => binary,
           optional(:reasoning) => AI.Model.reasoning_level(),
+          optional(:verbosity) => AI.Model.verbosity_level(),
           optional(:fonz) => boolean
         }
 
@@ -117,6 +118,7 @@ defmodule AI.Agent.Coordinator do
           @default_model
         end
         |> AI.Model.with_reasoning(Map.get(opts, :reasoning))
+        |> AI.Model.with_verbosity(Map.get(opts, :verbosity))
 
       Settings.set_edit_mode(edit?)
 

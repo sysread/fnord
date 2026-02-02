@@ -2,7 +2,8 @@ defmodule AI.Model do
   defstruct [
     :model,
     :context,
-    :reasoning
+    :reasoning,
+    :verbosity
   ]
 
   @type reasoning_level ::
@@ -13,6 +14,8 @@ defmodule AI.Model do
           | :high
           | :default
 
+  @type verbosity_level :: :low | :medium | :high
+
   @type speed ::
           :smart
           | :balanced
@@ -21,7 +24,8 @@ defmodule AI.Model do
   @type t :: %__MODULE__{
           model: String.t(),
           context: non_neg_integer,
-          reasoning: reasoning_level
+          reasoning: reasoning_level,
+          verbosity: verbosity_level | nil
         }
 
   @spec new(String.t(), non_neg_integer) :: t
@@ -30,7 +34,8 @@ defmodule AI.Model do
     %AI.Model{
       model: model,
       context: context,
-      reasoning: reasoning
+      reasoning: reasoning,
+      verbosity: nil
     }
   end
 
@@ -41,6 +46,16 @@ defmodule AI.Model do
       "" -> model
       lvl when is_atom(lvl) -> %AI.Model{model | reasoning: lvl}
       lvl when is_binary(lvl) -> %AI.Model{model | reasoning: String.to_existing_atom(lvl)}
+    end
+  end
+
+  @spec with_verbosity(t(), verbosity_level() | binary | nil) :: t()
+  def with_verbosity(model = %__MODULE__{}, lvl) do
+    case lvl do
+      nil -> model
+      "" -> model
+      lvl when is_atom(lvl) -> %AI.Model{model | verbosity: lvl}
+      lvl when is_binary(lvl) -> %AI.Model{model | verbosity: String.to_existing_atom(lvl)}
     end
   end
 

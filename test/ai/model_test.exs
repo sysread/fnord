@@ -72,4 +72,34 @@ defmodule AI.ModelTest do
       end
     end
   end
+
+  describe "with_verbosity/2" do
+    test "nil verbosity does nothing" do
+      m = Model.new("x", 1, :low)
+      assert m == Model.with_verbosity(m, nil)
+    end
+
+    test "empty string verbosity does nothing" do
+      m = Model.new("x", 1, :low)
+      assert m == Model.with_verbosity(m, "")
+    end
+
+    test "accepts atom verbosity" do
+      m = Model.new("x", 1, :low)
+      assert %Model{verbosity: :high} = Model.with_verbosity(m, :high)
+    end
+
+    test "accepts binary verbosity" do
+      m = Model.new("x", 1, :low)
+      assert %Model{verbosity: :low} = Model.with_verbosity(m, "low")
+    end
+
+    test "unknown string raises ArgumentError" do
+      m = Model.new("x", 1, :low)
+      # Choose a string that is extremely unlikely to exist as an atom
+      assert_raise ArgumentError, fn ->
+        Model.with_verbosity(m, "__definitely_not_a_verbosity_level__")
+      end
+    end
+  end
 end
