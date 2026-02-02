@@ -42,4 +42,31 @@ defmodule AI.ModelTest do
 
     assert %Model{model: "o4-mini", reasoning: :low} = Model.o4_mini(:low)
   end
+  describe "with_reasoning/2" do
+    test "nil reasoning does nothing" do
+      m = Model.new("x", 1, :low)
+      assert m == Model.with_reasoning(m, nil)
+    end
+
+    test "empty string reasoning does nothing" do
+      m = Model.new("x", 1, :low)
+      assert m == Model.with_reasoning(m, "")
+    end
+
+    test "accepts atom reasoning" do
+      m = Model.new("x", 1, :low)
+      assert %Model{reasoning: :high} = Model.with_reasoning(m, :high)
+    end
+
+    test "accepts binary reasoning" do
+      m = Model.new("x", 1, :low)
+      assert %Model{reasoning: :minimal} = Model.with_reasoning(m, "minimal")
+    end
+
+    test "unknown string raises ArgumentError" do
+      m = Model.new("x", 1, :low)
+      # Choose a string that is extremely unlikely to exist as an atom
+      assert_raise ArgumentError, fn -> Model.with_reasoning(m, "__definitely_not_a_reasoning_level__") end
+    end
+  end
 end

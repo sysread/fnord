@@ -67,10 +67,7 @@ defmodule AI.Tools.Tasks.ResolveTask do
         "✗ "
       end
 
-    msg = glyph <> " " <> task_id
-    count = "(#{resolved}/#{total})"
-
-    {"Task resolved", Util.truncate_chars("[#{count}] #{msg}")}
+    {"Task resolved", Util.truncate_chars("(#{resolved}/#{total}) #{glyph} #{task_id}")}
   end
 
   @impl AI.Tools

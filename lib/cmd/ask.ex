@@ -62,6 +62,13 @@ defmodule Cmd.Ask do
             short: "-F",
             help: "Fork (branch) an existing conversation by UUID",
             required: false
+          ],
+          reasoning: [
+            value_name: "LEVEL",
+            long: "--reasoning",
+            short: "-R",
+            help: "Set the AI's reasoning level (minimal, low, medium, high).",
+            required: false
           ]
         ],
         flags: [

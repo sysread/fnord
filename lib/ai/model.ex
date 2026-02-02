@@ -34,6 +34,16 @@ defmodule AI.Model do
     }
   end
 
+  @spec with_reasoning(t(), reasoning_level()) :: t()
+  def with_reasoning(model = %__MODULE__{}, lvl) do
+    case lvl do
+      nil -> model
+      "" -> model
+      lvl when is_atom(lvl) -> %AI.Model{model | reasoning: lvl}
+      lvl when is_binary(lvl) -> %AI.Model{model | reasoning: String.to_existing_atom(lvl)}
+    end
+  end
+
   def smart(), do: gpt51(:minimal)
   def smarter(), do: gpt5(:low)
   def balanced(), do: gpt5_mini(:high)

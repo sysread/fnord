@@ -69,7 +69,8 @@ defmodule AI.Agent.Coordinator do
           required(:edit) => boolean,
           required(:question) => binary,
           required(:replay) => boolean,
-          required(:smart) => boolean,
+          required(:smart) => binary,
+          optional(:reasoning) => AI.Model.reasoning_level(),
           optional(:fonz) => boolean
         }
 
@@ -115,6 +116,7 @@ defmodule AI.Agent.Coordinator do
         else
           @default_model
         end
+        |> AI.Model.with_reasoning(Map.get(opts, :reasoning))
 
       Settings.set_edit_mode(edit?)
 
