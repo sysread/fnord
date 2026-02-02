@@ -1,5 +1,6 @@
 defmodule UI.UITest do
   import ExUnit.CaptureIO
+
   @moduledoc """
   Unit tests for UI.clean_detail/1 and UI.iodata?/1 functions.
   """
@@ -151,6 +152,11 @@ defmodule UI.UITest do
   describe "spin/1 when registry is absent" do
     setup do
       Settings.set_quiet(false)
+      # Stub Owl.Spinner.start/1 and Owl.Spinner.stop/1 to no-ops
+      :meck.new(Owl.Spinner, [:no_link])
+      :meck.expect(Owl.Spinner, :start, fn _ -> :ok end)
+      :meck.expect(Owl.Spinner, :stop, fn _ -> :ok end)
+      on_exit(fn -> :meck.unload(Owl.Spinner) end)
       :ok
     end
 
@@ -159,7 +165,8 @@ defmodule UI.UITest do
       assert Registry.whereis_name({Owl.WidgetsRegistry, :fnord}) in [nil, :undefined]
 
       capture_io(fn ->
-        assert Spinner.run(fn -> {"Conversation summarized", :ok} end, "Summarizing conversation") == :ok
+        assert Spinner.run(fn -> {"Conversation summarized", :ok} end, "Summarizing conversation") ==
+                 :ok
       end)
     end
   end
