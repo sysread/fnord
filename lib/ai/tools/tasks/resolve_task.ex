@@ -13,8 +13,13 @@ defmodule AI.Tools.Tasks.ResolveTask do
 
   @impl AI.Tools
   def read_args(args) when is_map(args) do
-    with {:ok, list_id} <- AI.Tools.get_arg(args, "list_id"),
-         true <- is_integer(list_id) or {:error, :invalid_argument, "list_id must be an integer"},
+    with {:ok, raw_id} <- AI.Tools.get_arg(args, "list_id"),
+         {:ok, list_id} <-
+           (case raw_id do
+              id when is_integer(id) -> {:ok, Integer.to_string(id)}
+              id when is_binary(id) -> {:ok, id}
+              _ -> {:error, :invalid_argument, "list_id"}
+            end),
          {:ok, task_id} <- AI.Tools.get_arg(args, "task_id"),
          true <- is_binary(task_id) or {:error, :invalid_argument, "task_id must be a string"},
          task_id <- String.trim(task_id),
@@ -96,8 +101,8 @@ defmodule AI.Tools.Tasks.ResolveTask do
           required: ["list_id", "task_id", "disposition", "result"],
           properties: %{
             "list_id" => %{
-              type: :integer,
-              description: "The ID of the task list."
+              type: "string",
+              description: "The ID of the task list (string; integers accepted)."
             },
             "task_id" => %{
               type: "string",

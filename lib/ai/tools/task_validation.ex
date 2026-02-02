@@ -44,7 +44,7 @@ defmodule AI.Tools.TaskValidation do
           required: ["task_list_id", "requirements"],
           additionalProperties: false,
           properties: %{
-            task_list_id: %{
+            "task_list_id" => %{
               type: "string",
               description: "The ID of the task list to validate."
             },
@@ -86,13 +86,10 @@ defmodule AI.Tools.TaskValidation do
     end
   end
 
-  defp normalize_list_id(id) when is_integer(id), do: {:ok, id}
+  defp normalize_list_id(id) when is_integer(id), do: {:ok, Integer.to_string(id)}
 
   defp normalize_list_id(id) when is_binary(id) do
-    case Integer.parse(id) do
-      {int, ""} -> {:ok, int}
-      _ -> {:error, :invalid_argument, "task_list_id"}
-    end
+    {:ok, id}
   end
 
   defp normalize_list_id(_), do: {:error, :invalid_argument, "task_list_id"}

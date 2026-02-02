@@ -19,7 +19,7 @@ defmodule AI.Tools.Tasks.ShowListTest do
       assert params.required == ["list_id"]
 
       props = params.properties
-      assert props["list_id"].type == :integer
+      assert props["list_id"].type == "string"
     end
   end
 
@@ -30,11 +30,11 @@ defmodule AI.Tools.Tasks.ShowListTest do
 
     test "errors when list_id is wrong type" do
       assert {:error, :invalid_argument, _} =
-               AI.Tools.Tasks.ShowList.read_args(%{"list_id" => "x"})
+               AI.Tools.Tasks.ShowList.read_args(%{"list_id" => :not_a_string})
     end
 
     test "returns parsed map when list_id is valid" do
-      assert {:ok, %{"list_id" => 42}} = AI.Tools.Tasks.ShowList.read_args(%{"list_id" => 42})
+      assert {:ok, %{"list_id" => "42"}} = AI.Tools.Tasks.ShowList.read_args(%{"list_id" => 42})
     end
   end
 

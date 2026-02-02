@@ -1,6 +1,7 @@
 defmodule AI.Tools.Tasks.PushTask do
   @moduledoc """
-  Tool to push a new task to the front of a Services.Task list.
+  Push one or more tasks to the front of an existing task list.
+  Accepts list_id as a string or integer and normalizes it to a string.
   """
 
   @behaviour AI.Tools
@@ -13,8 +14,13 @@ defmodule AI.Tools.Tasks.PushTask do
 
   @impl AI.Tools
   def read_args(args) when is_map(args) do
-    with {:ok, list_id} <- AI.Tools.get_arg(args, "list_id"),
-         true <- is_integer(list_id) or {:error, :invalid_argument, "list_id must be an integer"} do
+    with {:ok, raw_id} <- AI.Tools.get_arg(args, "list_id"),
+         {:ok, list_id} <-
+           (case raw_id do
+              id when is_integer(id) -> {:ok, Integer.to_string(id)}
+              id when is_binary(id) -> {:ok, id}
+              _ -> {:error, :invalid_argument, "list_id"}
+            end) do
       case Map.fetch(args, "tasks") do
         {:ok, tasks} ->
           with {:ok, normalized} <- validate_and_normalize_tasks(tasks) do
@@ -84,7 +90,7 @@ defmodule AI.Tools.Tasks.PushTask do
           required: ["list_id"],
           properties: %{
             "list_id" => %{
-              type: :integer,
+              type: "string",
               description: "The ID of the task list."
             },
             "task_id" => %{

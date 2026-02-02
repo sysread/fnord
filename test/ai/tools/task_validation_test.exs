@@ -75,12 +75,12 @@ defmodule AI.Tools.TaskValidationTest do
       end)
 
       args = %{
-        "task_list_id" => Integer.to_string(list_id),
+        "task_list_id" => list_id,
         "requirements" => "reqs"
       }
 
       assert {:ok, payload} = TaskValidation.call(args)
-      assert payload.task_list_id == Integer.to_string(list_id)
+      assert payload.task_list_id == list_id
       assert payload.requirements == "reqs"
       assert is_binary(payload.change_summary)
       assert payload.change_summary =~ "Task List #{list_id}:"

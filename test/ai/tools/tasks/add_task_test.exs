@@ -19,7 +19,7 @@ defmodule AI.Tools.Tasks.AddTaskTest do
       assert params.required == ["list_id"]
 
       props = params.properties
-      assert props["list_id"].type == :integer
+      assert props["list_id"].type == "string"
       assert props["task_id"].type == "string"
       assert props["data"].type == "string"
     end
@@ -31,7 +31,7 @@ defmodule AI.Tools.Tasks.AddTaskTest do
     end
 
     test "returns error when list_id is wrong type" do
-      args = %{"list_id" => "not_an_int", "task_id" => "t", "data" => "d"}
+      args = %{"list_id" => :not_a_string, "task_id" => "t", "data" => "d"}
       assert {:error, :invalid_argument, _} = AI.Tools.Tasks.AddTask.read_args(args)
     end
 
@@ -48,7 +48,7 @@ defmodule AI.Tools.Tasks.AddTaskTest do
     test "returns parsed map when args are valid" do
       args = %{"list_id" => 1, "task_id" => "t", "data" => "d"}
 
-      assert {:ok, %{"list_id" => 1, "tasks" => [%{"task_id" => "t", "data" => "d"}]}} =
+      assert {:ok, %{"list_id" => "1", "tasks" => [%{"task_id" => "t", "data" => "d"}]}} =
                AI.Tools.Tasks.AddTask.read_args(args)
     end
   end
@@ -81,7 +81,7 @@ defmodule AI.Tools.Tasks.AddTaskTest do
   describe "read_args/1 batch" do
     test "normalizes single-element tasks list" do
       args = %{"list_id" => 1, "tasks" => [%{"task_id" => "a", "data" => "A"}]}
-      assert {:ok, %{"list_id" => 1, "tasks" => tasks}} = AI.Tools.Tasks.AddTask.read_args(args)
+      assert {:ok, %{"list_id" => "1", "tasks" => tasks}} = AI.Tools.Tasks.AddTask.read_args(args)
       assert tasks == [%{"task_id" => "a", "data" => "A"}]
     end
 
@@ -92,7 +92,7 @@ defmodule AI.Tools.Tasks.AddTaskTest do
       ]
 
       args = %{"list_id" => 2, "tasks" => tasks_input}
-      assert {:ok, %{"list_id" => 2, "tasks" => tasks}} = AI.Tools.Tasks.AddTask.read_args(args)
+      assert {:ok, %{"list_id" => "2", "tasks" => tasks}} = AI.Tools.Tasks.AddTask.read_args(args)
       assert tasks == tasks_input
     end
 

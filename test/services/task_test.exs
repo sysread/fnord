@@ -16,9 +16,9 @@ defmodule Services.TaskTest do
   end
 
   test "start_list/0" do
-    assert 1 = Services.Task.start_list()
-    assert 2 = Services.Task.start_list()
-    assert 3 = Services.Task.start_list()
+    assert "tasks-1" = Services.Task.start_list()
+    assert "tasks-2" = Services.Task.start_list()
+    assert "tasks-3" = Services.Task.start_list()
   end
 
   test "task management" do
@@ -59,6 +59,18 @@ defmodule Services.TaskTest do
              [✗] Task 2
              [ ] Task 3
              """
+  end
+
+  describe "setting and getting description" do
+    test "set_description/2 and get_description/1" do
+      list_id = Services.Task.start_list()
+      # Set a description and retrieve it
+      assert :ok = Services.Task.set_description(list_id, "My description")
+      assert {:ok, "My description"} = Services.Task.get_description(list_id)
+      # as_string should include the description in the header
+      rendered = Services.Task.as_string(list_id)
+      assert rendered |> String.contains?("Task List #{list_id}: My description")
+    end
   end
 
   describe "operations on invalid/nonexistent list IDs" do
@@ -170,6 +182,100 @@ defmodule Services.TaskTest do
       {:ok, _} = Services.Task.start_link(conversation_pid: new_pid)
       tasks = Services.Task.get_list(list_id)
       assert [%{id: "Persistent", outcome: :done, result: "Done"}] = tasks
+    end
+  end
+
+  describe "peek_task/1" do
+    test "returns {:error, :not_found} when list missing" do
+      assert {:error, :not_found} = Services.Task.peek_task("nonexistent-list")
+    end
+
+    test "returns {:error, :empty} when no todos remain" do
+      list_id = Services.Task.start_list()
+      :ok = Services.Task.add_task(list_id, "done1", %{})
+      :ok = Services.Task.complete_task(list_id, "done1", "ok")
+      assert {:error, :empty} = Services.Task.peek_task(list_id)
+    end
+
+    test "returns first todo in chronological order" do
+      list_id = Services.Task.start_list()
+      :ok = Services.Task.add_task(list_id, "a", %{})
+      :ok = Services.Task.add_task(list_id, "b", %{})
+      :ok = Services.Task.add_task(list_id, "c", %{})
+      assert {:ok, %{id: "a", outcome: :todo}} = Services.Task.peek_task(list_id)
+    end
+
+    test "skips done and failed tasks to find first todo" do
+      list_id = Services.Task.start_list()
+      :ok = Services.Task.add_task(list_id, "done", %{})
+      :ok = Services.Task.add_task(list_id, "failed", %{})
+      :ok = Services.Task.add_task(list_id, "todo", %{})
+      :ok = Services.Task.complete_task(list_id, "done", "ok")
+      :ok = Services.Task.fail_task(list_id, "failed", "error")
+      assert {:ok, %{id: "todo", outcome: :todo}} = Services.Task.peek_task(list_id)
+    end
+  end
+
+  describe "all_tasks_complete?/1" do
+    test "returns {:error, :not_found} on missing list" do
+      assert {:error, :not_found} = Services.Task.all_tasks_complete?("nonexistent-list")
+    end
+
+    test "returns {:ok, false} when todos remain" do
+      list_id = Services.Task.start_list()
+      :ok = Services.Task.add_task(list_id, "a", %{})
+      :ok = Services.Task.add_task(list_id, "b", %{})
+      :ok = Services.Task.complete_task(list_id, "a", "ok")
+      assert {:ok, false} = Services.Task.all_tasks_complete?(list_id)
+    end
+
+    test "returns {:ok, true} when no todos remain" do
+      list_id = Services.Task.start_list()
+      :ok = Services.Task.add_task(list_id, "a", %{})
+      :ok = Services.Task.add_task(list_id, "b", %{})
+      :ok = Services.Task.complete_task(list_id, "a", "ok")
+      :ok = Services.Task.fail_task(list_id, "b", "error")
+      assert {:ok, true} = Services.Task.all_tasks_complete?(list_id)
+    end
+
+    test "returns {:ok, true} for empty list" do
+      list_id = Services.Task.start_list()
+      assert {:ok, true} = Services.Task.all_tasks_complete?(list_id)
+    end
+  end
+
+  describe "as_string/2 detailed rendering" do
+    test "includes result for done and failed when detail? is true" do
+      list_id = Services.Task.start_list()
+      :ok = Services.Task.add_task(list_id, "task1", %{})
+      :ok = Services.Task.add_task(list_id, "task2", %{})
+      :ok = Services.Task.add_task(list_id, "task3", %{})
+      :ok = Services.Task.complete_task(list_id, "task1", "success result")
+      :ok = Services.Task.fail_task(list_id, "task2", "failure reason")
+
+      detailed = Services.Task.as_string(list_id, true)
+      assert detailed =~ "[✓] task1: success result"
+      assert detailed =~ "[✗] task2: failure reason"
+      assert detailed =~ "[ ] task3"
+      refute detailed =~ "task3:"
+    end
+
+    test "includes description in header when present" do
+      list_id = Services.Task.start_list()
+      :ok = Services.Task.set_description(list_id, "My task list")
+      :ok = Services.Task.add_task(list_id, "task1", %{})
+
+      output = Services.Task.as_string(list_id)
+      assert output =~ "Task List #{list_id}: My task list"
+    end
+
+    test "includes colon but no description when description is nil" do
+      list_id = Services.Task.start_list()
+      :ok = Services.Task.add_task(list_id, "task1", %{})
+
+      output = Services.Task.as_string(list_id)
+      assert output =~ "Task List #{list_id}:"
+      refute output =~ "Task List #{list_id}: "
     end
   end
 end

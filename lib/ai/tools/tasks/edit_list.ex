@@ -1,6 +1,6 @@
-defmodule AI.Tools.Tasks.ShowList do
+defmodule AI.Tools.Tasks.EditList do
   @moduledoc """
-  Tool to return a task list as a formatted, detailed string.
+  Tool to update the description of an existing Services.Task list.
   """
 
   @behaviour AI.Tools
@@ -19,8 +19,11 @@ defmodule AI.Tools.Tasks.ShowList do
               id when is_integer(id) -> {:ok, Integer.to_string(id)}
               id when is_binary(id) -> {:ok, id}
               _ -> {:error, :invalid_argument, "list_id"}
-            end) do
-      {:ok, %{"list_id" => list_id}}
+            end),
+         {:ok, description} <- AI.Tools.get_arg(args, "description"),
+         true <-
+           is_binary(description) or {:error, :invalid_argument, "description must be a string"} do
+      {:ok, %{"list_id" => list_id, "description" => description}}
     end
   end
 
@@ -38,16 +41,20 @@ defmodule AI.Tools.Tasks.ShowList do
     %{
       type: "function",
       function: %{
-        name: "tasks_show_list",
-        description: "Return the task list as a formatted string (detailed)",
+        name: "tasks_edit_list",
+        description: "Update the description of an existing task list.",
         parameters: %{
           type: "object",
           additionalProperties: false,
-          required: ["list_id"],
+          required: ["list_id", "description"],
           properties: %{
             "list_id" => %{
               type: "string",
-              description: "The ID of the task list (string; integers accepted)."
+              description: "The ID of the task list to update (string slug; integers accepted)."
+            },
+            "description" => %{
+              type: "string",
+              description: "The new description for the task list."
             }
           }
         }
@@ -56,9 +63,10 @@ defmodule AI.Tools.Tasks.ShowList do
   end
 
   @impl AI.Tools
-  def call(%{"list_id" => list_id}) do
-    # list_id already normalized to string by read_args/1
-    output = Services.Task.as_string(list_id, true)
-    {:ok, output}
+  def call(%{"list_id" => list_id, "description" => description}) do
+    case Services.Task.set_description(list_id, description) do
+      :ok -> {:ok, Services.Task.as_string(list_id)}
+      {:error, :not_found} -> {:error, "Task list #{list_id} not found"}
+    end
   end
 end

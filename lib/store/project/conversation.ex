@@ -26,9 +26,7 @@ defmodule Store.Project.Conversation do
           messages: AI.Util.msg_list(),
           metadata: map,
           memory: list,
-          tasks: %{
-            Services.Task.list_id() => Services.Task.task_list()
-          }
+          tasks: %{binary => %{description: binary | nil, tasks: Services.Task.task_list()}}
         }
 
   @store_dir "conversations"
@@ -182,8 +180,34 @@ defmodule Store.Project.Conversation do
         {ts, new_data}
       end
 
-    with {:ok, json} <- Jason.encode(final_data),
-         :ok <- File.write(conversation.store_path, "#{timestamp}:#{json}") do
+    # Persist task list descriptions alongside tasks: normalize to new shape
+    normalized =
+      final_data
+      |> Map.update(:tasks, %{}, fn tasks_map ->
+        tasks_map
+        |> Enum.map(fn {list_id, raw} ->
+          {items, desc} =
+            cond do
+              is_list(raw) ->
+                # Legacy list shape: bare list of tasks, no description
+                {raw, nil}
+
+              is_map(raw) and Map.has_key?(raw, :tasks) ->
+                # New shape: map with :tasks and :description
+                {Map.get(raw, :tasks), Map.get(raw, :description)}
+
+              true ->
+                {[], nil}
+            end
+
+          {list_id, %{tasks: items, description: desc}}
+        end)
+        |> Map.new()
+      end)
+
+    # Encode and write JSON with timestamp prefix
+    with {:ok, json} <- Jason.encode(normalized),
+         :ok <- File.write(conversation.store_path, "#{timestamp}:" <> json) do
       {:ok, conversation}
     end
   end
@@ -217,11 +241,27 @@ defmodule Store.Project.Conversation do
       tasks =
         data
         |> Map.get("tasks", %{})
-        |> Enum.map(fn {list_id, task_list} ->
-          list_id = String.to_integer(list_id)
+        |> Enum.map(fn {list_id, value} ->
+          # Normalize to %{tasks: [...], description: ...} format
+          {raw_tasks, desc} =
+            cond do
+              is_list(value) ->
+                # Legacy format: bare list of tasks
+                {value, nil}
 
-          tasks =
-            task_list
+              is_map(value) ->
+                # New format: map with tasks and description
+                val = Util.string_keys_to_atoms(value)
+                {Map.get(val, :tasks, []), Map.get(val, :description)}
+
+              true ->
+                # Invalid/empty
+                {[], nil}
+            end
+
+          # Parse tasks with outcome normalization
+          tasks_list =
+            raw_tasks
             |> Util.string_keys_to_atoms()
             |> Enum.map(fn %{id: task_id, data: data} = task_data ->
               opts =
@@ -229,10 +269,20 @@ defmodule Store.Project.Conversation do
                 |> Map.drop([:id, :data])
                 |> Keyword.new()
 
+              # Normalize outcome using shared utility
+              opts =
+                case Keyword.get(opts, :outcome) do
+                  outcome when not is_nil(outcome) ->
+                    Keyword.put(opts, :outcome, Services.Task.Util.normalize_outcome(outcome))
+
+                  _ ->
+                    opts
+                end
+
               Services.Task.new_task(task_id, data, opts)
             end)
 
-          {list_id, tasks}
+          {list_id, %{description: desc, tasks: tasks_list}}
         end)
         |> Map.new()
 

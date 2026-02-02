@@ -103,7 +103,7 @@ defmodule Services.Conversation do
   @doc """
   Get all task lists for this conversation.
   """
-  @spec get_task_lists(pid) :: [Services.Task.task_id()]
+  @spec get_task_lists(pid) :: [binary()]
   def get_task_lists(pid) do
     GenServer.call(pid, :get_task_lists)
   end
@@ -111,16 +111,33 @@ defmodule Services.Conversation do
   @doc """
   Get the task list with the given ID for this conversation.
   """
-  @spec get_task_list(pid, Services.Task.task_id()) :: Services.Task.task_list() | nil
+  @spec get_task_list(pid, binary()) :: Services.Task.task_list() | nil
   def get_task_list(pid, task_list_id) do
     GenServer.call(pid, {:get_task_list, task_list_id})
+  end
+
+  @doc """
+  Get the metadata for the given task list (currently only description).
+  Returns {:ok, description} | {:error, :not_found}
+  """
+  @spec get_task_list_meta(pid, binary()) :: {:ok, binary | nil} | {:error, :not_found}
+  def get_task_list_meta(pid, task_list_id) do
+    GenServer.call(pid, {:get_task_list_meta, task_list_id})
+  end
+
+  @doc """
+  Upsert the metadata for the given task list (currently only description).
+  """
+  @spec upsert_task_list_meta(pid, binary(), binary | nil) :: :ok | {:error, :not_found}
+  def upsert_task_list_meta(pid, task_list_id, description) do
+    GenServer.call(pid, {:upsert_task_list_meta, task_list_id, description})
   end
 
   @doc """
   Upsert (insert or update) the given task list in the conversation's task
   store, replacing any existing list with the same ID.
   """
-  @spec upsert_task_list(pid, Services.Task.task_id(), Services.Task.task_list()) :: :ok
+  @spec upsert_task_list(pid, binary(), Services.Task.task_list()) :: :ok
   def upsert_task_list(pid, task_list_id, tasks) do
     GenServer.call(pid, {:upsert_task_list, task_list_id, tasks})
   end
@@ -163,8 +180,10 @@ defmodule Services.Conversation do
   # -----------------------------------------------------------------------------
   # Server API
   # -----------------------------------------------------------------------------
+  @impl true
   def init(id), do: new(id)
 
+  @impl true
   def handle_cast({:load, id}, state) do
     with {:ok, new_state} <- new(id) do
       {:noreply, new_state}
@@ -185,42 +204,93 @@ defmodule Services.Conversation do
     {:noreply, %{state | memory: memory}}
   end
 
+  @impl true
   def handle_call(:get_id, _from, state) do
     {:reply, state.conversation.id, state}
   end
 
+  @impl true
   def handle_call(:get_agent, _from, state) do
     {:reply, state.agent, state}
   end
 
+  @impl true
   def handle_call(:get_conversation, _from, state) do
     {:reply, state.conversation, state}
   end
 
+  @impl true
   def handle_call(:get_messages, _from, state) do
     {:reply, state.msgs, state}
   end
 
+  @impl true
   def handle_call(:get_metadata, _from, state) do
     {:reply, state.metadata, state}
   end
 
+  @impl true
   def handle_call(:get_memory, _from, state) do
     {:reply, state.memory, state}
   end
 
+  @impl true
   def handle_call(:get_task_lists, _from, state) do
     {:reply, Map.keys(state.tasks), state}
   end
 
+  @impl true
   def handle_call({:get_task_list, task_list_id}, _from, state) do
-    {:reply, Map.get(state.tasks, task_list_id), state}
+    # Tasks are always stored as %{tasks: [...], description: ...} after normalization on read
+    reply =
+      case Map.get(state.tasks, task_list_id) do
+        %{tasks: tasks} -> tasks
+        _ -> nil
+      end
+
+    {:reply, reply, state}
   end
 
+  @impl true
   def handle_call({:upsert_task_list, task_list_id, tasks}, _from, state) do
-    {:reply, :ok, %{state | tasks: Map.put(state.tasks, task_list_id, tasks)}}
+    # Preserve existing description if present, otherwise store with nil description
+    existing_entry = Map.get(state.tasks, task_list_id)
+
+    new_entry =
+      case existing_entry do
+        %{description: desc} -> %{tasks: tasks, description: desc}
+        _ -> %{tasks: tasks, description: nil}
+      end
+
+    {:reply, :ok, %{state | tasks: Map.put(state.tasks, task_list_id, new_entry)}}
   end
 
+  @impl true
+  def handle_call({:get_task_list_meta, list_id}, _from, state) do
+    case Map.fetch(state.tasks, list_id) do
+      :error ->
+        {:reply, {:error, :not_found}, state}
+
+      {:ok, %{description: desc}} ->
+        {:reply, {:ok, desc}, state}
+    end
+  end
+
+  @impl true
+  def handle_call({:upsert_task_list_meta, list_id, description}, _from, state) do
+    case Map.fetch(state.tasks, list_id) do
+      :error ->
+        {:reply, {:error, :not_found}, state}
+
+      {:ok, entry} ->
+        # Update description in the metadata structure
+        new_meta = %{entry | description: description}
+        new_state = %{state | tasks: Map.put(state.tasks, list_id, new_meta)}
+        {:reply, :ok, new_state}
+    end
+  end
+
+  @impl true
   def handle_call(:save, _from, state) do
     data = %{
       # Before persisting, strip boilerplate messages

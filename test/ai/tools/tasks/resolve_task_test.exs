@@ -19,7 +19,7 @@ defmodule AI.Tools.Tasks.ResolveTaskTest do
       assert params.required == ["list_id", "task_id", "disposition", "result"]
 
       props = params.properties
-      assert props["list_id"].type == :integer
+      assert props["list_id"].type == "string"
       assert props["task_id"].type == "string"
       assert props["disposition"].enum == ["success", "failure"]
       assert props["result"].type == "string"
@@ -32,7 +32,7 @@ defmodule AI.Tools.Tasks.ResolveTaskTest do
     end
 
     test "errors when types are invalid" do
-      args = %{"list_id" => "x", "task_id" => 1, "disposition" => 2, "result" => 3}
+      args = %{"list_id" => :not_a_string, "task_id" => 1, "disposition" => 2, "result" => 3}
       assert {:error, :invalid_argument, _} = AI.Tools.Tasks.ResolveTask.read_args(args)
     end
 
@@ -44,7 +44,13 @@ defmodule AI.Tools.Tasks.ResolveTaskTest do
     test "returns parsed map when args are valid" do
       args = %{"list_id" => 1, "task_id" => "t", "disposition" => "success", "result" => "ok"}
       assert {:ok, parsed} = AI.Tools.Tasks.ResolveTask.read_args(args)
-      assert parsed == args
+
+      assert parsed == %{
+               "list_id" => "1",
+               "task_id" => "t",
+               "disposition" => "success",
+               "result" => "ok"
+             }
     end
   end
 

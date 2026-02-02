@@ -12,7 +12,29 @@ defmodule AI.Tools.Tasks.CreateList do
   def is_available?, do: true
 
   @impl AI.Tools
-  def read_args(_args), do: {:ok, %{}}
+  def read_args(args) when is_map(args) do
+    # Normalize optional params
+    norm = %{}
+
+    # Accept optional id and description parameters
+    norm =
+      case Map.get(args, "id") do
+        s when is_binary(s) ->
+          t = String.trim(s)
+          if t != "", do: Map.put(norm, "id", t), else: norm
+
+        _ ->
+          norm
+      end
+
+    norm =
+      case Map.get(args, "description") do
+        s when is_binary(s) -> Map.put(norm, "description", s)
+        _ -> norm
+      end
+
+    {:ok, norm}
+  end
 
   @impl AI.Tools
   def ui_note_on_request(_args), do: nil
@@ -42,15 +64,41 @@ defmodule AI.Tools.Tasks.CreateList do
         parameters: %{
           type: "object",
           required: [],
-          properties: %{}
+          properties: %{
+            "id" => %{
+              type: "string",
+              description: "Optional custom slug for the new task list"
+            },
+            "description" => %{
+              type: "string",
+              description: "Optional description for the new task list"
+            }
+          }
         }
       }
     }
   end
 
   @impl AI.Tools
-  def call(_args) do
-    list_id = Services.Task.start_list()
-    {:ok, Services.Task.as_string(list_id)}
+  def call(args) when is_map(args) do
+    case Map.get(args, "id") do
+      id when is_binary(id) and id != "" ->
+        desc = Map.get(args, "description")
+
+        case Services.Task.start_list(%{id: id, description: desc}) do
+          {:error, :exists} -> {:error, "Task list '#{id}' already exists"}
+          new_id -> {:ok, Services.Task.as_string(new_id)}
+        end
+
+      _ ->
+        list_id = Services.Task.start_list()
+
+        case Map.get(args, "description") do
+          desc when is_binary(desc) and desc != "" -> Services.Task.set_description(list_id, desc)
+          _ -> :ok
+        end
+
+        {:ok, Services.Task.as_string(list_id)}
+    end
   end
 end

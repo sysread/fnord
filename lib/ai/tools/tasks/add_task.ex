@@ -13,8 +13,14 @@ defmodule AI.Tools.Tasks.AddTask do
 
   @impl AI.Tools
   def read_args(args) when is_map(args) do
-    with {:ok, list_id} <- AI.Tools.get_arg(args, "list_id"),
-         true <- is_integer(list_id) or {:error, :invalid_argument, "list_id must be an integer"} do
+    # Accept list_id as string or integer, normalize to string
+    with {:ok, raw_id} <- AI.Tools.get_arg(args, "list_id"),
+         {:ok, list_id} <-
+           (case raw_id do
+              id when is_integer(id) -> {:ok, Integer.to_string(id)}
+              id when is_binary(id) -> {:ok, id}
+              _ -> {:error, :invalid_argument, "list_id"}
+            end) do
       case Map.fetch(args, "tasks") do
         {:ok, tasks} ->
           with {:ok, normalized} <- validate_and_normalize_tasks(tasks) do
@@ -82,7 +88,7 @@ defmodule AI.Tools.Tasks.AddTask do
           required: ["list_id"],
           properties: %{
             "list_id" => %{
-              type: :integer,
+              type: "string",
               description: "The ID of the task list."
             },
             "task_id" => %{

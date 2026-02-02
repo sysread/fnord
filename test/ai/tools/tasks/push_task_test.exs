@@ -19,7 +19,7 @@ defmodule AI.Tools.Tasks.PushTaskTest do
       assert params.required == ["list_id"]
 
       props = params.properties
-      assert props["list_id"].type == :integer
+      assert props["list_id"].type == "string"
       assert props["task_id"].type == "string"
       assert props["data"].type == "string"
       assert props["tasks"].type == "array"
@@ -32,14 +32,14 @@ defmodule AI.Tools.Tasks.PushTaskTest do
     end
 
     test "errors when types are invalid" do
-      args = %{"list_id" => "x", "task_id" => 1, "data" => 2}
+      args = %{"list_id" => :not_a_string, "task_id" => 1, "data" => 2}
       assert {:error, :invalid_argument, _} = AI.Tools.Tasks.PushTask.read_args(args)
     end
 
     test "returns parsed map when args are valid" do
       args = %{"list_id" => 1, "task_id" => "t", "data" => "d"}
 
-      assert {:ok, %{"list_id" => 1, "task_id" => "t", "data" => "d"}} =
+      assert {:ok, %{"list_id" => "1", "task_id" => "t", "data" => "d"}} =
                AI.Tools.Tasks.PushTask.read_args(args)
     end
   end
@@ -95,7 +95,10 @@ defmodule AI.Tools.Tasks.PushTaskTest do
   describe "read_args/1 batch" do
     test "normalizes single-element tasks list" do
       args = %{"list_id" => 1, "tasks" => [%{"task_id" => "a", "data" => "A"}]}
-      assert {:ok, %{"list_id" => 1, "tasks" => tasks}} = AI.Tools.Tasks.PushTask.read_args(args)
+
+      assert {:ok, %{"list_id" => "1", "tasks" => tasks}} =
+               AI.Tools.Tasks.PushTask.read_args(args)
+
       assert tasks == [%{"task_id" => "a", "data" => "A"}]
     end
 
@@ -106,7 +109,10 @@ defmodule AI.Tools.Tasks.PushTaskTest do
       ]
 
       args = %{"list_id" => 2, "tasks" => tasks_input}
-      assert {:ok, %{"list_id" => 2, "tasks" => tasks}} = AI.Tools.Tasks.PushTask.read_args(args)
+
+      assert {:ok, %{"list_id" => "2", "tasks" => tasks}} =
+               AI.Tools.Tasks.PushTask.read_args(args)
+
       assert tasks == tasks_input
     end
 

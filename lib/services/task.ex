@@ -1,11 +1,10 @@
 defmodule Services.Task do
   defstruct [
     :conversation_pid,
-    :next_id,
     :lists
   ]
 
-  @type list_id :: non_neg_integer
+  @type list_id :: binary
   @type task_id :: binary
   @type task_data :: any
   @type task_result :: any
@@ -55,6 +54,22 @@ defmodule Services.Task do
   end
 
   @doc """
+  Create a new task list with an optional slug id and description.
+  If no id is provided, a unique slug of the form "tasks-<n>" is generated.
+  If the id already exists, returns {:error, :exists}.
+  """
+  @spec start_list(%{optional(:id) => binary, optional(:description) => binary} | binary) ::
+          list_id | {:error, :exists}
+  def start_list(%{id: id} = opts) when is_binary(id) do
+    desc = Map.get(opts, :description)
+    GenServer.call(__MODULE__, {:start_list, id, desc})
+  end
+
+  def start_list(id) when is_binary(id) do
+    GenServer.call(__MODULE__, {:start_list, id, nil})
+  end
+
+  @doc """
   Returns all active task list IDs.
   """
   @spec list_ids() :: [list_id]
@@ -69,6 +84,16 @@ defmodule Services.Task do
   @spec get_list(list_id) :: task_list | {:error, :not_found}
   def get_list(list_id) do
     GenServer.call(__MODULE__, {:get_list, list_id})
+  end
+
+  @doc """
+  Fetches tasks and description for the given list in a single call.
+  Returns `{:ok, tasks, description}` or `{:error, :not_found}`.
+  """
+  @spec get_list_with_description(list_id) ::
+          {:ok, task_list, binary | nil} | {:error, :not_found}
+  def get_list_with_description(list_id) when is_binary(list_id) do
+    GenServer.call(__MODULE__, {:get_list_with_meta, list_id})
   end
 
   @doc """
@@ -129,27 +154,52 @@ defmodule Services.Task do
     end
   end
 
+  @doc """
+  Updates the description of the specified task list.
+  Returns `:ok` or `{:error, :not_found}` if the list does not exist.
+  """
+  @spec set_description(list_id, binary) :: :ok | {:error, :not_found}
+  def set_description(list_id, description) when is_binary(list_id) and is_binary(description) do
+    GenServer.call(__MODULE__, {:set_description, list_id, description})
+  end
+
+  @doc """
+  Fetches the description of the specified task list. Returns `{:ok, description}` or `{:error, :not_found}`.
+  """
+  @spec get_description(list_id) :: {:ok, binary | nil} | {:error, :not_found}
+  def get_description(list_id) when is_binary(list_id) do
+    GenServer.call(__MODULE__, {:get_description, list_id})
+  end
+
   # ----------------------------------------------------------------------------
   # Formatting
   # ----------------------------------------------------------------------------
   @spec as_string(list_id | list(task), boolean) :: binary
   def as_string(subject, detail? \\ false)
 
-  def as_string(list_id, detail?) when is_integer(list_id) do
-    list_id
-    |> get_list()
-    |> case do
+  def as_string(list_id, detail?) when is_binary(list_id) do
+    # Fetch tasks and description in a single call to avoid race conditions
+    case get_list_with_description(list_id) do
       {:error, :not_found} ->
         "List #{list_id} not found"
 
-      tasks ->
+      {:ok, tasks, description} ->
+        # Build header including description when present
+        header =
+          if description do
+            "Task List #{list_id}: #{description}"
+          else
+            "Task List #{list_id}:"
+          end
+
         contents =
           tasks
           |> as_string(detail?)
           |> String.trim()
 
+        # Render final output
         """
-        Task List #{list_id}:
+        #{header}
         #{contents}
         """
     end
@@ -182,26 +232,75 @@ defmodule Services.Task do
   # ----------------------------------------------------------------------------
   @impl true
   def init(opts) do
+    # Fetch and wrap existing raw tasks into Task.List structs
     conversation_pid = Keyword.fetch!(opts, :conversation_pid)
-    tasks = rehydrate_tasks(conversation_pid)
-    max_id = [0 | Map.keys(tasks)] |> Enum.max()
+    raw_tasks_map = rehydrate_tasks(conversation_pid)
+
+    tasklists =
+      raw_tasks_map
+      |> Enum.map(fn {list_id, tasks} ->
+        # get_task_list_meta returns {:ok, desc} | {:error, :not_found}, need to unwrap
+        desc =
+          case Services.Conversation.get_task_list_meta(conversation_pid, list_id) do
+            {:ok, d} -> d
+            _ -> nil
+          end
+
+        {list_id, %Services.Task.List{id: list_id, description: desc, tasks: tasks}}
+      end)
+      |> Map.new()
 
     {:ok,
      %__MODULE__{
        conversation_pid: conversation_pid,
-       next_id: max_id + 1,
-       lists: tasks
+       lists: tasklists
      }}
   end
 
   @impl true
-  def handle_call(:start_list, _from, %{lists: lists, next_id: next_id} = state) do
-    {:reply, next_id,
-     %{
-       state
-       | lists: Map.put(lists, next_id, []),
-         next_id: next_id + 1
-     }}
+  def handle_call(:start_list, _from, %{lists: lists} = state) do
+    # Generate next slug "tasks-<n>" based on existing ids
+    next_number =
+      lists
+      |> Map.keys()
+      |> Enum.filter(&String.starts_with?(&1, "tasks-"))
+      |> Enum.map(fn id ->
+        case String.split(id, "-") do
+          ["tasks", n] ->
+            case Integer.parse(n) do
+              {num, ""} -> num
+              _ -> 0
+            end
+
+          _ ->
+            0
+        end
+      end)
+      |> Enum.max(fn -> 0 end)
+
+    id = "tasks-#{next_number + 1}"
+    new_list = %Services.Task.List{id: id, description: nil, tasks: []}
+
+    new_state =
+      %{state | lists: Map.put(lists, id, new_list)}
+      |> save_tasks()
+
+    {:reply, id, new_state}
+  end
+
+  @impl true
+  def handle_call({:start_list, id, desc}, _from, %{lists: lists} = state) do
+    if Map.has_key?(lists, id) do
+      {:reply, {:error, :exists}, state}
+    else
+      new_list = %Services.Task.List{id: id, description: desc, tasks: []}
+
+      new_state =
+        %{state | lists: Map.put(lists, id, new_list)}
+        |> save_tasks()
+
+      {:reply, id, new_state}
+    end
   end
 
   @impl true
@@ -211,14 +310,23 @@ defmodule Services.Task do
 
   @impl true
   def handle_call({:get_list, list_id}, _from, state) do
-    state.lists
-    |> Map.get(list_id)
-    |> case do
+    case Map.get(state.lists, list_id) do
       nil ->
         {:reply, {:error, :not_found}, state}
 
-      tasks ->
+      %Services.Task.List{tasks: tasks} ->
         {:reply, tasks, state}
+    end
+  end
+
+  @impl true
+  def handle_call({:get_list_with_meta, list_id}, _from, state) do
+    case Map.get(state.lists, list_id) do
+      nil ->
+        {:reply, {:error, :not_found}, state}
+
+      %Services.Task.List{tasks: tasks, description: desc} ->
+        {:reply, {:ok, tasks, desc}, state}
     end
   end
 
@@ -228,7 +336,7 @@ defmodule Services.Task do
       :error ->
         {:reply, {:error, :not_found}, state}
 
-      {:ok, tasks} ->
+      {:ok, %Services.Task.List{tasks: tasks}} ->
         Enum.find(tasks, fn task -> task.outcome == :todo end)
         |> case do
           nil -> {:reply, {:error, :empty}, state}
@@ -243,14 +351,42 @@ defmodule Services.Task do
       :error ->
         {:reply, :ok, state}
 
-      {:ok, tasks} ->
-        with {updated_tasks, _changed?} <- resolve_task(tasks, task_id, outcome, result) do
-          new_state =
-            %{state | lists: Map.put(state.lists, list_id, updated_tasks)}
-            |> save_tasks()
+      {:ok, list = %Services.Task.List{}} ->
+        updated_list = Services.Task.List.resolve(list, task_id, outcome, result)
 
-          {:reply, :ok, new_state}
-        end
+        new_state =
+          %{state | lists: Map.put(state.lists, list_id, updated_list)}
+          |> save_tasks()
+
+        {:reply, :ok, new_state}
+    end
+  end
+
+  @impl true
+  def handle_call({:set_description, list_id, description}, _from, state) do
+    case Map.fetch(state.lists, list_id) do
+      :error ->
+        {:reply, {:error, :not_found}, state}
+
+      {:ok, %Services.Task.List{} = list} ->
+        updated_list = %{list | description: description}
+
+        new_state =
+          %{state | lists: Map.put(state.lists, list_id, updated_list)}
+          |> save_tasks()
+
+        {:reply, :ok, new_state}
+    end
+  end
+
+  @impl true
+  def handle_call({:get_description, list_id}, _from, state) do
+    case Map.fetch(state.lists, list_id) do
+      :error ->
+        {:reply, {:error, :not_found}, state}
+
+      {:ok, %Services.Task.List{description: description}} ->
+        {:reply, {:ok, description}, state}
     end
   end
 
@@ -261,13 +397,14 @@ defmodule Services.Task do
       :error ->
         {:noreply, state}
 
-      {:ok, tasks} ->
+      {:ok, list = %Services.Task.List{tasks: tasks}} ->
         if Enum.any?(tasks, &(&1.id == task_id)) do
           {:noreply, state}
         else
           task = new_task(task_id, task_data)
-          # Prepend new task to the front of the list
-          %{state | lists: Map.put(state.lists, list_id, [task | tasks])}
+          updated_list = Services.Task.List.push(list, task)
+
+          %{state | lists: Map.put(state.lists, list_id, updated_list)}
           |> save_tasks()
           |> then(&{:noreply, &1})
         end
@@ -281,13 +418,14 @@ defmodule Services.Task do
       :error ->
         {:noreply, state}
 
-      {:ok, tasks} ->
+      {:ok, list = %Services.Task.List{tasks: tasks}} ->
         if Enum.any?(tasks, &(&1.id == task_id)) do
           {:noreply, state}
         else
           task = new_task(task_id, task_data)
-          # Append new task to preserve insertion order
-          %{state | lists: Map.put(state.lists, list_id, tasks ++ [task])}
+          updated_list = Services.Task.List.add(list, task)
+
+          %{state | lists: Map.put(state.lists, list_id, updated_list)}
           |> save_tasks()
           |> then(&{:noreply, &1})
         end
@@ -297,25 +435,11 @@ defmodule Services.Task do
   # ----------------------------------------------------------------------------
   # Internals
   # ----------------------------------------------------------------------------
-  @spec resolve_task([task()], task_id(), :done | :failed, task_result()) :: {[task()], boolean()}
-  defp resolve_task(tasks, target_id, outcome, result) do
-    tasks
-    |> Enum.reduce({[], false}, fn
-      %{id: ^target_id, outcome: :todo} = task, {acc, _} ->
-        {[%{task | outcome: outcome, result: result} | acc], true}
 
-      task, {acc, changed} ->
-        {[task | acc], changed}
-    end)
-    |> then(fn {tasks, changed} ->
-      {Enum.reverse(tasks), changed}
-    end)
-  end
-
-  defp save_tasks(%{conversation_pid: pid} = state) do
-    state.lists
-    |> Enum.map(fn {list_id, tasks} ->
+  defp save_tasks(%{conversation_pid: pid, lists: lists} = state) do
+    Enum.each(lists, fn {list_id, %Services.Task.List{tasks: tasks, description: desc}} ->
       Services.Conversation.upsert_task_list(pid, list_id, tasks)
+      Services.Conversation.upsert_task_list_meta(pid, list_id, desc)
     end)
 
     state
@@ -332,7 +456,7 @@ defmodule Services.Task do
         tasks ->
           tasks
           |> Enum.map(fn task ->
-            %{task | outcome: String.to_existing_atom(task.outcome)}
+            %{task | outcome: Services.Task.Util.normalize_outcome(task.outcome)}
           end)
           |> then(&{task_list_id, &1})
       end
