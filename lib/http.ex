@@ -164,8 +164,12 @@ defmodule Http do
     case result do
       {:ok, %HTTPoison.Response{status_code: 200, body: json, headers: headers}} ->
         case Jason.decode(json) do
-          {:ok, decoded} -> {:ok, %{body: decoded, headers: headers, status: 200}}
-          {:error, _} -> {:transport_error, :invalid_json_response}
+          {:ok, decoded} ->
+            {:ok, %{body: decoded, headers: headers, status: 200}}
+
+          {:error, _} ->
+            UI.debug("[http] invalid JSON response", safe_debug_body(json))
+            {:transport_error, :invalid_json_response}
         end
 
       {:ok, %HTTPoison.Response{status_code: status_code, body: resp_body}} ->
@@ -219,8 +223,12 @@ defmodule Http do
     case result do
       {:ok, %HTTPoison.Response{status_code: 200, body: json, headers: headers}} ->
         case Jason.decode(json) do
-          {:ok, decoded} -> {:ok, %{body: decoded, headers: headers, status: 200}}
-          {:error, _} -> {:transport_error, :invalid_json_response}
+          {:ok, decoded} ->
+            {:ok, %{body: decoded, headers: headers, status: 200}}
+
+          {:error, _} ->
+            UI.debug("[http] invalid JSON response", safe_debug_body(json))
+            {:transport_error, :invalid_json_response}
         end
 
       {:ok, %HTTPoison.Response{status_code: status_code, body: resp_body}} ->
@@ -266,5 +274,11 @@ defmodule Http do
     else
       Process.sleep(ms)
     end
+  end
+
+  defp safe_debug_body(body) do
+    body
+    |> IO.iodata_to_binary()
+    |> String.replace_invalid("�")
   end
 end

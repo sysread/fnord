@@ -75,6 +75,23 @@ defmodule HttpTest do
              Http.post_json("http://example", json_headers(), bad_payload)
   end
 
+  test "logs response body with UI debug message before returning invalid_json_response" do
+    :meck.expect(HTTPoison, :post, fn _url, _body, _headers, _opts ->
+      {:ok, %HTTPoison.Response{status_code: 200, headers: [], body: "not json"}}
+    end)
+
+    expect(UI.Output.Mock, :log, fn level, msg ->
+      assert level == :debug
+      msg = IO.iodata_to_binary(msg)
+      assert msg =~ "[http] invalid JSON response"
+      assert msg =~ "not json"
+      :ok
+    end)
+
+    assert {:transport_error, :invalid_json_response} =
+             Http.post_json("http://example", json_headers(), %{a: 1})
+  end
+
   test "fails after 10 attempts of 5xx" do
     call_count_ref = make_ref()
     Process.put(call_count_ref, 0)
