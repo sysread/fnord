@@ -36,12 +36,37 @@ defmodule AI.Tools.Tasks.ResolveTask do
   end
 
   @impl AI.Tools
-  def ui_note_on_request(%{"task_id" => task_id, "disposition" => "success"}) do
-    Util.truncate_chars("✓ " <> task_id)
-  end
+  def ui_note_on_request(%{
+        "list_id" => list_id,
+        "task_id" => task_id,
+        "disposition" => disposition
+      }) do
+    {total, resolved} =
+      list_id
+      |> Services.Task.get_list()
+      |> Enum.reduce({0, 0}, fn
+        %{outcome: :todo}, {t, r} -> {t + 1, r}
+        _, {t, r} -> {t + 1, r + 1}
+      end)
+      |> then(fn {t, r} ->
+        if disposition == "success" do
+          {t, r + 1}
+        else
+          {t, r}
+        end
+      end)
 
-  def ui_note_on_request(%{"task_id" => task_id, "disposition" => "failure"}) do
-    Util.truncate_chars("✗ " <> task_id)
+    glyph =
+      if disposition == "success" do
+        "✓ "
+      else
+        "✗ "
+      end
+
+    msg = glyph <> " " <> task_id
+    count = "(#{resolved}/#{total})"
+
+    {"Task resolved", Util.truncate_chars("[#{count}] #{msg}")}
   end
 
   @impl AI.Tools
