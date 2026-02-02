@@ -56,7 +56,10 @@ defmodule AI.Tools.File.SearchTest do
     assert AI.Tools.File.Search.ui_note_on_request(%{"query" => "bar"}) ==
              {"Semantic search", "bar"}
 
-    assert AI.Tools.File.Search.ui_note_on_result(%{}, :ok) == nil
+    assert {"Semantic search", "bar -> 2 file matches in 123 ms"} =
+             AI.Tools.File.Search.ui_note_on_result(%{"query" => "bar"}, """
+             Semantic search found 2 matching files in 123 ms:
+             """)
   end
 
   test "call/1 returns formatted results when search and index_state succeed" do

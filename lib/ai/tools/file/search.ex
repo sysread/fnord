@@ -17,7 +17,18 @@ defmodule AI.Tools.File.Search do
   def ui_note_on_request(args), do: {"Semantic search", args["query"]}
 
   @impl AI.Tools
-  def ui_note_on_result(_args, _result), do: nil
+  def ui_note_on_result(%{"query" => query}, result) do
+    re = ~r/Semantic search found (\d+) matching files in (\d+) ms:/
+
+    case Regex.run(re, result) do
+      [_, count_str, took_ms] ->
+        count = String.to_integer(count_str)
+        {"Semantic search", "#{query} -> #{count} file matches in #{took_ms} ms"}
+
+      _ ->
+        {"Semantic search", "#{query} -> #{result}"}
+    end
+  end
 
   @impl AI.Tools
   def tool_call_failure_message(_args, _reason), do: :default
@@ -73,16 +84,29 @@ defmodule AI.Tools.File.Search do
   @impl AI.Tools
   def call(args) do
     with {:ok, query} <- Map.fetch(args, "query"),
+         start_time = DateTime.utc_now(),
          {:ok, matches} <- search(query),
+         took_ms = DateTime.diff(DateTime.utc_now(), start_time, :millisecond),
          {:ok, index_state_msg} <- index_state() do
-      {:ok, build_response(matches, index_state_msg)}
+      {:ok, build_response(matches, took_ms, index_state_msg)}
     end
   end
 
   # Build the complete tool response by formatting matches and the index state banner.
-  defp build_response(matches, index_state_msg) do
+  defp build_response(matches, took_ms, index_state_msg) do
     header = "[search_tool]"
-    body = matches |> Enum.map(&format_entry/1) |> Enum.join("\n-----\n")
+
+    body =
+      matches
+      |> Enum.map(&format_entry/1)
+      |> Enum.join("\n-----\n")
+      |> then(fn body ->
+        """
+        Semantic search found #{length(matches)} matching files in #{took_ms} ms:
+        -----
+        #{body}
+        """
+      end)
 
     [header, body, "-----", index_state_msg]
     |> Enum.join("\n")
