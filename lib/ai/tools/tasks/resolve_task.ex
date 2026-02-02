@@ -62,9 +62,9 @@ defmodule AI.Tools.Tasks.ResolveTask do
 
     glyph =
       if disposition == "success" do
-        "✓ "
+        "✓"
       else
-        "✗ "
+        "✗"
       end
 
     {"Task resolved", Util.truncate_chars("(#{resolved}/#{total}) #{glyph} #{task_id}")}
