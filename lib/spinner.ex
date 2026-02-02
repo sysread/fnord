@@ -1,4 +1,6 @@
 defmodule Spinner do
+  alias Settings
+  alias Services.Globals
   @spinner_id :fnord
 
   @bullshit_rotation_interval 2500
@@ -28,23 +30,27 @@ defmodule Spinner do
 
     try do
       # Attempt to print label; ignore if Owl.IO.puts not available
-      try do
-        Owl.IO.puts(label)
-      rescue
-        _ -> :noop
-      catch
-        :exit, :noproc -> :noop
-        _, _ -> :noop
+      unless Globals.get_env(:fnord, :quiet, false) do
+        try do
+          Owl.IO.puts(label)
+        rescue
+          _ -> :noop
+        catch
+          :exit, :noproc -> :noop
+          _, _ -> :noop
+        end
       end
 
-      # Attempt to start spinner; ignore if spinner not available
-      try do
-        Owl.Spinner.start(id: @spinner_id)
-      rescue
-        _ -> :noop
-      catch
-        :exit, :noproc -> :noop
-        _, _ -> :noop
+      unless Globals.get_env(:fnord, :quiet, false) do
+        # Attempt to start spinner; ignore if spinner not available
+        try do
+          Owl.Spinner.start(id: @spinner_id)
+        rescue
+          _ -> :noop
+        catch
+          :exit, :noproc -> :noop
+          _, _ -> :noop
+        end
       end
 
       start_label_changer()

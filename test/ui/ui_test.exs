@@ -1,4 +1,5 @@
 defmodule UI.UITest do
+  import ExUnit.CaptureIO
   @moduledoc """
   Unit tests for UI.clean_detail/1 and UI.iodata?/1 functions.
   """
@@ -157,8 +158,9 @@ defmodule UI.UITest do
       # Ensure Owl WidgetsRegistry is not running
       assert Registry.whereis_name({Owl.WidgetsRegistry, :fnord}) in [nil, :undefined]
 
-      result = Spinner.run(fn -> {"Conversation summarized", :ok} end, "Summarizing conversation")
-      assert result == :ok
+      capture_io(fn ->
+        assert Spinner.run(fn -> {"Conversation summarized", :ok} end, "Summarizing conversation") == :ok
+      end)
     end
   end
 end
