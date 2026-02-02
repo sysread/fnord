@@ -9,7 +9,8 @@ defmodule AI.ModelTest do
   end
 
   test "speed presets return expected models" do
-    assert %Model{model: "gpt-5.2", context: 400_000, reasoning: :minimal} = Model.smart()
+    assert %Model{model: "gpt-5.1-codex", context: 400_000, reasoning: :minimal} = Model.smart()
+    assert %Model{model: "gpt-5.2", context: 400_000, reasoning: :low} = Model.smarter()
     assert %Model{model: "gpt-5-mini", context: 400_000, reasoning: :high} = Model.balanced()
     assert %Model{model: "gpt-4.1-nano", context: 1_000_000, reasoning: :none} = Model.fast()
   end
