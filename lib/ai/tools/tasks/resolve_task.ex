@@ -44,6 +44,10 @@ defmodule AI.Tools.Tasks.ResolveTask do
     {total, resolved} =
       list_id
       |> Services.Task.get_list()
+      |> case do
+        {:error, _reason} -> []
+        tasks -> tasks
+      end
       |> Enum.reduce({0, 0}, fn
         %{outcome: :todo}, {t, r} -> {t + 1, r}
         _, {t, r} -> {t + 1, r + 1}
