@@ -34,7 +34,8 @@ defmodule AI.Model do
     }
   end
 
-  def smart(), do: gpt5(:minimal)
+  def smarter(), do: gpt5(:moderate)
+  def smart(), do: new("gpt-5.1-codex", 400_000, :medium)
   def balanced(), do: gpt5_mini(:high)
   def fast(), do: gpt41_nano()
 

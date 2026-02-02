@@ -80,7 +80,7 @@ defmodule AI.Agent.Coordinator do
   @memory_size_limit 1000
 
   @default_model AI.Model.smart()
-  @smarter_model AI.Model.smart()
+  @smarter_model AI.Model.smarter()
 
   @behaviour AI.Agent
 
