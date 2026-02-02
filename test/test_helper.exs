@@ -14,6 +14,7 @@ end
 # Start test applications
 # ------------------------------------------------------------------------------
 Application.ensure_all_started(:mox)
+Mox.defmock(DockerSandbox.CLI.Mock, for: DockerSandbox.CLI)
 Application.ensure_all_started(:meck)
 
 try do

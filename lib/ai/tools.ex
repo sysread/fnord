@@ -198,7 +198,8 @@ defmodule AI.Tools do
     "troubleshooter_tool" => AI.Tools.Troubleshooter,
     "task_validation_tool" => AI.Tools.TaskValidation,
     "conversation_tool" => AI.Tools.Conversation,
-    "memory_tool" => AI.Tools.Memory
+    "memory_tool" => AI.Tools.Memory,
+    "docker_sandbox_tool" => AI.Tools.DockerSandbox
   }
 
   @rw_tools %{
