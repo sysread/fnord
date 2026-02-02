@@ -20,6 +20,6 @@
 - This repository is *the runtime for the assistant*.
 - Edits you make here change how the assistant behaves when operating inside this project.
 - Make changes carefully:
-  - Run `make check` locally with test HOME overrides.
-  - Run `mix format` to ensure consistent formatting.
   - Keep diffs small and covered by tests.
+  - ALWAYS run `make check` locally with test HOME overrides whenever you believe changes are complete.
+  - ALWAYS run `mix format` after edits!
