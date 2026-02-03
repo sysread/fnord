@@ -59,7 +59,8 @@ jobs:
 
     - name: Run dialyzer
       run: MIX_ENV=dev mix dialyzer
-    - name: Build docs (fail on warnings)
+
+    - name: Build docs
       run: |
         set -euo pipefail
         tmpfile=$(mktemp)
@@ -70,7 +71,6 @@ jobs:
           echo "::error::Documentation build emitted warnings or errors. Treating as failure."
           exit 1
         fi
-
 
     - name: Save dependencies cache
       if: steps.deps-cache-restore.outputs.cache-hit != 'true'
