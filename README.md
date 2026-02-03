@@ -11,7 +11,6 @@
 - [Writing code](#writing-code)
 - [Copyright and License](#copyright-and-license)
 
-
 ## Description
 
 `fnord` is a command line tool that uses multiple LLM-powered agents and tools to provide a conversational interface to your codebase, notes, and other (non-binary) files.
@@ -23,7 +22,6 @@ AI-powered tools are limited to the data built into their training data. **RAG (
 But even with RAG, the AI still runs up against the **context window**. This is the conversational "memory" of the AI, often making use of an "attention mechanism" to keep it focused on the current instructions, but causing it to lose track of details earlier in the conversation.
 If you've ever pasted multiple files into ChatGPT or worked with it iteratively on a piece of code, you've probably seen this in action. It may forget constraints you defined earlier in the conversation or hallucinate entities and functions that don't exist in any of the files you've shown it.
 `fnord` attempts to mitigate this with cleverly designed tool calls that allow the LLM to ask _other_ agents to perform tasks on its behalf. For example, it can generate a prompt to ask another agent to read through a file and retrieve specific details it needs, like a single function definition, the declaration of an interface, or whether a specific function behaves in a certain way. This keeps the entire file out of the "coordinating" agent's context window while still allowing it to use the information in the file to generate a response. This allows `fnord` to conduct more complex research across many files and directories without losing track of the details it needs to provide accurate answers.
-
 
 ## Features
 
@@ -38,12 +36,12 @@ If you've ever pasted multiple files into ChatGPT or worked with it iteratively 
 - User integrations
 - MCP server support
 
-
 ## Installation
 
 Fnord is written in [Elixir](https://elixir-lang.org/) and is distributed as an `escript`.
 
 - **Install [elixir](https://elixir-lang.org/)**
+
 ```bash
 # MacOS
 brew install elixir
@@ -53,12 +51,14 @@ sudo apt-get install elixir
 ```
 
 - **Add the `escript` path to your shell's PATH**
+
 ```bash
 echo 'export PATH="$HOME/.mix/escripts:$PATH"' >> ~/.bashrc
 source ~/.bashrc
 ```
 
 - **Install `fnord`**
+
 ```bash
 mix escript.install github sysread/fnord
 ```
@@ -73,7 +73,6 @@ Create or view your keys [here](https://platform.openai.com/api-keys).
 `fnord` includes tooling for the LLM to use the `ripgrep` tool in addition to semantic search.
 This enables the LLM to answer questions about your code base, even if the project has not been indexed yet (with the caveat that the results will be less context-aware).
 
-
 - **Optional: Install a markdown viewer**
 
 Markdown seems to be the language of choice for LLMs, so installing something like `gum` or `glow` to pipe output to will make the output more readable.
@@ -82,7 +81,6 @@ You can make your preferred formatter persistent by setting the `FNORD_FORMATTER
 ```bash
 export FNORD_FORMATTER="gum format"
 ```
-
 
 ## Getting Started
 
@@ -121,7 +119,6 @@ Note that semantic search requires an existing index. You can still perform text
 fnord prime --project blarg
 ```
 
-
 ### Configuration
 
 You can view and edit the configuration for existing projects with the `fnord config` command.
@@ -131,11 +128,9 @@ fnord config list --project blarg
 fnord config set --project blarg --root $HOME/dev/blarg --exclude 'node_modules' --exclude 'vendor'
 ```
 
-
 ### Approval patterns
 
 For safety, fnord requires approval for shell commands and file operations. You'll be prompted to approve operations as fnord works. To streamline your workflow, you can pre-approve specific commands using regex patterns. See [docs/approval-patterns.md](docs/approval-patterns.md) for details.
-
 
 ### Search your code base
 
@@ -159,14 +154,12 @@ If you would like to see more information about a single file, you can use the `
 fnord summary --project blarg --file "path/to/some_module.ext" | glow
 ```
 
-
 ### Search behavior and fallbacks
 
 `fnord` uses semantic search by default when the project has been indexed.
 For `fnord search`, an index is required; without it you won't get semantic results.
 You can still ask questions, and the AI may use shell_tool-assisted text searches (for example, ripgrep) if installed and approved.
 For rich, accurate results, index your project first.
-
 
 ### Generate answers on-demand
 
@@ -184,12 +177,12 @@ After each response, you'll see a conversation ID. Use `--follow <ID>` to contin
 Use the `--save` (or `-S`) flag to save the raw assistant response (before `FNORD_FORMATTER`) to a file.
 By default, files are written under `~/fnord/outputs/<project_id>/<slug>.md`.
 The `<slug>` comes from the first line `# Title: ...` in the response.
+
 ```bash
 fnord ask --project blarg -S --question "Explain foo's behavior"
 ```
 
 For advanced options (e.g., unindexed projects, replaying conversations), see [docs/asking-questions.md](docs/asking-questions.md).
-
 
 #### Create and manage your fnord doc library
 
@@ -198,7 +191,6 @@ Fnord builds a persistent document library of your saved responses and learned n
 - Saved outputs (via `--save`) are stored in `~/fnord/outputs/<project_id>/`.
 - View and explore learned notes with `fnord notes`.
 - Browse your docs with a markdown viewer (e.g., `glow`). For more, see [docs/asking-questions.md](docs/asking-questions.md) and [docs/learning-system.md](docs/learning-system.md).
-
 
 ### Learning over time
 
@@ -211,7 +203,6 @@ fnord prime --project blarg
 ```
 
 For managing and viewing learned knowledge, see [docs/learning-system.md](docs/learning-system.md).
-
 
 ### Upgrades
 
@@ -228,6 +219,7 @@ mix escript.install github sysread/fnord
 ```
 
 ### Other commands
+
 - List projects:        `fnord projects`
 - List files:           `fnord files --project <project>`
 - View file summary:    `fnord summary --project <project> --file <path>`
@@ -238,9 +230,11 @@ mix escript.install github sysread/fnord
 ## User integrations
 
 ### Project prompts
+
 Create a project-level `FNORD.md` file at your project's root for project-specific guidance and optionally a `FNORD.local.md` file for personal instructions. When both exist, fnord reads `FNORD.md` first and appends `FNORD.local.md`, with the local file taking precedence on conflicts unless explicitly overridden in your prompt. We recommend adding `FNORD.local.md` to your `.gitignore` to avoid committing personal instructions.
 
 ### Frobs
+
 Create custom tools (frobs) that fnord can use while researching. Use frobs to query project-specific APIs, check deployment status, retrieve GitHub PR details for review, or gather information from Kubernetes clusters.
 
 ```bash
@@ -280,8 +274,8 @@ fnord config mcp login myserver
 
 For advanced OAuth options, troubleshooting, and security details, see [docs/oauth-advanced.md](docs/oauth-advanced.md).
 
-
 ## Writing code
+
 Fnord can (optionally) automate code changes in your project using the `ask` command with the `--edit` flag.
 
 - Use `--edit` with extreme caution.
@@ -289,6 +283,7 @@ Fnord can (optionally) automate code changes in your project using the `ask` com
 - Optionally add `--yes` to pre-approve edits without prompting.
 
 ### How it works
+
 The LLM has access to several tools that allow it to modify code within the project directory and perform basic file management tasks.
 It *cannot* perform write operations with `git` or act on files outside of the project's root and `/tmp`.
 

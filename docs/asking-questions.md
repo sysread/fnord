@@ -32,24 +32,28 @@ You don't need a semantic index to ask questions, but you do need a configured p
 ### Without Index
 
 **Setup:**
+
 ```bash
 # Configure project root (no indexing)
 fnord config set --project myproject --root /path/to/project
 ```
 
 **What works:**
+
 - ✅ Tool-based research (ripgrep, git commands)
 - ✅ File reading and analysis
 - ✅ Learning system
 - ❌ Semantic search (requires index)
 
 **Limitations:**
+
 - Searches use text-based tools (ripgrep) instead of semantic search
 - Less contextual understanding
 - May miss relevant code that doesn't match keywords
 - Slower for broad exploratory questions
 
 **Example:**
+
 ```bash
 fnord ask -p myproject -q "Find all files that reference 'authentication'"
 # ...uses ripgrep instead of semantic search
@@ -58,6 +62,7 @@ fnord ask -p myproject -q "Find all files that reference 'authentication'"
 ### With Index (Recommended)
 
 For best results, index first:
+
 ```bash
 fnord index --project myproject --dir /path/to/project
 fnord ask -p myproject -q "How does authentication work?"
@@ -73,6 +78,7 @@ fnord ask --project myproject --question "Where is the user model defined?"
 ```
 
 After the response, you'll see:
+
 ```
 Conversation saved with ID: c81928aa-6ab2-4346-9b2a-0edce6a639f0
 ```
@@ -87,6 +93,7 @@ fnord ask -p myproject --follow c81928aa-6ab2-4346-9b2a-0edce6a639f0 \
 ```
 
 **Benefits of following:**
+
 - Maintains context from previous questions
 - Can reference earlier findings
 - Builds on accumulated knowledge
@@ -102,12 +109,14 @@ fnord ask -p myproject --fork c81928aa-6ab2-4346-9b2a-0edce6a639f0 \
 ```
 
 **When to fork vs follow:**
+
 - `--follow`: Same topic, building on previous answer
 - `--fork`: Related but different direction, keeping original context
 
 ### Viewing Conversations
 
 List all conversations:
+
 ```bash
 fnord conversations --project myproject
 ```
@@ -115,6 +124,7 @@ fnord conversations --project myproject
 ### Pruning Old Conversations
 
 Remove conversations older than N days:
+
 ```bash
 fnord conversations --project myproject --prune 30
 ```
@@ -135,6 +145,7 @@ fnord ask -p myproject --replay --follow <ID> | glow
 ```
 
 **Use cases:**
+
 - Review past research
 - Share findings with teammates
 - Document architectural decisions
@@ -147,21 +158,25 @@ fnord ask -p myproject --replay --follow <ID> | glow
 By default, fnord shows high-level research progress on STDERR.
 
 **See more detail:**
+
 ```bash
 LOGGER_LEVEL=debug fnord ask -p myproject -q "your question"
 ```
 
 This shows:
+
 - Tool calls being made
 - Search queries executed
 - Files being read
 - LLM reasoning steps
 
 **Output separation:**
+
 - STDOUT: Final answer (pipeable to other tools)
 - STDERR: Research progress and debugging
 
 **Example:**
+
 ```bash
 # Save answer, see research steps
 LOGGER_LEVEL=debug fnord ask -p myproject -q "..." > answer.md
@@ -170,6 +185,7 @@ LOGGER_LEVEL=debug fnord ask -p myproject -q "..." > answer.md
 ### Understanding Tool Calls
 
 During research, fnord may use:
+
 - **Semantic search** - Find relevant code
 - **File reading** - Read specific files
 - **Git commands** - Check history, blame, log
@@ -178,6 +194,7 @@ During research, fnord may use:
 - **MCP tools** - External server tools
 
 Watch for tool call patterns that indicate:
+
 - Broad exploration (many searches)
 - Deep investigation (reading many related files)
 - Historical analysis (git commands)
@@ -188,11 +205,13 @@ Watch for tool call patterns that indicate:
 ### 1. Be Specific
 
 **Vague:**
+
 ```bash
 fnord ask -p myproject -q "How does this work?"
 ```
 
 **Better:**
+
 ```bash
 fnord ask -p myproject -q "How does the JWT token validation work in the authentication middleware?"
 ```
@@ -231,7 +250,6 @@ fnord ask -p myproject -q "Review your notes about the authentication system, th
 
 If `FNORD.md` is located in your project root, it is used to enrich the conversation with project-specific context. You can also include an optional `FNORD.local.md` for personal or local instructions; it is appended after the shared FNORD.md and takes precedence on conflicts unless the user's prompt explicitly overrides. To get the best results, keep these files concise (ideally under 500 lines) and focused on key architectural notes, important modules, and coding conventions. Note that if they are large, they will affect context window management and attention allocation.
 
-
 ## Advanced Options
 
 ### Output Formatting
@@ -247,12 +265,14 @@ fnord ask -p myproject -q "..."
 fnord ask -p myproject -q "..." > answer.md
 ```
 
-### Saving Formatted Output 
+### Saving Formatted Output
 
 You can also use `--save` (`-S`) to save the raw markdown output (before `FNORD_FORMATTER`):
+
 ```bash
 fnord ask -p myproject -S -q "..."
 ```
+
 The file is saved to `~/fnord/outputs/<project_id>/<slug>.md`, where the slug is derived from the first `# Title: ...` line.
 
 ### Quiet Mode
@@ -299,6 +319,7 @@ fnord notes -p myproject | grep -i error
 ### Incomplete Answers
 
 **Try:**
+
 - Ask follow-up questions
 - Be more specific in your question
 - Ensure project is indexed
@@ -306,6 +327,7 @@ fnord notes -p myproject | grep -i error
 ### Off-topic Responses
 
 **Try:**
+
 - Reference specific files or components
 - Use follow-up to correct course
 - Check that question relates to your code (not general programming)
@@ -313,11 +335,13 @@ fnord notes -p myproject | grep -i error
 ### Slow Research
 
 **Causes:**
+
 - Large codebase with many potential matches
 - Many tool calls needed
 - API rate limiting
 
 **Solutions:**
+
 - Use more specific questions
 - Ensure good semantic index quality
 - Prime knowledge base for better context
@@ -325,6 +349,7 @@ fnord notes -p myproject | grep -i error
 ### Missing Context
 
 **Try:**
+
 - Use `--follow` to maintain context
 - Prime project first: `fnord prime -p myproject`
 - Ask fnord to review notes before answering

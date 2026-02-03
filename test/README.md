@@ -3,6 +3,7 @@
 This project follows Perl-style test organization that mirrors the `lib/` structure, with tests organized by the modules they test.
 
 ## Structure
+
 - `Foo` tests → `test/foo_test.exs` (module: `FooTest`)
 - `Foo.Bar` tests → `test/foo/bar_test.exs` (module: `Foo.BarTest`)
 - Multiple tests for `Foo` → `test/foo/` directory with specific test files
@@ -10,10 +11,12 @@ This project follows Perl-style test organization that mirrors the `lib/` struct
 ## Examples
 
 ### Single test per module
+
 - `UI` tests → `test/ui_test.exs` (module: `UITest`)
 - `Settings` tests → `test/settings_test.exs` (module: `SettingsTest`)
 
 ### Multiple tests per module
+
 When a module has multiple distinct aspects to test, create a subdirectory:
 
 - `AI.Tools.Shell` tests:
@@ -31,15 +34,18 @@ When a module has multiple distinct aspects to test, create a subdirectory:
 ## Module Naming Pattern
 
 **Critical**: Test module names must follow this exact pattern:
+
 - File path: `test/path/to/module_test.exs` → Module: `Path.To.ModuleTest`
 - File path: `test/path/to/module/aspect_test.exs` → Module: `Path.To.Module.AspectTest`
 
 **Abbreviations and Acronyms**: Where letters represent words, they may be fully upcased:
+
 - `test/ui_test.exs` → `defmodule UITest` (User Interface)
 - `test/ai_test.exs` → `defmodule AITest` (Artificial Intelligence)
 - `test/services/mcp_test.exs` → `defmodule Services.MCPTest` (Model Context Protocol)
 
 Examples:
+
 - `test/ui_test.exs` → `defmodule UITest`
 - `test/services/approvals_test.exs` → `defmodule Services.ApprovalsTest`
 - `test/services/approvals/shell_test.exs` → `defmodule Services.Approvals.ShellTest`

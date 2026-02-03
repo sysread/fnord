@@ -11,6 +11,7 @@ For basic frob commands, see the [main README](../README.md#user-integrations).
 Frobs allow you to extend fnord's capabilities by creating custom tools tailored to your workflow. When fnord researches a question, it can call your frobs just like it calls built-in tools (semantic search, git commands, etc.).
 
 **Example use cases:**
+
 - Query a project-specific API
 - Run custom analysis scripts
 - Check deployment status
@@ -46,7 +47,9 @@ fnord frobs enable --name my_frob
 # Or enable globally
 fnord frobs enable --name my_frob --global
 ```
+
 ### Disabling a Frob
+
 ```bash
 # Disable for the current project
 fnord frobs disable --name my_frob
@@ -55,7 +58,6 @@ fnord frobs disable --name my_frob --global
 # Or disable for a specific project
 fnord frobs disable --name my_frob --project other_project
 ```
-
 
 ## Configuration Files
 
@@ -88,6 +90,7 @@ Describes the frob's interface using [OpenAI's function calling format](https://
 ```
 
 **Important:**
+
 - `name` must match the frob directory name
 - `description` helps the LLM understand when to use your tool
 - `parameters` defines the arguments the LLM can provide
@@ -96,12 +99,14 @@ Describes the frob's interface using [OpenAI's function calling format](https://
 ### 3. main
 
 The executable that implements your frob. Can be:
+
 - Shell script (`#!/bin/bash`)
 - Elixir script (escript or plain `elixir`-run script)
 - Compiled binary
 - Any executable
 
 **Must be executable:**
+
 ```bash
 chmod +x ~/.fnord/tools/my_frob/main
 ```
@@ -112,13 +117,14 @@ chmod +x ~/.fnord/tools/my_frob/main
 
 Fnord passes data to your frob via environment variables:
 
-| Variable | Description | Format |
+|Variable|Description|Format|
 |----------|-------------|--------|
-| `FNORD_PROJECT` | Current project name | String |
-| `FNORD_CONFIG` | Project configuration | JSON object |
-| `FNORD_ARGS_JSON` | LLM-provided arguments | JSON object |
+|`FNORD_PROJECT`|Current project name|String|
+|`FNORD_CONFIG`|Project configuration|JSON object|
+|`FNORD_ARGS_JSON`|LLM-provided arguments|JSON object|
 
 **Example shell script:**
+
 ```bash
 #!/bin/bash
 
@@ -135,6 +141,7 @@ echo "Searching $PROJECT_ROOT for: $QUERY (limit: $LIMIT)"
 ```
 
 **Example Elixir script:**
+
 ```elixir
 #!/usr/bin/env elixir
 
@@ -156,12 +163,14 @@ IO.puts("Searching #{project} for: #{query} (limit: #{limit})")
 Your frob should write its results to STDOUT. Fnord captures this and provides it to the LLM as the tool's response.
 
 **Best practices:**
+
 - Use clear, structured output (JSON, markdown, plain text)
 - Include relevant details but stay concise
 - Report errors clearly
 - Exit with non-zero code on failure
 
 **Example output:**
+
 ```
 Found 3 matches for "authentication":
 
@@ -173,10 +182,12 @@ Found 3 matches for "authentication":
 ### Error Handling
 
 **Exit codes:**
+
 - `0` - Success
 - Non-zero - Error (output is still captured)
 
 **Error output:**
+
 ```bash
 #!/bin/bash
 if [ -z "$QUERY" ]; then
@@ -194,6 +205,7 @@ fnord frobs check --name my_frob
 ```
 
 This validates:
+
 - All required files exist
 - JSON files are valid
 - `main` is executable
@@ -218,6 +230,7 @@ The LLM will call your frob and describe what happened.
 ### Example 1: API Query Frob
 
 **spec.json:**
+
 ```json
 {
   "name": "api_status",
@@ -237,6 +250,7 @@ The LLM will call your frob and describe what happened.
 ```
 
 **main:**
+
 ```bash
 #!/bin/bash
 ENV=$(echo "$FNORD_ARGS_JSON" | jq -r '.environment')
@@ -249,6 +263,7 @@ curl -s -H "Authorization: Bearer $API_KEY" \
 ### Example 2: Custom Analysis Frob
 
 **spec.json:**
+
 ```json
 {
   "name": "complexity_check",
@@ -267,6 +282,7 @@ curl -s -H "Authorization: Bearer $API_KEY" \
 ```
 
 **main:**
+
 ```python
 #!/usr/bin/env python3
 import os, json, subprocess
@@ -299,6 +315,7 @@ print(result.stdout)
 ## Security Considerations
 
 **Frobs execute with your user permissions:**
+
 - Be careful with system commands
 - Validate all input from `FNORD_ARGS_JSON`
 - Don't trust LLM-provided arguments blindly
@@ -306,6 +323,7 @@ print(result.stdout)
 - Use absolute paths when modifying files
 
 **Example input validation:**
+
 ```bash
 #!/bin/bash
 FILE=$(echo "$FNORD_ARGS_JSON" | jq -r '.file')

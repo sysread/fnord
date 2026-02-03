@@ -47,6 +47,7 @@ fnord config mcp add <name> [...options...] --global
 ```
 
 **Repeatable flags:**
+
 - `--arg` - Can be specified multiple times for stdio args
 - `--env` - Can be specified multiple times for environment variables
 - `--header` - Can be specified multiple times for HTTP headers
@@ -102,6 +103,7 @@ fnord config mcp status <server>
 Fnord uses [Hermes MCP](https://hexdocs.pm/hermes_mcp/) as its underlying MCP client library. Your fnord configuration maps directly to Hermes transport options, which means you can use any Hermes transport feature by editing your settings file directly.
 
 **Configuration mapping:**
+
 - Fnord stores configs in `~/.fnord/settings.json` (or project settings)
 - `MCP.Transport` module converts these to Hermes transport tuples
 - User-facing transport name: `"http"` → Hermes internal name: `:streamable_http`
@@ -115,12 +117,14 @@ The CLI exposes common options, but Hermes supports additional parameters for po
 Beyond `base_url` and `headers`, you can configure:
 
 **Available options:**
+
 - `mcp_path` (string) - Custom MCP endpoint path (default: "/mcp")
 - `enable_sse` (boolean) - Enable Server-Sent Events for server-initiated messages (default: false)
 - `transport_opts` (keyword list) - Underlying HTTP transport options
 - `http_options` (keyword list) - HTTP client configuration options
 
 **Example:**
+
 ```json
 {
   "mcp_servers": {
@@ -144,9 +148,11 @@ Beyond `base_url` and `headers`, you can configure:
 Beyond `command`, `args`, and `env`, you can configure:
 
 **Available options:**
+
 - `cwd` (string) - Working directory for the server process
 
 **Example:**
+
 ```json
 {
   "mcp_servers": {
@@ -202,15 +208,18 @@ In `~/.fnord/settings.json`, under a project's settings:
 ## Configuration Validation
 
 Fnord validates your configuration when:
+
 - Adding/updating servers via CLI
 - Starting MCP operations (`fnord config mcp check`)
 
 **Required fields:**
+
 - **All transports:** `transport` (must be "stdio", "http", or "websocket")
 - **stdio:** `command`
 - **http/websocket:** `base_url`
 
 **Optional fields:**
+
 - `timeout_ms` - Request timeout in milliseconds
 - `headers` - HTTP headers (http/websocket only)
 - `oauth` - OAuth configuration (see [oauth-advanced.md](oauth-advanced.md))
@@ -219,13 +228,14 @@ Fnord validates your configuration when:
 
 Fnord uses user-friendly transport names that map to Hermes atoms:
 
-| User Config | Hermes Atom | Description |
+|User Config|Hermes Atom|Description|
 |-------------|-------------|-------------|
-| `"stdio"` | `:stdio` | Standard input/output |
-| `"http"` | `:streamable_http` | HTTP with optional SSE |
-| `"websocket"` | `:websocket` | WebSocket connection |
+|"stdio"|`:stdio`|Standard input/output|
+|"http"|`:streamable_http`|HTTP with optional SSE|
+|"websocket"|`:websocket`|WebSocket connection|
 
 This abstraction allows fnord to:
+
 - Use consistent, intuitive names in user-facing config
 - Adapt to Hermes API changes without breaking user configs
 - Add custom behavior (like OAuth header injection) at the transport boundary
@@ -235,16 +245,19 @@ This abstraction allows fnord to:
 ### Server not responding
 
 Check connectivity:
+
 ```bash
 fnord config mcp check
 ```
 
 For HTTP servers, verify:
+
 - `base_url` is correct and accessible
 - Server is running and listening on specified port
 - `mcp_path` matches server's endpoint (default: "/mcp")
 
 For stdio servers, verify:
+
 - `command` is in PATH or use absolute path
 - Server process can be executed with provided `args`
 - `cwd` exists (if specified)

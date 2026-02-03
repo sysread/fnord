@@ -38,6 +38,7 @@ Multiple `--scope` flags add multiple scopes.
 ### What `--oauth` Does
 
 The `--oauth` flag automatically:
+
 - Fetches OAuth configuration from `/.well-known/oauth-authorization-server`
 - Registers your client using dynamic client registration (RFC 7591) if no `client_id` provided
 - Selects appropriate scopes (defaults to `mcp:access`)
@@ -68,11 +69,13 @@ For maximum control, you can edit `~/.fnord/settings.json` directly:
 ### OAuth Configuration Fields
 
 **Required:**
+
 - `discovery_url` - OAuth discovery endpoint (RFC 8414)
 - `client_id` - OAuth client identifier
 - `scopes` - Array of OAuth scope strings
 
 **Optional:**
+
 - `client_secret` - For confidential clients (keep this secure!)
 - `redirect_port` - Fixed port for loopback redirects (for exact URI matching)
 - `redirect_uri` - Custom redirect URI (advanced)
@@ -114,6 +117,7 @@ Fnord implements OAuth 2.0 Authorization Code flow with PKCE (Proof Key for Code
 ### PKCE (RFC 7636)
 
 Fnord always uses PKCE with S256 challenge method for security:
+
 - Code verifier: 43-128 character random string
 - Code challenge: Base64URL(SHA256(verifier))
 - Prevents authorization code interception attacks
@@ -123,6 +127,7 @@ Fnord always uses PKCE with S256 challenge method for security:
 ### Token Storage
 
 Tokens are stored in `~/.fnord/credentials.json` with strict file permissions:
+
 - File permissions: `0600` (owner read/write only)
 - Format: JSON with server name as key
 - Contains: `access_token`, `refresh_token`, `expires_at`, `token_type`, `scope`
@@ -140,6 +145,7 @@ Tokens are stored in `~/.fnord/credentials.json` with strict file permissions:
 ### Revoking Access
 
 To revoke access:
+
 1. Delete tokens: `rm ~/.fnord/credentials.json` (or edit to remove specific server)
 2. Revoke at provider (check provider's OAuth settings)
 3. Re-authenticate: `fnord config mcp login <server>`
@@ -149,6 +155,7 @@ To revoke access:
 ### Token Refresh
 
 Fnord automatically refreshes access tokens:
+
 - Default refresh margin: 5 minutes (300 seconds) before expiry
 - Configurable via `refresh_margin` in oauth config
 - Uses refresh token from authorization flow
@@ -156,11 +163,13 @@ Fnord automatically refreshes access tokens:
 ### Token Expiry
 
 Check token status:
+
 ```bash
 fnord config mcp status <server>
 ```
 
 Shows:
+
 - Token validity
 - Expiration time
 - Refresh token availability
@@ -168,6 +177,7 @@ Shows:
 ### Manual Token Refresh
 
 Tokens refresh automatically during operations, but you can force re-authentication:
+
 ```bash
 # Remove old credentials and login again
 rm ~/.fnord/credentials.json
@@ -181,10 +191,12 @@ fnord config mcp login <server>
 **Error:** `OAuth discovery failed (404)`
 
 **Causes:**
+
 - Server doesn't support OAuth discovery (RFC 8414)
 - Wrong discovery URL
 
 **Solutions:**
+
 1. Verify server supports `/.well-known/oauth-authorization-server`
 2. Try OpenID Connect discovery: `/.well-known/openid-configuration`
 3. Get OAuth endpoints from provider and configure manually
@@ -194,11 +206,13 @@ fnord config mcp login <server>
 **Error:** `OAuth registration not available`
 
 **Causes:**
+
 - Server requires pre-registered clients
 - Dynamic registration (RFC 7591) not supported
 
 **Solution:**
 Register a client with the provider manually, then:
+
 ```bash
 fnord config mcp add <name> --url <url> --oauth --client-id YOUR_CLIENT_ID
 ```
@@ -208,15 +222,19 @@ fnord config mcp add <name> --url <url> --oauth --client-id YOUR_CLIENT_ID
 **Error:** Connection timeout during login
 
 **Causes:**
+
 - Slow browser/user interaction
 - Network issues
 - OAuth provider delays
 
 **Solutions:**
+
 1. Increase timeout (default: 120s):
+
    ```bash
    fnord config mcp login <server> --timeout 300000
    ```
+
 2. Check browser opened correctly
 3. Complete OAuth consent promptly
 
@@ -225,6 +243,7 @@ fnord config mcp add <name> --url <url> --oauth --client-id YOUR_CLIENT_ID
 **Error:** Redirect URI doesn't match registered URI
 
 **Causes:**
+
 - Provider requires exact URI match
 - Port changed between registration and login
 
@@ -234,21 +253,25 @@ Fnord reserves a port during registration and reuses it during login via `redire
 ### Browser shows "Connection refused"
 
 **Causes:**
+
 - Login command exited before sending HTTP response
 
 **Solution:**
 This should not happen in current fnord versions (fixed with 3-second delay). If it does:
+
 1. Update fnord: `mix escript.install github sysread/fnord`
 2. Report the issue
 
 ### No refresh token received
 
 **Causes:**
+
 - Provider doesn't support refresh tokens
 - Scopes don't include offline access
 - Provider configuration
 
 **Solutions:**
+
 1. Check if provider supports `refresh_token` grant type
 2. Try adding scope: `--scope offline_access` (provider-specific)
 3. Use shorter-lived sessions and re-authenticate as needed
@@ -256,21 +279,25 @@ This should not happen in current fnord versions (fixed with 3-second delay). If
 ### Authorization header not added
 
 **Verify OAuth is configured:**
+
 ```bash
 fnord config mcp list | grep oauth
 ```
 
 **Check credentials exist:**
+
 ```bash
 cat ~/.fnord/credentials.json | grep <server-name>
 ```
 
 **Check token validity:**
+
 ```bash
 fnord config mcp status <server>
 ```
 
 **If token is expired:**
+
 ```bash
 fnord config mcp login <server>
 ```
@@ -282,6 +309,7 @@ Some providers use non-standard discovery endpoints:
 ### OpenID Connect
 
 If provider uses OpenID Connect instead of OAuth Authorization Server:
+
 ```json
 {
   "oauth": {

@@ -26,7 +26,7 @@ You can enable the frob via settings or CLI. For example:
 ```bash
 fnord frobs enable --name http_get --global
 ```
- 
+
 ### Disable the frob
 
 You can disable the frob via CLI. For example:
@@ -40,6 +40,7 @@ To disable for a specific project:
 ```bash
 fnord frobs disable --name http_get --project <project_name>
 ```
+
 ## 3) `spec.json`
 
 Save to: `~/.fnord/tools/http_get/spec.json`
@@ -158,22 +159,26 @@ fnord frobs check --name http_get
 ## 6) Use it via `fnord ask`
 
 - Natural language:
+
   ```bash
   fnord ask -q "Fetch https://example.com with http_get and return up to 5MB of the body."
   ```
 
 - With headers:
+
   ```bash
   fnord ask -q "Please call http_get to GET https://httpbin.org/headers with Accept=application/json and X-Test=fnord"
   ```
 
 Tips:
+
 - The assistant can choose to call this tool automatically when it sees a suitable URL-shaped request.
 - The frob prints `<empty body>` when the response body is empty and request succeeds.
 
 ## Safety notes
 
 Note: If you previously configured frobs via registry.json, Fnord will migrate those settings the first time frobs are listed. After migration, registry.json is no longer used.
+
 - GET-only by design: no `method` parameter is accepted.
 - Only `http` and `https` URLs are allowed.
 - Responses larger than `5MB` are truncated and marked with ` (truncated)`.

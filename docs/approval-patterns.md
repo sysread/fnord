@@ -12,6 +12,7 @@ Approve? [y/n/always]:
 ```
 
 **Options:**
+
 - `y` - Approve once for this session
 - `n` - Deny
 - `always` - Add an approval pattern (prompts for scope)
@@ -21,6 +22,7 @@ Approve? [y/n/always]:
 ### Built-in Read-Only Commands
 
 These commands are automatically approved (no prompt):
+
 - `git log`, `git show`, `git diff`, `git blame` (read-only git operations)
 - `rg`, `grep` (when invoked by fnord's grep tool)
 - Other read-only commands defined in fnord's source
@@ -46,6 +48,7 @@ Commands like `scripts/foo` (without the leading `./`) are rejected; use `./scri
 Approval patterns treat `./cmd` as distinct from `cmd` (you must explicitly include `./` in a prefix or regex to approve it).
 
 **Examples:**
+
 ```bash
 # Approving 'make check' does not approve './make check'
 fnord config approve --project myproject --kind shell '^make check$'
@@ -75,26 +78,31 @@ fnord config approve --global --kind shell '<regex>'
 ### Approval Kinds
 
 Currently supported:
+
 - `shell` - Shell command patterns
 
 ### Pattern Examples
 
 **Approve all npm commands:**
+
 ```bash
 fnord config approve --project myproject --kind shell '^npm '
 ```
 
 **Approve specific test commands:**
+
 ```bash
 fnord config approve --project myproject --kind shell '^pytest tests/'
 ```
 
 **Approve make targets:**
+
 ```bash
 fnord config approve --project myproject --kind shell '^make (test|lint|check)'
 ```
 
 **Approve safe git operations (example - these are already built-in):**
+
 ```bash
 fnord config approve --global --kind shell '^git (status|log|show|diff)'
 ```
@@ -125,6 +133,7 @@ Approvals are stored in `~/.fnord/settings.json`:
 ```
 
 **Scopes:**
+
 - Project-level: Under `projects.<name>.approvals`
 - Global: Under top-level `approvals`
 
@@ -135,15 +144,18 @@ Approvals are stored in `~/.fnord/settings.json`:
 Pre-approving commands reduces security prompts but increases risk:
 
 **Prompt injection:**
+
 - If `FNORD.md` and `FNORD.local.md` are present in the project root, their contents are injected into every conversation, with the local file appended after the shared file
 - Avoid including secrets or other sensitive information in that file
 
 **Safe patterns:**
+
 - Read-only operations (`git log`, `cat`, `grep`)
 - Specific, bounded commands (`npm test`, `make check`)
 - Commands in isolated directories
 
 **Risky patterns:**
+
 - Broad wildcards (`.+` matches everything)
 - Commands that modify state (`rm`, `git push`, `npm publish`)
 - Commands with user input (command injection risks)
@@ -156,6 +168,7 @@ Pre-approving commands reduces security prompts but increases risk:
 4. **Test first** - Run commands manually before auto-approving
 
 **Bad examples:**
+
 ```bash
 # TOO BROAD - matches any command!
 fnord config approve --global --kind shell '.*'
@@ -168,6 +181,7 @@ fnord config approve --global --kind shell '^git '
 ```
 
 **Good examples:**
+
 ```bash
 # Specific test command
 fnord config approve --project myproject --kind shell '^npm run test:unit$'
@@ -183,16 +197,16 @@ fnord config approve --project myproject --kind shell '^make lint$'
 
 Patterns use standard regex syntax:
 
-| Pattern | Meaning |
+|Pattern|Meaning|
 |---------|---------|
-| `^` | Start of command |
-| `$` | End of command |
-| `.` | Any single character |
-| `.*` | Zero or more characters |
-| `\s` | Whitespace |
-| `(a\|b)` | Match a or b |
-| `[abc]` | Character class |
-| `\` | Escape special chars |
+|`^`|Start of command|
+|`$`|End of command|
+|`.`|Any single character|
+|`.*`|Zero or more characters|
+|`\s`|Whitespace|
+|`(a\|b)`|Match a or b|
+|`[abc]`|Character class|
+|`\`|Escape special chars|
 
 **Examples:**
 
@@ -215,11 +229,13 @@ Patterns use standard regex syntax:
 ### Interactive Approval (Default)
 
 Best for:
+
 - New projects you're exploring
 - One-off questions
 - When you're unsure what commands will run
 
 **Workflow:**
+
 1. Ask question without pre-approvals
 2. Review each command prompt
 3. Approve selectively
@@ -228,12 +244,14 @@ Best for:
 ### Pre-Approved Workflow
 
 Best for:
+
 - Well-understood projects
 - Repetitive tasks
 - CI/CD-like operations
 - Trusted environments
 
 **Workflow:**
+
 1. Identify safe, repetitive commands
 2. Add targeted approval patterns
 3. Use `--yes` for file operations in `--edit` mode
@@ -242,11 +260,13 @@ Best for:
 ### Hybrid Approach
 
 Recommended for most users:
+
 - Pre-approve safe read-only operations globally
 - Pre-approve project-specific test/build commands
 - Leave destructive operations to manual approval
 
 **Example setup:**
+
 ```bash
 # Global: safe read operations
 fnord config approve --global --kind shell '^cat '
@@ -266,12 +286,14 @@ fnord config approve --project myproject --kind shell '^make lint'
 **Problem:** You added a pattern but still getting prompted
 
 **Check:**
+
 1. Pattern syntax - test regex with a regex tester
 2. Scope - is pattern in right place (project vs global)?
 3. Command exact match - check spacing, flags
 4. Settings file syntax - ensure valid JSON
 
 **Debug:**
+
 ```bash
 # View current patterns
 fnord config approvals --project myproject
@@ -293,6 +315,7 @@ cat ~/.fnord/settings.json | jq '.projects.myproject.approvals'
 **Problem:** Used `always` on a risky command
 
 **Solution:**
+
 1. Edit `~/.fnord/settings.json`
 2. Find and remove the pattern from `approvals.shell`
 3. Save and restart fnord
@@ -327,6 +350,7 @@ Edit `~/.fnord/settings.json` directly for complex patterns:
 ```
 
 **Editing tips:**
+
 - Validate JSON after editing: `cat ~/.fnord/settings.json | jq .`
 - One pattern per line in the array
 - Use double backslashes for escaping in JSON: `"\\s"`, `"\\."`, etc.
