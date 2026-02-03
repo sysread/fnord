@@ -319,9 +319,11 @@ defmodule AI.Tools.Shell do
       |> case do
         # None found.
         [] ->
-          if root,
-            do: {:ok, %{"command" => path, "args" => args ++ [root]}},
-            else: {:ok, %{"command" => path, "args" => args}}
+          if root do
+            {:ok, %{"command" => path, "args" => args ++ [root]}}
+          else
+            {:ok, %{"command" => path, "args" => args}}
+          end
 
         _ ->
           {:ok, %{"command" => path, "args" => args}}
