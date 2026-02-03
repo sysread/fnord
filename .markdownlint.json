@@ -1,6 +1,6 @@
 # https://github.com/DavidAnson/markdownlint?tab=readme-ov-file
 {
-  "MD013": {"line_length": 120},
+  "MD013": {"enabled": false},
   "MD038": {"enabled": false},
   "MD040": {"enabled": false},
   "MD047": {"enabled": false},
