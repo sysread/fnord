@@ -3,7 +3,6 @@
 This project follows Perl-style test organization that mirrors the `lib/` structure, with tests organized by the modules they test.
 
 ## Structure
-
 - `Foo` tests → `test/foo_test.exs` (module: `FooTest`)
 - `Foo.Bar` tests → `test/foo/bar_test.exs` (module: `Foo.BarTest`)
 - Multiple tests for `Foo` → `test/foo/` directory with specific test files

@@ -4,23 +4,11 @@ This project treats warnings as errors in spirit and strives to keep a clean bil
 
 ## Verify before you push
 
-1. Format code
+1. Format code: `mix format`
+2. Static analysis (type checking): `mix dialyzer`
+3. Run the test suite: `mix test`
 
-```
-mix format
-```
-
-2. Static analysis (type checking)
-
-```
-mix dialyzer
-```
-
-3. Run the test suite
-
-```
-mix test
-```
+...or just run `make check`, which does all of the above and more.
 
 Notes:
 - The codebase aims to run with warnings treated as errors; please ensure compiler warnings are addressed, not ignored.

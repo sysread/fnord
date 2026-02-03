@@ -109,9 +109,9 @@ As your codebase evolves, some learned facts may become outdated:
 - Architecture descriptions don't match current state
 - Pattern recommendations no longer apply
 
-**Solutions:**
+#### Solutions
 
-1. **Re-prime** - Regenerate knowledge base
+##### **Re-prime** - Regenerate knowledge base
 ```bash
 # Backup old notes if desired
 mv ~/.fnord/myproject/notes ~/.fnord/myproject/notes.backup
@@ -120,12 +120,12 @@ mv ~/.fnord/myproject/notes ~/.fnord/myproject/notes.backup
 fnord prime --project myproject
 ```
 
-2. **Targeted updates** - Ask specific questions about changed areas
+##### **Targeted updates** - Ask specific questions about changed areas
 ```bash
 fnord ask -p myproject -q "The authentication module has been refactored. Please analyze its new structure and update your understanding."
 ```
 
-3. **Re-index** - Refresh semantic index to match current code
+##### **Re-index** - Refresh semantic index to match current code
 ```bash
 fnord index --project myproject
 ```

@@ -32,13 +32,22 @@ dialyzer: ## Run Dialyzer
 	@echo
 
 .PHONY: docs
-docs: ## Generate documentation
+docs: lint-md ## Generate documentation
 	mix docs
 	@echo
 
 .PHONY: check
-check: compile test dialyzer ## Run all checks
+check: compile test dialyzer md-lint ## Run all checks
 	@echo "All checks passed"
+
+.PHONY: md-lint
+md-lint: ## Lint markdown files
+	markdownlint-cli2 --config .markdownlint.json {test,lib,docs}/**/*.md README.md
+
+.PHONY: md-format
+md-format: ## Format markdown files
+	@git diff --exit-code >/dev/null || (printf "!! Uncommitted changes found\n!! Commit or stash first\n\n" >&2 && exit 1)
+	@markdownlint-cli2 --config .markdownlint.json --fix {test,lib,docs}/**/*.md README.md
 
 .PHONY: format
 format: ## Format the code
