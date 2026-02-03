@@ -107,7 +107,9 @@ defmodule AI.Tools.Shell do
         IMPORTANT: This uses elixir's System.cmd/3 to execute commands.
                    It *will* `cd` into the project's source root before executing commands.
                    Some commands DO behave differently without a tty.
-                   For example, `rg` REQUIRES a path argument when not run in a tty.
+                   Guardrails:
+                     - rg requires an explicit path when used under '&&' or as the first stage of a pipeline
+                     - wc must receive input via a pipeline or explicit file args (or '-' for stdin) and is invalid under '&&' or as the first stage without files
         IMPORTANT: Environment variables are NOT expanded in command args.
                    If you need env vars, use a specialized tool or create a temp script file.
         IMPORTANT: Your commands will be run in a non-interactive, non-login shell environment.
@@ -305,32 +307,6 @@ defmodule AI.Tools.Shell do
     end
   end
 
-  defp find_executable(%{"command" => "rg", "args" => args}, root)
-       when is_list(args) do
-    with {:ok, path} <- find_executable("rg", root) do
-      args
-      # Filter out options, leaving only positional args
-      |> Enum.filter(fn arg -> not String.starts_with?(arg, "-") end)
-      # See if any of the positional args look like a path (contain a dot or slash)
-      |> Enum.filter(fn arg ->
-        String.starts_with?(arg, "./") or String.starts_with?(arg, "/")
-      end)
-      # If no positional args look like a path, add the project's source_root to search current dir
-      |> case do
-        # None found.
-        [] ->
-          if root do
-            {:ok, %{"command" => path, "args" => args ++ [root]}}
-          else
-            {:ok, %{"command" => path, "args" => args}}
-          end
-
-        _ ->
-          {:ok, %{"command" => path, "args" => args}}
-      end
-    end
-  end
-
   defp find_executable(%{"command" => command, "args" => args} = cmd, root)
        when is_list(args) do
     if String.contains?(command, " ") do
@@ -368,6 +344,81 @@ defmodule AI.Tools.Shell do
       {:ok, %File.Stat{mode: mode}} -> :erlang.band(mode, 0o111) != 0
       _ -> false
     end
+  end
+
+  # ----------------------------------------------------------------------------
+  # Context-aware validation for rg and wc
+  # We fail-closed in two specific contexts to avoid timeouts and ambiguity:
+  # - When operator is '&&': stdin is not piped, so commands must have explicit input.
+  # - When operator is '|' and this is the first stage: no prior stdin exists yet.
+  # In these cases:
+  #   - rg must include an explicit path-like positional arg (e.g., '.', './dir', '/abs', or a non-flag token).
+  #   - wc must include file args (non-flag tokens) or '-' to read from stdin.
+  # Anywhere else, these commands are allowed (e.g., later stages in a pipeline).
+  # ----------------------------------------------------------------------------
+  defp validate_command_context(op, commands) do
+    case op do
+      "&&" ->
+        if invalid_under_andand?(commands) do
+          {:denied,
+           "One or more commands require an explicit input source under '&&'.\n" <>
+             "- rg must include an explicit path (e.g., '.' or a directory) when not reading from stdin.\n" <>
+             "- wc must include file args (e.g., 'wc -l FILE') or '-' for stdin.\n" <>
+             "Consider using a pipeline (|) or adding explicit args."}
+        else
+          :ok
+        end
+
+      "|" ->
+        case commands do
+          [first | _] ->
+            if invalid_first_stage?(first) do
+              {:denied,
+               "First stage requires an explicit input source:\n" <>
+                 "- rg must include an explicit path (e.g., '.' or a directory).\n" <>
+                 "- wc must include file args (e.g., 'wc -l FILE')."}
+            else
+              :ok
+            end
+
+          _ ->
+            :ok
+        end
+    end
+  end
+
+  defp invalid_under_andand?(commands) do
+    Enum.any?(commands, fn %{"command" => cmd, "args" => args} ->
+      base = Path.basename(cmd)
+
+      case base do
+        "rg" -> not has_pathlike_positional?(args)
+        "wc" -> not has_file_or_dash?(args)
+        _ -> false
+      end
+    end)
+  end
+
+  defp invalid_first_stage?(%{"command" => cmd, "args" => args}) do
+    base = Path.basename(cmd)
+
+    case base do
+      "rg" -> not has_pathlike_positional?(args)
+      "wc" -> not has_file_or_dash?(args)
+      _ -> false
+    end
+  end
+
+  defp has_pathlike_positional?(args) when is_list(args) do
+    args
+    |> Enum.reject(&String.starts_with?(&1, "-"))
+    |> Enum.any?(fn a ->
+      a == "." or a == ".." or String.starts_with?(a, "./") or String.starts_with?(a, "/")
+    end)
+  end
+
+  defp has_file_or_dash?(args) when is_list(args) do
+    Enum.any?(args, &(&1 == "-")) or Enum.any?(args, fn a -> not String.starts_with?(a, "-") end)
   end
 
   # ----------------------------------------------------------------------------
@@ -448,19 +499,25 @@ defmodule AI.Tools.Shell do
   end
 
   defp run_as_shell_commands(op, commands, desc, timeout_ms, root) do
-    # Ask approvals about the original (unresolved) commands first. If approved,
-    # resolve to concrete executables using the project root and then run.
-    {op, commands, desc}
-    |> Services.Approvals.confirm(:shell)
-    |> case do
-      {:ok, :approved} ->
-        case resolve_commands(commands, root) do
-          {:ok, resolved} -> run_pipeline(op, resolved, timeout_ms, root)
-          {:error, reason} -> {:error, reason}
-        end
+    case validate_command_context(op, commands) do
+      {:denied, msg} ->
+        {:denied, msg}
 
-      other ->
-        other
+      :ok ->
+        # Ask approvals about the original (unresolved) commands first. If approved,
+        # resolve to concrete executables using the project root and then run.
+        {op, commands, desc}
+        |> Services.Approvals.confirm(:shell)
+        |> case do
+          {:ok, :approved} ->
+            case resolve_commands(commands, root) do
+              {:ok, resolved} -> run_pipeline(op, resolved, timeout_ms, root)
+              {:error, reason} -> {:error, reason}
+            end
+
+          other ->
+            other
+        end
     end
   end
 

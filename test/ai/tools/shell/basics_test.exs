@@ -93,19 +93,64 @@ defmodule AI.Tools.Shell.BasicsTest do
     assert msg =~ "Command not found"
   end
 
-  test "special cases for that special flower, rg" do
-    project = mock_project("rg")
+  test "rg without explicit path under '&&' is denied" do
+    mock_project("rg")
 
     args = %{
-      "description" => "Missing command",
+      "description" => "rg no path under &&",
       "operator" => "&&",
       "commands" => [
         %{"command" => "rg", "args" => ["pattern"]}
       ]
     }
 
-    assert {:ok, msg} = AI.Tools.Shell.call(args)
-    assert msg =~ ~r/Command: (.+?)\/rg pattern #{Regex.escape(project.source_root)}/
+    assert {:denied, msg} = AI.Tools.Shell.call(args)
+    assert msg =~ "rg must include an explicit path"
+  end
+
+  test "deny when first-stage rg (operator \"|\") has no path" do
+    mock_project("shell-rg-pipe")
+
+    args = %{
+      "description" => "First-stage rg missing path",
+      "operator" => "|",
+      "commands" => [
+        %{"command" => "rg", "args" => ["pattern"]}
+      ]
+    }
+
+    assert {:denied, msg} = AI.Tools.Shell.call(args)
+    assert msg =~ "rg must include an explicit path"
+  end
+
+  test "deny when wc -l appears under '&&' without files" do
+    mock_project("shell-wc-andand")
+
+    args = %{
+      "description" => "Missing files for wc -l under &&",
+      "operator" => "&&",
+      "commands" => [
+        %{"command" => "wc", "args" => ["-l"]}
+      ]
+    }
+
+    assert {:denied, msg} = AI.Tools.Shell.call(args)
+    assert msg =~ "One or more commands require an explicit input source under '&&'"
+  end
+
+  test "deny when first-stage wc -l (operator \"|\") has no files" do
+    mock_project("shell-wc-pipe")
+
+    args = %{
+      "description" => "Missing files for wc -l under |",
+      "operator" => "|",
+      "commands" => [
+        %{"command" => "wc", "args" => ["-l"]}
+      ]
+    }
+
+    assert {:denied, msg} = AI.Tools.Shell.call(args)
+    assert msg =~ "First stage requires an explicit input source:"
   end
 
   test "format_commands and ui notes" do
