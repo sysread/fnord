@@ -6,19 +6,19 @@ defmodule AI.Completion.Output do
   # -----------------------------------------------------------------------------
   def log_user_msg(state, msg) do
     if state.log_msgs do
-      UI.info("You", msg)
+      UI.feedback(:info, "You", msg)
     end
   end
 
   def log_assistant_msg(%{name: nil} = state, msg) do
     if state.log_msgs do
-      UI.info("Assistant", msg)
+      UI.feedback(:info, Services.NamePool.default_name(), msg)
     end
   end
 
   def log_assistant_msg(%{name: name} = state, msg) do
     if state.log_msgs do
-      UI.info(name, msg)
+      UI.feedback(:info, name, msg)
     end
   end
 
@@ -144,6 +144,9 @@ defmodule AI.Completion.Output do
   def replay_conversation(state) do
     messages = Util.string_keys_to_atoms(state.messages)
 
+    agent_name = state.name || extract_agent_name(messages)
+    state = Map.put(state, :name, agent_name)
+
     # Make a lookup for tool call args by id
     tool_call_args = build_tool_call_args(messages)
 
@@ -178,6 +181,10 @@ defmodule AI.Completion.Output do
       state.messages
       |> Util.string_keys_to_atoms()
       |> Enum.split(-1)
+
+    agent_name = state.name || extract_agent_name(messages)
+
+    state = Map.put(state, :name, agent_name)
 
     # Make a lookup for tool call args by id
     tool_call_args = build_tool_call_args(messages)
@@ -246,5 +253,56 @@ defmodule AI.Completion.Output do
           acc
       end
     end)
+  end
+
+  defp extract_agent_name(messages) do
+    regex = ~r/^Your name is (.*)\.$/
+    default_name = Services.NamePool.default_name()
+
+    # Prefer developer messages
+    developer_name =
+      messages
+      |> Enum.find(fn
+        %{role: "developer", content: content} -> Regex.match?(regex, content)
+        _ -> false
+      end)
+      |> case do
+        %{content: content} ->
+          case Regex.run(regex, content) do
+            [_, name] -> name
+            _ -> nil
+          end
+
+        _ ->
+          nil
+      end
+
+    if developer_name && developer_name != default_name do
+      developer_name
+    else
+      # Fallback to system messages
+      system_name =
+        messages
+        |> Enum.find(fn
+          %{role: "system", content: content} -> Regex.match?(regex, content)
+          _ -> false
+        end)
+        |> case do
+          %{content: content} ->
+            case Regex.run(regex, content) do
+              [_, name] -> name
+              _ -> nil
+            end
+
+          _ ->
+            nil
+        end
+
+      if system_name && system_name != default_name do
+        system_name
+      else
+        default_name
+      end
+    end
   end
 end
