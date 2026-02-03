@@ -60,6 +60,14 @@ defmodule AI.CompletionAPI do
         end
       )
       |> Map.merge(
+        case model.verbosity do
+          :low -> %{verbosity: "low"}
+          :medium -> %{verbosity: "medium"}
+          :high -> %{verbosity: "high"}
+          _ -> %{}
+        end
+      )
+      |> Map.merge(
         if web_search? do
           %{web_search_options: %{}}
         else

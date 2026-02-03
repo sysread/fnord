@@ -21,4 +21,29 @@ defmodule AI.CompletionAPITransportErrorTest do
     result = AI.CompletionAPI.get(model, [], nil, nil, false)
     assert result == {:error, "Connection closed"}
   end
+
+  test "includes verbosity in payload when verbosity is set" do
+    # Expect post_json to capture and assert verbosity in payload
+    :meck.expect(AI.Endpoint, :post_json, fn endpoint_mod, _headers, payload ->
+      assert endpoint_mod == AI.CompletionAPI
+      assert payload["verbosity"] == "detailed"
+      {:ok, %{"choices" => []}}
+    end)
+
+    base_model = %Model{model: "test-model", context: 0, reasoning: :medium}
+    model = Model.with_verbosity(base_model, :detailed)
+    _result = AI.CompletionAPI.get(model, [], nil, nil, false)
+  end
+
+  test "does not include verbosity in payload when verbosity is nil" do
+    # Expect post_json to capture and assert no verbosity in payload
+    :meck.expect(AI.Endpoint, :post_json, fn endpoint_mod, _headers, payload ->
+      assert endpoint_mod == AI.CompletionAPI
+      refute Map.has_key?(payload, "verbosity")
+      {:ok, %{"choices" => []}}
+    end)
+
+    model = %Model{model: "test-model", context: 0, reasoning: :medium}
+    _result = AI.CompletionAPI.get(model, [], nil, nil, false)
+  end
 end

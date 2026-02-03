@@ -151,8 +151,12 @@ defmodule AI.Completion do
   def new_from_conversation(conversation, opts) do
     if Store.Project.Conversation.exists?(conversation) do
       with {:ok, %{messages: msgs}} <- Store.Project.Conversation.read(conversation) do
+        msgs_atom = Util.string_keys_to_atoms(msgs)
+        name = agent_name_from_messages(msgs_atom)
+
         opts
-        |> Keyword.put(:messages, msgs)
+        |> Keyword.put(:messages, msgs_atom)
+        |> then(fn o -> if name, do: Keyword.put(o, :name, name), else: o end)
         |> new()
       end
     else
@@ -563,30 +567,48 @@ defmodule AI.Completion do
   end
 
   defp set_name(messages, name) do
-    messages
-    |> Enum.any?(fn
-      %{content: content} = msg when is_system_msg?(msg) ->
-        content =~ ~r/Your name is .+\./
+    # Normalize keys so role/content are accessible
+    messages = Util.string_keys_to_atoms(messages)
+
+    # Check if any system message already sets the name
+    has_name =
+      Enum.any?(messages, fn msg ->
+        if is_system_msg?(msg) do
+          case Regex.run(~r/Your name is .+\./, msg.content) do
+            nil -> false
+            _ -> true
+          end
+        else
+          false
+        end
+      end)
+
+    if has_name do
+      Enum.map(messages, fn msg ->
+        if is_system_msg?(msg) do
+          case Regex.run(~r/Your name is .+\./, msg.content) do
+            nil -> msg
+            _ -> AI.Util.system_msg("Your name is #{name}.")
+          end
+        else
+          msg
+        end
+      end)
+    else
+      [AI.Util.system_msg("Your name is #{name}.") | messages]
+    end
+  end
+
+  defp agent_name_from_messages(messages) do
+    Enum.find_value(messages, fn
+      %{role: role, content: content} when role in ["system", "developer"] ->
+        case Regex.run(~r/^Your name is (.*)\.$/, content) do
+          [_, name] -> name
+          _ -> nil
+        end
 
       _ ->
-        false
+        nil
     end)
-    |> case do
-      true ->
-        Enum.map(messages, fn
-          %{content: content} = msg when is_system_msg?(msg) ->
-            if content =~ ~r/Your name is .+\./ do
-              AI.Util.system_msg("Your name is #{name}.")
-            else
-              AI.Util.system_msg(content)
-            end
-
-          msg ->
-            msg
-        end)
-
-      false ->
-        [AI.Util.system_msg("Your name is #{name}.") | messages]
-    end
   end
 end
