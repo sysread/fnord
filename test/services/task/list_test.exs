@@ -45,7 +45,13 @@ defmodule Services.Task.ListTest do
       t2 = %{id: "b", outcome: :todo, result: nil}
       t3 = %{id: "a", outcome: :done, result: "old"}
       list = Services.Task.List.new("list", "desc")
-      list = list |> Services.Task.List.add(t1) |> Services.Task.List.add(t2) |> Services.Task.List.add(t3)
+
+      list =
+        list
+        |> Services.Task.List.add(t1)
+        |> Services.Task.List.add(t2)
+        |> Services.Task.List.add(t3)
+
       resolved = Services.Task.List.resolve(list, "a", :done, "ok")
 
       [r1, r2, r3] = resolved.tasks
@@ -59,7 +65,9 @@ defmodule Services.Task.ListTest do
     test "renders without description and without detail" do
       t1 = %{id: "a", outcome: :todo}
       t2 = %{id: "b", outcome: :done, result: "res"}
-      list = Services.Task.List.new("id") |> Services.Task.List.add(t1) |> Services.Task.List.add(t2)
+
+      list =
+        Services.Task.List.new("id") |> Services.Task.List.add(t1) |> Services.Task.List.add(t2)
 
       expected =
         [
@@ -75,7 +83,11 @@ defmodule Services.Task.ListTest do
     test "renders with description and with detail" do
       t1 = %{id: "a", outcome: :done, result: "res"}
       t2 = %{id: "b", outcome: :failed, result: "err"}
-      list = Services.Task.List.new("id", "desc") |> Services.Task.List.add(t1) |> Services.Task.List.add(t2)
+
+      list =
+        Services.Task.List.new("id", "desc")
+        |> Services.Task.List.add(t1)
+        |> Services.Task.List.add(t2)
 
       expected =
         [
