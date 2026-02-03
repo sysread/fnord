@@ -191,6 +191,15 @@ fnord ask --project blarg -S --question "Explain foo's behavior"
 For advanced options (e.g., unindexed projects, replaying conversations), see [docs/asking-questions.md](docs/asking-questions.md).
 
 
+#### Create and manage your fnord doc library
+
+Fnord builds a persistent document library of your saved responses and learned notes for easy reference as you work.
+
+- Saved outputs (via `--save`) are stored in `~/fnord/outputs/<project_id>/`.
+- View and explore learned notes with `fnord notes`.
+- Browse your docs with a markdown viewer (e.g., `glow`). For more, see [docs/asking-questions.md](docs/asking-questions.md) and [docs/learning-system.md](docs/learning-system.md).
+
+
 ### Learning over time
 
 Fnord learns about your project while researching your questions. It saves facts and inferences it makes, building a searchable knowledge base that improves over time. As the knowledge base grows, fnord can answer increasingly complex questions with less research.
