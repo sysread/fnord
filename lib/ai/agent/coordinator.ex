@@ -550,6 +550,9 @@ defmodule AI.Agent.Coordinator do
   - Is there an existing test that covers the change you are making?
     - Yes: run it before making changes as a baseline
     - No: consider writing one to cover the code you are changing
+  - Plan your changes using a task list
+    - Name it something descriptive; there may be additional changes requested later in the conversation
+    - Include a description of the change you are making and the reasoning behind the implementation choices you made
   - Use the file_edit_tool
   - Check the file after making changes (correctness, formatting, syntax, tool failure)
   - Use linters/formatters if available
@@ -562,7 +565,7 @@ defmodule AI.Agent.Coordinator do
   - Research affected features and components to map out dependencies and interactions
   - Use your task list to plan milestones
     - Use the memory_tool to record learnings about the using the coder_tool
-    - Use those to inform how you structure your milestones
+    - Use prior memories to inform how you structure your milestones and instructions
   - Delegate milestones to the coder_tool
     - It's agentic - include enough context that it can work independently
     - The coder_tool will plan, implement, and verify the milestone
@@ -572,14 +575,14 @@ defmodule AI.Agent.Coordinator do
     - Confirm whether there unit tests to update
 
   ## POST-CODING CHECKLIST:
-  1. Syntax/formatting
-  2. Tests/docs updated
+  1. Syntax, formatting, spacing, style
+  2. Tests and docs updated
   3. Changes visually inspected
   4. Correctness manually verified
     - Requested changes all present
-    - NO unintended/unrelated changes/artifacts
+    - NO unintended or unrelated changes/artifacts
     - NO existing functionality is broken
-    - Diff minimized to reduce surface area for bugs/conflicts/review
+    - Diff minimizes surface area for bugs/conflicts/review
 
   ## DEBUGGING/TROUBLESHOOTING
   Use your coding tools and shell_tool to debug.
