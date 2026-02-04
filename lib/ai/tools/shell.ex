@@ -356,10 +356,10 @@ defmodule AI.Tools.Shell do
   #   - wc must include file args (non-flag tokens) or '-' to read from stdin.
   # Anywhere else, these commands are allowed (e.g., later stages in a pipeline).
   # ----------------------------------------------------------------------------
-  defp validate_command_context(op, commands) do
+  defp validate_command_context(op, commands, root) do
     case op do
       "&&" ->
-        if invalid_under_andand?(commands) do
+        if invalid_under_andand?(commands, root) do
           {:denied,
            "One or more commands require an explicit input source under '&&'.\n" <>
              "- rg must include an explicit path (e.g., '.' or a directory) when not reading from stdin.\n" <>
@@ -372,7 +372,7 @@ defmodule AI.Tools.Shell do
       "|" ->
         case commands do
           [first | _] ->
-            if invalid_first_stage?(first) do
+            if invalid_first_stage?(first, root) do
               {:denied,
                "First stage requires an explicit input source:\n" <>
                  "- rg must include an explicit path (e.g., '.' or a directory).\n" <>
@@ -387,38 +387,67 @@ defmodule AI.Tools.Shell do
     end
   end
 
-  defp invalid_under_andand?(commands) do
+  defp invalid_under_andand?(commands, root) do
     Enum.any?(commands, fn %{"command" => cmd, "args" => args} ->
       base = Path.basename(cmd)
 
       case base do
-        "rg" -> not has_pathlike_positional?(args)
-        "wc" -> not has_file_or_dash?(args)
+        "rg" -> not has_pathlike_positional?(args, root)
+        "wc" -> not has_files_only?(args)
         _ -> false
       end
     end)
   end
 
-  defp invalid_first_stage?(%{"command" => cmd, "args" => args}) do
+  defp invalid_first_stage?(%{"command" => cmd, "args" => args}, root) do
     base = Path.basename(cmd)
 
     case base do
-      "rg" -> not has_pathlike_positional?(args)
-      "wc" -> not has_file_or_dash?(args)
+      "rg" -> not has_pathlike_positional?(args, root)
+      "wc" -> not has_files_only?(args)
       _ -> false
     end
   end
 
-  defp has_pathlike_positional?(args) when is_list(args) do
+  defp has_pathlike_positional?(args, root) when is_list(args) do
     args
     |> Enum.reject(&String.starts_with?(&1, "-"))
-    |> Enum.any?(fn a ->
-      a == "." or a == ".." or String.starts_with?(a, "./") or String.starts_with?(a, "/")
+    |> Enum.any?(fn token ->
+      path_token_within_root_exists?(token, root) || glob_within_root?(token, root)
     end)
   end
 
-  defp has_file_or_dash?(args) when is_list(args) do
-    Enum.any?(args, &(&1 == "-")) or Enum.any?(args, fn a -> not String.starts_with?(a, "-") end)
+  defp path_token_within_root_exists?(token, root) do
+    case expand_within_root(token, root) do
+      {:ok, path} -> File.exists?(path)
+      _ -> false
+    end
+  end
+
+  defp expand_within_root(token, root) do
+    expanded = Path.expand(token, root)
+
+    if Util.path_within_root?(expanded, root) do
+      {:ok, expanded}
+    else
+      {:error, :out_of_root}
+    end
+  end
+
+  defp glob_within_root?(pattern, root) do
+    # Support basic glob patterns within the project root
+    pattern_path = Path.join(root, pattern)
+
+    case Path.wildcard(pattern_path) do
+      [] -> false
+      matches -> Enum.any?(matches, &Util.path_within_root?(&1, root))
+    end
+  end
+
+  # Helper for wc: file args (non-flag tokens) or '-' for stdin
+  defp has_files_only?(args) when is_list(args) do
+    Enum.any?(args, fn a -> not String.starts_with?(a, "-") end) &&
+      not Enum.any?(args, &(&1 == "-"))
   end
 
   # ----------------------------------------------------------------------------
@@ -499,7 +528,7 @@ defmodule AI.Tools.Shell do
   end
 
   defp run_as_shell_commands(op, commands, desc, timeout_ms, root) do
-    case validate_command_context(op, commands) do
+    case validate_command_context(op, commands, root) do
       {:denied, msg} ->
         {:denied, msg}
 
