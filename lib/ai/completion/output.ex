@@ -230,10 +230,15 @@ defmodule AI.Completion.Output do
         on_event(state, :tool_call_result, {func, tool_call_args[id], content})
 
       %{role: "assistant", content: content} ->
-        log_assistant_msg(state, content)
+        if state.log_msgs,
+          do:
+            UI.feedback_assistant(
+              state.name || Services.NamePool.default_name(),
+              content
+            )
 
       %{role: "user", content: content} ->
-        log_user_msg(state, content)
+        if state.log_msgs, do: UI.feedback_user(content)
 
       _ ->
         :ok

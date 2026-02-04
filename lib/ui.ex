@@ -100,6 +100,14 @@ defmodule UI do
     feedback(name, msg, :cyan_background, :cyan)
   end
 
+  def feedback_user(msg) do
+    feedback("You", msg, :blue_background, :black)
+  end
+
+  def feedback_assistant(name, msg) do
+    feedback(name, msg, :green_background, :black)
+  end
+
   defp feedback(name, msg, label_codes, detail_codes) do
     msg =
       [

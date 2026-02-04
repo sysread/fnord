@@ -1075,7 +1075,7 @@ defmodule AI.Agent.Coordinator do
           listener_loop(convo_pid)
         else
           "What would you like to say? (empty to ignore)"
-          |> UI.prompt(optional: true)
+          |> UI.prompt(optional: true, use_notification_timer: false)
           |> case do
             {:error, _} ->
               :ok

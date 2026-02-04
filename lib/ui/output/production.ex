@@ -101,14 +101,20 @@ defmodule UI.Output.Production do
   def prompt(prompt_text, owl_opts) do
     interact(fn ->
       owl_opts = Keyword.put(owl_opts, :label, prompt_text)
+      use_timer = Keyword.get(owl_opts, :use_notification_timer, true)
 
-      with_notification_timeout(
-        fn ->
-          flush()
-          Owl.IO.input(owl_opts)
-        end,
-        "Fnord is waiting for your input: #{String.slice(prompt_text, 0..50)}"
-      )
+      if use_timer do
+        with_notification_timeout(
+          fn ->
+            flush()
+            Owl.IO.input(owl_opts)
+          end,
+          "Fnord is waiting for your input: #{String.slice(prompt_text, 0..50)}"
+        )
+      else
+        flush()
+        Owl.IO.input(owl_opts)
+      end
     end)
   end
 
