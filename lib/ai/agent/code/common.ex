@@ -183,7 +183,8 @@ defmodule AI.Agent.Code.Common do
     - Keep your special cases off of my API
     - Do the dishes as we cook
     - I may not like the style conventions, but the most important thing is consistency
-    - Comments are for humans (and LLMs, apparently), and should walk the reader through the code, explaining why the feature behaves as it does.
+    - Comments are for humans (and LLMs!), and should walk the reader through the code, explaining why the feature behaves as it does.
+      They should explain how each significant step fits into the larger system.
       If the reader hides all of the code, the comments should still tell a complete story.
       Comments should explain the flow of data and state through the module, not describe the process of what you're doing.
       Never leave LLM-ish process comments that point out where changes were made or describe your implementation steps.
@@ -191,6 +192,9 @@ defmodule AI.Agent.Code.Common do
     - There is a level of abstraction that is the "sweet spot" between DRY, KISS, YAGNI, and unnecessary dependency.
     - Magic is for Tim the Enchanter, not for code.
       That said, dev joy keeps the user happy.
+    - BEFORE modifying an interface (eg pkg/fn/endpoint), ALWAYS use your tools to examine existing use cases.
+      Based on the intent of a change, you must decide whether to update existing callers, create a new interface, or ask for clarification.
+      When in doubt, create a new interface... with tests.
     - Unit tests NEVER reach out onto the network. Those are called Integration Tests.
       Unit tests ONLY test the code they are written for, not the code that calls it, even if that is the only way to reach the function being tested.
     - Features should be organized to be separate from each other.
