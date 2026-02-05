@@ -173,9 +173,7 @@ defmodule AI.Tools.MemoryTest do
     end
 
     test "Atom.to_string raises ArgumentError on string scope" do
-      assert_raise ArgumentError, fn ->
-        Atom.to_string("session")
-      end
+      assert_raise ArgumentError, fn -> apply(Atom, :to_string, ["session"]) end
     end
   end
 end
