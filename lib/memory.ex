@@ -229,8 +229,39 @@ defmodule Memory do
   """
   @spec new_from_map(map) :: t
   def new_from_map(data) do
+    raw_scope = Map.get(data, :scope)
+    allowed_scopes = [:global, :project, :session]
+
+    scope =
+      cond do
+        raw_scope in allowed_scopes ->
+          raw_scope
+
+        is_binary(raw_scope) ->
+          atom =
+            try do
+              String.to_existing_atom(raw_scope)
+            rescue
+              ArgumentError -> nil
+            end
+
+          if atom in allowed_scopes do
+            atom
+          else
+            case String.downcase(raw_scope) do
+              "global" -> :global
+              "project" -> :project
+              "session" -> :session
+              _ -> :global
+            end
+          end
+
+        true ->
+          :global
+      end
+
     %Memory{
-      scope: Map.get(data, :scope),
+      scope: scope,
       title: Map.get(data, :title),
       slug: Map.get(data, :slug),
       content: Map.get(data, :content),

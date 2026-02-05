@@ -143,4 +143,39 @@ defmodule AI.Tools.MemoryTest do
       end
     end
   end
+
+  describe "search behavior for session memory" do
+    test "session memory search yields scope as string and no crash" do
+      mock_project("test_proj")
+      mock_conversation()
+      assert {:ok, _} = Elixir.Memory.init()
+
+      assert {:ok, _} =
+               AI.Tools.perform_tool_call(
+                 "memory_tool",
+                 %{
+                   "action" => "remember",
+                   "scope" => "session",
+                   "title" => "Search Scope Test",
+                   "content" => "search content"
+                 },
+                 AI.Tools.tools()
+               )
+
+      assert {:ok, result} =
+               AI.Tools.perform_tool_call(
+                 "memory_tool",
+                 %{"action" => "recall", "what" => "Search Scope Test"},
+                 AI.Tools.tools()
+               )
+
+      assert result =~ "\"scope\":\"session\""
+    end
+
+    test "Atom.to_string raises ArgumentError on string scope" do
+      assert_raise ArgumentError, fn ->
+        Atom.to_string("session")
+      end
+    end
+  end
 end
