@@ -1,5 +1,5 @@
 defmodule AI.Completion.Compaction do
-  @min_savings_tersified 0.5
+  @min_savings_tersified 0.3
 
   @spec compact(AI.Util.msg_list()) :: {:ok, AI.Util.msg_list(), non_neg_integer}
   def compact(msgs) do
