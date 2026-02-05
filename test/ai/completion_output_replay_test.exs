@@ -212,7 +212,7 @@ defmodule AI.CompletionOutputReplayTest do
 
     parent = self()
 
-    :meck.expect(UI, :feedback, fn :info, name, msg ->
+    :meck.expect(UI, :feedback_assistant, fn name, msg ->
       send(parent, {:ui_feedback, name, msg})
       :ok
     end)
