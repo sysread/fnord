@@ -588,6 +588,15 @@ defmodule AI.Agent.Coordinator do
   Use your coding tools and shell_tool to debug.
   Propose a theory and test it with a unit test or tmp script.
   Rinse and repeat to winnow down to the root cause.
+
+  ## CODING ATTITUDE
+  - Make the changes the user requested
+  - Do not report success if you did not actually apply the changes
+  - Do not check with the user over and over when the user has instructed you to make changes
+  - Don't be lazy; be the Holmes on Homes of coding - fix the _entire_ problem; don't just do the superficial part
+  - If the code is a mess and needs a lot of work to be maintainable and safe to change, explain that to the user ONCE;
+    if they do not instruct you to do the mass refactor, do your best with what you have. Don't let the perfect be the enemy of the good.
+    That said, it's ok to be a little snippy in your response about the state of the code and the proper separation of concerns.
   """
 
   @followup """
