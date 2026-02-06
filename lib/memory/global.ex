@@ -20,52 +20,100 @@ defmodule Memory.Global do
   @impl Memory
   def list() do
     with {:ok, files} <- File.ls(storage_path()) do
-      files
-      |> Enum.filter(&String.ends_with?(&1, ".json"))
-      |> Enum.map(fn file ->
-        file
-        |> Path.rootname()
-        |> Memory.slug_to_title()
-      end)
-      |> then(&{:ok, &1})
+      titles =
+        files
+        |> Enum.filter(&String.ends_with?(&1, ".json"))
+        |> Enum.map(fn file ->
+          path = Path.join(storage_path(), file)
+
+          case read_file(path) do
+            {:ok, contents} ->
+              case Memory.unmarshal(contents) do
+                {:ok, mem} when is_map(mem) and is_binary(mem.title) -> mem.title
+                _ -> Memory.slug_to_title(Path.rootname(file))
+              end
+
+            {:error, _} ->
+              Memory.slug_to_title(Path.rootname(file))
+          end
+        end)
+        |> Enum.uniq()
+        |> Enum.sort()
+
+      {:ok, titles}
     end
   end
 
   @impl Memory
   def exists?(title) do
-    title
-    |> file_path()
-    |> File.exists?()
-  end
+    slug = Memory.title_to_slug(title)
+    storage = storage_path()
+    base = Path.join(storage, "#{slug}.json")
 
-  @impl Memory
-  def read(title) do
-    path = file_path(title)
+    # If the base file exists, attempt to read and unmarshal it. If the file
+    # is unreadable or contains invalid memory data, we treat the slug as taken
+    # (conservative duplicate detection). If it contains a memory with the same
+    # title, it's a duplicate. Otherwise, we continue to check suffixed files.
+    if File.exists?(base) do
+      case File.read(base) do
+        {:ok, contents} ->
+          case Memory.unmarshal(contents) do
+            {:ok, mem} when is_map(mem) and mem.title == title ->
+              true
 
-    with true <- exists?(title),
-         {:ok, content} <- read_file(path),
-         {:ok, memory} <- Memory.unmarshal(content) do
-      {:ok, memory}
+            {:ok, _mem} ->
+              # Base file contains a different title; check suffixed files
+              wildcard_check(storage, slug, title)
+
+            {:error, _} ->
+              # Unreadable/invalid JSON — treat as occupied
+              true
+          end
+
+        {:error, _} ->
+          # Can't read the file; treat as occupied
+          true
+      end
     else
-      false -> {:error, :not_found}
+      wildcard_check(storage, slug, title)
     end
   end
 
   @impl Memory
-  def save(memory) do
-    path = file_path(memory)
+  def read(title) do
+    with {:ok, path} <- find_file_path_by_title(title),
+         {:ok, content} <- read_file(path),
+         {:ok, memory} <- Memory.unmarshal(content) do
+      {:ok, memory}
+    else
+      {:error, :not_found} = err -> err
+      {:error, reason} -> {:error, reason}
+    end
+  end
 
-    with {:ok, json} <- Memory.marshal(memory),
-         {:ok, _result} <- write_file(path, json) do
-      :ok
+  @impl Memory
+  def save(%Memory{title: title} = memory) do
+    with {:ok, _} <- ensure_storage_path(),
+         {:ok, json} <- Memory.marshal(memory) do
+      lockfile = Path.join(storage_path(), ".alloc.lock")
+
+      case FileLock.with_lock(lockfile, fn ->
+             path = allocate_unique_path_for_title(title)
+             write_file(path, json)
+           end) do
+        {:ok, {:ok, :ok}} -> :ok
+        {:ok, {:ok, {:error, reason}}} -> {:error, reason}
+        {:ok, {:error, reason}} -> {:error, reason}
+        {:error, reason} -> {:error, reason}
+      end
     end
   end
 
   @impl Memory
   def forget(title) do
-    title
-    |> file_path()
-    |> rm_path()
+    with {:ok, path} <- find_file_path_by_title(title) do
+      rm_path(path)
+    end
   end
 
   @impl Memory
@@ -104,15 +152,6 @@ defmodule Memory.Global do
     end
   end
 
-  defp file_path(title) when is_binary(title) do
-    slug = Memory.title_to_slug(title)
-    Path.join(storage_path(), "#{slug}.json")
-  end
-
-  defp file_path(%Memory{title: title}) do
-    file_path(title)
-  end
-
   defp read_file(path) do
     case FileLock.with_lock(path, fn -> File.read(path) end) do
       {:ok, {:ok, contents}} ->
@@ -137,5 +176,124 @@ defmodule Memory.Global do
       {:error, reason} -> {:error, reason}
       {:callback_error, reason} -> {:error, reason}
     end
+  end
+
+  # Helper functions for slug disambiguation and title-based lookup
+
+  defp find_file_path_by_title(title) do
+    slug = Memory.title_to_slug(title)
+    storage = storage_path()
+    base = Path.join(storage, "#{slug}.json")
+
+    if File.exists?(base) do
+      case File.read(base) do
+        {:ok, contents} ->
+          case Memory.unmarshal(contents) do
+            {:ok, mem} when is_map(mem) and mem.title == title ->
+              {:ok, base}
+
+            _ ->
+              find_in_suffixes(storage, slug, title)
+          end
+
+        {:error, _} ->
+          find_in_suffixes(storage, slug, title)
+      end
+    else
+      find_in_suffixes(storage, slug, title)
+    end
+  end
+
+  defp allocate_unique_path_for_title(title) do
+    storage = storage_path()
+    allocate_unique_path_for_title(title, storage)
+  end
+
+  defp allocate_unique_path_for_title(title, storage) do
+    slug = Memory.title_to_slug(title)
+    base = Path.join(storage, "#{slug}.json")
+
+    if not File.exists?(base) do
+      base
+    else
+      case File.read(base) do
+        {:ok, contents} ->
+          case Memory.unmarshal(contents) do
+            {:ok, mem} when is_map(mem) and mem.title == title ->
+              # Overwrite the existing base file for the same title (migration/updates)
+              base
+
+            _ ->
+              # Find next available suffix index
+              wildcard = Path.join(storage, "#{slug}-*.json")
+
+              next_index =
+                wildcard
+                |> Path.wildcard()
+                |> Enum.map(&Path.basename(&1, ".json"))
+                |> Enum.map(fn name -> String.replace_prefix(name, "#{slug}-", "") end)
+                |> Enum.filter(&(&1 != ""))
+                |> Enum.map(fn s ->
+                  case Integer.parse(s) do
+                    {i, _} -> i
+                    :error -> 0
+                  end
+                end)
+                |> Enum.filter(&(&1 > 0))
+                |> case do
+                  [] -> 1
+                  numbers -> Enum.max(numbers) + 1
+                end
+
+              generate_suffixed_path(storage, slug, next_index)
+          end
+
+        {:error, _} ->
+          # Can't read existing base file; overwrite it
+          base
+      end
+    end
+  end
+
+  defp generate_suffixed_path(storage, slug, index) do
+    Path.join(storage, "#{slug}-#{index}.json")
+  end
+
+  defp find_in_suffixes(storage, slug, title) do
+    pattern = Path.join(storage, "#{slug}-*.json")
+
+    pattern
+    |> Path.wildcard()
+    |> Enum.sort()
+    |> Enum.find_value({:error, :not_found}, fn path ->
+      case File.read(path) do
+        {:ok, contents} ->
+          case Memory.unmarshal(contents) do
+            {:ok, mem} when is_map(mem) and mem.title == title -> {:ok, path}
+            _ -> nil
+          end
+
+        {:error, _} ->
+          nil
+      end
+    end)
+  end
+
+  defp wildcard_check(storage, slug, title) do
+    pattern = Path.join(storage, "#{slug}-*.json")
+
+    Path.wildcard(pattern)
+    |> Enum.any?(fn path ->
+      case File.read(path) do
+        {:ok, contents} ->
+          case Memory.unmarshal(contents) do
+            {:ok, mem} when is_map(mem) and mem.title == title -> true
+            _ -> false
+          end
+
+        {:error, _} ->
+          false
+      end
+    end)
   end
 end

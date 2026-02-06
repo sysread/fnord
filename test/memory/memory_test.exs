@@ -3,6 +3,8 @@ defmodule MemoryTest do
 
   describe "new/4 validation and uniqueness" do
     test "rejects invalid titles" do
+      # Previously a single-space title was rejected. With relaxed validation,
+      # trimming makes it empty and it should still be rejected.
       assert {:error, :invalid_title} = Memory.new(:global, " ", "content", [])
     end
 
@@ -10,6 +12,10 @@ defmodule MemoryTest do
       assert {:error, reasons} = Memory.validate_title(" ")
       assert is_list(reasons)
       assert "must not be empty" in reasons
+    end
+
+    test "accepts titles with punctuation like colon+space" do
+      assert {:ok, _} = Memory.new(:global, "Foo: bar baz", "c", [])
     end
 
     test "rejects duplicate titles within the same scope" do
@@ -139,6 +145,26 @@ defmodule MemoryTest do
   end
 
   describe "is_stale?/1 and append/2" do
+    test "slug collision: distinct titles that slugify the same can both be saved" do
+      title1 = "Foo Bar"
+      # extra space -> same slug
+      title2 = "Foo  Bar"
+
+      base = Path.join(Store.store_home(), "memory")
+      File.mkdir_p!(base)
+
+      {:ok, m1} = Memory.new(:global, title1, "c1", [])
+      assert {:ok, _saved1} = Memory.save(m1)
+
+      {:ok, m2} = Memory.new(:global, title2, "c2", [])
+      # Saving second should not overwrite the first; either succeed or disambiguate
+      assert {:ok, _saved2} = Memory.save(m2)
+
+      # Both titles should be readable
+      assert {:ok, _} = Memory.read(:global, title1)
+      assert {:ok, _} = Memory.read(:global, title2)
+    end
+
     test "is_stale?/1 is true when embeddings are nil" do
       mem = %Memory{
         scope: :global,

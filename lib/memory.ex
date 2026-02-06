@@ -363,10 +363,12 @@ defmodule Memory do
   end
 
   @doc """
-  A title is valid if it is non-empty, does not contain more than one non-word
-  character in a row (which would lead to either multiple hyphens in the slug
-  or cases where multiple titles map to the same slug), and does not start or
-  end with a non-word character.
+  A title is valid if it is non-empty (after trimming), contains at least one
+  alphanumeric character, does not contain control characters or newlines, and
+  is not unreasonably long.
+
+  Punctuation and spaces are allowed. The system will ensure internal filename
+  safety by slugifying titles for storage; collisions are handled elsewhere.
   """
   @spec is_valid_title?(binary) :: boolean
   def is_valid_title?(title) do
@@ -380,23 +382,32 @@ defmodule Memory do
   def validate_title(title) do
     errors = []
 
+    trimmed = if is_binary(title), do: String.trim(title), else: ""
+
     errors =
-      if String.trim(title) == "" do
+      if trimmed == "" do
         ["must not be empty" | errors]
       else
         errors
       end
 
     errors =
-      if String.match?(title, ~r/[^a-zA-Z0-9](?:[^a-zA-Z0-9]|$)/) do
-        ["must not contain two non-alphanumeric characters in a row (including spaces)" | errors]
+      if String.match?(trimmed, ~r/[\r\n\t\0]/) do
+        ["must not contain control characters or newlines" | errors]
       else
         errors
       end
 
     errors =
-      if String.match?(title, ~r/^(?:[^a-zA-Z0-9]|.*[^a-zA-Z0-9]$)/) do
-        ["must start and end with a letter or number" | errors]
+      if not String.match?(trimmed, ~r/[A-Za-z0-9]/) do
+        ["must contain at least one letter or number" | errors]
+      else
+        errors
+      end
+
+    errors =
+      if String.length(trimmed) > 200 do
+        ["must be at most 200 characters" | errors]
       else
         errors
       end
@@ -412,7 +423,14 @@ defmodule Memory do
   same title exists.
   """
   @spec is_unique_title?(scope, binary) :: boolean
-  def is_unique_title?(scope, title), do: not exists?(scope, title)
+  def is_unique_title?(scope, title) do
+    case scope do
+      :global -> not Memory.Global.exists?(title)
+      :project -> not Memory.Project.exists?(title)
+      :session -> not Memory.Session.exists?(title)
+      _ -> false
+    end
+  end
 
   @doc """
   Converts a title to a slug by lowercasing it, replacing non-word

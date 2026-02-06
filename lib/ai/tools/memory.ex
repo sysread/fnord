@@ -122,7 +122,7 @@ defmodule AI.Tools.Memory do
             "title" => %{
               type: "string",
               description:
-                "Title of the memory (remember/update/forget). Must be unique within the specified scope and alphanumeric (single spaces are fine)."
+                "Title of the memory (remember/update/forget). Short free-form plain-English title (max 200 chars). Titles are trimmed and must contain at least one letter or digit. Titles are unique within the specified scope. Internal filename slugs are derived from titles and the system will disambiguate filenames automatically if needed."
             },
             "content" => %{
               type: "string",
