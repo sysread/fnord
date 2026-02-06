@@ -34,6 +34,11 @@ Conventions
   - integration points always get `@doc`s explaining how they fit into the bigger picture/larger feature
   - integration points should have basic positive and negative path tests for the expected/intended use cases
     - add tests as edge cases manifest
+- Don't use `alias`s unless absolutely necessary
+- `AI.Agent` is for implementations of that behaviour
+- `AI.Tools` is for implementations of that behaviour
+- `Services` is for genservers
+- Prefer context modules that get called by integration/feature/behavior layers
 
 # Operational note (important)
 - This repository is *the runtime for the assistant*.
