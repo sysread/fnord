@@ -187,13 +187,26 @@ defmodule Memory.Project do
     case File.ls(storage) do
       {:ok, files} ->
         files
-        |> Enum.find(fn file ->
-          Memory.slug_to_title(Path.rootname(file)) == title
+        |> Enum.filter(&String.ends_with?(&1, ".json"))
+        |> Enum.find_value({:error, :not_found}, fn file ->
+          path = Path.join(storage, file)
+
+          case read_file(path) do
+            {:ok, content} ->
+              case Memory.unmarshal(content) do
+                {:ok, mem} when is_map(mem) and is_binary(mem.title) ->
+                  if mem.title == title, do: {:ok, path}, else: false
+
+                _ ->
+                  if Memory.slug_to_title(Path.rootname(file)) == title,
+                    do: {:ok, path},
+                    else: false
+              end
+
+            {:error, _reason} ->
+              if Memory.slug_to_title(Path.rootname(file)) == title, do: {:ok, path}, else: false
+          end
         end)
-        |> case do
-          nil -> {:error, :not_found}
-          file -> {:ok, Path.join(storage, file)}
-        end
 
       {:error, reason} ->
         {:error, reason}

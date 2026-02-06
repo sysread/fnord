@@ -185,22 +185,67 @@ defmodule Memory.Global do
     storage = storage_path()
     base = Path.join(storage, "#{slug}.json")
 
-    if File.exists?(base) do
-      case File.read(base) do
-        {:ok, contents} ->
-          case Memory.unmarshal(contents) do
-            {:ok, mem} when is_map(mem) and mem.title == title ->
+    # Attempt base file
+    base_match =
+      if File.exists?(base) do
+        case File.read(base) do
+          {:ok, contents} ->
+            case Memory.unmarshal(contents) do
+              {:ok, mem} when is_map(mem) and mem.title == title ->
+                {:ok, base}
+
+              {:error, _reason} ->
+                # Unreadable/invalid JSON — fallback to slug-based title match
+                if Memory.slug_to_title(Path.rootname(base)) == title do
+                  {:ok, base}
+                end
+
+              _ ->
+                nil
+            end
+
+          {:error, _reason} ->
+            # Can't read file — fallback to slug-based title match
+            if Memory.slug_to_title(Path.rootname(base)) == title do
               {:ok, base}
-
-            _ ->
-              find_in_suffixes(storage, slug, title)
-          end
-
-        {:error, _} ->
-          find_in_suffixes(storage, slug, title)
+            end
+        end
       end
+
+    # Return base match if found, else scan suffix files
+    if base_match do
+      base_match
     else
-      find_in_suffixes(storage, slug, title)
+      # Scan suffix files
+      pattern = Path.join(storage, "#{slug}-*.json")
+
+      pattern
+      |> Path.wildcard()
+      |> Enum.sort()
+      |> Enum.find_value({:error, :not_found}, fn path ->
+        case File.read(path) do
+          {:ok, contents} ->
+            case Memory.unmarshal(contents) do
+              {:ok, mem} when is_map(mem) and mem.title == title ->
+                {:ok, path}
+
+              {:error, _reason} ->
+                # Unreadable/invalid JSON — fallback to slug-based title match
+                if Memory.slug_to_title(Path.rootname(path)) == title do
+                  {:ok, path}
+                end
+
+              _ ->
+                nil
+            end
+
+          {:error, _reason} ->
+            # Can't read file — fallback to slug-based title match
+            if Memory.slug_to_title(Path.rootname(path)) == title do
+              {:ok, path}
+            end
+        end
+      end)
     end
   end
 
@@ -257,26 +302,6 @@ defmodule Memory.Global do
 
   defp generate_suffixed_path(storage, slug, index) do
     Path.join(storage, "#{slug}-#{index}.json")
-  end
-
-  defp find_in_suffixes(storage, slug, title) do
-    pattern = Path.join(storage, "#{slug}-*.json")
-
-    pattern
-    |> Path.wildcard()
-    |> Enum.sort()
-    |> Enum.find_value({:error, :not_found}, fn path ->
-      case File.read(path) do
-        {:ok, contents} ->
-          case Memory.unmarshal(contents) do
-            {:ok, mem} when is_map(mem) and mem.title == title -> {:ok, path}
-            _ -> nil
-          end
-
-        {:error, _} ->
-          nil
-      end
-    end)
   end
 
   defp wildcard_check(storage, slug, title) do
