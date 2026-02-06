@@ -1,4 +1,4 @@
-# Conventions
+Conventions
 - Tests
   - Use `Fnord.TestCase` and helpers (`mock_project`, `tmpdir`).
   - Prefer `async: false` for most tests due to global state and GenServers.
@@ -15,6 +15,25 @@
   - Run `make check` before commit: `mix format`, `mix test`, `mix dialyzer`.
   - Treat compilation warnings as errors. Public functions should have `@spec`.
   - This is not a library; there is no need to worry about any external API stability.
+
+# Guidelines
+- Functions should do one thing well
+  - prefer small, pure functions with clear behavior
+  - use `|>` to chain transformations
+  - prefer function heads over complex conditionals
+  - prefer function heads over complex or nested `Enum` iterators (eg `each`, `reduce`)
+  - prefer pattern matching over guards when possible
+- Integration points
+  - integration points are where different abstraction levels meet
+    - it's integration levels all the way down; there is no single "lowest" level
+    - everything workflow is an integration of smaller, more focused pieces
+    - at the *very* least, entry points into a module are integration points
+  - at significant integration points, use `with` to transition between lower-level concerns and higher-level logic
+    - translate errors into domain-specific errors; what matters to the *caller* at this level of abstraction?
+  - special cases should be handled at integration points, not buried in lower-level functions
+  - integration points always get `@doc`s explaining how they fit into the bigger picture/larger feature
+  - integration points should have basic positive and negative path tests for the expected/intended use cases
+    - add tests as edge cases manifest
 
 # Operational note (important)
 - This repository is *the runtime for the assistant*.
