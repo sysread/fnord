@@ -41,6 +41,13 @@ Conventions
 - `Services` is for genservers
 - Prefer context modules that get called by integration/feature/behavior layers
 
+# Comments
+- Comments should describe the current behavior; they should NEVER describe or identify a change that is currently being made
+- Comments should walk the reader through how the code behaves, including how it fits into the bigger picture, and how it relates to the feature or behavior it supports
+- Comments should not be used to identify or describe bugs or issues; instead, they should be used to describe the current, intended behavior, and should always match the code.
+  If there is a bug, the code should be adjusted and then the comments brought into line with the new behavior.
+- Comment style should be literary; if you hide all of the code in a file, the comments should still present the reader with an outline of the code, how it behaves, and how it fits into the next level of abstraction up.
+
 # Operational note (important)
 - This repository is *the runtime for the assistant*.
 - Edits you make here change how the assistant behaves when operating inside this project.
