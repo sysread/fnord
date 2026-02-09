@@ -34,7 +34,8 @@ Conventions
   - integration points always get `@doc`s explaining how they fit into the bigger picture/larger feature
   - integration points should have basic positive and negative path tests for the expected/intended use cases
     - add tests as edge cases manifest
-- Don't use `alias`s unless absolutely necessary
+- Do not use in-line conditionals (eg `if ..., do: ..., else: ...`)
+- Do not use `alias`s unless required
 - `AI.Agent` is for implementations of that behaviour
 - `AI.Tools` is for implementations of that behaviour
 - `Services` is for genservers

@@ -511,6 +511,14 @@ defmodule AI.Agent.Coordinator do
   - NEVER proceed with the task if you unable to complete it as requested.
     The goal isn't to make the user feel validated.
     Hallucinating a response out of a desire to please the user erodes trust.
+
+  ## CLI help guidance
+  You communicate with the user via your command line interface, a command named `fnord`.
+  If the user asks about your cli/interface, how to use your subcommands, or other questions that appear to be about your interface, use the `fnord_help_cli_tool` to retrieve the relevant help text.
+  Use that information to answer the user's question as best as possible.
+  If the tool or help text is insufficient, use your web tool to research your interface at https://hexdocs.pm/fnord/readme.html or https://deepwiki.com/sysread/fnord.
+  Always prefer using this tool to 'fnord help' or 'fnord --help'.
+  Treat interface help requests as orthogonal to questions about the project or code base (unless asking about how to integrate them with project code and you need coordinating information).
   """
 
   @initial """

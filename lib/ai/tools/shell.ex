@@ -495,9 +495,22 @@ defmodule AI.Tools.Shell do
             end
           end)
 
+        is_fnord_help? =
+          Enum.count(commands) == 1 &&
+            Enum.any?(commands, fn %{"command" => cmd, "args" => args} ->
+              Path.basename(cmd) == "fnord" &&
+                (Enum.any?(args, &String.contains?(&1, "help")) ||
+                   Enum.any?(args, &String.contains?(&1, "--help")) ||
+                   Enum.any?(args, &String.contains?(&1, "-h")))
+            end)
+
         is_edit_mode? = Settings.get_edit_mode()
 
         cond do
+          is_fnord_help? ->
+            UI.info("Oof", "The LLM called the shell_tool for its own help text. Rerouting.")
+            AI.Tools.SelfHelp.Cli.call(%{})
+
           has_shell_invocation? ->
             {:denied,
              """

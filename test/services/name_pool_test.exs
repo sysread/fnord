@@ -3,6 +3,22 @@ defmodule Services.NamePoolTest do
 
   alias Services.NamePool
 
+  setup do
+    # Force the nomenclater to fake mode for deterministic tests
+    prev = Services.Globals.get_env(:fnord, :nomenclater, nil)
+    Services.Globals.put_env(:fnord, :nomenclater, :fake)
+
+    on_exit(fn ->
+      if is_nil(prev) do
+        Services.Globals.delete_env(:fnord, :nomenclater)
+      else
+        Services.Globals.put_env(:fnord, :nomenclater, prev)
+      end
+    end)
+
+    :ok
+  end
+
   test "get_name_by_pid/1 returns name for checking process" do
     NamePool.reset()
     {:ok, name} = NamePool.checkout_name()
