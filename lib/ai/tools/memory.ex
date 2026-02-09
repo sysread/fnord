@@ -178,15 +178,20 @@ defmodule AI.Tools.Memory do
       {:ok, results} ->
         payload =
           results
-          |> Enum.map(fn {mem, score} ->
-            # Drop embeddings from the result for cleaner JSON output
-            %{
-              title: mem.title,
-              scope: Atom.to_string(mem.scope),
-              topics: Enum.join(mem.topics, " | "),
-              score: score,
-              content: mem.content
-            }
+          |> Enum.map(fn
+            {:error, reason} ->
+              # Handle individual memory read errors gracefully
+              %{error: inspect(reason)}
+
+            {mem, score} ->
+              # Drop embeddings from the result for cleaner JSON output
+              %{
+                title: mem.title,
+                scope: Atom.to_string(mem.scope),
+                topics: Enum.join(mem.topics, " | "),
+                score: score,
+                content: mem.content
+              }
           end)
 
         {:ok, payload}

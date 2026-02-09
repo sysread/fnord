@@ -26,6 +26,8 @@ defmodule AI.Tools.File.Contents do
     end
   end
 
+  defp ui_note_file_ref(_), do: "invalid args :/"
+
   @impl AI.Tools
   def ui_note_on_result(_args, _result), do: nil
 
@@ -33,7 +35,12 @@ defmodule AI.Tools.File.Contents do
   def tool_call_failure_message(_args, _result), do: :default
 
   @impl AI.Tools
-  def read_args(args), do: {:ok, args}
+  def read_args(args) do
+    case args do
+      %{"file" => _file} -> {:ok, args}
+      _ -> {:error, :missing_argument, "file"}
+    end
+  end
 
   @impl AI.Tools
   def spec() do
