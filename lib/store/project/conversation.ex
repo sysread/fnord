@@ -222,6 +222,13 @@ defmodule Store.Project.Conversation do
          [timestamp_str, json] <- String.split(contents, ":", parts: 2),
          {:ok, timestamp} <- unmarshal_ts(timestamp_str),
          {:ok, data} <- Jason.decode(json) do
+      # If persisted tasks use legacy shapes, heal and re-save the file so callers get canonical shape
+      Store.Project.Conversation.TaskListStatusMigration.heal_and_maybe_write(
+        data,
+        conversation,
+        timestamp_str
+      )
+
       msgs =
         data
         |> Map.get("messages", [])

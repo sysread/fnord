@@ -120,17 +120,22 @@ defmodule Services.Conversation do
   Get the metadata for the given task list (currently only description).
   Returns {:ok, description} | {:error, :not_found}
   """
-  @spec get_task_list_meta(pid, binary()) :: {:ok, binary | nil} | {:error, :not_found}
+  @spec get_task_list_meta(pid, binary()) :: {:ok, map()} | {:error, :not_found}
   def get_task_list_meta(pid, task_list_id) do
     GenServer.call(pid, {:get_task_list_meta, task_list_id})
   end
 
   @doc """
-  Upsert the metadata for the given task list (currently only description).
+  Upsert the metadata for the given task list (now a map with at least :description).
   """
-  @spec upsert_task_list_meta(pid, binary(), binary | nil) :: :ok | {:error, :not_found}
+  @spec upsert_task_list_meta(pid, binary(), map() | binary | nil) :: :ok | {:error, :not_found}
+  def upsert_task_list_meta(pid, task_list_id, meta) when is_map(meta) do
+    GenServer.call(pid, {:upsert_task_list_meta, task_list_id, meta})
+  end
+
   def upsert_task_list_meta(pid, task_list_id, description) do
-    GenServer.call(pid, {:upsert_task_list_meta, task_list_id, description})
+    # Backwards-compat: accept a raw description and wrap it into a map
+    GenServer.call(pid, {:upsert_task_list_meta, task_list_id, %{description: description}})
   end
 
   @doc """
@@ -271,21 +276,34 @@ defmodule Services.Conversation do
       :error ->
         {:reply, {:error, :not_found}, state}
 
-      {:ok, %{description: desc}} ->
-        {:reply, {:ok, desc}, state}
+      {:ok, %{description: desc} = entry} ->
+        # Return the meta map: description and optional status (string)
+        meta = %{description: desc, status: Map.get(entry, :status)}
+        {:reply, {:ok, meta}, state}
     end
   end
 
   @impl true
-  def handle_call({:upsert_task_list_meta, list_id, description}, _from, state) do
+  def handle_call({:upsert_task_list_meta, list_id, meta}, _from, state) do
+    # meta is expected to be a map with at least :description; callers may pass a raw description elsewhere
     case Map.fetch(state.tasks, list_id) do
       :error ->
         {:reply, {:error, :not_found}, state}
 
+      {:ok, entry} when is_map(meta) ->
+        # Merge existing entry with provided meta keys (description/status)
+        new_entry =
+          entry
+          |> Map.put(:description, Map.get(meta, :description))
+          |> Map.put(:status, Map.get(meta, :status))
+
+        new_state = %{state | tasks: Map.put(state.tasks, list_id, new_entry)}
+        {:reply, :ok, new_state}
+
       {:ok, entry} ->
-        # Update description in the metadata structure
-        new_meta = %{entry | description: description}
-        new_state = %{state | tasks: Map.put(state.tasks, list_id, new_meta)}
+        # Fallback: if meta isn't a map, treat it as description
+        new_entry = %{entry | description: meta}
+        new_state = %{state | tasks: Map.put(state.tasks, list_id, new_entry)}
         {:reply, :ok, new_state}
     end
   end

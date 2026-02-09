@@ -239,14 +239,17 @@ defmodule Services.Task do
     tasklists =
       raw_tasks_map
       |> Enum.map(fn {list_id, tasks} ->
-        # get_task_list_meta returns {:ok, desc} | {:error, :not_found}, need to unwrap
-        desc =
-          case Services.Conversation.get_task_list_meta(conversation_pid, list_id) do
-            {:ok, d} -> d
-            _ -> nil
+        # get_task_list_meta returns {:ok, meta_map} | {:error, :not_found}, need to unwrap
+        meta_result = Services.Conversation.get_task_list_meta(conversation_pid, list_id)
+
+        meta =
+          case meta_result do
+            {:ok, m} when is_map(m) -> m
+            _ -> %{description: nil}
           end
 
-        {list_id, %Services.Task.List{id: list_id, description: desc, tasks: tasks}}
+        {list_id,
+         %Services.Task.List{id: list_id, description: Map.get(meta, :description), tasks: tasks}}
       end)
       |> Map.new()
 
@@ -279,7 +282,7 @@ defmodule Services.Task do
       |> Enum.max(fn -> 0 end)
 
     id = "tasks-#{next_number + 1}"
-    new_list = %Services.Task.List{id: id, description: nil, tasks: []}
+    new_list = %Services.Task.List{id: id, description: nil, tasks: [], status: "planning"}
 
     new_state =
       %{state | lists: Map.put(lists, id, new_list)}
@@ -293,7 +296,7 @@ defmodule Services.Task do
     if Map.has_key?(lists, id) do
       {:reply, {:error, :exists}, state}
     else
-      new_list = %Services.Task.List{id: id, description: desc, tasks: []}
+      new_list = %Services.Task.List{id: id, description: desc, tasks: [], status: "planning"}
 
       new_state =
         %{state | lists: Map.put(lists, id, new_list)}
@@ -352,7 +355,27 @@ defmodule Services.Task do
         {:reply, :ok, state}
 
       {:ok, list = %Services.Task.List{}} ->
+        # Resolve the task in the list
         updated_list = Services.Task.List.resolve(list, task_id, outcome, result)
+
+        # Transition planning -> in_progress when the first terminal task appears
+        updated_list =
+          if list.status == "planning" and
+               Enum.any?(updated_list.tasks, fn t -> t.outcome != :todo end) do
+            %{updated_list | status: "in-progress"}
+          else
+            updated_list
+          end
+
+        # If all tasks are terminal (done or failed), set list to :done
+        all_terminal = Enum.all?(updated_list.tasks, fn t -> t.outcome != :todo end)
+
+        updated_list =
+          if all_terminal and updated_list.tasks != [] do
+            %{updated_list | status: "done"}
+          else
+            updated_list
+          end
 
         new_state =
           %{state | lists: Map.put(state.lists, list_id, updated_list)}
@@ -397,12 +420,16 @@ defmodule Services.Task do
       :error ->
         {:noreply, state}
 
-      {:ok, list = %Services.Task.List{tasks: tasks}} ->
+      {:ok, list = %Services.Task.List{tasks: tasks, status: status}} ->
         if Enum.any?(tasks, &(&1.id == task_id)) do
           {:noreply, state}
         else
           task = new_task(task_id, task_data)
           updated_list = Services.Task.List.push(list, task)
+
+          # If the list was :done, reopen it to :in_progress when adding a new task
+          updated_list =
+            if status == "done", do: %{updated_list | status: "in-progress"}, else: updated_list
 
           %{state | lists: Map.put(state.lists, list_id, updated_list)}
           |> save_tasks()
@@ -418,12 +445,16 @@ defmodule Services.Task do
       :error ->
         {:noreply, state}
 
-      {:ok, list = %Services.Task.List{tasks: tasks}} ->
+      {:ok, list = %Services.Task.List{tasks: tasks, status: status}} ->
         if Enum.any?(tasks, &(&1.id == task_id)) do
           {:noreply, state}
         else
           task = new_task(task_id, task_data)
           updated_list = Services.Task.List.add(list, task)
+
+          # If the list was :done, reopen it to :in_progress when adding a new task
+          updated_list =
+            if status == "done", do: %{updated_list | status: "in-progress"}, else: updated_list
 
           %{state | lists: Map.put(state.lists, list_id, updated_list)}
           |> save_tasks()
@@ -437,9 +468,14 @@ defmodule Services.Task do
   # ----------------------------------------------------------------------------
 
   defp save_tasks(%{conversation_pid: pid, lists: lists} = state) do
-    Enum.each(lists, fn {list_id, %Services.Task.List{tasks: tasks, description: desc}} ->
+    Enum.each(lists, fn {list_id,
+                         %Services.Task.List{tasks: tasks, description: desc, status: status}} ->
       Services.Conversation.upsert_task_list(pid, list_id, tasks)
-      Services.Conversation.upsert_task_list_meta(pid, list_id, desc)
+      # persist meta as a map with description and optional status
+      Services.Conversation.upsert_task_list_meta(pid, list_id, %{
+        description: desc,
+        status: status
+      })
     end)
 
     state

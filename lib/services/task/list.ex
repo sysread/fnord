@@ -4,12 +4,16 @@ defmodule Services.Task.List do
   Provides core operations for creating and manipulating task lists.
   """
 
-  defstruct id: nil, description: nil, tasks: []
+  defstruct id: nil, description: nil, tasks: [], status: "planning"
+
+  # "planning" | "in-progress" | "done"
+  @type status :: String.t()
 
   @type t :: %__MODULE__{
           id: binary,
           description: binary | nil,
-          tasks: [map()]
+          tasks: [map()],
+          status: status
         }
 
   @doc """
@@ -17,7 +21,7 @@ defmodule Services.Task.List do
   """
   @spec new(binary, binary | nil) :: t
   def new(id, description \\ nil) when is_binary(id) do
-    %__MODULE__{id: id, description: description, tasks: []}
+    %__MODULE__{id: id, description: description, tasks: [], status: "planning"}
   end
 
   @doc """

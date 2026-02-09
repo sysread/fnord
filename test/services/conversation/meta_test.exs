@@ -18,13 +18,19 @@ defmodule Services.Conversation.TaskListMetaTest do
       # Create the list
       assert :ok = Conversation.upsert_task_list(pid, list_id, tasks)
 
-      # Ensure no metadata initially
-      assert {:ok, nil} = Conversation.get_task_list_meta(pid, list_id)
+      # Ensure no metadata initially (meta map with nils)
+      assert {:ok, %{description: nil, status: nil}} =
+               Conversation.get_task_list_meta(pid, list_id)
 
       # Set description
-      assert :ok = Conversation.upsert_task_list_meta(pid, list_id, "My list description")
+      assert :ok =
+               Conversation.upsert_task_list_meta(pid, list_id, %{
+                 description: "My list description"
+               })
+
       # Get description
-      assert {:ok, "My list description"} = Conversation.get_task_list_meta(pid, list_id)
+      assert {:ok, %{description: "My list description"}} =
+               Conversation.get_task_list_meta(pid, list_id)
     end
 
     test "meta operations on nonexistent list return error", %{pid: pid} do

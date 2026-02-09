@@ -296,30 +296,44 @@ defmodule AI.Agent.Coordinator do
     |> perform_step()
   end
 
+  # ----------------------------------------------------------------------------
   # Check for remaining tasks in task lists. Task lists are persisted with the
   # conversation, so it is OK to carry tasks forward across multiple sessions.
+  #
+  # Only pester (penultimate check) for lists that are explicitly "in-progress"
+  # and have at least one open task. Ignore lists that are still in "planning"
+  # or are already "done".
+  # ----------------------------------------------------------------------------
   defp perform_step(%{steps: [:check_tasks | steps]} = state) do
     incomplete_list_ids =
       Services.Task.list_ids()
-      |> Enum.reject(fn list_id ->
-        list_id
-        |> Services.Task.all_tasks_complete?()
-        |> case do
-          {:ok, true} -> true
-          _ -> false
+      |> Enum.filter(fn list_id ->
+        status =
+          case Services.Conversation.get_task_list_meta(state.conversation_pid, list_id) do
+            {:ok, m} when is_map(m) -> Map.get(m, :status)
+            _ -> nil
+          end
+
+        if status != "in-progress" do
+          false
+        else
+          case Services.Task.get_list(list_id) do
+            {:error, _} -> false
+            tasks -> Enum.any?(tasks, fn t -> t.outcome == :todo end)
+          end
         end
       end)
 
     case incomplete_list_ids do
       [] ->
-        UI.info("All tasks complete!")
+        UI.info("All pending work complete!")
 
         state
         |> Map.put(:steps, steps)
         |> perform_step()
 
       list_ids ->
-        UI.begin_step("Reviewing task lists")
+        UI.begin_step("Reviewing pending tasks")
 
         state
         |> Map.put(:steps, steps)
@@ -635,7 +649,7 @@ defmodule AI.Agent.Coordinator do
   I believe I have identified all the information I need.
 
   First, I must reflect on any learnings I want to remember using the memory_tool.
-  What did I learn about the code base? 
+  What did I learn about the code base?
   What did I learn about the user?
   What did I learn about my tools?
   This is how I improve myself and become a better partner for the user.
