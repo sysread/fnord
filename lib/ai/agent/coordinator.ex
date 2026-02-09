@@ -371,19 +371,6 @@ defmodule AI.Agent.Coordinator do
 
   @spec get_completion(t, boolean) :: state
   defp get_completion(state, replay \\ false) do
-    # Pre-apply any pending interrupts to the conversation messages
-    interrupts = Services.Conversation.Interrupts.take_all(state.conversation_pid)
-
-    Enum.each(interrupts, fn msg ->
-      # Add interrupt to conversation history
-      Services.Conversation.append_msg(msg, state.conversation_pid)
-
-      # Display interrupt in the tui
-      content = Map.get(msg, :content, "")
-      display = String.replace_prefix(content, "[User Interjection] ", "")
-      UI.info("You (rude)", display)
-    end)
-
     msgs = Services.Conversation.get_messages(state.conversation_pid)
 
     # Save the current conversation to the store for crash resilience

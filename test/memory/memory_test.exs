@@ -98,7 +98,8 @@ defmodule MemoryTest do
         updated_at: nil
       }
 
-      assert {:ok, saved} = Memory.save(mem)
+      # Save using skip_embeddings to avoid network/API calls in tests
+      assert {:ok, saved} = Memory.save(mem, skip_embeddings: true)
       assert is_binary(saved.inserted_at)
       assert saved.inserted_at != ""
       assert is_binary(saved.updated_at)

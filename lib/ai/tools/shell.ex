@@ -352,8 +352,8 @@ defmodule AI.Tools.Shell do
   # - When operator is '&&': stdin is not piped, so commands must have explicit input.
   # - When operator is '|' and this is the first stage: no prior stdin exists yet.
   # In these cases:
-  #   - rg must include an explicit path-like positional arg (e.g., '.', './dir', '/abs', or a non-flag token).
-  #   - wc must include file args (non-flag tokens) or '-' to read from stdin.
+  # - rg must include an explicit path-like positional arg (e.g., '.', './dir', '/abs', or a non-flag token).
+  # - wc must include file args (non-flag tokens) or '-' to read from stdin.
   # Anywhere else, these commands are allowed (e.g., later stages in a pipeline).
   # ----------------------------------------------------------------------------
   defp validate_command_context(op, commands, root) do
@@ -361,10 +361,12 @@ defmodule AI.Tools.Shell do
       "&&" ->
         if invalid_under_andand?(commands, root) do
           {:denied,
-           "One or more commands require an explicit input source under '&&'.\n" <>
-             "- rg must include an explicit path (e.g., '.' or a directory) when not reading from stdin.\n" <>
-             "- wc must include file args (e.g., 'wc -l FILE') or '-' for stdin.\n" <>
-             "Consider using a pipeline (|) or adding explicit args."}
+           """
+           One or more commands require an explicit input source under '&&'.
+           - rg must include an explicit path (e.g., '.' or a directory) when not reading from stdin.
+           - wc must include file args (e.g., 'wc -l FILE') or '-' for stdin.
+           Consider using a pipeline (|) or adding explicit args.
+           """}
         else
           :ok
         end

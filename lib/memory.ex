@@ -303,13 +303,24 @@ defmodule Memory do
     end
   end
 
-  @spec save(t) :: {:ok, t} | {:error, term}
-  def save(%Memory{} = memory) do
+  @spec save(t, keyword()) :: {:ok, t} | {:error, term}
+  def save(%Memory{} = memory, opts \\ []) do
     memory = ensure_timestamps(memory)
+    skip_embeddings = Keyword.get(opts, :skip_embeddings, false)
 
-    with {:ok, memory} <- ensure_embeddings(memory),
-         :ok <- do_save(memory) do
-      {:ok, memory}
+    if skip_embeddings do
+      case do_save(memory) do
+        :ok ->
+          {:ok, memory}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+    else
+      with {:ok, memory} <- ensure_embeddings(memory),
+           :ok <- do_save(memory) do
+        {:ok, memory}
+      end
     end
   end
 
@@ -492,13 +503,17 @@ defmodule Memory do
   @spec maybe_migrate_on_read({:ok, t} | {:error, term}) :: {:ok, t} | {:error, term}
   defp maybe_migrate_on_read({:ok, memory}) do
     if memory.inserted_at in [nil, ""] or memory.updated_at in [nil, ""] do
-      case save(memory) do
-        {:ok, migrated} ->
-          {:ok, migrated}
+      # Update timestamps on disk without regenerating embeddings.
+      # The save call intentionally uses :skip_embeddings so we only write
+      # the timestamp fields and avoid the potentially expensive embedding
+      # generation step.
+      case save(memory, skip_embeddings: true) do
+        {:ok, mem} ->
+          {:ok, mem}
 
-        {:error, reason} ->
-          UI.warn(@log_tag, "Failed to update memory format: #{inspect(reason)}")
-          {:ok, memory}
+        {:error, _reason} ->
+          # If the save failed for any reason, best-effort: fill timestamps in-memory
+          {:ok, ensure_timestamps(memory)}
       end
     else
       {:ok, memory}
@@ -515,15 +530,16 @@ defmodule Memory do
       |> DateTime.to_iso8601()
 
     inserted_at =
-      [
-        memory.inserted_at,
-        memory.updated_at
-      ]
-      |> Enum.find(now, fn
+      [memory.inserted_at, memory.updated_at]
+      |> Enum.find(fn
         nil -> false
         "" -> false
         _ -> true
       end)
+      |> case do
+        nil -> now
+        x -> x
+      end
 
     updated_at =
       case memory.updated_at do
