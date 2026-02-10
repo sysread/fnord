@@ -6,6 +6,7 @@ defmodule Services.MCP do
   alias Services.Once
   alias MCP.Tools
   alias UI
+  @expiry_grace_seconds 5
 
   @spec start(String.t() | atom() | nil) :: :ok
   def start(command \\ nil) do
@@ -165,7 +166,6 @@ defmodule Services.MCP do
           %{status: "ok", server_info: server_info}
 
         {:error, reason} ->
-          # If discovery enabled and this is an HTTP server without mcp_path
           if with_discovery && should_attempt_discovery?(cfg) do
             attempt_discovery_for_server(server, cfg, settings)
           end
@@ -179,19 +179,51 @@ defmodule Services.MCP do
         {:error, _} -> %{capabilities: %{}}
       end
 
-    tools =
+    # Collect tools first so we can use the tools count as a proxy for auth when expiry is unknown
+    {tools_count, tools_map} =
       case safe_list_tools(server) do
-        {:ok, tools} ->
-          %{tools: Enum.map(tools, &tool_blurb/1)}
+        {:ok, tools_list} ->
+          count = length(tools_list)
 
-        {:error, reason} ->
-          %{error: inspect(reason)}
+          if System.get_env("FNORD_DEBUG_MCP") == "1" do
+            {count, %{tools: Enum.map(tools_list, &tool_blurb/1), tools_count: count}}
+          else
+            {count,
+             %{tools_count: count, tools_hint: "Set FNORD_DEBUG_MCP=1 to show tool details"}}
+          end
+
+        {:error, _} ->
+          {0, %{tools_count: 0}}
       end
 
-    # Check authentication status
-    auth_info = check_auth_status(server, cfg)
+    # Debugging output: show credential contents and time comparison only when FNORD_DEBUG_MCP=1
+    if System.get_env("FNORD_DEBUG_MCP") == "1" do
+      case MCP.OAuth2.CredentialsStore.read(server) do
+        {:ok, creds} ->
+          safe_creds = Map.put(creds, "access_token", "<redacted>")
+          UI.debug("MCP credentials (redacted)")
+          UI.printf_debug(safe_creds)
 
-    info |> Map.merge(capabilities) |> Map.merge(tools) |> Map.merge(auth_info)
+          case Map.get(creds, "expires_at") do
+            exp when is_integer(exp) ->
+              UI.debug("expires_at=#{exp}, now=#{System.os_time(:second)}")
+
+            _ ->
+              UI.debug("expires_at: not present")
+          end
+
+        {:error, reason} ->
+          UI.debug("Credentials read: #{inspect(reason)}")
+      end
+    end
+
+    # Use tools_count as a proxy when expiry is unknown
+    auth_info = check_auth_status(server, cfg, tools_count)
+
+    info
+    |> Map.merge(capabilities)
+    |> Map.merge(tools_map)
+    |> Map.merge(auth_info)
   end
 
   defp should_attempt_discovery?(cfg) do
@@ -312,27 +344,47 @@ defmodule Services.MCP do
     %{"name" => tool["name"], "description" => Map.get(tool, "description", "")}
   end
 
-  @spec check_auth_status(String.t(), map()) :: map()
-  defp check_auth_status(server, cfg) do
+  @spec check_auth_status(String.t(), map(), integer()) :: map()
+  defp check_auth_status(server, cfg, tools_count) do
     has_oauth = Map.has_key?(cfg, "oauth") && is_map(cfg["oauth"])
 
     if has_oauth do
       auth_status =
         case MCP.OAuth2.CredentialsStore.read(server) do
-          {:ok, %{"expires_at" => exp}} when is_integer(exp) ->
+          {:ok, %{"expires_at" => exp} = creds} when is_integer(exp) ->
             now = System.os_time(:second)
 
-            if exp > now do
-              :valid
-            else
-              :expired
+            if System.get_env("FNORD_DEBUG_MCP") == "1" do
+              safe_creds = Map.put(creds, "access_token", "<redacted>")
+              UI.debug("[MCP Debug] credentials (redacted)")
+              UI.printf_debug(safe_creds)
+              UI.debug("[MCP Debug] expires_at=#{exp}, now=#{now}")
             end
 
-          {:ok, _} ->
-            # Has credentials but no expires_at - consider valid
-            :valid
+            cond do
+              exp > now -> :valid
+              now - exp <= @expiry_grace_seconds -> :valid
+              true -> :expired
+            end
+
+          {:ok, creds} ->
+            if System.get_env("FNORD_DEBUG_MCP") == "1" do
+              safe_creds = Map.put(creds, "access_token", "<redacted>")
+              UI.debug("[MCP Debug] credentials (no expires_at) (redacted)")
+              UI.printf_debug(safe_creds)
+            end
+
+            if tools_count > 0 do
+              :valid
+            else
+              :missing
+            end
 
           {:error, :not_found} ->
+            if System.get_env("FNORD_DEBUG_MCP") == "1" do
+              UI.debug("[MCP Debug] No credentials found for #{server}")
+            end
+
             :missing
         end
 

@@ -23,7 +23,7 @@ defmodule MCP.OAuth2.Bridge do
     end
   end
 
-  defp maybe_refresh(server, cfg, %{"expires_at" => exp} = toks, margin) do
+  defp maybe_refresh(server, cfg, %{"expires_at" => exp} = toks, margin) when is_integer(exp) do
     if exp - System.os_time(:second) <= margin do
       refresh(server, cfg, toks)
     else
@@ -31,6 +31,7 @@ defmodule MCP.OAuth2.Bridge do
     end
   end
 
+  # If expires_at is missing or not an integer, do not attempt arithmetic - treat as no refresh needed here
   defp maybe_refresh(_server, _cfg, toks, _margin), do: {:ok, toks}
 
   defp refresh(server, cfg, %{"refresh_token" => rt}) when is_binary(rt) and rt != "" do

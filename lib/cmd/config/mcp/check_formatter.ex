@@ -51,11 +51,21 @@ defmodule Cmd.Config.MCP.CheckFormatter do
     # Capabilities status
     format_capabilities_status(data)
 
-    # If we have tools, show the list
+    # If we have tools, show the list (detailed list only shown when FNORD_DEBUG_MCP=1)
     case data do
       %{tools: tools} when is_list(tools) and length(tools) > 0 ->
         UI.newline()
         format_tools_list(tools)
+
+      %{tools_count: count, tools_hint: hint} when is_integer(count) ->
+        # Show concise hint about tool count and how to enable details
+        if count > 0 do
+          UI.newline()
+          UI.puts("  Available tools: (#{count} available) — #{hint}")
+        else
+          UI.newline()
+          UI.puts("  Available tools: (none) — #{hint}")
+        end
 
       _ ->
         :ok
@@ -111,6 +121,14 @@ defmodule Cmd.Config.MCP.CheckFormatter do
   defp format_tools_status(%{tools: tools}) when is_list(tools) do
     count = length(tools)
 
+    if count > 0 do
+      UI.puts("  #{success_symbol()} Tools (#{count} available)")
+    else
+      UI.puts("  #{warning_symbol()} Tools (none)")
+    end
+  end
+
+  defp format_tools_status(%{tools_count: count}) when is_integer(count) do
     if count > 0 do
       UI.puts("  #{success_symbol()} Tools (#{count} available)")
     else

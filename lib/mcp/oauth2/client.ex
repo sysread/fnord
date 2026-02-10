@@ -257,13 +257,43 @@ defmodule MCP.OAuth2.Client do
   # -- Token Normalization --
 
   defp normalize_tokens(tokens) do
-    # Calculate expires_at from expires_in (seconds from now)
+    # Calculate expires_at from provider token response.
+    # Prefer a provider-supplied "expires_at" where present; otherwise use "expires_in".
     expires_at =
-      case Map.get(tokens, "expires_in") do
-        nil -> nil
-        seconds when is_integer(seconds) -> System.system_time(:second) + seconds
-        _ -> nil
+      cond do
+        is_integer(Map.get(tokens, "expires_at")) ->
+          Map.get(tokens, "expires_at")
+
+        true ->
+          case Map.get(tokens, "expires_in") do
+            secs when is_integer(secs) and secs > 0 ->
+              System.os_time(:second) + secs
+
+            _ ->
+              # Treat 0 or nil as "unknown" (no expiry information). Don't set expires_at.
+              nil
+          end
       end
+
+    # Debug: show raw fields used to compute expiry when debug enabled (redact access_token)
+    if System.get_env("FNORD_DEBUG_MCP") == "1" do
+      raw = %{
+        "raw_expires_in" => Map.get(tokens, "expires_in"),
+        "raw_expires_at" => Map.get(tokens, "expires_at"),
+        "computed_expires_at" => expires_at
+      }
+
+      # Redact access token before printing
+      dbg =
+        Map.put(
+          raw,
+          "access_token",
+          if(Map.has_key?(tokens, "access_token"), do: "<redacted>", else: nil)
+        )
+
+      UI.debug("[MCP Debug] token fields used for expiry calculation")
+      UI.printf_debug(dbg)
+    end
 
     %{
       access_token: Map.fetch!(tokens, "access_token"),
