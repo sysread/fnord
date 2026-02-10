@@ -27,8 +27,12 @@ defmodule AI.Tools.File.InfoTest do
     assert AI.Tools.File.Info.async?()
     assert AI.Tools.File.Info.is_available?()
 
-    # read_args/1 passes through
-    assert {:ok, %{"foo" => "bar"}} = AI.Tools.File.Info.read_args(%{"foo" => "bar"})
+    # read_args/1 validates args: missing fields produce error
+    assert {:error, :missing_argument, "question"} =
+             AI.Tools.File.Info.read_args(%{"foo" => "bar"})
+
+    assert {:ok, %{"question" => "Q", "files" => ["a.ex"]}} =
+             AI.Tools.File.Info.read_args(%{"question" => "Q", "files" => ["a.ex"]})
 
     # spec/0 shape
     spec = AI.Tools.File.Info.spec()

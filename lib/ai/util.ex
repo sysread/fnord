@@ -16,6 +16,13 @@ defmodule AI.Util do
   # That seems like a reasonable baseline threshold to start with.
   # ----------------------------------------------------------------------------
   @max_msg_length 50_000
+  @doc """
+  Returns the maximum message length allowed.
+  """
+  @spec max_msg_length() :: non_neg_integer()
+  def max_msg_length() do
+    @max_msg_length
+  end
 
   @role_system "developer"
   @role_user "user"

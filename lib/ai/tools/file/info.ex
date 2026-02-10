@@ -31,7 +31,27 @@ defmodule AI.Tools.File.Info do
   def tool_call_failure_message(_args, _reason), do: :default
 
   @impl AI.Tools
-  def read_args(args), do: {:ok, args}
+  def read_args(args) do
+    cond do
+      not is_map(args) ->
+        {:error, :invalid_argument, "args must be a map"}
+
+      not Map.has_key?(args, "question") ->
+        {:error, :missing_argument, "question"}
+
+      not Map.has_key?(args, "files") ->
+        {:error, :missing_argument, "files"}
+
+      not is_binary(args["question"]) ->
+        {:error, :invalid_argument, "\"question\" must be a string"}
+
+      not (is_list(args["files"]) and Enum.all?(args["files"], &is_binary/1)) ->
+        {:error, :invalid_argument, "\"files\" must be a list of strings"}
+
+      true ->
+        {:ok, args}
+    end
+  end
 
   @impl AI.Tools
   def spec() do

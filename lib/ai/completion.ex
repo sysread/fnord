@@ -64,6 +64,8 @@ defmodule AI.Completion do
           | {:error, binary}
           | {:error, :context_length_exceeded, non_neg_integer}
 
+  @tool_output_preview 1024
+
   @spec get(Keyword.t()) :: response
   def get(opts) do
     with {:ok, state} <- new(opts) do
@@ -535,12 +537,65 @@ defmodule AI.Completion do
         args,
         fn args ->
           AI.Completion.Output.on_event(state, :tool_call, {func, args})
+
+          # Execute the tool call and then conditionally offload very large
+          # tool outputs to a temp file to avoid keeping gigantic blobs in
+          # memory or logs. If offload fails for any reason, we fall back to
+          # the original in-memory content.
           result = AI.Tools.perform_tool_call(func, args, state.toolbox)
+
+          result =
+            case result do
+              {:ok, resp} when is_binary(resp) ->
+                {:ok, maybe_offload_tool_output(resp)}
+
+              {:error, reason} when is_binary(reason) ->
+                {:error, maybe_offload_tool_output(reason)}
+
+              {:error, code, msg} when is_integer(code) and is_binary(msg) ->
+                {:error, code, maybe_offload_tool_output(msg)}
+
+              other ->
+                other
+            end
+
           AI.Completion.Output.on_event(state, :tool_call_result, {func, args, result})
           result
         end,
         state.toolbox
       )
+    end
+  end
+
+  @doc """
+  If a tool produced a very large textual output, attempt to write it to a
+  temporary file and replace the in-memory content with a short placeholder
+  that points to the temp file and includes a preview. Fail silently and return
+  the original content on any error.
+  """
+  def maybe_offload_tool_output(content) when is_binary(content) do
+    if String.length(content) <= AI.Util.max_msg_length() do
+      content
+    else
+      preview = content |> :erlang.binary_part(0, @tool_output_preview)
+
+      try do
+        tmp = Services.TempFile.mktemp!()
+
+        case File.chmod(tmp, 0o600) do
+          :ok -> :ok
+          {:error, reason} -> raise "Failed to chmod file #{tmp}: #{inspect(reason)}"
+        end
+
+        File.write!(tmp, content)
+
+        "[Large tool output (#{byte_size(content)} bytes) written to #{tmp}. Preview:\n" <>
+          preview <> "]"
+      rescue
+        _ ->
+          # On any failure while trying to offload, return the original content
+          content
+      end
     end
   end
 
