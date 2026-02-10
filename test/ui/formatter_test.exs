@@ -9,7 +9,7 @@ defmodule UI.FormatterTest do
   end
 
   setup do
-    original = System.get_env("FNORD_FORMATTER")
+    original = Util.Env.get_env("FNORD_FORMATTER")
     on_exit(fn -> System.put_env("FNORD_FORMATTER", original || "") end)
     :ok
   end
@@ -29,19 +29,19 @@ defmodule UI.FormatterTest do
     end
 
     test "returns input unchanged when FNORD_FORMATTER is empty" do
-      System.put_env("FNORD_FORMATTER", "")
+      Util.Env.put_env("FNORD_FORMATTER", "")
       input = "hello world"
       assert UI.Formatter.format_output(input) == input
     end
 
     test "applies a basic shell pipeline to transform the string" do
-      System.put_env("FNORD_FORMATTER", "tr a-z A-Z")
+      Util.Env.put_env("FNORD_FORMATTER", "tr a-z A-Z")
       input = "hello world"
       assert UI.Formatter.format_output(input) == "HELLO WORLD"
     end
 
     test "gracefully handles invalid command by logging warning and returning input" do
-      System.put_env("FNORD_FORMATTER", "nonexistent_command")
+      Util.Env.put_env("FNORD_FORMATTER", "nonexistent_command")
       input = "test"
 
       log =
@@ -53,7 +53,7 @@ defmodule UI.FormatterTest do
     end
 
     test "transforms multi-line ascii and preserves unicode characters" do
-      System.put_env("FNORD_FORMATTER", "tr a-z A-Z")
+      Util.Env.put_env("FNORD_FORMATTER", "tr a-z A-Z")
       text = "hello\nworld\näöü"
       assert UI.Formatter.format_output(text) == "HELLO\nWORLD\näöü"
     end

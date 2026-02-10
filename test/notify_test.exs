@@ -17,14 +17,14 @@ defmodule NotifierTest do
       :meck.new(System, [:no_link, :passthrough, :non_strict])
 
       # Force a GUI session
-      orig_display = System.get_env("DISPLAY")
+      orig_display = Util.Env.get_env("DISPLAY")
 
       on_exit(fn ->
         maybe_restore_env("DISPLAY", orig_display)
         :meck.unload(System)
       end)
 
-      System.put_env("DISPLAY", "1")
+      Util.Env.put_env("DISPLAY", "1")
 
       # Only notify-send is found
       :meck.expect(System, :find_executable, fn
@@ -70,5 +70,5 @@ defmodule NotifierTest do
   end
 
   defp maybe_restore_env(key, nil), do: System.delete_env(key)
-  defp maybe_restore_env(key, value), do: System.put_env(key, value)
+  defp maybe_restore_env(key, value), do: Util.Env.put_env(key, value)
 end

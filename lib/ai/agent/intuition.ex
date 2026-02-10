@@ -332,11 +332,7 @@ defmodule AI.Agent.Intuition do
   end
 
   defp debug? do
-    System.get_env("FNORD_DEBUG_INTUITION")
-    |> case do
-      nil -> false
-      value -> String.downcase(value) in ["true", "1", "yes"]
-    end
+    Util.Env.looks_truthy?("FNORD_DEBUG_INTUITION")
   end
 
   defp get_arg(opts, key) do

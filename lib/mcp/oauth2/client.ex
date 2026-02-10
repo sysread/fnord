@@ -276,7 +276,7 @@ defmodule MCP.OAuth2.Client do
       end
 
     # Debug: show raw fields used to compute expiry when debug enabled (redact access_token)
-    if System.get_env("FNORD_DEBUG_MCP") == "1" do
+    if Util.Env.mcp_debug_enabled?() do
       raw = %{
         "raw_expires_in" => Map.get(tokens, "expires_in"),
         "raw_expires_at" => Map.get(tokens, "expires_at"),

@@ -25,7 +25,7 @@ defmodule UI.Formatter do
       if UI.quiet?() do
         input
       else
-        case System.get_env("FNORD_FORMATTER") do
+        case Util.Env.get_env("FNORD_FORMATTER") do
           nil ->
             input
 
@@ -33,7 +33,7 @@ defmodule UI.Formatter do
             input
 
           formatter ->
-            shell = System.get_env("SHELL") || "/bin/sh"
+            shell = Util.Env.get_env("SHELL", "/bin/sh")
 
             Util.Temp.with_tmp(input, fn tmpfile ->
               task =

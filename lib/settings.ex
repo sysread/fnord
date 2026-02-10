@@ -38,7 +38,7 @@ defmodule Settings do
   """
   @spec get_user_home() :: binary | nil | no_return
   def get_user_home do
-    Services.Globals.get_env(:fnord, :test_home_override, System.get_env("HOME"))
+    Services.Globals.get_env(:fnord, :test_home_override, Util.Env.get_env("HOME"))
     |> case do
       nil -> raise "Could not determine user home directory. Is $HOME set?"
       home -> home
@@ -402,11 +402,7 @@ defmodule Settings do
   """
   @spec debug_models?() :: boolean
   def debug_models?() do
-    case System.get_env("FNORD_DEBUG_MODELS") do
-      nil -> false
-      "" -> false
-      _ -> true
-    end
+    Util.Env.looks_truthy?("FNORD_DEBUG_MODELS")
   end
 
   @doc """

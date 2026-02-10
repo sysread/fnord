@@ -168,7 +168,7 @@ defmodule UtilTest do
     test "uses valid positive FNORD_LOGGER_LINES over argument" do
       # input has 5 lines, env var set to 3, argument is 1
       input = Enum.map(1..5, &"l#{&1}") |> Enum.join("\n")
-      System.put_env("FNORD_LOGGER_LINES", "3")
+      Util.Env.put_env("FNORD_LOGGER_LINES", "3")
       result = Util.truncate(input, 1) |> String.trim()
       lines = String.split(result, "\n")
       # first 3 lines from env var
@@ -181,7 +181,7 @@ defmodule UtilTest do
     test "invalid FNORD_LOGGER_LINES falls back to positive argument" do
       # input has 3 lines, env var "foo" invalid, argument 1
       input = Enum.map(1..3, &"x#{&1}") |> Enum.join("\n")
-      System.put_env("FNORD_LOGGER_LINES", "foo")
+      Util.Env.put_env("FNORD_LOGGER_LINES", "foo")
       result = Util.truncate(input, 1) |> String.trim()
       # should use argument = 1, omit 2 lines
       assert String.split(result, "\n") == ["x1", "...plus 2 additional lines"]
@@ -191,7 +191,7 @@ defmodule UtilTest do
     test "falls back to argument when FNORD_LOGGER_LINES is negative" do
       # input has 5 lines, env var set to "-2", argument is 3
       input = Enum.map(1..5, &"l#{&1}") |> Enum.join("\n")
-      System.put_env("FNORD_LOGGER_LINES", "-2")
+      Util.Env.put_env("FNORD_LOGGER_LINES", "-2")
       result = Util.truncate(input, 3) |> String.trim()
       lines = String.split(result, "\n")
       # first 3 lines from argument
@@ -204,7 +204,7 @@ defmodule UtilTest do
     test "invalid env and non-positive argument falls back to default 50" do
       # generate 60 lines
       input = Enum.map(1..60, &"z#{&1}") |> Enum.join("\n")
-      System.put_env("FNORD_LOGGER_LINES", "0")
+      Util.Env.put_env("FNORD_LOGGER_LINES", "0")
       # argument 0 is non-positive; default is 50
       result = Util.truncate(input, 0) |> String.trim()
       lines = String.split(result, "\n")
@@ -249,7 +249,7 @@ defmodule UtilTest do
 
     test "env var overrides even when argument is larger" do
       input = Enum.map(1..5, &"L#{&1}") |> Enum.join("\n")
-      System.put_env("FNORD_LOGGER_LINES", "3")
+      Util.Env.put_env("FNORD_LOGGER_LINES", "3")
 
       assert String.split(Util.truncate(input, 5) |> String.trim(), "\n") == [
                "L1",
@@ -263,7 +263,7 @@ defmodule UtilTest do
 
     test "blank FNORD_LOGGER_LINES falls back to argument" do
       input = "a\nb\nc"
-      System.put_env("FNORD_LOGGER_LINES", "")
+      Util.Env.put_env("FNORD_LOGGER_LINES", "")
 
       assert String.split(Util.truncate(input, 2) |> String.trim(), "\n") == [
                "a",
@@ -276,7 +276,7 @@ defmodule UtilTest do
 
     test "partial parse \"3.5\" of FNORD_LOGGER_LINES ignores suffix" do
       input = "x\nx\nx\nx"
-      System.put_env("FNORD_LOGGER_LINES", "3.5")
+      Util.Env.put_env("FNORD_LOGGER_LINES", "3.5")
 
       assert String.split(Util.truncate(input, 3) |> String.trim(), "\n") == [
                "x",

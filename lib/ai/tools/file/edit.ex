@@ -601,8 +601,8 @@ defmodule AI.Tools.File.Edit do
           [before, after_part] ->
             # Exactly one occurrence; allow skipping whitespace fitting based on FNORD_NO_FITTING
             no_fitting? =
-              case System.get_env("FNORD_NO_FITTING") do
-                v when v in ["true", "True", "1"] -> true
+              case Util.Env.fetch_env("FNORD_NO_FITTING") do
+                {:ok, v} when v in ["true", "True", "1"] -> true
                 _ -> false
               end
 

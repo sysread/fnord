@@ -83,19 +83,19 @@ defmodule Fnord.TestCase do
       setup do
         # Ensure no OpenAI API key is set in the environment. This prevents
         # test from accidentally reaching out onto the network.
-        System.put_env("OPENAI_API_KEY", "")
-        System.put_env("FNORD_OPENAI_API_KEY", "")
+        Util.Env.put_env("OPENAI_API_KEY", "")
+        Util.Env.put_env("FNORD_OPENAI_API_KEY", "")
         :ok
       end
 
       setup do
         # Silence git's default-branch advice during tests and prefer 'main'
         # These environment variables affect git subprocesses spawned by System.cmd/3
-        System.put_env("GIT_CONFIG_COUNT", "2")
-        System.put_env("GIT_CONFIG_KEY_0", "advice.defaultBranchName")
-        System.put_env("GIT_CONFIG_VALUE_0", "false")
-        System.put_env("GIT_CONFIG_KEY_1", "init.defaultBranch")
-        System.put_env("GIT_CONFIG_VALUE_1", "main")
+        Util.Env.put_env("GIT_CONFIG_COUNT", "2")
+        Util.Env.put_env("GIT_CONFIG_KEY_0", "advice.defaultBranchName")
+        Util.Env.put_env("GIT_CONFIG_VALUE_0", "false")
+        Util.Env.put_env("GIT_CONFIG_KEY_1", "init.defaultBranch")
+        Util.Env.put_env("GIT_CONFIG_VALUE_1", "main")
 
         on_exit(fn ->
           System.delete_env("GIT_CONFIG_COUNT")
@@ -157,7 +157,7 @@ defmodule Fnord.TestCase do
       setup do
         with {:ok, tmp_dir} <- tmpdir() do
           # Just in case, ensure that the env var is overridden.
-          System.put_env("HOME", tmp_dir)
+          Util.Env.put_env("HOME", tmp_dir)
           # Then, override app config.
           Services.Globals.put_env(:fnord, :test_home_override, tmp_dir)
           {:ok, home_dir: tmp_dir}

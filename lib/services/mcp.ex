@@ -12,7 +12,7 @@ defmodule Services.MCP do
   def start(command \\ nil) do
     # Configure Hermes MCP logging - only show debug output when FNORD_DEBUG_MCP=1
     log_level =
-      if System.get_env("FNORD_DEBUG_MCP") == "1" do
+      if Util.Env.mcp_debug_enabled?() do
         :debug
       else
         :error
@@ -185,7 +185,7 @@ defmodule Services.MCP do
         {:ok, tools_list} ->
           count = length(tools_list)
 
-          if System.get_env("FNORD_DEBUG_MCP") == "1" do
+          if Util.Env.mcp_debug_enabled?() do
             {count, %{tools: Enum.map(tools_list, &tool_blurb/1), tools_count: count}}
           else
             {count,
@@ -197,7 +197,7 @@ defmodule Services.MCP do
       end
 
     # Debugging output: show credential contents and time comparison only when FNORD_DEBUG_MCP=1
-    if System.get_env("FNORD_DEBUG_MCP") == "1" do
+    if Util.Env.mcp_debug_enabled?() do
       case MCP.OAuth2.CredentialsStore.read(server) do
         {:ok, creds} ->
           safe_creds = Map.put(creds, "access_token", "<redacted>")
@@ -354,7 +354,7 @@ defmodule Services.MCP do
           {:ok, %{"expires_at" => exp} = creds} when is_integer(exp) ->
             now = System.os_time(:second)
 
-            if System.get_env("FNORD_DEBUG_MCP") == "1" do
+            if Util.Env.mcp_debug_enabled?() do
               safe_creds = Map.put(creds, "access_token", "<redacted>")
               UI.debug("[MCP Debug] credentials (redacted)")
               UI.printf_debug(safe_creds)
@@ -368,7 +368,7 @@ defmodule Services.MCP do
             end
 
           {:ok, creds} ->
-            if System.get_env("FNORD_DEBUG_MCP") == "1" do
+            if Util.Env.mcp_debug_enabled?() do
               safe_creds = Map.put(creds, "access_token", "<redacted>")
               UI.debug("[MCP Debug] credentials (no expires_at) (redacted)")
               UI.printf_debug(safe_creds)
@@ -381,7 +381,7 @@ defmodule Services.MCP do
             end
 
           {:error, :not_found} ->
-            if System.get_env("FNORD_DEBUG_MCP") == "1" do
+            if Util.Env.mcp_debug_enabled?() do
               UI.debug("[MCP Debug] No credentials found for #{server}")
             end
 

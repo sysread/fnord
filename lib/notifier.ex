@@ -104,8 +104,8 @@ defmodule Notifier do
   end
 
   defp gui_env?() do
-    (System.get_env("WAYLAND_DISPLAY") || "") != "" ||
-      (System.get_env("DISPLAY") || "") != ""
+    (Util.Env.get_env("WAYLAND_DISPLAY", "") || "") != "" ||
+      (Util.Env.get_env("DISPLAY", "") || "") != ""
   end
 
   defp linux_dismiss(_group), do: :ok

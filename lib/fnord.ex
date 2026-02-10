@@ -147,7 +147,7 @@ defmodule Fnord do
       )
 
     logger_level =
-      case System.get_env("LOGGER_LEVEL", "info") do
+      case Util.Env.get_env("LOGGER_LEVEL", "info") do
         level when level in ~w[emergency alert critical error warning notice info debug] ->
           String.to_existing_atom(level)
 

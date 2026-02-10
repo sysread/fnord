@@ -42,6 +42,7 @@ Conventions
 - Do not use `alias`s unless required
 - `@doc false` followed by a comment explaining a function is silly; just give the function a `@doc`
 - Avoid `@doc false` entirely
+- Do not use type guards unless *required* for functionality; they add complexity and can confuse `dialyzer`
 
 # Comments
 - Comments should describe the current behavior; they should NEVER describe or identify a change that is currently being made

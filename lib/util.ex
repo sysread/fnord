@@ -332,7 +332,7 @@ defmodule Util do
   defp fallback_limit(_), do: @default_limit
 
   defp determine_line_limit(max_lines) do
-    System.get_env("FNORD_LOGGER_LINES")
+    Util.Env.get_env("FNORD_LOGGER_LINES")
     |> case do
       val when is_binary(val) ->
         case Integer.parse(val) do

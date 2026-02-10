@@ -102,7 +102,7 @@ defmodule AI.Embeddings do
   @spec get_api_key!() :: String.t()
   defp get_api_key!() do
     ["FNORD_OPENAI_API_KEY", "OPENAI_API_KEY"]
-    |> Enum.find_value(&System.get_env(&1, nil))
+    |> Enum.find_value(fn k -> Util.Env.get_env(k, nil) end)
     |> case do
       nil ->
         raise "Either FNORD_OPENAI_API_KEY or OPENAI_API_KEY environment variable must be set"

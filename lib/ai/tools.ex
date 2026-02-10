@@ -348,7 +348,7 @@ defmodule AI.Tools do
     with {:ok, module} <- tool_module(tool, tools),
          {:ok, args} <- module.read_args(args),
          :ok <- validate_required_args(tool, args, tools) do
-      if System.get_env("FNORD_DEBUG_TOOLS") do
+      if Util.Env.looks_truthy?("FNORD_DEBUG_TOOLS") do
         UI.debug("Performing tool call", """
         # #{tool}
         #{inspect(args, pretty: true)}

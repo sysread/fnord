@@ -278,7 +278,7 @@ defmodule AI.Tools.File.EditTest do
         }
         """)
 
-      System.put_env("FNORD_NO_FITTING", "true")
+      Util.Env.put_env("FNORD_NO_FITTING", "true")
       on_exit(fn -> System.delete_env("FNORD_NO_FITTING") end)
 
       {:ok, _result} =
