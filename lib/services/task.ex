@@ -239,11 +239,10 @@ defmodule Services.Task do
     tasklists =
       raw_tasks_map
       |> Enum.map(fn {list_id, tasks} ->
-        # get_task_list_meta returns {:ok, meta_map} | {:error, :not_found}, need to unwrap
-        meta_result = Services.Conversation.get_task_list_meta(conversation_pid, list_id)
-
         meta =
-          case meta_result do
+          conversation_pid
+          |> Services.Conversation.get_task_list_meta(list_id)
+          |> case do
             {:ok, m} when is_map(m) -> m
             _ -> %{}
           end
