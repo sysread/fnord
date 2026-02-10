@@ -109,7 +109,7 @@ defmodule AI.Tools.Shell do
                    Some commands DO behave differently without a tty.
                    Guardrails:
                      - rg requires an explicit path when used under '&&' or as the first stage of a pipeline
-                     - wc must receive input via a pipeline or explicit file args (or '-' for stdin) and is invalid under '&&' or as the first stage without files
+                     - wc must receive input via a pipeline or explicit file args. Use of '-' (stdin) is disallowed because it can cause the command to hang while waiting for input. wc is invalid under '&&' or as the first stage without files
         IMPORTANT: Environment variables are NOT expanded in command args.
                    If you need env vars, use a specialized tool or create a temp script file.
         IMPORTANT: Your commands will be run in a non-interactive, non-login shell environment.
@@ -353,7 +353,7 @@ defmodule AI.Tools.Shell do
   # - When operator is '|' and this is the first stage: no prior stdin exists yet.
   # In these cases:
   # - rg must include an explicit path-like positional arg (e.g., '.', './dir', '/abs', or a non-flag token).
-  # - wc must include file args (non-flag tokens) or '-' to read from stdin.
+  # - wc must include file args (non-flag tokens). Use of '-' (stdin) is disallowed because reading from stdin can hang the command.
   # Anywhere else, these commands are allowed (e.g., later stages in a pipeline).
   # ----------------------------------------------------------------------------
   defp validate_command_context(op, commands, root) do
