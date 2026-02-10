@@ -200,4 +200,33 @@ defmodule MemoryTest do
       assert updated.updated_at != ""
     end
   end
+
+  describe "ensure_timestamps/1" do
+    test "save ensures timestamps for missing and respects existing ones" do
+      ts = DateTime.utc_now() |> DateTime.to_iso8601()
+
+      base = Path.join(Store.store_home(), "memory")
+      File.mkdir_p!(base)
+
+      mem = %Memory{
+        scope: :global,
+        title: "Test Timestamp",
+        slug: Memory.title_to_slug("Test Timestamp"),
+        content: "c",
+        topics: [],
+        embeddings: nil,
+        inserted_at: nil,
+        updated_at: nil
+      }
+
+      assert {:ok, saved} = Memory.save(mem, skip_embeddings: true)
+      assert is_binary(saved.inserted_at) and saved.inserted_at != ""
+      assert is_binary(saved.updated_at) and saved.updated_at != ""
+
+      mem2 = %{mem | inserted_at: ts, updated_at: ts}
+      assert {:ok, saved2} = Memory.save(mem2, skip_embeddings: true)
+      assert saved2.inserted_at == ts
+      assert saved2.updated_at == ts
+    end
+  end
 end

@@ -525,27 +525,17 @@ defmodule Memory do
   # Ensures memory timestamps are set. If inserted_at is missing or empty, uses
   # updated_at. If updated_at is missing or empty, uses the current timestamp.
   defp ensure_timestamps(memory) do
-    now =
-      DateTime.utc_now()
-      |> DateTime.to_iso8601()
+    now = DateTime.utc_now() |> DateTime.to_iso8601()
 
     inserted_at =
       [memory.inserted_at, memory.updated_at]
-      |> Enum.find(fn
-        nil -> false
-        "" -> false
-        _ -> true
-      end)
-      |> case do
-        nil -> now
-        x -> x
-      end
+      |> Enum.find(now, fn ts -> ts not in [nil, ""] end)
 
     updated_at =
-      case memory.updated_at do
-        nil -> now
-        "" -> now
-        x -> x
+      if memory.updated_at not in [nil, ""] do
+        memory.updated_at
+      else
+        now
       end
 
     %{memory | inserted_at: inserted_at, updated_at: updated_at}

@@ -245,11 +245,19 @@ defmodule Services.Task do
         meta =
           case meta_result do
             {:ok, m} when is_map(m) -> m
-            _ -> %{description: nil}
+            _ -> %{}
           end
 
+        description = Map.get(meta, :description)
+        status = Map.get(meta, :status) |> normalize_status()
+
         {list_id,
-         %Services.Task.List{id: list_id, description: Map.get(meta, :description), tasks: tasks}}
+         %Services.Task.List{
+           id: list_id,
+           description: description,
+           tasks: tasks,
+           status: status
+         }}
       end)
       |> Map.new()
 
@@ -499,4 +507,17 @@ defmodule Services.Task do
     end)
     |> Map.new()
   end
+
+  # Normalize status values into canonical strings used throughout the task service.
+  # Accepts atoms or strings and returns one of: "planning", "in-progress", "done".
+  defp normalize_status(nil), do: "planning"
+  defp normalize_status(:planning), do: "planning"
+  defp normalize_status("planning"), do: "planning"
+  defp normalize_status(:in_progress), do: "in-progress"
+  defp normalize_status("in_progress"), do: "in-progress"
+  defp normalize_status(:"in-progress"), do: "in-progress"
+  defp normalize_status("in-progress"), do: "in-progress"
+  defp normalize_status(:done), do: "done"
+  defp normalize_status("done"), do: "done"
+  defp normalize_status(_), do: "planning"
 end
