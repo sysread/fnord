@@ -34,12 +34,14 @@ Conventions
   - integration points always get `@doc`s explaining how they fit into the bigger picture/larger feature
   - integration points should have basic positive and negative path tests for the expected/intended use cases
     - add tests as edge cases manifest
-- Do not use in-line conditionals (eg `if ..., do: ..., else: ...`)
-- Do not use `alias`s unless required
 - `AI.Agent` is for implementations of that behaviour
 - `AI.Tools` is for implementations of that behaviour
 - `Services` is for genservers
 - Prefer context modules that get called by integration/feature/behavior layers
+- Do not use in-line conditionals (eg `if ..., do: ..., else: ...`)
+- Do not use `alias`s unless required
+- `@doc false` followed by a comment explaining a function is silly; just give the function a `@doc`
+- Avoid `@doc false` entirely
 
 # Comments
 - Comments should describe the current behavior; they should NEVER describe or identify a change that is currently being made
