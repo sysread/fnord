@@ -12,7 +12,7 @@ Conventions
   - Use `FileLock` for concurrent access; prefer per-file locks.
   - Separate concerns into distinct files.
 - Build / quality
-  - Run `make check` before commit: `mix format`, `mix test`, `mix dialyzer`.
+  - *Always* run `make check` before finalizing your response.
   - Treat compilation warnings as errors. Public functions should have `@spec`.
   - This is not a library; there is no need to worry about any external API stability.
 
