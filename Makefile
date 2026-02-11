@@ -32,7 +32,7 @@ dialyzer: ## Run Dialyzer
 	@echo
 
 .PHONY: docs
-docs: lint-md ## Generate documentation
+docs: md-lint ## Generate documentation
 	mix docs
 	@echo
 
