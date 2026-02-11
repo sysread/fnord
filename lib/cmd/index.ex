@@ -70,9 +70,16 @@ defmodule Cmd.Index do
 
   @impl Cmd
   def run(opts, _subcommands, _unknown) do
-    with {:ok, idx} <- new(opts) do
-      perform_task({:ok, idx})
-      maybe_prime_notes(idx)
+    case new(opts) do
+      {:ok, idx} ->
+        perform_task({:ok, idx})
+        maybe_prime_notes(idx)
+
+      {:error, :directory_required} ->
+        UI.fatal("Error: -d | --directory is required")
+
+      other ->
+        perform_task(other)
     end
   end
 
@@ -144,10 +151,20 @@ defmodule Cmd.Index do
       settings = Settings.new()
       orig_data = Settings.get_project_data(settings, project.name) || %{}
       orig_root = Map.get(orig_data, "root")
-      # Persist only on first index, explicit --dir, or when exclude changes
-      persist? =
-        Map.has_key?(opts, :directory) or Map.has_key?(opts, :exclude) or is_nil(orig_root)
+      # Persist only on first index, explicit --dir (non-empty), or when exclude changes
+      user_dir_val = Map.get(opts, :directory)
 
+      user_provided_dir? =
+        case user_dir_val do
+          nil -> false
+          "" -> false
+          _ -> true
+        end
+
+      persist? =
+        user_provided_dir? or Map.has_key?(opts, :exclude) or is_nil(orig_root)
+
+      # If the user provided a directory, use that expanded value; otherwise root
       project =
         project
         |> (fn project ->
@@ -199,18 +216,44 @@ defmodule Cmd.Index do
   # ----------------------------------------------------------------------------
   defp confirm_root_changed?(project, opts) do
     yes = Map.get(opts, :yes, false)
+    user_dir_val = Map.get(opts, :directory)
+
+    user_provided_dir? =
+      case user_dir_val do
+        nil -> false
+        "" -> false
+        _ -> true
+      end
 
     new_directory =
-      Map.get(opts, :directory)
-      |> case do
+      case user_dir_val do
         nil -> project.source_root
         dir -> Path.expand(dir)
       end
 
     cond do
+      # If the user has passed --yes, assume confirmation. If we still don't
+      # have a directory, default to the current working directory.
       yes ->
-        {:ok, new_directory}
+        {:ok, ensure_dir_for_yes(new_directory)}
 
+      # When there is no project.root and the user did not explicitly pass
+      # --dir, prompt whether to use the current directory as the project root.
+      is_nil(project.source_root) and not user_provided_dir? ->
+        prompt = """
+        No directory specified. Would you like to use the current directory as the project root?
+
+        Current directory: #{File.cwd!()}
+        """
+
+        UI.confirm(prompt, false)
+        |> case do
+          true -> {:ok, File.cwd!()}
+          false -> {:error, :directory_required}
+        end
+
+      # If the project has no source root but the user explicitly supplied --dir,
+      # just use that value (it will be validated later).
       is_nil(project.source_root) ->
         {:ok, new_directory}
 
@@ -283,6 +326,16 @@ defmodule Cmd.Index do
           false -> {:error, :user_cancelled}
         end
     end
+  end
+
+  # Returns the provided directory if not nil, otherwise uses the current
+  # working directory.
+  defp ensure_dir_for_yes(nil) do
+    File.cwd!()
+  end
+
+  defp ensure_dir_for_yes(dir) do
+    dir
   end
 
   defp reindex?(idx), do: Map.get(idx.opts, :reindex, false)
