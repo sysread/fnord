@@ -714,7 +714,7 @@ defmodule AI.Agent.Coordinator do
     with {:ok, project} <- Store.get_project(),
          {:ok, prompt} <- Store.Project.project_prompt(project) do
       """
-      While working within this project, the following instructions apply:
+      While working within this project, the following *required directives* apply:
       #{prompt}
       """
       |> AI.Util.system_msg()
