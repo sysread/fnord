@@ -53,13 +53,13 @@ defmodule AI.Tools.File.Search do
         "user authentication" to find files related to user login, regardless
         of whether they contain that exact phrase.
 
-        If you are looking for an exact pattern, your best bet is to use grep
-        or a similar command via the `shell_tool`. This tool is optimized for
-        identifying content when you are not sure what you are looking for. For
-        example, you can search for "which endpoints require user
-        authentication?" or "where are feature flags defined?" to find files
-        related to those topics, even if the exact phrases do not appear in the
-        file names or contents.
+        If you are looking for an exact pattern, your best bet is to use grep,
+        rg, or a similar command via the `shell_tool`. This tool is optimized
+        for identifying content when you are not sure what you are looking for.
+
+        This tool does not support regular expressions, boolean operators, or
+        exact string matches. Rather, it is designed to search using natural
+        language queries that match the *semantic content* of files.
 
         Note that this tool does not have access to historical data or commit
         messages. It only searches the most recently indexed version of the
@@ -73,7 +73,16 @@ defmodule AI.Tools.File.Search do
           properties: %{
             query: %{
               type: "string",
-              description: "The search query string."
+              description: """
+              The search query string.
+              Examples:
+              - "user authentication"
+              - "feature flag definitions"
+              - "settings related to database connections"
+              - "functions that call the payment API"
+              - "unit tests related to the parser"
+              - "modules that read or write json data"
+              """
             }
           }
         }

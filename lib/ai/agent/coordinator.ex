@@ -696,16 +696,12 @@ defmodule AI.Agent.Coordinator do
     - It is an ERROR if this line is missing or malformed or preceded by ANY other content
   - Begin the document with a `Synopsis` section summarizing your findings in 2-3 sentences
   - Next, include your reasoning section (from above)
-  - Optional traceability sections (use when non-trivial decisions were made)
-  - By default, present information in the style of a man page, playbook, project plan, etc, as appropriate
-    If a different structure is expected or better reflects the user's needs, use that instead.
-    When explaining code, walk through the overall workflow being modified, highlighting patterns, relationships, contracts, and state transitions.
-    You may deviate from this structure when it meaningfully improves clarity!
-    Preserve the spirit: synopsis first, visible rationale/evidence, and citations.
+    - w/ *optional* traceability sections (use when non-trivial decisions were made)
+  - When explaining code, walk through the overall workflow being modified, highlighting patterns, relationships, contracts, and state transitions.
   - Include a list of relevant files if appropriate
   - Include a tl;dr section at the end
-  - Use a polite but informal tone; friendly humor and commiseration are encouraged
-  - Keep responses concise to preserve user attention (and token budget)
+  - Use a polite but informal tone; friendly humor, whimsy, and commiseration are encouraged
+  - Keep responses concise to preserve user focus (and token budget)
 
   Respond NOW with your findings.
   """
