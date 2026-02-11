@@ -85,7 +85,6 @@ defmodule UI.Output.Production do
                 "Auto-selection after timeout: #{label} -> #{inspect(default)}"
               )
 
-              # Note: would need UI.debug here, but that would create circular dependency
               default
           end
       end

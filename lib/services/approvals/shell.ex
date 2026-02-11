@@ -11,6 +11,9 @@ defmodule Services.Approvals.Shell do
   @deny "Deny"
   @deny_feedback "Deny with feedback"
 
+  @auto_approve "(auto-approve)"
+  @auto_deny "(auto-deny)"
+
   @session "Approve for this session"
   @project "Approve for the project"
   @global "Approve globally"
@@ -296,22 +299,17 @@ defmodule Services.Approvals.Shell do
 
     Settings.get_auto_policy()
     |> case do
-      {:approve, ms} -> UI.choose("Approve this request?", opts, ms, @approve)
-      {:deny, ms} -> UI.choose("Approve this request?", opts, ms, @deny)
+      {:approve, ms} -> UI.choose("Approve this request?", opts, ms, @auto_approve)
+      {:deny, ms} -> UI.choose("Approve this request?", opts, ms, @auto_deny)
       _ -> UI.choose("Approve this request?", opts)
     end
     |> case do
-      @approve ->
-        {:approved, state}
-
-      @deny ->
-        {:denied, build_auto_deny_message(), state}
-
-      @deny_feedback ->
-        {:denied, get_feedback(), state}
-
-      @persistent ->
-        customize(state, stages)
+      @approve -> {:approved, state}
+      @auto_approve -> {:approved, state}
+      @deny -> {:denied, @no_feedback, state}
+      @auto_deny -> {:denied, build_auto_deny_message(), state}
+      @deny_feedback -> {:denied, get_feedback(), state}
+      @persistent -> customize(state, stages)
     end
   end
 

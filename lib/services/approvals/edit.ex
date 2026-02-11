@@ -5,6 +5,8 @@ defmodule Services.Approvals.Edit do
   @session "Approve for this session"
   @deny "Deny"
   @deny_feedback "Deny with feedback"
+  @auto_approve "(auto-approve)"
+  @auto_deny "(auto-deny)"
 
   @no_feedback "The user denied the request."
 
@@ -61,12 +63,15 @@ defmodule Services.Approvals.Edit do
 
     Settings.get_auto_policy()
     |> case do
-      {:approve, ms} -> UI.choose("Approve this request?", opts, ms, @approve)
-      {:deny, ms} -> UI.choose("Approve this request?", opts, ms, @deny)
+      {:approve, ms} -> UI.choose("Approve this request?", opts, ms, @auto_approve)
+      {:deny, ms} -> UI.choose("Approve this request?", opts, ms, @auto_deny)
       _ -> UI.choose("Approve this request?", opts)
     end
     |> case do
       @approve ->
+        {:approved, state}
+
+      @auto_approve ->
         {:approved, state}
 
       @session ->
@@ -75,6 +80,9 @@ defmodule Services.Approvals.Edit do
 
       @deny ->
         {:denied, @no_feedback, state}
+
+      @auto_deny ->
+        {:denied, build_auto_deny_message(), state}
 
       @deny_feedback ->
         {:denied, get_feedback(), state}
@@ -89,6 +97,22 @@ defmodule Services.Approvals.Edit do
     "Feedback:"
     |> UI.prompt()
     |> then(&"The user denied the request with the following feedback: #{&1}")
+  end
+
+  defp build_auto_deny_message() do
+    case Settings.get_auto_policy() do
+      {:deny, ms} when is_integer(ms) and ms > 0 ->
+        seconds = div(ms, 1000)
+
+        """
+        The request was automatically denied after #{seconds} seconds due to an active auto-deny policy.
+        The user may not be monitoring their terminal. Only use pre-approved shell commands that will not require user confirmation.
+        """
+        |> String.trim()
+
+      _ ->
+        @no_feedback
+    end
   end
 
   # Safely fetch terminal columns, fallback to 120
