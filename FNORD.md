@@ -12,9 +12,11 @@ Conventions
   - Use `FileLock` for concurrent access; prefer per-file locks.
   - Separate concerns into distinct files.
 - Build / quality
-  - *Always* run `make check` before finalizing your response.
+  - ALWAYS run `make check` before finalizing your response.
   - Treat compilation warnings as errors. Public functions should have `@spec`.
   - This is not a library; there is no need to worry about any external API stability.
+  - NEVER commit changes yourself unless explicitly instructed
+  - NEVER push changes yourself unless explicitly instructed
 
 # Guidelines
 - Functions should do one thing well
