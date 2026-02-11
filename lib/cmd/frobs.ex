@@ -39,7 +39,14 @@ defmodule Cmd.Frobs do
           ],
           list: [
             name: "list",
-            about: "Lists all available frobs"
+            about: "Lists available frobs (use -a / --all to list all frobs)",
+            flags: [
+              all: [
+                long: "--all",
+                short: "-a",
+                help: "List all frobs, including disabled ones"
+              ]
+            ]
           ],
           enable: [
             name: "enable",
@@ -116,7 +123,7 @@ defmodule Cmd.Frobs do
     case subcommands do
       [:create] -> create(opts)
       [:check] -> check(opts)
-      [:list] -> list()
+      [:list] -> list(opts)
       [:enable] -> enable(opts)
       [:disable] -> disable(opts)
       _ -> {:error, :invalid_subcommand}
@@ -157,48 +164,137 @@ defmodule Cmd.Frobs do
     end
   end
 
-  defp list() do
-    frobs =
-      Frobs.list()
-      |> Enum.map(fn frob ->
-        desc = Map.get(frob.spec, "description", "No description provided")
-        enabled = Settings.Frobs.enabled?(frob.name)
+  defp list(opts) do
+    if opts[:all] do
+      Services.Once.run(
+        :frobs_migrate_registry_to_settings,
+        &Frobs.Migrate.maybe_migrate_registry_to_settings/0
+      )
 
-        scope_info =
-          if enabled do
-            case Settings.get_selected_project() do
-              {:ok, _} -> "Enabled (global or project)"
-              _ -> "Enabled (global)"
+      base_dir = Path.join([Settings.get_user_home(), "fnord", "tools"])
+
+      frob_names =
+        case File.ls(base_dir) do
+          {:ok, entries} ->
+            entries |> Enum.filter(fn entry -> File.dir?(Path.join(base_dir, entry)) end)
+
+          _ ->
+            []
+        end
+
+      global_list = Settings.Frobs.list(:global)
+
+      project_list =
+        case Settings.get_selected_project() do
+          {:ok, _} -> Settings.Frobs.list(:project)
+          _ -> []
+        end
+
+      frobs =
+        frob_names
+        |> Enum.map(fn name ->
+          spec_path = Path.join([base_dir, name, "spec.json"])
+
+          description =
+            case File.read(spec_path) do
+              {:ok, content} ->
+                case Jason.decode(content) do
+                  {:ok, %{"description" => d}} when is_binary(d) -> d
+                  _ -> "No description provided"
+                end
+
+              _ ->
+                "No description provided"
             end
-          else
-            "Disabled"
-          end
 
-        """
-        - Name:         #{frob.name}
-        - Description:  #{desc}
-        - Location:     #{frob.home}
-        - Status:       #{scope_info}
-        """
-      end)
-      |> Enum.join("\n\n")
+          status =
+            cond do
+              name in global_list and name in project_list -> "Enabled (global and project)"
+              name in global_list -> "Enabled (global)"
+              name in project_list -> "Enabled (project)"
+              true -> "Disabled"
+            end
 
-    if frobs == "" do
-      case Settings.get_selected_project() do
-        {:ok, project} ->
-          {:ok, "No frobs found for project #{project.name}"}
+          """
+          - Name:         #{name}
+          - Description:  #{description}
+          - Location:     #{Path.join([base_dir, name])}
+          - Status:       #{status}
+          """
+        end)
+        |> Enum.join("\n\n")
 
-        _ ->
-          {:ok, "No frobs found"}
+      if frobs == "" do
+        {:ok, "No frobs found in tools directory"}
+      else
+        {:ok,
+         """
+         --------------------------------------------------------------------------------
+         > Frobs
+         --------------------------------------------------------------------------------
+         #{frobs}
+         """}
       end
     else
-      {:ok,
-       """
-       --------------------------------------------------------------------------------
-       > Frobs
-       --------------------------------------------------------------------------------
-       #{frobs}
-       """}
+      global_list = Settings.Frobs.list(:global)
+
+      project_list =
+        case Settings.get_selected_project() do
+          {:ok, _} -> Settings.Frobs.list(:project)
+          _ -> []
+        end
+
+      frobs =
+        Frobs.list()
+        |> Enum.map(fn frob ->
+          desc = Map.get(frob.spec, "description", "No description provided")
+          enabled = Settings.Frobs.enabled?(frob.name)
+
+          scope_info =
+            if enabled do
+              cond do
+                frob.name in global_list and frob.name in project_list ->
+                  "Enabled (global and project)"
+
+                frob.name in global_list ->
+                  "Enabled (global)"
+
+                frob.name in project_list ->
+                  "Enabled (project)"
+
+                true ->
+                  "Disabled"
+              end
+            else
+              "Disabled"
+            end
+
+          """
+          - Name:         #{frob.name}
+          - Description:  #{desc}
+          - Location:     #{frob.home}
+          - Status:       #{scope_info}
+          """
+        end)
+        |> Enum.join("\n\n")
+
+      if frobs == "" do
+        case Settings.get_selected_project() do
+          {:ok, project} ->
+            {:ok, "No frobs found for project #{project.name}"}
+
+          _ ->
+            {:ok, "No frobs found"}
+        end
+      else
+        {:ok,
+         """
+         --------------------------------------------------------------------------------
+         > Frobs
+         --------------------------------------------------------------------------------
+         #{frobs}
+         """}
+      end
     end
   end
 
