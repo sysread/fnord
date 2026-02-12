@@ -132,6 +132,8 @@ defmodule Frobs do
     object
   )
 
+  @composition_keywords ~w(anyOf oneOf allOf)
+
   # -----------------------------------------------------------------------------
   # Public API
   # -----------------------------------------------------------------------------
@@ -448,25 +450,86 @@ defmodule Frobs do
 
   defp missing_or_invalid_property(props) do
     Enum.find_value(props, fn {key, val} ->
-      cond do
-        !is_map(val) ->
-          {:error, :invalid_property, "Property '#{key}' must be a JSON object"}
-
-        !Map.has_key?(val, "type") ->
-          {:error, :missing_type, "Property '#{key}' must include a 'type'"}
-
-        !Map.has_key?(val, "description") or String.trim(val["description"]) == "" ->
-          {:error, :missing_description,
-           "Property '#{key}' must include a non-empty 'description'"}
-
-        val["type"] not in @allowed_param_types ->
-          {:error, :invalid_type,
-           "Property '#{key}' has invalid type '#{val["type"]}'. Allowed types: #{@allowed_param_types |> Enum.join(", ")}"}
-
-        true ->
-          false
+      case validate_property(key, val) do
+        :ok -> false
+        error -> error
       end
     end)
+  end
+
+  defp validate_property(key, val) when not is_map(val) do
+    {:error, :invalid_property, "Property '#{key}' must be a JSON object"}
+  end
+
+  defp validate_property(key, val) do
+    with :ok <- validate_description(key, val),
+         :ok <- validate_type_or_composition(key, val) do
+      :ok
+    end
+  end
+
+  defp validate_description(key, val) do
+    if Map.has_key?(val, "description") and String.trim(val["description"] || "") != "" do
+      :ok
+    else
+      {:error, :missing_description, "Property '#{key}' must include a non-empty 'description'"}
+    end
+  end
+
+  defp validate_type_or_composition(key, val) do
+    cond do
+      Map.has_key?(val, "type") ->
+        validate_typed_property(key, val)
+
+      has_composition_keyword?(val) ->
+        validate_composition_property(key, val)
+
+      true ->
+        {:error, :missing_type,
+         "Property '#{key}' must include a 'type' or a composition keyword (anyOf, oneOf, allOf). $ref/$defs are not currently supported."}
+    end
+  end
+
+  defp validate_typed_property(key, val) do
+    if val["type"] in @allowed_param_types do
+      :ok
+    else
+      {:error, :invalid_type,
+       "Property '#{key}' has invalid type '#{val["type"]}'. Allowed types: #{Enum.join(@allowed_param_types, ", ")}"}
+    end
+  end
+
+  defp validate_composition_property(key, val) do
+    @composition_keywords
+    |> Enum.filter(&Map.has_key?(val, &1))
+    |> Enum.reduce_while(:ok, fn keyword, :ok ->
+      case validate_composition_value(key, keyword, Map.get(val, keyword)) do
+        :ok -> {:cont, :ok}
+        error -> {:halt, error}
+      end
+    end)
+  end
+
+  defp validate_composition_value(key, keyword, list) when is_list(list) and length(list) > 0 do
+    if Enum.all?(list, &is_map/1) do
+      :ok
+    else
+      {:error, :invalid_composition,
+       "Property '#{key}': '#{keyword}' entries must be JSON objects"}
+    end
+  end
+
+  defp validate_composition_value(key, keyword, []) do
+    {:error, :invalid_composition, "Property '#{key}': '#{keyword}' must be a non-empty array"}
+  end
+
+  defp validate_composition_value(key, keyword, _) do
+    {:error, :invalid_composition,
+     "Property '#{key}': '#{keyword}' must be an array of JSON objects"}
+  end
+
+  defp has_composition_keyword?(val) do
+    Enum.any?(@composition_keywords, &Map.has_key?(val, &1))
   end
 
   defp validate_main(home) do
