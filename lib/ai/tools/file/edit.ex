@@ -743,9 +743,16 @@ defmodule AI.Tools.File.Edit do
   end
 
   @spec maybe_backup(binary, boolean) :: {:ok, binary | nil} | {:error, term}
-  # Backup only if the original file existed prior to the edit
+  # Backup only if the original file existed prior to the edit AND backups are enabled.
   defp maybe_backup(_file, false), do: {:ok, ""}
-  defp maybe_backup(file, true), do: backup_file(file)
+
+  defp maybe_backup(file, true) do
+    if Settings.should_create_backup_files?() do
+      backup_file(file)
+    else
+      {:ok, ""}
+    end
+  end
 
   defp read_file(abs_path) do
     abs_path
