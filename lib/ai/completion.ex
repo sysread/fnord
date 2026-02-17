@@ -208,16 +208,16 @@ defmodule AI.Completion do
   defp maybe_apply_interrupts(%{conversation_pid: nil} = state), do: state
 
   defp maybe_apply_interrupts(%{conversation_pid: pid} = state) do
-    interrupts = Services.Conversation.Interrupts.take_all(pid)
-
-    case interrupts do
+    pid
+    |> Services.Conversation.Interrupts.take_all()
+    |> case do
       [] ->
         state
 
       msgs ->
         new_messages = state.messages ++ msgs
         Services.Conversation.replace_msgs(new_messages, pid)
-        UI.info("The LLM will see your message after the current step completes.")
+        Enum.each(msgs, &UI.feedback_user(&1.content))
         %{state | messages: new_messages}
     end
   end
