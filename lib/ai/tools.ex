@@ -193,7 +193,6 @@ defmodule AI.Tools do
     "prior_research" => AI.Tools.Notes,
     "research_tool" => AI.Tools.Research,
     "shell_tool" => AI.Tools.Shell,
-    "troubleshooter_tool" => AI.Tools.Troubleshooter,
     "conversation_tool" => AI.Tools.Conversation,
     "memory_tool" => AI.Tools.Memory,
     "fnord_help_cli_tool" => AI.Tools.SelfHelp.Cli

@@ -494,6 +494,7 @@ defmodule AI.Agent.Coordinator do
     - using the shell_tool
     - running or writing tests
     - printf debugging
+    - writing a temporary script in the project root to explore behavior in isolation
 
   Reachability and Preconditions:
   - Before flagging an issue, confirm it is reachable in current control flow
