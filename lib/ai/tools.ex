@@ -43,7 +43,6 @@ defmodule AI.Tools do
         function: %{
           name: "something_tool",
           description: "This tool does something.",
-          strict: true,
           parameters: %{
             additionalProperties: false,
             type: "object",
@@ -72,7 +71,6 @@ defmodule AI.Tools do
           :function => %{
             :name => binary,
             :description => binary,
-            optional(:strict) => boolean,
             :parameters => %{
               optional(:additionalProperties) => boolean,
               :type => binary,
@@ -345,7 +343,7 @@ defmodule AI.Tools do
   def perform_tool_call(tool, args, tools \\ nil) do
     with {:ok, module} <- tool_module(tool, tools),
          {:ok, args} <- module.read_args(args),
-         :ok <- validate_required_args(tool, args, tools) do
+         {:ok, args} <- AI.Tools.Params.validate_json_args(module.spec(), args) do
       if Util.Env.looks_truthy?("FNORD_DEBUG_TOOLS") do
         UI.debug("Performing tool call", """
         # #{tool}
@@ -412,10 +410,10 @@ defmodule AI.Tools do
           | nil
   def on_tool_request(tool, args, tools \\ nil) do
     with {:ok, module} <- tool_module(tool, tools),
-         :ok <- validate_required_args(tool, args, tools),
-         {:ok, processed_args} <- module.read_args(args) do
+         {:ok, args} <- module.read_args(args),
+         {:ok, args} <- AI.Tools.Params.validate_json_args(module.spec(), args) do
       try do
-        module.ui_note_on_request(processed_args)
+        module.ui_note_on_request(args)
       rescue
         e ->
           UI.debug(
@@ -503,17 +501,6 @@ defmodule AI.Tools do
       end
     else
       _ -> :default
-    end
-  end
-
-  @spec validate_required_args(tool_name, parsed_args, toolbox | nil) :: :ok | args_error
-  def validate_required_args(tool, args, tools \\ nil) do
-    with {:ok, module} <- tool_module(tool, tools) do
-      module.spec()
-      |> Map.get(:function)
-      |> Map.get(:parameters)
-      |> Map.get("required", [])
-      |> check_required_args(args)
     end
   end
 
@@ -660,31 +647,4 @@ defmodule AI.Tools do
 
   def build_toolbox(modules) when is_map(modules), do: modules
   def build_toolbox(nil), do: %{}
-
-  # ----------------------------------------------------------------------------
-  # Private Functions
-  # ----------------------------------------------------------------------------
-  defp check_required_args(nil, _args) do
-    :ok
-  end
-
-  defp check_required_args([], _args) do
-    :ok
-  end
-
-  defp check_required_args([key | keys], args) do
-    with :ok <- get_required_arg(args, key) do
-      check_required_args(keys, args)
-    end
-  end
-
-  defp get_required_arg(args, key) do
-    args
-    |> Map.fetch(key)
-    |> case do
-      :error -> required_arg_error(key)
-      {:ok, nil} -> required_arg_error(key)
-      _ -> :ok
-    end
-  end
 end

@@ -38,7 +38,23 @@ defmodule AI.Tools.Memory do
   def tool_call_failure_message(_args, _reason), do: :default
 
   @impl AI.Tools
-  def read_args(args), do: {:ok, args}
+  def read_args(args) do
+    args =
+      args
+      |> normalize_arg_topics("topics")
+      |> normalize_arg_topics("new_topics")
+
+    {:ok, args}
+  end
+
+  # Normalize string-valued topic fields to lists before schema validation.
+  # LLMs sometimes send comma- or pipe-separated strings instead of arrays.
+  defp normalize_arg_topics(args, key) do
+    case Map.get(args, key) do
+      val when is_binary(val) -> Map.put(args, key, normalize_topics(val))
+      _ -> args
+    end
+  end
 
   @impl AI.Tools
   def spec do

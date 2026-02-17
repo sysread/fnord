@@ -38,7 +38,6 @@ defmodule AI.Tools.File.Notes do
         Use this before using the file_contents_tool to avoid pulling in
         unnecessary content into your context window.
         """,
-        strict: true,
         parameters: %{
           additionalProperties: false,
           type: "object",

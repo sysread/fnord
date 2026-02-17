@@ -50,7 +50,61 @@ defmodule AI.ToolsTest do
     end
   end
 
-  @tools %{"mock_tool" => MockTool}
+  # PassthroughTool has a passthrough read_args, so validate_json_args is the
+  # only validation gate. This exercises the centralized validation pipeline
+  # without read_args short-circuiting on missing/invalid args.
+  defmodule PassthroughTool do
+    @behaviour AI.Tools
+
+    @impl AI.Tools
+    def async?, do: false
+
+    @impl AI.Tools
+    def is_available?, do: true
+
+    @impl AI.Tools
+    def ui_note_on_request(args), do: {"Passthrough", inspect(args)}
+
+    @impl AI.Tools
+    def ui_note_on_result(_args, result), do: {"Done", result}
+
+    @impl AI.Tools
+    def tool_call_failure_message(_args, _reason), do: :default
+
+    @impl AI.Tools
+    def read_args(args), do: {:ok, args}
+
+    @impl AI.Tools
+    def call(%{"count" => n, "label" => label}), do: {:ok, "#{label} x#{n}"}
+    def call(_), do: {:ok, "ok"}
+
+    @impl AI.Tools
+    def spec do
+      %{
+        type: "function",
+        function: %{
+          name: "passthrough_tool",
+          description: "A tool with passthrough read_args for testing centralized validation",
+          parameters: %{
+            type: "object",
+            required: ["count", "label"],
+            properties: %{
+              count: %{
+                type: "integer",
+                description: "A count"
+              },
+              label: %{
+                type: "string",
+                description: "A label"
+              }
+            }
+          }
+        }
+      }
+    end
+  end
+
+  @tools %{"mock_tool" => MockTool, "passthrough_tool" => PassthroughTool}
   @req_args %{"required_arg" => "blarg"}
   @empty_args %{}
 
@@ -102,6 +156,22 @@ defmodule AI.ToolsTest do
     test "succeeds when tool is registered and args are valid" do
       assert {:ok, "Huzzah!"} = AI.Tools.perform_tool_call("mock_tool", @req_args, @tools)
     end
+
+    test "validates and coerces args via centralized schema validation" do
+      # Integer coercion: string "3" should be coerced to integer 3
+      args = %{"count" => "3", "label" => "widgets"}
+      assert {:ok, "widgets x3"} = AI.Tools.perform_tool_call("passthrough_tool", args, @tools)
+    end
+
+    test "rejects args that fail schema validation" do
+      # Missing required "label" — read_args passes through, validate_json_args catches it
+      args = %{"count" => 5}
+
+      assert {:error, :missing_argument, msg} =
+               AI.Tools.perform_tool_call("passthrough_tool", args, @tools)
+
+      assert msg =~ "label"
+    end
   end
 
   describe "on_tool_request/3" do
@@ -118,6 +188,16 @@ defmodule AI.ToolsTest do
 
       assert {"Request", ^value} =
                AI.Tools.on_tool_request("mock_tool", @req_args, @tools)
+    end
+
+    test "returns UI note when centralized validation passes" do
+      args = %{"count" => 5, "label" => "test"}
+      assert {"Passthrough", _} = AI.Tools.on_tool_request("passthrough_tool", args, @tools)
+    end
+
+    test "returns nil when centralized validation fails" do
+      args = %{"count" => 5}
+      assert AI.Tools.on_tool_request("passthrough_tool", args, @tools) |> is_nil()
     end
   end
 

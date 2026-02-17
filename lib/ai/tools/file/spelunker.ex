@@ -83,7 +83,6 @@ defmodule AI.Tools.File.Spelunker do
         answer goals about the structure of the code and traverse multiple
         files to provide a call tree.
         """,
-        strict: true,
         parameters: %{
           additionalProperties: false,
           type: "object",

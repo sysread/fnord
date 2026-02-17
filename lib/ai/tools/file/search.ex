@@ -65,7 +65,6 @@ defmodule AI.Tools.File.Search do
         messages. It only searches the most recently indexed version of the
         project.
         """,
-        strict: true,
         parameters: %{
           additionalProperties: false,
           type: "object",

@@ -93,6 +93,24 @@ defmodule Cmd.Frobs do
                 help: "Apply to the named project (overrides selected project)"
               ]
             ]
+          ],
+          call: [
+            name: "call",
+            about: "Interactively test a frob by prompting for parameters and executing it",
+            options: [
+              name: [
+                value_name: "NAME",
+                long: "--name",
+                short: "-n",
+                help: "Name of the frob",
+                required: true
+              ],
+              project: [
+                long: "--project",
+                value_name: "PROJECT",
+                help: "Project name (overrides auto-resolve)"
+              ]
+            ]
           ]
         ]
       ]
@@ -126,7 +144,44 @@ defmodule Cmd.Frobs do
       [:list] -> list(opts)
       [:enable] -> enable(opts)
       [:disable] -> disable(opts)
+      [:call] -> call_frob(opts)
       _ -> {:error, :invalid_subcommand}
+    end
+  end
+
+  defp call_frob(opts) do
+    name = opts[:name] || raise("--name is required")
+
+    project =
+      if is_binary(opts[:project]) and byte_size(opts[:project]) > 0 do
+        {:ok, opts[:project]}
+      else
+        ResolveProject.resolve()
+      end
+
+    with {:ok, _project} <- project,
+         {:ok, frob} <- Frobs.load(name) do
+      unless Settings.Frobs.enabled?(frob.name) do
+        {:error, "Frob '#{frob.name}' is disabled in settings"}
+      else
+        args_map =
+          UI.interact(fn ->
+            case Frobs.Prompt.prompt_for_params(frob.spec, UI) do
+              {:ok, m} -> m
+              other -> raise("Prompt error: #{inspect(other)}")
+            end
+          end)
+
+        case Frobs.perform_tool_call(name, Jason.encode!(args_map)) do
+          {:ok, output} -> {:ok, output}
+          {:error, exit_code, out} -> {:error, "exited with status #{exit_code}: #{out}"}
+          other -> {:error, "unexpected tool call result: #{inspect(other)}"}
+        end
+      end
+    else
+      {:error, :not_in_project} -> {:error, "Not in a project and --project not given"}
+      {:error, :frob_not_found} -> {:error, "Frob not found: #{name}"}
+      {:error, reason} -> {:error, reason}
     end
   end
 

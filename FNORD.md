@@ -45,6 +45,8 @@ Conventions
 - `@doc false` followed by a comment explaining a function is silly; just give the function a `@doc`
 - Avoid `@doc false` entirely
 - Do not use type guards unless *required* for functionality; they add complexity and can confuse `dialyzer`
+- When refactoring, always consider whether the organization of the code must change to reflect ownership of concerns
+  - If you centralize a concern, does the location of the code reflect that ownership?
 
 # Comments
 - Comments should describe the current behavior; they should NEVER describe or identify a change that is currently being made

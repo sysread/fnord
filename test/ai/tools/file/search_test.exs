@@ -44,7 +44,6 @@ defmodule AI.Tools.File.SearchTest do
 
     f = spec.function
     assert f.name == "file_search_tool"
-    assert f.strict == true
 
     params = f.parameters
     assert params.additionalProperties == false
