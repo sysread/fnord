@@ -1106,8 +1106,11 @@ defmodule AI.Agent.Coordinator do
 
                 msg ->
                   Services.Conversation.interrupt(convo_pid, msg)
-                  # defer UI echo until after completion cycle
-                  :ok
+
+                  UI.info(
+                    "Interrupt handler",
+                    "Your message has been queued and will be delivered after the on-going API call completes."
+                  )
               end
 
             _ ->
