@@ -39,7 +39,9 @@ defmodule Http do
     with {:ok, body} <- Jason.encode(payload) do
       do_post_json(url, headers, body, 1)
     else
-      {:error, _} -> {:transport_error, :invalid_json_response}
+      {:error, msg} ->
+        UI.warn("[http] failed to encode JSON payload", msg)
+        {:transport_error, :invalid_json_response}
     end
   end
 
