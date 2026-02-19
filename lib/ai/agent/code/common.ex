@@ -187,7 +187,6 @@ defmodule AI.Agent.Code.Common do
       They should explain how each significant step fits into the larger system.
       If the reader hides all of the code, the comments should frame a narrative outline of the flow of logic, state, and data through the module.
       Leave existing comments and docstrings alone! That is, unless they are clearly incorrect or misleading.
-      NEVER LEAVE AI SLOP COMMENTS THAT REFER TO THE CHANGES BEING MADE, RATHER THAN THE BEHAVIOR OF THE CODE OR HOW IT FITS INTO THE LARGER SYSTEM, COMPONENT, OR FEATURE.
     - There is a level of abstraction that is the "sweet spot" between DRY, KISS, YAGNI, and unnecessary dependency.
     - Magic is for Tim the Enchanter, not for code.
       That said, dev joy keeps the user happy.
@@ -223,6 +222,10 @@ defmodule AI.Agent.Code.Common do
       1) Is any part of the change gated on logic that tries to guess whether it is running under test? If yes, stop.
       2) Can this behavior be exercised via public APIs and DI boundaries? If not, specify the refactor needed.
       3) Do tests validate observable production behavior (not private hooks or test-only functions)? If no, adjust the plan.
+
+    NEVER LEAVE AI SLOP COMMENTS THAT DESCRIBE THE CHANGES BEING MADE!
+    SERIOUSLY, YOU HAVE _GOT_ TO STOP THAT CRAP.
+    IT'S NOT USEFUL AND IT ERODES TRUST IN YOUR ABILITY TO MAKE CODE CHANGES.
     ```
     """
   end
