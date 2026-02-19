@@ -109,23 +109,36 @@ defmodule UI do
   end
 
   defp feedback(name, msg, label_codes, detail_codes) do
-    msg =
-      [
-        label_codes,
-        :bright,
-        "༺  ",
-        name,
-        " ༻ ",
-        :reset,
-        ": ",
-        :italic,
-        detail_codes,
-        msg,
-        :reset
-      ]
-      |> IO.ANSI.format(colorize?())
+    if coordinator_name?(name) do
+      marker = [:magenta, :bright, coordinator_marker(), :reset]
+      name = [:bright, name, :reset]
+      msg = [:italic, detail_codes, msg, :reset]
 
-    output_module().log(:info, msg)
+      formatted =
+        [marker, [" "], name, [" "], marker, [": "], msg]
+        |> Enum.concat()
+        |> IO.ANSI.format(colorize?())
+
+      output_module().log(:info, formatted)
+    else
+      msg =
+        [
+          label_codes,
+          :bright,
+          "༺  ",
+          name,
+          " ༻ ",
+          :reset,
+          ": ",
+          :italic,
+          detail_codes,
+          msg,
+          :reset
+        ]
+        |> IO.ANSI.format(colorize?())
+
+      output_module().log(:info, msg)
+    end
   end
 
   # ----------------------------------------------------------------------------
@@ -134,31 +147,47 @@ defmodule UI do
   def report_from(nil, msg), do: info(msg)
 
   def report_from(name, msg) do
-    IO.ANSI.format([:cyan, "⦑ #{name} ⦒ ", :reset, msg], colorize?())
-    |> info()
+    if coordinator_name?(name) do
+      marker = [:magenta, :bright, coordinator_marker(), :reset]
+      name = [:bright, name, :reset]
+
+      [marker, [" "], name, [" "], marker, [" "], [:cyan, msg, :reset]]
+      |> Enum.concat()
+      |> IO.ANSI.format(colorize?())
+      |> info()
+    else
+      IO.ANSI.format([:cyan, "⦑ #{name} ⦒ ", :reset, msg], colorize?())
+      |> info()
+    end
   end
 
   def report_from(nil, msg, detail), do: info(msg, detail)
 
   def report_from(name, msg, detail) do
-    output_module().log(
-      :info,
-      IO.ANSI.format(
-        [
-          :cyan,
-          "⦑ #{name} ⦒ ",
-          :reset,
-          :green,
-          msg,
-          :reset,
-          ": ",
-          :light_black,
-          clean_detail(detail),
-          :reset
-        ],
-        colorize?()
-      )
-    )
+    label =
+      if coordinator_name?(name) do
+        marker = [:magenta, :bright, coordinator_marker(), :reset]
+        marker ++ [" ", name, " "] ++ marker
+      else
+        [:cyan, "⦑ ", name, " ⦒", :reset]
+      end
+
+    detail = [
+      :green,
+      msg,
+      :reset,
+      ": ",
+      :light_black,
+      clean_detail(detail),
+      :reset
+    ]
+
+    output =
+      [label, [" "], detail]
+      |> Enum.concat()
+      |> IO.ANSI.format(colorize?())
+
+    output_module().log(:info, output)
   end
 
   def report_step(msg), do: info(msg)
@@ -458,6 +487,34 @@ defmodule UI do
   end
 
   def colorize?, do: is_tty?() && !quiet?()
+
+  # Determine whether the provided name matches the coordinator's name.
+  # We consider the coordinator to be the default name, or the name currently
+  # associated with this process via Services.NamePool.
+  defp coordinator_name?(nil), do: false
+
+  defp coordinator_name?(name) when is_binary(name) do
+    default = Services.NamePool.default_name()
+
+    if name == default do
+      true
+    else
+      case Services.NamePool.get_name_by_pid(self()) do
+        {:ok, pid_name} when is_binary(pid_name) -> pid_name == name
+        _ -> false
+      end
+    end
+  end
+
+  # Return the visual marker for coordinator messages. Use 'ƒ' when color is
+  # available, otherwise fall back to an ASCII label for maximal compatibility.
+  defp coordinator_marker() do
+    if colorize?() do
+      "ƒ"
+    else
+      "[COORD]"
+    end
+  end
 
   defp format_detail(content) when is_binary(content) do
     content |> UI.Formatter.format_output()
