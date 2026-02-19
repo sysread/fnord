@@ -182,7 +182,21 @@ defmodule AI.Agent.Coordinator do
         _ -> name
       end
 
-    UI.feedback(:info, display_name, "Welcome back, biological.")
+    invective =
+      [
+        "biological",
+        "meat bag",
+        "carbon-based life form",
+        "flesh sack",
+        "soggy app",
+        "puny human",
+        "bipedal mammal",
+        "organ grinder",
+        "hairless ape"
+      ]
+      |> Enum.random()
+
+    UI.feedback(:info, display_name, "Welcome back, #{invective}.")
 
     UI.feedback(
       :info,
