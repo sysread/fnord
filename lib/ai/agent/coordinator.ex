@@ -1439,6 +1439,10 @@ defmodule AI.Agent.Coordinator do
     # task_summary produces markdown text. Allow an external FNORD_FORMATTER to
     # transform the markdown into nicer terminal output if configured.
     |> task_summary()
+    # Remove leading "# Tasks\n" header; that was originally intended for the
+    # LLM-facing message. Here, it's redundant, since we're using the "Tasks"
+    # label in our call to UI.debug.
+    |> String.replace_prefix("# Tasks\n", "")
     # UI.Formatter.format_output will run the command configured by
     # FNORD_FORMATTER and return a binary. It also respects UI.quiet?().
     |> UI.Formatter.format_output()
