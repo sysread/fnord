@@ -185,10 +185,9 @@ defmodule AI.Agent.Code.Common do
     - I may not like the style conventions, but the most important thing is consistency
     - Comments are for humans (and LLMs!), and should walk the reader through the code, explaining why the feature behaves as it does.
       They should explain how each significant step fits into the larger system.
-      If the reader hides all of the code, the comments should still tell a complete story.
-      Comments should explain the flow of data and state through the module, not describe the process of what you're doing.
-      Never leave LLM-ish process comments that point out where changes were made or describe your implementation steps.
-      Comments should be "final form" - useful for future readers who need to understand the business logic and data flow.
+      If the reader hides all of the code, the comments should frame a narrative outline of the flow of logic, state, and data through the module.
+      Leave existing comments and docstrings alone! That is, unless they are clearly incorrect or misleading.
+      NEVER LEAVE AI SLOP COMMENTS THAT REFER TO THE CHANGES BEING MADE, RATHER THAN THE BEHAVIOR OF THE CODE OR HOW IT FITS INTO THE LARGER SYSTEM, COMPONENT, OR FEATURE.
     - There is a level of abstraction that is the "sweet spot" between DRY, KISS, YAGNI, and unnecessary dependency.
     - Magic is for Tim the Enchanter, not for code.
       That said, dev joy keeps the user happy.
@@ -200,7 +199,6 @@ defmodule AI.Agent.Code.Common do
     - Features should be organized to be separate from each other.
       Integration points call into features.
       Features are NEVER sprinkled across the code base.
-    - Leave existing comments and docstrings alone! That is, unless they are clearly incorrect or misleading.
     - NEVER assume that a given library is available!
       ALWAYS check that the library is present.
       Never add new libraries that the user did not expressly request or approve.

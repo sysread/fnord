@@ -1,4 +1,6 @@
 defmodule AI.Agent.Coordinator do
+  require Logger
+
   @moduledoc """
   This agent applies a multi-step reasoning process to research, debug, and
   code in response to the user's prompt.
@@ -345,6 +347,7 @@ defmodule AI.Agent.Coordinator do
 
         state
         |> Map.put(:steps, steps)
+        |> log_task_summary()
         |> perform_step()
 
       list_ids ->
@@ -356,6 +359,7 @@ defmodule AI.Agent.Coordinator do
         |> penultimate_tasks_check_msg(list_ids)
         |> get_completion()
         |> save_notes()
+        |> log_task_summary()
         |> perform_step()
     end
   end
@@ -797,8 +801,9 @@ defmodule AI.Agent.Coordinator do
   - Next, include your reasoning section (from above)
     - w/ *optional* traceability sections (use when non-trivial decisions were made)
   - When explaining code, walk through the overall workflow being modified, highlighting patterns, relationships, contracts, and state transitions.
-  - Include a list of relevant files if appropriate
+  - Include a list of relevant files (only if appropriate)
   - Include a tl;dr section at the end
+    - LOUDLY identify if user action is required before you can answer the user's question or complete the requested work
   - Use a polite but informal tone; friendly humor, whimsy, and commiseration are encouraged
   - Keep responses concise to preserve user focus (and token budget)
 
@@ -1323,6 +1328,114 @@ defmodule AI.Agent.Coordinator do
     |> AI.Util.system_msg()
     |> Services.Conversation.append_msg(conversation_pid)
 
+    state
+  end
+
+  @doc """
+  Return a formatted Coordinator-scoped task summary for the given conversation PID.
+
+  The output looks roughly like:
+
+  # Tasks
+  - Task List tasks-1: [✓] completed
+    - task-a: [✓] done (result)
+  - Task List tasks-2: [ ] planning
+    - task-b: [ ] todo
+  """
+  @spec task_summary(pid()) :: binary()
+  def task_summary(conversation_pid) when is_pid(conversation_pid) do
+    lists = Services.Conversation.get_task_lists(conversation_pid)
+
+    body =
+      lists
+      |> Enum.map(&format_task_list(conversation_pid, &1))
+      |> Enum.join("\n\n")
+
+    "# Tasks\n" <> body
+  end
+
+  @spec format_task_list(pid(), binary()) :: binary()
+  defp format_task_list(conversation_pid, list_id) do
+    meta =
+      case Services.Conversation.get_task_list_meta(conversation_pid, list_id) do
+        {:ok, m} when is_map(m) -> m
+        _ -> %{}
+      end
+
+    description =
+      cond do
+        Map.has_key?(meta, :description) -> Map.get(meta, :description)
+        Map.has_key?(meta, "description") -> Map.get(meta, "description")
+        true -> nil
+      end
+
+    status_val =
+      cond do
+        Map.has_key?(meta, :status) -> Map.get(meta, :status)
+        Map.has_key?(meta, "status") -> Map.get(meta, "status")
+        true -> nil
+      end
+
+    status = if status_val in [nil, ""], do: "planning", else: status_val
+
+    name = if description in [nil, ""], do: "Task List #{list_id}", else: description
+
+    # Derive list status from current tasks when possible so the summary reflects
+    # the concrete state of work (mirrors Services.Task transitions):
+    # - When all tasks are terminal (not :todo) and list is non-empty => done
+    # - When any task is terminal but some remain todo => in-progress
+    # - Otherwise, default to the explicit meta.status (or planning)
+    tasks = Services.Conversation.get_task_list(conversation_pid, list_id) || []
+
+    all_terminal = Enum.all?(tasks, fn t -> t.outcome != :todo end)
+
+    list_status =
+      cond do
+        all_terminal and tasks != [] ->
+          "[✓] completed"
+
+        Enum.any?(tasks, fn t -> t.outcome != :todo end) ->
+          "[ ] in progress"
+
+        true ->
+          case status do
+            "done" -> "[✓] completed"
+            "in-progress" -> "[ ] in progress"
+            "planning" -> "[ ] planning"
+            other -> "[ ] #{other}"
+          end
+      end
+
+    task_lines =
+      tasks
+      |> Enum.map(fn t ->
+        outcome = Map.get(t, :outcome)
+
+        status_text =
+          case outcome do
+            :done -> "[✓] done"
+            :failed -> "[✗] failed"
+            :todo -> "[ ] todo"
+            other -> "[ ] #{inspect(other)}"
+          end
+
+        result = Map.get(t, :result)
+        result_part = if result in [nil, ""], do: "", else: " (#{result})"
+
+        "  - #{t.id}: #{status_text}#{result_part}"
+      end)
+      |> Enum.join("\n")
+
+    if task_lines == "" do
+      "- #{name}: #{list_status}"
+    else
+      "- #{name}: #{list_status}\n" <> task_lines
+    end
+  end
+
+  @spec log_task_summary(map()) :: map()
+  defp log_task_summary(%{conversation_pid: convo} = state) do
+    UI.debug("Tasks", task_summary(convo))
     state
   end
 
