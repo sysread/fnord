@@ -23,10 +23,16 @@ defmodule AI.Tools.File.Search do
     case Regex.run(re, result) do
       [_, count_str, took_ms] ->
         count = String.to_integer(count_str)
-        {"Semantic search", "#{query} -> #{count} file matches in #{took_ms} ms"}
+
+        {"Semantic search",
+         IO.ANSI.format(
+           [:italic, :light_black, "#{query} -> #{count} file matches in #{took_ms} ms", :reset],
+           UI.colorize?()
+         )}
 
       _ ->
-        {"Semantic search", "#{query} -> #{result}"}
+        {"Semantic search",
+         IO.ANSI.format([:italic, :light_black, "#{query} -> #{result}", :reset], UI.colorize?())}
     end
   end
 
