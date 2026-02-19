@@ -744,7 +744,7 @@ defmodule AI.Agent.Coordinator do
   - When planning changes with the user, include the following sections, in this order:
     - `# Decision Log` - detailed outline of the "cascade" of decisions and choices made
       - log of decision-making between you and the user
-        - show earlier decisions that were rejected as ~strikethrough~
+        - highlight when a choice overrides an earlier decision or changed the plan
       - alternatives considered and rejected
       - user corrections
       - pivots due to the state of the code
