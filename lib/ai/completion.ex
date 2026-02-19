@@ -217,7 +217,13 @@ defmodule AI.Completion do
       msgs ->
         new_messages = state.messages ++ msgs
         Services.Conversation.replace_msgs(new_messages, pid)
-        Enum.each(msgs, &UI.feedback_user(&1.content))
+
+        Enum.each(msgs, fn %{content: msg} ->
+          msg
+          |> String.replace_prefix("[User Interjection] ", "")
+          |> UI.feedback_user()
+        end)
+
         %{state | messages: new_messages}
     end
   end
