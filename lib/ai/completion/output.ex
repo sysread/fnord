@@ -155,12 +155,15 @@ defmodule AI.Completion.Output do
     all_tools =
       AI.Tools.all_tools()
 
+    # Mark toolbox as replay to bypass validation in AI.Tools.on_tool_request
+    replay_tools = Map.put(all_tools, "__replay__", true)
+
     messages
     # Skip the first message, which is the system prompt for the agent
     |> Enum.drop(1)
     |> Enum.each(fn msg ->
       state
-      |> Map.put(:toolbox, all_tools)
+      |> Map.put(:toolbox, replay_tools)
       |> replay_msg(msg, tool_call_args)
     end)
 
@@ -194,12 +197,15 @@ defmodule AI.Completion.Output do
     all_tools =
       AI.Tools.all_tools()
 
+    # Mark toolbox as replay to bypass validation in AI.Tools.on_tool_request
+    replay_tools = Map.put(all_tools, "__replay__", true)
+
     messages
     # Skip the first message, which is the system prompt for the agent
     |> Enum.drop(1)
     |> Enum.each(fn msg ->
       state
-      |> Map.put(:toolbox, all_tools)
+      |> Map.put(:toolbox, replay_tools)
       |> replay_msg(msg, tool_call_args)
     end)
 

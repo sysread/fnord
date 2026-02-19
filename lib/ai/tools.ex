@@ -407,7 +407,27 @@ defmodule AI.Tools do
           {binary, binary}
           | binary
           | nil
-  def on_tool_request(tool, args, tools \\ nil) do
+  def on_tool_request(tool, args, tools \\ nil)
+  # Replay-specific clause: when the toolbox explicitly marks replay, skip
+
+  # full argument validation and only render the UI note. This avoids noisy
+  # validation/debug logging when replaying previously-recorded conversations.
+  def on_tool_request(tool, args, %{"__replay__" => true} = tools) do
+    case tool_module(tool, tools) do
+      {:ok, module} ->
+        try do
+          module.ui_note_on_request(args)
+        rescue
+          _ -> nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  # General clause: strict validation path used for live tool requests.
+  def on_tool_request(tool, args, tools) do
     with {:ok, module} <- tool_module(tool, tools),
          {:ok, args} <- module.read_args(args),
          {:ok, args} <- AI.Tools.Params.validate_json_args(module.spec(), args) do
