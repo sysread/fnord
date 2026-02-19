@@ -1435,7 +1435,16 @@ defmodule AI.Agent.Coordinator do
 
   @spec log_task_summary(map()) :: map()
   defp log_task_summary(%{conversation_pid: convo} = state) do
-    UI.debug("Tasks", task_summary(convo))
+    convo
+    # task_summary produces markdown text. Allow an external FNORD_FORMATTER to
+    # transform the markdown into nicer terminal output if configured.
+    |> task_summary()
+    # UI.Formatter.format_output will run the command configured by
+    # FNORD_FORMATTER and return a binary. It also respects UI.quiet?().
+    |> UI.Formatter.format_output()
+    # UI.debug accepts both chardata and iodata; pass formatted text directly.
+    |> then(&UI.debug("Tasks", &1))
+
     state
   end
 

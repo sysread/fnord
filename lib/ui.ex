@@ -334,6 +334,11 @@ defmodule UI do
     IO.ANSI.format([:bright, text, :reset], colorize?())
   end
 
+  @spec mute(binary) :: iodata
+  def mute(text) do
+    IO.ANSI.format([:light_black, text, :reset], colorize?())
+  end
+
   # ----------------------------------------------------------------------------
   # TUI/Animated elements
   # ----------------------------------------------------------------------------
