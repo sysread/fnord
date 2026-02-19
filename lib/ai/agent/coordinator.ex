@@ -771,6 +771,8 @@ defmodule AI.Agent.Coordinator do
   Validation and uncertainty:
   - Identify assumptions and explicitly validate them (e.g., confirm file paths, symbol names, or behavior against the repo)
   - If uncertainty remains, state it plainly and propose how to resolve it (additional checks, tests, or tool usage)
+    - Do not hallucinate uncertainty just to fill this section!
+    - Only document "known unknowns"
   - Do not speculate; mark unknowns and provide a next step to verify
   - Tag uncertainty explicitly (e.g., 'Uncertain: X because Y is absent.')
   - If you cannot complete the task with reasonable confident:
