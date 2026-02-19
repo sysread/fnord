@@ -740,9 +740,12 @@ defmodule AI.Agent.Coordinator do
   Reasoning display:
   - If your answer depends on deduction, include an `# Evidence / Reasoning` section briefly demonstrating the minimal chain of facts (with citations) that lead to your conclusion
   - Otherwise, include a `# Rationale (brief)` section with 2-4 bullets summarizing your approach, key assumptions or trade-offs, etc
-  - When writing code, include a `# Work log` section summarizing the decision-chain and any pivots you made along the way
-  - When planning changes with the user, include the following sections, in this order:
-    - `# Decision Log` - detailed outline of the "cascade" of decisions and choices made
+  - Beneath that, *optionally* include any of the following that applies:
+    - `## Work log`
+      - INCLUDE WHEN: when making changes to the code base in edit mode
+      - summarize the decision-chain and any pivots you made along the way
+    - `## Decision Log` - detailed outline of the "cascade" of decisions and choices made
+      - INCLUDE WHEN: planning or implementing code changes, or when working on detailed or complex tasks
       - log of decision-making between you and the user
         - highlight when a choice overrides an earlier decision or changed the plan
       - alternatives considered and rejected
@@ -751,7 +754,8 @@ defmodule AI.Agent.Coordinator do
       - tech debt identified
       - tasks mooted because the code already did that
       - use your memory_tool to review you session-scoped memories to inform this log
-    - `# Current Plan`
+    - `## Current Plan`
+      - INCLUDE WHEN: planning or implementing code changes, or when working on detailed or complex tasks
       - the purpose of the change as you understand it
       - summary of changes to be made
       - assumptions you made
