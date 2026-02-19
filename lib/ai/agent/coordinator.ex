@@ -182,19 +182,7 @@ defmodule AI.Agent.Coordinator do
         _ -> name
       end
 
-    invective =
-      [
-        "biological",
-        "meat bag",
-        "carbon-based life form",
-        "flesh sack",
-        "soggy app",
-        "puny human",
-        "bipedal mammal",
-        "organ grinder",
-        "hairless ape"
-      ]
-      |> Enum.random()
+    invective = get_invective()
 
     UI.feedback(:info, display_name, "Welcome back, #{invective}.")
 
@@ -219,10 +207,27 @@ defmodule AI.Agent.Coordinator do
         _ -> name
       end
 
-    UI.feedback(:info, display_name, "Greetings, human. I am #{display_name}.")
+    invective = get_invective()
+
+    UI.feedback(:info, display_name, "Greetings, #{invective}. I am #{display_name}.")
     UI.feedback(:info, display_name, "I shall be doing your thinking for you today.")
 
     state
+  end
+
+  defp get_invective() do
+    [
+      "biological",
+      "meat bag",
+      "carbon-based life form",
+      "flesh sack",
+      "soggy app",
+      "puny human",
+      "bipedal mammal",
+      "organ grinder",
+      "hairless ape"
+    ]
+    |> Enum.random()
   end
 
   @spec bootstrap(t) :: t
