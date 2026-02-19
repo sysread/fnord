@@ -220,7 +220,7 @@ defmodule AI.Completion do
 
         Enum.each(msgs, fn %{content: msg} ->
           msg
-          |> String.replace_prefix("[User Interjection] ", "")
+          |> String.replace_prefix("[User Interjection] ", "(rude)")
           |> UI.feedback_user()
         end)
 
