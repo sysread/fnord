@@ -1,6 +1,4 @@
 defmodule AI.Agent.Coordinator do
-  require Logger
-
   @moduledoc """
   This agent applies a multi-step reasoning process to research, debug, and
   code in response to the user's prompt.
@@ -167,9 +165,8 @@ defmodule AI.Agent.Coordinator do
       |> greet()
       |> AI.Agent.Coordinator.Test.get_response()
     else
-      Services.Notes.ingest_user_msg(state.question)
-
       state
+      |> AI.Agent.Coordinator.Notes.init()
       |> greet()
       |> bootstrap()
       |> perform_step()
@@ -246,7 +243,7 @@ defmodule AI.Agent.Coordinator do
     |> identity_msg()
     |> user_msg()
     |> get_intuition()
-    |> get_notes()
+    |> AI.Agent.Coordinator.Notes.with_notes()
     |> recall_memories_msg()
     |> project_prompt_msg()
     |> AI.Agent.Coordinator.Tasks.research_msg()
@@ -254,9 +251,9 @@ defmodule AI.Agent.Coordinator do
     |> startinterrupt_listener()
   end
 
-  # -----------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   # Research steps
-  # -----------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   @spec select_steps(t) :: t
 
   defp select_steps(%{edit?: true, followup?: false} = state) do
@@ -276,6 +273,14 @@ defmodule AI.Agent.Coordinator do
   end
 
   @spec perform_step(state) :: state
+
+  # ----------------------------------------------------------------------------
+  # If this is a follow-up question, we skip the initial response and jump
+  # straight to follow-up research to update and refine our understanding based
+  # on the new prompt and any changes in the conversation. This allows us to
+  # maintain continuity and build on our prior research without starting from
+  # scratch.
+  # ----------------------------------------------------------------------------
   defp perform_step(%{replay: replay, steps: [:followup | steps]} = state) do
     UI.begin_step("Bootstrapping")
 
@@ -283,10 +288,12 @@ defmodule AI.Agent.Coordinator do
     |> Map.put(:steps, steps)
     |> followup_msg()
     |> get_completion(replay)
-    |> save_notes()
     |> perform_step()
   end
 
+  # ----------------------------------------------------------------------------
+  # Trigger the initial response.
+  # ----------------------------------------------------------------------------
   defp perform_step(%{replay: replay, steps: [:initial | steps]} = state) do
     UI.begin_step("Bootstrapping")
 
@@ -294,10 +301,19 @@ defmodule AI.Agent.Coordinator do
     |> Map.put(:steps, steps)
     |> begin_msg()
     |> get_completion(replay)
-    |> save_notes()
     |> perform_step()
   end
 
+  # ----------------------------------------------------------------------------
+  # Coding steps. If edit mode is enabled, we will have planned out a coding
+  # phase in our initial response. During the coding phase, we will delegate to
+  # the coder_tool to implement the changes, but we will also stay actively
+  # involved in the process to verify the changes, run tests, and ensure the
+  # coder_tool is doing what we asked. This is a critical phase where we are
+  # most at risk of the AI going off the rails or failing to double check for
+  # slop, so we maintain a tight feedback loop and keep the user informed with
+  # notify_tool updates.
+  # ----------------------------------------------------------------------------
   defp perform_step(%{steps: [:coding | steps]} = state) do
     UI.begin_step("Draining coding tasks")
 
@@ -310,7 +326,6 @@ defmodule AI.Agent.Coordinator do
     |> execute_coding_phase()
     |> get_intuition()
     |> get_completion()
-    |> save_notes()
     |> perform_step()
   end
 
@@ -338,12 +353,17 @@ defmodule AI.Agent.Coordinator do
         |> AI.Agent.Coordinator.Tasks.list_msg()
         |> AI.Agent.Coordinator.Tasks.penultimate_check_msg(list_ids)
         |> get_completion()
-        |> save_notes()
     end
     |> AI.Agent.Coordinator.Tasks.log_summary()
     |> perform_step()
   end
 
+  # ----------------------------------------------------------------------------
+  # Finalization: get the final answer, save notes, and unblock interrupts so
+  # any pending interrupts can be displayed to the user after we have the final
+  # answer ready. We block interrupts during finalization to avoid interjecting
+  # them into the middle of our final answer or notes.
+  # ----------------------------------------------------------------------------
   defp perform_step(%{steps: [:finalize]} = state) do
     UI.begin_step("Joining")
 
@@ -358,7 +378,6 @@ defmodule AI.Agent.Coordinator do
       |> finalize_msg()
       |> template_msg()
       |> get_completion()
-      |> save_notes()
       |> get_motd()
     after
       # Always unblock, even if completion fails
@@ -420,6 +439,7 @@ defmodule AI.Agent.Coordinator do
           |> Map.put(:model, state.model)
           |> log_usage()
           |> log_response()
+          |> AI.Agent.Coordinator.Notes.save()
 
         # If more interrupts arrived during completion, process them recursively
         if Services.Conversation.Interrupts.pending?(state.conversation_pid) do
@@ -448,9 +468,9 @@ defmodule AI.Agent.Coordinator do
     end
   end
 
-  # -----------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   # Message shortcuts
-  # -----------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   @common """
   You are an AI assistant that coordinates research into the user's code base to answer their questions.
   You are logical with prolog-like reasoning: step-by-step, establishing facts, relationships, and rules, to draw conclusions.
@@ -1023,38 +1043,8 @@ defmodule AI.Agent.Coordinator do
   end
 
   # ----------------------------------------------------------------------------
-  # Notes
-  # ----------------------------------------------------------------------------
-  @spec get_notes(t) :: t
-  defp get_notes(%{question: question} = state) do
-    UI.begin_step("Rehydrating the lore cache")
-
-    notes = Services.Notes.ask(question)
-    Services.Notes.consolidate()
-
-    # Append assistant reflection on prior notes
-    """
-    <think>
-    Let's see what I remember about that...
-    #{notes}
-    </think>
-    """
-    |> AI.Util.assistant_msg()
-    |> Services.Conversation.append_msg(state.conversation_pid)
-
-    # Update state with retrieved notes
-    %{state | notes: notes}
-  end
-
-  @spec save_notes(state) :: state
-  defp save_notes(passthrough) do
-    Services.Notes.save()
-    passthrough
-  end
-
-  # -----------------------------------------------------------------------------
   # MOTD
-  # -----------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   @spec get_motd(state) :: state
   defp get_motd(%{question: question, last_response: last_response} = state) do
     AI.Agent.MOTD
@@ -1072,9 +1062,9 @@ defmodule AI.Agent.Coordinator do
 
   defp get_motd(state), do: state
 
-  # -----------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   # Output
-  # -----------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   defp log_response(%{steps: []} = state) do
     UI.debug("Response complete")
 
@@ -1207,9 +1197,9 @@ defmodule AI.Agent.Coordinator do
     end
   end
 
-  # -----------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   # Tool box
-  # -----------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   @spec get_tools(t) :: AI.Tools.toolbox()
   defp get_tools(%{edit?: true}) do
     AI.Tools.basic_tools()
