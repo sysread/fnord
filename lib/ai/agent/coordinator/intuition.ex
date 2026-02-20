@@ -10,12 +10,11 @@ defmodule AI.Agent.Coordinator.Intuition do
   def automatic_thoughts_msg(state) do
     UI.begin_step("Cogitating")
 
+    msgs = Services.Conversation.get_messages(state.conversation_pid)
+
     AI.Agent.Intuition
     |> AI.Agent.new(named?: false)
-    |> AI.Agent.get_response(%{
-      msgs: Services.Conversation.get_messages(state.conversation_pid),
-      memories: state.notes
-    })
+    |> AI.Agent.get_response(%{msgs: msgs})
     |> case do
       {:ok, intuition} ->
         UI.report_step("Intuition", UI.italicize(intuition))

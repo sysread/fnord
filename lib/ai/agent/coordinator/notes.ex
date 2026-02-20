@@ -23,7 +23,7 @@ defmodule AI.Agent.Coordinator.Notes do
   Finally, it updates the state with the retrieved notes for use in subsequent
   steps.
   """
-  @spec lore_me_up(t) :: binary
+  @spec lore_me_up(t) :: no_return
   def lore_me_up(%{question: question} = state) do
     UI.begin_step("Rehydrating the lore cache")
 
@@ -39,18 +39,5 @@ defmodule AI.Agent.Coordinator.Notes do
     """
     |> AI.Util.assistant_msg()
     |> Services.Conversation.append_msg(state.conversation_pid)
-
-    notes
-  end
-
-  @doc """
-  Saves any new notes generated during the conversation. This function is
-  intended to be called at the end of a conversation session to ensure that all
-  relevant notes are persisted for future reference.
-  """
-  @spec save(state) :: state
-  def save(passthrough) do
-    Services.Notes.save()
-    passthrough
   end
 end

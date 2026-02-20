@@ -199,7 +199,6 @@ defmodule AI.Agent.Intuition do
   defstruct [
     :agent,
     :msgs,
-    :memories,
     :error,
     :perception,
     :reactions
@@ -208,7 +207,6 @@ defmodule AI.Agent.Intuition do
   @type t :: %__MODULE__{
           agent: AI.Agent.t(),
           msgs: list(AI.Util.msg()),
-          memories: nil | binary,
           error: nil | term,
           perception: nil | binary,
           reactions: nil | list(binary)
@@ -216,13 +214,8 @@ defmodule AI.Agent.Intuition do
 
   @spec new(map) :: t
   defp new(%{agent: agent} = opts) do
-    with {:ok, msgs} <- get_arg(opts, :msgs),
-         {:ok, memories} <- get_arg(opts, :memories) do
-      %__MODULE__{
-        agent: agent,
-        msgs: msgs,
-        memories: memories
-      }
+    with {:ok, msgs} <- get_arg(opts, :msgs) do
+      %__MODULE__{agent: agent, msgs: msgs}
     else
       {:error, reason} -> %__MODULE__{agent: agent, error: reason}
     end
@@ -278,7 +271,6 @@ defmodule AI.Agent.Intuition do
   defp get_drive_reaction(%{error: nil} = state, drive) do
     messages = [
       AI.Util.system_msg("#{@drive_base_prompt}\n#{@drives[drive]}"),
-      AI.Util.assistant_msg("# My memories about this project:\n#{state.memories}"),
       AI.Util.user_msg("# My perception of the discussion:\n#{state.perception}")
     ]
 

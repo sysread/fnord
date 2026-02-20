@@ -24,7 +24,6 @@ defmodule AI.Agent.Coordinator do
     :steps,
     :usage,
     :context,
-    :notes,
     :intuition,
     :editing_tools_used,
     :interrupts
@@ -49,7 +48,6 @@ defmodule AI.Agent.Coordinator do
           steps: list(atom),
           usage: non_neg_integer,
           context: non_neg_integer,
-          notes: binary | nil,
           intuition: binary | nil,
           editing_tools_used: boolean,
 
@@ -136,7 +134,6 @@ defmodule AI.Agent.Coordinator do
         steps: [],
         usage: 0,
         context: model.context,
-        notes: nil,
         intuition: nil,
         editing_tools_used: false,
         interrupts: AI.Agent.Coordinator.Interrupts.new()
@@ -230,13 +227,12 @@ defmodule AI.Agent.Coordinator do
 
     notes_task =
       Services.Globals.Spawn.async(fn ->
-        # appends a message with relevant prior research; returns the notes as
-        # a string (used by AI.Agent.Coordinator.Intuition).
+        # appends a message with relevant prior research
         AI.Agent.Coordinator.Notes.lore_me_up(state)
       end)
 
     # Wait for both tasks to complete
-    state = %{state | notes: Task.await(notes_task, :infinity)}
+    Task.await(notes_task, :infinity)
     Task.await(memory_task, :infinity)
 
     state
@@ -319,7 +315,6 @@ defmodule AI.Agent.Coordinator do
     |> AI.Agent.Coordinator.Tasks.list_msg()
     |> AI.Agent.Coordinator.Coding.milestone_msg()
     |> AI.Agent.Coordinator.Coding.execute_phase()
-    |> AI.Agent.Coordinator.Intuition.automatic_thoughts_msg()
     |> AI.Agent.Coordinator.Glue.get_completion()
     |> perform_step()
   end
@@ -354,10 +349,10 @@ defmodule AI.Agent.Coordinator do
   end
 
   # ----------------------------------------------------------------------------
-  # Finalization: get the final answer, save notes, and unblock interrupts so
-  # any pending interrupts can be displayed to the user after we have the final
-  # answer ready. We block interrupts during finalization to avoid interjecting
-  # them into the middle of our final answer or notes.
+  # Finalization: get the final answer, and unblock interrupts so any pending
+  # interrupts can be displayed to the user after we have the final answer
+  # ready. We block interrupts during finalization to avoid interjecting them
+  # into the middle of our final answer or notes.
   # ----------------------------------------------------------------------------
   defp perform_step(%{steps: [:finalize]} = state) do
     UI.begin_step("Joining")

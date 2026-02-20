@@ -80,7 +80,6 @@ defmodule AI.Agent.Coordinator.Glue do
           |> log_usage()
           |> log_response()
           |> AI.Agent.Coordinator.append_context_remaining()
-          |> AI.Agent.Coordinator.Notes.save()
 
         # If more interrupts arrived during completion, process them recursively
         if Services.Conversation.Interrupts.pending?(state.conversation_pid) do
