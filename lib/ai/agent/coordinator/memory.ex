@@ -25,8 +25,8 @@ defmodule AI.Agent.Coordinator.Memory do
     state
   end
 
-  @spec recall_msg(t) :: t
-  def recall_msg(state) do
+  @spec spool_mnemonics(t) :: no_return
+  def spool_mnemonics(state) do
     UI.begin_step("Spooling mnemonics")
 
     intuition = state |> Map.get(:intuition, "") |> String.trim()
@@ -73,11 +73,8 @@ defmodule AI.Agent.Coordinator.Memory do
         |> AI.Util.assistant_msg()
         |> Services.Conversation.append_msg(state.conversation_pid)
 
-        state
-
       {:error, reason} ->
         UI.error("memory", reason)
-        state
     end
   end
 end

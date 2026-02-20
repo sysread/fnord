@@ -205,19 +205,41 @@ defmodule AI.Agent.Coordinator do
 
   @spec bootstrap(t) :: t
   defp bootstrap(state) do
+    state =
+      state
+      # All sessions begin with these messages. We strip system/developer
+      # messages out of the saved conversation in Services.Conversation.save,
+      # so follow-up sessions re-inject them here. This reduces space on disk
+      # and ensures the instruction messages don't fall out of focus in long
+      # conversations.
+      |> new_session_msg()
+      |> initial_msg()
+      |> AI.Agent.Coordinator.Memory.identity_msg()
+      |> user_msg()
+      |> AI.Agent.Coordinator.Intuition.automatic_thoughts_msg()
+
+    # Parallelize memory retrieval and note retrieval to speed up
+    # bootstrapping. These are independent operations that can be done
+    # concurrently, so we use Task.async to run them in parallel and then await
+    # their results before proceeding.
+    memory_task =
+      Services.Globals.Spawn.async(fn ->
+        # appends a message with relevant prior memories matching the current context
+        AI.Agent.Coordinator.Memory.spool_mnemonics(state)
+      end)
+
+    notes_task =
+      Services.Globals.Spawn.async(fn ->
+        # appends a message with relevant prior research; returns the notes as
+        # a string (used by AI.Agent.Coordinator.Intuition).
+        AI.Agent.Coordinator.Notes.lore_me_up(state)
+      end)
+
+    # Wait for both tasks to complete
+    state = %{state | notes: Task.await(notes_task, :infinity)}
+    Task.await(memory_task, :infinity)
+
     state
-    # All sessions begin with these messages. We strip system/developer
-    # messages out of the saved conversation in Services.Conversation.save, so
-    # follow-up sessions re-inject them here. This reduces space on disk and
-    # ensures the instruction messages don't fall out of focus in long
-    # conversations.
-    |> new_session_msg()
-    |> initial_msg()
-    |> AI.Agent.Coordinator.Memory.identity_msg()
-    |> user_msg()
-    |> AI.Agent.Coordinator.Intuition.automatic_thoughts_msg()
-    |> AI.Agent.Coordinator.Notes.with_notes()
-    |> AI.Agent.Coordinator.Memory.recall_msg()
     |> project_prompt_msg()
     |> AI.Agent.Coordinator.Tasks.research_msg()
     |> AI.Agent.Coordinator.Tasks.list_msg()

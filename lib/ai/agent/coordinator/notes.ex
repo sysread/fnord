@@ -23,8 +23,8 @@ defmodule AI.Agent.Coordinator.Notes do
   Finally, it updates the state with the retrieved notes for use in subsequent
   steps.
   """
-  @spec with_notes(t) :: t
-  def with_notes(%{question: question} = state) do
+  @spec lore_me_up(t) :: binary
+  def lore_me_up(%{question: question} = state) do
     UI.begin_step("Rehydrating the lore cache")
 
     notes = Services.Notes.ask(question)
@@ -40,8 +40,7 @@ defmodule AI.Agent.Coordinator.Notes do
     |> AI.Util.assistant_msg()
     |> Services.Conversation.append_msg(state.conversation_pid)
 
-    # Update state with retrieved notes
-    %{state | notes: notes}
+    notes
   end
 
   @doc """
