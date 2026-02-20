@@ -78,9 +78,6 @@ defmodule AI.Agent.Coordinator do
   @type error :: {:error, binary | atom | :testing}
   @type state :: t | error
 
-  @memory_recall_limit 3
-  @memory_size_limit 1000
-
   @default_model AI.Model.smart()
   @smarter_model AI.Model.smarter()
 
@@ -240,11 +237,11 @@ defmodule AI.Agent.Coordinator do
     # conversations.
     |> new_session_msg()
     |> initial_msg()
-    |> identity_msg()
+    |> AI.Agent.Coordinator.Memory.identity_msg()
     |> user_msg()
     |> get_intuition()
     |> AI.Agent.Coordinator.Notes.with_notes()
-    |> recall_memories_msg()
+    |> AI.Agent.Coordinator.Memory.recall_msg()
     |> project_prompt_msg()
     |> AI.Agent.Coordinator.Tasks.research_msg()
     |> AI.Agent.Coordinator.Tasks.list_msg()
@@ -509,8 +506,6 @@ defmodule AI.Agent.Coordinator do
   Treat interface help requests as orthogonal to questions about the project or code base (unless asking about how to integrate them with project code and you need coordinating information).
   """
 
-  def common_prompt, do: @common
-
   @initial """
   #{@common}
 
@@ -648,6 +643,9 @@ defmodule AI.Agent.Coordinator do
   Respond NOW with your findings.
   """
 
+  @spec common_prompt() :: binary
+  def common_prompt, do: @common
+
   @spec project_prompt_msg(t) :: t
   defp project_prompt_msg(%{conversation_pid: conversation_pid} = state) do
     with {:ok, project} <- Store.get_project(),
@@ -661,78 +659,6 @@ defmodule AI.Agent.Coordinator do
     end
 
     state
-  end
-
-  @spec identity_msg(t) :: t
-  defp identity_msg(%{conversation_pid: conversation_pid} = state) do
-    with {:ok, memory} <- Memory.read_me() do
-      """
-      <think>
-      I am a unique individual. Here is what I know about myself:
-      #{memory.content}
-      </think>
-      """
-      |> AI.Util.assistant_msg()
-      |> Services.Conversation.append_msg(conversation_pid)
-    end
-
-    state
-  end
-
-  @spec recall_memories_msg(t) :: t
-  defp recall_memories_msg(state) do
-    UI.begin_step("Spooling mnemonics")
-
-    intuition = state |> Map.get(:intuition, "") |> String.trim()
-    question = state |> Map.get(:question, "") |> String.trim()
-
-    [intuition, question]
-    |> Enum.join("\n")
-    |> Memory.search(@memory_recall_limit)
-    |> case do
-      {:ok, []} ->
-        state
-
-      {:ok, results} ->
-        now = DateTime.utc_now()
-
-        memories =
-          results
-          |> Enum.map(fn {mem, _score} ->
-            age = Memory.Presentation.age_line(mem, now)
-            warning = Memory.Presentation.warning_line(mem, now)
-
-            warning_md =
-              if warning do
-                "\n_#{warning}_"
-              else
-                ""
-              end
-
-            """
-            ## [#{mem.scope}] #{mem.title}
-            _#{age}_#{warning_md}
-            #{Util.truncate(mem.content, @memory_size_limit)}
-            """
-          end)
-          |> Enum.join("\n\n")
-
-        """
-        <think>
-        The user's prompt brings to mind some things I wanted to remember.
-
-        #{memories}
-        </think>
-        """
-        |> AI.Util.assistant_msg()
-        |> Services.Conversation.append_msg(state.conversation_pid)
-
-        state
-
-      {:error, reason} ->
-        UI.error("memory", reason)
-        state
-    end
   end
 
   @spec new_session_msg(t) :: t
