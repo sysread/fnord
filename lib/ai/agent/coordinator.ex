@@ -150,8 +150,6 @@ defmodule AI.Agent.Coordinator do
     log_available_mcp_tools()
 
     if AI.Agent.Coordinator.Test.is_testing?(state) do
-      UI.debug("Testing mode enabled")
-
       state
       |> greet()
       |> AI.Agent.Coordinator.Test.get_response()

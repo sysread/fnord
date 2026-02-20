@@ -51,6 +51,8 @@ defmodule AI.Agent.Coordinator.Test do
 
   @spec get_response(t) :: {:error, :testing}
   def get_response(%{project: project} = state) do
+    UI.debug("Testing mode enabled")
+
     # Enable all tools for testing
     tools =
       AI.Tools.basic_tools()
