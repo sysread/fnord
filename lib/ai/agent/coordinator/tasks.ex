@@ -122,103 +122,6 @@ defmodule AI.Agent.Coordinator.Tasks do
     state
   end
 
-  @doc """
-  Return a formatted summary of a single task list, including its description,
-  status, and the status of each individual task. The summary derives the list
-  status from the current tasks when possible, reflecting the concrete state of
-  work.
-  """
-  @spec format_task_list(pid, binary) :: binary
-  def format_task_list(conversation_pid, list_id) do
-    meta =
-      case Services.Conversation.get_task_list_meta(conversation_pid, list_id) do
-        {:ok, m} when is_map(m) -> m
-        _ -> %{}
-      end
-
-    description =
-      cond do
-        Map.has_key?(meta, :description) -> Map.get(meta, :description)
-        Map.has_key?(meta, "description") -> Map.get(meta, "description")
-        true -> nil
-      end
-
-    status_val =
-      cond do
-        Map.has_key?(meta, :status) -> Map.get(meta, :status)
-        Map.has_key?(meta, "status") -> Map.get(meta, "status")
-        true -> nil
-      end
-
-    status =
-      if status_val in [nil, ""] do
-        "planning"
-      else
-        status_val
-      end
-
-    name =
-      if description in [nil, ""] do
-        "Task List #{list_id}"
-      else
-        description
-      end
-
-    # Derive list status from current tasks when possible so the summary reflects
-    # the concrete state of work (mirrors Services.Task transitions):
-    # - When all tasks are terminal (not :todo) and list is non-empty => done
-    # - When any task is terminal but some remain todo => in-progress
-    # - Otherwise, default to the explicit meta.status (or planning)
-    tasks = Services.Conversation.get_task_list(conversation_pid, list_id) || []
-
-    all_terminal = Enum.all?(tasks, fn t -> t.outcome != :todo end)
-
-    list_status =
-      cond do
-        all_terminal and tasks != [] ->
-          "[✓] completed"
-
-        Enum.any?(tasks, fn t -> t.outcome != :todo end) ->
-          "[ ] in progress"
-
-        true ->
-          case status do
-            "done" -> "[✓] completed"
-            "in-progress" -> "[ ] in progress"
-            "planning" -> "[ ] planning"
-            other -> "[ ] #{other}"
-          end
-      end
-
-    task_lines =
-      tasks
-      |> Enum.map(fn t ->
-        outcome = Map.get(t, :outcome)
-
-        status_text =
-          case outcome do
-            :done -> "[✓] done"
-            :failed -> "[✗] failed"
-            :todo -> "[ ] todo"
-            other -> "[ ] #{inspect(other)}"
-          end
-
-        result = Map.get(t, :result)
-        result_part = if result in [nil, ""], do: "", else: " (#{result})"
-
-        "  - #{t.id}: #{status_text}#{result_part}"
-      end)
-      |> Enum.join("\n")
-
-    list_header = "- #{name}: #{list_status}"
-
-    if all_terminal || task_lines == "" do
-      list_header
-    else
-      list_header <> "\n" <> task_lines
-    end
-  end
-
   @spec log_summary(t) :: map
   def log_summary(%{conversation_pid: convo} = state) do
     convo
@@ -233,7 +136,7 @@ defmodule AI.Agent.Coordinator.Tasks do
     # FNORD_FORMATTER and return a binary. It also respects UI.quiet?().
     |> UI.Formatter.format_output()
     # UI.debug accepts both chardata and iodata; pass formatted text directly.
-    |> then(&UI.debug("Tasks", &1))
+    |> then(&UI.debug("Task lists", &1))
 
     state
   end
@@ -244,13 +147,75 @@ defmodule AI.Agent.Coordinator.Tasks do
   """
   @spec task_summary(pid()) :: binary()
   def task_summary(conversation_pid) when is_pid(conversation_pid) do
-    lists = Services.Conversation.get_task_lists(conversation_pid)
+    conversation_pid
+    |> Services.Conversation.get_task_lists()
+    |> Enum.map(&format_task_list(conversation_pid, &1))
+    |> Enum.join("\n\n")
+    |> then(fn body ->
+      """
+      # Tasks
 
-    body =
-      lists
-      |> Enum.map(&format_task_list(conversation_pid, &1))
-      |> Enum.join("\n\n")
-
-    "# Tasks\n" <> body
+      #{body}
+      """
+    end)
   end
+
+  @doc """
+  Return a formatted summary of a single task list, including its description,
+  status, and the status of each individual task. The summary derives the list
+  status from the current tasks when possible, reflecting the concrete state of
+  work.
+  """
+  @spec format_task_list(pid, binary) :: binary
+  def format_task_list(conversation_pid, list_id) do
+    with tasks = Services.Conversation.get_task_list(conversation_pid, list_id),
+         {:ok, meta} <- Services.Conversation.get_task_list_meta(conversation_pid, list_id),
+         {:ok, desc} <- Map.fetch(meta, :description),
+         {:ok, status} <- Map.fetch(meta, :status) do
+      name = desc || list_id
+
+      label =
+        case status do
+          "done" -> "Complete"
+          "in-progress" -> "In Progress"
+          _ -> "Planning"
+        end
+
+      "## #{name} :: #{label}" <> format_tasks(status, tasks)
+    end
+  end
+
+  defp format_tasks(_, []), do: ""
+  defp format_tasks("done", _), do: ""
+
+  defp format_tasks(_, tasks) do
+    tasks
+    |> Enum.map(&format_task/1)
+    |> Enum.join("\n")
+    |> then(&("\n" <> &1))
+  end
+
+  defp format_task(%{id: id, outcome: outcome, result: result}) do
+    tty? = UI.colorize?()
+
+    result =
+      if result do
+        IO.ANSI.format([": ", :italic, :light_black, result, :reset], tty?)
+      else
+        ""
+      end
+
+    format_task_for_ui(id, outcome, result, tty?)
+  end
+
+  defp format_task_for_ui(id, :done, result, false), do: "- [✓] #{id}#{result}"
+  defp format_task_for_ui(id, :done, result, true), do: done("- #{id}#{result}")
+  defp format_task_for_ui(id, :failed, result, false), do: "- [✗] #{id}#{result}"
+  defp format_task_for_ui(id, :failed, result, true), do: failed("- #{id}#{result}")
+  defp format_task_for_ui(id, :todo, _, false), do: "- [ ] #{id}"
+  defp format_task_for_ui(id, :todo, _, true), do: todo("- #{id}")
+
+  defp done(v), do: IO.ANSI.format([:green, v, :reset], true)
+  defp failed(v), do: IO.ANSI.format([:red, :crossed_out, v, :reset], true)
+  defp todo(v), do: IO.ANSI.format([:cyan, v, :reset], true)
 end

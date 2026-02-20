@@ -14,7 +14,7 @@ defmodule Services.Conversation do
   @doc """
   Get the conversation ID of the current conversation.
   """
-  @spec get_id(pid) :: binary()
+  @spec get_id(pid) :: binary
   def get_id(pid) do
     GenServer.call(pid, :get_id)
   end
@@ -103,7 +103,7 @@ defmodule Services.Conversation do
   @doc """
   Get all task lists for this conversation.
   """
-  @spec get_task_lists(pid) :: [binary()]
+  @spec get_task_lists(pid) :: [binary]
   def get_task_lists(pid) do
     GenServer.call(pid, :get_task_lists)
   end
@@ -111,7 +111,7 @@ defmodule Services.Conversation do
   @doc """
   Get the task list with the given ID for this conversation.
   """
-  @spec get_task_list(pid, binary()) :: Services.Task.task_list() | nil
+  @spec get_task_list(pid, binary) :: Services.Task.task_list() | nil
   def get_task_list(pid, task_list_id) do
     GenServer.call(pid, {:get_task_list, task_list_id})
   end
@@ -120,7 +120,7 @@ defmodule Services.Conversation do
   Get the metadata for the given task list (currently only description).
   Returns {:ok, description} | {:error, :not_found}
   """
-  @spec get_task_list_meta(pid, binary()) :: {:ok, map()} | {:error, :not_found}
+  @spec get_task_list_meta(pid, binary) :: {:ok, map} | {:error, :not_found}
   def get_task_list_meta(pid, task_list_id) do
     GenServer.call(pid, {:get_task_list_meta, task_list_id})
   end
@@ -128,7 +128,7 @@ defmodule Services.Conversation do
   @doc """
   Upsert the metadata for the given task list (now a map with at least :description).
   """
-  @spec upsert_task_list_meta(pid, binary(), map() | binary | nil) :: :ok | {:error, :not_found}
+  @spec upsert_task_list_meta(pid, binary, map | binary | nil) :: :ok | {:error, :not_found}
   def upsert_task_list_meta(pid, task_list_id, meta) when is_map(meta) do
     GenServer.call(pid, {:upsert_task_list_meta, task_list_id, meta})
   end
@@ -142,7 +142,7 @@ defmodule Services.Conversation do
   Upsert (insert or update) the given task list in the conversation's task
   store, replacing any existing list with the same ID.
   """
-  @spec upsert_task_list(pid, binary(), Services.Task.task_list()) :: :ok
+  @spec upsert_task_list(pid, binary, Services.Task.task_list()) :: :ok
   def upsert_task_list(pid, task_list_id, tasks) do
     GenServer.call(pid, {:upsert_task_list, task_list_id, tasks})
   end
