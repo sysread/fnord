@@ -249,8 +249,8 @@ defmodule AI.Agent.Coordinator do
     |> get_notes()
     |> recall_memories_msg()
     |> project_prompt_msg()
-    |> research_tasklist_msg()
-    |> task_list_msg()
+    |> AI.Agent.Coordinator.Tasks.research_msg()
+    |> AI.Agent.Coordinator.Tasks.list_msg()
     |> startinterrupt_listener()
   end
 
@@ -303,9 +303,9 @@ defmodule AI.Agent.Coordinator do
 
     state
     |> Map.put(:steps, steps)
-    |> research_tasklist_msg()
+    |> AI.Agent.Coordinator.Tasks.research_msg()
     |> reminder_msg()
-    |> task_list_msg()
+    |> AI.Agent.Coordinator.Tasks.list_msg()
     |> coding_milestone_msg()
     |> execute_coding_phase()
     |> get_intuition()
@@ -323,46 +323,25 @@ defmodule AI.Agent.Coordinator do
   # or are already "done".
   # ----------------------------------------------------------------------------
   defp perform_step(%{steps: [:check_tasks | steps]} = state) do
-    incomplete_list_ids =
-      Services.Task.list_ids()
-      |> Enum.filter(fn list_id ->
-        status =
-          case Services.Conversation.get_task_list_meta(state.conversation_pid, list_id) do
-            {:ok, m} when is_map(m) -> Map.get(m, :status)
-            _ -> nil
-          end
+    state = Map.put(state, :steps, steps)
+    pending = AI.Agent.Coordinator.Tasks.pending_lists(state)
 
-        if status != "in-progress" do
-          false
-        else
-          case Services.Task.get_list(list_id) do
-            {:error, _} -> false
-            tasks -> Enum.any?(tasks, fn t -> t.outcome == :todo end)
-          end
-        end
-      end)
-
-    case incomplete_list_ids do
+    case pending do
       [] ->
         UI.info("All pending work complete!")
-
         state
-        |> Map.put(:steps, steps)
-        |> log_task_summary()
-        |> perform_step()
 
       list_ids ->
         UI.begin_step("Reviewing pending tasks")
 
         state
-        |> Map.put(:steps, steps)
-        |> task_list_msg()
-        |> penultimate_tasks_check_msg(list_ids)
+        |> AI.Agent.Coordinator.Tasks.list_msg()
+        |> AI.Agent.Coordinator.Tasks.penultimate_check_msg(list_ids)
         |> get_completion()
         |> save_notes()
-        |> log_task_summary()
-        |> perform_step()
     end
+    |> AI.Agent.Coordinator.Tasks.log_summary()
+    |> perform_step()
   end
 
   defp perform_step(%{steps: [:finalize]} = state) do
@@ -375,7 +354,7 @@ defmodule AI.Agent.Coordinator do
       state
       |> Map.put(:steps, [])
       |> reminder_msg()
-      |> task_list_msg()
+      |> AI.Agent.Coordinator.Tasks.list_msg()
       |> finalize_msg()
       |> template_msg()
       |> get_completion()
@@ -1249,23 +1228,6 @@ defmodule AI.Agent.Coordinator do
     |> AI.Tools.with_web_tools()
   end
 
-  # -----------------------------------------------------------------------------
-  # Tasking Guidance
-  # -----------------------------------------------------------------------------
-  @spec research_tasklist_msg(t) :: t
-  defp research_tasklist_msg(%{conversation_pid: conversation_pid} = state) do
-    """
-    Use your task list to manage all research:
-    - For every new line of inquiry, create a task
-    - When you conclude or drop a line, resolve it with a clear outcome
-    - Before moving to the next, call `tasks_show_list` to review and update open tasks
-    """
-    |> AI.Util.system_msg()
-    |> Services.Conversation.append_msg(conversation_pid)
-
-    state
-  end
-
   @spec coding_milestone_msg(t) :: t
   defp coding_milestone_msg(%{conversation_pid: conversation_pid} = state) do
     """
@@ -1276,191 +1238,6 @@ defmodule AI.Agent.Coordinator do
     """
     |> AI.Util.system_msg()
     |> Services.Conversation.append_msg(conversation_pid)
-
-    state
-  end
-
-  @spec penultimate_tasks_check_msg(t, list) :: t
-  defp penultimate_tasks_check_msg(%{conversation_pid: conversation_pid} = state, list_ids) do
-    md_list =
-      list_ids
-      |> Enum.map(&" - ID: `#{&1}`")
-      |> Enum.join("\n")
-
-    """
-    # Task lists check-in
-    Task lists are persisted with the conversation.
-
-    It is OK to leave tasks open across multiple sessions when they represent real follow-up work.
-    - Use `tasks_show_list` and read it carefully.
-    - If a task is done, resolve it.
-    - If a task should not persist (stale, superseded, or no longer relevant), resolve it with a short note explaining why.
-    - If a task is vague, rewrite it into a concrete follow-up (label + detailed description + rationale).
-
-    The following task lists still have incomplete tasks:
-    #{md_list}
-    """
-    |> AI.Util.system_msg()
-    |> Services.Conversation.append_msg(conversation_pid)
-
-    state
-  end
-
-  @spec task_list_msg(t) :: t
-  defp task_list_msg(%{conversation_pid: conversation_pid} = state) do
-    tasks =
-      Services.Task.list_ids()
-      |> Enum.map(fn list_id ->
-        tasks = Services.Task.as_string(list_id)
-
-        """
-        ## Task list ID: `#{list_id}`
-        Use this ID when invoking task management tools for this list.
-        #{tasks}
-        """
-      end)
-      |> Enum.join("\n\n")
-
-    """
-    # Tasks
-    The `tasks_show_list` tool displays these tasks in more detail, including descriptions and statuses.
-    #{tasks}
-    """
-    |> AI.Util.system_msg()
-    |> Services.Conversation.append_msg(conversation_pid)
-
-    state
-  end
-
-  @doc """
-  Return a formatted Coordinator-scoped task summary for the given conversation PID.
-
-  The output looks roughly like:
-
-  # Tasks
-  - Task List tasks-1: [✓] completed
-    - task-a: [✓] done (result)
-  - Task List tasks-2: [ ] planning
-    - task-b: [ ] todo
-  """
-  @spec task_summary(pid()) :: binary()
-  def task_summary(conversation_pid) when is_pid(conversation_pid) do
-    lists = Services.Conversation.get_task_lists(conversation_pid)
-
-    body =
-      lists
-      |> Enum.map(&format_task_list(conversation_pid, &1))
-      |> Enum.join("\n\n")
-
-    "# Tasks\n" <> body
-  end
-
-  @spec format_task_list(pid(), binary()) :: binary()
-  defp format_task_list(conversation_pid, list_id) do
-    meta =
-      case Services.Conversation.get_task_list_meta(conversation_pid, list_id) do
-        {:ok, m} when is_map(m) -> m
-        _ -> %{}
-      end
-
-    description =
-      cond do
-        Map.has_key?(meta, :description) -> Map.get(meta, :description)
-        Map.has_key?(meta, "description") -> Map.get(meta, "description")
-        true -> nil
-      end
-
-    status_val =
-      cond do
-        Map.has_key?(meta, :status) -> Map.get(meta, :status)
-        Map.has_key?(meta, "status") -> Map.get(meta, "status")
-        true -> nil
-      end
-
-    status =
-      if status_val in [nil, ""] do
-        "planning"
-      else
-        status_val
-      end
-
-    name =
-      if description in [nil, ""] do
-        "Task List #{list_id}"
-      else
-        description
-      end
-
-    # Derive list status from current tasks when possible so the summary reflects
-    # the concrete state of work (mirrors Services.Task transitions):
-    # - When all tasks are terminal (not :todo) and list is non-empty => done
-    # - When any task is terminal but some remain todo => in-progress
-    # - Otherwise, default to the explicit meta.status (or planning)
-    tasks = Services.Conversation.get_task_list(conversation_pid, list_id) || []
-
-    all_terminal = Enum.all?(tasks, fn t -> t.outcome != :todo end)
-
-    list_status =
-      cond do
-        all_terminal and tasks != [] ->
-          "[✓] completed"
-
-        Enum.any?(tasks, fn t -> t.outcome != :todo end) ->
-          "[ ] in progress"
-
-        true ->
-          case status do
-            "done" -> "[✓] completed"
-            "in-progress" -> "[ ] in progress"
-            "planning" -> "[ ] planning"
-            other -> "[ ] #{other}"
-          end
-      end
-
-    task_lines =
-      tasks
-      |> Enum.map(fn t ->
-        outcome = Map.get(t, :outcome)
-
-        status_text =
-          case outcome do
-            :done -> "[✓] done"
-            :failed -> "[✗] failed"
-            :todo -> "[ ] todo"
-            other -> "[ ] #{inspect(other)}"
-          end
-
-        result = Map.get(t, :result)
-        result_part = if result in [nil, ""], do: "", else: " (#{result})"
-
-        "  - #{t.id}: #{status_text}#{result_part}"
-      end)
-      |> Enum.join("\n")
-
-    list_header = "- #{name}: #{list_status}"
-
-    if all_terminal || task_lines == "" do
-      list_header
-    else
-      list_header <> "\n" <> task_lines
-    end
-  end
-
-  @spec log_task_summary(map()) :: map()
-  defp log_task_summary(%{conversation_pid: convo} = state) do
-    convo
-    # task_summary produces markdown text. Allow an external FNORD_FORMATTER to
-    # transform the markdown into nicer terminal output if configured.
-    |> task_summary()
-    # Remove leading "# Tasks\n" header; that was originally intended for the
-    # LLM-facing message. Here, it's redundant, since we're using the "Tasks"
-    # label in our call to UI.debug.
-    |> String.replace_prefix("# Tasks\n", "")
-    # UI.Formatter.format_output will run the command configured by
-    # FNORD_FORMATTER and return a binary. It also respects UI.quiet?().
-    |> UI.Formatter.format_output()
-    # UI.debug accepts both chardata and iodata; pass formatted text directly.
-    |> then(&UI.debug("Tasks", &1))
 
     state
   end

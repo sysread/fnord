@@ -32,7 +32,7 @@ defmodule AI.Agent.Coordinator.TaskSummaryTest do
     Services.Task.add_task(plan_list, "pl2", "plan 2")
     Services.Conversation.upsert_task_list(convo, plan_list, Services.Task.get_list(plan_list))
 
-    summary = AI.Agent.Coordinator.task_summary(convo)
+    summary = AI.Agent.Coordinator.Tasks.task_summary(convo)
 
     # Assertions for done list (individual tasks NOT shown)
     assert summary =~ "- Task List #{done_list}: [✓] completed"
