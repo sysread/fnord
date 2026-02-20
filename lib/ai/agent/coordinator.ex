@@ -287,7 +287,7 @@ defmodule AI.Agent.Coordinator do
     state
     |> Map.put(:steps, steps)
     |> followup_msg()
-    |> get_completion(replay)
+    |> AI.Agent.Coordinator.Glue.get_completion(replay)
     |> perform_step()
   end
 
@@ -300,7 +300,7 @@ defmodule AI.Agent.Coordinator do
     state
     |> Map.put(:steps, steps)
     |> begin_msg()
-    |> get_completion(replay)
+    |> AI.Agent.Coordinator.Glue.get_completion(replay)
     |> perform_step()
   end
 
@@ -325,7 +325,7 @@ defmodule AI.Agent.Coordinator do
     |> coding_milestone_msg()
     |> execute_coding_phase()
     |> get_intuition()
-    |> get_completion()
+    |> AI.Agent.Coordinator.Glue.get_completion()
     |> perform_step()
   end
 
@@ -352,7 +352,7 @@ defmodule AI.Agent.Coordinator do
         state
         |> AI.Agent.Coordinator.Tasks.list_msg()
         |> AI.Agent.Coordinator.Tasks.penultimate_check_msg(list_ids)
-        |> get_completion()
+        |> AI.Agent.Coordinator.Glue.get_completion()
     end
     |> AI.Agent.Coordinator.Tasks.log_summary()
     |> perform_step()
@@ -377,7 +377,7 @@ defmodule AI.Agent.Coordinator do
       |> AI.Agent.Coordinator.Tasks.list_msg()
       |> finalize_msg()
       |> template_msg()
-      |> get_completion()
+      |> AI.Agent.Coordinator.Glue.get_completion()
       |> get_motd()
     after
       # Always unblock, even if completion fails
@@ -386,87 +386,6 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp perform_step(state), do: state
-
-  @spec get_completion(t, boolean) :: state
-  defp get_completion(state, replay \\ false) do
-    msgs = Services.Conversation.get_messages(state.conversation_pid)
-
-    # Save the current conversation to the store for crash resilience
-    with {:ok, conversation} <- Services.Conversation.save(state.conversation_pid) do
-      UI.report_step("Conversation state saved", conversation.id)
-    else
-      {:error, reason} ->
-        UI.error("Failed to save conversation state", inspect(reason))
-    end
-
-    # Invoke completion once, ensuring conversation state is included
-    AI.Agent.get_completion(state.agent,
-      log_msgs: true,
-      log_tool_calls: true,
-      archive_notes: true,
-      compact?: true,
-      replay_conversation: replay,
-      conversation_pid: state.conversation_pid,
-      model: state.model,
-      toolbox: get_tools(state),
-      messages: msgs
-    )
-    |> case do
-      {:ok, %{response: response, messages: new_msgs, usage: usage} = completion} ->
-        # Update conversation state and log usage and response
-        Services.Conversation.replace_msgs(new_msgs, state.conversation_pid)
-        tools_used = AI.Agent.tools_used(completion)
-
-        tools_used
-        |> Enum.map(fn {tool, count} -> "- #{tool}: #{count} invocation(s)" end)
-        |> Enum.join("\n")
-        |> then(fn
-          "" -> UI.debug("Tools used", "None")
-          some -> UI.debug("Tools used", some)
-        end)
-
-        editing_tools_used =
-          state.editing_tools_used ||
-            Map.has_key?(tools_used, "coder_tool") ||
-            Map.has_key?(tools_used, "file_edit_tool") ||
-            Map.has_key?(tools_used, "apply_patch")
-
-        new_state =
-          state
-          |> Map.put(:usage, usage)
-          |> Map.put(:last_response, response)
-          |> Map.put(:editing_tools_used, editing_tools_used)
-          |> Map.put(:model, state.model)
-          |> log_usage()
-          |> log_response()
-          |> AI.Agent.Coordinator.Notes.save()
-
-        # If more interrupts arrived during completion, process them recursively
-        if Services.Conversation.Interrupts.pending?(state.conversation_pid) do
-          get_completion(new_state, replay)
-        else
-          new_state
-        end
-
-      {:error, %{response: response}} ->
-        UI.error("Derp. Completion failed.", response)
-
-        if Services.Conversation.Interrupts.pending?(state.conversation_pid) do
-          get_completion(state, replay)
-        else
-          {:error, response}
-        end
-
-      {:error, reason} ->
-        UI.error("Derp. Completion failed.", inspect(reason))
-
-        if Services.Conversation.Interrupts.pending?(state.conversation_pid) do
-          get_completion(state, replay)
-        else
-          {:error, reason}
-        end
-    end
-  end
 
   # ----------------------------------------------------------------------------
   # Message shortcuts
@@ -968,6 +887,20 @@ defmodule AI.Agent.Coordinator do
     state
   end
 
+  @spec coding_milestone_msg(t) :: t
+  defp coding_milestone_msg(%{conversation_pid: conversation_pid} = state) do
+    """
+    - Milestone check point:
+    - Review your task list for milestone tasks; update/add as needed
+    - Ensure current work aligns with milestones; if not, adjust tasks
+    - Use `tasks_show_list` to render current status before each iteration
+    """
+    |> AI.Util.system_msg()
+    |> Services.Conversation.append_msg(conversation_pid)
+
+    state
+  end
+
   @spec execute_coding_phase(t) :: t
   defp execute_coding_phase(%{edit?: true, editing_tools_used: false} = state) do
     @coding_reminder
@@ -1000,7 +933,7 @@ defmodule AI.Agent.Coordinator do
   # Appends a system message showing the LLM how many context tokens remain
   # before their conversation history will be compacted and returns the state.
   @spec append_context_remaining(t) :: t
-  defp append_context_remaining(state) do
+  def append_context_remaining(state) do
     remaining = max(state.context - state.usage, 0)
 
     AI.Util.system_msg("Context tokens remaining before compaction: #{remaining}")
@@ -1065,32 +998,6 @@ defmodule AI.Agent.Coordinator do
   # ----------------------------------------------------------------------------
   # Output
   # ----------------------------------------------------------------------------
-  defp log_response(%{steps: []} = state) do
-    UI.debug("Response complete")
-
-    state
-    |> append_context_remaining()
-  end
-
-  defp log_response(%{last_response: thought} = state) do
-    # "Reasoning" models often leave the <think> tags in the response.
-    thought =
-      thought
-      |> String.replace(~r/<think>(.*)<\/think>/, "\\1")
-      |> Util.truncate(25)
-      |> UI.italicize()
-
-    UI.debug("Considering", thought)
-
-    state
-    |> append_context_remaining()
-  end
-
-  defp log_usage(%{usage: usage, model: model} = response) do
-    UI.log_usage(model, usage)
-    response
-  end
-
   defp log_available_frobs do
     Frobs.list()
     |> Enum.map(& &1.name)
@@ -1195,37 +1102,5 @@ defmodule AI.Agent.Coordinator do
         # Ignore any other input
         listener_loop(convo_pid)
     end
-  end
-
-  # ----------------------------------------------------------------------------
-  # Tool box
-  # ----------------------------------------------------------------------------
-  @spec get_tools(t) :: AI.Tools.toolbox()
-  defp get_tools(%{edit?: true}) do
-    AI.Tools.basic_tools()
-    |> AI.Tools.with_task_tools()
-    |> AI.Tools.with_rw_tools()
-    |> AI.Tools.with_coding_tools()
-    |> AI.Tools.with_web_tools()
-  end
-
-  defp get_tools(_) do
-    AI.Tools.basic_tools()
-    |> AI.Tools.with_task_tools()
-    |> AI.Tools.with_web_tools()
-  end
-
-  @spec coding_milestone_msg(t) :: t
-  defp coding_milestone_msg(%{conversation_pid: conversation_pid} = state) do
-    """
-    - Milestone check point:
-    - Review your task list for milestone tasks; update/add as needed
-    - Ensure current work aligns with milestones; if not, adjust tasks
-    - Use `tasks_show_list` to render current status before each iteration
-    """
-    |> AI.Util.system_msg()
-    |> Services.Conversation.append_msg(conversation_pid)
-
-    state
   end
 end
