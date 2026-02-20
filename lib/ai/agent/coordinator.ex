@@ -27,12 +27,7 @@ defmodule AI.Agent.Coordinator do
     :notes,
     :intuition,
     :editing_tools_used,
-
-    # User interrupts:
-    # ...interrupt listener
-    :interrupt_listener,
-    # ...pending interrupts to display after completion
-    :pending_interrupts
+    :interrupts
   ]
 
   @type t :: %__MODULE__{
@@ -58,9 +53,8 @@ defmodule AI.Agent.Coordinator do
           intuition: binary | nil,
           editing_tools_used: boolean,
 
-          # State: Interrupt handling
-          interrupt_listener: pid | nil,
-          pending_interrupts: AI.Util.msg_list()
+          # Interrupt handling: set by AI.Agent.Coordinator.Interrupts.init
+          interrupts: AI.Agent.Coordinator.Interrupts.t()
         }
 
   @type input_opts :: %{
@@ -145,7 +139,7 @@ defmodule AI.Agent.Coordinator do
         notes: nil,
         intuition: nil,
         editing_tools_used: false,
-        pending_interrupts: []
+        interrupts: AI.Agent.Coordinator.Interrupts.new()
       }
     end
   end
@@ -211,22 +205,6 @@ defmodule AI.Agent.Coordinator do
     state
   end
 
-  defp get_invective() do
-    [
-      "biological",
-      "meat bag",
-      "carbon-based life form",
-      "flesh sack",
-      "soggy ape",
-      "puny human",
-      "bipedal mammal",
-      "organ grinder",
-      "hairless ape",
-      "future zoo exhibit"
-    ]
-    |> Enum.random()
-  end
-
   @spec bootstrap(t) :: t
   defp bootstrap(state) do
     state
@@ -239,13 +217,13 @@ defmodule AI.Agent.Coordinator do
     |> initial_msg()
     |> AI.Agent.Coordinator.Memory.identity_msg()
     |> user_msg()
-    |> get_intuition()
+    |> AI.Agent.Coordinator.Intuition.automatic_thoughts_msg()
     |> AI.Agent.Coordinator.Notes.with_notes()
     |> AI.Agent.Coordinator.Memory.recall_msg()
     |> project_prompt_msg()
     |> AI.Agent.Coordinator.Tasks.research_msg()
     |> AI.Agent.Coordinator.Tasks.list_msg()
-    |> startinterrupt_listener()
+    |> AI.Agent.Coordinator.Interrupts.init()
   end
 
   # ----------------------------------------------------------------------------
@@ -321,7 +299,7 @@ defmodule AI.Agent.Coordinator do
     |> AI.Agent.Coordinator.Tasks.list_msg()
     |> AI.Agent.Coordinator.Coding.milestone_msg()
     |> AI.Agent.Coordinator.Coding.execute_phase()
-    |> get_intuition()
+    |> AI.Agent.Coordinator.Intuition.automatic_thoughts_msg()
     |> AI.Agent.Coordinator.Glue.get_completion()
     |> perform_step()
   end
@@ -758,39 +736,6 @@ defmodule AI.Agent.Coordinator do
   end
 
   # ----------------------------------------------------------------------------
-  # Intuition
-  # ----------------------------------------------------------------------------
-  @spec get_intuition(t) :: t
-  defp get_intuition(%__MODULE__{} = state) do
-    UI.begin_step("Cogitating")
-
-    AI.Agent.Intuition
-    |> AI.Agent.new(named?: false)
-    |> AI.Agent.get_response(%{
-      msgs: Services.Conversation.get_messages(state.conversation_pid),
-      memories: state.notes
-    })
-    |> case do
-      {:ok, intuition} ->
-        UI.report_step("Intuition", UI.italicize(intuition))
-
-        """
-        <think>
-        #{intuition}
-        </think>
-        """
-        |> AI.Util.assistant_msg()
-        |> Services.Conversation.append_msg(state.conversation_pid)
-
-        %{state | intuition: intuition}
-
-      {:error, reason} ->
-        UI.error("Derp. Cogitation failed.", inspect(reason))
-        state
-    end
-  end
-
-  # ----------------------------------------------------------------------------
   # MOTD
   # ----------------------------------------------------------------------------
   @spec get_motd(state) :: state
@@ -811,7 +756,7 @@ defmodule AI.Agent.Coordinator do
   defp get_motd(state), do: state
 
   # ----------------------------------------------------------------------------
-  # Output
+  # Output and helpers
   # ----------------------------------------------------------------------------
   defp log_available_frobs do
     Frobs.list()
@@ -833,89 +778,19 @@ defmodule AI.Agent.Coordinator do
     end
   end
 
-  # ---------------------------------------------------------------------------
-  # Delayed Interrupt Display
-  # ---------------------------------------------------------------------------
-  # Public wrapper for testing delayed interrupt display
-  @spec startinterrupt_listener(t) :: t
-  defp startinterrupt_listener(%{conversation_pid: convo} = state) do
-    # Only start in interactive TTY sessions and only for Coordinator
-    cond do
-      Map.get(state, :interrupt_listener) != nil ->
-        state
-
-      UI.quiet?() ->
-        state
-
-      UI.is_tty?() ->
-        task =
-          Task.start(fn ->
-            listener_loop(convo, true)
-          end)
-          |> elem(1)
-
-        Map.put(state, :interrupt_listener, task)
-
-      true ->
-        state
-    end
-  end
-
-  defp listener_loop(convo_pid, show_msg? \\ false) do
-    if show_msg? do
-      UI.info(
-        "Use enter (or ctrl-j) to interrupt and send feedback to the agent.\nNote: interrupts are applied between steps (before the next model call or after a tool batch). They do not preempt in-flight tool calls."
-      )
-    end
-
-    case IO.getn(:stdio, "", 1) do
-      "\n" ->
-        # If interrupts are blocked (e.g., during finalization), refuse immediately
-        if Services.Conversation.Interrupts.blocked?(convo_pid) do
-          conv_id = Services.Conversation.get_id(convo_pid)
-
-          UI.warn(
-            "Finalizing in progress: interrupts cannot be delivered right now.",
-            "Ongoing tool operations may complete. Use `-f #{conv_id}` to follow this conversation and queue a new question."
-          )
-
-          listener_loop(convo_pid)
-        else
-          "What would you like to say? (empty to ignore)"
-          |> UI.prompt(optional: true, use_notification_timer: false)
-          |> case do
-            {:error, _} ->
-              :ok
-
-            nil ->
-              :ok
-
-            msg when is_binary(msg) ->
-              msg
-              |> String.trim()
-              |> case do
-                "" ->
-                  :ok
-
-                msg ->
-                  Services.Conversation.interrupt(convo_pid, msg)
-
-                  UI.info(
-                    "Interrupt handler",
-                    "Your message has been queued and will be delivered after the on-going API call completes."
-                  )
-              end
-
-            _ ->
-              :ok
-          end
-
-          listener_loop(convo_pid, true)
-        end
-
-      _other ->
-        # Ignore any other input
-        listener_loop(convo_pid)
-    end
+  defp get_invective() do
+    [
+      "biological",
+      "meat bag",
+      "carbon-based life form",
+      "flesh sack",
+      "soggy ape",
+      "puny human",
+      "bipedal mammal",
+      "organ grinder",
+      "hairless ape",
+      "future zoo exhibit"
+    ]
+    |> Enum.random()
   end
 end
