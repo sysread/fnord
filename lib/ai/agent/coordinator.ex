@@ -223,7 +223,7 @@ defmodule AI.Agent.Coordinator do
       "meat bag",
       "carbon-based life form",
       "flesh sack",
-      "soggy app",
+      "soggy ape",
       "puny human",
       "bipedal mammal",
       "organ grinder",
