@@ -34,10 +34,10 @@ defmodule AI.Agent.Coordinator.TaskSummaryTest do
 
     summary = AI.Agent.Coordinator.task_summary(convo)
 
-    # Assertions for done list
+    # Assertions for done list (individual tasks NOT shown)
     assert summary =~ "- Task List #{done_list}: [✓] completed"
-    assert summary =~ "  - done1: [✓] done (ok1)"
-    assert summary =~ "  - done2: [✓] done (ok2)"
+    refute summary =~ "done1"
+    refute summary =~ "done2"
 
     # Assertions for in-progress list
     assert summary =~ "- Task List #{in_list}: [ ] in progress"

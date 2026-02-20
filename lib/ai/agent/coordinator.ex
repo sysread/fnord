@@ -1377,9 +1377,19 @@ defmodule AI.Agent.Coordinator do
         true -> nil
       end
 
-    status = if status_val in [nil, ""], do: "planning", else: status_val
+    status =
+      if status_val in [nil, ""] do
+        "planning"
+      else
+        status_val
+      end
 
-    name = if description in [nil, ""], do: "Task List #{list_id}", else: description
+    name =
+      if description in [nil, ""] do
+        "Task List #{list_id}"
+      else
+        description
+      end
 
     # Derive list status from current tasks when possible so the summary reflects
     # the concrete state of work (mirrors Services.Task transitions):
@@ -1427,10 +1437,12 @@ defmodule AI.Agent.Coordinator do
       end)
       |> Enum.join("\n")
 
-    if task_lines == "" do
-      "- #{name}: #{list_status}"
+    list_header = "- #{name}: #{list_status}"
+
+    if all_terminal || task_lines == "" do
+      list_header
     else
-      "- #{name}: #{list_status}\n" <> task_lines
+      list_header <> "\n" <> task_lines
     end
   end
 
