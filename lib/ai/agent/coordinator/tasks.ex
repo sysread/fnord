@@ -1,4 +1,9 @@
 defmodule AI.Agent.Coordinator.Tasks do
+  @moduledoc """
+  Task-specific behaviors for AI.Agent.Coordinator, including generating
+  messages related to task management.
+  """
+
   @typep t :: AI.Agent.Coordinator.t()
 
   @doc """
