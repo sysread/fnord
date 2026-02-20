@@ -520,10 +520,11 @@ defmodule Memory do
     end
   end
 
-  defp maybe_migrate_on_read(error), do: error
+  defp maybe_migrate_on_read({:error, reason}), do: {:error, reason}
 
   # Ensures memory timestamps are set. If inserted_at is missing or empty, uses
   # updated_at. If updated_at is missing or empty, uses the current timestamp.
+  @spec ensure_timestamps(t) :: t
   defp ensure_timestamps(memory) do
     now = DateTime.utc_now() |> DateTime.to_iso8601()
 

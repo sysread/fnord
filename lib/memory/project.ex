@@ -63,8 +63,6 @@ defmodule Memory.Project do
          {:ok, content} <- read_file(path),
          {:ok, memory} <- Memory.unmarshal(content) do
       {:ok, memory}
-    else
-      error -> error
     end
   end
 
