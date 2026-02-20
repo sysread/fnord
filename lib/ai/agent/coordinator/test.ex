@@ -1,4 +1,11 @@
 defmodule AI.Agent.Coordinator.Test do
+  @moduledoc """
+  Test-mode-specific behaviors for AI.Agent.Coordinator, including generating
+  messages related to testing. Test mode is a special case that lets the dev do
+  manual "integration testing" to verify tool functionality and integration
+  with the agent code.
+  """
+
   @typep t :: AI.Agent.Coordinator.t()
 
   @prompt """
