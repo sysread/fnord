@@ -227,7 +227,8 @@ defmodule AI.Agent.Coordinator do
       "puny human",
       "bipedal mammal",
       "organ grinder",
-      "hairless ape"
+      "hairless ape",
+      "future zoo exhibit"
     ]
     |> Enum.random()
   end
