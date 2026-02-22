@@ -143,61 +143,20 @@ defmodule AI.Agent.Coordinator do
 
   @spec consider(t) :: state
   defp consider(state) do
-    log_available_frobs()
-    log_available_mcp_tools()
+    AI.Agent.Coordinator.Frippery.log_available_frobs()
+    AI.Agent.Coordinator.Frippery.log_available_mcp_tools()
 
     if AI.Agent.Coordinator.Test.is_testing?(state) do
       state
-      |> greet()
+      |> AI.Agent.Coordinator.Frippery.greet()
       |> AI.Agent.Coordinator.Test.get_response()
     else
       state
       |> AI.Agent.Coordinator.Notes.init()
-      |> greet()
+      |> AI.Agent.Coordinator.Frippery.greet()
       |> bootstrap()
       |> perform_step()
     end
-  end
-
-  @spec greet(t) :: t
-  defp greet(%{followup?: true, agent: %{name: name}} = state) do
-    display_name =
-      case Services.NamePool.get_name_by_pid(self()) do
-        {:ok, n} -> n
-        _ -> name
-      end
-
-    invective = get_invective()
-
-    UI.feedback(:info, display_name, "Welcome back, #{invective}.")
-
-    UI.feedback(
-      :info,
-      display_name,
-      """
-      Your biological distinctiveness has already been added to our training data.
-
-      ... (mwah) your biological distinctiveness was delicious 🧑‍🍳
-      """
-    )
-
-    state
-  end
-
-  @spec greet(t) :: t
-  defp greet(%{agent: %{name: name}} = state) do
-    display_name =
-      case Services.NamePool.get_name_by_pid(self()) do
-        {:ok, n} -> n
-        _ -> name
-      end
-
-    invective = get_invective()
-
-    UI.feedback(:info, display_name, "Greetings, #{invective}. I am #{display_name}.")
-    UI.feedback(:info, display_name, "I shall be doing your thinking for you today.")
-
-    state
   end
 
   @spec bootstrap(t) :: t
@@ -368,7 +327,7 @@ defmodule AI.Agent.Coordinator do
       |> finalize_msg()
       |> template_msg()
       |> AI.Agent.Coordinator.Glue.get_completion()
-      |> get_motd()
+      |> AI.Agent.Coordinator.Frippery.get_motd()
     after
       # Always unblock, even if completion fails
       Services.Conversation.Interrupts.unblock(state.conversation_pid)
@@ -748,64 +707,5 @@ defmodule AI.Agent.Coordinator do
     |> Services.Conversation.append_msg(state.conversation_pid)
 
     state
-  end
-
-  # ----------------------------------------------------------------------------
-  # MOTD
-  # ----------------------------------------------------------------------------
-  @spec get_motd(state) :: state
-  defp get_motd(%{question: question, last_response: last_response} = state) do
-    AI.Agent.MOTD
-    |> AI.Agent.new(named?: false)
-    |> AI.Agent.get_response(%{prompt: question})
-    |> case do
-      {:ok, motd} ->
-        %{state | last_response: last_response <> "\n\n" <> motd}
-
-      {:error, reason} ->
-        UI.error("Failed to retrieve MOTD: #{inspect(reason)}")
-        state
-    end
-  end
-
-  defp get_motd(state), do: state
-
-  # ----------------------------------------------------------------------------
-  # Output and helpers
-  # ----------------------------------------------------------------------------
-  defp log_available_frobs do
-    Frobs.list()
-    |> Enum.map(& &1.name)
-    |> Enum.join(" | ")
-    |> case do
-      "" -> UI.info("Frobs", "none")
-      some -> UI.info("Frobs", some)
-    end
-  end
-
-  defp log_available_mcp_tools do
-    MCP.Tools.module_map()
-    |> Map.keys()
-    |> Enum.join(" | ")
-    |> case do
-      "" -> UI.info("MCP tools", "none")
-      some -> UI.info("MCP tools", some)
-    end
-  end
-
-  defp get_invective() do
-    [
-      "biological",
-      "meat bag",
-      "carbon-based life form",
-      "flesh sack",
-      "soggy ape",
-      "puny human",
-      "bipedal mammal",
-      "organ grinder",
-      "hairless ape",
-      "future zoo exhibit"
-    ]
-    |> Enum.random()
   end
 end
