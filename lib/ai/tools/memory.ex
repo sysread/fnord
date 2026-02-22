@@ -118,13 +118,9 @@ defmodule AI.Tools.Memory do
             },
             "scope" => %{
               type: "string",
-              enum: ["session", "project", "global"],
-              description: """
-              Memory scope for remember/update/forget operations.
-              - session: Memory lasts for the current session only. This is appropriate for ephemeral notes about the current conversation, such as current goals, tasks, or decision-making while brainstorming.
-              - project: Memory is stored within the current project and shared across sessions. This is appropriate for project-specific information that should persist, such as project organization, terminology, gotchas and closet skeletons related to the project.
-              - global: Memory is stored globally and shared across all projects and sessions. This is appropriate for general knowledge, preferences, observations about the user, and other information that should be globally available to you.
-              """
+              enum: ["session"],
+              description:
+                "Memory scope for remember/update/forget operations. This tool accepts only 'session' scope; use the long_term_memory_tool for project or global memories."
             },
             "what" => %{
               type: "string",
@@ -226,12 +222,23 @@ defmodule AI.Tools.Memory do
   end
 
   defp do_remember(%{"scope" => scope, "title" => title, "content" => content} = args) do
-    with {:ok, scope_atom} <- parse_scope(scope),
-         topics = normalize_topics(Map.get(args, "topics")),
-         {:ok, memory} <- new_memory(scope_atom, title, content, topics),
-         {:ok, saved} <- wrap_save(Memory.save(memory), memory) do
-      {:ok, format_memory(saved)}
+    # Only session writes are permitted via memory_tool. Reject other scopes.
+    if scope != "session" do
+      {:error,
+       "memory_tool is session-only. Use long_term_memory_tool for project/global writes."}
+    else
+      with {:ok, scope_atom} <- parse_scope(scope),
+           topics = normalize_topics(Map.get(args, "topics")),
+           {:ok, memory} <- new_memory(scope_atom, title, content, topics),
+           {:ok, saved} <- wrap_save(Memory.save(memory), memory) do
+        {:ok, format_memory(saved)}
+      end
     end
+  end
+
+  # If caller omitted 'scope', default to session scope for convenience.
+  defp do_remember(%{"title" => _title, "content" => _content} = args) do
+    do_remember(Map.put(args, "scope", "session"))
   end
 
   defp do_remember(_) do
@@ -239,36 +246,47 @@ defmodule AI.Tools.Memory do
   end
 
   defp do_update(%{"scope" => scope, "title" => title, "new_content" => new_content} = args) do
-    case parse_scope(scope) do
-      {:ok, scope_atom} ->
-        case Memory.read(scope_atom, title) do
-          {:ok, memory} ->
-            new_topics = normalize_topics(Map.get(args, "new_topics"))
+    # Only session updates are permitted via memory_tool. Reject other scopes.
+    if scope != "session" do
+      {:error,
+       "memory_tool is session-only. Use long_term_memory_tool for project/global writes."}
+    else
+      case parse_scope(scope) do
+        {:ok, scope_atom} ->
+          case Memory.read(scope_atom, title) do
+            {:ok, memory} ->
+              new_topics = normalize_topics(Map.get(args, "new_topics"))
 
-            updated =
-              memory
-              |> Memory.append(new_content)
-              |> maybe_add_topics(new_topics)
+              updated =
+                memory
+                |> Memory.append(new_content)
+                |> maybe_add_topics(new_topics)
 
-            case wrap_save(Memory.save(updated), updated) do
-              {:ok, saved} ->
-                {:ok, format_memory(saved)}
+              case wrap_save(Memory.save(updated), updated) do
+                {:ok, saved} ->
+                  {:ok, format_memory(saved)}
 
-              {:error, _} = error ->
-                error
-            end
+                {:error, _} = error ->
+                  error
+              end
 
-          {:error, :not_found} ->
-            {:error,
-             "No memory found with title #{inspect(title)} in #{Atom.to_string(scope_atom)} scope. Use action=list to see available memories."}
+            {:error, :not_found} ->
+              {:error,
+               "No memory found with title #{inspect(title)} in #{Atom.to_string(scope_atom)} scope. Use action=list to see available memories."}
 
-          {:error, reason} ->
-            {:error, inspect(reason)}
-        end
+            {:error, reason} ->
+              {:error, inspect(reason)}
+          end
 
-      {:error, _} = error ->
-        error
+        {:error, _} = error ->
+          error
+      end
     end
+  end
+
+  # If caller omitted 'scope', default to session scope for convenience.
+  defp do_update(%{"title" => _title, "new_content" => _} = args) do
+    do_update(Map.put(args, "scope", "session"))
   end
 
   defp do_update(_) do
@@ -278,23 +296,35 @@ defmodule AI.Tools.Memory do
   defp do_forget(%{"title" => title} = args) do
     scope_opt = Map.get(args, "scope")
 
-    scopes =
-      case scope_opt do
-        nil ->
-          [:session, :project, :global]
+    # For security and simplification, forbid forgetting in non-session scopes via memory_tool.
+    case scope_opt do
+      nil ->
+        # Default behavior: only consider session scope when forgetting via memory_tool.
+        case find_memory_by_title([:session], title) do
+          {:ok, memory} -> Memory.forget(memory)
+          :not_found -> :ok
+          {:error, reason} -> {:error, inspect(reason)}
+        end
 
-        s ->
-          with {:ok, atom} <- parse_scope(s) do
-            [atom]
+      s ->
+        if s != "session" do
+          {:error,
+           "memory_tool is session-only. Use long_term_memory_tool for project/global forget operations."}
+        else
+          case find_memory_by_title([:session], title) do
+            {:ok, memory} -> Memory.forget(memory)
+            :not_found -> :ok
+            {:error, reason} -> {:error, inspect(reason)}
           end
-      end
-
-    case find_memory_by_title(scopes, title) do
-      {:ok, memory} -> Memory.forget(memory)
-      :not_found -> :ok
-      {:error, reason} -> {:error, inspect(reason)}
+        end
     end
   end
+
+  # If caller omitted 'scope', default to session scope for convenience.
+  # Note: this convenience clause would overlap with the primary clause above
+  # that pattern-matches the same shape. To avoid compilation warnings we rely
+  # on the primary clause handling nil scope explicitly; therefore we do not
+  # include a duplicate delegating clause here.
 
   defp do_forget(_) do
     {:error, "Missing required field 'title' for action 'forget'"}

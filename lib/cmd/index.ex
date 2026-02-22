@@ -429,9 +429,31 @@ defmodule Cmd.Index do
       :ok
     else
       UI.spin("Indexing #{count} conversation(s)", fn ->
-        conversations
-        |> UI.async_stream(&process_conversation(project, &1), "Indexing conversations")
-        |> Enum.to_list()
+        # Split the work into two concurrent partitions and process each
+        # partition using an internal async_stream with the configured
+        # worker concurrency. This gives us two 'tasks' that can each farm
+        # work to several workers, then we await both to completion.
+        workers = Services.Globals.get_env(:fnord, :workers)
+
+        # Partition into four roughly-equal chunks
+        partitions_count = 4
+        chunk_size = div(count + partitions_count - 1, partitions_count)
+        partitions = Enum.chunk_every(conversations, chunk_size)
+
+        tasks =
+          partitions
+          |> Enum.map(fn part ->
+            Services.Globals.Spawn.async(fn ->
+              part
+              |> Util.async_stream(fn convo -> process_conversation(project, convo) end,
+                max_concurrency: workers
+              )
+              |> Enum.to_list()
+            end)
+          end)
+
+        # Wait for all partitions to finish
+        Enum.each(tasks, fn t -> Task.await(t, :infinity) end)
 
         {"All conversation indexing tasks complete", :ok}
       end)
@@ -453,6 +475,17 @@ defmodule Cmd.Index do
                "message_count" => length(data.messages)
              })
            ) do
+      # After writing the conversation embeddings to the index, also run
+      # the session memory analyzer so that any session-scoped memories in
+      # this conversation can be evaluated and (if needed) consolidated into
+      # long-term memory. Do this in a best-effort manner so indexing itself
+      # is not prevented by memory analysis failures.
+      try do
+        Services.MemoryIndexer.enqueue(convo)
+      rescue
+        _ -> :ok
+      end
+
       :ok
     else
       {:error, reason} ->

@@ -69,7 +69,8 @@ defmodule Memory.Project do
   @impl Memory
   def save(%{title: title} = memory) do
     with {:ok, project} <- get_project(),
-         {:ok, json} <- Memory.marshal(memory) do
+         {:ok, json} <- Memory.marshal(memory),
+         {:ok, _path} <- ensure_storage_path(project) do
       lockfile = Path.join(storage_path(project), ".alloc.lock")
 
       case FileLock.with_lock(lockfile, fn ->

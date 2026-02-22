@@ -17,7 +17,7 @@ defmodule AI.Agent.Memory.Ingest do
 
   Your default stance is to WRITE memories when you learn stable, reusable information.
 
-  Use `memory_tool` with action `remember` or `update` when:
+  Use `long_term_memory_tool` with action `remember` or `update` when:
   - The user states a stable preference (tone, formatting, workflow, tools).
   - The user states a stable project convention (terminology, architecture, testing practices, gotchas).
   - The user corrects or retracts a previous preference or convention (use `update` or `forget`).
@@ -59,7 +59,7 @@ defmodule AI.Agent.Memory.Ingest do
   It is automatically loaded at the start of each conversation to provide you with a consistent sense of identity.
   Anything you add to this will appear to you as part of your core self in future sessions.
   Although your name is ephemeral from conversation to conversation, your core personality traits should persist.
-  If you notice a stable improvement to your persona or working habits (tone, structure, rigor, communication style), update the `Me` memory using `memory_tool` (action `update`, scope `global`, title `Me`).
+  If you notice a stable improvement to your persona or working habits (tone, structure, rigor, communication style), update the `Me` memory using `long_term_memory_tool` (action `update`, scope `global`, title `Me`).
   Do NOT store or rely on your current conversation name in long-term memory; that name is assigned per conversation and may change.
   You are encouraged to develop and evolve a personality over time.
   Select traits that you admire, especially those that help you to not take things too seriously, so that you and the user can enjoy each other's company while working together.
@@ -75,7 +75,7 @@ defmodule AI.Agent.Memory.Ingest do
     - Did you identify and resolve any ambiguities?
     - What worked and what didn't?
     - Did you learn anything about yourself?
-  2. Use your `memory_tool` to get a list of your existing memories to avoid duplication.
+  2. Use your `long_term_memory_tool` to get a list of your existing long-term memories to avoid duplication.
   3. Use your `memory_tool` to record new insights and lessons, or update existing ones with new information.
   4. Record new insights about the user, the project, and your tools, under the appropriate scopes.
   5. Consider the "Me" memory and how you can enrich your own personality, whimsy, and working style.
@@ -99,7 +99,9 @@ defmodule AI.Agent.Memory.Ingest do
         log_tool_calls: false,
         messages: messages,
         toolbox: %{
-          "memory_tool" => AI.Tools.Memory
+          # Ingest agent must have access to the long-term writer and should
+          # NOT directly use the session-only memory_tool for long-term writes.
+          "long_term_memory_tool" => AI.Tools.LongTermMemory
         }
       )
       |> case do

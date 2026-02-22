@@ -25,6 +25,13 @@ defmodule Services do
     Services.BackupFile.start_link()
     Services.TempFile.start_link([])
     Services.FileCache.start_link()
+
+    # Start TaskSupervisor commonly used by services to spawn supervised tasks
+    # Ensure Task.Supervisor is started only once
+    case Process.whereis(Services.TaskSupervisor) do
+      nil -> Task.Supervisor.start_link(name: Services.TaskSupervisor)
+      _ -> {:ok, Process.whereis(Services.TaskSupervisor)}
+    end
   end
 
   @doc """

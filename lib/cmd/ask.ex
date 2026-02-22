@@ -301,6 +301,30 @@ defmodule Cmd.Ask do
   end
 
   defp start_conversation_indexer() do
+    # Start ConversationIndexer for the lifetime of the command. We must
+    # ensure the MemoryIndexer is available before any conversation processing
+    # begins because the ConversationIndexer enqueues conversations to the
+    # MemoryIndexer (session -> long-term memory analysis). Start the
+    # MemoryIndexer first (idempotently and best-effort), then start the
+    # ConversationIndexer itself. We intentionally do not fail if either
+    # service cannot be started; the Ask command will continue but memory
+    # analysis may not run.
+
+    # Ensure MemoryIndexer is available (idempotent)
+    case Process.whereis(Services.MemoryIndexer) do
+      nil ->
+        # Start it best-effort; swallow errors so Ask remains robust.
+        try do
+          Services.MemoryIndexer.start_link([])
+        rescue
+          _ -> :ok
+        end
+
+      _ ->
+        :ok
+    end
+
+    # Now start the ConversationIndexer for the command lifetime.
     case Services.ConversationIndexer.start_link() do
       {:ok, pid} -> pid
       _ -> nil

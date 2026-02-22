@@ -8,7 +8,8 @@ defmodule Memory do
              :topics,
              :embeddings,
              :inserted_at,
-             :updated_at
+             :updated_at,
+             :index_status
            ]}
 
   defstruct [
@@ -19,7 +20,8 @@ defmodule Memory do
     :topics,
     :embeddings,
     :inserted_at,
-    :updated_at
+    :updated_at,
+    :index_status
   ]
 
   @type scope ::
@@ -35,7 +37,8 @@ defmodule Memory do
           topics: list(binary),
           embeddings: list(float) | nil,
           inserted_at: binary | nil,
-          updated_at: binary | nil
+          updated_at: binary | nil,
+          index_status: :new | :analyzed | nil
         }
 
   @me_title "Me"
@@ -218,7 +221,8 @@ defmodule Memory do
            topics: topics,
            embeddings: nil,
            inserted_at: timestamp,
-           updated_at: timestamp
+           updated_at: timestamp,
+           index_status: if(scope == :session, do: :new, else: nil)
          }}
     end
   end
@@ -260,6 +264,8 @@ defmodule Memory do
           :global
       end
 
+    index_status_val = Map.get(data, :index_status) || Map.get(data, "index_status")
+
     %Memory{
       scope: scope,
       title: Map.get(data, :title),
@@ -268,9 +274,17 @@ defmodule Memory do
       topics: Map.get(data, :topics),
       embeddings: Map.get(data, :embeddings),
       inserted_at: Map.get(data, :inserted_at),
-      updated_at: Map.get(data, :updated_at)
+      updated_at: Map.get(data, :updated_at),
+      index_status: parse_index_status(index_status_val)
     }
   end
+
+  defp parse_index_status(nil), do: nil
+  defp parse_index_status(:new), do: :new
+  defp parse_index_status(:analyzed), do: :analyzed
+  defp parse_index_status("new"), do: :new
+  defp parse_index_status("analyzed"), do: :analyzed
+  defp parse_index_status(_), do: nil
 
   @spec append(t, binary) :: t
   def append(%Memory{} = memory, new_content) do
@@ -502,18 +516,45 @@ defmodule Memory do
 
   @spec maybe_migrate_on_read({:ok, t} | {:error, term}) :: {:ok, t} | {:error, term}
   defp maybe_migrate_on_read({:ok, memory}) do
-    if memory.inserted_at in [nil, ""] or memory.updated_at in [nil, ""] do
-      # Update timestamps on disk without regenerating embeddings.
-      # The save call intentionally uses :skip_embeddings so we only write
-      # the timestamp fields and avoid the potentially expensive embedding
-      # generation step.
-      case save(memory, skip_embeddings: true) do
+    need_timestamps = memory.inserted_at in [nil, ""] or memory.updated_at in [nil, ""]
+
+    # Repair legacy session-scoped memories: treat missing index_status as :analyzed
+    # Memory.index_status is stored as an atom (:new/:analyzed) or nil. Treat
+    # only `nil` as missing; do not include empty-string checks which mix types
+    # (atoms vs binaries) and can confuse Dialyzer.
+    need_index_fix = memory.scope == :session and memory.index_status == nil
+
+    if need_timestamps or need_index_fix do
+      # Prepare a repaired memory struct with timestamps and index status fixed.
+      repaired = memory |> ensure_timestamps()
+
+      repaired =
+        if need_index_fix do
+          %{repaired | index_status: :analyzed}
+        else
+          repaired
+        end
+
+      # Save without regenerating embeddings to avoid expensive API calls.
+      case save(repaired, skip_embeddings: true) do
         {:ok, mem} ->
+          # If this is a session memory and there is an active conversation
+          # server, trigger a conversation save to persist the repaired memory
+          # to disk. Best-effort: ignore save errors here.
+          try do
+            case Services.Globals.get_env(:fnord, :current_conversation) do
+              pid when is_pid(pid) -> Services.Conversation.save(pid)
+              _ -> :ok
+            end
+          rescue
+            _ -> :ok
+          end
+
           {:ok, mem}
 
         {:error, _reason} ->
-          # If the save failed for any reason, best-effort: fill timestamps in-memory
-          {:ok, ensure_timestamps(memory)}
+          # Best-effort: return the repaired memory in-memory
+          {:ok, repaired}
       end
     else
       {:ok, memory}
