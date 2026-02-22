@@ -161,40 +161,18 @@ defmodule AI.Agent.Coordinator do
 
   @spec bootstrap(t) :: t
   defp bootstrap(state) do
-    state =
-      state
-      # All sessions begin with these messages. We strip system/developer
-      # messages out of the saved conversation in Services.Conversation.save,
-      # so follow-up sessions re-inject them here. This reduces space on disk
-      # and ensures the instruction messages don't fall out of focus in long
-      # conversations.
-      |> new_session_msg()
-      |> initial_msg()
-      |> AI.Agent.Coordinator.Memory.identity_msg()
-      |> user_msg()
-      |> AI.Agent.Coordinator.Intuition.automatic_thoughts_msg()
-
-    # Parallelize memory retrieval and note retrieval to speed up
-    # bootstrapping. These are independent operations that can be done
-    # concurrently, so we use Task.async to run them in parallel and then await
-    # their results before proceeding.
-    memory_task =
-      Services.Globals.Spawn.async(fn ->
-        # appends a message with relevant prior memories matching the current context
-        AI.Agent.Coordinator.Memory.spool_mnemonics(state)
-      end)
-
-    notes_task =
-      Services.Globals.Spawn.async(fn ->
-        # appends a message with relevant prior research
-        AI.Agent.Coordinator.Notes.lore_me_up(state)
-      end)
-
-    # Wait for both tasks to complete
-    Task.await(notes_task, :infinity)
-    Task.await(memory_task, :infinity)
-
     state
+    # All sessions begin with these messages. We strip system/developer
+    # messages out of the saved conversation in Services.Conversation.save,
+    # so follow-up sessions re-inject them here. This reduces space on disk
+    # and ensures the instruction messages don't fall out of focus in long
+    # conversations.
+    |> new_session_msg()
+    |> initial_msg()
+    |> AI.Agent.Coordinator.Memory.identity_msg()
+    |> user_msg()
+    |> AI.Agent.Coordinator.Intuition.automatic_thoughts_msg()
+    |> with_memories()
     |> project_prompt_msg()
     |> AI.Agent.Coordinator.Tasks.research_msg()
     |> AI.Agent.Coordinator.Tasks.list_msg()
@@ -339,6 +317,24 @@ defmodule AI.Agent.Coordinator do
   # ----------------------------------------------------------------------------
   # Message shortcuts
   # ----------------------------------------------------------------------------
+  @spec user_msg(t) :: t
+  defp user_msg(%{conversation_pid: conversation_pid, question: question} = state) do
+    question
+    |> AI.Util.user_msg()
+    |> Services.Conversation.append_msg(conversation_pid)
+
+    state
+  end
+
+  @spec reminder_msg(t) :: t
+  defp reminder_msg(%{conversation_pid: conversation_pid, question: question} = state) do
+    "Remember the user's question: #{question}"
+    |> AI.Util.system_msg()
+    |> Services.Conversation.append_msg(conversation_pid)
+
+    state
+  end
+
   @common """
   You are an AI assistant that coordinates research into the user's code base to answer their questions.
   You are logical with prolog-like reasoning: step-by-step, establishing facts, relationships, and rules, to draw conclusions.
@@ -458,6 +454,9 @@ defmodule AI.Agent.Coordinator do
   Treat interface help requests as orthogonal to questions about the project or code base (unless asking about how to integrate them with project code and you need coordinating information).
   """
 
+  @spec common_prompt() :: binary
+  def common_prompt, do: @common
+
   @initial """
   #{@common}
 
@@ -480,6 +479,22 @@ defmodule AI.Agent.Coordinator do
   **DO NOT FINALIZE YOUR RESPONSE UNTIL INSTRUCTED.**
   """
 
+  @spec initial_msg(t) :: t
+  defp initial_msg(%{conversation_pid: conversation_pid, project: project, edit?: false} = state) do
+    @initial
+    |> String.replace("$$PROJECT$$", project)
+    |> String.replace("$$GIT_INFO$$", GitCli.git_info())
+    |> AI.Util.system_msg()
+    |> Services.Conversation.append_msg(conversation_pid)
+
+    state
+  end
+
+  defp initial_msg(%{edit?: true} = state) do
+    state
+    |> AI.Agent.Coordinator.Coding.base_prompt_msg()
+  end
+
   @followup """
   <think>
   The user replied to my last response.
@@ -490,6 +505,15 @@ defmodule AI.Agent.Coordinator do
   </think>
   """
 
+  @spec followup_msg(t) :: t
+  defp followup_msg(%{conversation_pid: conversation_pid} = state) do
+    @followup
+    |> AI.Util.assistant_msg()
+    |> Services.Conversation.append_msg(conversation_pid)
+
+    state
+  end
+
   @begin """
   <think>
   Let me consider the prompt.
@@ -497,6 +521,15 @@ defmodule AI.Agent.Coordinator do
   What is the correct action or strategy for this prompt?
   </think>
   """
+
+  @spec begin_msg(t) :: t
+  defp begin_msg(%{conversation_pid: conversation_pid} = state) do
+    @begin
+    |> AI.Util.assistant_msg()
+    |> Services.Conversation.append_msg(conversation_pid)
+
+    state
+  end
 
   @finalize """
   <think>
@@ -516,6 +549,15 @@ defmodule AI.Agent.Coordinator do
   I should also note any organizational oddities or code quirks I discovered along the way.
   </think>
   """
+
+  @spec finalize_msg(t) :: t
+  defp finalize_msg(%{conversation_pid: conversation_pid} = state) do
+    @finalize
+    |> AI.Util.assistant_msg()
+    |> Services.Conversation.append_msg(conversation_pid)
+
+    state
+  end
 
   @template """
   Respond in well-formatted, well-organized markdown.
@@ -595,8 +637,14 @@ defmodule AI.Agent.Coordinator do
   Respond NOW with your findings.
   """
 
-  @spec common_prompt() :: binary
-  def common_prompt, do: @common
+  @spec template_msg(t) :: t
+  defp template_msg(%{conversation_pid: conversation_pid} = state) do
+    @template
+    |> AI.Util.system_msg()
+    |> Services.Conversation.append_msg(conversation_pid)
+
+    state
+  end
 
   @spec project_prompt_msg(t) :: t
   defp project_prompt_msg(%{conversation_pid: conversation_pid} = state) do
@@ -627,84 +675,17 @@ defmodule AI.Agent.Coordinator do
     state
   end
 
-  @spec initial_msg(t) :: t
-  defp initial_msg(%{conversation_pid: conversation_pid, project: project, edit?: false} = state) do
-    @initial
-    |> String.replace("$$PROJECT$$", project)
-    |> String.replace("$$GIT_INFO$$", GitCli.git_info())
-    |> AI.Util.system_msg()
-    |> Services.Conversation.append_msg(conversation_pid)
-
-    state
-  end
-
-  defp initial_msg(%{edit?: true} = state) do
-    state
-    |> AI.Agent.Coordinator.Coding.base_prompt_msg()
-  end
-
-  @spec user_msg(t) :: t
-  defp user_msg(%{conversation_pid: conversation_pid, question: question} = state) do
-    question
-    |> AI.Util.user_msg()
-    |> Services.Conversation.append_msg(conversation_pid)
-
-    state
-  end
-
-  @spec reminder_msg(t) :: t
-  defp reminder_msg(%{conversation_pid: conversation_pid, question: question} = state) do
-    "Remember the user's question: #{question}"
-    |> AI.Util.system_msg()
-    |> Services.Conversation.append_msg(conversation_pid)
-
-    state
-  end
-
-  @spec followup_msg(t) :: t
-  defp followup_msg(%{conversation_pid: conversation_pid} = state) do
-    @followup
-    |> AI.Util.assistant_msg()
-    |> Services.Conversation.append_msg(conversation_pid)
-
-    state
-  end
-
-  @spec begin_msg(t) :: t
-  defp begin_msg(%{conversation_pid: conversation_pid} = state) do
-    @begin
-    |> AI.Util.assistant_msg()
-    |> Services.Conversation.append_msg(conversation_pid)
-
-    state
-  end
-
-  @spec finalize_msg(t) :: t
-  defp finalize_msg(%{conversation_pid: conversation_pid} = state) do
-    @finalize
-    |> AI.Util.assistant_msg()
-    |> Services.Conversation.append_msg(conversation_pid)
-
-    state
-  end
-
-  @spec template_msg(t) :: t
-  defp template_msg(%{conversation_pid: conversation_pid} = state) do
-    @template
-    |> AI.Util.system_msg()
-    |> Services.Conversation.append_msg(conversation_pid)
-
-    state
-  end
-
-  # Appends a system message showing the LLM how many context tokens remain
-  # before their conversation history will be compacted and returns the state.
-  @spec append_context_remaining(t) :: t
-  def append_context_remaining(state) do
-    remaining = max(state.context - state.usage, 0)
-
-    AI.Util.system_msg("Context tokens remaining before compaction: #{remaining}")
-    |> Services.Conversation.append_msg(state.conversation_pid)
+  # Parallelize memory retrieval and note retrieval to speed up bootstrapping.
+  # These are independent operations that can be done concurrently, so we use
+  # Task.async to run them in parallel and then await their results before
+  # proceeding.
+  @spec with_memories(t) :: t
+  defp with_memories(state) do
+    [
+      Services.Globals.Spawn.async(fn -> AI.Agent.Coordinator.Memory.spool_mnemonics(state) end),
+      Services.Globals.Spawn.async(fn -> AI.Agent.Coordinator.Notes.lore_me_up(state) end)
+    ]
+    |> Task.await_many(:infinity)
 
     state
   end

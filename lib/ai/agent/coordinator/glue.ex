@@ -79,7 +79,7 @@ defmodule AI.Agent.Coordinator.Glue do
           |> Map.put(:model, state.model)
           |> log_usage()
           |> log_response()
-          |> AI.Agent.Coordinator.append_context_remaining()
+          |> append_context_remaining()
 
         # If more interrupts arrived during completion, process them recursively
         if Services.Conversation.Interrupts.pending?(state.conversation_pid) do
@@ -130,5 +130,17 @@ defmodule AI.Agent.Coordinator.Glue do
   defp log_usage(%{usage: usage, model: model} = response) do
     UI.log_usage(model, usage)
     response
+  end
+
+  # Appends a system message showing the LLM how many context tokens remain
+  # before their conversation history will be compacted and returns the state.
+  @spec append_context_remaining(t) :: t
+  defp append_context_remaining(state) do
+    remaining = max(state.context - state.usage, 0)
+
+    AI.Util.system_msg("Context tokens remaining before compaction: #{remaining}")
+    |> Services.Conversation.append_msg(state.conversation_pid)
+
+    state
   end
 end
