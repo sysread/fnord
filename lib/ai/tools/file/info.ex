@@ -1,4 +1,11 @@
 defmodule AI.Tools.File.Info do
+  @moduledoc """
+  Provides file-level information queries for the AI agent. This module reads
+  file contents using AI.Tools.get_file_contents/1 which is the canonical
+  accessor for file content. A centralized cache (Services.FileCache) is used
+  by that accessor to avoid unnecessary disk reads.
+  """
+
   @behaviour AI.Tools
 
   @impl AI.Tools

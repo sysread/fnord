@@ -634,8 +634,14 @@ defmodule AI.Tools do
   @spec get_file_contents(binary) :: {:ok, binary} | something_not_found
   def get_file_contents(file) do
     with {:ok, project} <- get_project(),
-         {:ok, path} <- Util.find_file_within_root(file, project.source_root) do
-      File.read(path)
+         {:ok, path} <- Util.find_file_within_root(file, project.source_root),
+         {:ok, contents} <- Services.FileCache.get_or_fetch(path, fn -> File.read(path) end) do
+      {:ok, contents}
+    else
+      {:error, :enoent} -> {:error, :enoent}
+      {:error, :project_not_found} = err -> err
+      {:error, :project_not_set} = err -> err
+      _ -> {:error, :enoent}
     end
   end
 
