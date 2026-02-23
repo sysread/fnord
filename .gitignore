@@ -31,10 +31,11 @@ fnord-*.tar
 # escript
 /fnord
 
-# Temporary prototype files
-.scratch/
-scratch*
-scratch.tar.gz
+# scratch notes
+scratch.md
+scratch/
+
+# ctags
 tags
 
 # JetBrain's IDE local configuration files
