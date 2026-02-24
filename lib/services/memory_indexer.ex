@@ -132,6 +132,7 @@ defmodule Services.MemoryIndexer do
     end
   end
 
+  @spec do_process_conversation(any()) :: :ok | {:error, any()}
   defp do_process_conversation(convo) do
     process_conversation_impl(convo)
   rescue
@@ -140,6 +141,7 @@ defmodule Services.MemoryIndexer do
 
   # Implementation moved from Memory.SessionIndexer into this service so the
   # GenServer owns the processing lifecycle and queueing.
+  @spec process_conversation_impl(any()) :: :ok | {:error, any()}
   defp process_conversation_impl(conversation) do
     try do
       case Store.Project.Conversation.read(conversation) do
@@ -169,7 +171,7 @@ defmodule Services.MemoryIndexer do
                          "limit" => 5
                        }) do
                     {:ok, res} -> res
-                    _ -> []
+                    {:error, _} -> []
                   end
 
                 session_candidates =
@@ -181,7 +183,7 @@ defmodule Services.MemoryIndexer do
                          "provenance_only" => true
                        }) do
                     {:ok, res} -> res
-                    _ -> []
+                    {:error, _} -> []
                   end
 
                 %{
@@ -199,6 +201,7 @@ defmodule Services.MemoryIndexer do
             }
 
             json_payload = Jason.encode!(payload)
+
             agent = AI.Agent.new(AI.Agent.Memory.Indexer, named?: false)
 
             case AI.Agent.get_response(agent, %{payload: json_payload}) do

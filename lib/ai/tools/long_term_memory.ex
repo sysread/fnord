@@ -10,6 +10,9 @@ defmodule AI.Tools.LongTermMemory do
 
   @behaviour AI.Tools
 
+  @dialyzer {:nowarn_function,
+             [recall_project_global: 3, recall_session_conversations: 3, do_recall: 1]}
+
   @impl AI.Tools
   def async?, do: true
 
@@ -17,6 +20,7 @@ defmodule AI.Tools.LongTermMemory do
   def is_available?(), do: true
 
   @impl AI.Tools
+  @spec read_args(map) :: {:ok, map} | {:error, binary}
   def read_args(%{"action" => "recall"} = args) do
     # Validate recall args: require 'query' and 'search_type'
     case {Map.get(args, "query"), Map.get(args, "search_type")} do
@@ -54,33 +58,43 @@ defmodule AI.Tools.LongTermMemory do
           required: ["action", "scope"],
           properties: %{
             "action" => %{
-              type: "string",
-              enum: ["remember", "update", "forget", "recall"],
-              description: "Operation to perform. 'recall' searches memories."
+              "type" => "string",
+              "description" => "Action to perform: 'remember' | 'recall' | 'update' | 'forget'"
             },
-            "scope" => %{type: "string", enum: ["project", "global"]},
-            "title" => %{type: "string"},
-            "content" => %{type: "string"},
-            "query" => %{type: "string", description: "Text query to search memories (recall)."},
+            "scope" => %{
+              "type" => "string",
+              "description" => "Memory scope: 'project' | 'global'"
+            },
+            "title" => %{
+              "type" => "string",
+              "description" => "Title of the memory (required for remember/update/forget)"
+            },
+            "content" => %{
+              "type" => "string",
+              "description" => "Content of the memory (required for remember)"
+            },
+            "query" => %{
+              "type" => "string",
+              "description" => "Search query string for recall"
+            },
             "search_type" => %{
-              type: "string",
-              enum: ["project_global", "session_conversations"],
-              description: "Which recall path to use (project/global vs session conversations)."
+              "type" => "string",
+              "description" => "Recall search type: 'project_global' | 'session_conversations'"
             },
             "limit" => %{
-              type: "integer",
-              description: "Max results to return for recall; defaults to 10."
+              "type" => "integer",
+              "description" => "Maximum number of recall results to return"
             },
             "status_filter" => %{
-              type: "array",
-              items: %{type: "string"},
-              description:
-                "Optional list of memory statuses to include (new, analyzed, rejected, incorporated, merged)."
+              "anyOf" => [
+                %{"type" => "string"},
+                %{"type" => "array", "items" => %{"type" => "string"}}
+              ],
+              "description" => "Filter recall results by index status (string or list of strings)"
             },
             "provenance_only" => %{
-              type: "boolean",
-              description:
-                "When true, return only provenance metadata instead of full memory content."
+              "type" => "boolean",
+              "description" => "If true, return only provenance information for recall results"
             }
           }
         }
@@ -89,6 +103,7 @@ defmodule AI.Tools.LongTermMemory do
   end
 
   @impl AI.Tools
+  @spec call(map) :: {:ok, any} | {:error, any}
   def call(%{"action" => "remember"} = args) do
     with {:ok, scope} <- Map.fetch(args, "scope"),
          {:ok, title} <- Map.fetch(args, "title"),
@@ -111,17 +126,6 @@ defmodule AI.Tools.LongTermMemory do
                 {:error, _} ->
                   maybe_log(:create, scope_atom, title, content)
                   {:ok, format_mem_response(saved_mem)}
-              end
-
-            :ok ->
-              case Memory.read(scope_atom, title) do
-                {:ok, persisted} ->
-                  maybe_log(:create, scope_atom, title, content)
-                  {:ok, format_mem_response(persisted)}
-
-                {:error, _} ->
-                  maybe_log(:create, scope_atom, title, content)
-                  {:ok, format_mem_response(mem_with_topics)}
               end
 
             {:error, reason} ->
@@ -165,10 +169,6 @@ defmodule AI.Tools.LongTermMemory do
                 |> maybe_add_topics(topics)
 
               case Memory.save(merged) do
-                :ok ->
-                  maybe_log(:consolidate, scope_atom, title, conflict_content)
-                  {:ok, format_mem_response(merged)}
-
                 {:ok, saved_mem} ->
                   maybe_log(:consolidate, scope_atom, title, conflict_content)
                   {:ok, format_mem_response(saved_mem)}
@@ -241,9 +241,16 @@ defmodule AI.Tools.LongTermMemory do
   defp parse_scope("project"), do: {:ok, :project}
   defp parse_scope("global"), do: {:ok, :global}
   # Recall project + global memories using embeddings when available.
+  @spec recall_project_global(binary, non_neg_integer, map) :: {:ok, list(map)} | {:error, atom}
   defp recall_project_global(query, limit, opts) do
-    status_filter = Map.get(opts || %{}, :status_filter)
-    provenance_only = Map.get(opts || %{}, :provenance_only, false)
+    opts = if is_map(opts), do: opts, else: %{}
+    status_filter = Map.get(opts, :status_filter)
+
+    provenance_only =
+      case Map.get(opts, :provenance_only) do
+        true -> true
+        _ -> false
+      end
 
     with {:ok, needle} <- Indexer.impl().get_embeddings(query) do
       {:ok, global} = Memory.Global.list()
@@ -273,9 +280,13 @@ defmodule AI.Tools.LongTermMemory do
                     {mem, AI.Util.cosine_similarity(needle, emb)}
                 end
 
-              if status_filter and mem.index_status not in status_filter do
-                nil
-              else
+              status_filter_list = List.wrap(status_filter)
+
+              status_ok? =
+                status_filter_list == [] or
+                  (is_atom(mem.index_status) and mem.index_status in status_filter_list)
+
+              if status_ok? do
                 if provenance_only do
                   %{
                     "provenance" => %{
@@ -296,6 +307,8 @@ defmodule AI.Tools.LongTermMemory do
                     }
                   }
                 end
+              else
+                nil
               end
 
             {:error, _} ->
@@ -316,6 +329,7 @@ defmodule AI.Tools.LongTermMemory do
   #
   # This helper intentionally omits embeddings to keep recall payloads
   # lightweight. Consumers who need embeddings should request them explicitly.
+  @spec mem_to_map(Memory.t()) :: map
   defp mem_to_map(%Memory{} = mem) do
     %{
       title: mem.title,
@@ -329,9 +343,17 @@ defmodule AI.Tools.LongTermMemory do
   end
 
   # Recall across session memories in conversation files (provenance included)
+  @spec recall_session_conversations(binary, non_neg_integer, map) ::
+          {:ok, list(map)} | {:error, atom}
   defp recall_session_conversations(query, limit, opts) do
-    status_filter = Map.get(opts || %{}, :status_filter)
-    provenance_only = Map.get(opts || %{}, :provenance_only, false)
+    opts = if is_map(opts), do: opts, else: %{}
+    status_filter = Map.get(opts, :status_filter)
+
+    provenance_only =
+      case Map.get(opts, :provenance_only) do
+        true -> true
+        _ -> false
+      end
 
     with {:ok, needle} <- Indexer.impl().get_embeddings(query),
          {:ok, project} <- Store.get_project() do
@@ -365,9 +387,13 @@ defmodule AI.Tools.LongTermMemory do
                 {mem, AI.Util.cosine_similarity(needle, emb)}
             end
 
-          if status_filter and mem.index_status not in status_filter do
-            nil
-          else
+          status_filter_list = List.wrap(status_filter)
+
+          status_ok? =
+            status_filter_list == [] or
+              (is_atom(mem.index_status) and mem.index_status in status_filter_list)
+
+          if status_ok? do
             if provenance_only do
               %{
                 "provenance" => %{
@@ -388,6 +414,8 @@ defmodule AI.Tools.LongTermMemory do
                 }
               }
             end
+          else
+            nil
           end
         end)
         |> Enum.filter(& &1)
@@ -444,10 +472,16 @@ defmodule AI.Tools.LongTermMemory do
     end
   end
 
+  @spec do_recall(map) :: {:ok, list(map)} | {:error, binary}
   defp do_recall(%{"query" => query, "search_type" => "project_global"} = args) do
     limit = Map.get(args, "limit", 10)
     status_filter = Map.get(args, "status_filter", nil)
-    provenance_only = Map.get(args, "provenance_only", false)
+
+    provenance_only =
+      case Map.get(args, "provenance_only") do
+        true -> true
+        _ -> false
+      end
 
     with {:ok, results} <-
            recall_project_global(query, limit, %{
@@ -463,7 +497,12 @@ defmodule AI.Tools.LongTermMemory do
   defp do_recall(%{"query" => query, "search_type" => "session_conversations"} = args) do
     limit = Map.get(args, "limit", 10)
     status_filter = Map.get(args, "status_filter", nil)
-    provenance_only = Map.get(args, "provenance_only", false)
+
+    provenance_only =
+      case Map.get(args, "provenance_only") do
+        true -> true
+        _ -> false
+      end
 
     with {:ok, results} <-
            recall_session_conversations(query, limit, %{

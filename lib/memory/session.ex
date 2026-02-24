@@ -49,6 +49,10 @@ defmodule Memory.Session do
         memories
         |> Enum.reject(fn %Memory{title: t} -> t == title end)
         |> Kernel.++([memory])
+        |> Enum.map(fn
+          %Memory{scope: :session, index_status: nil} = m -> %{m | index_status: :new}
+          m -> m
+        end)
 
       Services.Conversation.put_memory(pid, updated)
       :ok

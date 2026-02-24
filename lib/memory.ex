@@ -395,6 +395,8 @@ defmodule Memory do
          {:ok, content} <- Map.fetch(data, "content"),
          {:ok, topics} <- Map.fetch(data, "topics"),
          {:ok, embeddings} <- Map.fetch(data, "embeddings") do
+      index_status_val = Map.get(data, "index_status")
+
       {:ok,
        %Memory{
          scope: scope,
@@ -404,7 +406,8 @@ defmodule Memory do
          topics: topics,
          embeddings: embeddings,
          inserted_at: Map.get(data, "inserted_at"),
-         updated_at: Map.get(data, "updated_at")
+         updated_at: Map.get(data, "updated_at"),
+         index_status: parse_index_status(index_status_val)
        }}
     else
       :error -> {:error, :invalid_memory_structure}
