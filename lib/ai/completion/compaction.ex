@@ -125,8 +125,8 @@ defmodule AI.Completion.Compaction do
   defp tersify_msg(%{content: nil} = msg), do: {:ok, msg}
 
   defp tersify_msg(%{content: content} = msg) do
-    # Do not tersify previously generated summaries
-    if is_summary_msg?(msg) do
+    # Do not tersify previously generated summaries or already-tersified messages
+    if is_summary_msg?(msg) or is_tersified_msg?(msg) do
       {:ok, msg}
     else
       is_thought? = has_think_tags?(msg)
@@ -146,9 +146,9 @@ defmodule AI.Completion.Compaction do
 
           content =
             if is_thought? do
-              "<think>#{content}</think>"
+              "<think><fnord-meta:tersified />#{content}</think>"
             else
-              content
+              "<fnord-meta:tersified />#{content}"
             end
 
           {:ok, %{msg | content: content}}
@@ -252,4 +252,27 @@ defmodule AI.Completion.Compaction do
   end
 
   defp is_summary_msg?(_), do: false
+
+  defp is_tersified_msg?(%{content: content}) when is_binary(content) do
+    s = String.trim(content)
+
+    cond do
+      String.starts_with?(s, "<fnord-meta:tersified />") ->
+        true
+
+      String.downcase(s) |> String.starts_with?("<think>") ->
+        inner =
+          s
+          |> String.replace(~r/^<think>/i, "")
+          |> String.replace(~r/<\/think>$/i, "")
+          |> String.trim()
+
+        String.starts_with?(inner, "<fnord-meta:tersified />")
+
+      true ->
+        false
+    end
+  end
+
+  defp is_tersified_msg?(_), do: false
 end
