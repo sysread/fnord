@@ -150,6 +150,13 @@ defmodule Memory.Project do
   end
 
   defp write_file(path, json) do
+    # Optional debug (controlled by FNORD_DEBUG_MEMORY). Use UI.debug so the
+    # output can be enabled via environment when diagnosing issues in CI or
+    # locally. This avoids noisy stdout in normal runs.
+    if Util.Env.looks_truthy?("FNORD_DEBUG_MEMORY") do
+      UI.debug("memory.project.write", "writing memory to #{path} (#{byte_size(json)} bytes)")
+    end
+
     case FileLock.with_lock(path, fn -> File.write(path, json) end) do
       {:ok, :ok} ->
         {:ok, :ok}

@@ -31,10 +31,10 @@ defmodule Memory.SessionIndexerTest do
             on_exit(fn ->
               pid = Process.whereis(Services.MemoryIndexer)
 
-              # Stop the memory indexer only if it's still running. Guard the
-              # stop call with a try/rescue to avoid races in CI where the
-              # server may have already terminated.
-              if is_pid(pid) do
+              # Stop the memory indexer only if it's still alive. Guard the stop
+              # call to avoid races in CI where the server may have already
+              # terminated between the lookup and the stop call.
+              if is_pid(pid) and Process.alive?(pid) do
                 try do
                   GenServer.stop(Services.MemoryIndexer)
                 rescue

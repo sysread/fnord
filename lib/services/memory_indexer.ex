@@ -83,12 +83,12 @@ defmodule Services.MemoryIndexer do
     new_running =
       Enum.reduce(to_start, state.running, fn convo, acc ->
         task =
-          Task.Supervisor.async_nolink(Services.MemoryIndexer.Supervisor, fn ->
+          Services.Globals.Spawn.async(fn ->
             do_process_conversation(convo)
           end)
 
         ref = task.ref
-        # Task.Supervisor.async_nolink already sets up a monitor and returns the monitor ref
+        # Record the task pid and conversation for bookkeeping
         Map.put(acc, ref, {task.pid, convo})
       end)
 
@@ -293,7 +293,9 @@ defmodule Services.MemoryIndexer do
       FileLock.with_lock(lockfile, fn ->
         {:ok, fresh} = Store.Project.Conversation.read(conversation)
 
-        Enum.each(actions, fn action -> maybe_apply_action_impl(action) end)
+        Enum.each(actions, fn action ->
+          maybe_apply_action_impl(action)
+        end)
 
         updated_memories =
           fresh.memory
@@ -341,10 +343,16 @@ defmodule Services.MemoryIndexer do
         {:error, "status_updates must be a map"}
 
       true ->
-        # Minimal validation of action objects
-        case Enum.all?(actions, &valid_action?/1) do
-          true -> :ok
-          false -> {:error, "invalid action object in actions"}
+        # Minimal validation of action objects and processed list strings
+        cond do
+          not Enum.all?(processed, &is_binary/1) ->
+            {:error, "processed must be list of strings"}
+
+          not Enum.all?(actions, &valid_action?/1) ->
+            {:error, "invalid action object in actions"}
+
+          true ->
+            :ok
         end
     end
   end
@@ -369,13 +377,11 @@ defmodule Services.MemoryIndexer do
 
     # Debug output to assist diagnosing test issues — important to keep
     # concise and removed once root cause is resolved.
-    IO.inspect({:long_term_remember_result, scope, title, result}, label: "MemoryIndex::remember")
 
     case result do
       {:ok, _} ->
         # Verify the memory exists in the target scope; best-effort check for tests
         read_result = Memory.read(String.to_atom(scope), title)
-        IO.inspect({:long_term_read_after_save, read_result}, label: "MemoryIndex::read_check")
 
         case read_result do
           {:ok, _mem} ->

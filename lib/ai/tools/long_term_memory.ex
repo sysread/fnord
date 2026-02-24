@@ -101,13 +101,28 @@ defmodule AI.Tools.LongTermMemory do
           mem_with_topics = mem |> maybe_add_topics(topics)
 
           case Memory.save(mem_with_topics) do
-            :ok ->
-              maybe_log(:create, scope_atom, title, content)
-              {:ok, format_mem_response(mem_with_topics)}
-
             {:ok, saved_mem} ->
-              maybe_log(:create, scope_atom, title, content)
-              {:ok, format_mem_response(saved_mem)}
+              # Read back the saved memory from storage to ensure persistence
+              case Memory.read(scope_atom, title) do
+                {:ok, persisted} ->
+                  maybe_log(:create, scope_atom, title, content)
+                  {:ok, format_mem_response(persisted)}
+
+                {:error, _} ->
+                  maybe_log(:create, scope_atom, title, content)
+                  {:ok, format_mem_response(saved_mem)}
+              end
+
+            :ok ->
+              case Memory.read(scope_atom, title) do
+                {:ok, persisted} ->
+                  maybe_log(:create, scope_atom, title, content)
+                  {:ok, format_mem_response(persisted)}
+
+                {:error, _} ->
+                  maybe_log(:create, scope_atom, title, content)
+                  {:ok, format_mem_response(mem_with_topics)}
+              end
 
             {:error, reason} ->
               {:error, inspect(reason)}
@@ -297,6 +312,10 @@ defmodule AI.Tools.LongTermMemory do
     end
   end
 
+  # Convert a Memory struct into a JSON-friendly map used in recall results.
+  #
+  # This helper intentionally omits embeddings to keep recall payloads
+  # lightweight. Consumers who need embeddings should request them explicitly.
   defp mem_to_map(%Memory{} = mem) do
     %{
       title: mem.title,

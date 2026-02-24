@@ -63,23 +63,30 @@ defmodule AI.Tools.Memory do
       function: %{
         name: "memory_tool",
         description: """
-        Interact with long-term memories across session, project, and global scopes.
+        Tool for session-scoped memory operations and recall across scopes.
 
-        Primary use: WRITE memories (action=remember/update) when you learn stable information that will help future sessions.
+        - Writes (remember/update/forget) performed via this tool are session-scoped:
+          they are persisted to the current conversation's memory store. These
+          session memories are intended to be short-term and may be later
+          *promoted* to project/global memory by the background indexer.
 
-        When to WRITE (strong triggers):
-        - The user states a stable preference (format, tone, workflow, tools).
-        - The user states a stable project convention (terminology, architecture, testing norms, gotchas).
-        - The user corrects or retracts a previously stated preference/convention.
-        - You identify an improvement to your stable working habits or persona. When this happens, update the global memory titled "Me".
+        - Use this tool to record ephemeral or session-relevant facts (goals,
+          short-term decisions, troubleshooting notes). Do NOT attempt to
+          persist stable, cross-project facts here; the background indexer will
+          surface candidates and promote them to long-term storage when
+          appropriate.
 
-        Defaults:
-        - Prefer scope=global for user preferences.
-        - Prefer scope=project for project-specific conventions.
-        - Prefer action=update when refining an existing memory.
+        - Recall (action=recall) will search across memory scopes (session,
+          project, global) to provide Candidate memories and provenance to the
+          caller.
 
-        Hard rule:
-        Do NOT store or rely on the assistant's current conversation name/ID in long-term memory; that name is assigned per conversation and may change. Focus on stable traits, preferences, and project facts instead.
+        Hard rules:
+        - memory_tool is the short-term tool for session memories. Do not call
+          'long_term_memory_tool' from Coordinator flows; long-term writes are
+          handled by the indexer/ingest process.
+        - Do NOT store conversation IDs, ephemeral commit hashes, or secrets
+          in long-term memory. Focus on stable facts, preferences, and
+          project conventions.
         """,
         parameters: %{
           type: "object",
