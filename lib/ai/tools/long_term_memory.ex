@@ -17,6 +17,19 @@ defmodule AI.Tools.LongTermMemory do
   def is_available?(), do: true
 
   @impl AI.Tools
+  def read_args(%{"action" => "recall"} = args) do
+    # Validate recall args: require 'query' and 'search_type'
+    case {Map.get(args, "query"), Map.get(args, "search_type")} do
+      {q, s}
+      when is_binary(q) and is_binary(s) and s in ["project_global", "session_conversations"] ->
+        {:ok, args}
+
+      _ ->
+        {:error,
+         "Invalid recall args: require 'query' (string) and 'search_type' ('project_global'|'session_conversations')"}
+    end
+  end
+
   def read_args(args), do: {:ok, args}
 
   @impl AI.Tools
@@ -40,10 +53,35 @@ defmodule AI.Tools.LongTermMemory do
           additionalProperties: false,
           required: ["action", "scope"],
           properties: %{
-            "action" => %{type: "string", enum: ["remember", "update", "forget"]},
+            "action" => %{
+              type: "string",
+              enum: ["remember", "update", "forget", "recall"],
+              description: "Operation to perform. 'recall' searches memories."
+            },
             "scope" => %{type: "string", enum: ["project", "global"]},
             "title" => %{type: "string"},
-            "content" => %{type: "string"}
+            "content" => %{type: "string"},
+            "query" => %{type: "string", description: "Text query to search memories (recall)."},
+            "search_type" => %{
+              type: "string",
+              enum: ["project_global", "session_conversations"],
+              description: "Which recall path to use (project/global vs session conversations)."
+            },
+            "limit" => %{
+              type: "integer",
+              description: "Max results to return for recall; defaults to 10."
+            },
+            "status_filter" => %{
+              type: "array",
+              items: %{type: "string"},
+              description:
+                "Optional list of memory statuses to include (new, analyzed, rejected, incorporated, merged)."
+            },
+            "provenance_only" => %{
+              type: "boolean",
+              description:
+                "When true, return only provenance metadata instead of full memory content."
+            }
           }
         }
       }
@@ -127,6 +165,11 @@ defmodule AI.Tools.LongTermMemory do
   end
 
   @impl AI.Tools
+  def call(%{"action" => "recall"} = args) do
+    do_recall(args)
+  end
+
+  @impl AI.Tools
   def call(%{"action" => "update"} = args) do
     with {:ok, scope} <- Map.fetch(args, "scope"),
          {:ok, title} <- Map.fetch(args, "title"),
@@ -177,6 +220,127 @@ defmodule AI.Tools.LongTermMemory do
 
   defp parse_scope("project"), do: {:ok, :project}
   defp parse_scope("global"), do: {:ok, :global}
+  # Recall project + global memories using embeddings when available.
+  defp recall_project_global(query, limit) do
+    with {:ok, needle} <- Indexer.impl().get_embeddings(query) do
+      {:ok, global} = Memory.Global.list()
+      {:ok, project} = Memory.Project.list()
+
+      candidates =
+        Enum.map(global, fn title -> {:global, title} end) ++
+          Enum.map(project, fn title -> {:project, title} end)
+
+      results =
+        candidates
+        |> Enum.map(fn {scope_atom, title} ->
+          case Memory.read(scope_atom, title) do
+            {:ok, mem} ->
+              {mem_with_emb, score} =
+                case mem.embeddings do
+                  nil ->
+                    # Try to compute embeddings on-demand (best-effort)
+                    case Indexer.impl().get_embeddings(mem.content) do
+                      {:ok, emb} ->
+                        {Map.put(mem, :embeddings, emb), AI.Util.cosine_similarity(needle, emb)}
+
+                      _ ->
+                        {mem, 0.0}
+                    end
+
+                  emb ->
+                    {mem, AI.Util.cosine_similarity(needle, emb)}
+                end
+
+              # Build a JSON-friendly result map with provenance
+              %{
+                "memory" => mem_to_map(mem_with_emb),
+                "score" => score,
+                "provenance" => %{
+                  "type" => Atom.to_string(scope_atom),
+                  "scope" => Atom.to_string(scope_atom),
+                  "title" => title
+                }
+              }
+
+            {:error, _} ->
+              nil
+          end
+        end)
+        |> Enum.filter(& &1)
+        |> Enum.sort_by(fn %{"score" => score} -> score end, :desc)
+        |> Enum.take(limit)
+
+      {:ok, results}
+    else
+      _ -> {:error, :embedding_failure}
+    end
+  end
+
+  defp mem_to_map(%Memory{} = mem) do
+    %{
+      title: mem.title,
+      content: mem.content,
+      topics: mem.topics || [],
+      scope: Atom.to_string(mem.scope),
+      index_status: mem.index_status,
+      inserted_at: mem.inserted_at,
+      updated_at: mem.updated_at
+    }
+  end
+
+  # Recall across session memories in conversation files (provenance included)
+  defp recall_session_conversations(query, limit) do
+    with {:ok, needle} <- Indexer.impl().get_embeddings(query),
+         {:ok, project} <- Store.get_project() do
+      convs = Store.Project.Conversation.list(project)
+
+      results =
+        convs
+        |> Enum.flat_map(fn convo ->
+          case Store.Project.Conversation.read(convo) do
+            {:ok, data} ->
+              Map.get(data, :memory, [])
+              |> Enum.map(fn m -> {convo.id, m} end)
+
+            _ ->
+              []
+          end
+        end)
+        |> Enum.map(fn {conv_id, mem} ->
+          {mem_with_emb, score} =
+            case mem.embeddings do
+              nil ->
+                case Indexer.impl().get_embeddings(mem.content) do
+                  {:ok, emb} ->
+                    {Map.put(mem, :embeddings, emb), AI.Util.cosine_similarity(needle, emb)}
+
+                  _ ->
+                    {mem, 0.0}
+                end
+
+              emb ->
+                {mem, AI.Util.cosine_similarity(needle, emb)}
+            end
+
+          %{
+            "memory" => mem_to_map(mem_with_emb),
+            "score" => score,
+            "provenance" => %{
+              "type" => "session",
+              "conversation_id" => conv_id,
+              "memory_title" => mem.title
+            }
+          }
+        end)
+        |> Enum.filter(fn %{"score" => score} -> score > 0.0 end)
+        |> Enum.sort_by(fn %{"score" => score} -> score end, :desc)
+        |> Enum.take(limit)
+
+      {:ok, results}
+    else
+      _ -> {:error, :embedding_failure}
+    end
+  end
 
   defp format_mem_response(mem) do
     "Title: #{mem.title}\nScope: #{Atom.to_string(mem.scope)}"
@@ -219,5 +383,29 @@ defmodule AI.Tools.LongTermMemory do
 
       %{memory | topics: Enum.uniq(existing ++ new_topics)}
     end
+  end
+
+  defp do_recall(%{"query" => query, "search_type" => "project_global"} = args) do
+    limit = Map.get(args, "limit", 10)
+
+    with {:ok, results} <- recall_project_global(query, limit) do
+      {:ok, results}
+    else
+      {:error, reason} -> {:error, inspect(reason)}
+    end
+  end
+
+  defp do_recall(%{"query" => query, "search_type" => "session_conversations"} = args) do
+    limit = Map.get(args, "limit", 10)
+
+    with {:ok, results} <- recall_session_conversations(query, limit) do
+      {:ok, results}
+    else
+      {:error, reason} -> {:error, inspect(reason)}
+    end
+  end
+
+  defp do_recall(_) do
+    {:error, "Missing required fields 'query' and/or 'search_type' for action 'recall'"}
   end
 end

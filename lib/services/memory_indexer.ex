@@ -155,12 +155,47 @@ defmodule Services.MemoryIndexer do
           if session_mems == [] do
             :ok
           else
+            # For each session memory, gather recall candidates from long-term
+            # storage (project/global) and from other session conversations. We
+            # include these candidate lists in the payload so the LLM indexer
+            # can reason with provenance without needing to call tools.
+            memories_with_candidates =
+              Enum.map(session_mems, fn m ->
+                project_candidates =
+                  case AI.Tools.LongTermMemory.call(%{
+                         "action" => "recall",
+                         "query" => m.content,
+                         "search_type" => "project_global",
+                         "limit" => 5
+                       }) do
+                    {:ok, res} -> res
+                    _ -> []
+                  end
+
+                session_candidates =
+                  case AI.Tools.LongTermMemory.call(%{
+                         "action" => "recall",
+                         "query" => m.content,
+                         "search_type" => "session_conversations",
+                         "limit" => 5,
+                         "provenance_only" => true
+                       }) do
+                    {:ok, res} -> res
+                    _ -> []
+                  end
+
+                %{
+                  title: m.title,
+                  content: m.content,
+                  topics: m.topics,
+                  project_candidates: project_candidates,
+                  session_candidates: session_candidates
+                }
+              end)
+
             payload = %{
               conversation_summary: summarize_conversation(data.messages),
-              memories:
-                Enum.map(session_mems, fn m ->
-                  %{title: m.title, content: m.content, topics: m.topics}
-                end)
+              memories: memories_with_candidates
             }
 
             json_payload = Jason.encode!(payload)
@@ -169,8 +204,17 @@ defmodule Services.MemoryIndexer do
             case AI.Agent.get_response(agent, %{payload: json_payload}) do
               {:ok, resp} ->
                 case Jason.decode(resp) do
-                  {:ok, %{"actions" => actions, "processed" => processed}} ->
-                    apply_actions_and_mark_impl(conversation, data, actions, processed)
+                  {:ok, %{"actions" => actions, "processed" => processed} = decoded} ->
+                    # decoded may optionally include a `status_updates` map
+                    status_updates = Map.get(decoded, "status_updates", %{})
+
+                    apply_actions_and_mark_impl(
+                      conversation,
+                      data,
+                      actions,
+                      processed,
+                      status_updates
+                    )
 
                   _ ->
                     {:error, :invalid_response}
@@ -232,7 +276,7 @@ defmodule Services.MemoryIndexer do
 
   defp summarize_conversation_impl(_), do: ""
 
-  defp apply_actions_and_mark_impl(conversation, _data, actions, processed) do
+  defp apply_actions_and_mark_impl(conversation, _data, actions, processed, status_updates) do
     unless is_list(actions) and is_list(processed) do
       {:error, :invalid_schema}
     else
@@ -248,6 +292,22 @@ defmodule Services.MemoryIndexer do
           |> Enum.map(fn
             %Memory{scope: :session, title: title} = m ->
               if title in processed, do: %{m | index_status: :analyzed}, else: m
+
+            other ->
+              other
+          end)
+
+        # Apply explicit status updates if the agent provided them
+        updated_memories =
+          Enum.map(updated_memories, fn
+            %Memory{scope: :session, title: title} = m ->
+              case Map.get(status_updates, title) do
+                status when status in ["analyzed", "rejected", "incorporated", "merged"] ->
+                  %{m | index_status: String.to_existing_atom(status)}
+
+                _ ->
+                  m
+              end
 
             other ->
               other

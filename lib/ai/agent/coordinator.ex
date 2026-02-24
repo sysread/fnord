@@ -364,7 +364,7 @@ defmodule AI.Agent.Coordinator do
   - provide contextual instructions for interacting with a specific section of code
   - provide additional context related to your task
 
-  #{AI.Coordinator.Memory.prompt()}
+  #{AI.Agent.Coordinator.Memory.prompt()}
 
   ## Reasoning and research
   Maintain a critical stance:

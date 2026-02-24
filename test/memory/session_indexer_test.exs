@@ -29,8 +29,18 @@ defmodule Memory.SessionIndexerTest do
         case Services.MemoryIndexer.start_link([]) do
           {:ok, _pid} ->
             on_exit(fn ->
-              if Process.whereis(Services.MemoryIndexer),
-                do: GenServer.stop(Services.MemoryIndexer)
+              pid = Process.whereis(Services.MemoryIndexer)
+
+              # Stop the memory indexer only if it's still running. Guard the
+              # stop call with a try/rescue to avoid races in CI where the
+              # server may have already terminated.
+              if is_pid(pid) do
+                try do
+                  GenServer.stop(Services.MemoryIndexer)
+                rescue
+                  _ -> :ok
+                end
+              end
             end)
 
           _ ->

@@ -38,7 +38,7 @@ defmodule Memory do
           embeddings: list(float) | nil,
           inserted_at: binary | nil,
           updated_at: binary | nil,
-          index_status: :new | :analyzed | nil
+          index_status: :new | :analyzed | :rejected | :incorporated | :merged | nil
         }
 
   @me_title "Me"
@@ -282,8 +282,14 @@ defmodule Memory do
   defp parse_index_status(nil), do: nil
   defp parse_index_status(:new), do: :new
   defp parse_index_status(:analyzed), do: :analyzed
+  defp parse_index_status(:rejected), do: :rejected
+  defp parse_index_status(:incorporated), do: :incorporated
+  defp parse_index_status(:merged), do: :merged
   defp parse_index_status("new"), do: :new
   defp parse_index_status("analyzed"), do: :analyzed
+  defp parse_index_status("rejected"), do: :rejected
+  defp parse_index_status("incorporated"), do: :incorporated
+  defp parse_index_status("merged"), do: :merged
   defp parse_index_status(_), do: nil
 
   @spec append(t, binary) :: t
