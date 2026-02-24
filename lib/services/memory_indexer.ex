@@ -205,16 +205,24 @@ defmodule Services.MemoryIndexer do
               {:ok, resp} ->
                 case Jason.decode(resp) do
                   {:ok, %{"actions" => actions, "processed" => processed} = decoded} ->
-                    # decoded may optionally include a `status_updates` map
+                    # Optional status_updates map (title -> status string)
                     status_updates = Map.get(decoded, "status_updates", %{})
 
-                    apply_actions_and_mark_impl(
-                      conversation,
-                      data,
-                      actions,
-                      processed,
-                      status_updates
-                    )
+                    # Validate actions and processed structure before applying
+                    case validate_actions_and_processed(actions, processed, status_updates) do
+                      :ok ->
+                        apply_actions_and_mark_impl(
+                          conversation,
+                          data,
+                          actions,
+                          processed,
+                          status_updates
+                        )
+
+                      {:error, reason} ->
+                        UI.error("memory_indexer", "Invalid indexer response: #{inspect(reason)}")
+                        {:error, :invalid_response}
+                    end
 
                   _ ->
                     {:error, :invalid_response}
@@ -321,17 +329,68 @@ defmodule Services.MemoryIndexer do
     end
   end
 
+  defp validate_actions_and_processed(actions, processed, status_updates) do
+    cond do
+      not is_list(actions) ->
+        {:error, "actions must be a list"}
+
+      not is_list(processed) ->
+        {:error, "processed must be a list"}
+
+      not is_map(status_updates) ->
+        {:error, "status_updates must be a map"}
+
+      true ->
+        # Minimal validation of action objects
+        case Enum.all?(actions, &valid_action?/1) do
+          true -> :ok
+          false -> {:error, "invalid action object in actions"}
+        end
+    end
+  end
+
+  defp valid_action?(%{"action" => a, "target" => %{"scope" => _s, "title" => _t}})
+       when a in ["add", "replace", "delete"], do: true
+
+  defp valid_action?(_), do: false
+
   defp maybe_apply_action_impl(%{
          "action" => "add",
          "target" => %{"scope" => scope, "title" => title},
          "from" => %{"title" => _from_title},
          "content" => content
        }) do
-    AI.Tools.perform_tool_call(
-      "long_term_memory_tool",
-      %{"action" => "remember", "scope" => scope, "title" => title, "content" => content},
-      %{"long_term_memory_tool" => AI.Tools.LongTermMemory}
-    )
+    result =
+      AI.Tools.perform_tool_call(
+        "long_term_memory_tool",
+        %{"action" => "remember", "scope" => scope, "title" => title, "content" => content},
+        %{"long_term_memory_tool" => AI.Tools.LongTermMemory}
+      )
+
+    # Debug output to assist diagnosing test issues — important to keep
+    # concise and removed once root cause is resolved.
+    IO.inspect({:long_term_remember_result, scope, title, result}, label: "MemoryIndex::remember")
+
+    case result do
+      {:ok, _} ->
+        # Verify the memory exists in the target scope; best-effort check for tests
+        read_result = Memory.read(String.to_atom(scope), title)
+        IO.inspect({:long_term_read_after_save, read_result}, label: "MemoryIndex::read_check")
+
+        case read_result do
+          {:ok, _mem} ->
+            :ok
+
+          _ ->
+            UI.debug(
+              "memory_indexer",
+              "long_term remember call succeeded but memory not found for #{inspect(title)} in #{scope}"
+            )
+        end
+
+      {:error, reason} ->
+        UI.debug("memory_indexer", "long_term remember failed: #{inspect(reason)}")
+    end
 
     :ok
   end
@@ -341,11 +400,20 @@ defmodule Services.MemoryIndexer do
          "target" => %{"scope" => scope, "title" => title},
          "content" => content
        }) do
-    AI.Tools.perform_tool_call(
-      "long_term_memory_tool",
-      %{"action" => "update", "scope" => scope, "title" => title, "new_content" => content},
-      %{"long_term_memory_tool" => AI.Tools.LongTermMemory}
-    )
+    result =
+      AI.Tools.perform_tool_call(
+        "long_term_memory_tool",
+        %{"action" => "update", "scope" => scope, "title" => title, "new_content" => content},
+        %{"long_term_memory_tool" => AI.Tools.LongTermMemory}
+      )
+
+    case result do
+      {:ok, _} ->
+        :ok
+
+      {:error, reason} ->
+        UI.debug("memory_indexer", "long_term update failed: #{inspect(reason)}")
+    end
 
     :ok
   end
@@ -354,11 +422,20 @@ defmodule Services.MemoryIndexer do
          "action" => "delete",
          "target" => %{"scope" => scope, "title" => title}
        }) do
-    AI.Tools.perform_tool_call(
-      "long_term_memory_tool",
-      %{"action" => "forget", "scope" => scope, "title" => title},
-      %{"long_term_memory_tool" => AI.Tools.LongTermMemory}
-    )
+    result =
+      AI.Tools.perform_tool_call(
+        "long_term_memory_tool",
+        %{"action" => "forget", "scope" => scope, "title" => title},
+        %{"long_term_memory_tool" => AI.Tools.LongTermMemory}
+      )
+
+    case result do
+      {:ok, _} ->
+        :ok
+
+      {:error, reason} ->
+        UI.debug("memory_indexer", "long_term forget failed: #{inspect(reason)}")
+    end
 
     :ok
   end

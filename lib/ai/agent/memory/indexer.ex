@@ -21,32 +21,33 @@ defmodule AI.Agent.Memory.Indexer do
 
   @prompt """
   You are the Memory Indexer. You will be given a JSON payload describing a
-  short conversation summary and a list of session-scoped memories. Your task
-  is to decide which memories belong in long-term storage and to produce a
-  structured JSON object with two keys: `actions` and `processed`.
+  short conversation summary and a list of session-scoped memories. For each
+  session memory the payload includes two candidate lists:
+    - project_candidates: long-term (project/global) memory candidates with content and metadata
+    - session_candidates: corroborating session-level memories from other conversations, with provenance
 
-  - `actions` is a list of action objects. Each action must be one of:
-    - `{ "action": "add", "target": {"scope": "project|global", "title": "..."}, "from": {"title":"..."}, "content": "..." }`
-    - `{ "action": "replace", "target": {"scope": "project|global", "title": "..."}, "content": "..." }`
-    - `{ "action": "delete", "target": {"scope": "project|global", "title": "..."} }`
+  Your job is to decide for each session memory whether to: add a new long-term memory,
+  replace/update an existing long-term memory, delete an existing long-term memory, or ignore it.
 
-  GUIDANCE ON MERGING AND CONFLICTS
-  - If two or more session memories are clearly "the same" or highly similar,
-    prefer to MERGE them into a single long-term memory. The merge should
-    preserve traceability: include the combined content, and merge topics.
-  - If session memories directly CONFLICT (A says X, later B says not-X),
-    produce a single memory that documents the conflict and the resolution
-    or current status. Example phrasing: "First we learned X. Later we learned
-    Y which contradicted X; current best understanding is Y (previous X was
-    invalidated)."
-  - Always prefer non-destructive merges (append/annotate) rather than
-    silently overwriting existing long-term memories.
+  You MUST return a single JSON object (no prose) with these keys:
 
-  - `processed` is an array of session memory titles that you have handled in
-    this response. Only memories explicitly listed in `processed` will be
-    marked analyzed by the caller.
+  - "actions": an array of action objects (may be empty)
+  - "processed": an array of session memory titles that this response handled
+  - "status_updates": (optional) a map of session memory title -> status string (one of: "analyzed","rejected","incorporated","merged")
 
-  IMPORTANT: Return *only* valid JSON. Do not include any explanatory text.
+  Action objects must be one of:
+    {"action":"add","target":{"scope":"project|global","title":"..."},"from":{"title":"Session Title"},"content":"..."}
+    {"action":"replace","target":{"scope":"project|global","title":"..."},"content":"..."}
+    {"action":"delete","target":{"scope":"project|global","title":"..."}}
+
+  Rules and guidance:
+  - Prefer to MERGE highly similar session memories into an existing project/global memory when the content clearly matches.
+  - If session memories conflict (A says X, B says not-X), synthesize a single consolidated memory that documents both findings and the current best understanding.
+  - You may decide to create a new project memory when none of the project/global candidates are suitable.
+  - When you decide to incorporate session memories into a long-term memory, include those session titles in "processed" and set their status to "incorporated" in "status_updates". If you decide to ignore them, mark as "analyzed".
+  - Return provenance (the candidate objects already include provenance). Use it to justify merges in your own reasoning, but do NOT include any free-form prose in the output.
+
+  IMPORTANT: Return *only* valid JSON that conforms to the schema above. Do not include any explanatory text or commentary.
   """
 
   @impl AI.Agent

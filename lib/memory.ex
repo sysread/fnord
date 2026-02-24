@@ -349,6 +349,25 @@ defmodule Memory do
   def forget(%{scope: :project, title: title}), do: Memory.Project.forget(title)
   def forget(%{scope: :session, title: title}), do: Memory.Session.forget(title)
 
+  @doc """
+  Set the index_status of an existing memory and persist it.
+
+  This updates the memory's status and saves it with skip_embeddings: true
+  to avoid regenerating embeddings during status-only transitions.
+  """
+  @spec set_status(scope, binary, atom) :: {:ok, t} | {:error, term}
+  def set_status(scope, title, status)
+      when scope in [:global, :project, :session] and is_binary(title) and is_atom(status) do
+    with {:ok, mem} <- read(scope, title) do
+      updated = %{mem | index_status: status}
+
+      case save(updated, skip_embeddings: true) do
+        {:ok, saved} -> {:ok, saved}
+        {:error, reason} -> {:error, reason}
+      end
+    end
+  end
+
   # ----------------------------------------------------------------------------
   # Utilities for implementors
   # ----------------------------------------------------------------------------
@@ -522,40 +541,21 @@ defmodule Memory do
 
   @spec maybe_migrate_on_read({:ok, t} | {:error, term}) :: {:ok, t} | {:error, term}
   defp maybe_migrate_on_read({:ok, memory}) do
-    need_timestamps = memory.inserted_at in [nil, ""] or memory.updated_at in [nil, ""]
+    need_timestamps = is_nil(memory.inserted_at) or is_nil(memory.updated_at)
 
     # Repair legacy session-scoped memories: treat missing index_status as :analyzed
-    # Memory.index_status is stored as an atom (:new/:analyzed) or nil. Treat
-    # only `nil` as missing; do not include empty-string checks which mix types
-    # (atoms vs binaries) and can confuse Dialyzer.
-    need_index_fix = memory.scope == :session and memory.index_status == nil
+    need_index_fix = memory.scope == :session and is_nil(memory.index_status)
 
     if need_timestamps or need_index_fix do
       # Prepare a repaired memory struct with timestamps and index status fixed.
       repaired = memory |> ensure_timestamps()
 
-      repaired =
-        if need_index_fix do
-          %{repaired | index_status: :analyzed}
-        else
-          repaired
-        end
+      repaired = if need_index_fix, do: %{repaired | index_status: :analyzed}, else: repaired
 
       # Save without regenerating embeddings to avoid expensive API calls.
       case save(repaired, skip_embeddings: true) do
         {:ok, mem} ->
-          # If this is a session memory and there is an active conversation
-          # server, trigger a conversation save to persist the repaired memory
-          # to disk. Best-effort: ignore save errors here.
-          try do
-            case Services.Globals.get_env(:fnord, :current_conversation) do
-              pid when is_pid(pid) -> Services.Conversation.save(pid)
-              _ -> :ok
-            end
-          rescue
-            _ -> :ok
-          end
-
+          # Best-effort: nothing to do on success beyond returning repaired memory
           {:ok, mem}
 
         {:error, _reason} ->

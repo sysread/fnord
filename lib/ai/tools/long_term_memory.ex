@@ -98,15 +98,16 @@ defmodule AI.Tools.LongTermMemory do
 
       case Memory.new(scope_atom, title, content, topics) do
         {:ok, mem} ->
-          saved =
-            mem
-            |> maybe_add_topics(topics)
-            |> Memory.save()
+          mem_with_topics = mem |> maybe_add_topics(topics)
 
-          case saved do
-            {:ok, _} ->
+          case Memory.save(mem_with_topics) do
+            :ok ->
               maybe_log(:create, scope_atom, title, content)
-              {:ok, format_mem_response(mem)}
+              {:ok, format_mem_response(mem_with_topics)}
+
+            {:ok, saved_mem} ->
+              maybe_log(:create, scope_atom, title, content)
+              {:ok, format_mem_response(saved_mem)}
 
             {:error, reason} ->
               {:error, inspect(reason)}
@@ -149,9 +150,13 @@ defmodule AI.Tools.LongTermMemory do
                 |> maybe_add_topics(topics)
 
               case Memory.save(merged) do
-                {:ok, _} ->
+                :ok ->
                   maybe_log(:consolidate, scope_atom, title, conflict_content)
                   {:ok, format_mem_response(merged)}
+
+                {:ok, saved_mem} ->
+                  maybe_log(:consolidate, scope_atom, title, conflict_content)
+                  {:ok, format_mem_response(saved_mem)}
 
                 {:error, r} ->
                   {:error, inspect(r)}
@@ -221,7 +226,10 @@ defmodule AI.Tools.LongTermMemory do
   defp parse_scope("project"), do: {:ok, :project}
   defp parse_scope("global"), do: {:ok, :global}
   # Recall project + global memories using embeddings when available.
-  defp recall_project_global(query, limit) do
+  defp recall_project_global(query, limit, opts) do
+    status_filter = Map.get(opts || %{}, :status_filter)
+    provenance_only = Map.get(opts || %{}, :provenance_only, false)
+
     with {:ok, needle} <- Indexer.impl().get_embeddings(query) do
       {:ok, global} = Memory.Global.list()
       {:ok, project} = Memory.Project.list()
@@ -238,7 +246,6 @@ defmodule AI.Tools.LongTermMemory do
               {mem_with_emb, score} =
                 case mem.embeddings do
                   nil ->
-                    # Try to compute embeddings on-demand (best-effort)
                     case Indexer.impl().get_embeddings(mem.content) do
                       {:ok, emb} ->
                         {Map.put(mem, :embeddings, emb), AI.Util.cosine_similarity(needle, emb)}
@@ -251,16 +258,30 @@ defmodule AI.Tools.LongTermMemory do
                     {mem, AI.Util.cosine_similarity(needle, emb)}
                 end
 
-              # Build a JSON-friendly result map with provenance
-              %{
-                "memory" => mem_to_map(mem_with_emb),
-                "score" => score,
-                "provenance" => %{
-                  "type" => Atom.to_string(scope_atom),
-                  "scope" => Atom.to_string(scope_atom),
-                  "title" => title
-                }
-              }
+              if status_filter and mem.index_status not in status_filter do
+                nil
+              else
+                if provenance_only do
+                  %{
+                    "provenance" => %{
+                      "type" => Atom.to_string(scope_atom),
+                      "scope" => Atom.to_string(scope_atom),
+                      "title" => title
+                    },
+                    "score" => score
+                  }
+                else
+                  %{
+                    "memory" => mem_to_map(mem_with_emb),
+                    "score" => score,
+                    "provenance" => %{
+                      "type" => Atom.to_string(scope_atom),
+                      "scope" => Atom.to_string(scope_atom),
+                      "title" => title
+                    }
+                  }
+                end
+              end
 
             {:error, _} ->
               nil
@@ -289,7 +310,10 @@ defmodule AI.Tools.LongTermMemory do
   end
 
   # Recall across session memories in conversation files (provenance included)
-  defp recall_session_conversations(query, limit) do
+  defp recall_session_conversations(query, limit, opts) do
+    status_filter = Map.get(opts || %{}, :status_filter)
+    provenance_only = Map.get(opts || %{}, :provenance_only, false)
+
     with {:ok, needle} <- Indexer.impl().get_embeddings(query),
          {:ok, project} <- Store.get_project() do
       convs = Store.Project.Conversation.list(project)
@@ -322,16 +346,32 @@ defmodule AI.Tools.LongTermMemory do
                 {mem, AI.Util.cosine_similarity(needle, emb)}
             end
 
-          %{
-            "memory" => mem_to_map(mem_with_emb),
-            "score" => score,
-            "provenance" => %{
-              "type" => "session",
-              "conversation_id" => conv_id,
-              "memory_title" => mem.title
-            }
-          }
+          if status_filter and mem.index_status not in status_filter do
+            nil
+          else
+            if provenance_only do
+              %{
+                "provenance" => %{
+                  "type" => "session",
+                  "conversation_id" => conv_id,
+                  "memory_title" => mem.title
+                },
+                "score" => score
+              }
+            else
+              %{
+                "memory" => mem_to_map(mem_with_emb),
+                "score" => score,
+                "provenance" => %{
+                  "type" => "session",
+                  "conversation_id" => conv_id,
+                  "memory_title" => mem.title
+                }
+              }
+            end
+          end
         end)
+        |> Enum.filter(& &1)
         |> Enum.filter(fn %{"score" => score} -> score > 0.0 end)
         |> Enum.sort_by(fn %{"score" => score} -> score end, :desc)
         |> Enum.take(limit)
@@ -387,8 +427,14 @@ defmodule AI.Tools.LongTermMemory do
 
   defp do_recall(%{"query" => query, "search_type" => "project_global"} = args) do
     limit = Map.get(args, "limit", 10)
+    status_filter = Map.get(args, "status_filter", nil)
+    provenance_only = Map.get(args, "provenance_only", false)
 
-    with {:ok, results} <- recall_project_global(query, limit) do
+    with {:ok, results} <-
+           recall_project_global(query, limit, %{
+             status_filter: status_filter,
+             provenance_only: provenance_only
+           }) do
       {:ok, results}
     else
       {:error, reason} -> {:error, inspect(reason)}
@@ -397,8 +443,14 @@ defmodule AI.Tools.LongTermMemory do
 
   defp do_recall(%{"query" => query, "search_type" => "session_conversations"} = args) do
     limit = Map.get(args, "limit", 10)
+    status_filter = Map.get(args, "status_filter", nil)
+    provenance_only = Map.get(args, "provenance_only", false)
 
-    with {:ok, results} <- recall_session_conversations(query, limit) do
+    with {:ok, results} <-
+           recall_session_conversations(query, limit, %{
+             status_filter: status_filter,
+             provenance_only: provenance_only
+           }) do
       {:ok, results}
     else
       {:error, reason} -> {:error, inspect(reason)}
