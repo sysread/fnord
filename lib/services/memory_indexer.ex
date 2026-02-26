@@ -66,6 +66,7 @@ defmodule Services.MemoryIndexer do
   end
 
   def handle_call({:process_sync, convo}, _from, state) do
+    HttpPool.set(:ai_memory)
     res = do_process_conversation(convo)
     {:reply, res, state}
   end
@@ -84,6 +85,7 @@ defmodule Services.MemoryIndexer do
       Enum.reduce(to_start, state.running, fn convo, acc ->
         task =
           Services.Globals.Spawn.async(fn ->
+            HttpPool.set(:ai_memory)
             do_process_conversation(convo)
           end)
 
