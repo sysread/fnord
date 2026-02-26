@@ -137,14 +137,12 @@ defmodule AI.Tools.LongTermMemory do
 
         {:error, :duplicate_title} ->
           # On duplicate, replace existing memory with a conflict engram to
-          # eliminate duplication and keep recall concise. This is destructive
-          # by design: we synthesize a combined memory describing prior and
-          # new findings and save it in place of the old memory.
+          # eliminate duplication and keep recall concise. We delete the old
+          # memory first to avoid orphan files -- Memory.save allocates new
+          # file paths via slug collision handling, so saving without deleting
+          # would leave the original file on disk.
           case Memory.read(scope_atom, title) do
             {:ok, existing} ->
-              # existing.content and content are expected to be binaries here
-              # (Memory.content is typed as a binary). Avoid unnecessary nil
-              # pattern checks which Dialyzer flags; use the values directly.
               prev = existing.content
               new = content
 
@@ -167,6 +165,10 @@ defmodule AI.Tools.LongTermMemory do
                 |> Map.put(:content, conflict_content)
                 |> Map.put(:embeddings, nil)
                 |> maybe_add_topics(topics)
+
+              # Delete the old file before saving the merged version so
+              # allocate_unique_path_for_title reuses the base slug path.
+              Memory.forget(existing)
 
               case Memory.save(merged) do
                 {:ok, saved_mem} ->
@@ -240,6 +242,23 @@ defmodule AI.Tools.LongTermMemory do
 
   defp parse_scope("project"), do: {:ok, :project}
   defp parse_scope("global"), do: {:ok, :global}
+
+  defp parse_scope(other) do
+    {:error, "Invalid scope #{inspect(other)}; expected 'project' or 'global'"}
+  end
+
+  # Safely convert status filter strings to atoms, returning nil for unknown
+  # values. Uses String.to_existing_atom to avoid atom table pollution from
+  # untrusted input.
+  defp to_existing_status_atom(val) when is_atom(val), do: val
+
+  defp to_existing_status_atom(val) when is_binary(val) do
+    String.to_existing_atom(val)
+  rescue
+    ArgumentError -> nil
+  end
+
+  defp to_existing_status_atom(_), do: nil
   # Recall project + global memories using embeddings when available.
   @spec recall_project_global(binary, non_neg_integer, map) :: {:ok, list(map)} | {:error, atom}
   defp recall_project_global(query, limit, opts) do
@@ -280,11 +299,14 @@ defmodule AI.Tools.LongTermMemory do
                     {mem, AI.Util.cosine_similarity(needle, emb)}
                 end
 
-              status_filter_list = List.wrap(status_filter)
+              status_filter_atoms =
+                status_filter
+                |> List.wrap()
+                |> Enum.map(&to_existing_status_atom/1)
+                |> Enum.reject(&is_nil/1)
 
               status_ok? =
-                status_filter_list == [] or
-                  (is_atom(mem.index_status) and mem.index_status in status_filter_list)
+                status_filter_atoms == [] or mem.index_status in status_filter_atoms
 
               if status_ok? do
                 if provenance_only do

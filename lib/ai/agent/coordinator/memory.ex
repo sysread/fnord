@@ -27,6 +27,14 @@ defmodule AI.Agent.Coordinator.Memory do
   Carefully record detailed information about your findings, reasoning, and decisions made during the session.
   Include enough context in your memory entries that they will be meaningful to you in the future, when you may not remember the details of the current session.
 
+  ### Correcting stale memories
+  If a recalled memory contradicts what you observe during the session (e.g. a memory says "uses PostgreSQL 14" but you just read a config showing PostgreSQL 16), record a correction memory. Title it descriptively and include:
+  - Which existing memory is wrong, by its exact title
+  - What it currently says (the stale claim)
+  - What the correct information is, with evidence from the current session
+  For example: "In 'Database Configuration', I recalled that the project uses PostgreSQL 14. During this session, I confirmed from docker-compose.yml that it actually uses PostgreSQL 16."
+  The background indexer will use these corrections to update or replace the stale long-term memory.
+
   ### What to remember
   - details about current efforts (feature changes, research, debugging, etc)
     - take care to note the ephemeral context around these!

@@ -623,5 +623,4 @@ defmodule Memory do
   defp do_read(:global, title), do: Memory.Global.read(title)
   defp do_read(:project, title), do: Memory.Project.read(title)
   defp do_read(:session, title), do: Memory.Session.read(title)
-
 end

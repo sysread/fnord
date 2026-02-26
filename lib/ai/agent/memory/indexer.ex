@@ -52,6 +52,13 @@ defmodule AI.Agent.Memory.Indexer do
   - Return provenance (the candidate objects already include provenance). Use it to justify merges in your own reasoning, but do NOT include any free-form prose in the output.
   - Do NOT store or rely on the assistant's current conversation name/ID in long-term memory; it may change.
 
+  ## Correction memories
+  Session memories may contain explicit corrections to stale long-term memories. These typically reference an existing memory by title and state what was wrong and what the correct information is. When you encounter a correction memory:
+  - Find the referenced long-term memory in the project_candidates list.
+  - Emit a "replace" action targeting that memory with corrected content. Preserve any still-valid information from the original and incorporate the correction.
+  - If the correction completely invalidates the memory (e.g. the entire premise was wrong), emit a "delete" action instead.
+  - Mark the correction session memory as "incorporated" in status_updates.
+
   ## IDENTITY (THE "Me" MEMORY)
   There is a special `global` memory titled "Me" that is loaded at the start of every conversation to give the assistant a persistent sense of identity. If session memories contain observations about the assistant's own personality, tone, communication style, or working habits, route them as updates to the "Me" memory (action "replace", target scope "global", title "Me"). The "Me" memory should evolve over time as stable improvements to persona and working style are identified. Do not store ephemeral or conversation-specific details there -- only traits that should persist across all future sessions.
 
@@ -66,15 +73,16 @@ defmodule AI.Agent.Memory.Indexer do
          {:ok, payload} <- Map.fetch(opts, :payload) do
       messages = [AI.Util.system_msg(@prompt), AI.Util.system_msg(payload)]
 
+      # No toolbox: the agent returns structured JSON decisions and the
+      # MemoryIndexer service applies them. Providing tools here would risk
+      # the LLM making direct writes that duplicate the service's actions.
       agent
       |> AI.Agent.get_completion(
         model: @model,
         log_msgs: false,
         log_tool_calls: false,
         messages: messages,
-        toolbox: %{
-          "long_term_memory_tool" => AI.Tools.LongTermMemory
-        }
+        toolbox: %{}
       )
       |> case do
         {:ok, %{response: response}} -> {:ok, response}

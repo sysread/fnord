@@ -138,7 +138,9 @@ defmodule Services.MemoryIndexer do
   defp do_process_conversation(convo) do
     process_conversation_impl(convo)
   rescue
-    e -> {:error, e}
+    e ->
+      UI.debug("memory_indexer", "Worker crashed: #{Exception.message(e)}")
+      {:error, e}
   end
 
   # Implementation moved from Memory.SessionIndexer into this service so the
@@ -242,7 +244,9 @@ defmodule Services.MemoryIndexer do
           :ok
       end
     rescue
-      _ -> :ok
+      e ->
+        UI.debug("memory_indexer", "Processing failed: #{Exception.message(e)}")
+        :ok
     end
   end
 

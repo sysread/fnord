@@ -483,7 +483,9 @@ defmodule Cmd.Index do
       try do
         Services.MemoryIndexer.enqueue(convo)
       rescue
-        _ -> :ok
+        e ->
+          UI.debug("index", "MemoryIndexer enqueue failed: #{Exception.message(e)}")
+          :ok
       end
 
       :ok

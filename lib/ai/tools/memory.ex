@@ -342,11 +342,9 @@ defmodule AI.Tools.Memory do
   # ---------------------------------------------------------------------------
 
   defp parse_scope("session"), do: {:ok, :session}
-  defp parse_scope("project"), do: {:ok, :project}
-  defp parse_scope("global"), do: {:ok, :global}
 
   defp parse_scope(other) do
-    {:error, "Invalid scope #{inspect(other)}; expected 'session', 'project', or 'global'"}
+    {:error, "Invalid scope #{inspect(other)}; memory_tool only accepts 'session' scope"}
   end
 
   defp normalize_topics(nil), do: []

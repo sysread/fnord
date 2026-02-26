@@ -314,7 +314,9 @@ defmodule Cmd.Ask do
         try do
           Services.MemoryIndexer.start_link([])
         rescue
-          _ -> :ok
+          e ->
+            UI.debug("ask", "MemoryIndexer start failed: #{Exception.message(e)}")
+            :ok
         end
 
       _ ->

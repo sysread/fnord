@@ -186,7 +186,13 @@ defmodule Services.ConversationIndexer do
                 try do
                   Services.MemoryIndexer.enqueue(convo)
                 rescue
-                  _ -> :ok
+                  e ->
+                    UI.debug(
+                      "conversation_indexer",
+                      "MemoryIndexer enqueue failed: #{Exception.message(e)}"
+                    )
+
+                    :ok
                 end
 
               _ ->
@@ -198,7 +204,9 @@ defmodule Services.ConversationIndexer do
           :ok
       end
     rescue
-      _ -> :ok
+      e ->
+        UI.debug("conversation_indexer", "Processing failed: #{Exception.message(e)}")
+        :ok
     end
   end
 
