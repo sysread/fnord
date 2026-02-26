@@ -323,6 +323,8 @@ defmodule AI.Agent.Coordinator do
     |> AI.Util.user_msg()
     |> Services.Conversation.append_msg(conversation_pid)
 
+    UI.feedback_user(question)
+
     state
   end
 
