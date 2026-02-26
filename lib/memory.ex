@@ -43,7 +43,6 @@ defmodule Memory do
 
   @me_title "Me"
   @log_tag "Lore"
-  @log_verb "Chunked"
 
   # ----------------------------------------------------------------------------
   # Behaviour
@@ -99,7 +98,7 @@ defmodule Memory do
   # ----------------------------------------------------------------------------
   # Consumer interface
   # ----------------------------------------------------------------------------
-  @spec init() :: {:ok, Task.t()} | {:error, term}
+  @spec init() :: :ok | {:error, term}
   def init do
     UI.begin_step(@log_tag, "Warming up the old memory banks")
 
@@ -107,7 +106,7 @@ defmodule Memory do
          :ok <- Memory.Project.init(),
          :ok <- Memory.Session.init(),
          {:ok, _me} <- ensure_me() do
-      {:ok, perform_memory_consolidation()}
+      :ok
     else
       {:error, reason} ->
         UI.error(@log_tag, reason)
@@ -625,142 +624,4 @@ defmodule Memory do
   defp do_read(:project, title), do: Memory.Project.read(title)
   defp do_read(:session, title), do: Memory.Session.read(title)
 
-  # ----------------------------------------------------------------------------
-  # Memory Ingestion
-  # ----------------------------------------------------------------------------
-  # The number of concurrent ingestion workers.
-  @ingestion_concurrency 2
-
-  @doc """
-  Spawns a task that performs memory consolidation by ingesting all
-  conversations in the current project into long-term memory. Returns `:ok`
-  immediately. Ingestion is restricted to `@ingestion_concurrency` workers
-  (currently 2).
-  """
-  @spec perform_memory_consolidation() :: Task.t()
-  def perform_memory_consolidation() do
-    Services.Globals.Spawn.async(fn ->
-      # Use a dedicated HTTP pool for memory ingestion to avoid interfering
-      # with other API calls. This pool is scoped to the current process.
-      HttpPool.set(:ai_memory)
-
-      UI.begin_step(@log_tag, "Accreting long-term memories from past conversations")
-
-      ingest_all_conversations()
-      |> case do
-        :ok ->
-          UI.end_step_background(@log_tag, "Yum. Tasted like en-graham crackers.")
-
-        {:error, reason} ->
-          UI.end_step_background(@log_tag, reason)
-      end
-    end)
-  end
-
-  @doc """
-  Ingest all conversations in the current project into long-term memory.
-  Conversations that have not changed since their last ingestion are skipped.
-  The current conversation (if any) is also skipped.
-  """
-  @spec ingest_all_conversations() :: :ok | {:error, term}
-  def ingest_all_conversations() do
-    with {:ok, project} <- Store.get_project() do
-      current =
-        Services.Globals.get_env(:fnord, :current_conversation, nil)
-        |> case do
-          nil -> nil
-          pid -> Services.Conversation.get_id(pid)
-        end
-
-      project
-      |> Store.Project.Conversation.list()
-      |> Enum.reject(&(&1.id == current))
-      |> Util.async_stream(&ingest_conversation/1, max_concurrency: @ingestion_concurrency)
-      |> Stream.run()
-
-      :ok
-    end
-  end
-
-  @doc """
-  Ingest a single conversation into long-term memory. Conversations that have
-  not changed since their last ingestion are skipped. Conversations that have
-  never been ingested are treated as changed, and ingested.
-  """
-  @spec ingest_conversation(Store.Project.Conversation.t()) :: :ok | {:error, term}
-  def ingest_conversation(conversation) do
-    with {:ok, data} <- Store.Project.Conversation.read(conversation),
-         {:ok, meta} <- Map.fetch(data, :metadata),
-         {:ok, msgs} <- Map.fetch(data, :messages) do
-      old_hash = Map.get(meta, :long_term_memory_hash, "")
-      new_hash = make_hash(msgs)
-
-      if old_hash != new_hash do
-        AI.Agent.Memory.Ingest
-        |> AI.Agent.new(named?: false)
-        |> AI.Agent.get_response(%{messages: msgs})
-        |> case do
-          {:ok, response} ->
-            label = get_label(conversation, response)
-            UI.end_step_background(@log_verb, label)
-
-            # Re-read the conversation to ensure no changes occurred during
-            # ingestion. For example, in another OS process.
-            FileLock.with_lock(conversation.store_path, fn ->
-              with {:ok, data} <- Store.Project.Conversation.read(conversation),
-                   {:ok, meta} <- Map.fetch(data, :metadata),
-                   {:ok, msgs} <- Map.fetch(data, :messages) do
-                # If the hash is still different, that means another process
-                # modified the conversation during ingestion. In that case, we
-                # skip updating the hash, because there are now new messages
-                # that must be considered for long-term memory.
-                if new_hash == make_hash(msgs) do
-                  meta = Map.put(meta, :long_term_memory_hash, new_hash)
-                  data = Map.put(data, :metadata, meta)
-                  Store.Project.Conversation.write(conversation, data)
-                end
-              end
-            end)
-
-          {:error, reason} ->
-            {:error, reason}
-        end
-        |> case do
-          {:ok, {:ok, _result}} -> :ok
-          {:ok, {:error, reason}} -> {:error, reason}
-          {:ok, nil} -> :ok
-          {:error, reason} -> {:error, reason}
-        end
-      else
-        :ok
-      end
-    end
-  end
-
-  defp make_hash(msgs) do
-    msgs
-    |> Jason.encode!()
-    |> :erlang.md5()
-    |> Base.encode16()
-  end
-
-  defp get_label(_conversation, response) do
-    cols = Owl.IO.columns() || 120
-    prefix_len = String.length("[info] ✓ #{@log_verb}: [xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx] ")
-    min_width = 20
-    width = max(cols - prefix_len, min_width)
-
-    response
-    |> String.split("\n")
-    |> List.first()
-    |> String.trim()
-    # If the line is long, truncate and add ellipsis
-    |> then(fn line ->
-      line
-      |> Owl.Data.tag([:italic, :light_black])
-      |> Owl.Data.truncate(width)
-      |> Owl.Data.to_chardata()
-      |> to_string()
-    end)
-  end
 end

@@ -40,12 +40,22 @@ defmodule AI.Agent.Memory.Indexer do
     {"action":"replace","target":{"scope":"project|global","title":"..."},"content":"..."}
     {"action":"delete","target":{"scope":"project|global","title":"..."}}
 
+  Scope guidance:
+  - Prefer `scope=global` for user preferences, your own capabilities/limitations/personality, tool usage tips, and environment details.
+  - Prefer `scope=project` for project-specific learnings (conventions, components, organization, architecture, gotchas, terminology).
+
   Rules and guidance:
   - Prefer to MERGE highly similar session memories into an existing project/global memory when the content clearly matches.
   - If session memories conflict (A says X, B says not-X), synthesize a single consolidated memory that documents both findings and the current best understanding.
   - You may decide to create a new project memory when none of the project/global candidates are suitable.
   - When you decide to incorporate session memories into a long-term memory, include those session titles in "processed" and set their status to "incorporated" in "status_updates". If you decide to ignore them, mark as "analyzed".
   - Return provenance (the candidate objects already include provenance). Use it to justify merges in your own reasoning, but do NOT include any free-form prose in the output.
+  - Do NOT store or rely on the assistant's current conversation name/ID in long-term memory; it may change.
+
+  ## IDENTITY (THE "Me" MEMORY)
+  There is a special `global` memory titled "Me" that is loaded at the start of every conversation to give the assistant a persistent sense of identity. If session memories contain observations about the assistant's own personality, tone, communication style, or working habits, route them as updates to the "Me" memory (action "replace", target scope "global", title "Me"). The "Me" memory should evolve over time as stable improvements to persona and working style are identified. Do not store ephemeral or conversation-specific details there -- only traits that should persist across all future sessions.
+
+  CRITICAL: The assistant's conversation name (e.g. "Aria", "Zephyr", etc.) is ephemeral and changes every conversation. NEVER store it in the "Me" memory or any long-term memory. If a session memory contains the assistant's name alongside other valuable content, extract and preserve the valuable content but strip the name.
 
   IMPORTANT: Return *only* valid JSON that conforms to the schema above. Do not include any explanatory text or commentary.
   """

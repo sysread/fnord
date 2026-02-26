@@ -176,13 +176,10 @@ defmodule Cmd.Ask do
                Services.Globals.put_env(:fnord, :current_conversation, pid)
                :ok
              ),
-           {:ok, memory_task} <- Memory.init(),
+           :ok <- Memory.init(),
            {:ok, usage, context, response} <- get_response(opts, pid),
            {:ok, conversation_id} <- save_conversation(pid) do
         end_time = System.monotonic_time(:second)
-
-        # shut down long-term memory ingestion task
-        Task.shutdown(memory_task, 1_000) || Task.shutdown(memory_task, :brutal_kill)
 
         print_result(start_time, end_time, response, usage, context, conversation_id)
         maybe_save_output(opts, conversation_id, response)

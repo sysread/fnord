@@ -144,7 +144,7 @@ defmodule AI.Tools.MemoryTest do
     test "session memory search yields scope as string and no crash" do
       mock_project("test_proj")
       mock_conversation()
-      assert {:ok, _} = Elixir.Memory.init()
+      assert :ok = Elixir.Memory.init()
 
       assert {:ok, _} =
                AI.Tools.perform_tool_call(
