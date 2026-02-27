@@ -61,6 +61,12 @@ defmodule Cmd.Index do
             help: "Assume 'yes' to all prompts",
             required: false,
             default: false
+          ],
+          long_con: [
+            long: "--long-con",
+            help: "Consolidate long-term memories (merge duplicates, prune redundancies)",
+            required: false,
+            default: false
           ]
         ]
       ]
@@ -69,17 +75,65 @@ defmodule Cmd.Index do
 
   @impl Cmd
   def run(opts, _subcommands, _unknown) do
-    case new(opts) do
-      {:ok, idx} ->
-        perform_task({:ok, idx})
-        maybe_prime_notes(idx)
+    if opts[:long_con] do
+      run_consolidation()
+    else
+      case new(opts) do
+        {:ok, idx} ->
+          perform_task({:ok, idx})
+          maybe_prime_notes(idx)
 
-      {:error, :directory_required} ->
-        UI.fatal("Error: -d | --directory is required")
+        {:error, :directory_required} ->
+          UI.fatal("Error: -d | --directory is required")
 
-      other ->
-        perform_task(other)
+        other ->
+          perform_task(other)
+      end
     end
+  end
+
+  # Run the memory consolidation pipeline with a spinner and progress bar,
+  # matching the UX pattern used by file and conversation indexing.
+  defp run_consolidation do
+    total = count_long_term_memories()
+
+    if total == 0 do
+      UI.warn("No long-term memories to consolidate")
+      :ok
+    else
+      UI.spin("Consolidating #{total} long-term memories", fn ->
+        UI.progress_bar_start(:consolidation, "Consolidating", total)
+        on_progress = fn -> UI.progress_bar_update(:consolidation) end
+
+        case Memory.Consolidator.run(on_progress: on_progress) do
+          {:ok, report} ->
+            msg =
+              "Merged: #{report.merged}, Deleted: #{report.deleted}, " <>
+                "Kept: #{report.kept}, Errors: #{report.errors}"
+
+            {msg, :ok}
+
+          {:error, reason} ->
+            {"Failed: #{inspect(reason)}", {:error, reason}}
+        end
+      end)
+    end
+  end
+
+  defp count_long_term_memories do
+    global =
+      case Memory.list(:global) do
+        {:ok, l} -> length(l)
+        _ -> 0
+      end
+
+    project =
+      case Memory.list(:project) do
+        {:ok, l} -> length(l)
+        _ -> 0
+      end
+
+    global + project
   end
 
   @doc """

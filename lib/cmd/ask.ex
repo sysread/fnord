@@ -508,9 +508,30 @@ defmodule Cmd.Ask do
     - Deleted: #{Enum.count(deleted)}
 
     _Run `fnord index` to update the index._
+    #{maybe_consolidation_notice()}
     """)
 
     UI.flush()
+  end
+
+  # Suggest running memory consolidation when the memory count gets high enough
+  # that recall quality and search latency may degrade.
+  defp maybe_consolidation_notice do
+    global_count = count_memories(:global)
+    project_count = count_memories(:project)
+
+    if global_count > 50 or project_count > 100 do
+      "\n    _#{global_count} global and #{project_count} project memories — consider running `fnord index --long-con` to consolidate._"
+    else
+      ""
+    end
+  end
+
+  defp count_memories(scope) do
+    case Memory.list(scope) do
+      {:ok, titles} -> length(titles)
+      _ -> 0
+    end
   end
 
   defp save_conversation(pid) do
