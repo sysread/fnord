@@ -11,11 +11,11 @@ defmodule AI.Agent.Memory.Consolidator do
   }
 
   Action objects:
-  - {"action": "merge", "target": {"scope": "...", "title": "..."}, "content": "..."}
+  - {"action": "merge", "target": {"scope": "...", "title": "..."}, "content": "...", "reason": "..."}
     Merge the candidate INTO the focus memory. The "content" field is the
     rewritten focus content incorporating the candidate's information. The
     candidate will be deleted after the merge.
-  - {"action": "delete", "target": {"scope": "...", "title": "..."}}
+  - {"action": "delete", "target": {"scope": "...", "title": "..."}, "reason": "..."}
     Delete a candidate that is fully subsumed by the focus memory.
 
   When "keep" is false, the focus memory itself is redundant and should be
@@ -38,8 +38,16 @@ defmodule AI.Agent.Memory.Consolidator do
   - "keep": boolean — whether the focus memory should be kept
 
   Action objects must be one of:
-    {"action":"merge","target":{"scope":"...","title":"..."},"content":"..."}
-    {"action":"delete","target":{"scope":"...","title":"..."}}
+    {"action":"merge","target":{"scope":"...","title":"..."},"content":"...","reason":"..."}
+    {"action":"delete","target":{"scope":"...","title":"..."},"reason":"..."}
+
+  Every action MUST include a "reason" field — a brief explanation of why this
+  action was chosen (e.g. "near-duplicate of focus", "fully subsumed by focus",
+  "contains outdated info superseded by focus"). This is used for diagnostic
+  logging.
+
+  When "keep" is false, include a top-level "reason" field explaining why the
+  focus itself is redundant.
 
   ### Merge action
   When a candidate is highly similar to the focus memory, merge the candidate's

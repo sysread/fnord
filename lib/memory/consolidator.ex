@@ -150,9 +150,11 @@ defmodule Memory.Consolidator do
     if keep do
       {:ok, eaten}
     else
+      keep_reason = Map.get(decoded, "reason", "no reason given")
+
       case Memory.forget(focus) do
         :ok ->
-          UI.debug("consolidator", "Deleted focus: #{focus.title}")
+          UI.debug("consolidator", "Deleted focus: #{focus.title} — #{keep_reason}")
           {:delete, eaten}
 
         {:error, reason} ->
@@ -166,11 +168,12 @@ defmodule Memory.Consolidator do
   # Returns a list of eaten slug keys (0 or 1 element).
   defp apply_action(
          focus,
-         %{"action" => "merge", "target" => target, "content" => content}
+         %{"action" => "merge", "target" => target, "content" => content} = action
        ) do
     scope = parse_scope(target["scope"])
     title = target["title"]
     slug = Memory.title_to_slug(title)
+    reason = Map.get(action, "reason", "no reason given")
 
     # Save the merged content onto the focus memory. Clear embeddings so they
     # regenerate on next search.
@@ -181,7 +184,7 @@ defmodule Memory.Consolidator do
         case Memory.read(scope, title) do
           {:ok, candidate} ->
             Memory.forget(candidate)
-            UI.debug("consolidator", "Merged #{title} into #{focus.title}")
+            UI.debug("consolidator", "Merged #{title} into #{focus.title} — #{reason}")
 
           {:error, _} ->
             # Candidate already gone — another worker ate it.
@@ -197,16 +200,17 @@ defmodule Memory.Consolidator do
   end
 
   # Delete: remove a candidate outright.
-  defp apply_action(_focus, %{"action" => "delete", "target" => target}) do
+  defp apply_action(_focus, %{"action" => "delete", "target" => target} = action) do
     scope = parse_scope(target["scope"])
     title = target["title"]
     slug = Memory.title_to_slug(title)
+    reason = Map.get(action, "reason", "no reason given")
 
     case Memory.read(scope, title) do
       {:ok, memory} ->
         case Memory.forget(memory) do
           :ok ->
-            UI.debug("consolidator", "Deleted: #{title}")
+            UI.debug("consolidator", "Deleted: #{title} — #{reason}")
             [{scope, slug}]
 
           {:error, reason} ->
