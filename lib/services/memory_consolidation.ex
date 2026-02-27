@@ -204,7 +204,9 @@ defmodule Services.MemoryConsolidation do
 
           needle ->
             memories
-            |> Enum.reject(fn m -> slug_key(m) == key or is_nil(m.embeddings) end)
+            |> Enum.reject(fn m ->
+              slug_key(m) == key or is_nil(m.embeddings) or me_memory?(m)
+            end)
             |> Enum.map(fn m ->
               score = AI.Util.cosine_similarity(needle, m.embeddings)
               {slug_key(m), score}
@@ -263,4 +265,9 @@ defmodule Services.MemoryConsolidation do
     do: {scope, Memory.title_to_slug(title)}
 
   defp bump(report, key), do: Map.update!(report, key, &(&1 + 1))
+
+  # The "Me" identity memory must never appear as a candidate for merge or
+  # deletion. It can be a focus (so it absorbs others), but nothing eats it.
+  defp me_memory?(%Memory{scope: :global, title: "Me"}), do: true
+  defp me_memory?(_), do: false
 end

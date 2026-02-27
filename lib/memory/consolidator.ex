@@ -48,13 +48,13 @@ defmodule Memory.Consolidator do
       global_task =
         Services.Globals.Spawn.async(fn ->
           HttpPool.set(:ai_memory)
-          consolidate_scope(global_memories, on_progress)
+          safe_consolidate_scope(:global, global_memories, on_progress)
         end)
 
       project_task =
         Services.Globals.Spawn.async(fn ->
           HttpPool.set(:ai_memory)
-          consolidate_scope(project_memories, on_progress)
+          safe_consolidate_scope(:project, project_memories, on_progress)
         end)
 
       global_report = Task.await(global_task, :infinity)
@@ -68,7 +68,20 @@ defmodule Memory.Consolidator do
   # Per-scope orchestration
   # --------------------------------------------------------------------------
 
-  # Start a coordinator for this scope, spawn workers, collect results.
+  # Guard against a scope-level crash taking down the whole consolidation run.
+  defp safe_consolidate_scope(scope_name, memories, on_progress) do
+    consolidate_scope(memories, on_progress)
+  rescue
+    e ->
+      UI.error("consolidator", "#{scope_name} scope crashed: #{Exception.message(e)}")
+      %{merged: 0, deleted: 0, kept: 0, errors: length(memories)}
+  catch
+    :exit, reason ->
+      UI.error("consolidator", "#{scope_name} scope exited: #{inspect(reason)}")
+      %{merged: 0, deleted: 0, kept: 0, errors: length(memories)}
+  end
+
+  # Start a pool for this scope, spawn workers, collect results.
   defp consolidate_scope([], _on_progress) do
     %{merged: 0, deleted: 0, kept: 0, errors: 0}
   end
@@ -108,7 +121,7 @@ defmodule Memory.Consolidator do
         :ok
 
       {:ok, focus, candidates} ->
-        result = process_focus(focus, candidates)
+        result = process_one(coordinator, focus, candidates)
         Services.MemoryConsolidation.complete(coordinator, focus, result)
         on_progress.()
         worker_loop(coordinator, on_progress)
@@ -118,6 +131,21 @@ defmodule Memory.Consolidator do
         on_progress.()
         worker_loop(coordinator, on_progress)
     end
+  end
+
+  # Wrap individual focus processing so a single failure doesn't kill the
+  # entire worker. Catches both exceptions and unexpected exits from the
+  # LLM pipeline.
+  defp process_one(_coordinator, focus, candidates) do
+    process_focus(focus, candidates)
+  rescue
+    e ->
+      UI.error("consolidator", "Worker crashed on #{focus.title}: #{Exception.message(e)}")
+      {:error, []}
+  catch
+    :exit, reason ->
+      UI.error("consolidator", "Worker exited on #{focus.title}: #{inspect(reason)}")
+      {:error, []}
   end
 
   # --------------------------------------------------------------------------
@@ -147,7 +175,11 @@ defmodule Memory.Consolidator do
       actions
       |> Enum.flat_map(&apply_action(focus, &1))
 
-    if keep do
+    if keep or me_memory?(focus) do
+      if not keep and me_memory?(focus) do
+        UI.debug("consolidator", "Refused to delete Me identity memory")
+      end
+
       {:ok, eaten}
     else
       keep_reason = Map.get(decoded, "reason", "no reason given")
@@ -199,7 +231,14 @@ defmodule Memory.Consolidator do
     end
   end
 
-  # Delete: remove a candidate outright.
+  # Delete: remove a candidate outright. The Me identity memory is never
+  # deletable — the coordinator already excludes it from candidates, but
+  # this is a safety net in case the agent hallucinates a target.
+  defp apply_action(_focus, %{"action" => "delete", "target" => %{"scope" => "global", "title" => "Me"}}) do
+    UI.debug("consolidator", "Refused to delete Me identity memory")
+    []
+  end
+
   defp apply_action(_focus, %{"action" => "delete", "target" => target} = action) do
     scope = parse_scope(target["scope"])
     title = target["title"]
@@ -345,6 +384,9 @@ defmodule Memory.Consolidator do
 
   defp parse_scope("global"), do: :global
   defp parse_scope("project"), do: :project
+
+  defp me_memory?(%Memory{scope: :global, title: "Me"}), do: true
+  defp me_memory?(_), do: false
 
   @doc false
   def tier_label(score) when score > 0.5, do: "high"
