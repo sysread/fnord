@@ -1,6 +1,7 @@
 defmodule AI.Agent.Coordinator.Memory do
   @moduledoc """
-  Functions related to the Coordinator's memory behavior.
+  Functions related to the Coordinator's memory behavior: prompt text,
+  identity injection at session start, and semantic memory recall.
   """
 
   @type t :: AI.Agent.Coordinator.t()
@@ -82,8 +83,15 @@ defmodule AI.Agent.Coordinator.Memory do
   @spec prompt() :: binary
   def prompt, do: @prompt
 
+  # --------------------------------------------------------------------------
+  # Identity injection
+  # --------------------------------------------------------------------------
+
+  # Loads the global "Me" memory and injects it as a <think> assistant
+  # message so the coordinator begins each session with its persistent
+  # identity context.
   @spec identity_msg(t) :: t
-  def identity_msg(%{conversation_pid: conversation_pid} = state) do
+  def identity_msg(%{conversation_pid: pid} = state) do
     with {:ok, memory} <- Memory.read_me() do
       """
       <think>
@@ -92,62 +100,70 @@ defmodule AI.Agent.Coordinator.Memory do
       </think>
       """
       |> AI.Util.assistant_msg()
-      |> Services.Conversation.append_msg(conversation_pid)
+      |> Services.Conversation.append_msg(pid)
     end
 
     state
   end
 
+  # --------------------------------------------------------------------------
+  # Semantic memory recall
+  # --------------------------------------------------------------------------
+
+  # Searches long-term memory using the user's question (and any intuition
+  # text) as a semantic query, then injects the top matches as a <think>
+  # assistant message so the coordinator has relevant context before it
+  # begins working.
   @spec spool_mnemonics(t) :: no_return
   def spool_mnemonics(state) do
     UI.begin_step("Spooling mnemonics")
 
+    state
+    |> build_recall_query()
+    |> Memory.search(@memory_recall_limit)
+    |> maybe_inject_memories(state)
+  end
+
+  defp build_recall_query(state) do
     intuition = state |> Map.get(:intuition, "") |> String.trim()
     question = state |> Map.get(:question, "") |> String.trim()
+    Enum.join([intuition, question], "\n")
+  end
 
-    [intuition, question]
-    |> Enum.join("\n")
-    |> Memory.search(@memory_recall_limit)
-    |> case do
-      {:ok, []} ->
-        state
+  defp maybe_inject_memories({:ok, []}, _state), do: :ok
 
-      {:ok, results} ->
-        now = DateTime.utc_now()
+  defp maybe_inject_memories({:ok, results}, state) do
+    now = DateTime.utc_now()
 
-        memories =
-          results
-          |> Enum.map(fn {mem, _score} ->
-            age = Memory.Presentation.age_line(mem, now)
-            warning = Memory.Presentation.warning_line(mem, now)
+    memories =
+      results
+      |> Enum.map(fn {mem, _score} -> format_recalled_memory(mem, now) end)
+      |> Enum.join("\n\n")
 
-            warning_md =
-              if warning do
-                "\n_#{warning}_"
-              else
-                ""
-              end
+    """
+    <think>
+    The user's prompt brings to mind some things I wanted to remember.
 
-            """
-            ## [#{mem.scope}] #{mem.title}
-            _#{age}_#{warning_md}
-            #{Util.truncate(mem.content, @memory_size_limit)}
-            """
-          end)
-          |> Enum.join("\n\n")
+    #{memories}
+    </think>
+    """
+    |> AI.Util.assistant_msg()
+    |> Services.Conversation.append_msg(state.conversation_pid)
+  end
 
-        """
-        <think>
-        The user's prompt brings to mind some things I wanted to remember.
+  defp maybe_inject_memories({:error, reason}, _state) do
+    UI.error("memory", reason)
+  end
 
-        #{memories}
-        </think>
-        """
-        |> AI.Util.assistant_msg()
-        |> Services.Conversation.append_msg(state.conversation_pid)
+  defp format_recalled_memory(mem, now) do
+    age = Memory.Presentation.age_line(mem, now)
+    warning = Memory.Presentation.warning_line(mem, now)
+    warning_md = if warning, do: "\n_#{warning}_", else: ""
 
-      {:error, reason} ->
-        UI.error("memory", reason)
-    end
+    """
+    ## [#{mem.scope}] #{mem.title}
+    _#{age}_#{warning_md}
+    #{Util.truncate(mem.content, @memory_size_limit)}
+    """
   end
 end
