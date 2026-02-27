@@ -37,8 +37,8 @@ defmodule Memory.SessionIndexerTest do
               if is_pid(pid) and Process.alive?(pid) do
                 try do
                   GenServer.stop(Services.MemoryIndexer)
-                rescue
-                  _ -> :ok
+                catch
+                  :exit, _ -> :ok
                 end
               end
             end)
