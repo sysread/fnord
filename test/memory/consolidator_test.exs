@@ -1,86 +1,100 @@
 defmodule Memory.ConsolidatorTest do
   use Fnord.TestCase, async: false
 
-  test "find_candidates returns empty list when focus has no embeddings" do
-    focus = %Memory{
-      scope: :project,
-      title: "Focus",
-      slug: "focus",
-      content: "some content",
-      embeddings: nil
-    }
+  alias Services.MemoryConsolidation
 
-    assert Memory.Consolidator.find_candidates(focus, [], MapSet.new()) == []
-  end
+  describe "MemoryConsolidation" do
+    test "checkout returns :done for empty memory list" do
+      {:ok, pool} = MemoryConsolidation.start_link([])
+      assert :done = MemoryConsolidation.checkout(pool)
+      GenServer.stop(pool)
+    end
 
-  test "find_candidates excludes self and already-processed memories" do
-    emb_a = List.duplicate(1.0, 10)
-    emb_b = List.duplicate(1.0, 10)
-    emb_c = List.duplicate(0.0, 10)
+    test "checkout skips memories with no candidates" do
+      # Two memories with orthogonal embeddings — no similarity above floor.
+      a = %Memory{
+        scope: :project,
+        title: "Alpha",
+        slug: "alpha",
+        content: "content a",
+        embeddings: [1.0, 0.0, 0.0, 0.0, 0.0]
+      }
 
-    focus = %Memory{
-      scope: :project,
-      title: "A",
-      slug: "a",
-      content: "content a",
-      embeddings: emb_a
-    }
+      b = %Memory{
+        scope: :project,
+        title: "Beta",
+        slug: "beta",
+        content: "content b",
+        embeddings: [0.0, 0.0, 0.0, 0.0, 1.0]
+      }
 
-    same = %Memory{
-      scope: :project,
-      title: "B",
-      slug: "b",
-      content: "content b",
-      embeddings: emb_b
-    }
+      {:ok, pool} = MemoryConsolidation.start_link([a, b])
 
-    different = %Memory{
-      scope: :project,
-      title: "C",
-      slug: "c",
-      content: "content c",
-      embeddings: emb_c
-    }
+      # Both should be skipped (no candidates above floor).
+      assert {:skip, _} = MemoryConsolidation.checkout(pool)
+      assert {:skip, _} = MemoryConsolidation.checkout(pool)
+      assert :done = MemoryConsolidation.checkout(pool)
 
-    all = [focus, same, different]
-    processed = MapSet.new()
+      report = MemoryConsolidation.report(pool)
+      assert report.kept == 2
+      GenServer.stop(pool)
+    end
 
-    candidates = Memory.Consolidator.find_candidates(focus, all, processed)
+    test "checkout returns candidates for similar memories" do
+      emb = List.duplicate(1.0, 10)
 
-    # Should find B (identical embeddings, score=1.0) but not self (A) and
-    # not C (zero vector → cosine similarity is 0.0, below floor)
-    assert length(candidates) == 1
-    assert hd(candidates).memory.title == "B"
-    assert hd(candidates).tier == "high"
-  end
+      a = %Memory{
+        scope: :global,
+        title: "First",
+        slug: "first",
+        content: "content",
+        embeddings: emb
+      }
 
-  test "find_candidates respects processed set" do
-    emb = List.duplicate(1.0, 10)
+      b = %Memory{
+        scope: :global,
+        title: "Second",
+        slug: "second",
+        content: "content",
+        embeddings: emb
+      }
 
-    focus = %Memory{scope: :project, title: "A", slug: "a", content: "a", embeddings: emb}
-    other = %Memory{scope: :project, title: "B", slug: "b", content: "b", embeddings: emb}
+      {:ok, pool} = MemoryConsolidation.start_link([a, b])
 
-    # B is already processed
-    processed = MapSet.new([{:project, "b"}])
+      # First checkout gets one memory with the other as candidate.
+      assert {:ok, focus, candidates} = MemoryConsolidation.checkout(pool)
+      assert length(candidates) == 1
+      assert hd(candidates).tier == "high"
 
-    candidates = Memory.Consolidator.find_candidates(focus, [focus, other], processed)
-    assert candidates == []
-  end
+      # Complete with no eaten slugs.
+      MemoryConsolidation.complete(pool, focus, {:ok, []})
 
-  test "find_candidates returns candidates sorted by score descending" do
-    # Create embeddings with varying similarity to focus
-    focus_emb = [1.0, 0.0, 0.0, 0.0, 0.0]
-    high_emb = [0.9, 0.4, 0.0, 0.0, 0.0]
-    mid_emb = [0.6, 0.8, 0.0, 0.0, 0.0]
+      # Second checkout — the other memory. Its candidate (the first) is no
+      # longer remaining, so it gets skipped.
+      assert {:skip, _} = MemoryConsolidation.checkout(pool)
+      assert :done = MemoryConsolidation.checkout(pool)
 
-    focus = %Memory{scope: :global, title: "F", slug: "f", content: "f", embeddings: focus_emb}
-    high = %Memory{scope: :global, title: "H", slug: "h", content: "h", embeddings: high_emb}
-    mid = %Memory{scope: :global, title: "M", slug: "m", content: "m", embeddings: mid_emb}
+      GenServer.stop(pool)
+    end
 
-    candidates = Memory.Consolidator.find_candidates(focus, [focus, high, mid], MapSet.new())
+    test "complete removes eaten slugs from remaining" do
+      emb = List.duplicate(1.0, 10)
 
-    # Both should be above the floor; high should come first
-    assert length(candidates) == 2
-    assert hd(candidates).memory.title == "H"
+      a = %Memory{scope: :project, title: "A", slug: "a", content: "a", embeddings: emb}
+      b = %Memory{scope: :project, title: "B", slug: "b", content: "b", embeddings: emb}
+      c = %Memory{scope: :project, title: "C", slug: "c", content: "c", embeddings: emb}
+
+      {:ok, pool} = MemoryConsolidation.start_link([a, b, c])
+
+      # First worker checks out A, eats B.
+      {:ok, focus, _candidates} = MemoryConsolidation.checkout(pool)
+      MemoryConsolidation.complete(pool, focus, {:ok, [{:project, "b"}]})
+
+      report = MemoryConsolidation.report(pool)
+      assert report.merged == 1
+      assert report.kept == 1
+
+      GenServer.stop(pool)
+    end
   end
 end

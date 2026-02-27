@@ -1,21 +1,15 @@
 defmodule Memory.Consolidator do
   @moduledoc """
   Orchestrates long-term memory consolidation. Processes global and project
-  scopes as independent batches (in parallel), using cosine similarity to
-  find near-duplicates within each scope, then delegates merge/delete
-  decisions to the Consolidator agent.
+  scopes as independent batches (in parallel). Within each scope, a
+  coordinator GenServer owns the similarity matrix and the set of remaining
+  memories, handing out work items to concurrent workers. Workers ask the
+  coordinator for a focus memory and its live candidates, call the LLM agent,
+  apply the results, and report back which memories were consumed.
 
   This module is invoked by `Cmd.Index --long-con` and runs synchronously in
-  the foreground. It is not a GenServer — just a pipeline of pure-ish functions
-  that read memories, call the LLM, and apply the results.
+  the foreground.
   """
-
-  # Cosine similarity floor. Candidates below this score are not sent to the
-  # agent at all — they're too dissimilar to be worth evaluating.
-  @similarity_floor 0.25
-
-  # Maximum candidates to send per focus memory.
-  @max_candidates 10
 
   @type report :: %{
           merged: non_neg_integer,
@@ -31,8 +25,8 @@ defmodule Memory.Consolidator do
 
   @doc """
   Run memory consolidation across global and project scopes. Each scope is
-  processed as an independent batch — global and project run in parallel
-  since consolidation is walled to scope (no cross-scope merges).
+  processed by its own coordinator GenServer with concurrent workers. The two
+  scopes run in parallel since consolidation is walled — no cross-scope merges.
 
   Options:
   - `:on_progress` — zero-arity function called after each memory is
@@ -49,18 +43,18 @@ defmodule Memory.Consolidator do
          {:ok, project_memories} <- load_memories(:project) do
       total = length(global_memories) + length(project_memories)
 
-      # Process global and project scopes in parallel. Each batch is
-      # self-contained — no cross-scope merges, so no shared state.
+      # Process global and project scopes in parallel. Each scope gets its own
+      # coordinator GenServer and worker pool.
       global_task =
         Services.Globals.Spawn.async(fn ->
           HttpPool.set(:ai_memory)
-          consolidate_batch(global_memories, on_progress)
+          consolidate_scope(global_memories, on_progress)
         end)
 
       project_task =
         Services.Globals.Spawn.async(fn ->
           HttpPool.set(:ai_memory)
-          consolidate_batch(project_memories, on_progress)
+          consolidate_scope(project_memories, on_progress)
         end)
 
       global_report = Task.await(global_task, :infinity)
@@ -71,101 +65,162 @@ defmodule Memory.Consolidator do
   end
 
   # --------------------------------------------------------------------------
-  # Batch processing
+  # Per-scope orchestration
   # --------------------------------------------------------------------------
 
-  # Process a single scope's memories serially. Returns a partial report.
-  defp consolidate_batch(memories, on_progress) do
-    report = %{merged: 0, deleted: 0, kept: 0, errors: 0}
+  # Start a coordinator for this scope, spawn workers, collect results.
+  defp consolidate_scope([], _on_progress) do
+    %{merged: 0, deleted: 0, kept: 0, errors: 0}
+  end
 
-    {_processed, final_report} =
-      Enum.reduce(memories, {MapSet.new(), report}, fn memory, {processed, report} ->
-        result =
-          if MapSet.member?(processed, slug_key(memory)) do
-            # Already consumed by a merge/delete in an earlier iteration.
-            {processed, report}
-          else
-            consolidate_one(memory, memories, processed, report)
-          end
+  defp consolidate_scope(memories, on_progress) do
+    {:ok, coordinator} = Services.MemoryConsolidation.start_link(memories)
 
-        on_progress.()
-        result
+    try do
+      # Spawn workers that pull from the coordinator until it's drained.
+      # Each worker loops: checkout → process → complete → repeat.
+      worker_count = System.schedulers_online()
+
+      1..worker_count
+      |> Util.async_stream(fn _ ->
+        worker_loop(coordinator, on_progress)
       end)
+      |> Enum.to_list()
 
-    final_report
-  end
-
-  defp merge_reports(a, b, total) do
-    %{
-      merged: a.merged + b.merged,
-      deleted: a.deleted + b.deleted,
-      kept: a.kept + b.kept,
-      errors: a.errors + b.errors,
-      total: total
-    }
+      Services.MemoryConsolidation.report(coordinator)
+    after
+      GenServer.stop(coordinator)
+    end
   end
 
   # --------------------------------------------------------------------------
-  # Per-memory consolidation
+  # Worker loop
   # --------------------------------------------------------------------------
 
-  # Process a single focus memory: find same-scope candidates, ask the agent,
-  # apply actions, and update the running report and processed set.
-  defp consolidate_one(focus, scope_memories, processed, report) do
-    case find_candidates(focus, scope_memories, processed) do
-      # No candidates above the similarity floor — nothing to consolidate.
-      [] ->
-        UI.debug("consolidator", "No candidates for: #{focus.title}")
-        {MapSet.put(processed, slug_key(focus)), bump(report, :kept)}
+  # Each worker repeatedly checks out a focus memory from the coordinator,
+  # processes it, and reports back. Stops when the coordinator has no more
+  # work.
+  defp worker_loop(coordinator, on_progress) do
+    HttpPool.set(:ai_memory)
 
-      candidates ->
-        case run_agent(focus, candidates) do
-          {:ok, decoded} ->
-            apply_and_track(focus, decoded, processed, report)
+    case Services.MemoryConsolidation.checkout(coordinator) do
+      :done ->
+        :ok
+
+      {:ok, focus, candidates} ->
+        result = process_focus(focus, candidates)
+        Services.MemoryConsolidation.complete(coordinator, focus, result)
+        on_progress.()
+        worker_loop(coordinator, on_progress)
+
+      {:skip, _focus} ->
+        # No live candidates — coordinator already counted it as kept.
+        on_progress.()
+        worker_loop(coordinator, on_progress)
+    end
+  end
+
+  # --------------------------------------------------------------------------
+  # Focus processing (runs in worker)
+  # --------------------------------------------------------------------------
+
+  # Process a single focus memory: ask the agent, apply actions. Returns a
+  # result tuple the coordinator can use to update its state.
+  defp process_focus(focus, candidates) do
+    case run_agent(focus, candidates) do
+      {:ok, decoded} ->
+        apply_actions(focus, decoded)
+
+      {:error, reason} ->
+        UI.warn("Consolidation failed for #{focus.title}", inspect(reason))
+        {:error, []}
+    end
+  end
+
+  # Apply the agent's decisions to disk. Returns {:ok | :delete, eaten_slugs}
+  # or {:error, eaten_slugs} so the coordinator knows what was consumed.
+  defp apply_actions(focus, decoded) do
+    actions = Map.get(decoded, "actions", [])
+    keep = Map.get(decoded, "keep", true)
+
+    eaten =
+      actions
+      |> Enum.flat_map(&apply_action(focus, &1))
+
+    if keep do
+      {:ok, eaten}
+    else
+      case Memory.forget(focus) do
+        :ok ->
+          UI.debug("consolidator", "Deleted focus: #{focus.title}")
+          {:delete, eaten}
+
+        {:error, reason} ->
+          UI.warn("Failed to delete focus #{focus.title}", inspect(reason))
+          {:error, eaten}
+      end
+    end
+  end
+
+  # Merge: rewrite the focus memory's content, then delete the candidate.
+  # Returns a list of eaten slug keys (0 or 1 element).
+  defp apply_action(
+         focus,
+         %{"action" => "merge", "target" => target, "content" => content}
+       ) do
+    scope = parse_scope(target["scope"])
+    title = target["title"]
+    slug = Memory.title_to_slug(title)
+
+    # Save the merged content onto the focus memory. Clear embeddings so they
+    # regenerate on next search.
+    merged_focus = %{focus | content: content, embeddings: nil}
+
+    case Memory.save(merged_focus) do
+      {:ok, _} ->
+        case Memory.read(scope, title) do
+          {:ok, candidate} ->
+            Memory.forget(candidate)
+            UI.debug("consolidator", "Merged #{title} into #{focus.title}")
+
+          {:error, _} ->
+            # Candidate already gone — another worker ate it.
+            :ok
+        end
+
+        [{scope, slug}]
+
+      {:error, reason} ->
+        UI.warn("Failed to save merged memory #{focus.title}", inspect(reason))
+        []
+    end
+  end
+
+  # Delete: remove a candidate outright.
+  defp apply_action(_focus, %{"action" => "delete", "target" => target}) do
+    scope = parse_scope(target["scope"])
+    title = target["title"]
+    slug = Memory.title_to_slug(title)
+
+    case Memory.read(scope, title) do
+      {:ok, memory} ->
+        case Memory.forget(memory) do
+          :ok ->
+            UI.debug("consolidator", "Deleted: #{title}")
+            [{scope, slug}]
 
           {:error, reason} ->
-            UI.warn("Consolidation failed for #{focus.title}", inspect(reason))
-            {MapSet.put(processed, slug_key(focus)), bump(report, :errors)}
+            UI.warn("Failed to delete #{title}", inspect(reason))
+            []
         end
-    end
-  end
 
-  # --------------------------------------------------------------------------
-  # Candidate discovery
-  # --------------------------------------------------------------------------
-
-  @doc """
-  Find memories similar to `focus` using cosine similarity. Only considers
-  memories within the same scope — consolidation does not cross scope
-  boundaries. Excludes the focus itself and any memories already consumed
-  by earlier consolidation passes.
-
-  Returns up to #{@max_candidates} candidates above the similarity floor,
-  sorted by score descending.
-  """
-  @spec find_candidates(Memory.t(), list(Memory.t()), MapSet.t()) ::
-          list(%{memory: Memory.t(), score: float, tier: String.t()})
-  def find_candidates(focus, scope_memories, processed) do
-    case focus.embeddings do
-      nil ->
+      {:error, _} ->
+        # Already gone.
         []
-
-      needle ->
-        scope_memories
-        |> Enum.reject(fn m ->
-          slug_key(m) == slug_key(focus) or
-            MapSet.member?(processed, slug_key(m)) or
-            is_nil(m.embeddings)
-        end)
-        |> Enum.map(fn m ->
-          score = AI.Util.cosine_similarity(needle, m.embeddings)
-          %{memory: m, score: score, tier: tier_label(score)}
-        end)
-        |> Enum.filter(fn %{score: score} -> score >= @similarity_floor end)
-        |> Enum.sort_by(fn %{score: score} -> score end, :desc)
-        |> Enum.take(@max_candidates)
     end
   end
+
+  defp apply_action(_, _), do: []
 
   # --------------------------------------------------------------------------
   # Agent invocation
@@ -240,102 +295,18 @@ defmodule Memory.Consolidator do
   defp valid_action?(_), do: false
 
   # --------------------------------------------------------------------------
-  # Action application
-  # --------------------------------------------------------------------------
-
-  # Apply the agent's decisions and return updated processed set + report.
-  defp apply_and_track(focus, decoded, processed, report) do
-    actions = Map.get(decoded, "actions", [])
-    keep = Map.get(decoded, "keep", true)
-
-    # Apply each action, tracking which memories were consumed and counting
-    # merges/deletes for the report.
-    {processed, report} =
-      Enum.reduce(actions, {processed, report}, fn action, {proc, rep} ->
-        apply_action(focus, action, proc, rep)
-      end)
-
-    # If the agent says the focus itself is redundant, delete it.
-    {processed, report} =
-      if keep do
-        {MapSet.put(processed, slug_key(focus)), bump(report, :kept)}
-      else
-        case Memory.forget(focus) do
-          :ok ->
-            UI.debug("consolidator", "Deleted focus: #{focus.title}")
-            {MapSet.put(processed, slug_key(focus)), bump(report, :deleted)}
-
-          {:error, reason} ->
-            UI.warn("Failed to delete focus #{focus.title}", inspect(reason))
-            {MapSet.put(processed, slug_key(focus)), bump(report, :errors)}
-        end
-      end
-
-    {processed, report}
-  end
-
-  # Merge: rewrite the focus memory's content, then delete the candidate.
-  defp apply_action(
-         focus,
-         %{"action" => "merge", "target" => target, "content" => content},
-         processed,
-         report
-       ) do
-    scope = parse_scope(target["scope"])
-    title = target["title"]
-
-    # Save the merged content onto the focus memory. Clear embeddings so they
-    # regenerate on next search.
-    merged_focus = %{focus | content: content, embeddings: nil}
-
-    case Memory.save(merged_focus) do
-      {:ok, _} ->
-        # Delete the candidate that was merged in.
-        case Memory.read(scope, title) do
-          {:ok, candidate} ->
-            Memory.forget(candidate)
-            UI.debug("consolidator", "Merged #{title} into #{focus.title}")
-            {MapSet.put(processed, {scope, Memory.title_to_slug(title)}), bump(report, :merged)}
-
-          {:error, _} ->
-            # Candidate already gone — count as merged anyway.
-            {MapSet.put(processed, {scope, Memory.title_to_slug(title)}), bump(report, :merged)}
-        end
-
-      {:error, reason} ->
-        UI.warn("Failed to save merged memory #{focus.title}", inspect(reason))
-        {processed, bump(report, :errors)}
-    end
-  end
-
-  # Delete: remove a candidate outright.
-  defp apply_action(_focus, %{"action" => "delete", "target" => target}, processed, report) do
-    scope = parse_scope(target["scope"])
-    title = target["title"]
-
-    case Memory.read(scope, title) do
-      {:ok, memory} ->
-        case Memory.forget(memory) do
-          :ok ->
-            UI.debug("consolidator", "Deleted: #{title}")
-            {MapSet.put(processed, {scope, Memory.title_to_slug(title)}), bump(report, :deleted)}
-
-          {:error, reason} ->
-            UI.warn("Failed to delete #{title}", inspect(reason))
-            {processed, bump(report, :errors)}
-        end
-
-      {:error, _} ->
-        # Already gone.
-        {processed, report}
-    end
-  end
-
-  defp apply_action(_, _, processed, report), do: {processed, report}
-
-  # --------------------------------------------------------------------------
   # Helpers
   # --------------------------------------------------------------------------
+
+  defp merge_reports(a, b, total) do
+    %{
+      merged: a.merged + b.merged,
+      deleted: a.deleted + b.deleted,
+      kept: a.kept + b.kept,
+      errors: a.errors + b.errors,
+      total: total
+    }
+  end
 
   # Load memories for a single scope, generating embeddings on demand for any
   # that lack them.
@@ -368,15 +339,11 @@ defmodule Memory.Consolidator do
     end
   end
 
-  defp slug_key(%Memory{scope: scope, slug: slug}) when is_binary(slug), do: {scope, slug}
-  defp slug_key(%Memory{scope: scope, title: title}), do: {scope, Memory.title_to_slug(title)}
-
   defp parse_scope("global"), do: :global
   defp parse_scope("project"), do: :project
 
-  defp tier_label(score) when score > 0.5, do: "high"
-  defp tier_label(score) when score >= 0.3, do: "moderate"
-  defp tier_label(_), do: "low"
-
-  defp bump(report, key), do: Map.update!(report, key, &(&1 + 1))
+  @doc false
+  def tier_label(score) when score > 0.5, do: "high"
+  def tier_label(score) when score >= 0.3, do: "moderate"
+  def tier_label(_), do: "low"
 end
