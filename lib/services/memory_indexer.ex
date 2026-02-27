@@ -46,9 +46,15 @@ defmodule Services.MemoryIndexer do
   # --------------------------------------------------------------------------
   # GenServer callbacks
   # --------------------------------------------------------------------------
-  def init(_opts) do
+  def init(opts) do
     {:ok, sup} = Task.Supervisor.start_link()
-    {:ok, %{task: nil, sup: sup}, {:continue, :scan}}
+    auto_scan = Keyword.get(opts, :auto_scan, true)
+
+    if auto_scan do
+      {:ok, %{task: nil, sup: sup}, {:continue, :scan}}
+    else
+      {:ok, %{task: nil, sup: sup}}
+    end
   end
 
   # Scan for the next conversation with unprocessed memories and spawn a

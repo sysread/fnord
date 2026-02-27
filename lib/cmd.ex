@@ -5,8 +5,6 @@ defmodule Cmd do
 
   @callback requires_project?() :: boolean
 
-  def default_workers, do: 12
-
   def perform_command(cmd, opts, subcommands, unknown) do
     cmd.run(opts, subcommands, unknown)
   end
@@ -18,17 +16,6 @@ defmodule Cmd do
       short: "-p",
       help: "Project name; CWD is used to identify an indexed project unless specified.",
       required: false
-    ]
-  end
-
-  def workers_arg do
-    [
-      value_name: "WORKERS",
-      long: "--workers",
-      short: "-w",
-      help: "Limit concurrency (affects parallel OpenAI API requests, file system ops, et al)",
-      parser: :integer,
-      default: default_workers()
     ]
   end
 

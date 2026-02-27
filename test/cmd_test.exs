@@ -16,12 +16,6 @@ defmodule CmdTest do
     end
   end
 
-  describe "default_workers/0" do
-    test "returns default concurrency" do
-      assert Cmd.default_workers() == 12
-    end
-  end
-
   describe "project_arg/0" do
     test "returns the expected option schema" do
       opt = Cmd.project_arg()
@@ -30,18 +24,6 @@ defmodule CmdTest do
       assert Keyword.get(opt, :short) == "-p"
       assert is_binary(Keyword.get(opt, :help))
       assert Keyword.get(opt, :required) == false
-    end
-  end
-
-  describe "workers_arg/0" do
-    test "returns the expected option schema" do
-      opt = Cmd.workers_arg()
-      assert Keyword.get(opt, :value_name) == "WORKERS"
-      assert Keyword.get(opt, :long) == "--workers"
-      assert Keyword.get(opt, :short) == "-w"
-      assert is_binary(Keyword.get(opt, :help))
-      assert Keyword.get(opt, :parser) == :integer
-      assert Keyword.get(opt, :default) == Cmd.default_workers()
     end
   end
 

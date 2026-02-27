@@ -59,8 +59,6 @@ defmodule Fnord.TestCase do
         # NOTE: Services.Globals is started in test_helper.exs
         Services.Globals.install_root()
 
-        Services.Globals.put_env(:fnord, :workers, 1)
-
         # Ensure quiet mode is enabled to prevent interactive prompts during
         # tests.
         Services.Globals.put_env(:fnord, :quiet, true)

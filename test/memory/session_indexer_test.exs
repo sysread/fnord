@@ -26,7 +26,7 @@ defmodule Memory.SessionIndexerTest do
     # idempotently and register a teardown to stop it when the test exits.
     case Process.whereis(Services.MemoryIndexer) do
       nil ->
-        case Services.MemoryIndexer.start_link([]) do
+        case Services.MemoryIndexer.start_link(auto_scan: false) do
           {:ok, _pid} ->
             on_exit(fn ->
               pid = Process.whereis(Services.MemoryIndexer)

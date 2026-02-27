@@ -6,6 +6,15 @@ defmodule Fnord do
 
   @desc "fnord - an AI code archaeologist"
 
+  # HTTP pool sizes are fixed based on the expected concurrency profile of
+  # each subsystem. The API pool handles the coordinator's LLM calls; the
+  # others handle background work that should not compete with the
+  # coordinator for connections.
+  @pool_api 12
+  @pool_indexer 6
+  @pool_memory 6
+  @pool_notes 6
+
   @doc """
   Main entry point for the application. Parses command line arguments and
   dispatches to the appropriate subcommand.
@@ -21,7 +30,7 @@ defmodule Fnord do
     # Parse command line arguments
     with {:ok, [command | subcommands], opts, unknown} <- parse_options(args) do
       # Certain options are common to most, if not all, subcommands, and control
-      # global state (e.g. project, verbosity, number of workers).
+      # global state (e.g. project, verbosity).
       opts = set_globals(opts)
 
       cmd_module = to_module_name(command)
@@ -29,30 +38,10 @@ defmodule Fnord do
       # -------------------------------------------------------------------------
       # HTTP Pools
       # -------------------------------------------------------------------------
-      # Start dedicated pool for background indexer (half workers, at least 1)
-      :hackney_pool.start_pool(:ai_indexer,
-        max_connections:
-          Services.Globals.get_env(:fnord, :workers, Cmd.default_workers())
-          |> div(2)
-          |> max(1)
-      )
-
-      # Start a dedicated pool for memory ingestion (half workers, at least 1)
-      :hackney_pool.start_pool(:ai_memory,
-        max_connections:
-          Services.Globals.get_env(:fnord, :workers, Cmd.default_workers())
-          |> div(2)
-          |> max(1)
-      )
-
-      # Start a dedicated pool for research notes (just 1 worker, since it's
-      # restricted to a single genserver process and not concurrent).
-      :hackney_pool.start_pool(:ai_notes, max_connections: 3)
-
-      # Configure the :hackney_pool to limit the number of concurrent requests.
-      :hackney_pool.start_pool(:ai_api,
-        max_connections: Services.Globals.get_env(:fnord, :workers, Cmd.default_workers())
-      )
+      :hackney_pool.start_pool(:ai_api, max_connections: @pool_api)
+      :hackney_pool.start_pool(:ai_indexer, max_connections: @pool_indexer)
+      :hackney_pool.start_pool(:ai_memory, max_connections: @pool_memory)
+      :hackney_pool.start_pool(:ai_notes, max_connections: @pool_notes)
 
       # Start services that depend on CLI configuration now that it's available.
       # These services depend on settings parsed from CLI arguments in set_globals().
@@ -171,9 +160,6 @@ defmodule Fnord do
   defp set_globals(args) do
     args
     |> Enum.each(fn
-      {:workers, workers} ->
-        Settings.set_workers(workers)
-
       {:quiet, quiet} ->
         Settings.set_quiet(quiet)
 

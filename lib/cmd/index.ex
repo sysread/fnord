@@ -24,7 +24,6 @@ defmodule Cmd.Index do
         about: "Index a project",
         options: [
           project: Cmd.project_arg(),
-          workers: Cmd.workers_arg(),
           directory: [
             value_name: "DIR",
             long: "--dir",
@@ -118,7 +117,6 @@ defmodule Cmd.Index do
 
   def perform_task({:ok, idx}) do
     UI.info("Project", idx.project.name)
-    UI.info("Workers", Services.Globals.get_env(:fnord, :workers) |> to_string())
     UI.info("   Root", idx.project.source_root)
 
     UI.info(
@@ -429,13 +427,9 @@ defmodule Cmd.Index do
       :ok
     else
       UI.spin("Indexing #{count} conversation(s)", fn ->
-        # Split the work into two concurrent partitions and process each
-        # partition using an internal async_stream with the configured
-        # worker concurrency. This gives us two 'tasks' that can each farm
-        # work to several workers, then we await both to completion.
-        workers = Services.Globals.get_env(:fnord, :workers)
-
-        # Partition into four roughly-equal chunks
+        # Split conversations into chunks and process each chunk
+        # concurrently. Util.async_stream defaults to
+        # System.schedulers_online() for concurrency.
         partitions_count = 4
         chunk_size = div(count + partitions_count - 1, partitions_count)
         partitions = Enum.chunk_every(conversations, chunk_size)
@@ -445,9 +439,7 @@ defmodule Cmd.Index do
           |> Enum.map(fn part ->
             Services.Globals.Spawn.async(fn ->
               part
-              |> Util.async_stream(fn convo -> process_conversation(project, convo) end,
-                max_concurrency: workers
-              )
+              |> Util.async_stream(fn convo -> process_conversation(project, convo) end)
               |> Enum.to_list()
             end)
           end)

@@ -15,7 +15,6 @@ defmodule Cmd.Ask do
         about: "Ask the AI a question about the project",
         options: [
           project: Cmd.project_arg(),
-          workers: Cmd.workers_arg(),
           question: [
             value_name: "QUESTION",
             long: "--question",

@@ -69,7 +69,7 @@ defmodule Memory.SessionIndexerE2ETest do
     # Ensure the MemoryIndexer is available in this test.
     case Process.whereis(Services.MemoryIndexer) do
       nil ->
-        case Services.MemoryIndexer.start_link([]) do
+        case Services.MemoryIndexer.start_link(auto_scan: false) do
           {:ok, _} ->
             on_exit(fn ->
               pid = Process.whereis(Services.MemoryIndexer)
