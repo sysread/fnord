@@ -132,10 +132,28 @@ defmodule Memory do
   def list(:project), do: Memory.Project.list()
   def list(:session), do: Memory.Session.list()
 
-  @spec search(binary, non_neg_integer) :: {:ok, list({t, float})} | {:error, term}
-  def search(query, limit) do
+  # List memories restricted to the given scopes. When nil, lists all scopes.
+  @spec list_for_scopes(list(scope) | nil) :: {:ok, list({scope, binary})} | {:error, term}
+  defp list_for_scopes(nil), do: list()
+
+  defp list_for_scopes(scopes) when is_list(scopes) do
+    results =
+      Enum.flat_map(scopes, fn scope ->
+        case list(scope) do
+          {:ok, titles} -> Enum.map(titles, fn title -> {scope, title} end)
+          {:error, _} -> []
+        end
+      end)
+
+    {:ok, results}
+  end
+
+  @spec search(binary, non_neg_integer, keyword()) :: {:ok, list({t, float})} | {:error, term}
+  def search(query, limit, opts \\ []) do
+    scopes = Keyword.get(opts, :scopes)
+
     with {:ok, needle} <- get_needle(query),
-         {:ok, memories} <- list() do
+         {:ok, memories} <- list_for_scopes(scopes) do
       memories
       |> Util.async_stream(fn {scope, title} ->
         case read(scope, title) do

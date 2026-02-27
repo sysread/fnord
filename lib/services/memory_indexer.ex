@@ -47,18 +47,19 @@ defmodule Services.MemoryIndexer do
   # GenServer callbacks
   # --------------------------------------------------------------------------
   def init(_opts) do
-    {:ok, %{task: nil}, {:continue, :scan}}
+    {:ok, sup} = Task.Supervisor.start_link()
+    {:ok, %{task: nil, sup: sup}, {:continue, :scan}}
   end
 
   # Scan for the next conversation with unprocessed memories and spawn a
   # background task to process it. If already busy or nothing found, no-op.
-  def handle_continue(:scan, %{task: nil} = state) do
+  def handle_continue(:scan, %{task: nil, sup: sup} = state) do
     case find_next_conversation() do
       nil ->
         {:noreply, state}
 
       convo ->
-        task = spawn_processing_task(convo)
+        task = spawn_processing_task(sup, convo)
         {:noreply, %{state | task: task}}
     end
   end
@@ -106,6 +107,14 @@ defmodule Services.MemoryIndexer do
 
   def handle_info(_msg, state), do: {:noreply, state}
 
+  # On shutdown, kill any in-flight task so the BEAM can exit promptly.
+  def terminate(_reason, %{task: %Task{pid: pid}}) when is_pid(pid) do
+    Process.exit(pid, :kill)
+    :ok
+  end
+
+  def terminate(_reason, _state), do: :ok
+
   # --------------------------------------------------------------------------
   # Scanning
   # --------------------------------------------------------------------------
@@ -142,8 +151,16 @@ defmodule Services.MemoryIndexer do
   # --------------------------------------------------------------------------
   # Task spawning
   # --------------------------------------------------------------------------
-  defp spawn_processing_task(convo) do
-    Services.Globals.Spawn.async(fn ->
+
+  # Spawn the processing task without linking to the GenServer. We use
+  # Task.Supervisor.async_nolink so the GenServer is not dragged down if
+  # the task crashes, and more importantly, so the BEAM can shut down
+  # cleanly without waiting for in-flight LLM calls to complete.
+  defp spawn_processing_task(sup, convo) do
+    root = Services.Globals.current_root()
+
+    Task.Supervisor.async_nolink(sup, fn ->
+      if root, do: Process.put(:globals_root_pid, root)
       HttpPool.set(:ai_memory)
       do_process_conversation(convo)
     end)

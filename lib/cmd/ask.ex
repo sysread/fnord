@@ -226,6 +226,7 @@ defmodule Cmd.Ask do
       # stop background indexers if still running
       stop_file_indexer(file_indexer_pid)
       stop_conversation_indexer(conversation_indexer_pid)
+      stop_memory_indexer()
 
       Services.BackupFile.offer_cleanup()
 
@@ -333,6 +334,20 @@ defmodule Cmd.Ask do
   defp stop_conversation_indexer(pid) do
     if is_pid(pid) && Process.alive?(pid) do
       Services.ConversationIndexer.stop(pid)
+    end
+  end
+
+  defp stop_memory_indexer do
+    case Process.whereis(Services.MemoryIndexer) do
+      pid when is_pid(pid) ->
+        try do
+          GenServer.stop(pid, :normal, 1_000)
+        catch
+          :exit, _ -> :ok
+        end
+
+      _ ->
+        :ok
     end
   end
 

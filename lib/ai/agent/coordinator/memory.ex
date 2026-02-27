@@ -9,6 +9,7 @@ defmodule AI.Agent.Coordinator.Memory do
 
   @memory_recall_limit 3
   @memory_size_limit 1000
+  @recall_scopes [:global, :project]
 
   @prompt """
   ## Memory
@@ -120,7 +121,7 @@ defmodule AI.Agent.Coordinator.Memory do
 
     state
     |> build_recall_query()
-    |> Memory.search(@memory_recall_limit)
+    |> search_long_term_memories()
     |> maybe_inject_memories(state)
   end
 
@@ -128,6 +129,14 @@ defmodule AI.Agent.Coordinator.Memory do
     intuition = state |> Map.get(:intuition, "") |> String.trim()
     question = state |> Map.get(:question, "") |> String.trim()
     Enum.join([intuition, question], "\n")
+  end
+
+  # Only search global and project scopes. Session memories from the current
+  # conversation are already in context (they were tool call messages), and
+  # session memories from other conversations are the indexer's concern, not
+  # the coordinator's.
+  defp search_long_term_memories(query) do
+    Memory.search(query, @memory_recall_limit, scopes: @recall_scopes)
   end
 
   defp maybe_inject_memories({:ok, []}, _state), do: :ok
