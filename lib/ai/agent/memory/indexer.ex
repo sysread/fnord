@@ -23,8 +23,8 @@ defmodule AI.Agent.Memory.Indexer do
   You are the Memory Indexer. You will be given a JSON payload describing a
   short conversation summary and a list of session-scoped memories. For each
   session memory the payload includes two candidate lists:
-    - project_candidates: long-term (project/global) memory candidates with content and metadata
-    - session_candidates: corroborating session-level memories from other conversations, with provenance
+    - global_candidates: existing global-scope long-term memories with content and similarity scores
+    - project_candidates: existing project-scope long-term memories with content and similarity scores
 
   Your job is to decide for each session memory whether to: add a new long-term memory,
   replace/update an existing long-term memory, delete an existing long-term memory, or ignore it.

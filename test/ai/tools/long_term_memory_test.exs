@@ -31,14 +31,14 @@ defmodule AI.Tools.LongTermMemoryTest do
       "action" => "update",
       "scope" => "project",
       "title" => "Update Test",
-      "new_content" => " more"
+      "content" => "replaced content"
     }
 
     assert {:ok, resp} = LongTermMemory.call(args)
     assert String.contains?(resp, "Title: Update Test")
 
     assert {:ok, mem2} = Memory.read(:project, "Update Test")
-    assert String.contains?(mem2.content, "first more")
+    assert mem2.content == "replaced content"
   end
 
   test "forget removes a memory" do

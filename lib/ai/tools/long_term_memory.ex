@@ -1,17 +1,12 @@
 defmodule AI.Tools.LongTermMemory do
   @moduledoc """
-  Minimal long-term memory tool stub. The full implementation was removed
-  temporarily to avoid causing dialyzer issues while we iterate on the
-  session-indexer and related changes. This module preserves the tool spec
-  and a conservative, synchronous API surface for use by the ingest/indexer
-  agents. It should be expanded with full behavior and tests in a follow-up
-  change.
+  Long-term memory tool for project and global scopes. Used internally by
+  the MemoryIndexer service to persist, update, recall, and delete memories
+  that have been promoted from session scope. Not exposed in the
+  coordinator's toolbox -- only the background indexer pipeline calls this.
   """
 
   @behaviour AI.Tools
-
-  @dialyzer {:nowarn_function,
-             [recall_project_global: 3, recall_session_conversations: 3, do_recall: 1]}
 
   @impl AI.Tools
   def async?, do: true
@@ -55,7 +50,7 @@ defmodule AI.Tools.LongTermMemory do
         parameters: %{
           type: "object",
           additionalProperties: false,
-          required: ["action", "scope"],
+          required: ["action"],
           properties: %{
             "action" => %{
               "type" => "string",
@@ -195,22 +190,31 @@ defmodule AI.Tools.LongTermMemory do
   def call(%{"action" => "update"} = args) do
     with {:ok, scope} <- Map.fetch(args, "scope"),
          {:ok, title} <- Map.fetch(args, "title"),
-         {:ok, new_content} <- Map.fetch(args, "new_content"),
+         {:ok, new_content} <- Map.fetch(args, "content"),
          {:ok, scope_atom} <- parse_scope(scope),
          {:ok, mem} <- Memory.read(scope_atom, title) do
-      mem
-      |> Memory.append(new_content)
+      # Replace content entirely rather than appending. The indexer agent
+      # provides the complete corrected content for "replace" actions, so
+      # appending would preserve stale information alongside the correction.
+      updated = %{
+        mem
+        | content: new_content,
+          embeddings: nil,
+          updated_at: DateTime.utc_now() |> DateTime.to_iso8601()
+      }
+
+      updated
       |> Memory.save()
       |> case do
-        {:ok, updated} ->
+        {:ok, saved} ->
           maybe_log(:update, scope_atom, title, new_content)
-          {:ok, format_mem_response(updated)}
+          {:ok, format_mem_response(saved)}
 
         {:error, reason} ->
           {:error, inspect(reason)}
       end
     else
-      :error -> {:error, "Missing required fields 'scope', 'title', or 'new_content'"}
+      :error -> {:error, "Missing required fields 'scope', 'title', or 'content'"}
       {:error, :not_found} -> {:error, "not_found"}
       {:error, reason} -> {:error, inspect(reason)}
     end
@@ -259,11 +263,14 @@ defmodule AI.Tools.LongTermMemory do
   end
 
   defp to_existing_status_atom(_), do: nil
-  # Recall project + global memories using embeddings when available.
+
+  # Recall project and/or global memories using embeddings. When opts
+  # includes :scope_filter, only the specified scope is searched. Without
+  # it, both scopes are searched together.
   @spec recall_project_global(binary, non_neg_integer, map) :: {:ok, list(map)} | {:error, atom}
   defp recall_project_global(query, limit, opts) do
-    opts = if is_map(opts), do: opts, else: %{}
     status_filter = Map.get(opts, :status_filter)
+    scope_filter = Map.get(opts, :scope_filter)
 
     provenance_only =
       case Map.get(opts, :provenance_only) do
@@ -272,12 +279,23 @@ defmodule AI.Tools.LongTermMemory do
       end
 
     with {:ok, needle} <- Indexer.impl().get_embeddings(query) do
-      {:ok, global} = Memory.Global.list()
-      {:ok, project} = Memory.Project.list()
+      global_candidates =
+        if scope_filter in [nil, :global] do
+          {:ok, titles} = Memory.Global.list()
+          Enum.map(titles, fn title -> {:global, title} end)
+        else
+          []
+        end
 
-      candidates =
-        Enum.map(global, fn title -> {:global, title} end) ++
-          Enum.map(project, fn title -> {:project, title} end)
+      project_candidates =
+        if scope_filter in [nil, :project] do
+          {:ok, titles} = Memory.Project.list()
+          Enum.map(titles, fn title -> {:project, title} end)
+        else
+          []
+        end
+
+      candidates = global_candidates ++ project_candidates
 
       results =
         candidates
@@ -368,7 +386,6 @@ defmodule AI.Tools.LongTermMemory do
   @spec recall_session_conversations(binary, non_neg_integer, map) ::
           {:ok, list(map)} | {:error, atom}
   defp recall_session_conversations(query, limit, opts) do
-    opts = if is_map(opts), do: opts, else: %{}
     status_filter = Map.get(opts, :status_filter)
 
     provenance_only =
@@ -409,11 +426,14 @@ defmodule AI.Tools.LongTermMemory do
                 {mem, AI.Util.cosine_similarity(needle, emb)}
             end
 
-          status_filter_list = List.wrap(status_filter)
+          status_filter_atoms =
+            status_filter
+            |> List.wrap()
+            |> Enum.map(&to_existing_status_atom/1)
+            |> Enum.reject(&is_nil/1)
 
           status_ok? =
-            status_filter_list == [] or
-              (is_atom(mem.index_status) and mem.index_status in status_filter_list)
+            status_filter_atoms == [] or mem.index_status in status_filter_atoms
 
           if status_ok? do
             if provenance_only do
@@ -505,10 +525,21 @@ defmodule AI.Tools.LongTermMemory do
         _ -> false
       end
 
+    # Optional scope filter: restrict recall to a single scope when the
+    # caller wants separate global and project result sets (e.g. the
+    # MemoryIndexer fetches 5 global + 5 project candidates independently).
+    scope_filter =
+      case Map.get(args, "scope") do
+        "global" -> :global
+        "project" -> :project
+        _ -> nil
+      end
+
     with {:ok, results} <-
            recall_project_global(query, limit, %{
              status_filter: status_filter,
-             provenance_only: provenance_only
+             provenance_only: provenance_only,
+             scope_filter: scope_filter
            }) do
       {:ok, results}
     else

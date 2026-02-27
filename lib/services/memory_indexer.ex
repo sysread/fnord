@@ -65,10 +65,22 @@ defmodule Services.MemoryIndexer do
     spawn_workers(state)
   end
 
-  def handle_call({:process_sync, convo}, _from, state) do
-    HttpPool.set(:ai_memory)
-    res = do_process_conversation(convo)
-    {:reply, res, state}
+  # Compile-time environment gate. process_sync blocks the GenServer for the
+  # entire LLM round-trip, which is fine for deterministic test execution but
+  # would deadlock the worker pool in production. Rather than trusting callers
+  # to know this, we simply don't compile the working implementation outside
+  # of test. Yes, this is a compile-time conditional in application code. We
+  # are not proud, but we are correct.
+  if Mix.env() == :test do
+    def handle_call({:process_sync, convo}, _from, state) do
+      HttpPool.set(:ai_memory)
+      res = do_process_conversation(convo)
+      {:reply, res, state}
+    end
+  else
+    def handle_call({:process_sync, _convo}, _from, _state) do
+      raise "process_sync is only available in the test environment"
+    end
   end
 
   def handle_call(:status, _from, state) do
@@ -162,29 +174,30 @@ defmodule Services.MemoryIndexer do
             :ok
           else
             # For each session memory, gather recall candidates from long-term
-            # storage (project/global) and from other session conversations. We
-            # include these candidate lists in the payload so the LLM indexer
-            # can reason with provenance without needing to call tools.
+            # storage. We retrieve up to 5 from each of global and project
+            # scopes separately, giving the indexer agent visibility into
+            # existing long-term memories for merge/dedup/correction decisions.
             memories_with_candidates =
               Enum.map(session_mems, fn m ->
-                project_candidates =
+                global_candidates =
                   case AI.Tools.LongTermMemory.call(%{
                          "action" => "recall",
                          "query" => m.content,
                          "search_type" => "project_global",
-                         "limit" => 5
+                         "limit" => 5,
+                         "scope" => "global"
                        }) do
                     {:ok, res} -> res
                     {:error, _} -> []
                   end
 
-                session_candidates =
+                project_candidates =
                   case AI.Tools.LongTermMemory.call(%{
                          "action" => "recall",
                          "query" => m.content,
-                         "search_type" => "session_conversations",
+                         "search_type" => "project_global",
                          "limit" => 5,
-                         "provenance_only" => true
+                         "scope" => "project"
                        }) do
                     {:ok, res} -> res
                     {:error, _} -> []
@@ -194,8 +207,8 @@ defmodule Services.MemoryIndexer do
                   title: m.title,
                   content: m.content,
                   topics: m.topics,
-                  project_candidates: project_candidates,
-                  session_candidates: session_candidates
+                  global_candidates: global_candidates,
+                  project_candidates: project_candidates
                 }
               end)
 
@@ -390,7 +403,7 @@ defmodule Services.MemoryIndexer do
     case result do
       {:ok, _} ->
         # Verify the memory exists in the target scope; best-effort check for tests
-        read_result = Memory.read(String.to_atom(scope), title)
+        read_result = Memory.read(String.to_existing_atom(scope), title)
 
         case read_result do
           {:ok, _mem} ->
@@ -418,7 +431,7 @@ defmodule Services.MemoryIndexer do
     result =
       AI.Tools.perform_tool_call(
         "long_term_memory_tool",
-        %{"action" => "update", "scope" => scope, "title" => title, "new_content" => content},
+        %{"action" => "update", "scope" => scope, "title" => title, "content" => content},
         %{"long_term_memory_tool" => AI.Tools.LongTermMemory}
       )
 
