@@ -180,21 +180,6 @@ defmodule Services.ConversationIndexer do
                 label = get_label(convo)
                 UI.end_step_background("Indexed", "<chat> " <> label)
 
-                # After indexing messages, enqueue the conversation for session
-                # memory analysis (best-effort). Delegates to the Services
-                # MemoryIndexer which handles queueing and background workers.
-                try do
-                  Services.MemoryIndexer.enqueue(convo)
-                rescue
-                  e ->
-                    UI.debug(
-                      "conversation_indexer",
-                      "MemoryIndexer enqueue failed: #{Exception.message(e)}"
-                    )
-
-                    :ok
-                end
-
               _ ->
                 :ok
             end

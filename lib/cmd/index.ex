@@ -475,19 +475,6 @@ defmodule Cmd.Index do
                "message_count" => length(data.messages)
              })
            ) do
-      # After writing the conversation embeddings to the index, also run
-      # the session memory analyzer so that any session-scoped memories in
-      # this conversation can be evaluated and (if needed) consolidated into
-      # long-term memory. Do this in a best-effort manner so indexing itself
-      # is not prevented by memory analysis failures.
-      try do
-        Services.MemoryIndexer.enqueue(convo)
-      rescue
-        e ->
-          UI.debug("index", "MemoryIndexer enqueue failed: #{Exception.message(e)}")
-          :ok
-      end
-
       :ok
     else
       {:error, reason} ->

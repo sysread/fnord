@@ -159,8 +159,12 @@ defmodule Cmd.Ask do
 
     # Start silent background indexers. This must happen BEFORE any project
     # root override is applied, so that the indexers use the correct root.
+    # MemoryIndexer and ConversationIndexer are independent: the memory
+    # indexer self-scans for unprocessed session memories rather than relying
+    # on the conversation indexer to feed it work.
     file_indexer_pid = start_file_indexer()
     conversation_indexer_pid = start_conversation_indexer()
+    start_memory_indexer()
 
     start_time = System.monotonic_time(:second)
 
@@ -298,19 +302,15 @@ defmodule Cmd.Ask do
   end
 
   defp start_conversation_indexer() do
-    # Start ConversationIndexer for the lifetime of the command. We must
-    # ensure the MemoryIndexer is available before any conversation processing
-    # begins because the ConversationIndexer enqueues conversations to the
-    # MemoryIndexer (session -> long-term memory analysis). Start the
-    # MemoryIndexer first (idempotently and best-effort), then start the
-    # ConversationIndexer itself. We intentionally do not fail if either
-    # service cannot be started; the Ask command will continue but memory
-    # analysis may not run.
+    case Services.ConversationIndexer.start_link() do
+      {:ok, pid} -> pid
+      _ -> nil
+    end
+  end
 
-    # Ensure MemoryIndexer is available (idempotent)
+  defp start_memory_indexer() do
     case Process.whereis(Services.MemoryIndexer) do
       nil ->
-        # Start it best-effort; swallow errors so Ask remains robust.
         try do
           Services.MemoryIndexer.start_link([])
         rescue
@@ -321,12 +321,6 @@ defmodule Cmd.Ask do
 
       _ ->
         :ok
-    end
-
-    # Now start the ConversationIndexer for the command lifetime.
-    case Services.ConversationIndexer.start_link() do
-      {:ok, pid} -> pid
-      _ -> nil
     end
   end
 

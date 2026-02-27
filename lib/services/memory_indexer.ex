@@ -1,22 +1,24 @@
 defmodule Services.MemoryIndexer do
   @moduledoc """
-  GenServer wrapper for analyzing session memories and applying long-term
-  memory actions. This service provides a queue and a small worker pool to
-  process conversations concurrently.
+  Background service that promotes session-scoped memories to long-term
+  (project/global) storage. Independently scans conversations for
+  unprocessed session memories, processes one conversation at a time via
+  the Memory.Indexer agent, and applies the resulting actions.
+
+  The service is self-driven: on startup it begins scanning for work. After
+  processing a conversation, it scans again. When no unprocessed memories
+  remain, it goes idle. External callers can nudge it via `scan/0` if they
+  know new work is available (e.g. after saving a conversation).
 
   Public API:
   - start_link/1
-  - enqueue(conversation)
-  - process_sync(conversation)
-  - status()
-
-  It is intentionally conservative: processing is performed in tasks and
-  failures are isolated so that a bad conversation does not stop the system.
+  - scan/0         -- nudge the service to look for work
+  - process_sync/1 -- test-only synchronous processing
+  - status/0
   """
 
   use GenServer
 
-  @default_workers 4
   @lt_memory_tool %{"long_term_memory_tool" => AI.Tools.LongTermMemory}
 
   # --------------------------------------------------------------------------
@@ -26,9 +28,9 @@ defmodule Services.MemoryIndexer do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
-  @doc "Enqueue a conversation for background analysis"
-  def enqueue(convo) do
-    GenServer.cast(__MODULE__, {:enqueue, convo})
+  @doc "Nudge the service to scan for unprocessed conversations"
+  def scan do
+    GenServer.cast(__MODULE__, :scan)
   end
 
   @doc "Process a conversation synchronously; returns :ok | {:error, term()}"
@@ -36,38 +38,45 @@ defmodule Services.MemoryIndexer do
     GenServer.call(__MODULE__, {:process_sync, convo}, :infinity)
   end
 
-  @doc "Get status about queue length and in-flight tasks"
-  def status() do
+  @doc "Get status: whether a task is currently running"
+  def status do
     GenServer.call(__MODULE__, :status)
   end
 
   # --------------------------------------------------------------------------
   # GenServer callbacks
   # --------------------------------------------------------------------------
-  def init(opts) do
-    workers =
-      Keyword.get(opts, :workers, Services.Globals.get_env(:fnord, :workers, @default_workers))
-
-    {:ok, sup} = Task.Supervisor.start_link(name: Services.MemoryIndexer.Supervisor)
-
-    {:ok, %{queue: :queue.new(), workers: workers, running: %{}, sup: sup}}
+  def init(_opts) do
+    {:ok, %{task: nil}, {:continue, :scan}}
   end
 
-  def handle_cast({:enqueue, convo}, state) do
-    new_queue = :queue.in(convo, state.queue)
-    {:noreply, %{state | queue: new_queue}, {:continue, :drain}}
+  # Scan for the next conversation with unprocessed memories and spawn a
+  # background task to process it. If already busy or nothing found, no-op.
+  def handle_continue(:scan, %{task: nil} = state) do
+    case find_next_conversation() do
+      nil ->
+        {:noreply, state}
+
+      convo ->
+        task = spawn_processing_task(convo)
+        {:noreply, %{state | task: task}}
+    end
   end
 
-  def handle_continue(:drain, state) do
-    spawn_workers(state)
+  def handle_continue(:scan, state), do: {:noreply, state}
+
+  def handle_cast(:scan, %{task: nil} = state) do
+    {:noreply, state, {:continue, :scan}}
   end
+
+  def handle_cast(:scan, state), do: {:noreply, state}
 
   # Compile-time environment gate. process_sync blocks the GenServer for the
   # entire LLM round-trip, which is fine for deterministic test execution but
-  # would deadlock the worker pool in production. Rather than trusting callers
-  # to know this, we simply don't compile the working implementation outside
-  # of test. Yes, this is a compile-time conditional in application code. We
-  # are not proud, but we are correct.
+  # would deadlock in production. Rather than trusting callers to know this,
+  # we simply don't compile the working implementation outside of test. Yes,
+  # this is a compile-time conditional in application code. We are not proud,
+  # but we are correct.
   if Mix.env() == :test do
     def handle_call({:process_sync, convo}, _from, state) do
       HttpPool.set(:ai_memory)
@@ -81,63 +90,63 @@ defmodule Services.MemoryIndexer do
   end
 
   def handle_call(:status, _from, state) do
-    {:reply, %{queue_len: :queue.len(state.queue), running: map_size(state.running)}, state}
+    {:reply, %{busy: state.task != nil}, state}
   end
 
-  # Task completion: clean up the running map and drain more work.
-  def handle_info({ref, _result}, state) when is_reference(ref) do
-    case Map.pop(state.running, ref) do
-      {nil, _} -> {:noreply, state}
-      {_entry, running2} -> spawn_workers(%{state | running: running2})
+  # Task completed: clear state and scan for more work.
+  def handle_info({ref, _result}, %{task: %Task{ref: ref}} = state) do
+    Process.demonitor(ref, [:flush])
+    {:noreply, %{state | task: nil}, {:continue, :scan}}
+  end
+
+  # Task crashed: clear state and scan for more work.
+  def handle_info({:DOWN, _ref, :process, _pid, _reason}, state) do
+    {:noreply, %{state | task: nil}, {:continue, :scan}}
+  end
+
+  def handle_info(_msg, state), do: {:noreply, state}
+
+  # --------------------------------------------------------------------------
+  # Scanning
+  # --------------------------------------------------------------------------
+
+  # Walk conversations oldest-first, return the first that has unprocessed
+  # session memories. Skips the currently active conversation.
+  defp find_next_conversation do
+    with {:ok, project} <- Store.get_project() do
+      current_id = current_conversation_id()
+
+      project
+      |> Store.Project.Conversation.list()
+      |> Enum.reject(fn convo -> convo.id == current_id end)
+      |> Enum.find(&has_unprocessed_memories?/1)
+    else
+      _ -> nil
     end
   end
 
-  # Task crash: find by pid, remove from running, drain more work.
-  def handle_info({:DOWN, _monitor_ref, :process, pid, _reason}, state) do
-    case Enum.find(state.running, fn {_ref, {p, _convo}} -> p == pid end) do
-      nil ->
-        {:noreply, state}
+  defp current_conversation_id do
+    case Services.Globals.get_env(:fnord, :current_conversation, nil) do
+      nil -> nil
+      pid -> Services.Conversation.get_id(pid)
+    end
+  end
 
-      {ref, _} ->
-        {_entry, running2} = Map.pop(state.running, ref)
-        spawn_workers(%{state | running: running2})
+  defp has_unprocessed_memories?(convo) do
+    case Store.Project.Conversation.read(convo) do
+      {:ok, data} -> find_unprocessed_memories(data) != []
+      _ -> false
     end
   end
 
   # --------------------------------------------------------------------------
-  # Worker pool
+  # Task spawning
   # --------------------------------------------------------------------------
-  defp spawn_workers(state) do
-    available = max(state.workers - map_size(state.running), 0)
-    {to_start, q} = dequeue_n(state.queue, available)
-
-    new_running =
-      Enum.reduce(to_start, state.running, fn convo, acc ->
-        task =
-          Services.Globals.Spawn.async(fn ->
-            HttpPool.set(:ai_memory)
-            do_process_conversation(convo)
-          end)
-
-        Map.put(acc, task.ref, {task.pid, convo})
-      end)
-
-    {:noreply, %{state | queue: q, running: new_running}}
-  end
-
-  defp dequeue_n(queue, 0), do: {[], queue}
-
-  defp dequeue_n(queue, n) when n > 0 do
-    do_dequeue_n(queue, n, [])
-  end
-
-  defp do_dequeue_n(queue, 0, acc), do: {Enum.reverse(acc), queue}
-
-  defp do_dequeue_n(queue, n, acc) do
-    case :queue.out(queue) do
-      {:empty, q} -> {Enum.reverse(acc), q}
-      {{:value, v}, q2} -> do_dequeue_n(q2, n - 1, [v | acc])
-    end
+  defp spawn_processing_task(convo) do
+    Services.Globals.Spawn.async(fn ->
+      HttpPool.set(:ai_memory)
+      do_process_conversation(convo)
+    end)
   end
 
   # --------------------------------------------------------------------------
@@ -161,9 +170,7 @@ defmodule Services.MemoryIndexer do
          :ok <- validate_indexer_response(decoded) do
       apply_actions_and_mark(conversation, decoded)
     else
-      # No unprocessed memories -- nothing to do.
       [] -> :ok
-      # Conversation unreadable or other non-critical failure.
       _ -> :ok
     end
   rescue
