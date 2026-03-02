@@ -64,46 +64,26 @@ defmodule Services.MCP do
 
   # Robustly list tools for a server, supporting both Hermes.Base and stubbed return shapes.
   defp safe_list_tools(server) do
-    instance = MCPSup.instance_name(server)
+    client = MCPSup.instance_name(server)
 
-    # Check if the process exists and is alive
-    case Process.whereis(instance) do
+    # Check if the Base GenServer is registered and alive
+    case Process.whereis(client) do
       nil ->
         {:error, :not_started}
 
       pid when is_pid(pid) ->
         if Process.alive?(pid) do
-          # Process is alive, attempt to discover tools via the client module
-          # Note: Tools may not be available immediately after handshake
           try do
             # Give the server a moment to complete initialization and handshake
             :timer.sleep(1000)
 
-            # The instance is a supervisor, we need to find the client process
-            # Use a safe call that handles exits
-            case safe_supervisor_call(instance) do
-              {:ok, children} ->
-                # Find the Hermes.Client.Base child process
-                case List.keyfind(children, Hermes.Client.Base, 0) do
-                  {Hermes.Client.Base, client_pid, _, _} when is_pid(client_pid) ->
-                    result = Hermes.Client.Base.list_tools(client_pid)
-
-                    case result do
-                      {:ok, %Hermes.MCP.Response{result: %{"tools" => tools}}} -> {:ok, tools}
-                      {:ok, _response} -> {:ok, []}
-                      {:error, reason} -> {:error, reason}
-                    end
-
-                  _ ->
-                    {:error, :client_not_found}
-                end
-
-              {:error, reason} ->
-                {:error, reason}
+            case Hermes.Client.Base.list_tools(client) do
+              {:ok, %Hermes.MCP.Response{result: %{"tools" => tools}}} -> {:ok, tools}
+              {:ok, _response} -> {:ok, []}
+              {:error, reason} -> {:error, reason}
             end
           rescue
             error ->
-              # Tools discovery failed, likely due to timing or client not ready
               {:error, {:rescue, error}}
           catch
             :exit, reason ->
@@ -115,14 +95,6 @@ defmodule Services.MCP do
     end
   end
 
-  defp safe_supervisor_call(instance) do
-    try do
-      children = Supervisor.which_children(instance)
-      {:ok, children}
-    catch
-      :exit, reason -> {:error, {:supervisor_call_failed, reason}}
-    end
-  end
 
   @spec test(keyword()) :: map()
   def test(opts \\ []) do
@@ -299,32 +271,18 @@ defmodule Services.MCP do
 
   # Retrieve server capabilities
   defp safe_get_capabilities(server) do
-    instance = MCPSup.instance_name(server)
+    client = MCPSup.instance_name(server)
 
-    case Process.whereis(instance) do
+    case Process.whereis(client) do
       nil ->
         {:error, :not_started}
 
       pid when is_pid(pid) ->
         if Process.alive?(pid) do
-          # Try to get capabilities from the client state
           try do
-            case safe_supervisor_call(instance) do
-              {:ok, children} ->
-                case List.keyfind(children, Hermes.Client.Base, 0) do
-                  {Hermes.Client.Base, client_pid, _, _} when is_pid(client_pid) ->
-                    # Try to get server capabilities from the client
-                    case Hermes.Client.Base.get_server_capabilities(client_pid) do
-                      caps when is_map(caps) -> {:ok, caps}
-                      nil -> {:ok, %{}}
-                    end
-
-                  _ ->
-                    {:ok, %{}}
-                end
-
-              {:error, _} ->
-                {:ok, %{}}
+            case Hermes.Client.Base.get_server_capabilities(client) do
+              caps when is_map(caps) -> {:ok, caps}
+              nil -> {:ok, %{}}
             end
           rescue
             _ ->

@@ -18,7 +18,15 @@ defmodule MCP.Supervisor do
     children =
       Enum.map(servers, fn {server, scfg} ->
         {kind, t_opts} = Transport.map(server, scfg)
-        spec_opts = [name: instance_name(server), transport: {kind, t_opts}]
+        # :name registers the Hermes supervisor process; :client_name registers
+        # the inner Base GenServer. These MUST be different atoms because the
+        # supervisor holds its name while starting children — if Base tries to
+        # register the same name, it collides with its own supervisor.
+        spec_opts = [
+          name: supervisor_name(server),
+          client_name: instance_name(server),
+          transport: {kind, t_opts}
+        ]
 
         # Use :temporary restart to prevent infinite retry loops
         # Failed MCP servers will be logged but won't crash the app
@@ -34,4 +42,7 @@ defmodule MCP.Supervisor do
 
   @spec instance_name(String.t()) :: atom()
   def instance_name(server), do: String.to_atom("mcp:" <> server)
+
+  @spec supervisor_name(String.t()) :: atom()
+  def supervisor_name(server), do: String.to_atom("mcp:sup:" <> server)
 end
