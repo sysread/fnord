@@ -74,7 +74,15 @@ defmodule Memory.Project do
       lockfile = Path.join(storage_path(project), ".alloc.lock")
 
       case FileLock.with_lock(lockfile, fn ->
-             {:ok, path} = allocate_unique_path_for_title(title, project)
+             # If a file with this title already exists, overwrite it in place.
+             # Only allocate a new unique path for genuinely new memories (which
+             # handles slug collisions from different titles).
+             {:ok, path} =
+               case find_file_path_by_title(title, project) do
+                 {:ok, existing_path} -> {:ok, existing_path}
+                 {:error, :not_found} -> allocate_unique_path_for_title(title, project)
+               end
+
              write_file(path, json)
            end) do
         {:ok, {:ok, :ok}} -> :ok

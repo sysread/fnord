@@ -95,7 +95,6 @@ defmodule Services.MCP do
     end
   end
 
-
   @spec test(keyword()) :: map()
   def test(opts \\ []) do
     settings = Settings.new()
