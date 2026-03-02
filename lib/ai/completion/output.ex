@@ -46,33 +46,44 @@ defmodule AI.Completion.Output do
     end
   end
 
+  # Log a tool call error. The reason is always emitted at debug level. The
+  # raw args JSON is only dumped to stderr when FNORD_DEBUG_TOOL_CALLS is set,
+  # bypassing Logger entirely so large payloads aren't truncated.
   def log_tool_call_error(state, tool, args_json, reason) do
-    pretty_args =
-      cond do
-        is_binary(args_json) ->
-          case SafeJson.decode(args_json) do
-            {:ok, decoded} ->
-              case SafeJson.encode(decoded, pretty: true) do
-                {:ok, json} -> json
-                _ -> inspect(decoded, pretty: true)
-              end
-
-            _ ->
-              args_json
-          end
-
-        true ->
-          inspect(args_json, pretty: true)
-      end
-
     name = state.name || "Assistant"
 
     UI.debug(name, """
-    Tool call failed:
-    #{tool} :: #{pretty_args}
-
+    Tool call failed: #{tool}
     #{reason}
     """)
+
+    maybe_dump_tool_call_args(tool, args_json)
+  end
+
+  # When FNORD_DEBUG_TOOL_CALLS is set, pretty-print the full args JSON to
+  # stderr, bypassing Logger and the formatter so nothing gets truncated.
+  defp maybe_dump_tool_call_args(tool, args_json) do
+    if System.get_env("FNORD_DEBUG_TOOL_CALLS") do
+      pretty =
+        with true <- is_binary(args_json),
+             {:ok, decoded} <- SafeJson.decode(args_json),
+             {:ok, json} <- SafeJson.encode(decoded, pretty: true) do
+          json
+        else
+          _ when is_binary(args_json) -> args_json
+          _ -> inspect(args_json, pretty: true)
+        end
+
+      border = "# " <> String.duplicate("-", 77)
+
+      IO.puts(:stderr, """
+      #{border}
+      # Tool call args (#{tool})
+      #{border}
+      #{pretty}
+      #{border}
+      """)
+    end
   end
 
   # -----------------------------------------------------------------------------

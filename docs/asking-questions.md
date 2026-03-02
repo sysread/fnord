@@ -182,6 +182,18 @@ This shows:
 LOGGER_LEVEL=debug fnord ask -p myproject -q "..." > answer.md
 ```
 
+### Debugging Tool Call Errors
+
+When a tool call fails, fnord logs a concise error at debug level.
+To see the full, untruncated arguments the LLM passed to the tool, set `FNORD_DEBUG_TOOL_CALLS`:
+
+```bash
+FNORD_DEBUG_TOOL_CALLS=1 LOGGER_LEVEL=debug fnord ask -p myproject -q "your question"
+```
+
+This dumps the raw JSON args directly to stderr, bypassing the logger so nothing gets truncated.
+Useful when the LLM sends malformed or unexpectedly large arguments.
+
 ### Understanding Tool Calls
 
 During research, fnord may use:
