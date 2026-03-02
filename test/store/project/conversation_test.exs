@@ -126,7 +126,7 @@ defmodule Store.Project.ConversationTest do
     }
 
     timestamp = 42
-    File.write!(convo.store_path, "#{timestamp}:" <> Jason.encode!(legacy_data))
+    File.write!(convo.store_path, "#{timestamp}:" <> SafeJson.encode!(legacy_data))
 
     assert {:ok, %{tasks: tasks_map}} = Conversation.read(convo)
     assert Map.has_key?(tasks_map, "123")
@@ -154,7 +154,7 @@ defmodule Store.Project.ConversationTest do
     }
 
     timestamp = 123
-    File.write!(convo.store_path, "#{timestamp}:" <> Jason.encode!(new_data))
+    File.write!(convo.store_path, "#{timestamp}:" <> SafeJson.encode!(new_data))
 
     assert {:ok, %{tasks: tasks_map}} = Conversation.read(convo)
     # Expect list key preserved and description loaded

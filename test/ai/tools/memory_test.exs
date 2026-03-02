@@ -48,7 +48,7 @@ defmodule AI.Tools.MemoryTest do
             "content" => "Some content"
           }
         ]
-        |> Jason.encode!()
+        |> SafeJson.encode!()
 
       assert Memory.ui_note_on_result(%{"action" => "recall"}, result) == nil
     end

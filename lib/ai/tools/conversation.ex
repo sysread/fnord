@@ -24,7 +24,7 @@ defmodule AI.Tools.Conversation do
 
     titles =
       result
-      |> Jason.decode!()
+      |> SafeJson.decode!()
       |> Enum.map(fn %{"conversation_id" => id, "title" => title} ->
         title =
           if String.contains?(title, "\n") do

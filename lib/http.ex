@@ -36,7 +36,7 @@ defmodule Http do
   """
   @spec post_json(url, headers, payload) :: post_response
   def post_json(url, headers, payload) do
-    with {:ok, body} <- Jason.encode(payload) do
+    with {:ok, body} <- SafeJson.encode(payload) do
       do_post_json(url, headers, body, 1)
     else
       {:error, msg} ->
@@ -165,7 +165,7 @@ defmodule Http do
 
     case result do
       {:ok, %HTTPoison.Response{status_code: 200, body: json, headers: headers}} ->
-        case Jason.decode(json) do
+        case SafeJson.decode(json) do
           {:ok, decoded} ->
             {:ok, %{body: decoded, headers: headers, status: 200}}
 
@@ -224,7 +224,7 @@ defmodule Http do
 
     case result do
       {:ok, %HTTPoison.Response{status_code: 200, body: json, headers: headers}} ->
-        case Jason.decode(json) do
+        case SafeJson.decode(json) do
           {:ok, decoded} ->
             {:ok, %{body: decoded, headers: headers, status: 200}}
 

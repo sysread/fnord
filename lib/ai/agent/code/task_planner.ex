@@ -280,7 +280,7 @@ defmodule AI.Agent.Code.TaskPlanner do
       # No upstream errors
       # No upstream errors
       %{error: nil, response: response} ->
-        case Jason.decode(response, keys: :atoms) do
+        case SafeJson.decode(response, keys: :atoms) do
           {:error, reason} ->
             UI.report_from(
               state.agent.name,

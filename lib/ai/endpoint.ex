@@ -94,7 +94,7 @@ defmodule AI.Endpoint do
   end
 
   defp throttling_error?(body) when is_binary(body) do
-    case Jason.decode(body) do
+    case SafeJson.decode(body) do
       {:ok, %{"error" => %{"code" => code}}} when code in ["rate_limit_exceeded", "rate_limit"] ->
         true
 

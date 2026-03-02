@@ -206,7 +206,7 @@ defmodule Store.Project.Conversation do
       end)
 
     # Encode and write JSON with timestamp prefix
-    with {:ok, json} <- Jason.encode(normalized),
+    with {:ok, json} <- SafeJson.encode(normalized),
          :ok <- File.write(conversation.store_path, "#{timestamp}:" <> json) do
       {:ok, conversation}
     end
@@ -221,7 +221,7 @@ defmodule Store.Project.Conversation do
     with {:ok, contents} <- File.read(conversation.store_path),
          [timestamp_str, json] <- String.split(contents, ":", parts: 2),
          {:ok, timestamp} <- unmarshal_ts(timestamp_str),
-         {:ok, data} <- Jason.decode(json) do
+         {:ok, data} <- SafeJson.decode(json) do
       # If persisted tasks use legacy shapes, heal and re-save the file so callers get canonical shape
       Store.Project.Conversation.TaskListStatusMigration.heal_and_maybe_write(
         data,

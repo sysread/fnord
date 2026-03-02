@@ -52,7 +52,7 @@ defmodule Store.Project.Entry.EmbeddingsTest do
 
   test "read/1 reads the file contents", %{entry_path: entry_path} do
     store_path = Path.join(entry_path, "embeddings.json")
-    File.write!(store_path, Jason.encode!(%{"test" => "data"}))
+    File.write!(store_path, SafeJson.encode!(%{"test" => "data"}))
 
     embeddings = Store.Project.Entry.Embeddings.new(entry_path, "dummy_source")
 
@@ -69,7 +69,7 @@ defmodule Store.Project.Entry.EmbeddingsTest do
     entry_path: entry_path
   } do
     old_style_file = Path.join(entry_path, "embeddings_1.json")
-    File.write!(old_style_file, Jason.encode!(%{"old" => "data"}))
+    File.write!(old_style_file, SafeJson.encode!(%{"old" => "data"}))
 
     embeddings = Store.Project.Entry.Embeddings.new(entry_path, "dummy_source")
     data = [5, 15]
@@ -78,27 +78,29 @@ defmodule Store.Project.Entry.EmbeddingsTest do
 
     assert File.exists?(Store.Project.Entry.Embeddings.store_path(embeddings))
 
-    assert Jason.decode!(File.read!(Store.Project.Entry.Embeddings.store_path(embeddings))) == [
-             5,
-             15
-           ]
+    assert SafeJson.decode!(File.read!(Store.Project.Entry.Embeddings.store_path(embeddings))) ==
+             [
+               5,
+               15
+             ]
 
     refute File.exists?(old_style_file)
   end
 
   test "new/2 upgrades old-style embeddings", %{entry_path: entry_path} do
     old_style_file = Path.join(entry_path, "embedding_1.json")
-    File.write!(old_style_file, Jason.encode!([1, 2, 3]))
+    File.write!(old_style_file, SafeJson.encode!([1, 2, 3]))
 
     embeddings = Store.Project.Entry.Embeddings.new(entry_path, "dummy_source")
 
     assert File.exists?(Store.Project.Entry.Embeddings.store_path(embeddings))
 
-    assert Jason.decode!(File.read!(Store.Project.Entry.Embeddings.store_path(embeddings))) == [
-             1,
-             2,
-             3
-           ]
+    assert SafeJson.decode!(File.read!(Store.Project.Entry.Embeddings.store_path(embeddings))) ==
+             [
+               1,
+               2,
+               3
+             ]
 
     refute File.exists?(old_style_file)
   end

@@ -42,7 +42,7 @@ defmodule MCP.OAuth2.Registration do
 
     case HTTPoison.post(
            registration_endpoint,
-           Jason.encode!(request_body),
+           SafeJson.encode!(request_body),
            headers,
            recv_timeout: 15_000,
            timeout: 15_000
@@ -66,7 +66,7 @@ defmodule MCP.OAuth2.Registration do
   end
 
   defp parse_registration_response(body) do
-    case Jason.decode(body) do
+    case SafeJson.decode(body) do
       {:ok, %{"client_id" => client_id} = response} ->
         result = %{
           client_id: client_id,

@@ -259,7 +259,7 @@ defmodule Store.Project.EntryTest do
       # Read the raw metadata file to verify it stores relative path
       metadata_path = Store.Project.Entry.metadata_file_path(entry)
       {:ok, raw_metadata} = File.read(metadata_path)
-      {:ok, metadata} = Jason.decode(raw_metadata)
+      {:ok, metadata} = SafeJson.decode(raw_metadata)
 
       # relative path stored
       assert metadata["file"] == "subdir/b.txt"
@@ -373,7 +373,7 @@ defmodule Store.Project.EntryTest do
         "hash" => "dummy_hash"
       }
 
-      {:ok, json} = Jason.encode(legacy_metadata)
+      {:ok, json} = SafeJson.encode(legacy_metadata)
       File.write!(metadata_path, json)
 
       # Should be able to read and create entry from the legacy metadata
@@ -398,7 +398,7 @@ defmodule Store.Project.EntryTest do
         "hash" => "dummy_hash"
       }
 
-      {:ok, json} = Jason.encode(legacy_metadata)
+      {:ok, json} = SafeJson.encode(legacy_metadata)
       File.write!(metadata_path, json)
 
       # First migration call should succeed

@@ -370,7 +370,7 @@ defmodule Cmd.Config do
         config ->
           global
           |> Map.merge(config)
-          |> Jason.encode!(pretty: true)
+          |> SafeJson.encode!(pretty: true)
           |> UI.puts()
       end
     else

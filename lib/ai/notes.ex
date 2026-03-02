@@ -314,7 +314,7 @@ defmodule AI.Notes do
     extra_facts =
       case func do
         "notify_tool" ->
-          with {:ok, decoded} <- Jason.decode(args_json),
+          with {:ok, decoded} <- SafeJson.decode(args_json),
                %{"message" => msg} <- decoded do
             msg
             |> String.split(["\n", "\r\n"], trim: true)

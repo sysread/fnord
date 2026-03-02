@@ -7,19 +7,19 @@ defmodule Cmd.Config.Approvals do
     cond do
       opts[:global] && opts[:project] ->
         build_list()
-        |> Jason.encode!(pretty: true)
+        |> SafeJson.encode!(pretty: true)
         |> UI.puts()
 
       opts[:global] ->
         build_list(:global)
-        |> Jason.encode!(pretty: true)
+        |> SafeJson.encode!(pretty: true)
         |> UI.puts()
 
       true ->
         case Settings.get_selected_project() do
           {:ok, _proj} ->
             build_list(:project)
-            |> Jason.encode!(pretty: true)
+            |> SafeJson.encode!(pretty: true)
             |> UI.puts()
 
           {:error, _} ->
@@ -56,7 +56,7 @@ defmodule Cmd.Config.Approvals do
                 case build_approve(settings, scope, kind, pattern) do
                   {:ok, data} ->
                     data
-                    |> Jason.encode!(pretty: true)
+                    |> SafeJson.encode!(pretty: true)
                     |> UI.puts()
 
                   {:error, err} ->

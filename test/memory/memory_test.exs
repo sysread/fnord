@@ -73,7 +73,7 @@ defmodule MemoryTest do
           "topics" => [],
           "embeddings" => [0.1]
         }
-        |> Jason.encode!()
+        |> SafeJson.encode!()
 
       assert {:ok, decoded} = Memory.unmarshal(legacy)
       assert decoded.inserted_at == nil
@@ -125,7 +125,7 @@ defmodule MemoryTest do
           # Ensure the auto-save path does not try to call the embeddings API.
           "embeddings" => [0.1]
         }
-        |> Jason.encode!()
+        |> SafeJson.encode!()
 
       File.write!(file, legacy)
 
@@ -135,7 +135,7 @@ defmodule MemoryTest do
       assert is_binary(migrated.updated_at)
       assert migrated.updated_at != ""
 
-      on_disk = file |> File.read!() |> Jason.decode!()
+      on_disk = file |> File.read!() |> SafeJson.decode!()
       assert Map.has_key?(on_disk, "inserted_at")
       assert Map.has_key?(on_disk, "updated_at")
       assert is_binary(on_disk["inserted_at"])

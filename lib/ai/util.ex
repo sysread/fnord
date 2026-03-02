@@ -122,7 +122,7 @@ defmodule AI.Util do
         acc
 
       %{role: @role_tool, tool_call_id: id, name: name, content: content}, acc ->
-        args = tool_call_args[id] |> Jason.encode!()
+        args = tool_call_args[id] |> SafeJson.encode!()
 
         text = """
         # TOOL CALL

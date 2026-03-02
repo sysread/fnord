@@ -365,7 +365,7 @@ defmodule AI.Tools do
 
           # Structured responses
           {:ok, response} ->
-            Jason.encode(response)
+            SafeJson.encode(response)
 
           {:error, reason} ->
             {:error, inspect(reason, pretty: true)}

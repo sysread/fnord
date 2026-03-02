@@ -86,7 +86,7 @@ defmodule Util do
     case Http.get("https://hex.pm/api/packages/fnord") do
       {:ok, body} ->
         body
-        |> Jason.decode()
+        |> SafeJson.decode()
         |> case do
           {:ok, %{"latest_version" => version}} -> {:ok, version}
           _ -> :error

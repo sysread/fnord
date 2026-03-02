@@ -32,7 +32,7 @@ defmodule MCP.OAuth2.ClientTest do
       }
 
       :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
-        {:ok, %{status_code: 200, body: Jason.encode!(metadata)}}
+        {:ok, %{status_code: 200, body: SafeJson.encode!(metadata)}}
       end)
 
       assert {:ok, %{auth_url: auth_url, state: state, code_verifier: verifier}} =
@@ -92,11 +92,11 @@ defmodule MCP.OAuth2.ClientTest do
       }
 
       :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
-        {:ok, %{status_code: 200, body: Jason.encode!(metadata)}}
+        {:ok, %{status_code: 200, body: SafeJson.encode!(metadata)}}
       end)
 
       :meck.expect(HTTPoison, :post, fn _url, _body, _headers, _opts ->
-        {:ok, %{status_code: 200, body: Jason.encode!(token_response)}}
+        {:ok, %{status_code: 200, body: SafeJson.encode!(token_response)}}
       end)
 
       params = %{"code" => "auth-code", "state" => "test-state"}
@@ -124,7 +124,7 @@ defmodule MCP.OAuth2.ClientTest do
       }
 
       :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
-        {:ok, %{status_code: 200, body: Jason.encode!(metadata)}}
+        {:ok, %{status_code: 200, body: SafeJson.encode!(metadata)}}
       end)
 
       params = %{"code" => "auth-code", "state" => "wrong-state"}
@@ -156,11 +156,11 @@ defmodule MCP.OAuth2.ClientTest do
       }
 
       :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
-        {:ok, %{status_code: 200, body: Jason.encode!(metadata)}}
+        {:ok, %{status_code: 200, body: SafeJson.encode!(metadata)}}
       end)
 
       :meck.expect(HTTPoison, :post, fn _url, _body, _headers, _opts ->
-        {:ok, %{status_code: 200, body: Jason.encode!(token_response)}}
+        {:ok, %{status_code: 200, body: SafeJson.encode!(token_response)}}
       end)
 
       assert {:ok, tokens} = MCP.OAuth2.Client.refresh_token(cfg, "old-refresh-token")

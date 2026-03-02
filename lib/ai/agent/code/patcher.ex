@@ -263,7 +263,7 @@ defmodule AI.Agent.Code.Patcher do
   @doc false
   # Parses the LLM JSON response into patch tuple or error
   defp parse_patch_response(json) do
-    case Jason.decode(json) do
+    case SafeJson.decode(json) do
       {:ok, decoded} when is_map(decoded) ->
         decoded
         |> Map.get("patch", decoded)

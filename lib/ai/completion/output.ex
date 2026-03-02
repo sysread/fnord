@@ -50,9 +50,9 @@ defmodule AI.Completion.Output do
     pretty_args =
       cond do
         is_binary(args_json) ->
-          case Jason.decode(args_json) do
+          case SafeJson.decode(args_json) do
             {:ok, decoded} ->
-              case Jason.encode(decoded, pretty: true) do
+              case SafeJson.encode(decoded, pretty: true) do
                 {:ok, json} -> json
                 _ -> inspect(decoded, pretty: true)
               end
@@ -99,7 +99,7 @@ defmodule AI.Completion.Output do
   def on_event(state, :tool_call_error, {tool, args_json, {:error, reason}}) do
     # Decode the arguments JSON, falling back to raw JSON on failure
     args =
-      case Jason.decode(args_json) do
+      case SafeJson.decode(args_json) do
         {:ok, decoded} -> decoded
         _ -> args_json
       end
@@ -227,7 +227,7 @@ defmodule AI.Completion.Output do
       %{role: "assistant", content: nil, tool_calls: tool_calls} ->
         tool_calls
         |> Enum.each(fn %{function: %{name: func, arguments: args_json}} ->
-          with {:ok, args} <- Jason.decode(args_json) do
+          with {:ok, args} <- SafeJson.decode(args_json) do
             on_event(state, :tool_call, {func, args})
           end
         end)

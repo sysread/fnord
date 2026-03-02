@@ -78,7 +78,7 @@ defmodule AI.NotesTest do
         {:ok, %{response: "N/A"}}
       end)
 
-      args_json = Jason.encode!(%{"message" => "note to self: alpha\nremember: beta"})
+      args_json = SafeJson.encode!(%{"message" => "note to self: alpha\nremember: beta"})
       state = Notes.new()
 
       new_state = Notes.ingest_research(state, "notify_tool", args_json, %{})

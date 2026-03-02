@@ -22,7 +22,7 @@ defmodule Settings.Migrate do
     if Version.compare(ver, "0.8.30") != :lt do
       data =
         with {:ok, content} <- File.read(path),
-             {:ok, parsed} <- Jason.decode(content) do
+             {:ok, parsed} <- SafeJson.decode(content) do
           parsed
         else
           _ ->
@@ -46,7 +46,7 @@ defmodule Settings.Migrate do
           |> Map.put("projects", Map.new(projects))
           |> Map.put("version", "0.8.30")
           |> Map.put_new("approvals", %{})
-          |> Jason.encode!(pretty: true)
+          |> SafeJson.encode!(pretty: true)
 
         Settings.write_atomic!(path, new_data)
       end

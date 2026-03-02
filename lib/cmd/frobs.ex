@@ -172,7 +172,7 @@ defmodule Cmd.Frobs do
             end
           end)
 
-        case Frobs.perform_tool_call(name, Jason.encode!(args_map)) do
+        case Frobs.perform_tool_call(name, SafeJson.encode!(args_map)) do
           {:ok, output} -> {:ok, output}
           {:error, exit_code, out} -> {:error, "exited with status #{exit_code}: #{out}"}
           other -> {:error, "unexpected tool call result: #{inspect(other)}"}
@@ -253,7 +253,7 @@ defmodule Cmd.Frobs do
           description =
             case File.read(spec_path) do
               {:ok, content} ->
-                case Jason.decode(content) do
+                case SafeJson.decode(content) do
                   {:ok, %{"description" => d}} when is_binary(d) -> d
                   _ -> "No description provided"
                 end

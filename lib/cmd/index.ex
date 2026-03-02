@@ -440,7 +440,7 @@ defmodule Cmd.Index do
 
   defp process_conversation(project, convo) do
     with {:ok, data} <- Store.Project.Conversation.read(convo),
-         {:ok, json} <- Jason.encode(%{"messages" => data.messages}),
+         {:ok, json} <- SafeJson.encode(%{"messages" => data.messages}),
          {:ok, embeddings} <- Indexer.impl().get_embeddings(json),
          :ok <-
            Store.Project.ConversationIndex.write_embeddings(

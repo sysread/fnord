@@ -188,7 +188,7 @@ defmodule AI.CompletionAPI do
 
   defp get_error({http_status, json_error_string}) do
     json_error_string
-    |> Jason.decode()
+    |> SafeJson.decode()
     |> case do
       {:ok, %{"error" => %{"message" => msg, "code" => "context_length_exceeded"}}} ->
         ~r/Your messages resulted in (\d+) tokens/

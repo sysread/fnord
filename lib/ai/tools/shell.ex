@@ -461,7 +461,7 @@ defmodule AI.Tools.Shell do
   # ----------------------------------------------------------------------------
   defp route(op, commands, desc, timeout_ms, root) do
     commands
-    |> Jason.encode(pretty: true)
+    |> SafeJson.encode(pretty: true)
     |> case do
       {:ok, json} ->
         has_shell_invocation? =

@@ -28,7 +28,7 @@ defmodule Store.Project.Entry.MigrateAbsToRelPathKeysTest do
       "hash" => "dummy"
     }
 
-    File.write!(Path.join(legacy_dir, "metadata.json"), Jason.encode!(meta))
+    File.write!(Path.join(legacy_dir, "metadata.json"), SafeJson.encode!(meta))
 
     # Perform migration
     assert :ok = Store.Project.Entry.MigrateAbsToRelPathKeys.ensure_relative_entry_ids(project)
@@ -42,7 +42,7 @@ defmodule Store.Project.Entry.MigrateAbsToRelPathKeysTest do
 
     # Check that metadata.json was updated to use relative path
     content = File.read!(Path.join(new_dir, "metadata.json"))
-    {:ok, updated} = Jason.decode(content)
+    {:ok, updated} = SafeJson.decode(content)
     assert updated["file"] == "legacy.txt"
   end
 
@@ -65,7 +65,7 @@ defmodule Store.Project.Entry.MigrateAbsToRelPathKeysTest do
       "hash" => "dummy"
     }
 
-    File.write!(Path.join(legacy_dir, "metadata.json"), Jason.encode!(meta))
+    File.write!(Path.join(legacy_dir, "metadata.json"), SafeJson.encode!(meta))
     # Start migration asynchronously
     pid =
       spawn(fn ->
@@ -96,7 +96,7 @@ defmodule Store.Project.Entry.MigrateAbsToRelPathKeysTest do
         "hash" => "dummy"
       }
 
-      File.write!(Path.join(legacy_dir, "metadata.json"), Jason.encode!(meta))
+      File.write!(Path.join(legacy_dir, "metadata.json"), SafeJson.encode!(meta))
 
       # Snapshot before migration
       snapshot1 = Path.wildcard(Path.join(files_root, "*")) |> Enum.sort()

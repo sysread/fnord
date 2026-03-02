@@ -423,7 +423,7 @@ defmodule AI.Completion do
 
   @spec dedupe_key(map()) :: {String.t(), String.t()} | nil
   defp dedupe_key(%{function: %{name: func, arguments: args_json}}) when is_binary(args_json) do
-    case Jason.decode(args_json) do
+    case SafeJson.decode(args_json) do
       # Re-encode to get consistent ordering
       {:ok, decoded} -> {func, inspect(decoded, custom_options: [sort_maps: true])}
       # Fallback to raw string if not valid JSON
@@ -484,7 +484,7 @@ defmodule AI.Completion do
 
         spec =
           with {:ok, spec} <- AI.Tools.tool_spec(func, state.toolbox),
-               {:ok, json} <- Jason.encode(spec) do
+               {:ok, json} <- SafeJson.encode(spec) do
             json
           else
             error -> "Error retrieving specification: #{inspect(error)}"
@@ -505,7 +505,7 @@ defmodule AI.Completion do
 
         spec =
           with {:ok, spec} <- AI.Tools.tool_spec(func, state.toolbox),
-               {:ok, json} <- Jason.encode(spec) do
+               {:ok, json} <- SafeJson.encode(spec) do
             json
           else
             error -> "Error retrieving specification: #{inspect(error)}"
@@ -537,7 +537,7 @@ defmodule AI.Completion do
 
   @spec perform_tool_call(t, binary, binary) :: AI.Tools.tool_result()
   defp perform_tool_call(state, func, args_json) when is_binary(args_json) do
-    with {:ok, args} <- Jason.decode(args_json) do
+    with {:ok, args} <- SafeJson.decode(args_json) do
       AI.Tools.with_args(
         func,
         args,

@@ -19,7 +19,7 @@ defmodule Cmd.Config.MCPTest do
   describe "mcp list" do
     test "global scope list shows empty servers by default" do
       {out, _stderr} = capture_all(fn -> MCP.run(%{global: true}, [:mcp, :list], []) end)
-      assert {:ok, %{}} = Jason.decode(out)
+      assert {:ok, %{}} = SafeJson.decode(out)
     end
 
     test "project scope without project set errors" do
@@ -31,7 +31,7 @@ defmodule Cmd.Config.MCPTest do
       mock_project("p")
       Settings.set_project("p")
       {out, _stderr} = capture_all(fn -> MCP.run(%{}, [:mcp, :list], []) end)
-      assert {:ok, %{}} = Jason.decode(out)
+      assert {:ok, %{}} = SafeJson.decode(out)
     end
   end
 
@@ -42,7 +42,7 @@ defmodule Cmd.Config.MCPTest do
           MCP.run(%{global: true, command: "foo"}, [:mcp, :add], ["srv"])
         end)
 
-      assert {:ok, %{"srv" => cfg}} = Jason.decode(out)
+      assert {:ok, %{"srv" => cfg}} = SafeJson.decode(out)
       assert cfg["transport"] == "stdio"
       assert cfg["command"] == "foo"
       assert cfg["args"] == []
@@ -59,7 +59,7 @@ defmodule Cmd.Config.MCPTest do
           )
         end)
 
-      assert {:ok, %{"time" => cfg}} = Jason.decode(out)
+      assert {:ok, %{"time" => cfg}} = SafeJson.decode(out)
       assert cfg["transport"] == "stdio"
       assert cfg["command"] == "uvx"
       assert cfg["args"] == ["mcp-server-time"]
@@ -107,7 +107,7 @@ defmodule Cmd.Config.MCPTest do
           MCP.run(%{global: true, command: "updated"}, [:mcp, :update], ["foo"])
         end)
 
-      assert {:ok, %{"foo" => %{"command" => "updated"}}} = Jason.decode(out)
+      assert {:ok, %{"foo" => %{"command" => "updated"}}} = SafeJson.decode(out)
     end
 
     test "update with additional env vars" do
@@ -120,7 +120,7 @@ defmodule Cmd.Config.MCPTest do
           )
         end)
 
-      assert {:ok, %{"foo" => cfg}} = Jason.decode(out)
+      assert {:ok, %{"foo" => cfg}} = SafeJson.decode(out)
       assert cfg["env"] == %{"DEBUG" => "1", "VERBOSE" => "true"}
     end
   end
@@ -139,7 +139,7 @@ defmodule Cmd.Config.MCPTest do
     test "remove existing server prints remaining map" do
       {out, _stderr} = capture_all(fn -> MCP.run(%{global: true}, [:mcp, :remove], ["one"]) end)
       # The remove command prints the remaining servers map as JSON (empty map)
-      assert {:ok, %{}} = Jason.decode(out)
+      assert {:ok, %{}} = SafeJson.decode(out)
     end
 
     test "remove non-existent server errors" do

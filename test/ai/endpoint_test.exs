@@ -21,7 +21,7 @@ defmodule AI.EndpointTest do
     Process.put(call_count_ref, 0)
 
     throttled_body =
-      Jason.encode!(%{
+      SafeJson.encode!(%{
         "error" => %{
           "code" => "rate_limit_exceeded",
           "message" => "Rate limit reached. Please try again in 1ms."
@@ -54,7 +54,7 @@ defmodule AI.EndpointTest do
 
     File.write!(
       Store.APIUsage.store_path(),
-      Jason.encode!(%{
+      SafeJson.encode!(%{
         "gpt-4o-mini" => %{
           "updated_at" => now,
           "requests_max" => 100,
@@ -68,7 +68,7 @@ defmodule AI.EndpointTest do
     )
 
     throttled_body =
-      Jason.encode!(%{
+      SafeJson.encode!(%{
         "error" => %{
           "code" => "rate_limit_exceeded",
           "message" => "Rate limit reached."
@@ -99,7 +99,7 @@ defmodule AI.EndpointTest do
     Process.put(call_count_ref, 0)
 
     body =
-      Jason.encode!(%{
+      SafeJson.encode!(%{
         "error" => %{
           "code" => "insufficient_quota",
           "message" => "No soup for you"
@@ -125,7 +125,7 @@ defmodule AI.EndpointTest do
     Process.put(call_count_ref, 0)
 
     throttled_body =
-      Jason.encode!(%{
+      SafeJson.encode!(%{
         "error" => %{
           "code" => "rate_limit_exceeded",
           "message" => "Too many requests"

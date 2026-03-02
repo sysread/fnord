@@ -398,7 +398,7 @@ defmodule SettingsTest do
 
       File.write!(
         settings_file,
-        Jason.encode!(%{
+        SafeJson.encode!(%{
           "some_other_key" => "value",
           "projects" => %{
             "test_project" => %{"root" => "/test", "exclude" => []}
@@ -424,7 +424,7 @@ defmodule SettingsTest do
 
       File.write!(
         settings_file,
-        Jason.encode!(%{
+        SafeJson.encode!(%{
           "approvals" => %{},
           "projects" => %{
             "test_project" => %{"root" => "/test", "approvals" => %{}}
@@ -449,7 +449,7 @@ defmodule SettingsTest do
 
       File.write!(
         settings_file,
-        Jason.encode!(%{
+        SafeJson.encode!(%{
           "approvals" => "not_a_map",
           "projects" => %{
             "test_project" => %{"root" => "/test", "approvals" => ["not_a_map_either"]}

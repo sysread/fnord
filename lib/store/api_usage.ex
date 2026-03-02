@@ -150,7 +150,7 @@ defmodule Store.APIUsage do
   @spec read_file() :: {:ok, usage} | {:error, term}
   defp read_file do
     with {:ok, json} <- File.read(store_path()),
-         {:ok, data} <- Jason.decode(json) do
+         {:ok, data} <- SafeJson.decode(json) do
       data
       |> Enum.map(fn {model, usage} ->
         {model, Util.string_keys_to_atoms(usage)}
@@ -162,7 +162,7 @@ defmodule Store.APIUsage do
 
   @spec write_file(map) :: :ok | {:error, term}
   defp write_file(data) do
-    with {:ok, json} <- Jason.encode(data, pretty: true) do
+    with {:ok, json} <- SafeJson.encode(data, pretty: true) do
       File.write(store_path(), json)
     end
   end

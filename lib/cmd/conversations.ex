@@ -188,7 +188,7 @@ defmodule Cmd.Conversations do
             length: Store.Project.Conversation.num_messages(conversation)
           }
         end)
-        |> Jason.encode!(pretty: true)
+        |> SafeJson.encode!(pretty: true)
         |> UI.puts()
     end
 

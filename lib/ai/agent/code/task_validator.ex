@@ -164,7 +164,7 @@ defmodule AI.Agent.Code.TaskValidator do
 
       case Common.get_completion(state, prompt, @response_format) do
         %{error: nil, response: response} = state ->
-          case Jason.decode(response, keys: :atoms) do
+          case SafeJson.decode(response, keys: :atoms) do
             {:ok, %{followUpTasks: []}} ->
               UI.report_from(state.agent.name, "Validation complete", "No issues identified")
               %{state | error: nil}

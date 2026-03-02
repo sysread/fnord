@@ -122,7 +122,7 @@ defmodule Settings.FrobsTest do
       # write legacy registry.json
       File.write!(
         Path.join(frob.home, "registry.json"),
-        Jason.encode!(%{"projects" => ["proj1", "proj2"]})
+        SafeJson.encode!(%{"projects" => ["proj1", "proj2"]})
       )
 
       # prepare proj1 with empty 'frobs' key
@@ -163,7 +163,7 @@ defmodule Settings.FrobsTest do
     # write legacy registry.json with global flag
     File.write!(
       Path.join(frob.home, "registry.json"),
-      Jason.encode!(%{"global" => true})
+      SafeJson.encode!(%{"global" => true})
     )
 
     # reset migration flag

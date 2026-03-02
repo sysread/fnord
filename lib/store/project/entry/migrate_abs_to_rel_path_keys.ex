@@ -109,7 +109,7 @@ defmodule Store.Project.Entry.MigrateAbsToRelPathKeys do
       |> Enum.any?(fn metadata_file ->
         case File.read(metadata_file) do
           {:ok, content} ->
-            case Jason.decode(content) do
+            case SafeJson.decode(content) do
               {:ok, %{"file" => file_path}} when is_binary(file_path) ->
                 String.starts_with?(file_path, "/")
 
@@ -166,7 +166,7 @@ defmodule Store.Project.Entry.MigrateAbsToRelPathKeys do
 
   defp migrate_entry_if_needed(project, entry_dir, metadata_file) do
     with {:ok, content} <- File.read(metadata_file),
-         {:ok, metadata} <- Jason.decode(content),
+         {:ok, metadata} <- SafeJson.decode(content),
          {:ok, file_path} <- Map.fetch(metadata, "file") do
       cond do
         # New relative path but wrong dir name -> rename to expected reversible ID
@@ -248,7 +248,7 @@ defmodule Store.Project.Entry.MigrateAbsToRelPathKeys do
   defp update_metadata_to_relative_path(metadata_file, rel_path, metadata) do
     updated_metadata = Map.put(metadata, "file", rel_path)
 
-    case Jason.encode(updated_metadata) do
+    case SafeJson.encode(updated_metadata) do
       {:ok, json} ->
         File.write!(metadata_file, json)
 

@@ -50,7 +50,7 @@ defmodule Store.Project.Entry.MetadataTest do
 
   test "read/1 reads the file contents", %{entry_path: entry_path} do
     store_path = Path.join(entry_path, "metadata.json")
-    File.write!(store_path, Jason.encode!(%{"test" => "data"}))
+    File.write!(store_path, SafeJson.encode!(%{"test" => "data"}))
 
     metadata = Store.Project.Entry.Metadata.new(entry_path, "dummy_source")
 

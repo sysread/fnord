@@ -135,7 +135,7 @@ defmodule Cmd.ConversationsTest do
 
     File.write!(
       conv.store_path,
-      "#{DateTime.utc_now() |> DateTime.to_unix()}:#{Jason.encode!(%{"messages" => [%{"role" => "user", "content" => "test question"}], "metadata" => %{}, "memory" => []})}"
+      "#{DateTime.utc_now() |> DateTime.to_unix()}:#{SafeJson.encode!(%{"messages" => [%{"role" => "user", "content" => "test question"}], "metadata" => %{}, "memory" => []})}"
     )
 
     # Write a dummy index entry for the conversation
@@ -189,7 +189,7 @@ defmodule Cmd.ConversationsTest do
 
     File.write!(
       conv.store_path,
-      "#{DateTime.utc_now() |> DateTime.to_unix()}:#{Jason.encode!(%{"messages" => [%{"role" => "user", "content" => "test question"}], "metadata" => %{}, "memory" => []})}"
+      "#{DateTime.utc_now() |> DateTime.to_unix()}:#{SafeJson.encode!(%{"messages" => [%{"role" => "user", "content" => "test question"}], "metadata" => %{}, "memory" => []})}"
     )
 
     # Stub confirmation to false

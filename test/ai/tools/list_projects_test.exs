@@ -15,7 +15,7 @@ defmodule AI.Tools.ListProjectsTest do
 
       File.write!(
         path,
-        Jason.encode!(%{
+        SafeJson.encode!(%{
           "projects" => %{"alpha" => %{"root" => "/tmp/a"}, "beta" => %{"root" => "/tmp/b"}}
         })
       )
@@ -33,7 +33,7 @@ defmodule AI.Tools.ListProjectsTest do
 
       File.write!(
         path,
-        Jason.encode!(%{
+        SafeJson.encode!(%{
           "projects" => %{"alpha" => %{"root" => "/tmp/a"}, "beta" => %{"root" => "/tmp/b"}}
         })
       )

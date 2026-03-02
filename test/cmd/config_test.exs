@@ -87,7 +87,7 @@ defmodule Cmd.ConfigTest do
           Cmd.Config.run(%{global: true}, [:approvals], [])
         end)
 
-      assert {:ok, %{"shell" => ["ls.*"]}} = Jason.decode(output)
+      assert {:ok, %{"shell" => ["ls.*"]}} = SafeJson.decode(output)
     end
 
     test "lists project approvals by default" do
@@ -100,7 +100,7 @@ defmodule Cmd.ConfigTest do
           Cmd.Config.run(%{}, [:approvals], [])
         end)
 
-      assert {:ok, %{"shell" => ["foo.*"]}} = Jason.decode(output)
+      assert {:ok, %{"shell" => ["foo.*"]}} = SafeJson.decode(output)
     end
 
     test "lists both when both --global and --project" do
@@ -120,7 +120,7 @@ defmodule Cmd.ConfigTest do
                   "global" => ["ls.*"],
                   "project" => ["foo.*"]
                 }
-              }} = Jason.decode(output)
+              }} = SafeJson.decode(output)
     end
   end
 
@@ -136,7 +136,7 @@ defmodule Cmd.ConfigTest do
           Cmd.Config.run(%{kind: "shell", global: true}, [:approve], ["echo.*"])
         end)
 
-      assert {:ok, %{"shell" => ["echo.*"]}} = Jason.decode(out)
+      assert {:ok, %{"shell" => ["echo.*"]}} = SafeJson.decode(out)
     end
 
     test "adds to project scope by default" do
@@ -148,7 +148,7 @@ defmodule Cmd.ConfigTest do
           Cmd.Config.run(%{kind: "shell"}, [:approve], ["foo.*"])
         end)
 
-      assert {:ok, %{"shell" => ["foo.*"]}} = Jason.decode(out)
+      assert {:ok, %{"shell" => ["foo.*"]}} = SafeJson.decode(out)
     end
 
     test "requires --kind" do

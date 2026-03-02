@@ -56,7 +56,7 @@ defmodule MCP.OAuth2.CredentialsStore do
     p = path()
 
     case File.read(p) do
-      {:ok, body} -> Jason.decode(body)
+      {:ok, body} -> SafeJson.decode(body)
       {:error, :enoent} -> {:ok, %{}}
       {:error, e} -> {:error, e}
     end
@@ -68,7 +68,7 @@ defmodule MCP.OAuth2.CredentialsStore do
     tmp = p <> ".tmp"
 
     File.mkdir_p!(dir)
-    body = Jason.encode!(map, pretty: true)
+    body = SafeJson.encode!(map, pretty: true)
 
     with :ok <- File.write(tmp, body),
          :ok <- File.rename(tmp, p),

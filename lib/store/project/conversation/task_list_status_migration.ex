@@ -87,7 +87,7 @@ defmodule Store.Project.Conversation.TaskListStatusMigration do
     |> Path.join("conversations")
     |> File.mkdir_p()
 
-    json = Jason.encode!(data_map)
+    json = SafeJson.encode!(data_map)
     tmp = conversation.store_path <> ".tmp"
     File.write!(tmp, "#{timestamp_str}:" <> json)
     File.rename!(tmp, conversation.store_path)

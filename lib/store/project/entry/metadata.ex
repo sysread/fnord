@@ -24,7 +24,7 @@ defmodule Store.Project.Entry.Metadata do
     file.store_path
     |> File.read()
     |> case do
-      {:ok, contents} -> Jason.decode(contents)
+      {:ok, contents} -> SafeJson.decode(contents)
       error -> error
     end
   end
@@ -42,7 +42,7 @@ defmodule Store.Project.Entry.Metadata do
       timestamp: DateTime.utc_now(),
       hash: mkhash(file.source_file)
     }
-    |> Jason.encode()
+    |> SafeJson.encode()
     |> case do
       {:ok, json} -> File.write(file.store_path, json)
       error -> error

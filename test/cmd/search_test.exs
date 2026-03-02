@@ -79,7 +79,11 @@ defmodule Cmd.SearchTest do
       {basename, rel_file} = create_legacy_entry(project)
       legacy_dir = Path.join(project.store_path, basename)
       # Provide minimal embeddings.json for search
-      File.write!(Path.join(legacy_dir, "embeddings.json"), Jason.encode!(%{"embeddings" => []}))
+      File.write!(
+        Path.join(legacy_dir, "embeddings.json"),
+        SafeJson.encode!(%{"embeddings" => []})
+      )
+
       # Stub indexer to return zero-vector embeddings
       MockIndexer |> Mox.stub(:get_embeddings, fn _text -> {:ok, List.duplicate(0.0, 3072)} end)
       # Define search options

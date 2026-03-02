@@ -18,7 +18,7 @@ defmodule LayoutMigrationHelpers do
     File.mkdir_p!(legacy_dir)
     # Write metadata.json referencing the relative file path
     metadata = %{"file" => rel_file}
-    File.write!(Path.join(legacy_dir, "metadata.json"), Jason.encode!(metadata))
+    File.write!(Path.join(legacy_dir, "metadata.json"), SafeJson.encode!(metadata))
     # Ensure project source root and create the source file
     File.mkdir_p!(project.source_root)
     File.write!(Path.join(project.source_root, rel_file), "")
@@ -40,7 +40,7 @@ defmodule LayoutMigrationHelpers do
     # metadata.json should reference the correct file
     content = File.read!(Path.join(new_dir, "metadata.json"))
 
-    case Jason.decode(content) do
+    case SafeJson.decode(content) do
       {:ok, %{"file" => ^rel_file}} ->
         :ok
 

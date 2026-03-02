@@ -20,7 +20,7 @@ defmodule Cmd.Config.ApprovalsTest do
     test "lists global approvals when --global" do
       Settings.new() |> Settings.Approvals.approve(:global, "shell", "ls.*")
       {output, _stderr} = capture_all(fn -> Approvals.run(%{global: true}, [:approvals], []) end)
-      assert {:ok, %{"shell" => ["ls.*"]}} = Jason.decode(output)
+      assert {:ok, %{"shell" => ["ls.*"]}} = SafeJson.decode(output)
     end
 
     test "lists project approvals by default" do
@@ -28,7 +28,7 @@ defmodule Cmd.Config.ApprovalsTest do
       Settings.set_project("proj1")
       Settings.new() |> Settings.Approvals.approve(:project, "shell", "foo.*")
       {output, _stderr} = capture_all(fn -> Approvals.run(%{}, [:approvals], []) end)
-      assert {:ok, %{"shell" => ["foo.*"]}} = Jason.decode(output)
+      assert {:ok, %{"shell" => ["foo.*"]}} = SafeJson.decode(output)
     end
 
     test "lists merged view when both --global and --project" do
@@ -41,7 +41,7 @@ defmodule Cmd.Config.ApprovalsTest do
         capture_all(fn -> Approvals.run(%{global: true, project: "proj1"}, [:approvals], []) end)
 
       assert {:ok, %{"shell" => %{"global" => ["ls.*"], "project" => ["foo.*"]}}} =
-               Jason.decode(output)
+               SafeJson.decode(output)
     end
   end
 
@@ -66,7 +66,7 @@ defmodule Cmd.Config.ApprovalsTest do
           Approvals.run(%{kind: "shell", global: true}, [:approve], ["echo.*"])
         end)
 
-      assert {:ok, %{"shell" => ["echo.*"]}} = Jason.decode(out)
+      assert {:ok, %{"shell" => ["echo.*"]}} = SafeJson.decode(out)
     end
 
     test "adds to project scope by default" do
@@ -76,7 +76,7 @@ defmodule Cmd.Config.ApprovalsTest do
       {out, _stderr} =
         capture_all(fn -> Approvals.run(%{kind: "shell"}, [:approve], ["foo.*"]) end)
 
-      assert {:ok, %{"shell" => ["foo.*"]}} = Jason.decode(out)
+      assert {:ok, %{"shell" => ["foo.*"]}} = SafeJson.decode(out)
     end
 
     test "invalid regex returns an error" do
@@ -95,7 +95,7 @@ defmodule Cmd.Config.ApprovalsTest do
           Approvals.run(%{kind: "shell"}, [:approve], ["/find(?!.*-exec).*/"])
         end)
 
-      assert {:ok, %{"shell_full" => ["find(?!.*-exec).*"]}} = Jason.decode(out)
+      assert {:ok, %{"shell_full" => ["find(?!.*-exec).*"]}} = SafeJson.decode(out)
     end
 
     test "rejects empty regex for slash-delimited shell pattern" do
@@ -122,7 +122,7 @@ defmodule Cmd.Config.ApprovalsTest do
           Approvals.run(%{kind: "shell", global: true, pattern: "x.*"}, [:approve], [])
         end)
 
-      assert {:ok, %{"shell" => ["x.*"]}} = Jason.decode(out)
+      assert {:ok, %{"shell" => ["x.*"]}} = SafeJson.decode(out)
     end
 
     test "error when no pattern provided" do

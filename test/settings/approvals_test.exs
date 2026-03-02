@@ -104,7 +104,7 @@ defmodule Settings.ApprovalsTest do
         "approvals" => %{}
       }
 
-      File.write!(settings_path, Jason.encode!(old_format_data))
+      File.write!(settings_path, SafeJson.encode!(old_format_data))
 
       settings = Settings.new()
       result = Approvals.get_approvals(settings, :project)
@@ -173,7 +173,7 @@ defmodule Settings.ApprovalsTest do
         }
       }
 
-      File.write!(settings_path, Jason.encode!(corrupted_data))
+      File.write!(settings_path, SafeJson.encode!(corrupted_data))
 
       settings = Settings.new()
       # Corrupted data should return empty list
@@ -544,7 +544,7 @@ defmodule Settings.ApprovalsTest do
         }
       }
 
-      File.write!(settings_path, Jason.encode!(corrupted_data))
+      File.write!(settings_path, SafeJson.encode!(corrupted_data))
 
       settings = Settings.new()
       assert Approvals.get_approvals(settings, :global, "shell") == []
@@ -560,7 +560,7 @@ defmodule Settings.ApprovalsTest do
         }
       }
 
-      File.write!(settings_path, Jason.encode!(mixed_data))
+      File.write!(settings_path, SafeJson.encode!(mixed_data))
 
       settings = Settings.new()
       # Should filter out non-strings or handle gracefully
@@ -664,7 +664,7 @@ defmodule Settings.ApprovalsTest do
         }
       }
 
-      File.write!(settings_path, Jason.encode!(multi_project_data))
+      File.write!(settings_path, SafeJson.encode!(multi_project_data))
 
       # Test project1 - set application env and create settings
       Services.Globals.put_env(:fnord, :project, "project1")

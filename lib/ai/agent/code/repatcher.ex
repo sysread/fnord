@@ -114,7 +114,7 @@ defmodule AI.Agent.Code.RePatcher do
 
       {:ok, %{response: response}} ->
         response
-        |> Jason.decode()
+        |> SafeJson.decode()
         |> case do
           {:ok, %{"success" => true, "message" => message}} ->
             {:ok, message}

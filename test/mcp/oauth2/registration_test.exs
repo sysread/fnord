@@ -26,7 +26,7 @@ defmodule MCP.OAuth2.RegistrationTest do
         assert url == "https://example.com/register"
         assert {"Content-Type", "application/json"} in headers
 
-        request = Jason.decode!(body)
+        request = SafeJson.decode!(body)
         assert request["client_name"] == "fnord"
         assert request["redirect_uris"] == ["http://localhost:8080/callback"]
         assert request["grant_types"] == ["authorization_code", "refresh_token"]
@@ -34,7 +34,7 @@ defmodule MCP.OAuth2.RegistrationTest do
         assert request["token_endpoint_auth_method"] == "none"
         assert request["application_type"] == "native"
 
-        {:ok, %{status_code: 201, body: Jason.encode!(registration_response)}}
+        {:ok, %{status_code: 201, body: SafeJson.encode!(registration_response)}}
       end)
 
       assert {:ok, result} = MCP.OAuth2.Registration.register("https://example.com/register")
@@ -49,10 +49,10 @@ defmodule MCP.OAuth2.RegistrationTest do
       }
 
       :meck.expect(HTTPoison, :post, fn _url, body, _headers, _opts ->
-        request = Jason.decode!(body)
+        request = SafeJson.decode!(body)
         assert request["redirect_uris"] == ["http://localhost:9090/callback"]
 
-        {:ok, %{status_code: 201, body: Jason.encode!(registration_response)}}
+        {:ok, %{status_code: 201, body: SafeJson.encode!(registration_response)}}
       end)
 
       assert {:ok, result} =
@@ -70,10 +70,10 @@ defmodule MCP.OAuth2.RegistrationTest do
       }
 
       :meck.expect(HTTPoison, :post, fn _url, body, _headers, _opts ->
-        request = Jason.decode!(body)
+        request = SafeJson.decode!(body)
         assert request["client_name"] == "MyApp"
 
-        {:ok, %{status_code: 201, body: Jason.encode!(registration_response)}}
+        {:ok, %{status_code: 201, body: SafeJson.encode!(registration_response)}}
       end)
 
       assert {:ok, result} =
@@ -90,7 +90,7 @@ defmodule MCP.OAuth2.RegistrationTest do
       }
 
       :meck.expect(HTTPoison, :post, fn _url, _body, _headers, _opts ->
-        {:ok, %{status_code: 200, body: Jason.encode!(registration_response)}}
+        {:ok, %{status_code: 200, body: SafeJson.encode!(registration_response)}}
       end)
 
       assert {:ok, result} = MCP.OAuth2.Registration.register("https://example.com/register")
@@ -117,7 +117,7 @@ defmodule MCP.OAuth2.RegistrationTest do
 
     test "returns error when response is missing client_id" do
       :meck.expect(HTTPoison, :post, fn _url, _body, _headers, _opts ->
-        {:ok, %{status_code: 201, body: Jason.encode!(%{"foo" => "bar"})}}
+        {:ok, %{status_code: 201, body: SafeJson.encode!(%{"foo" => "bar"})}}
       end)
 
       assert {:error, :missing_client_id} =

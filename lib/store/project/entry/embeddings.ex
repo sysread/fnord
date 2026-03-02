@@ -39,7 +39,7 @@ defmodule Store.Project.Entry.Embeddings do
     |> store_path()
     |> File.read()
     |> case do
-      {:ok, contents} -> Jason.decode(contents)
+      {:ok, contents} -> SafeJson.decode(contents)
       error -> error
     end
   end
@@ -57,7 +57,7 @@ defmodule Store.Project.Entry.Embeddings do
     |> Enum.each(&File.rm_rf!/1)
 
     embeddings
-    |> Jason.encode()
+    |> SafeJson.encode()
     |> case do
       {:ok, json} -> File.write(entry.store_path, json)
       error -> error
@@ -92,7 +92,7 @@ defmodule Store.Project.Entry.Embeddings do
       embeddings_files
       |> Enum.map(fn file ->
         with {:ok, content} <- File.read(file),
-             {:ok, data} <- Jason.decode(content) do
+             {:ok, data} <- SafeJson.decode(content) do
           data
         else
           _ ->
@@ -107,7 +107,7 @@ defmodule Store.Project.Entry.Embeddings do
       |> Enum.zip_with(&Enum.max/1)
 
     # Write the combined embeddings to the new file.
-    with {:ok, json} <- Jason.encode(combined_embeddings),
+    with {:ok, json} <- SafeJson.encode(combined_embeddings),
          :ok <- File.write(entry.store_path, json) do
       # Lastly, delete the old embeddings files.
       embeddings_files

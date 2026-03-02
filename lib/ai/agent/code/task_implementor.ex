@@ -222,7 +222,7 @@ defmodule AI.Agent.Code.TaskImplementor do
       |> Common.get_completion(prompt, @response_format)
       |> case do
         %{error: nil, response: response} = state ->
-          case Jason.decode(response, keys: :atoms) do
+          case SafeJson.decode(response, keys: :atoms) do
             {:ok, %{error: "", outcome: outcome, followUpTasks: new_tasks} = decoded} ->
               cp? = Map.get(decoded, :checkpoint, false)
               state = Common.put_state(state, :checkpoint?, cp?)

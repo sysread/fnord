@@ -5,7 +5,7 @@ defmodule AI.Completion.Compaction do
   def compact(msgs) do
     original_usage =
       msgs
-      |> Jason.encode!()
+      |> SafeJson.encode!()
       |> AI.PretendTokenizer.guesstimate_tokens()
 
     UI.report_step("[compaction]", "Compacting conversation (~#{original_usage} tokens)")
@@ -13,7 +13,7 @@ defmodule AI.Completion.Compaction do
     with {:ok, tersified_msgs} <- tersified(msgs) do
       new_usage =
         tersified_msgs
-        |> Jason.encode!()
+        |> SafeJson.encode!()
         |> AI.PretendTokenizer.guesstimate_tokens()
 
       savings = Float.round((original_usage - new_usage) / original_usage * 100, 2)
@@ -33,12 +33,12 @@ defmodule AI.Completion.Compaction do
     with {:ok, tersified_msgs} <- tersify(msgs) do
       original_usage =
         msgs
-        |> Jason.encode!()
+        |> SafeJson.encode!()
         |> AI.PretendTokenizer.guesstimate_tokens()
 
       new_usage =
         tersified_msgs
-        |> Jason.encode!()
+        |> SafeJson.encode!()
         |> AI.PretendTokenizer.guesstimate_tokens()
 
       savings = (original_usage - new_usage) / original_usage

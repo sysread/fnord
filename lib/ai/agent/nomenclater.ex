@@ -239,7 +239,7 @@ defmodule AI.Agent.Nomenclater do
     |> String.trim()
     |> strip_code_fences()
     |> extract_json_object()
-    |> Jason.decode()
+    |> SafeJson.decode()
   end
 
   # Remove wrapping ``` or ```json fences

@@ -75,7 +75,7 @@ defmodule MCP.OAuth2.Discovery do
 
     case HTTPoison.get(discovery_url, [], recv_timeout: 10_000, timeout: 10_000) do
       {:ok, %{status_code: 200, body: body}} ->
-        case Jason.decode(body) do
+        case SafeJson.decode(body) do
           {:ok, metadata} when is_map(metadata) ->
             {:ok, metadata}
 

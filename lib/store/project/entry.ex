@@ -46,7 +46,7 @@ defmodule Store.Project.Entry do
   @spec new_from_entry_path(Store.Project.t(), String.t()) :: t()
   def new_from_entry_path(project, entry_path) do
     with {:ok, content} <- File.read(Path.join(entry_path, "metadata.json")),
-         {:ok, metadata} <- Jason.decode(content),
+         {:ok, metadata} <- SafeJson.decode(content),
          {:ok, file_field} <- Map.fetch(metadata, "file"),
          true <- is_binary(file_field) do
       resolved =

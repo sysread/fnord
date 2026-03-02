@@ -430,7 +430,7 @@ defmodule Settings do
         end
 
       data
-      |> Jason.encode!(pretty: true)
+      |> SafeJson.encode!(pretty: true)
       |> then(&write_atomic!(path, &1))
 
       %Settings{path: path, data: data}
@@ -444,7 +444,7 @@ defmodule Settings do
   defp slurp(%Settings{} = settings) do
     data =
       with {:ok, content} <- File.read(settings.path),
-           {:ok, parsed} <- Jason.decode(content) do
+           {:ok, parsed} <- SafeJson.decode(content) do
         parsed
       else
         _ ->
@@ -480,7 +480,7 @@ defmodule Settings do
   defp fresh_read(path) do
     case File.read(path) do
       {:ok, content} ->
-        case Jason.decode(content) do
+        case SafeJson.decode(content) do
           {:ok, parsed} -> parsed
           _ -> %{}
         end

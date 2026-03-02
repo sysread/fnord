@@ -200,7 +200,7 @@ defmodule Store.Project.ConversationIndex do
 
   @spec write_json(String.t(), any) :: :ok | {:error, term}
   defp write_json(path, data) do
-    case Jason.encode(data) do
+    case SafeJson.encode(data) do
       {:ok, json} -> File.write(path, json)
       error -> error
     end
@@ -209,7 +209,7 @@ defmodule Store.Project.ConversationIndex do
   @spec read_json(String.t()) :: {:ok, any} | {:error, term}
   defp read_json(path) do
     case File.read(path) do
-      {:ok, contents} -> Jason.decode(contents)
+      {:ok, contents} -> SafeJson.decode(contents)
       error -> error
     end
   end

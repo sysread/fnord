@@ -234,7 +234,7 @@ defmodule Frobs.Prompt do
   end
 
   defp parse_and_validate_json(raw, schema, label, ui) do
-    case Jason.decode(raw || "") do
+    case SafeJson.decode(raw || "") do
       {:ok, parsed} ->
         case AI.Tools.Params.validate_and_coerce_param(schema, parsed) do
           {:ok, coerced} ->

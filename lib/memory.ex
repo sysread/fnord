@@ -1,16 +1,4 @@
 defmodule Memory do
-  @derive {Jason.Encoder,
-           only: [
-             :scope,
-             :title,
-             :slug,
-             :content,
-             :topics,
-             :embeddings,
-             :inserted_at,
-             :updated_at
-           ]}
-
   defstruct [
     :scope,
     :title,
@@ -337,7 +325,7 @@ defmodule Memory do
   """
   @spec marshal(t) :: {:ok, binary} | {:error, term}
   def marshal(%Memory{} = memory) do
-    case Jason.encode(memory) do
+    case SafeJson.encode(memory) do
       {:ok, json} -> {:ok, json}
       error -> error
     end
@@ -348,7 +336,7 @@ defmodule Memory do
   """
   @spec unmarshal(binary) :: {:ok, t} | {:error, term}
   def unmarshal(json) when is_binary(json) do
-    with {:ok, data} <- Jason.decode(json),
+    with {:ok, data} <- SafeJson.decode(json),
          {:ok, scope_str} <- Map.fetch(data, "scope"),
          scope = String.to_existing_atom(scope_str),
          {:ok, title} <- Map.fetch(data, "title"),
@@ -689,7 +677,7 @@ defmodule Memory do
 
   defp make_hash(msgs) do
     msgs
-    |> Jason.encode!()
+    |> SafeJson.encode!()
     |> :erlang.md5()
     |> Base.encode16()
   end
@@ -712,5 +700,20 @@ defmodule Memory do
       |> Owl.Data.to_chardata()
       |> to_string()
     end)
+  end
+end
+
+defimpl SafeJson.Serialize, for: Memory do
+  def for_json(%Memory{} = m) do
+    %{
+      scope: m.scope,
+      title: m.title,
+      slug: m.slug,
+      content: m.content,
+      topics: m.topics,
+      embeddings: m.embeddings,
+      inserted_at: m.inserted_at,
+      updated_at: m.updated_at
+    }
   end
 end

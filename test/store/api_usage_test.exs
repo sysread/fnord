@@ -6,7 +6,7 @@ defmodule Store.APIUsageTest do
   defp read_usage_file!() do
     usage_path()
     |> File.read!()
-    |> Jason.decode!()
+    |> SafeJson.decode!()
   end
 
   test "record_for_model/2 creates the store file (if missing) and persists rate limit headers keyed by model" do
@@ -126,7 +126,7 @@ defmodule Store.APIUsageTest do
 
     File.write!(
       usage_path(),
-      Jason.encode!(%{
+      SafeJson.encode!(%{
         "gpt-4o-mini" => %{
           "updated_at" => now,
           "requests_max" => 100,
@@ -151,7 +151,7 @@ defmodule Store.APIUsageTest do
     # If updated_at is far in the past, elapsed_time will exceed requests_reset.
     File.write!(
       usage_path(),
-      Jason.encode!(%{
+      SafeJson.encode!(%{
         "gpt-4o-mini" => %{
           "updated_at" => 0,
           "requests_max" => 100,

@@ -12,12 +12,12 @@ defmodule Cmd.Config.MCP do
     cond do
       opts[:effective] ->
         Settings.MCP.effective_config(settings)
-        |> Jason.encode!(pretty: true)
+        |> SafeJson.encode!(pretty: true)
         |> UI.puts()
 
       opts[:global] ->
         Settings.MCP.get_config(settings, :global)
-        |> Jason.encode!(pretty: true)
+        |> SafeJson.encode!(pretty: true)
         |> UI.puts()
 
       # project scope explicitly via --project
@@ -32,7 +32,7 @@ defmodule Cmd.Config.MCP do
             Settings.set_project(opts[:project])
 
             Settings.MCP.get_config(settings, :project)
-            |> Jason.encode!(pretty: true)
+            |> SafeJson.encode!(pretty: true)
             |> UI.puts()
         end
 
@@ -41,7 +41,7 @@ defmodule Cmd.Config.MCP do
         case Settings.get_selected_project() do
           {:ok, _proj} ->
             Settings.MCP.get_config(settings, :project)
-            |> Jason.encode!(pretty: true)
+            |> SafeJson.encode!(pretty: true)
             |> UI.puts()
 
           {:error, _} ->
@@ -226,7 +226,7 @@ defmodule Cmd.Config.MCP do
     case Settings.MCP.add_server(settings, scope, name, config_with_oauth) do
       {:ok, upd} ->
         server_config = Settings.MCP.list_servers(upd, scope)[name]
-        %{name => server_config} |> Jason.encode!(pretty: true) |> UI.puts()
+        %{name => server_config} |> SafeJson.encode!(pretty: true) |> UI.puts()
 
         # If OAuth was configured, prompt user to login
         if opts[:oauth] do
@@ -256,7 +256,7 @@ defmodule Cmd.Config.MCP do
     case Settings.MCP.update_server(settings, scope, name, raw) do
       {:ok, upd} ->
         %{name => Settings.MCP.list_servers(upd, scope)[name]}
-        |> Jason.encode!(pretty: true)
+        |> SafeJson.encode!(pretty: true)
         |> UI.puts()
 
       {:error, :not_found} ->
@@ -280,7 +280,7 @@ defmodule Cmd.Config.MCP do
     case Settings.MCP.remove_server(settings, scope, name) do
       {:ok, upd} ->
         Settings.MCP.list_servers(upd, scope)
-        |> Jason.encode!(pretty: true)
+        |> SafeJson.encode!(pretty: true)
         |> UI.puts()
 
       {:error, :not_found} ->

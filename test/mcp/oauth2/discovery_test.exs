@@ -28,7 +28,7 @@ defmodule MCP.OAuth2.DiscoveryTest do
 
       :meck.expect(HTTPoison, :get, fn url, _headers, _opts ->
         assert String.ends_with?(url, ".well-known/oauth-authorization-server")
-        {:ok, %{status_code: 200, body: Jason.encode!(metadata)}}
+        {:ok, %{status_code: 200, body: SafeJson.encode!(metadata)}}
       end)
 
       assert {:ok, config} =
@@ -64,7 +64,7 @@ defmodule MCP.OAuth2.DiscoveryTest do
       }
 
       :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
-        {:ok, %{status_code: 200, body: Jason.encode!(metadata)}}
+        {:ok, %{status_code: 200, body: SafeJson.encode!(metadata)}}
       end)
 
       :meck.expect(MCP.OAuth2.Registration, :register, fn endpoint, opts ->
@@ -91,7 +91,7 @@ defmodule MCP.OAuth2.DiscoveryTest do
       }
 
       :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
-        {:ok, %{status_code: 200, body: Jason.encode!(metadata)}}
+        {:ok, %{status_code: 200, body: SafeJson.encode!(metadata)}}
       end)
 
       assert {:ok, config} =
@@ -111,7 +111,7 @@ defmodule MCP.OAuth2.DiscoveryTest do
       }
 
       :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
-        {:ok, %{status_code: 200, body: Jason.encode!(metadata)}}
+        {:ok, %{status_code: 200, body: SafeJson.encode!(metadata)}}
       end)
 
       assert {:ok, config} =
@@ -131,7 +131,7 @@ defmodule MCP.OAuth2.DiscoveryTest do
       }
 
       :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
-        {:ok, %{status_code: 200, body: Jason.encode!(metadata)}}
+        {:ok, %{status_code: 200, body: SafeJson.encode!(metadata)}}
       end)
 
       assert {:error, :no_registration_endpoint} =

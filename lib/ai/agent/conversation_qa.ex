@@ -55,7 +55,7 @@ defmodule AI.Agent.ConversationQA do
   end
 
   defp build_messages(convo, question) do
-    json = Jason.encode!(%{"messages" => convo.messages})
+    json = SafeJson.encode!(%{"messages" => convo.messages})
 
     [
       AI.Util.system_msg(@system_prompt),

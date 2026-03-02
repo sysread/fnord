@@ -302,7 +302,7 @@ defmodule Frobs do
 
           @impl AI.Tools
           def call(args) do
-            Frobs.perform_tool_call(@tool_name, Jason.encode!(args))
+            Frobs.perform_tool_call(@tool_name, SafeJson.encode!(args))
           end
 
           @impl AI.Tools
@@ -310,7 +310,7 @@ defmodule Frobs do
             if map_size(args) == 0 do
               "Calling frob '#{@tool_name}'"
             else
-              {"Calling frob '#{@tool_name}'", Jason.encode!(args, pretty: true)}
+              {"Calling frob '#{@tool_name}'", SafeJson.encode!(args, pretty: true)}
             end
           end
 
@@ -404,7 +404,7 @@ defmodule Frobs do
     spec_path = Path.join(path, @json_spec)
 
     with {:ok, json} <- File.read(spec_path),
-         {:ok, spec} <- Jason.decode(json),
+         {:ok, spec} <- SafeJson.decode(json),
          %{
            "name" => tool_name,
            "description" => description,
@@ -576,7 +576,7 @@ defmodule Frobs do
 
   defp read_spec(home) do
     with {:ok, content} <- Path.join(home, @json_spec) |> File.read() do
-      Jason.decode(content, keys: :atoms)
+      SafeJson.decode(content, keys: :atoms)
     end
   end
 
@@ -592,7 +592,7 @@ defmodule Frobs do
   defp execute_main(frob, args_json) do
     with {:ok, project_name} <- Settings.get_selected_project(),
          {:ok, settings} <- Settings.get_project(Settings.new()),
-         {:ok, settings_json} <- Jason.encode(settings) do
+         {:ok, settings_json} <- SafeJson.encode(settings) do
       env = [
         {"FNORD_PROJECT", project_name},
         {"FNORD_CONFIG", settings_json},
@@ -613,7 +613,7 @@ defmodule Frobs do
     if File.exists?(frob.available) do
       with {:ok, project_name} <- Settings.get_selected_project(),
            {:ok, settings} <- Settings.get_project(Settings.new()),
-           {:ok, settings_json} <- Jason.encode(settings) do
+           {:ok, settings_json} <- SafeJson.encode(settings) do
         env = [
           {"FNORD_PROJECT", project_name},
           {"FNORD_CONFIG", settings_json}

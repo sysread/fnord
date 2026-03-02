@@ -156,7 +156,7 @@ defmodule Services.ConversationIndexer do
     try do
       case Store.Project.Conversation.read(convo) do
         {:ok, %{timestamp: ts, messages: messages, metadata: metadata}} ->
-          json = Jason.encode!(%{"messages" => messages})
+          json = SafeJson.encode!(%{"messages" => messages})
 
           with {:ok, embeddings} <- impl.get_embeddings(json) do
             meta =

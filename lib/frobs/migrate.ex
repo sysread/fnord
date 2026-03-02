@@ -32,7 +32,7 @@ defmodule Frobs.Migrate do
     frob_name = registry_path |> Path.dirname() |> Path.basename()
 
     with {:ok, json} <- File.read(registry_path),
-         {:ok, data} <- Jason.decode(json) do
+         {:ok, data} <- SafeJson.decode(json) do
       if Map.get(data, "global") == true do
         Settings.Frobs.enable(:global, frob_name)
       end

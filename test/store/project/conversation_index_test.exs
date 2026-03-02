@@ -100,13 +100,13 @@ defmodule Store.Project.ConversationIndexTest do
       :ok =
         File.write!(
           Path.join(dir, "metadata.json"),
-          Jason.encode!(%{"last_indexed_ts" => ts})
+          SafeJson.encode!(%{"last_indexed_ts" => ts})
         )
 
       :ok =
         File.write!(
           Path.join(dir, "embeddings.json"),
-          Jason.encode!([0.0])
+          SafeJson.encode!([0.0])
         )
     end
 

@@ -114,9 +114,9 @@ defmodule MCP.EndpointDiscovery do
     settings_path = Path.join(System.user_home!(), ".fnord/settings.json")
 
     with {:ok, content} <- File.read(settings_path),
-         {:ok, settings_json} <- Jason.decode(content),
+         {:ok, settings_json} <- SafeJson.decode(content),
          {:ok, updated_json} <- update_mcp_path(settings_json, server_name, path, scope),
-         {:ok, encoded} <- Jason.encode(updated_json, pretty: true),
+         {:ok, encoded} <- SafeJson.encode(updated_json, pretty: true),
          :ok <- File.write(settings_path, encoded) do
       :ok
     else

@@ -18,7 +18,7 @@ defmodule AI.CompletionOutputReplayTest do
             "type" => "function",
             "function" => %{
               "name" => "file_list_tool",
-              "arguments" => %{"list_id" => 1} |> Jason.encode!()
+              "arguments" => %{"list_id" => 1} |> SafeJson.encode!()
             }
           }
         ]
@@ -82,7 +82,7 @@ defmodule AI.CompletionOutputReplayTest do
             "type" => "function",
             "function" => %{
               "name" => "file_list_tool",
-              "arguments" => %{"list_id" => 1} |> Jason.encode!()
+              "arguments" => %{"list_id" => 1} |> SafeJson.encode!()
             }
           }
         ]
@@ -141,7 +141,7 @@ defmodule AI.CompletionOutputReplayTest do
             "type" => "function",
             "function" => %{
               "name" => "file_list_tool",
-              "arguments" => %{"list_id" => 1} |> Jason.encode!()
+              "arguments" => %{"list_id" => 1} |> SafeJson.encode!()
             }
           }
         ]

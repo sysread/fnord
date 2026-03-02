@@ -38,7 +38,7 @@ defmodule Memory.IngestionTest do
 
     test "skips ingestion when long_term_memory_hash matches" do
       msgs = [AI.Util.user_msg("hello")]
-      hash = msgs |> Jason.encode!() |> :erlang.md5() |> Base.encode16()
+      hash = msgs |> SafeJson.encode!() |> :erlang.md5() |> Base.encode16()
 
       conv = Store.Project.Conversation.new()
 
@@ -78,7 +78,7 @@ defmodule Memory.IngestionTest do
 
       {:ok, %{metadata: meta}} = Store.Project.Conversation.read(conv)
 
-      new_hash = msgs |> Jason.encode!() |> :erlang.md5() |> Base.encode16()
+      new_hash = msgs |> SafeJson.encode!() |> :erlang.md5() |> Base.encode16()
       assert meta.long_term_memory_hash == new_hash
     end
 
@@ -106,7 +106,7 @@ defmodule Memory.IngestionTest do
       assert initial_ts == final_ts
 
       {:ok, %{metadata: meta}} = Store.Project.Conversation.read(conv)
-      new_hash = msgs |> Jason.encode!() |> :erlang.md5() |> Base.encode16()
+      new_hash = msgs |> SafeJson.encode!() |> :erlang.md5() |> Base.encode16()
       assert meta.long_term_memory_hash == new_hash
     end
   end
