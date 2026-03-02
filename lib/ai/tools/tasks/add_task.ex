@@ -45,14 +45,34 @@ defmodule AI.Tools.Tasks.AddTask do
   def ui_note_on_request(_), do: nil
 
   @impl AI.Tools
-  def ui_note_on_result(%{"tasks" => tasks}, _result) when is_list(tasks) do
+  def ui_note_on_result(%{"tasks" => tasks}, _result) do
     count = length(tasks)
-    "Appended #{count} task(s)"
+
+    titles =
+      tasks
+      |> Enum.map(fn
+        %{"task_id" => id} when is_binary(id) -> String.trim(id)
+        _ -> nil
+      end)
+      |> Enum.filter(&(&1 && &1 != ""))
+
+    if titles == [] do
+      "Appended #{count} task(s)"
+    else
+      bullets = titles |> Enum.map(&("• " <> &1)) |> Enum.join("\n")
+      "Appended #{count} task(s)\n" <> bullets
+    end
   end
 
   @impl AI.Tools
-  def ui_note_on_result(%{"task_id" => _task_id}, _result) do
-    "Appended 1 task"
+  def ui_note_on_result(%{"task_id" => task_id}, _result) do
+    id = String.trim(task_id)
+
+    if id == "" do
+      "Appended 1 task"
+    else
+      "Appended 1 task\n• #{id}"
+    end
   end
 
   @impl AI.Tools
