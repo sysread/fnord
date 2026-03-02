@@ -5,21 +5,13 @@ defmodule Services.NamePoolNomenclaterRealTest do
 
   setup do
     prev = Services.Globals.get_env(:fnord, :nomenclater, nil)
-    prev_workers = Services.Globals.get_env(:fnord, :workers, nil)
     Services.Globals.put_env(:fnord, :nomenclater, :real)
-    Services.Globals.put_env(:fnord, :workers, 12)
 
     on_exit(fn ->
       if is_nil(prev) do
         Services.Globals.delete_env(:fnord, :nomenclater)
       else
         Services.Globals.put_env(:fnord, :nomenclater, prev)
-      end
-
-      if is_nil(prev_workers) do
-        Services.Globals.delete_env(:fnord, :workers)
-      else
-        Services.Globals.put_env(:fnord, :workers, prev_workers)
       end
     end)
 

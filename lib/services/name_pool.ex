@@ -7,11 +7,13 @@ defmodule Services.NamePool do
   Each checked-out name is now associated with the caller's `pid`, and you can
   retrieve it via `get_name_by_pid/1`.
 
-  The pool allocates names in chunks sized to the configured workers setting to
-  maximize API efficiency without overwhelming the connection pool.
+  The pool allocates names in chunks to maximize API efficiency without
+  overwhelming the connection pool.
   """
 
   use GenServer
+
+  @chunk_size 12
 
   @name_chunk_timeout_ms Application.compile_env(:fnord, :name_chunk_timeout_ms, 30_000)
 
@@ -119,14 +121,11 @@ defmodule Services.NamePool do
 
   @impl GenServer
   def init(_opts) do
-    chunk_size =
-      Services.Globals.get_env(:fnord, :workers, 12)
-
     state = %__MODULE__{
       available: [],
       checked_out: MapSet.new(),
       all_used: MapSet.new(),
-      chunk_size: chunk_size,
+      chunk_size: @chunk_size,
       pid_to_name: %{},
       name_to_pid: %{}
     }

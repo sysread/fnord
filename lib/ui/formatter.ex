@@ -57,7 +57,7 @@ defmodule UI.Formatter do
                   input
 
                 nil ->
-                  # Timed out; make sure we don’t leak the task and fall back safely.
+                  # Timed out; make sure we don't leak the task and fall back safely.
                   Task.shutdown(task, :brutal_kill)
 
                   Logger.warning(

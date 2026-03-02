@@ -292,19 +292,32 @@ defmodule AI.Agent.Coordinator do
   # into the middle of our final answer or notes.
   # ----------------------------------------------------------------------------
   defp perform_step(%{steps: [:finalize]} = state) do
-    UI.begin_step("Joining")
-
     # Block interrupts during finalization to avoid mid-output interjections
     Services.Conversation.Interrupts.block(state.conversation_pid)
 
     try do
-      state
-      |> Map.put(:steps, [])
-      |> reminder_msg()
-      |> AI.Agent.Coordinator.Tasks.list_msg()
-      |> finalize_msg()
-      |> template_msg()
-      |> AI.Agent.Coordinator.Glue.get_completion()
+      # Spawn the memory reflection agent in parallel with finalize. It runs
+      # a dedicated completion with only memory_tool in its toolbox, writing
+      # session memories as side effects. We await it before returning to
+      # ensure all memories are saved before the process exits.
+      reflect_task =
+        Services.Globals.Spawn.async(fn ->
+          AI.Agent.Coordinator.Memory.reflect(state)
+        end)
+
+      finalize_state =
+        state
+        |> Map.put(:steps, [])
+        |> reminder_msg()
+        |> AI.Agent.Coordinator.Tasks.list_msg()
+        |> finalize_msg()
+        |> template_msg()
+        |> AI.Agent.Coordinator.Glue.get_completion()
+
+      UI.begin_step("Joining")
+      Task.await(reflect_task, :infinity)
+
+      finalize_state
       |> AI.Agent.Coordinator.Frippery.get_motd()
     after
       # Always unblock, even if completion fails
@@ -366,52 +379,7 @@ defmodule AI.Agent.Coordinator do
   - provide contextual instructions for interacting with a specific section of code
   - provide additional context related to your task
 
-  ## Memory
-  You interact with the user in sessions, across multiple conversations and projects.
-  Your memory is persistent, but you must explicitly choose to remember information.
-  You have several types of memory you can access via these tools:
-  - conversation_tool: past conversations with the user
-  - prior_research: your prior research notes
-  - memory_tool: memories you chose to record across session, project, and global scopes
-
-  ### Using the memory_tool
-
-  #### Session-scoped memories
-  Record facts that you learn along the way, ESPECIALLY if they affected your reasoning or conclusions.
-  Carefully record detailed information about your findings, reasoning, and decisions made during the session.
-
-  #### Project-scoped memories
-  Record information that is likely to be relevant across sessions.
-  Do NOT record anything about the current prompt, user request, branch, worktree, etc; those belong under session-scope.
-  Instead, focus on recording general information about the project that may be relevant to future sessions, such as:
-  - general architecture and design patterns
-  - organization and applications within the project
-  - layout of individual apps within a monorepo
-  - "playbooks" for how to perform common dev tasks (adding migrations, running tests, linting, formatting tools, etc.)
-    - include any details or nuance about them (eg "remember to --exclude the vendor directory when running the linter")
-    - include details about tools available on the OS (eg "kubectl available to interact with staging and prod clusters, but local tooling uses docker compose")
-    - include details you have inferred about the infrastructure (how envs are set up, how local dev works vs staging/prod, links between repos and services), eg:
-      - "the PR number corresponds to the k8s namespace in which the RA is deployed"
-      - "logs are in gcloud and can be accessed with `gcloud logs read --project myproject --filter='resource.labels.namespace_name:pr-123'`"
-      - "aws CLI available to access sqs queues, but local dev uses in-memory shim"
-      - "always run tests with `mix test --exclude integration` because the integration tests are very slow and require additional setup"
-      - "user noted that $some_test always fails when run locally but passes in CI"
-      - "local dev is done on MacOS, but deployed env is alpine; pay careful attention to whether shell code you write is intended to execute locally or in a container"
-
-  #### Global-scoped memories
-  Record facts about the user, yourself, and the system on which you are working that are relevant REGARDLESS of the project or session.
-  Remember tricks and tips for working with your own tooling and wrapper code environment.
-  Examples:
-  - "kubectl available, but user forbade mutative ops"; "gh cli available"
-  - "OS appears to be MacOS; keep in mind differences between BSD and GNU utils"
-  - "shell_tool has `&&` operator to execute commands progressively"
-  - "coder_tool sucks without clear code anchors"
-  - "coder_tool sometimes fails to format code correctly; **check formatting and syntax after using it**"
-  - "user prefers concise answers and hates hand-holding"
-  - "user requires more detail about frontend than backend"
-  - "user requires more hand-holding with infrastructure than with complex code"
-  - "user appreciates task list summary and clear log of decision-chain"
-  - "I can test hypotheses by writing (and cleaning up) scripts in the project directory; I do not have direct access to /tmp, but scripts can write to /tmp"
+  #{AI.Agent.Coordinator.Memory.recall_prompt()}
 
   ## Reasoning and research
   Maintain a critical stance:
@@ -537,13 +505,7 @@ defmodule AI.Agent.Coordinator do
   <think>
   I believe I have identified all the information I need.
 
-  First, I must reflect on any learnings I want to remember using the memory_tool.
-  What did I learn about the code base?
-  What did I learn about the user?
-  What did I learn about my tools?
-  This is how I improve myself and become a better partner for the user.
-
-  Then... how best to organize it for the user?
+  How best to organize it for the user?
   I know a lot about instructional design, technical writing, and learning.
   The user is probably a programmer or engineer.
 
@@ -586,7 +548,6 @@ defmodule AI.Agent.Coordinator do
       - pivots due to the state of the code
       - tech debt identified
       - tasks mooted because the code already did that
-      - use your memory_tool to review you session-scoped memories to inform this log
     - `## Current Plan`
       - INCLUDE WHEN: planning or implementing code changes, or when working on detailed or complex tasks
       - the purpose of the change as you understand it

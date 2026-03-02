@@ -74,7 +74,7 @@ defmodule Frobs.Prompt do
   end
 
   # ---------------------------------------------------------------------------
-  # Property prompting — dispatches by schema resolution
+  # Property prompting -- dispatches by schema resolution
   # ---------------------------------------------------------------------------
 
   defp prompt_property(name, schema, _required?, ui) do

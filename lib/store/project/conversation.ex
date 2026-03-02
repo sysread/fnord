@@ -311,9 +311,19 @@ defmodule Store.Project.Conversation do
   """
   @spec fork(t) :: {:ok, t} | {:error, any}
   def fork(conversation) do
-    with {:ok, data} <- read(conversation),
-         {:ok, forked} <- write(new(), data) do
-      {:ok, forked}
+    with {:ok, data} <- read(conversation) do
+      # Mark all existing session memories as :ignore so the indexer won't
+      # re-process them in the forked conversation. They remain visible to
+      # the LLM for context but won't generate duplicate long-term memories.
+      forked_memory =
+        Enum.map(data.memory, fn
+          %Memory{scope: :session} = m -> %{m | index_status: :ignore}
+          other -> other
+        end)
+
+      with {:ok, forked} <- write(new(), %{data | memory: forked_memory}) do
+        {:ok, forked}
+      end
     end
   end
 

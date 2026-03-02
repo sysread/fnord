@@ -492,7 +492,7 @@ defmodule AI.Tools.ParamsTest do
     end
   end
 
-  describe "validate_and_coerce_param/2 — additional coverage" do
+  describe "validate_and_coerce_param/2 -- additional coverage" do
     test "integer coercion rejects non-integer float" do
       schema = %{"type" => "integer"}
 
@@ -618,7 +618,7 @@ defmodule AI.Tools.ParamsTest do
     end
   end
 
-  describe "merge_schemas/1 — deep merge" do
+  describe "merge_schemas/1 -- deep merge" do
     test "deep-merges conflicting property schemas" do
       result =
         AI.Tools.Params.merge_schemas([
@@ -651,7 +651,7 @@ defmodule AI.Tools.ParamsTest do
     end
   end
 
-  describe "resolve_schema_type/1 — atom type keys" do
+  describe "resolve_schema_type/1 -- atom type keys" do
     test "converts atom type to string" do
       assert {:ok, "string"} = AI.Tools.Params.resolve_schema_type(%{"type" => :string})
     end

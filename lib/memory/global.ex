@@ -66,7 +66,7 @@ defmodule Memory.Global do
               wildcard_check(storage, slug, title)
 
             {:error, _} ->
-              # Unreadable/invalid JSON — treat as occupied
+              # Unreadable/invalid JSON -- treat as occupied
               true
           end
 
@@ -195,7 +195,7 @@ defmodule Memory.Global do
                 {:ok, base}
 
               {:error, _reason} ->
-                # Unreadable/invalid JSON — fallback to slug-based title match
+                # Unreadable/invalid JSON -- fallback to slug-based title match
                 if Memory.slug_to_title(Path.rootname(base)) == title do
                   {:ok, base}
                 end
@@ -205,7 +205,7 @@ defmodule Memory.Global do
             end
 
           {:error, _reason} ->
-            # Can't read file — fallback to slug-based title match
+            # Can't read file -- fallback to slug-based title match
             if Memory.slug_to_title(Path.rootname(base)) == title do
               {:ok, base}
             end
@@ -230,7 +230,7 @@ defmodule Memory.Global do
                 {:ok, path}
 
               {:error, _reason} ->
-                # Unreadable/invalid JSON — fallback to slug-based title match
+                # Unreadable/invalid JSON -- fallback to slug-based title match
                 if Memory.slug_to_title(Path.rootname(path)) == title do
                   {:ok, path}
                 end
@@ -240,7 +240,7 @@ defmodule Memory.Global do
             end
 
           {:error, _reason} ->
-            # Can't read file — fallback to slug-based title match
+            # Can't read file -- fallback to slug-based title match
             if Memory.slug_to_title(Path.rootname(path)) == title do
               {:ok, path}
             end

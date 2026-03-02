@@ -61,10 +61,10 @@ defmodule Cmd.Config.MCP.CheckFormatter do
         # Show concise hint about tool count and how to enable details
         if count > 0 do
           UI.newline()
-          UI.puts("  Available tools: (#{count} available) — #{hint}")
+          UI.puts("  Available tools: (#{count} available) -- #{hint}")
         else
           UI.newline()
-          UI.puts("  Available tools: (none) — #{hint}")
+          UI.puts("  Available tools: (none) -- #{hint}")
         end
 
       _ ->

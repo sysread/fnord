@@ -61,7 +61,7 @@ defmodule AI.Tools.MemoryTest do
                  "memory_tool",
                  %{
                    "action" => "remember",
-                   "scope" => "global",
+                   "scope" => "session",
                    "title" => " ",
                    "content" => "x"
                  },
@@ -85,7 +85,6 @@ defmodule AI.Tools.MemoryTest do
                  "memory_tool",
                  %{
                    "action" => "remember",
-                   "scope" => "session",
                    "title" => "Topics CSV Comma",
                    "content" => "x",
                    "topics" => "user, ci, troubleshooting"
@@ -99,7 +98,6 @@ defmodule AI.Tools.MemoryTest do
              "memory_tool",
              %{
                "action" => "forget",
-               "scope" => "session",
                "title" => "Topics CSV Comma"
              },
              AI.Tools.tools()
@@ -118,7 +116,6 @@ defmodule AI.Tools.MemoryTest do
                  "memory_tool",
                  %{
                    "action" => "remember",
-                   "scope" => "session",
                    "title" => "Topics CSV Pipe",
                    "content" => "x",
                    "topics" => "user | ci | troubleshooting"
@@ -133,7 +130,6 @@ defmodule AI.Tools.MemoryTest do
              "memory_tool",
              %{
                "action" => "forget",
-               "scope" => "session",
                "title" => "Topics CSV Pipe"
              },
              AI.Tools.tools()
@@ -148,14 +144,13 @@ defmodule AI.Tools.MemoryTest do
     test "session memory search yields scope as string and no crash" do
       mock_project("test_proj")
       mock_conversation()
-      assert {:ok, _} = Elixir.Memory.init()
+      assert :ok = Elixir.Memory.init()
 
       assert {:ok, _} =
                AI.Tools.perform_tool_call(
                  "memory_tool",
                  %{
                    "action" => "remember",
-                   "scope" => "session",
                    "title" => "Search Scope Test",
                    "content" => "search content"
                  },

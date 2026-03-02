@@ -69,7 +69,8 @@ defmodule Memory.Project do
   @impl Memory
   def save(%{title: title} = memory) do
     with {:ok, project} <- get_project(),
-         {:ok, json} <- Memory.marshal(memory) do
+         {:ok, json} <- Memory.marshal(memory),
+         {:ok, _path} <- ensure_storage_path(project) do
       lockfile = Path.join(storage_path(project), ".alloc.lock")
 
       case FileLock.with_lock(lockfile, fn ->
@@ -149,6 +150,13 @@ defmodule Memory.Project do
   end
 
   defp write_file(path, json) do
+    # Optional debug (controlled by FNORD_DEBUG_MEMORY). Use UI.debug so the
+    # output can be enabled via environment when diagnosing issues in CI or
+    # locally. This avoids noisy stdout in normal runs.
+    if Util.Env.looks_truthy?("FNORD_DEBUG_MEMORY") do
+      UI.debug("memory.project.write", "writing memory to #{path} (#{byte_size(json)} bytes)")
+    end
+
     case FileLock.with_lock(path, fn -> File.write(path, json) end) do
       {:ok, :ok} ->
         {:ok, :ok}

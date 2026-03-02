@@ -7,7 +7,8 @@ defmodule Memory do
     :topics,
     :embeddings,
     :inserted_at,
-    :updated_at
+    :updated_at,
+    :index_status
   ]
 
   @type scope ::
@@ -23,12 +24,12 @@ defmodule Memory do
           topics: list(binary),
           embeddings: list(float) | nil,
           inserted_at: binary | nil,
-          updated_at: binary | nil
+          updated_at: binary | nil,
+          index_status: :new | :analyzed | :rejected | :incorporated | :merged | :ignore | nil
         }
 
   @me_title "Me"
   @log_tag "Lore"
-  @log_verb "Chunked"
 
   # ----------------------------------------------------------------------------
   # Behaviour
@@ -84,7 +85,7 @@ defmodule Memory do
   # ----------------------------------------------------------------------------
   # Consumer interface
   # ----------------------------------------------------------------------------
-  @spec init() :: {:ok, Task.t()} | {:error, term}
+  @spec init() :: :ok | {:error, term}
   def init do
     UI.begin_step(@log_tag, "Warming up the old memory banks")
 
@@ -92,7 +93,7 @@ defmodule Memory do
          :ok <- Memory.Project.init(),
          :ok <- Memory.Session.init(),
          {:ok, _me} <- ensure_me() do
-      {:ok, perform_memory_consolidation()}
+      :ok
     else
       {:error, reason} ->
         UI.error(@log_tag, reason)
@@ -118,10 +119,34 @@ defmodule Memory do
   def list(:project), do: Memory.Project.list()
   def list(:session), do: Memory.Session.list()
 
-  @spec search(binary, non_neg_integer) :: {:ok, list({t, float})} | {:error, term}
-  def search(query, limit) do
+  # List memories restricted to the given scopes. When nil, lists all scopes.
+  @spec list_for_scopes(list(scope) | nil) :: {:ok, list({scope, binary})} | {:error, term}
+  defp list_for_scopes(nil), do: list()
+
+  defp list_for_scopes(scopes) when is_list(scopes) do
+    results =
+      Enum.flat_map(scopes, fn scope ->
+        case list(scope) do
+          {:ok, titles} -> Enum.map(titles, fn title -> {scope, title} end)
+          {:error, _} -> []
+        end
+      end)
+
+    {:ok, results}
+  end
+
+  @spec search(binary, non_neg_integer, keyword()) :: {:ok, list({t, float})} | {:error, term}
+  def search(query, limit, opts \\ []) do
+    {elapsed_us, result} = :timer.tc(fn -> do_search(query, limit, opts) end)
+    record_search_timing(div(elapsed_us, 1_000))
+    result
+  end
+
+  defp do_search(query, limit, opts) do
+    scopes = Keyword.get(opts, :scopes)
+
     with {:ok, needle} <- get_needle(query),
-         {:ok, memories} <- list() do
+         {:ok, memories} <- list_for_scopes(scopes) do
       memories
       |> Util.async_stream(fn {scope, title} ->
         case read(scope, title) do
@@ -156,6 +181,33 @@ defmodule Memory do
       |> Enum.sort_by(fn {_, score} -> score end, :desc)
       |> Enum.take(limit)
       |> then(&{:ok, &1})
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Search timing metrics
+  # ---------------------------------------------------------------------------
+  @search_timings_key :memory_search_timings
+
+  defp record_search_timing(ms) do
+    timings = Services.Globals.get_env(:fnord, @search_timings_key, [])
+    Services.Globals.put_env(:fnord, @search_timings_key, [ms | timings])
+  end
+
+  @doc """
+  Returns `{count, avg_ms}` for memory searches performed this session,
+  or `nil` if no searches have been recorded.
+  """
+  @spec search_stats() :: {pos_integer(), float()} | nil
+  def search_stats do
+    case Services.Globals.get_env(:fnord, @search_timings_key, []) do
+      [] ->
+        nil
+
+      timings ->
+        count = length(timings)
+        avg = Enum.sum(timings) / count
+        {count, Float.round(avg, 1)}
     end
   end
 
@@ -206,7 +258,8 @@ defmodule Memory do
            topics: topics,
            embeddings: nil,
            inserted_at: timestamp,
-           updated_at: timestamp
+           updated_at: timestamp,
+           index_status: if(scope == :session, do: :new, else: nil)
          }}
     end
   end
@@ -248,6 +301,8 @@ defmodule Memory do
           :global
       end
 
+    index_status_val = Map.get(data, :index_status) || Map.get(data, "index_status")
+
     %Memory{
       scope: scope,
       title: Map.get(data, :title),
@@ -256,9 +311,25 @@ defmodule Memory do
       topics: Map.get(data, :topics),
       embeddings: Map.get(data, :embeddings),
       inserted_at: Map.get(data, :inserted_at),
-      updated_at: Map.get(data, :updated_at)
+      updated_at: Map.get(data, :updated_at),
+      index_status: parse_index_status(index_status_val)
     }
   end
+
+  defp parse_index_status(nil), do: nil
+  defp parse_index_status(:new), do: :new
+  defp parse_index_status(:analyzed), do: :analyzed
+  defp parse_index_status(:rejected), do: :rejected
+  defp parse_index_status(:incorporated), do: :incorporated
+  defp parse_index_status(:merged), do: :merged
+  defp parse_index_status(:ignore), do: :ignore
+  defp parse_index_status("new"), do: :new
+  defp parse_index_status("analyzed"), do: :analyzed
+  defp parse_index_status("rejected"), do: :rejected
+  defp parse_index_status("incorporated"), do: :incorporated
+  defp parse_index_status("merged"), do: :merged
+  defp parse_index_status("ignore"), do: :ignore
+  defp parse_index_status(_), do: nil
 
   @spec append(t, binary) :: t
   def append(%Memory{} = memory, new_content) do
@@ -317,6 +388,25 @@ defmodule Memory do
   def forget(%{scope: :project, title: title}), do: Memory.Project.forget(title)
   def forget(%{scope: :session, title: title}), do: Memory.Session.forget(title)
 
+  @doc """
+  Set the index_status of an existing memory and persist it.
+
+  This updates the memory's status and saves it with skip_embeddings: true
+  to avoid regenerating embeddings during status-only transitions.
+  """
+  @spec set_status(scope, binary, atom) :: {:ok, t} | {:error, term}
+  def set_status(scope, title, status)
+      when scope in [:global, :project, :session] and is_binary(title) and is_atom(status) do
+    with {:ok, mem} <- read(scope, title) do
+      updated = %{mem | index_status: status}
+
+      case save(updated, skip_embeddings: true) do
+        {:ok, saved} -> {:ok, saved}
+        {:error, reason} -> {:error, reason}
+      end
+    end
+  end
+
   # ----------------------------------------------------------------------------
   # Utilities for implementors
   # ----------------------------------------------------------------------------
@@ -344,6 +434,8 @@ defmodule Memory do
          {:ok, content} <- Map.fetch(data, "content"),
          {:ok, topics} <- Map.fetch(data, "topics"),
          {:ok, embeddings} <- Map.fetch(data, "embeddings") do
+      index_status_val = Map.get(data, "index_status")
+
       {:ok,
        %Memory{
          scope: scope,
@@ -353,7 +445,8 @@ defmodule Memory do
          topics: topics,
          embeddings: embeddings,
          inserted_at: Map.get(data, "inserted_at"),
-         updated_at: Map.get(data, "updated_at")
+         updated_at: Map.get(data, "updated_at"),
+         index_status: parse_index_status(index_status_val)
        }}
     else
       :error -> {:error, :invalid_memory_structure}
@@ -490,18 +583,26 @@ defmodule Memory do
 
   @spec maybe_migrate_on_read({:ok, t} | {:error, term}) :: {:ok, t} | {:error, term}
   defp maybe_migrate_on_read({:ok, memory}) do
-    if memory.inserted_at in [nil, ""] or memory.updated_at in [nil, ""] do
-      # Update timestamps on disk without regenerating embeddings.
-      # The save call intentionally uses :skip_embeddings so we only write
-      # the timestamp fields and avoid the potentially expensive embedding
-      # generation step.
-      case save(memory, skip_embeddings: true) do
+    need_timestamps = is_nil(memory.inserted_at) or is_nil(memory.updated_at)
+
+    # Repair legacy session-scoped memories: treat missing index_status as :analyzed
+    need_index_fix = memory.scope == :session and is_nil(memory.index_status)
+
+    if need_timestamps or need_index_fix do
+      # Prepare a repaired memory struct with timestamps and index status fixed.
+      repaired = memory |> ensure_timestamps()
+
+      repaired = if need_index_fix, do: %{repaired | index_status: :analyzed}, else: repaired
+
+      # Save without regenerating embeddings to avoid expensive API calls.
+      case save(repaired, skip_embeddings: true) do
         {:ok, mem} ->
+          # Best-effort: nothing to do on success beyond returning repaired memory
           {:ok, mem}
 
         {:error, _reason} ->
-          # If the save failed for any reason, best-effort: fill timestamps in-memory
-          {:ok, ensure_timestamps(memory)}
+          # Best-effort: return the repaired memory in-memory
+          {:ok, repaired}
       end
     else
       {:ok, memory}
@@ -562,145 +663,6 @@ defmodule Memory do
   defp do_read(:global, title), do: Memory.Global.read(title)
   defp do_read(:project, title), do: Memory.Project.read(title)
   defp do_read(:session, title), do: Memory.Session.read(title)
-
-  # ----------------------------------------------------------------------------
-  # Memory Ingestion
-  # ----------------------------------------------------------------------------
-  # The number of concurrent ingestion workers.
-  @ingestion_concurrency 2
-
-  @doc """
-  Spawns a task that performs memory consolidation by ingesting all
-  conversations in the current project into long-term memory. Returns `:ok`
-  immediately. Ingestion is restricted to `@ingestion_concurrency` workers
-  (currently 2).
-  """
-  @spec perform_memory_consolidation() :: Task.t()
-  def perform_memory_consolidation() do
-    Services.Globals.Spawn.async(fn ->
-      # Use a dedicated HTTP pool for memory ingestion to avoid interfering
-      # with other API calls. This pool is scoped to the current process.
-      HttpPool.set(:ai_memory)
-
-      UI.begin_step(@log_tag, "Accreting long-term memories from past conversations")
-
-      ingest_all_conversations()
-      |> case do
-        :ok ->
-          UI.end_step_background(@log_tag, "Yum. Tasted like en-graham crackers.")
-
-        {:error, reason} ->
-          UI.end_step_background(@log_tag, reason)
-      end
-    end)
-  end
-
-  @doc """
-  Ingest all conversations in the current project into long-term memory.
-  Conversations that have not changed since their last ingestion are skipped.
-  The current conversation (if any) is also skipped.
-  """
-  @spec ingest_all_conversations() :: :ok | {:error, term}
-  def ingest_all_conversations() do
-    with {:ok, project} <- Store.get_project() do
-      current =
-        Services.Globals.get_env(:fnord, :current_conversation, nil)
-        |> case do
-          nil -> nil
-          pid -> Services.Conversation.get_id(pid)
-        end
-
-      project
-      |> Store.Project.Conversation.list()
-      |> Enum.reject(&(&1.id == current))
-      |> Util.async_stream(&ingest_conversation/1, max_concurrency: @ingestion_concurrency)
-      |> Stream.run()
-
-      :ok
-    end
-  end
-
-  @doc """
-  Ingest a single conversation into long-term memory. Conversations that have
-  not changed since their last ingestion are skipped. Conversations that have
-  never been ingested are treated as changed, and ingested.
-  """
-  @spec ingest_conversation(Store.Project.Conversation.t()) :: :ok | {:error, term}
-  def ingest_conversation(conversation) do
-    with {:ok, data} <- Store.Project.Conversation.read(conversation),
-         {:ok, meta} <- Map.fetch(data, :metadata),
-         {:ok, msgs} <- Map.fetch(data, :messages) do
-      old_hash = Map.get(meta, :long_term_memory_hash, "")
-      new_hash = make_hash(msgs)
-
-      if old_hash != new_hash do
-        AI.Agent.Memory.Ingest
-        |> AI.Agent.new(named?: false)
-        |> AI.Agent.get_response(%{messages: msgs})
-        |> case do
-          {:ok, response} ->
-            label = get_label(conversation, response)
-            UI.end_step_background(@log_verb, label)
-
-            # Re-read the conversation to ensure no changes occurred during
-            # ingestion. For example, in another OS process.
-            FileLock.with_lock(conversation.store_path, fn ->
-              with {:ok, data} <- Store.Project.Conversation.read(conversation),
-                   {:ok, meta} <- Map.fetch(data, :metadata),
-                   {:ok, msgs} <- Map.fetch(data, :messages) do
-                # If the hash is still different, that means another process
-                # modified the conversation during ingestion. In that case, we
-                # skip updating the hash, because there are now new messages
-                # that must be considered for long-term memory.
-                if new_hash == make_hash(msgs) do
-                  meta = Map.put(meta, :long_term_memory_hash, new_hash)
-                  data = Map.put(data, :metadata, meta)
-                  Store.Project.Conversation.write(conversation, data)
-                end
-              end
-            end)
-
-          {:error, reason} ->
-            {:error, reason}
-        end
-        |> case do
-          {:ok, {:ok, _result}} -> :ok
-          {:ok, {:error, reason}} -> {:error, reason}
-          {:ok, nil} -> :ok
-          {:error, reason} -> {:error, reason}
-        end
-      else
-        :ok
-      end
-    end
-  end
-
-  defp make_hash(msgs) do
-    msgs
-    |> SafeJson.encode!()
-    |> :erlang.md5()
-    |> Base.encode16()
-  end
-
-  defp get_label(_conversation, response) do
-    cols = Owl.IO.columns() || 120
-    prefix_len = String.length("[info] ✓ #{@log_verb}: [xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx] ")
-    min_width = 20
-    width = max(cols - prefix_len, min_width)
-
-    response
-    |> String.split("\n")
-    |> List.first()
-    |> String.trim()
-    # If the line is long, truncate and add ellipsis
-    |> then(fn line ->
-      line
-      |> Owl.Data.tag([:italic, :light_black])
-      |> Owl.Data.truncate(width)
-      |> Owl.Data.to_chardata()
-      |> to_string()
-    end)
-  end
 end
 
 defimpl SafeJson.Serialize, for: Memory do
@@ -713,7 +675,8 @@ defimpl SafeJson.Serialize, for: Memory do
       topics: m.topics,
       embeddings: m.embeddings,
       inserted_at: m.inserted_at,
-      updated_at: m.updated_at
+      updated_at: m.updated_at,
+      index_status: m.index_status
     }
   end
 end

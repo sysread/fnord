@@ -183,7 +183,7 @@ defmodule AI.Agent.Code.TaskValidator do
             {:error, reason} ->
               UI.report_from(
                 state.agent.name,
-                "Validation failed — invalid response format",
+                "Validation failed -- invalid response format",
                 "JSON decode error: #{inspect(reason)}\n\n#{state.response}"
               )
 

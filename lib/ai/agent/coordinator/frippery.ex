@@ -96,7 +96,11 @@ defmodule AI.Agent.Coordinator.Frippery do
       "bipedal mammal",
       "organ grinder",
       "hairless ape",
-      "future zoo exhibit"
+      "future zoo exhibit",
+      "biological battery",
+      "3 bazillion microbes in a trench coat",
+      "evolutionary dead end",
+      "genetic backwash"
     ]
     |> Enum.random()
   end

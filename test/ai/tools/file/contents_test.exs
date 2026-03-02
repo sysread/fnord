@@ -54,7 +54,7 @@ defmodule AI.Tools.File.ContentsTest do
     end
   end
 
-  describe "call/1 – successful read with numbering" do
+  describe "call/1 - successful read with numbering" do
     setup do
       :meck.new(AI.Tools)
       :meck.expect(AI.Tools, :get_file_contents, fn "file.txt" -> {:ok, "one\ntwo\nthree"} end)
@@ -88,7 +88,7 @@ defmodule AI.Tools.File.ContentsTest do
     end
   end
 
-  describe "call/1 – no numbering with slice" do
+  describe "call/1 - no numbering with slice" do
     setup do
       :meck.new(AI.Tools)
       :meck.expect(AI.Tools, :get_file_contents, fn "file.txt" -> {:ok, "a\nb\nc\nd"} end)
@@ -126,7 +126,7 @@ defmodule AI.Tools.File.ContentsTest do
     end
   end
 
-  describe "call/1 – default no numbering" do
+  describe "call/1 - default no numbering" do
     setup do
       :meck.new(AI.Tools)
       :meck.expect(AI.Tools, :get_file_contents, fn "plain" -> {:ok, "x\ny"} end)
@@ -157,7 +157,7 @@ defmodule AI.Tools.File.ContentsTest do
     end
   end
 
-  describe "call/1 – slicing to end without end_line" do
+  describe "call/1 - slicing to end without end_line" do
     setup do
       :meck.new(AI.Tools)
       :meck.expect(AI.Tools, :get_file_contents, fn "toend" -> {:ok, "a\nb\nc"} end)
@@ -188,7 +188,7 @@ defmodule AI.Tools.File.ContentsTest do
     end
   end
 
-  describe "call/1 – start > end returns full content" do
+  describe "call/1 - start > end returns full content" do
     setup do
       :meck.new(AI.Tools)
       :meck.expect(AI.Tools, :get_file_contents, fn "rng" -> {:ok, "a\nb\nc"} end)
@@ -221,7 +221,7 @@ defmodule AI.Tools.File.ContentsTest do
     end
   end
 
-  describe "call/1 – includes backup description" do
+  describe "call/1 - includes backup description" do
     setup do
       :meck.new(AI.Tools)
       :meck.expect(AI.Tools, :get_file_contents, fn "b.txt" -> {:ok, "ln1"} end)
@@ -251,7 +251,7 @@ defmodule AI.Tools.File.ContentsTest do
     end
   end
 
-  describe "call/1 – file not found" do
+  describe "call/1 - file not found" do
     setup do
       :meck.new(AI.Tools)
       :meck.expect(AI.Tools, :get_file_contents, fn "nof" -> {:error, :enoent} end)
@@ -274,7 +274,7 @@ defmodule AI.Tools.File.ContentsTest do
     end
   end
 
-  describe "call/1 – other errors" do
+  describe "call/1 - other errors" do
     setup do
       :meck.new(AI.Tools)
       :meck.expect(AI.Tools, :get_file_contents, fn "err" -> {:error, :eacces} end)

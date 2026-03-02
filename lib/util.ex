@@ -8,9 +8,9 @@ defmodule Util do
   @type async_cb :: (async_item -> any())
 
   @doc """
-  Convenience wrapper for `Services.Globals.Spawn.async_stream/3` with the default options for
-  concurrency and timeout set to `Services.Globals.get_env(:fnord, :workers)` and
-  `:infinity`, respectively.
+  Convenience wrapper for `Services.Globals.Spawn.async_stream/3` with timeout
+  defaulting to `:infinity`. Concurrency defaults to `System.schedulers_online()`
+  (the `Task.async_stream` default) unless overridden via `max_concurrency`.
   """
   @spec async_stream(Enumerable.t(), async_cb, Keyword.t()) :: Enumerable.t()
   def async_stream(enumerable, fun, options \\ []) do

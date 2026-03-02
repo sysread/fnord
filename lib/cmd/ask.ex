@@ -15,7 +15,6 @@ defmodule Cmd.Ask do
         about: "Ask the AI a question about the project",
         options: [
           project: Cmd.project_arg(),
-          workers: Cmd.workers_arg(),
           question: [
             value_name: "QUESTION",
             long: "--question",
@@ -159,8 +158,12 @@ defmodule Cmd.Ask do
 
     # Start silent background indexers. This must happen BEFORE any project
     # root override is applied, so that the indexers use the correct root.
+    # MemoryIndexer and ConversationIndexer are independent: the memory
+    # indexer self-scans for unprocessed session memories rather than relying
+    # on the conversation indexer to feed it work.
     file_indexer_pid = start_file_indexer()
     conversation_indexer_pid = start_conversation_indexer()
+    start_memory_indexer()
 
     start_time = System.monotonic_time(:second)
 
@@ -176,13 +179,10 @@ defmodule Cmd.Ask do
                Services.Globals.put_env(:fnord, :current_conversation, pid)
                :ok
              ),
-           {:ok, memory_task} <- Memory.init(),
+           :ok <- Memory.init(),
            {:ok, usage, context, response} <- get_response(opts, pid),
            {:ok, conversation_id} <- save_conversation(pid) do
         end_time = System.monotonic_time(:second)
-
-        # shut down long-term memory ingestion task
-        Task.shutdown(memory_task, 1_000) || Task.shutdown(memory_task, :brutal_kill)
 
         print_result(start_time, end_time, response, usage, context, conversation_id)
         maybe_save_output(opts, conversation_id, response)
@@ -225,6 +225,7 @@ defmodule Cmd.Ask do
       # stop background indexers if still running
       stop_file_indexer(file_indexer_pid)
       stop_conversation_indexer(conversation_indexer_pid)
+      stop_memory_indexer()
 
       Services.BackupFile.offer_cleanup()
 
@@ -307,6 +308,22 @@ defmodule Cmd.Ask do
     end
   end
 
+  defp start_memory_indexer() do
+    case Process.whereis(Services.MemoryIndexer) do
+      nil ->
+        try do
+          Services.MemoryIndexer.start_link([])
+        rescue
+          e ->
+            UI.debug("ask", "MemoryIndexer start failed: #{Exception.message(e)}")
+            :ok
+        end
+
+      _ ->
+        :ok
+    end
+  end
+
   defp stop_file_indexer(pid) do
     if is_pid(pid) && Process.alive?(pid) do
       Services.BackgroundIndexer.stop(pid)
@@ -316,6 +333,20 @@ defmodule Cmd.Ask do
   defp stop_conversation_indexer(pid) do
     if is_pid(pid) && Process.alive?(pid) do
       Services.ConversationIndexer.stop(pid)
+    end
+  end
+
+  defp stop_memory_indexer do
+    case Process.whereis(Services.MemoryIndexer) do
+      pid when is_pid(pid) ->
+        try do
+          GenServer.stop(pid, :normal, 1_000)
+        catch
+          :exit, _ -> :ok
+        end
+
+      _ ->
+        :ok
     end
   end
 
@@ -471,15 +502,30 @@ defmodule Cmd.Ask do
     - Tokens used: #{usage_str} | #{pct_context_used}% of context window (#{context_str})
     - Conversation saved with ID #{conversation_id} (_copied to clipboard_)
 
-    ### Project Search Index Status:
+    ### Index Status:
     - Stale:   #{Enum.count(stale)}
     - New:     #{Enum.count(new)}
     - Deleted: #{Enum.count(deleted)}
+    - Memory:  #{count_memories(:session)} session; #{count_memories(:project)} project; #{count_memories(:global)} global#{format_search_stats()}
 
-    _Run `fnord index` to update the index._
+    _Run_ `fnord index` _to update the index, or_ `fnord index --long-con` _to consolidate memories._
     """)
 
     UI.flush()
+  end
+
+  defp count_memories(scope) do
+    case Memory.list(scope) do
+      {:ok, titles} -> length(titles)
+      _ -> 0
+    end
+  end
+
+  defp format_search_stats do
+    case Memory.search_stats() do
+      nil -> ""
+      {count, avg_ms} -> "\n    - Recall:  #{count} searches, avg #{avg_ms} ms"
+    end
   end
 
   defp save_conversation(pid) do

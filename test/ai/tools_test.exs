@@ -164,7 +164,7 @@ defmodule AI.ToolsTest do
     end
 
     test "rejects args that fail schema validation" do
-      # Missing required "label" — read_args passes through, validate_json_args catches it
+      # Missing required "label" -- read_args passes through, validate_json_args catches it
       args = %{"count" => 5}
 
       assert {:error, :missing_argument, msg} =

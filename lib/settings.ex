@@ -110,15 +110,6 @@ defmodule Settings do
   end
 
   @doc """
-  Set the number of workers for concurrent operations.
-  """
-  @spec set_workers(pos_integer) :: :ok
-  def set_workers(workers) when is_integer(workers) and workers > 0 do
-    Services.Globals.put_env(:fnord, :workers, workers)
-    :ok
-  end
-
-  @doc """
   Set edit mode for the application.
   """
   @spec set_edit_mode(boolean) :: :ok

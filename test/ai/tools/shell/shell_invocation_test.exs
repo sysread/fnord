@@ -34,7 +34,7 @@ defmodule AI.Tools.Shell.InvocationTest do
         refute reason =~ "Execute commands directly; do not invoke through a shell"
 
       _other ->
-        # ok — some other outcome (approved, error, etc.) is acceptable for this test
+        # ok -- some other outcome (approved, error, etc.) is acceptable for this test
         assert true
     end
   end

@@ -73,10 +73,12 @@ defmodule Services.NamePoolTest do
     # Start the dummy server
     {:ok, pid} = GenServer.start_link(NoReplyServer, :ok)
 
-    # Ensure the dummy server is stopped when the test exits
+    # Use Process.exit to terminate the helper reliably without raising if
+    # the process has already exited. This avoids races between the test
+    # teardown and the helper process lifecycle.
     on_exit(fn ->
       if Process.alive?(pid) do
-        GenServer.stop(pid)
+        Process.exit(pid, :normal)
       end
     end)
 

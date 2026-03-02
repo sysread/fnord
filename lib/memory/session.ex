@@ -4,6 +4,11 @@ defmodule Memory.Session do
   # ----------------------------------------------------------------------------
   @behaviour Memory
 
+  # Session memories with these statuses have been promoted to long-term
+  # (project/global) storage by the indexer. They are excluded from list and
+  # search results to avoid redundancy with their long-term counterparts.
+  @promoted_statuses [:incorporated, :merged]
+
   @impl Memory
   def init() do
     case get_conversation_pid() do
@@ -15,7 +20,11 @@ defmodule Memory.Session do
   @impl Memory
   def list() do
     with {:ok, memories} <- get_conversation_memory() do
-      titles = Enum.map(memories, & &1.title)
+      titles =
+        memories
+        |> Enum.reject(fn %Memory{index_status: s} -> s in @promoted_statuses end)
+        |> Enum.map(& &1.title)
+
       {:ok, titles}
     end
   end
@@ -49,6 +58,10 @@ defmodule Memory.Session do
         memories
         |> Enum.reject(fn %Memory{title: t} -> t == title end)
         |> Kernel.++([memory])
+        |> Enum.map(fn
+          %Memory{scope: :session, index_status: nil} = m -> %{m | index_status: :new}
+          m -> m
+        end)
 
       Services.Conversation.put_memory(pid, updated)
       :ok

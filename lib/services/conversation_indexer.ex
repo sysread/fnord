@@ -189,7 +189,9 @@ defmodule Services.ConversationIndexer do
           :ok
       end
     rescue
-      _ -> :ok
+      e ->
+        UI.debug("conversation_indexer", "Processing failed: #{Exception.message(e)}")
+        :ok
     end
   end
 

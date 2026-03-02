@@ -591,7 +591,7 @@ defmodule AI.Tools.Params do
   end
 
   @doc """
-  Check whether a composition schema represents a nullable type — i.e.,
+  Check whether a composition schema represents a nullable type -- i.e.,
   `anyOf`/`oneOf` with exactly two sub-schemas where one is `{type: "null"}`.
 
   Returns `{:nullable, non_null_schema}` or `:not_nullable`.

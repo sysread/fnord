@@ -24,7 +24,6 @@ defmodule Cmd.Index do
         about: "Index a project",
         options: [
           project: Cmd.project_arg(),
-          workers: Cmd.workers_arg(),
           directory: [
             value_name: "DIR",
             long: "--dir",
@@ -62,6 +61,12 @@ defmodule Cmd.Index do
             help: "Assume 'yes' to all prompts",
             required: false,
             default: false
+          ],
+          long_con: [
+            long: "--long-con",
+            help: "Consolidate long-term memories (merge duplicates, prune redundancies)",
+            required: false,
+            default: false
           ]
         ]
       ]
@@ -70,17 +75,65 @@ defmodule Cmd.Index do
 
   @impl Cmd
   def run(opts, _subcommands, _unknown) do
-    case new(opts) do
-      {:ok, idx} ->
-        perform_task({:ok, idx})
-        maybe_prime_notes(idx)
+    if opts[:long_con] do
+      run_consolidation()
+    else
+      case new(opts) do
+        {:ok, idx} ->
+          perform_task({:ok, idx})
+          maybe_prime_notes(idx)
 
-      {:error, :directory_required} ->
-        UI.fatal("Error: -d | --directory is required")
+        {:error, :directory_required} ->
+          UI.fatal("Error: -d | --directory is required")
 
-      other ->
-        perform_task(other)
+        other ->
+          perform_task(other)
+      end
     end
+  end
+
+  # Run the memory consolidation pipeline with a spinner and progress bar,
+  # matching the UX pattern used by file and conversation indexing.
+  defp run_consolidation do
+    total = count_long_term_memories()
+
+    if total == 0 do
+      UI.warn("No long-term memories to consolidate")
+      :ok
+    else
+      UI.spin("Consolidating #{total} long-term memories", fn ->
+        UI.progress_bar_start(:consolidation, "Consolidating", total)
+        on_progress = fn -> UI.progress_bar_update(:consolidation) end
+
+        case Memory.Consolidator.run(on_progress: on_progress) do
+          {:ok, report} ->
+            msg =
+              "Merged: #{report.merged}, Deleted: #{report.deleted}, " <>
+                "Kept: #{report.kept}, Errors: #{report.errors}"
+
+            {msg, :ok}
+
+          {:error, reason} ->
+            {"Failed: #{inspect(reason)}", {:error, reason}}
+        end
+      end)
+    end
+  end
+
+  defp count_long_term_memories do
+    global =
+      case Memory.list(:global) do
+        {:ok, l} -> length(l)
+        _ -> 0
+      end
+
+    project =
+      case Memory.list(:project) do
+        {:ok, l} -> length(l)
+        _ -> 0
+      end
+
+    global + project
   end
 
   @doc """
@@ -118,7 +171,6 @@ defmodule Cmd.Index do
 
   def perform_task({:ok, idx}) do
     UI.info("Project", idx.project.name)
-    UI.info("Workers", Services.Globals.get_env(:fnord, :workers) |> to_string())
     UI.info("   Root", idx.project.source_root)
 
     UI.info(
@@ -429,9 +481,25 @@ defmodule Cmd.Index do
       :ok
     else
       UI.spin("Indexing #{count} conversation(s)", fn ->
-        conversations
-        |> UI.async_stream(&process_conversation(project, &1), "Indexing conversations")
-        |> Enum.to_list()
+        # Split conversations into chunks and process each chunk
+        # concurrently. Util.async_stream defaults to
+        # System.schedulers_online() for concurrency.
+        partitions_count = 4
+        chunk_size = div(count + partitions_count - 1, partitions_count)
+        partitions = Enum.chunk_every(conversations, chunk_size)
+
+        tasks =
+          partitions
+          |> Enum.map(fn part ->
+            Services.Globals.Spawn.async(fn ->
+              part
+              |> Util.async_stream(fn convo -> process_conversation(project, convo) end)
+              |> Enum.to_list()
+            end)
+          end)
+
+        # Wait for all partitions to finish
+        Enum.each(tasks, fn t -> Task.await(t, :infinity) end)
 
         {"All conversation indexing tasks complete", :ok}
       end)

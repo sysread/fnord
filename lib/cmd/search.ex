@@ -21,7 +21,6 @@ defmodule Cmd.Search do
         ],
         options: [
           project: Cmd.project_arg(),
-          workers: Cmd.workers_arg(),
           query: [
             value_name: "QUERY",
             long: "--query",

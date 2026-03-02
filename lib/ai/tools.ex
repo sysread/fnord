@@ -71,18 +71,7 @@ defmodule AI.Tools do
           :function => %{
             :name => binary,
             :description => binary,
-            :parameters => %{
-              optional(:additionalProperties) => boolean,
-              :type => binary,
-              :required => [binary],
-              :properties => %{
-                binary => %{
-                  :type => binary,
-                  :description => binary,
-                  optional(:default) => any
-                }
-              }
-            }
+            :parameters => map()
           }
         }
 
@@ -169,7 +158,7 @@ defmodule AI.Tools do
   @doc """
   Returns the OpenAPI spec for the tool as an elixir map.
   """
-  @callback spec() :: tool_spec
+  @callback spec() :: map()
 
   @doc """
   Calls the tool with the provided arguments and returns the response as an :ok
