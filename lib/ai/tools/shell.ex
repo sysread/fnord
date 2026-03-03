@@ -579,6 +579,8 @@ defmodule AI.Tools.Shell do
         "&&" -> nil
       end
 
+    UI.report_step("Executing shell command", format_command(command))
+
     command
     |> shell_out(timeout_ms, root, input)
     |> case do
