@@ -28,16 +28,10 @@ defmodule Memory.Presentation do
     end
   end
 
-  @doc """
-  Returns the age in whole days since `dt` relative to `now`.
-
-  If `dt` is in the future, returns `0`.
-  """
-  @spec age_days(DateTime.t(), DateTime.t()) :: non_neg_integer()
-  def age_days(%DateTime{} = dt, %DateTime{} = now) do
-    seconds = DateTime.diff(now, dt, :second)
-    days = div(max(seconds, 0), 86_400)
-    days
+  defp age_days(%DateTime{} = dt, %DateTime{} = now) do
+    secs = DateTime.diff(now, dt, :second)
+    secs = if secs < 0, do: 0, else: secs
+    div(secs, 86_400)
   end
 
   @doc """
@@ -51,8 +45,14 @@ defmodule Memory.Presentation do
   Notes:
   - Uses `updated_at` if present; otherwise uses `inserted_at`.
   - Uses `now` for deterministic testing.
+  - If the first argument is `:error` or any non-struct value (e.g. a parse error),
+    this will return `"Age: unknown (missing timestamps)"`.
   """
-  @spec age_line(Memory.t(), DateTime.t()) :: binary()
+  @spec age_line(:error | Memory.t() | term(), DateTime.t()) :: binary()
+  def age_line(mem, %DateTime{} = _now) when not is_struct(mem) do
+    "Age: unknown (missing timestamps)"
+  end
+
   def age_line(%Memory{} = mem, %DateTime{} = now) do
     inserted_days = ts_days(mem.inserted_at, now)
     updated_days = ts_days(mem.updated_at, now)
@@ -81,9 +81,18 @@ defmodule Memory.Presentation do
   - Else returns `nil`.
 
   This is intended as a gentle prompt to check for cobwebs.
+
+  If the first argument is `:error` or any non-struct value, this function will
+  return `nil` (no warning).
   """
-  @spec warning_line(Memory.t(), DateTime.t(), keyword()) :: binary() | nil
-  def warning_line(%Memory{} = mem, %DateTime{} = now, opts \\ []) do
+  @spec warning_line(:error | Memory.t() | term(), DateTime.t(), keyword()) :: binary() | nil
+  def warning_line(mem, now, opts \\ [])
+
+  def warning_line(mem, %DateTime{} = _now, _opts) when not is_struct(mem) do
+    nil
+  end
+
+  def warning_line(%Memory{} = mem, %DateTime{} = now, opts) do
     mild_days = Keyword.get(opts, :mild_days, 180)
     strong_days = Keyword.get(opts, :strong_days, 365)
 

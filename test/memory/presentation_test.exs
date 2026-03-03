@@ -25,6 +25,11 @@ defmodule Memory.PresentationTest do
       assert Presentation.age_line(mem, now) == "Age: unknown (missing timestamps)"
     end
 
+    test "returns unknown when given :error" do
+      now = dt!("2025-01-01T00:00:00Z")
+      assert Presentation.age_line(:error, now) == "Age: unknown (missing timestamps)"
+    end
+
     test "renders age from inserted_at and updated_at" do
       mem = %Memory{
         scope: :global,
@@ -40,6 +45,22 @@ defmodule Memory.PresentationTest do
       now = dt!("2025-01-01T00:00:00Z")
       assert Presentation.age_line(mem, now) == "Age: 366 days (updated 12 days ago)"
     end
+
+    test "renders age from inserted_at only" do
+      mem = %Memory{
+        scope: :global,
+        title: "X",
+        slug: "x",
+        content: "c",
+        topics: [],
+        embeddings: [0.1],
+        inserted_at: "2024-01-01T00:00:00Z",
+        updated_at: nil
+      }
+
+      now = dt!("2025-01-01T00:00:00Z")
+      assert Presentation.age_line(mem, now) == "Age: 366 days"
+    end
   end
 
   describe "warning_line/3" do
@@ -53,6 +74,27 @@ defmodule Memory.PresentationTest do
         embeddings: [0.1],
         inserted_at: "2024-01-01T00:00:00Z",
         updated_at: nil
+      }
+
+      now = dt!("2025-01-01T00:00:00Z")
+      assert Presentation.warning_line(mem, now) == nil
+    end
+
+    test "returns nil when given :error" do
+      now = dt!("2025-01-01T00:00:00Z")
+      assert Presentation.warning_line(:error, now) == nil
+    end
+
+    test "returns nil for a recent updated_at" do
+      mem = %Memory{
+        scope: :global,
+        title: "X",
+        slug: "x",
+        content: "c",
+        topics: [],
+        embeddings: [0.1],
+        inserted_at: "2024-01-01T00:00:00Z",
+        updated_at: "2024-12-20T00:00:00Z"
       }
 
       now = dt!("2025-01-01T00:00:00Z")
