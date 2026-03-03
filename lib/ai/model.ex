@@ -59,9 +59,9 @@ defmodule AI.Model do
     end
   end
 
-  def smart(), do: gpt5_mini(:high)
+  def smart(), do: gpt5_mini(:medium)
   def smarter(), do: gpt5(:low)
-  def balanced(), do: gpt5_mini(:medium)
+  def balanced(), do: gpt5_mini(:low)
   def fast(), do: gpt41_nano()
 
   def coding(), do: gpt5_mini(:medium)
