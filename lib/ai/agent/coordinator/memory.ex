@@ -94,7 +94,10 @@ defmodule AI.Agent.Coordinator.Memory do
 
     memories =
       results
-      |> Enum.map(fn {mem, _score} -> format_recalled_memory(mem, now) end)
+      |> Enum.map(fn
+        {:error, reason} -> inspect(reason)
+        {mem, _score} -> format_recalled_memory(mem, now)
+      end)
       |> Enum.join("\n\n")
 
     """
