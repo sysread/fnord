@@ -12,8 +12,8 @@ defmodule MCP.Transport do
   def map(_server, %{"transport" => "stdio"} = cfg) do
     {:stdio,
      [
-       command: cfg["command"],
-       args: cfg["args"] || [],
+       command: MCP.STDIOWrapper.script_path!(),
+       args: [cfg["command"] | cfg["args"] || []],
        env: cfg["env"] || %{}
      ]}
   end
