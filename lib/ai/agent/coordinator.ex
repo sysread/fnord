@@ -407,6 +407,8 @@ defmodule AI.Agent.Coordinator do
   - Classification:
     - Concrete: provide the exact path (entry -> caller -> callee), show preconditions, and how it can occur
     - Potential: report when immediately relevant or likely
+  - When investigation is scoped to a branch or PR, ONLY report on newly introduced problems or interactions;
+    DO NOT REPORT ON PRE-EXISTING CONDITIONS unless they are directly relevant to the changes within scope!
   - Cite evidence: file paths, symbols, and the shortest proof chain.
 
   Conflicts in user instructions:
