@@ -123,6 +123,67 @@ defmodule AI.Tools.Shell.BasicsTest do
     assert msg =~ "rg must include an explicit path"
   end
 
+  test "rg with alternation pattern and explicit path under '&&' is allowed" do
+    project = mock_project("shell-rg-alt-allowed")
+    mock_source_file(project, "lib/a.txt", "foo bar\nbaz\n")
+
+    args = %{
+      "description" => "rg alternation allowed",
+      "operator" => "&&",
+      "commands" => [
+        %{"command" => "rg", "args" => ["{:error,\\s*:?invalid_json|:invalid_json", "lib"]}
+      ]
+    }
+
+    assert {:ok, _} = AI.Tools.Shell.call(args)
+  end
+
+  test "rg with alternation pattern but no path under '&&' is denied (and does not crash)" do
+    _project = mock_project("shell-rg-alt-denied")
+
+    args = %{
+      "description" => "rg alternation no path",
+      "operator" => "&&",
+      "commands" => [
+        %{"command" => "rg", "args" => ["{:error,\\s*:?invalid_json|:invalid_json"]}
+      ]
+    }
+
+    assert {:denied, msg} = AI.Tools.Shell.call(args)
+    assert msg =~ "rg must include an explicit path"
+  end
+
+  test "rg -e PATTERN with explicit path under '&&' is allowed" do
+    project = mock_project("shell-rg-e-allowed")
+    mock_source_file(project, "lib/b.txt", "foo baz\nbar\n")
+
+    args = %{
+      "description" => "rg -e pattern allowed",
+      "operator" => "&&",
+      "commands" => [
+        %{"command" => "rg", "args" => ["-e", "foo|bar", "lib"]}
+      ]
+    }
+
+    assert {:ok, out} = AI.Tools.Shell.call(args)
+    assert out =~ "lib/b.txt"
+  end
+
+  test "rg with '--' sentinel under '&&' is allowed" do
+    project = mock_project("shell-rg-sentinel-allowed")
+    mock_source_file(project, "lib/c.txt", "bar foo\n")
+
+    args = %{
+      "description" => "rg sentinel allowed",
+      "operator" => "&&",
+      "commands" => [
+        %{"command" => "rg", "args" => ["--", "foo|bar", "lib"]}
+      ]
+    }
+
+    assert {:ok, _out} = AI.Tools.Shell.call(args)
+  end
+
   test "deny when wc -l appears under '&&' without files" do
     mock_project("shell-wc-andand")
 

@@ -394,7 +394,7 @@ defmodule AI.Tools.Shell do
       base = Path.basename(cmd)
 
       case base do
-        "rg" -> not has_pathlike_positional?(args, root)
+        "rg" -> not rg_has_pathlike_positional?(args, root)
         "wc" -> not has_files_only?(args)
         _ -> false
       end
@@ -405,18 +405,44 @@ defmodule AI.Tools.Shell do
     base = Path.basename(cmd)
 
     case base do
-      "rg" -> not has_pathlike_positional?(args, root)
+      "rg" -> not rg_has_pathlike_positional?(args, root)
       "wc" -> not has_files_only?(args)
       _ -> false
     end
   end
 
-  defp has_pathlike_positional?(args, root) when is_list(args) do
+  defp rg_has_pathlike_positional?(args, root) when is_list(args) do
     args
-    |> Enum.reject(&String.starts_with?(&1, "-"))
+    |> rg_candidate_paths()
     |> Enum.any?(fn token ->
       path_token_within_root_exists?(token, root) || glob_within_root?(token, root)
     end)
+  end
+
+  defp rg_candidate_paths(args) when is_list(args) do
+    args
+    |> do_rg(false, false)
+    |> Enum.reverse()
+  end
+
+  defp do_rg([], _after_dd, _pattern_seen), do: []
+  defp do_rg(["--" | rest], _after_dd, pattern_seen), do: do_rg(rest, true, pattern_seen)
+  defp do_rg(["-e", _pattern | rest], after_dd, _pattern_seen), do: do_rg(rest, after_dd, true)
+
+  defp do_rg(["--regexp", _pattern | rest], after_dd, _pattern_seen),
+    do: do_rg(rest, after_dd, true)
+
+  defp do_rg([arg | rest], after_dd, pattern_seen) do
+    cond do
+      String.starts_with?(arg, "-") and not after_dd ->
+        do_rg(rest, after_dd, pattern_seen)
+
+      not pattern_seen ->
+        do_rg(rest, after_dd, true)
+
+      true ->
+        [arg | do_rg(rest, after_dd, true)]
+    end
   end
 
   defp path_token_within_root_exists?(token, root) do
@@ -437,12 +463,15 @@ defmodule AI.Tools.Shell do
   end
 
   defp glob_within_root?(pattern, root) do
-    # Support basic glob patterns within the project root
     pattern_path = Path.join(root, pattern)
 
-    case Path.wildcard(pattern_path) do
-      [] -> false
-      matches -> Enum.any?(matches, &Util.path_within_root?(&1, root))
+    try do
+      case Path.wildcard(pattern_path) do
+        [] -> false
+        matches -> Enum.any?(matches, &Util.path_within_root?(&1, root))
+      end
+    rescue
+      _ in [ErlangError, ArgumentError] -> false
     end
   end
 
