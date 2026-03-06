@@ -74,16 +74,17 @@ defmodule Cmd.SearchTest do
   end
 
   test "does not start MCP.Supervisor when running search" do
-    # Expect MCP.Supervisor.start_link not to be called
+    on_exit(fn ->
+      :meck.expect(MCP.Supervisor, :start_link, fn _ -> {:ok, self()} end)
+    end)
+
     :meck.expect(MCP.Supervisor, :start_link, fn _ ->
       flunk("MCP.Supervisor.start_link should not be called")
     end)
 
-    # Run the search
     search_opts = %{project: "test_project", query: "file1", limit: 1, detail: false}
     capture_all(fn -> Cmd.Search.run(search_opts, [], []) end)
 
-    # Ensure no call was made
     :meck.validate(MCP.Supervisor)
   end
 

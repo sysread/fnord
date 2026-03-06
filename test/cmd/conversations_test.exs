@@ -16,6 +16,10 @@ defmodule Cmd.ConversationsTest do
   end
 
   test "does not start MCP.Supervisor when listing conversations", %{project: project} do
+    on_exit(fn ->
+      :meck.expect(MCP.Supervisor, :start_link, fn _ -> {:ok, self()} end)
+    end)
+
     :meck.expect(MCP.Supervisor, :start_link, fn _ ->
       flunk("MCP.Supervisor.start_link/1 was called")
     end)
