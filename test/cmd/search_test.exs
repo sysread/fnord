@@ -73,6 +73,20 @@ defmodule Cmd.SearchTest do
     refute Enum.member?(results, file3)
   end
 
+  test "does not start MCP.Supervisor when running search" do
+    # Expect MCP.Supervisor.start_link not to be called
+    :meck.expect(MCP.Supervisor, :start_link, fn _ ->
+      flunk("MCP.Supervisor.start_link should not be called")
+    end)
+
+    # Run the search
+    search_opts = %{project: "test_project", query: "file1", limit: 1, detail: false}
+    capture_all(fn -> Cmd.Search.run(search_opts, [], []) end)
+
+    # Ensure no call was made
+    :meck.validate(MCP.Supervisor)
+  end
+
   describe "migration of legacy root-level entries" do
     test "migrates legacy entries and is idempotent", %{project: project} do
       # Create a legacy entry at project root

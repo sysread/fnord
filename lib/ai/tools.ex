@@ -221,6 +221,12 @@ defmodule AI.Tools do
   """
   @spec basic_tools() :: toolbox
   def basic_tools() do
+    # Only start the MCP service for agents that actually use tools. By placing
+    # the invocation here, we ensure that we only load it when there is an
+    # explicit need for it. A pid guard prevents it from being started multiple
+    # times if multiple agents are running concurrently.
+    Services.MCP.start()
+
     @tools
     |> Map.merge(Frobs.module_map())
     |> Map.merge(MCP.Tools.module_map())

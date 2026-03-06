@@ -15,6 +15,20 @@ defmodule Cmd.ConversationsTest do
     assert output =~ "No conversations found."
   end
 
+  test "does not start MCP.Supervisor when listing conversations", %{project: project} do
+    :meck.expect(MCP.Supervisor, :start_link, fn _ ->
+      flunk("MCP.Supervisor.start_link/1 was called")
+    end)
+
+    {output, _stderr} =
+      capture_all(fn ->
+        Cmd.Conversations.run(%{project: project.name}, [], [])
+      end)
+
+    :meck.validate(MCP.Supervisor)
+    assert output =~ "No conversations found."
+  end
+
   test "prune with no conversations only prints prune info and no JSON", %{project: project} do
     :ok = :meck.new(UI, [:non_strict])
     :meck.expect(UI, :info, fn msg -> IO.puts(:stderr, msg) end)
