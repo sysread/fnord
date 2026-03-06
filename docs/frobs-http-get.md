@@ -15,8 +15,8 @@ This guide shows how to create a frob that performs an HTTP GET with `curl`, aut
 You can create these files manually or use `fnord frobs create` and then overwrite the files. Manual steps:
 
 ```bash
-mkdir -p ~/.fnord/tools/http_get
-chmod 755 ~/.fnord/tools/http_get
+mkdir -p ~/fnord/tools/http_get
+chmod 755 ~/fnord/tools/http_get
 ```
 
 ## 2) Enable the frob
@@ -43,7 +43,7 @@ fnord frobs disable --name http_get --project <project_name>
 
 ## 3) `spec.json`
 
-Save to: `~/.fnord/tools/http_get/spec.json`
+Save to: `~/fnord/tools/http_get/spec.json`
 
 ```json
 {
@@ -71,8 +71,8 @@ Save to: `~/.fnord/tools/http_get/spec.json`
 
 ## 4) `main` (bash; make it executable)
 
-Save to: `~/.fnord/tools/http_get/main`  
-Make executable: `chmod +x ~/.fnord/tools/http_get/main`
+Save to: `~/fnord/tools/http_get/main`  
+Make executable: `chmod +x ~/fnord/tools/http_get/main`
 
 ```bash
 #!/usr/bin/env bash

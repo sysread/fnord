@@ -126,7 +126,7 @@ defmodule Cmd.Frobs do
         UI.puts(msg)
       else
         {:error, :invalid_subcommand} ->
-          UI.fatal("Invalid subcommand. Use `fnord help frobs` for available commands.")
+          UI.fatal("Invalid subcommand. Use `fnord frobs --help` for available commands.")
 
         {:error, reason} ->
           UI.fatal("Error: #{reason}")

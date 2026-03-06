@@ -4,7 +4,7 @@ defmodule Frobs do
   external actions that can be executed by the LLM while researching the user's
   query.
 
-  Frobs are stored in `$HOME/.fnord/tools/$frob_name` and are composed of:
+  Frobs are stored in `$HOME/fnord/tools/$frob_name` and are composed of:
   - `spec.json`:      A JSON file that defines the tool call's calling semantics
   - `main`:           A script or binary that performs the action
   - `available`:      A script or binary that exits non-zero if the frob is not

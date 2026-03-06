@@ -24,4 +24,4 @@ New to fnord? Start with the [main README](../README.md).
 ## Getting Help
 
 - Report issues: [GitHub Issues](https://github.com/sysread/fnord/issues)
-- Get help: `fnord help`
+- Get help: see the main README, or run `fnord help ask` (or `fnord --help`) for CLI usage

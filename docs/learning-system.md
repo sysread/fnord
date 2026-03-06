@@ -124,7 +124,7 @@ As your codebase evolves, some learned facts may become outdated:
 
 ```bash
 # Backup old notes if desired
-mv ~/.fnord/myproject/notes ~/.fnord/myproject/notes.backup
+mv ~/.fnord/projects/myproject/notes.md ~/.fnord/projects/myproject/notes.md.backup
 
 # Re-prime
 fnord prime --project myproject

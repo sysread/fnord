@@ -243,7 +243,7 @@ fnord frobs check --name my_frob
 fnord frobs list
 ```
 
-Frobs are stored in `~/.fnord/tools`. For implementation details, see [docs/frobs-guide.md](docs/frobs-guide.md).
+Frobs are stored in `~/fnord/tools/`. For implementation details, see [docs/frobs-guide.md](docs/frobs-guide.md).
 
 ### MCP support
 

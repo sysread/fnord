@@ -426,10 +426,10 @@ defmodule Cmd.Config do
     do: Cmd.Config.MCP.run(opts, [:mcp, :oauth, :remove], args)
 
   def run(_opts, [], _unknown) do
-    UI.error("No subcommand specified. Use 'fnord help config' for help.")
+    UI.error("No subcommand specified. Use 'fnord config --help' for help.")
   end
 
   def run(_opts, _subcommands, _unknown) do
-    UI.error("Unknown subcommand. Use 'fnord help config' for help.")
+    UI.error("Unknown subcommand. Use 'fnord config --help' for help.")
   end
 end

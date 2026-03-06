@@ -134,14 +134,11 @@ fnord conversations --project myproject --prune 30
 View a past conversation without re-executing research:
 
 ```bash
-# Replay most recent
-fnord ask --project myproject --replay
-
-# Replay specific conversation
-fnord ask --project myproject --replay --follow c81928aa-6ab2-4346-9b2a-0edce6a639f0
+# Replay a conversation by ID
+fnord replay --project myproject --conversation <ID>
 
 # Pipe through markdown viewer
-fnord ask -p myproject --replay --follow <ID> | glow
+fnord replay --project myproject --conversation <ID> | glow
 ```
 
 **Use cases:**

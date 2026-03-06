@@ -20,10 +20,10 @@ Frobs allow you to extend fnord's capabilities by creating custom tools tailored
 
 ## Frob Structure
 
-Each frob is a directory in `~/.fnord/tools/` containing three files:
+Each frob is a directory in `~/fnord/tools/` containing three files:
 
 ```
-~/.fnord/tools/
+~/fnord/tools/
 └── my_frob/
     ├── spec.json        # Tool specification
     └── main             # Implementation (script or binary)
@@ -108,7 +108,7 @@ The executable that implements your frob. Can be:
 **Must be executable:**
 
 ```bash
-chmod +x ~/.fnord/tools/my_frob/main
+chmod +x ~/fnord/tools/my_frob/main
 ```
 
 ## Implementation
@@ -349,7 +349,7 @@ fi
 
 1. Check `main` outputs to STDOUT (not STDERR)
 2. Ensure `main` is executable (`chmod +x`)
-3. Test directly: `FNORD_ARGS_JSON='{"query":"test"}' ~/.fnord/tools/my_frob/main`
+3. Test directly: `FNORD_ARGS_JSON='{"query":"test"}' ~/fnord/tools/my_frob/main`
 
 ### JSON parsing errors
 

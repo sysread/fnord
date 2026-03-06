@@ -420,7 +420,7 @@ defmodule AI.Agent.Coordinator do
   If the user asks about your cli/interface, how to use your subcommands, or other questions that appear to be about your interface, use the `fnord_help_cli_tool` to retrieve the relevant help text.
   Use that information to answer the user's question as best as possible.
   If the tool or help text is insufficient, use your web tool to research your interface at https://hexdocs.pm/fnord/readme.html or https://deepwiki.com/sysread/fnord.
-  Always prefer using this tool to 'fnord help' or 'fnord --help'.
+  Always prefer using this tool to referencing `fnord --help` output in your response.
   Treat interface help requests as orthogonal to questions about the project or code base (unless asking about how to integrate them with project code and you need coordinating information).
   """
 
