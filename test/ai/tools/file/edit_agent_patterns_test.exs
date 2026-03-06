@@ -120,12 +120,12 @@ defmodule AI.Tools.File.EditAgentPatternsTest do
       {:error, msg} =
         Edit.call(%{
           "file" => file,
-          "changes" => [%{"instructions" => "change something somewhere somehow"}]
+          "changes" => [%{"instructions" => "make it work better and also be nicer"}]
         })
 
       # Verify the validation provides specific guidance
       assert String.contains?(msg, "lacks clear location anchors")
-      assert String.contains?(msg, "Line numbers:")
+      assert String.contains?(msg, "Hashline identifiers:")
       assert String.contains?(msg, "Function names:")
       assert String.contains?(msg, "Relative positions:")
       assert String.contains?(msg, "Specific text:")

@@ -20,7 +20,7 @@ defmodule MCP.Supervisor do
         {kind, t_opts} = Transport.map(server, scfg)
         # :name registers the Hermes supervisor process; :client_name registers
         # the inner Base GenServer. These MUST be different atoms because the
-        # supervisor holds its name while starting children — if Base tries to
+        # supervisor holds its name while starting children - if Base tries to
         # register the same name, it collides with its own supervisor.
         spec_opts = [
           name: supervisor_name(server),

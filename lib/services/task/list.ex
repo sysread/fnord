@@ -44,19 +44,29 @@ defmodule Services.Task.List do
   Resolves tasks with the given `task_id` by updating their `outcome` and `result`.
   Only tasks in todo state are updated.
   """
-  @spec resolve(t, binary, :done | :failed, any()) :: t
+  @spec resolve(t, binary, :done | :failed, any()) ::
+          {:ok, t} | {:error, :already_resolved | :not_found}
   def resolve(%__MODULE__{tasks: tasks} = list, task_id, outcome, result)
       when is_binary(task_id) and outcome in [:done, :failed] do
-    updated_tasks =
-      Enum.map(tasks, fn
-        %{id: ^task_id, outcome: :todo} = task ->
-          %{task | outcome: outcome, result: result}
+    case Enum.find(tasks, fn %{id: id} -> id == task_id end) do
+      nil ->
+        {:error, :not_found}
 
-        other ->
-          other
-      end)
+      %{outcome: :todo} ->
+        updated_tasks =
+          Enum.map(tasks, fn
+            %{id: ^task_id, outcome: :todo} = task ->
+              %{task | outcome: outcome, result: result}
 
-    %__MODULE__{list | tasks: updated_tasks}
+            other ->
+              other
+          end)
+
+        {:ok, %__MODULE__{list | tasks: updated_tasks}}
+
+      %{outcome: _terminal} ->
+        {:error, :already_resolved}
+    end
   end
 
   @doc """

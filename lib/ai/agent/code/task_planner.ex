@@ -123,7 +123,7 @@ defmodule AI.Agent.Code.TaskPlanner do
   For smaller repos and stand-alone libraries, prioritize simplicity and directness to minimize cognitive load.
   Don't let the perfect be the enemy of the good.
   What is the closest you can get to the ideal implementation that still dovetails into the code as it is?
-  Respond with your near ideal implementation, including any relevant files, functions, or components that may be affected by this change.
+  Respond with your near-ideal implementation, including any relevant files, functions, or components that may be affected by this change.
   """
 
   @spec visualize(t) :: t
@@ -183,7 +183,7 @@ defmodule AI.Agent.Code.TaskPlanner do
   - A single, concrete goal
   - Clear, unambiguous definition of scope
   - Clear acceptance criteria
-  - A detailed description of the change to be made, including any relevant code snippets, examples, and file paths
+  - A detailed description of the changes to be made, including any relevant code snippets, examples, and file paths
   - An "anchor" that describes the location in unambiguous terms (note that line numbers change across tasks, so anchors must reference components, syntax, or other relatively stable identifiers)
 
   It costs nothing to split tasks into smaller steps.
@@ -232,7 +232,7 @@ defmodule AI.Agent.Code.TaskPlanner do
                   - A single, concrete goal
                   - Clear, unambiguous definition of scope
                   - Clear acceptance criteria
-                  - Detailed description of the change, with relevant code snippets, examples, and file paths
+                  - Detailed description of the changes, with relevant code snippets, examples, and file paths
                   - An 'anchor' that describes the location in unambiguous terms
                   """
                 }

@@ -54,6 +54,7 @@ defmodule AI.Agent.Researcher do
           AI.Tools.basic_tools()
           |> Map.drop(["research_tool"])
         end
+        |> AI.Tools.with_frobs()
         |> AI.Tools.with_web_tools()
 
       system_prompt =

@@ -158,7 +158,7 @@ defmodule Memory do
             {memory, score}
 
           {:error, reason} ->
-            UI.error(
+            UI.debug(
               @log_tag,
               """
               Scope: #{inspect(scope)}

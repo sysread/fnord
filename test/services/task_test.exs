@@ -98,7 +98,7 @@ defmodule Services.TaskTest do
       list_id = Services.Task.start_list()
       assert :ok = Services.Task.add_task(list_id, "existing", %{data: 1})
       tasks_before = Services.Task.get_list(list_id)
-      assert :ok = Services.Task.complete_task(list_id, "nonexistent", "Result")
+      assert {:error, :not_found} = Services.Task.complete_task(list_id, "nonexistent", "Result")
       assert Services.Task.get_list(list_id) == tasks_before
     end
 
@@ -106,7 +106,7 @@ defmodule Services.TaskTest do
       list_id = Services.Task.start_list()
       assert :ok = Services.Task.add_task(list_id, "existing", %{data: 2})
       tasks_before = Services.Task.get_list(list_id)
-      assert :ok = Services.Task.fail_task(list_id, "nonexistent", "Error")
+      assert {:error, :not_found} = Services.Task.fail_task(list_id, "nonexistent", "Error")
       assert Services.Task.get_list(list_id) == tasks_before
     end
   end

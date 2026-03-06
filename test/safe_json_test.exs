@@ -2,7 +2,7 @@ defmodule SafeJsonTest do
   use Fnord.TestCase, async: true
 
   # ---------------------------------------------------------------------------
-  # Encode — valid data (should be identical to Jason)
+  # Encode - valid data (should be identical to Jason)
   # ---------------------------------------------------------------------------
 
   test "encodes a simple map" do
@@ -25,7 +25,7 @@ defmodule SafeJsonTest do
   end
 
   # ---------------------------------------------------------------------------
-  # Encode — invalid UTF-8
+  # Encode - invalid UTF-8
   # ---------------------------------------------------------------------------
 
   test "encodes a map with invalid UTF-8 in values" do
@@ -52,7 +52,7 @@ defmodule SafeJsonTest do
   end
 
   # ---------------------------------------------------------------------------
-  # Encode — nested structures
+  # Encode - nested structures
   # ---------------------------------------------------------------------------
 
   test "sanitizes deeply nested invalid UTF-8" do
@@ -75,7 +75,7 @@ defmodule SafeJsonTest do
   end
 
   # ---------------------------------------------------------------------------
-  # Encode — passthrough for non-string scalars
+  # Encode - passthrough for non-string scalars
   # ---------------------------------------------------------------------------
 
   test "passes through integers, floats, booleans, nil" do
@@ -84,7 +84,7 @@ defmodule SafeJsonTest do
   end
 
   # ---------------------------------------------------------------------------
-  # Decode — pass-through
+  # Decode - pass-through
   # ---------------------------------------------------------------------------
 
   test "decode works identically to Jason" do

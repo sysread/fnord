@@ -257,17 +257,45 @@ defmodule Util do
   end
 
   @doc """
-  Adds line numbers to each line of the input text, separated by a specified
-  separator (default is "|"). The numbering starts from 1, or `start_index`, if
-  set.
+  Adds line identifiers to each line of the input text. Each line is prefixed
+  with its 1-based line number, a colon, a 2-character content hash, then the
+  separator (default `|`), followed immediately by the line text. The content
+  hash is derived from the line's text content, providing a compact fingerprint
+  that helps identify lines independently of their position in the file.
+
+  ## Options
+    - `:separator` - character(s) between the identifier and line text (default `"|"`)
+    - `:start_index` - first line number (default `1`)
+
+  ## Example
+      iex> Util.numbered_lines("hello\\nworld")
+      "1:33|hello\\n2:7c|world"
   """
-  @spec numbered_lines(binary, binary, integer) :: binary
-  def numbered_lines(text, separator \\ "|", start_index \\ 1) do
+  @spec numbered_lines(binary, keyword) :: binary
+  def numbered_lines(text, opts \\ []) do
+    separator = Keyword.get(opts, :separator, "|")
+    start_index = Keyword.get(opts, :start_index, 1)
+
     text
     |> String.split("\n", trim: false)
     |> Enum.with_index(start_index)
-    |> Enum.map(fn {line, idx} -> "#{idx}#{separator}#{line}" end)
+    |> Enum.map(fn {line, idx} ->
+      hash = line_hash(line)
+      "#{idx}:#{hash}#{separator}#{line}"
+    end)
     |> Enum.join("\n")
+  end
+
+  # Computes a 4-character hex hash of a line's content, used as a compact
+  # fingerprint in hashline-formatted output. The hash helps LLMs identify
+  # lines by content rather than relying solely on potentially stale line
+  # numbers. 4 hex chars = 2 bytes = 65536 possible values, which keeps
+  # collision rates low enough for typical source files.
+  @spec line_hash(binary) :: String.t()
+  def line_hash(line) do
+    :crypto.hash(:md5, line)
+    |> binary_part(0, 2)
+    |> Base.encode16(case: :lower)
   end
 
   @doc """

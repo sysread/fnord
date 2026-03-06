@@ -26,10 +26,10 @@ defmodule Memory.Consolidator do
   @doc """
   Run memory consolidation across global and project scopes. Each scope is
   processed by its own coordinator GenServer with concurrent workers. The two
-  scopes run in parallel since consolidation is walled -- no cross-scope merges.
+  scopes run in parallel since consolidation is walled - no cross-scope merges.
 
   Options:
-  - `:on_progress` -- zero-arity function called after each memory is
+  - `:on_progress` - zero-arity function called after each memory is
     evaluated, regardless of outcome. Useful for driving a progress bar.
 
   Returns a combined report summarizing what happened across both scopes.
@@ -127,7 +127,7 @@ defmodule Memory.Consolidator do
         worker_loop(coordinator, on_progress)
 
       {:skip, _focus} ->
-        # No live candidates -- coordinator already counted it as kept.
+        # No live candidates - coordinator already counted it as kept.
         on_progress.()
         worker_loop(coordinator, on_progress)
     end
@@ -186,7 +186,7 @@ defmodule Memory.Consolidator do
 
       case Memory.forget(focus) do
         :ok ->
-          UI.debug("consolidator", "Deleted focus: #{focus.title} -- #{keep_reason}")
+          UI.debug("consolidator", "Deleted focus: #{focus.title} - #{keep_reason}")
           {:delete, eaten}
 
         {:error, reason} ->
@@ -203,36 +203,44 @@ defmodule Memory.Consolidator do
          %{"action" => "merge", "target" => target, "content" => content} = action
        ) do
     scope = parse_scope(target["scope"])
-    title = target["title"]
-    slug = Memory.title_to_slug(title)
-    reason = Map.get(action, "reason", "no reason given")
 
-    # Save the merged content onto the focus memory. Clear embeddings so they
-    # regenerate on next search.
-    merged_focus = %{focus | content: content, embeddings: nil}
+    # Enforce scope walling - reject actions targeting a different scope than
+    # the focus memory being consolidated.
+    if scope != focus.scope do
+      UI.warn("consolidator", "Rejected cross-scope merge targeting #{scope} from #{focus.scope} scope")
+      []
+    else
+      title = target["title"]
+      slug = Memory.title_to_slug(title)
+      reason = Map.get(action, "reason", "no reason given")
 
-    case Memory.save(merged_focus) do
-      {:ok, _} ->
-        case Memory.read(scope, title) do
-          {:ok, candidate} ->
-            Memory.forget(candidate)
-            UI.debug("consolidator", "Merged #{title} into #{focus.title} -- #{reason}")
+      # Save the merged content onto the focus memory. Clear embeddings so they
+      # regenerate on next search.
+      merged_focus = %{focus | content: content, embeddings: nil}
 
-          {:error, _} ->
-            # Candidate already gone -- another worker ate it.
-            :ok
-        end
+      case Memory.save(merged_focus) do
+        {:ok, _} ->
+          case Memory.read(scope, title) do
+            {:ok, candidate} ->
+              Memory.forget(candidate)
+              UI.debug("consolidator", "Merged #{title} into #{focus.title} - #{reason}")
 
-        [{scope, slug}]
+            {:error, _} ->
+              # Candidate already gone - another worker ate it.
+              :ok
+          end
 
-      {:error, reason} ->
-        UI.warn("Failed to save merged memory #{focus.title}", inspect(reason))
-        []
+          [{scope, slug}]
+
+        {:error, reason} ->
+          UI.warn("Failed to save merged memory #{focus.title}", inspect(reason))
+          []
+      end
     end
   end
 
   # Delete: remove a candidate outright. The Me identity memory is never
-  # deletable -- the coordinator already excludes it from candidates, but
+  # deletable - the coordinator already excludes it from candidates, but
   # this is a safety net in case the agent hallucinates a target.
   defp apply_action(_focus, %{
          "action" => "delete",
@@ -242,27 +250,35 @@ defmodule Memory.Consolidator do
     []
   end
 
-  defp apply_action(_focus, %{"action" => "delete", "target" => target} = action) do
+  defp apply_action(focus, %{"action" => "delete", "target" => target} = action) do
     scope = parse_scope(target["scope"])
-    title = target["title"]
-    slug = Memory.title_to_slug(title)
-    reason = Map.get(action, "reason", "no reason given")
 
-    case Memory.read(scope, title) do
-      {:ok, memory} ->
-        case Memory.forget(memory) do
-          :ok ->
-            UI.debug("consolidator", "Deleted: #{title} -- #{reason}")
-            [{scope, slug}]
+    # Enforce scope walling - reject actions targeting a different scope than
+    # the focus memory being consolidated.
+    if scope != focus.scope do
+      UI.warn("consolidator", "Rejected cross-scope delete targeting #{scope} from #{focus.scope} scope")
+      []
+    else
+      title = target["title"]
+      slug = Memory.title_to_slug(title)
+      reason = Map.get(action, "reason", "no reason given")
 
-          {:error, reason} ->
-            UI.warn("Failed to delete #{title}", inspect(reason))
-            []
-        end
+      case Memory.read(scope, title) do
+        {:ok, memory} ->
+          case Memory.forget(memory) do
+            :ok ->
+              UI.debug("consolidator", "Deleted: #{title} - #{reason}")
+              [{scope, slug}]
 
-      {:error, _} ->
-        # Already gone.
-        []
+            {:error, reason} ->
+              UI.warn("Failed to delete #{title}", inspect(reason))
+              []
+          end
+
+        {:error, _} ->
+          # Already gone.
+          []
+      end
     end
   end
 
@@ -391,7 +407,13 @@ defmodule Memory.Consolidator do
   defp me_memory?(%Memory{scope: :global, title: "Me"}), do: true
   defp me_memory?(_), do: false
 
-  @doc false
+  @doc """
+  Return the tier label for the given score:
+
+  - "high" for scores > 0.5
+  - "moderate" for scores >= 0.3
+  - "low" otherwise
+  """
   def tier_label(score) when score > 0.5, do: "high"
   def tier_label(score) when score >= 0.3, do: "moderate"
   def tier_label(_), do: "low"

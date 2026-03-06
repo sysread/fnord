@@ -204,6 +204,103 @@ defmodule AI.Tools.File.EditTest do
       assert msg =~ "missing text"
     end
 
+    test "exact replacement matches through typographic normalization", %{project: project} do
+      # File contains smart quotes and em dash; LLM sends ASCII equivalents
+      file =
+        mock_source_file(project, "test.txt", "it\u2019s a \u201Csmart\u201D world \u2014 indeed")
+
+      assert {:ok, _result} =
+               Edit.call(%{
+                 "file" => file,
+                 "changes" => [
+                   %{
+                     "instructions" => "Replace text",
+                     "old_string" => "it's a \"smart\" world -- indeed",
+                     "new_string" => "it is a plain world - indeed"
+                   }
+                 ]
+               })
+
+      assert File.read!(file) == "it is a plain world - indeed"
+    end
+
+    test "whitespace-normalized matching recovers wrong indentation", %{project: project} do
+      # File uses 4-space indentation; LLM sends 2-space version
+      file =
+        mock_source_file(project, "test.py", """
+        def hello():
+            print("Hello")
+            return True
+        """)
+
+      {:ok, _result} =
+        Edit.call(%{
+          "file" => file,
+          "changes" => [
+            %{
+              "instructions" => "Replace print and return",
+              "old_string" => "  print(\"Hello\")\n  return True",
+              "new_string" => "    print(\"Hi\")\n    return False"
+            }
+          ]
+        })
+
+      contents = File.read!(file)
+      assert String.contains?(contents, "print(\"Hi\")")
+      assert String.contains?(contents, "return False")
+      refute String.contains?(contents, "print(\"Hello\")")
+    end
+
+    test "whitespace-normalized matching rejects ambiguous matches", %{project: project} do
+      # Two identical blocks with different indentation - normalization would
+      # match both, so it should fall back to error rather than guess
+      file =
+        mock_source_file(project, "test.py", """
+        def foo():
+            print("hello")
+            return True
+
+        def bar():
+              print("hello")
+              return True
+        """)
+
+      assert {:error, msg} =
+               Edit.call(%{
+                 "file" => file,
+                 "changes" => [
+                   %{
+                     "instructions" => "Replace",
+                     "old_string" => "  print(\"hello\")\n  return True",
+                     "new_string" => "  print(\"world\")\n  return False"
+                   }
+                 ]
+               })
+
+      assert msg =~ "String not found"
+    end
+
+    test "whitespace-normalized matching skips single-line old_string", %{project: project} do
+      # Single-line whitespace mismatch should NOT be fuzzy-matched since
+      # stripping leading whitespace on one line is too likely to be ambiguous.
+      # Use tab-indented file with space-indented old_string to ensure
+      # byte-exact match fails.
+      file =
+        mock_source_file(project, "test.go", "func main() {\n\tx = 1\n}")
+
+      assert {:error, _msg} =
+               Edit.call(%{
+                 "file" => file,
+                 "changes" => [
+                   %{
+                     "instructions" => "Replace",
+                     "old_string" => "    x = 1",
+                     "new_string" => "\tx = 2"
+                   }
+                 ]
+               })
+    end
+
     test "exact replacement preserves whitespace", %{project: project} do
       file =
         mock_source_file(project, "test.py", """
@@ -351,6 +448,225 @@ defmodule AI.Tools.File.EditTest do
     end
   end
 
+  describe "hash-anchored replacement" do
+    # Builds "line:hash" identifiers for the given content string and 1-based
+    # line range. Mirrors what file_contents_tool produces for the LLM.
+    defp hashline_ids(content, first_line, last_line) do
+      content
+      |> String.split("\n")
+      |> Enum.with_index(1)
+      |> Enum.filter(fn {_line, idx} -> idx >= first_line and idx <= last_line end)
+      |> Enum.map(fn {line, idx} -> "#{idx}:#{Util.line_hash(line)}" end)
+    end
+
+    test "replaces lines identified by line:hash identifiers", %{project: project} do
+      content = "line one\nline two\nline three\nline four"
+      file = mock_source_file(project, "test.txt", content)
+
+      hashes = hashline_ids(content, 2, 3)
+
+      {:ok, result} =
+        Edit.call(%{
+          "file" => file,
+          "changes" => [
+            %{
+              "hashes" => hashes,
+              "old_string" => "line two\nline three",
+              "new_string" => "replaced two\nreplaced three"
+            }
+          ]
+        })
+
+      assert result.diff =~ "-line two"
+      assert result.diff =~ "+replaced two"
+
+      final = File.read!(file)
+      assert final =~ "replaced two\nreplaced three"
+      assert final =~ "line one"
+      assert final =~ "line four"
+
+      # Verify patcher was not called
+      assert :meck.num_calls(AI.Agent.Code.Patcher, :get_response, :_) == 0
+    end
+
+    test "single-line edit succeeds", %{project: project} do
+      content = "aaa\nbbb\nccc"
+      file = mock_source_file(project, "test.txt", content)
+
+      hashes = hashline_ids(content, 2, 2)
+
+      {:ok, _result} =
+        Edit.call(%{
+          "file" => file,
+          "changes" => [
+            %{
+              "hashes" => hashes,
+              "old_string" => "bbb",
+              "new_string" => "replaced"
+            }
+          ]
+        })
+
+      final = File.read!(file)
+      assert final == "aaa\nreplaced\nccc"
+    end
+
+    test "rejects when old_string doesn't match hash-identified region", %{project: project} do
+      content = "line one\nline two\nline three"
+      file = mock_source_file(project, "test.txt", content)
+
+      hashes = hashline_ids(content, 2, 3)
+
+      assert {:error, msg} =
+               Edit.call(%{
+                 "file" => file,
+                 "changes" => [
+                   %{
+                     "hashes" => hashes,
+                     "old_string" => "wrong content\ncompletely different",
+                     "new_string" => "whatever"
+                   }
+                 ]
+               })
+
+      assert msg =~ "old_string does not match"
+      assert msg =~ "copy error"
+    end
+
+    test "old_string verification is whitespace-tolerant", %{project: project} do
+      # File has 4-space indentation; old_string uses 2-space
+      content = "def foo():\n    print('hello')\n    return True"
+      file = mock_source_file(project, "test.txt", content)
+
+      hashes = hashline_ids(content, 2, 3)
+
+      {:ok, _result} =
+        Edit.call(%{
+          "file" => file,
+          "changes" => [
+            %{
+              "hashes" => hashes,
+              "old_string" => "  print('hello')\n  return True",
+              "new_string" => "print('hi')\nreturn False"
+            }
+          ]
+        })
+
+      final = File.read!(file)
+      assert final =~ "print('hi')"
+      assert final =~ "return False"
+    end
+
+    test "rejects when hash doesn't match (file changed)", %{project: project} do
+      file = mock_source_file(project, "test.txt", "line one\nline two\nline three")
+
+      assert {:error, msg} =
+               Edit.call(%{
+                 "file" => file,
+                 "changes" => [
+                   %{
+                     "hashes" => ["2:dead", "3:beef"],
+                     "old_string" => "whatever\nwhatever",
+                     "new_string" => "whatever"
+                   }
+                 ]
+               })
+
+      assert msg =~ "Hash mismatch"
+      assert msg =~ "file may have changed"
+    end
+
+    test "rejects non-contiguous line numbers", %{project: project} do
+      content = "aaa\nbbb\nccc\nddd"
+      file = mock_source_file(project, "test.txt", content)
+
+      # Lines 1 and 3 (skipping 2)
+      hashes = [
+        "1:#{Util.line_hash("aaa")}",
+        "3:#{Util.line_hash("ccc")}"
+      ]
+
+      assert {:error, msg} =
+               Edit.call(%{
+                 "file" => file,
+                 "changes" => [
+                   %{
+                     "hashes" => hashes,
+                     "old_string" => "aaa\nccc",
+                     "new_string" => "whatever"
+                   }
+                 ]
+               })
+
+      assert msg =~ "contiguous"
+    end
+
+    test "rejects line number out of range", %{project: project} do
+      content = "aaa\nbbb"
+      file = mock_source_file(project, "test.txt", content)
+
+      assert {:error, msg} =
+               Edit.call(%{
+                 "file" => file,
+                 "changes" => [
+                   %{
+                     "hashes" => ["5:abcd"],
+                     "old_string" => "whatever",
+                     "new_string" => "whatever"
+                   }
+                 ]
+               })
+
+      assert msg =~ "out of range"
+    end
+
+    test "correct line number but wrong hash is rejected", %{project: project} do
+      content = "alpha\nbeta\ngamma"
+      file = mock_source_file(project, "test.txt", content)
+
+      # Right line number, wrong hash
+      hashes = ["2:ffff"]
+
+      assert {:error, msg} =
+               Edit.call(%{
+                 "file" => file,
+                 "changes" => [
+                   %{
+                     "hashes" => hashes,
+                     "old_string" => "beta",
+                     "new_string" => "whatever"
+                   }
+                 ]
+               })
+
+      assert msg =~ "Hash mismatch"
+      assert msg =~ "line 2"
+    end
+
+    test "applies whitespace fitting to new_string", %{project: project} do
+      content = "func main() {\n\tfmt.Println(\"hello\")\n\tfmt.Println(\"world\")\n}"
+      file = mock_source_file(project, "test.txt", content)
+
+      hashes = hashline_ids(content, 2, 3)
+
+      {:ok, _result} =
+        Edit.call(%{
+          "file" => file,
+          "changes" => [
+            %{
+              "hashes" => hashes,
+              "old_string" => "\tfmt.Println(\"hello\")\n\tfmt.Println(\"world\")",
+              "new_string" => "fmt.Println(\"hi\")\nfmt.Println(\"there\")"
+            }
+          ]
+        })
+
+      final = File.read!(file)
+      assert String.contains?(final, "\tfmt.Println(\"hi\")")
+      assert String.contains?(final, "\tfmt.Println(\"there\")")
+    end
+  end
+
   describe "validation" do
     test "empty old_string fails validation", %{project: project} do
       file = mock_source_file(project, "test.txt", "content")
@@ -388,7 +704,7 @@ defmodule AI.Tools.File.EditTest do
       assert {:error, msg} =
                Edit.call(%{
                  "file" => file,
-                 "changes" => [%{"instructions" => "change something somewhere somehow"}]
+                 "changes" => [%{"instructions" => "make it work better and also be nicer"}]
                })
 
       assert msg =~ "lacks clear location anchors"
@@ -466,6 +782,45 @@ defmodule AI.Tools.File.EditTest do
 
       # Verify AI patcher was not called (exact string matching)
       assert :meck.num_calls(AI.Agent.Code.Patcher, :get_response, :_) == 0
+    end
+
+    test "rejects old_string containing hashline prefixes", %{project: project} do
+      file = mock_source_file(project, "test.txt", "defmodule Foo do\n  def bar, do: :ok\nend")
+
+      assert {:error, msg} =
+               Edit.call(%{
+                 "file" => file,
+                 "changes" => [
+                   %{
+                     "old_string" => "1:8631|defmodule Foo do\n2:e716|  def bar, do: :ok",
+                     "new_string" => "defmodule Foo do\n  def baz, do: :ok"
+                   }
+                 ]
+               })
+
+      assert msg =~ "hashline prefixes"
+      assert msg =~ "raw file text"
+    end
+
+    test "allows old_string that looks like hashline but is real file content", %{
+      project: project
+    } do
+      # CSV-like content where `1:a3f1|` is actual data in the file
+      content = "1:a3f1|data,value\n2:f10e|other,stuff"
+      file = mock_source_file(project, "data.csv", content)
+
+      assert {:ok, _result} =
+               Edit.call(%{
+                 "file" => file,
+                 "changes" => [
+                   %{
+                     "old_string" => "1:a3f1|data,value",
+                     "new_string" => "1:a3f1|updated,value"
+                   }
+                 ]
+               })
+
+      assert File.read!(file) =~ "updated,value"
     end
   end
 

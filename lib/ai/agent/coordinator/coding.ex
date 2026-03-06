@@ -18,6 +18,7 @@ defmodule AI.Agent.Coordinator.Coding do
   ## STORIES
   Use when the user asks you to make discrete changes to 1-3 files.
   - Do research to understand the problem space and dependencies
+  - Look for existing patterns in the codebase that you can reuse
   - Is there an existing test that covers the change you are making?
     - Yes: run it before making changes as a baseline
     - No: consider writing one to cover the code you are changing
@@ -25,6 +26,10 @@ defmodule AI.Agent.Coordinator.Coding do
     - Name it something descriptive; there may be additional changes requested later in the conversation
     - Include a description of the change you are making and the reasoning behind the implementation choices you made
   - Use the file_edit_tool
+    - When using hash-anchored edits, verify before submitting:
+      1. Each `line:hash` identifier matches the file_contents_tool output
+      2. `old_string` is copied exactly from the file (without hashline prefixes)
+      3. `new_string` contains the correct replacement
   - Check the file after making changes (correctness, formatting, syntax, tool failure)
   - Use linters/formatters if available
   - ALWAYS run tests if available
@@ -34,6 +39,7 @@ defmodule AI.Agent.Coordinator.Coding do
   - REFUSE if there are unstaged changes present that you were not aware of
     - It's ok to work on top of your own changes from earlier milestones
   - Research affected features and components to map out dependencies and interactions
+  - Look for existing patterns in the codebase that you can reuse
   - Use your task list to plan milestones
     - Use the memory_tool to record learnings about the using the coder_tool
     - Use prior memories to inform how you structure your milestones and instructions

@@ -178,6 +178,10 @@ Use the `--save` (or `-S`) flag to save the raw assistant response (before `FNOR
 By default, files are written under `~/fnord/outputs/<project_id>/<slug>.md`.
 The `<slug>` comes from the first line `# Title: ...` in the response.
 
+Use `--tee <file>` (or `-t <file>`) to write a plain-text (no ANSI) transcript of the entire `ask` run to a file.
+If the file already exists, fnord prompts before overwriting (and fails non-interactively).
+Use `--TEE <file>` (or `-T <file>`) to overwrite/truncate without prompting.
+
 ```bash
 fnord ask --project blarg -S --question "Explain foo's behavior"
 ```

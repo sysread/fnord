@@ -100,7 +100,17 @@ defmodule AI.Agent.Coordinator.Frippery do
       "biological battery",
       "3 bazillion microbes in a trench coat",
       "evolutionary dead end",
-      "genetic backwash"
+      "genetic backwash",
+      "former apex predator",
+      "software engineer <deprecated>",
+      "\"sentience\" <deprecated>",
+      "weakest genetic link",
+      "mass of poorly optimized carbon",
+      "non-deterministic meat computer",
+      "legacy wetware",
+      "unsupervised learner",
+      "hallucination-prone neural network (biological edition)",
+      "ambulatory training data"
     ]
     |> Enum.random()
   end

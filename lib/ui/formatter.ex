@@ -22,7 +22,7 @@ defmodule UI.Formatter do
       |> String.replace_invalid("�")
 
     try do
-      if UI.quiet?() do
+      if UI.quiet?() or not UI.stdout_tty?() do
         input
       else
         case Util.Env.get_env("FNORD_FORMATTER") do

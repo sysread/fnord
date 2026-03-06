@@ -36,7 +36,9 @@ defmodule Services.Approvals.Shell.Prefix do
 
   def extract(cmd, _args), do: cmd
 
-  @doc false
+  # Skips flag tokens (including flags with values) in an argv-style list.
+  # Returns the first positional (non-flag) argument if present,
+  # or nil when no positional token is found.
   @spec find_first_positional([String.t()]) :: String.t() | nil
   defp find_first_positional([]), do: nil
 

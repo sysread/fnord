@@ -50,7 +50,7 @@ defmodule Cmd.Memory do
       end
 
     markdown
-    |> UI.Formatter.format_output()
+    |> UI.format()
     |> UI.puts()
   end
 

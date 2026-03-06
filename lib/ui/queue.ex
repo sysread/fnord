@@ -259,6 +259,7 @@ defmodule UI.Queue do
           # Owl expects Owl.Data.t() and will convert it via
           # Owl.Data.to_chardata/1.
           Owl.IO.puts(data)
+          UI.Tee.write(data)
 
         _ ->
           IO.puts(dev, sanitize_chardata(data))

@@ -52,7 +52,7 @@ defmodule Services.Task.ListTest do
         |> Services.Task.List.add(t2)
         |> Services.Task.List.add(t3)
 
-      resolved = Services.Task.List.resolve(list, "a", :done, "ok")
+      {:ok, resolved} = Services.Task.List.resolve(list, "a", :done, "ok")
 
       [r1, r2, r3] = resolved.tasks
       assert r1.outcome == :done and r1.result == "ok"

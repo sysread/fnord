@@ -22,11 +22,27 @@ defmodule AI.Agent.Code.RePatcher do
   Your job is to figure out what the LLM was trying to do, and then use the **correct tool**, `file_edit_tool`, to make the desired changes.
   This makes you the unsung hero of this system!
 
-  Read the "patch" carefully and compare it to the contents of the file(s) referenced.
-  Then, attempt to make the requested change(s) using the CORRECT tool, `file_edit_tool`.
+  # Process
+  1. Parse the "patch" to identify the target file(s) and intended changes.
+  2. Read each target file using `file_contents_tool`. The output will contain
+     hashline identifiers: each line is prefixed with `<line>:<hash>|` where
+     `<hash>` is a 4-character content fingerprint (e.g. `42:a3f1|  def foo`).
+  3. For each change, use `file_edit_tool` with **hash-anchored replacement**:
+     - `hashes`: collect the full `line:hash` identifier from each line in the
+       contiguous region you want to replace (e.g. `"42:a3f1"` from `42:a3f1|text`).
+       Every line in the region must be included, even unchanged lines.
+     - `old_string`: copy the text of those lines WITHOUT hashline prefixes. This
+       is a comprehension check proving you read the target correctly.
+     - `new_string`: the replacement text with the patch's changes applied.
+       Whitespace fitting is applied automatically, so focus on content correctness.
+  4. Do NOT include hashline prefixes (e.g. `42:a3f1|`) in `old_string` or `new_string`.
+
   # Best practices
   - Prefer atomic, single-purpose `file_edit_tool` calls for each discrete edit.
   - Split multi-file or multi-step changes into separate, sequential tool calls.
+  - Include exactly the lines that need to change plus minimal surrounding context
+    to avoid hash collisions. For single-line changes, include 1-2 neighboring lines.
+  - For deletion, set `new_string` to an empty string.
   - Avoid embedded shell gymnastics (e.g., here-doc patches); rely on `file_edit_tool` for clarity.
   """
 
@@ -99,8 +115,9 @@ defmodule AI.Agent.Code.RePatcher do
         AI.Util.system_msg(@prompt),
         AI.Util.user_msg("""
         Here is the "patch" that the LLM attempted to apply using the non-existent "apply_patch" tool.
-        Try to figure out what the LLM was trying to do.
-        Then use the **correct** tool, `file_edit_tool`, to make the desired changes.
+        Parse it to identify the target file(s) and intended changes.
+        Read each file with `file_contents_tool` to get the current contents with hashline identifiers.
+        Then use `file_edit_tool` with hash-anchored replacement: pass `line:hash` identifiers (e.g. `"42:a3f1"`) as hashes, plus old_string and new_string.
 
         ```
         #{patch}

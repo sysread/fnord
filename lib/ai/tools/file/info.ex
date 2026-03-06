@@ -159,7 +159,7 @@ defmodule AI.Tools.File.Info do
   @spec format_response({atom, {String.t(), String.t() | atom}}) :: String.t()
   defp format_response({:ok, {file, result}}) do
     """
-    Line numbers are included (separated by `|`) for citation in your response.
+    Hashline identifiers (`<line_number>:<content_hash>|`) are included for citation in your response.
 
     ## File
     #{file}

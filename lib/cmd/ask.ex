@@ -75,6 +75,24 @@ defmodule Cmd.Ask do
             short: "-R",
             help: "Set the AI's reasoning level (minimal, low, medium, high)",
             required: false
+          ],
+          tee: [
+            value_name: "FILE",
+            long: "--tee",
+            short: "-t",
+            help:
+              "Write a clean (no ANSI) transcript to FILE. " <>
+                "Prompts before overwriting an existing file (fails non-interactively).",
+            parser: :string,
+            required: false
+          ],
+          tee_force: [
+            value_name: "FILE",
+            long: "--TEE",
+            short: "-T",
+            help: "Like --tee, but truncates an existing file without prompting.",
+            parser: :string,
+            required: false
           ]
         ],
         flags: [
@@ -124,6 +142,9 @@ defmodule Cmd.Ask do
     unless UI.quiet?() do
       UI.info("fnord version", Util.get_running_version())
     end
+
+    # Start transcript tee before any output we want to capture
+    maybe_start_tee(opts)
 
     opts =
       if opts[:edit] do
@@ -233,6 +254,78 @@ defmodule Cmd.Ask do
         Services.Notes.join()
         {"Notes finalized", :ok}
       end)
+
+      # Flush and close the tee file last, after all other output
+      UI.Tee.stop()
+    end
+  end
+
+  # ----------------------------------------------------------------------------
+  # Tee (transcript) setup
+  # ----------------------------------------------------------------------------
+
+  # Resolve --tee / --TEE into {path, force?}, then guard against
+  # overwriting an existing file. --tee prompts interactively (fails
+  # non-interactively); --TEE truncates without asking.
+  defp maybe_start_tee(%{tee: path}) when is_binary(path), do: start_tee(path, false)
+  defp maybe_start_tee(%{tee_force: path}) when is_binary(path), do: start_tee(path, true)
+  defp maybe_start_tee(_opts), do: :ok
+
+  defp start_tee(path, force?) do
+    with :ok <- guard_existing_tee_file(path, force?) do
+      case UI.Tee.start_link(path) do
+        {:ok, _pid} ->
+          # Use Elixir's Logger.Formatter (not Erlang's :logger_formatter)
+          # with colors disabled so the tee file gets plain text. ANSI
+          # codes from UI formatting are stripped by UI.Tee.write/1.
+          {_mod, formatter_config} =
+            Logger.Formatter.new(
+              format: "[$level] $message\n",
+              colors: [enabled: false]
+            )
+
+          :logger.add_handler(:tee, UI.Tee.LoggerHandler, %{
+            level: :all,
+            formatter: {Logger.Formatter, formatter_config}
+          })
+
+          UI.info("Tee", "Transcript will be written to #{path}")
+
+        {:error, reason} ->
+          UI.error("Failed to open tee file #{path}: #{inspect(reason)}")
+      end
+    end
+  end
+
+  # If the file exists and has content, either prompt (interactive) or bail
+  # (non-interactive). Force mode skips this entirely.
+  defp guard_existing_tee_file(path, true = _force) do
+    case File.stat(path) do
+      {:ok, %{size: size}} when size > 0 ->
+        UI.warn("Truncating existing tee file #{path} (#{size} bytes)")
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp guard_existing_tee_file(path, false) do
+    case File.stat(path) do
+      {:ok, %{size: size}} when size > 0 ->
+        if UI.is_tty?() do
+          if UI.confirm("Tee file #{path} already exists (#{size} bytes). Overwrite?") do
+            :ok
+          else
+            UI.info("Tee", "Skipping transcript (user declined overwrite)")
+            :skip
+          end
+        else
+          UI.error("Tee file #{path} already exists. Use --TEE / -T to overwrite.")
+          :skip
+        end
+
+      _ ->
+        :ok
     end
   end
 
@@ -371,7 +464,7 @@ defmodule Cmd.Ask do
             wt_root = GitCli.worktree_root()
 
             if wt_root && wt_root != project.source_root do
-              if UI.is_tty?() do
+              if UI.is_tty?() && UI.stdout_tty?() do
                 msg = """
                 You are working on project "#{project.name}", which is rooted at:
                   #{project.source_root}
@@ -389,11 +482,11 @@ defmodule Cmd.Ask do
                 end
               else
                 UI.warn("""
-                Detected git worktree at #{wt_root} which differs from the configured project root:
+                WARNING: Detected git worktree at #{wt_root} which differs from the configured project root:
                   #{project.source_root}
 
                 To operate from this worktree, re-run with:
-                  fnord ask --edit --worktree #{wt_root} …
+                  fnord ask --edit --worktree #{wt_root}
                 """)
               end
             end

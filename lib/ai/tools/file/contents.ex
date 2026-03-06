@@ -76,7 +76,11 @@ defmodule AI.Tools.File.Contents do
             },
             line_numbers: %{
               type: "boolean",
-              description: "If true (default), prefix each line with its 1-based line number.",
+              description: """
+              If true (default), prefix each line with a hashline identifier:
+              `<line_number>:<content_hash>`, where the content hash is a 2-character
+              hex fingerprint of the line's content.
+              """,
               default: true
             },
             start_line: %{
@@ -143,6 +147,7 @@ defmodule AI.Tools.File.Contents do
 
     """
     [file_contents_tool] Contents of #{file}:
+    Note: Lines are prefixed with `<line_number>:<content_hash>` for identification.
     #{backup_note}```
     #{text}
     ```
@@ -174,6 +179,6 @@ defmodule AI.Tools.File.Contents do
     end
   end
 
-  defp maybe_number_lines(text, true), do: Util.numbered_lines(text, "\t")
+  defp maybe_number_lines(text, true), do: Util.numbered_lines(text, separator: "\t")
   defp maybe_number_lines(text, _), do: text
 end

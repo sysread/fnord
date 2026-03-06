@@ -135,7 +135,7 @@ defmodule UI.Output.Production do
           with_notification_timeout(
             fn ->
               flush()
-              IO.write(:stderr, UI.Formatter.format_output("#{msg} (#{yes}/#{no}) "))
+              IO.write(:stderr, UI.format("#{msg} (#{yes}/#{no}) "))
 
               case IO.gets("") do
                 "y\n" -> true

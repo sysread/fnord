@@ -110,12 +110,12 @@ defmodule UI do
 
   defp feedback(name, msg, label_codes, detail_codes) do
     if coordinator_name?(name) do
-      marker = [:magenta, :bright, coordinator_marker(), :reset]
+      marker = [:magenta, :bright, coordinator_speech_marker(), :reset]
       name = [:bright, name, :reset]
       msg = [:italic, detail_codes, msg, :reset]
 
       formatted =
-        [marker, [" "], name, [" "], marker, [": "], msg]
+        [marker, [" "], name, [" "], marker, [" "], msg]
         |> Enum.concat()
         |> IO.ANSI.format(colorize?())
 
@@ -129,7 +129,7 @@ defmodule UI do
           name,
           " ༻ ",
           :reset,
-          ": ",
+          " ",
           :italic,
           detail_codes,
           msg,
@@ -148,7 +148,7 @@ defmodule UI do
 
   def report_from(name, msg) do
     if coordinator_name?(name) do
-      marker = [:magenta, :bright, coordinator_marker(), :reset]
+      marker = [:magenta, :bright, coordinator_report_marker(), :reset]
       name = [:bright, name, :reset]
 
       [marker, [" "], name, [" "], marker, [" "], [:cyan, msg, :reset]]
@@ -166,7 +166,7 @@ defmodule UI do
   def report_from(name, msg, detail) do
     label =
       if coordinator_name?(name) do
-        marker = [:magenta, :bright, coordinator_marker(), :reset]
+        marker = [:magenta, :bright, coordinator_report_marker(), :reset]
         marker ++ [" ", name, " "] ++ marker
       else
         [:cyan, "⦑ ", name, " ⦒", :reset]
@@ -321,8 +321,7 @@ defmodule UI do
   # Directly write to stderr to ensure visibility even if output is paused.
   @spec warning_banner(binary) :: :ok
   def warning_banner(msg) do
-    IO.puts(
-      :stderr,
+    formatted =
       IO.ANSI.format(
         [
           :red_background,
@@ -332,7 +331,9 @@ defmodule UI do
         ],
         colorize?()
       )
-    )
+
+    IO.puts(:stderr, formatted)
+    UI.Tee.write([formatted, "\n"])
   end
 
   @spec log_usage(AI.Model.t(), non_neg_integer | map) :: :ok
@@ -486,7 +487,24 @@ defmodule UI do
     end
   end
 
+  # Checks stdout specifically; used to suppress the external formatter when
+  # stdout is piped (e.g. `| tee`), since formatted output (e.g. box-drawing
+  # characters) is not useful in a log file.
+  def stdout_tty? do
+    :prim_tty.isatty(:stdout)
+    |> case do
+      true -> true
+      _ -> false
+    end
+  end
+
   def colorize?, do: is_tty?() && !quiet?()
+
+  @doc """
+  Formats a string through the external FNORD_FORMATTER command, if configured.
+  Skipped when quiet mode is active or stdout is not a TTY.
+  """
+  defdelegate format(input), to: UI.Formatter, as: :format_output
 
   # Determine whether the provided name matches the coordinator's name.
   # We consider the coordinator to be the default name, or the name currently
@@ -508,16 +526,24 @@ defmodule UI do
 
   # Return the visual marker for coordinator messages. Use 'ƒ' when color is
   # available, otherwise fall back to an ASCII label for maximal compatibility.
-  defp coordinator_marker() do
+  defp coordinator_report_marker() do
     if colorize?() do
-      "ƒ"
+      "⚒"
     else
-      "[COORD]"
+      "*"
+    end
+  end
+
+  defp coordinator_speech_marker() do
+    if colorize?() do
+      "☊"
+    else
+      "@"
     end
   end
 
   defp format_detail(content) when is_binary(content) do
-    content |> UI.Formatter.format_output()
+    content |> UI.format()
   end
 
   defp format_detail(content) when is_list(content) do
@@ -526,7 +552,7 @@ defmodule UI do
 
   defp format_detail(content) do
     # Fallback for other types - convert to string and treat as markdown
-    content |> to_string() |> UI.Formatter.format_output()
+    content |> to_string() |> UI.format()
   end
 
   def clean_detail(nil), do: ""

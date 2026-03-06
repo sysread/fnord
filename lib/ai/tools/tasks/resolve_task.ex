@@ -46,19 +46,21 @@ defmodule AI.Tools.Tasks.ResolveTask do
         "task_id" => task_id,
         "disposition" => disposition
       }) do
-    glyph =
-      if disposition == "success" do
-        "✓"
-      else
-        "✗"
+    # Suppress the UI note entirely if the task is already resolved.
+    # LLMs routinely re-resolve tasks; this is an expected condition,
+    # not worth logging.
+    if task_already_resolved?(list_id, task_id) do
+      nil
+    else
+      glyph = if disposition == "success", do: "✓", else: "✗"
+
+      case get_task_counts(list_id) do
+        {total, resolved} ->
+          {"Task resolved", Util.truncate_chars("(#{resolved + 1}/#{total}) #{glyph} #{task_id}")}
+
+        nil ->
+          {"Task resolved", Util.truncate_chars("#{glyph} #{task_id}")}
       end
-
-    case get_task_counts(list_id, disposition) do
-      {total, resolved} ->
-        {"Task resolved", Util.truncate_chars("(#{resolved}/#{total}) #{glyph} #{task_id}")}
-
-      nil ->
-        {"Task resolved", Util.truncate_chars("#{glyph} #{task_id}")}
     end
   end
 
@@ -117,21 +119,52 @@ defmodule AI.Tools.Tasks.ResolveTask do
         "disposition" => disp,
         "result" => result
       }) do
-    case disp do
-      "success" -> Services.Task.complete_task(list_id, task_id, result)
-      "failure" -> Services.Task.fail_task(list_id, task_id, result)
-    end
+    resolve_result =
+      case disp do
+        "success" -> Services.Task.complete_task(list_id, task_id, result)
+        "failure" -> Services.Task.fail_task(list_id, task_id, result)
+      end
 
-    {:ok, Services.Task.as_string(list_id)}
+    # Duplicate resolution is an expected LLM behavior - return a gentle
+    # nudge rather than an error so the tool framework doesn't log errors
+    # or alarm the user.
+    case resolve_result do
+      :ok ->
+        {:ok, Services.Task.as_string(list_id)}
+
+      {:error, :already_resolved} ->
+        {:ok, "Task '#{task_id}' has already been resolved."}
+
+      {:error, :not_found} ->
+        {:ok, "Task '#{task_id}' was not found in list '#{list_id}'."}
+    end
   end
 
   # ----------------------------------------------------------------------------
   # Private Functions
   # ----------------------------------------------------------------------------
 
+  # Checks whether the given task is already in a terminal state (done/failed).
+  # Returns false if the task service is unavailable or the task doesn't exist.
+  defp task_already_resolved?(list_id, task_id) do
+    case Process.whereis(Services.Task) do
+      nil ->
+        false
+
+      _pid ->
+        list_id
+        |> Services.Task.get_list()
+        |> case do
+          {:error, _} -> []
+          tasks -> tasks
+        end
+        |> Enum.any?(fn %{id: id, outcome: outcome} -> id == task_id and outcome != :todo end)
+    end
+  end
+
   # Returns {total, resolved} task counts if the Services.Task GenServer is
   # running, or nil if it's not available (e.g., during replay).
-  defp get_task_counts(list_id, disposition) do
+  defp get_task_counts(list_id) do
     case Process.whereis(Services.Task) do
       nil ->
         nil
@@ -146,13 +179,6 @@ defmodule AI.Tools.Tasks.ResolveTask do
         |> Enum.reduce({0, 0}, fn
           %{outcome: :todo}, {t, r} -> {t + 1, r}
           _, {t, r} -> {t + 1, r + 1}
-        end)
-        |> then(fn {t, r} ->
-          if disposition == "success" do
-            {t, r + 1}
-          else
-            {t, r}
-          end
         end)
     end
   end

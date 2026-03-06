@@ -6,6 +6,9 @@ Deep dive into fnord's `ask` command and research capabilities.
 
 For basic usage, see the [main README](../README.md#generate-answers-on-demand).
 
+Use `--tee <file>` / `-t <file>` to write a plain-text (no ANSI) transcript of the entire run, prompting before overwriting an existing file and failing non-interactively by default.
+Use `--TEE <file>` / `-T <file>` to overwrite or truncate the output without prompting.
+
 ## Persistent Research Notes
 
 fnord learns from each session and retains knowledge across questions in the same project.
@@ -17,7 +20,7 @@ Examples:
 ```bash
 fnord ask -p myproject -q "Where is the login function defined?"
 
-# Follow-up question – retains context
+# Follow-up question - retains context
 fnord ask -p myproject -f <conversation_id> -q "Where is the idp configuration loaded?"
 
 # Prime project knowledge before deep questions

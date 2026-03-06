@@ -75,7 +75,7 @@ defmodule AI.Tools.File.InfoTest do
       :meck.expect(Services.BackupFile, :describe_backup, fn _ -> nil end)
 
       {:ok, output} = AI.Tools.File.Info.call(%{"files" => ["f1.ex"], "question" => "Q"})
-      assert output =~ "Line numbers are included"
+      assert output =~ "Hashline identifiers"
       assert output =~ "## File\nf1.ex"
       assert output =~ "## Result\nRESP for f1.ex"
     end

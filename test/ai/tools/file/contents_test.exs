@@ -81,9 +81,9 @@ defmodule AI.Tools.File.ContentsTest do
     test "returns numbered lines wrapped in code fence" do
       {:ok, out} = AI.Tools.File.Contents.call(%{"file" => "file.txt"})
       assert out =~ "[file_contents_tool] Contents of file.txt:"
-      assert out =~ "1\tone"
-      assert out =~ "2\ttwo"
-      assert out =~ "3\tthree"
+      assert out =~ ~r/1:[0-9a-f]{4}\tone/
+      assert out =~ ~r/2:[0-9a-f]{4}\ttwo/
+      assert out =~ ~r/3:[0-9a-f]{4}\tthree/
       assert String.contains?(out, "```")
     end
   end
@@ -183,8 +183,8 @@ defmodule AI.Tools.File.ContentsTest do
 
     test "slice from line 2 to end" do
       {:ok, out} = AI.Tools.File.Contents.call(%{"file" => "toend", "start_line" => 2})
-      assert out =~ "2\tb"
-      assert out =~ "3\tc"
+      assert out =~ ~r/2:[0-9a-f]{4}\tb/
+      assert out =~ ~r/3:[0-9a-f]{4}\tc/
     end
   end
 
@@ -216,8 +216,8 @@ defmodule AI.Tools.File.ContentsTest do
       {:ok, out} =
         AI.Tools.File.Contents.call(%{"file" => "rng", "start_line" => 5, "end_line" => 2})
 
-      assert out =~ "1\ta"
-      assert out =~ "3\tc"
+      assert out =~ ~r/1:[0-9a-f]{4}\ta/
+      assert out =~ ~r/3:[0-9a-f]{4}\tc/
     end
   end
 

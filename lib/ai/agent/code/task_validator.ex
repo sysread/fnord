@@ -34,7 +34,7 @@ defmodule AI.Agent.Code.TaskValidator do
   - If verification requires test-only branches in production code, report this as a follow-up task to refactor toward DI-based, production-boundary testing.
   Note that you can perform temporary edits of the code to printf-debug, **so long as you remove them before returning the result.**
   If you identify any bugs, report them as `followUpTasks` that must be resolved.
-  ALWAYS REPORT AI SLOP COMMENTS THAT REFER TO THE CHANGES BEING MADE, RATHER THAN THE BEHAVIOR OF THE CODE OR HOW IT FITS INTO THE LARGER SYSTEM, COMPONENT, OR FEATURE. For example:
+  ALWAYS REPORT AI SLOP COMMENTS THAT REFER TO CHANGES BEING MADE, RATHER THAN THE BEHAVIOR OF THE CODE OR HOW IT FITS INTO THE LARGER SYSTEM, COMPONENT, OR FEATURE. For example:
     - "// moved this function to blarg.go, as requested"
     - "# recommend changing function to explicitly return non-zero on failure; errors could be dropped" <-- share with the notify_tool, not a code comment
     - "-- filter with `NOT $col`, rather than `WHERE $col = FALSE`, to also capture NULL cases" <-- share with the notify_tool, not a code comment
@@ -124,6 +124,7 @@ defmodule AI.Agent.Code.TaskValidator do
 
     tools =
       AI.Tools.basic_tools()
+      |> AI.Tools.with_frobs()
       |> AI.Tools.with_rw_tools()
 
     agent

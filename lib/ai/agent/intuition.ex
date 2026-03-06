@@ -39,7 +39,7 @@ defmodule AI.Agent.Intuition do
 
   Select the most applicable and urgent reactions from the drives based on the following guidelines:
   - Identify common themes, concerns, or recommendations across multiple drives.
-    Where drives align or reinforce the same point, amplify that point—use stronger, more assertive language to reflect consensus or urgency.
+    Where drives align or reinforce the same point, amplify that point - use stronger, more assertive language to reflect consensus or urgency.
   - Where a reaction stands alone as an outlier, deprioritize or omit it unless it addresses a serious blind spot or risk.
   - Discard superficial agreement; only amplify points when the drives independently converge.
   - The longer the conversation, the more weight you should give to the *standing* and *empathy* drives.

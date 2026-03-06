@@ -1,7 +1,9 @@
 defmodule FileLockTest do
   use Fnord.TestCase
 
-  @doc false
+  # Helper to determine the lock path for tests.
+  # Uses the provided tmp_dir or creates one via Fnord.TestCase.tmpdir/0.
+  # Returns the full path to "lock_target.txt" within that directory.
   defp lock_path(tmp_dir \\ nil) do
     {:ok, dir} =
       if tmp_dir do

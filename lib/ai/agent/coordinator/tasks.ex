@@ -24,15 +24,15 @@ defmodule AI.Agent.Coordinator.Tasks do
       end
       |> case do
         "in-progress" ->
-          false
-
-        _ ->
           list_id
           |> Services.Task.get_list()
           |> case do
             {:error, _} -> false
             tasks -> Enum.any?(tasks, fn t -> t.outcome == :todo end)
           end
+
+        _ ->
+          false
       end
     end)
   end
@@ -132,9 +132,9 @@ defmodule AI.Agent.Coordinator.Tasks do
     # LLM-facing message. Here, it's redundant, since we're using the "Tasks"
     # label in our call to UI.debug.
     |> String.replace_prefix("# Tasks\n", "")
-    # UI.Formatter.format_output will run the command configured by
-    # FNORD_FORMATTER and return a binary. It also respects UI.quiet?().
-    |> UI.Formatter.format_output()
+    # UI.format runs the external FNORD_FORMATTER (if set) and respects
+    # quiet mode and TTY detection.
+    |> UI.format()
     # UI.debug accepts both chardata and iodata; pass formatted text directly.
     |> then(&UI.debug("Task lists", &1))
 

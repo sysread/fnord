@@ -46,7 +46,8 @@ defmodule AI.Tools.File.Edit.OMFG do
     with {:ok, args} <- patch_the_patch(args),
          {:ok, args} <- handle_insert_after_before(args),
          {:ok, args} <- handle_context_pattern(args),
-         {:ok, args} <- handle_diff_style_patches(args) do
+         {:ok, args} <- handle_diff_style_patches(args),
+         {:ok, args} <- hoist_top_level_replace_all(args) do
       {:ok, args}
     end
   end
@@ -54,6 +55,22 @@ defmodule AI.Tools.File.Edit.OMFG do
   def normalize_agent_chaos(args) do
     {:error, :invalid_argument, "Expected an object, but got: #{inspect(args)}"}
   end
+
+  # LLMs sometimes place `replace_all` at the top level of the tool call args
+  # instead of inside each change object. Move it down into changes that don't
+  # already specify it, then remove the top-level key so parameter validation
+  # doesn't reject it as unknown.
+  defp hoist_top_level_replace_all(%{"replace_all" => replace_all, "changes" => changes} = args)
+       when is_boolean(replace_all) and is_list(changes) do
+    changes =
+      Enum.map(changes, fn change ->
+        Map.put_new(change, "replace_all", replace_all)
+      end)
+
+    {:ok, args |> Map.delete("replace_all") |> Map.put("changes", changes)}
+  end
+
+  defp hoist_top_level_replace_all(args), do: {:ok, args}
 
   # Handle agents trying to use "patch" parameter instead of "instructions"
   defp patch_the_patch(%{"patch" => patch, "changes" => existing_changes} = args) do

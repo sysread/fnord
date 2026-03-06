@@ -21,6 +21,14 @@ defmodule UI.FormatterTest do
     :ok
   end
 
+  setup do
+    # Tests run in a non-TTY context; mock stdout_tty? so the formatter
+    # is not short-circuited by the TTY check.
+    :meck.expect(UI, :stdout_tty?, fn -> true end)
+    on_exit(fn -> :meck.unload(UI) end)
+    :ok
+  end
+
   describe "format_output/1" do
     test "returns input unchanged when FNORD_FORMATTER is not set" do
       System.delete_env("FNORD_FORMATTER")

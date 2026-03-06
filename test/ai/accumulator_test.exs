@@ -122,7 +122,7 @@ defmodule AI.Accumulator.Test do
     opts = [model: model, prompt: "P", input: raw_input, line_numbers: true]
     assert {:ok, %AI.Completion{response: _}} = AI.Accumulator.get_response(opts)
     assert_receive {:transformed, numbered}
-    assert numbered =~ "1|apple"
-    assert numbered =~ "2|banana"
+    assert numbered =~ ~r/1:[0-9a-f]{4}\|apple/
+    assert numbered =~ ~r/2:[0-9a-f]{4}\|banana/
   end
 end

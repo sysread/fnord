@@ -32,7 +32,7 @@ fnord-*.tar
 /fnord
 
 # scratch notes
-scratch.md
+scratch.*
 scratch/
 
 # ctags

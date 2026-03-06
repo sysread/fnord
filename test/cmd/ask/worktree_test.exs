@@ -76,6 +76,7 @@ defmodule Cmd.Ask.WorktreeTest do
 
     # Stub UI to simulate TTY and user acceptance
     :meck.expect(UI, :is_tty?, fn -> true end)
+    :meck.expect(UI, :stdout_tty?, fn -> true end)
     :meck.expect(UI, :confirm, fn _msg, _default -> true end)
 
     # Avoid real AI calls
@@ -95,6 +96,40 @@ defmodule Cmd.Ask.WorktreeTest do
     assert Settings.get_project_root_override() == wt_root
   end
 
+  test "missing --worktree: non-interactive prints warning and does not prompt" do
+    # create a fake worktree root
+    {:ok, wt_root} = tmpdir()
+
+    # Stub GitCli to simulate a mismatched worktree
+    :meck.expect(GitCli, :is_worktree?, fn -> true end)
+    :meck.expect(GitCli, :worktree_root, fn -> wt_root end)
+
+    # Stub UI for TTY behavior
+    :meck.expect(UI, :is_tty?, fn -> true end)
+    :meck.expect(UI, :stdout_tty?, fn -> false end)
+    # Ensure no prompt occurs
+    :meck.expect(UI, :confirm, fn _msg, _default -> raise "should not prompt" end)
+
+    # Avoid real AI calls
+    :meck.expect(Services.Conversation, :get_response, fn _pid, _opts ->
+      {:ok, %{usage: 0, context: 0, last_response: "ok"}}
+    end)
+
+    # No override initially
+    assert Settings.get_project_root_override() == nil
+
+    # Run in edit mode without --worktree
+    {_out, _err} =
+      capture_all(fn ->
+        assert :ok = Cmd.Ask.run(%{question: "Q", edit: true}, [], [])
+      end)
+
+    assert :meck.num_calls(UI, :confirm, :_) == 0
+
+    # Override should remain nil
+    assert Settings.get_project_root_override() == nil
+  end
+
   test "missing --worktree: prompts and does not apply override when declined" do
     # create a fake worktree root
     {:ok, wt_root} = tmpdir()
@@ -105,6 +140,7 @@ defmodule Cmd.Ask.WorktreeTest do
 
     # Stub UI to simulate TTY and user decline
     :meck.expect(UI, :is_tty?, fn -> true end)
+    :meck.expect(UI, :stdout_tty?, fn -> true end)
     :meck.expect(UI, :confirm, fn _msg, _default -> false end)
 
     # Avoid real AI calls

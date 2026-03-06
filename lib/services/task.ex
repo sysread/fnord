@@ -119,7 +119,8 @@ defmodule Services.Task do
   Only the first matching ID is updated; others are unchanged.
   No-op if list or task not found.
   """
-  @spec complete_task(list_id, task_id, task_result) :: :ok
+  @spec complete_task(list_id, task_id, task_result) ::
+          :ok | {:error, :already_resolved | :not_found}
   def complete_task(list_id, task_id, result) do
     GenServer.call(__MODULE__, {:resolve, list_id, task_id, :done, result})
   end
@@ -129,7 +130,7 @@ defmodule Services.Task do
   Only the first matching ID is updated; others are unchanged.
   No-op if list or task not found.
   """
-  @spec fail_task(list_id, task_id, task_result) :: :ok
+  @spec fail_task(list_id, task_id, task_result) :: :ok | {:error, :already_resolved | :not_found}
   def fail_task(list_id, task_id, msg) do
     GenServer.call(__MODULE__, {:resolve, list_id, task_id, :failed, msg})
   end
@@ -362,33 +363,36 @@ defmodule Services.Task do
         {:reply, :ok, state}
 
       {:ok, list = %Services.Task.List{}} ->
-        # Resolve the task in the list
-        updated_list = Services.Task.List.resolve(list, task_id, outcome, result)
+        case Services.Task.List.resolve(list, task_id, outcome, result) do
+          {:error, reason} ->
+            {:reply, {:error, reason}, state}
 
-        # Transition planning -> in_progress when the first terminal task appears
-        updated_list =
-          if list.status == "planning" and
-               Enum.any?(updated_list.tasks, fn t -> t.outcome != :todo end) do
-            %{updated_list | status: "in-progress"}
-          else
-            updated_list
-          end
+          {:ok, updated_list} ->
+            # Transition planning -> in_progress when the first terminal task appears
+            updated_list =
+              if list.status == "planning" and
+                   Enum.any?(updated_list.tasks, fn t -> t.outcome != :todo end) do
+                %{updated_list | status: "in-progress"}
+              else
+                updated_list
+              end
 
-        # If all tasks are terminal (done or failed), set list to :done
-        all_terminal = Enum.all?(updated_list.tasks, fn t -> t.outcome != :todo end)
+            # If all tasks are terminal (done or failed), set list to :done
+            all_terminal = Enum.all?(updated_list.tasks, fn t -> t.outcome != :todo end)
 
-        updated_list =
-          if all_terminal and updated_list.tasks != [] do
-            %{updated_list | status: "done"}
-          else
-            updated_list
-          end
+            updated_list =
+              if all_terminal and updated_list.tasks != [] do
+                %{updated_list | status: "done"}
+              else
+                updated_list
+              end
 
-        new_state =
-          %{state | lists: Map.put(state.lists, list_id, updated_list)}
-          |> save_tasks()
+            new_state =
+              %{state | lists: Map.put(state.lists, list_id, updated_list)}
+              |> save_tasks()
 
-        {:reply, :ok, new_state}
+            {:reply, :ok, new_state}
+        end
     end
   end
 

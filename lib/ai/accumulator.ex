@@ -3,15 +3,15 @@ defmodule AI.Accumulator do
   @backoff_step 0.2
 
   @moduledoc """
-  When file or other input to too large for the model's context window, this
+  When a file or other input is too large for the model's context window, this
   module may be used to process the file in chunks. It automatically modifies
   the supplied agent prompt to include instructions for accumulating a response
   across multiple chunks based on the `context` (max context window tokens)
   parameter supplied by the `model` parameter.
 
-  Note that while this makes use of the `AI.Completion` module, it does NOT
-  have the same interface and cannot be used for long-running conversations, as
-  it does not accept a list of messages as its input.
+  Note that while this uses the `AI.Completion` module, it does not
+  have the same interface and cannot be used for long-running conversations
+  because it does not accept a list of messages as input.
   """
 
   defstruct [
@@ -38,8 +38,11 @@ defmodule AI.Accumulator do
         }
 
   @line_numbers_prompt """
-  The input you are processing includes line numbers.
-  Each line is prefixed by a line number, separated by a pipe character (|).
+  The input you are processing includes hashline identifiers.
+  Each line is prefixed by `<line_number>:<content_hash>|`, where the content
+  hash is a 2-character hex fingerprint of the line's content. Use the hash to
+  verify line identity when citing line ranges; if the hash does not match the
+  content you expect, the line numbers may have shifted.
   """
 
   @accumulator_prompt """

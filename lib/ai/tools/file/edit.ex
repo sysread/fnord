@@ -63,10 +63,16 @@ defmodule AI.Tools.File.Edit do
         This is the best tool for simple changes that do not require extensive
         planning, coordination, or span many files.
 
-        **Two editing modes:**
-        1. **Exact String Matching**: Provide old_string/new_string for precise, reliable replacements.
+        **Three editing modes:**
+        1. **Hash-Anchored Replacement** (preferred): Provide hashes + old_string + new_string.
+           Each hash is a `line:hash` identifier copied from file_contents_tool output
+           (e.g. from `42:a3f1|text`, the identifier is `"42:a3f1"`).
+           List one identifier for each contiguous line in the region to replace. This is the
+           most reliable mode because the line number pinpoints the location and the hash
+           verifies the content hasn't changed.
+        2. **Exact String Matching**: Provide old_string/new_string for precise replacements.
            Use when you know the exact text to change.
-        2. **Natural Language**: Provide descriptive change instructions for the AI to interpret.
+        3. **Natural Language**: Provide descriptive change instructions for the AI to interpret.
            Use when you need contextual understanding.
            Do not assume the AI has the same context as you!
            Be explicit, as though instructing someone seeing the file for the first time.
@@ -88,7 +94,22 @@ defmodule AI.Tools.File.Edit do
 
         **Examples:**
 
-        File editing with exact matching:
+        Hash-anchored replacement (preferred):
+        ```json
+        {
+          "file": "src/app.js",
+          "changes": [{
+            "hashes": ["3:a3f1", "4:f10e", "5:0e5d"],
+            "old_string": "const API_URL = 'localhost';\nconst API_KEY = 'old';\nconst TIMEOUT = 3000;",
+            "new_string": "const API_URL = 'api.example.com';\nconst API_KEY = 'xxx';\nconst TIMEOUT = 5000;"
+          }]
+        }
+        ```
+        Each hash is a `line:hash` identifier from file_contents_tool (e.g. line `3:a3f1|const API_URL = 'localhost'` has identifier `"3:a3f1"`).
+        List one identifier per contiguous line in the region you want to replace.
+        old_string is the text of those lines (without hashline prefixes) - a comprehension check.
+
+        File editing with exact matching (fallback):
         ```json
         {
           "file": "src/app.js",
@@ -121,11 +142,17 @@ defmodule AI.Tools.File.Edit do
         ```
 
         **Best practices:**
-        - Use exact string matching for maximum reliability
-        - Use natural language for contextual changes when exact strings are impractical
+        - Use the file_contents_tool to read the file before editing.
+        - **Prefer hash-anchored edits**: read the file, collect the `line:hash`
+          identifiers for the lines you want to change, and pass them as the
+          `hashes` array. This is the most reliable editing mode.
+        - When using hashes, list one `line:hash` identifier per line in the
+          contiguous region to replace. Line numbers must be consecutive.
+        - When using old_string, it must contain the raw file text, NOT the
+          hashline-prefixed output from file_contents_tool.
         - For new files: omit old_string and use create_if_missing: true at the TOP LEVEL
         - Split complex edits into multiple changes/tool calls
-        - Keep diffs minimal and well-anchored with clear anchors
+        - Keep diffs minimal and well-anchored
 
         Limitations:
         - This tool edits the contents of a single file.
@@ -168,6 +195,43 @@ defmodule AI.Tools.File.Edit do
               items: %{
                 type: "object",
                 oneOf: [
+                  %{
+                    description: "Hash-anchored replacement (preferred)",
+                    type: "object",
+                    required: ["hashes", "old_string", "new_string"],
+                    additionalProperties: false,
+                    properties: %{
+                      hashes: %{
+                        type: "array",
+                        items: %{type: "string"},
+                        description: """
+                        Ordered list of `line:hash` identifiers, one per line in the
+                        contiguous region to replace. Each identifier is the line number
+                        and content hash from file_contents_tool output (e.g. from line
+                        "42:a3f1|text", the identifier is "42:a3f1"). Line numbers must
+                        be consecutive integers. Do NOT include line content - only the
+                        `line:hash` prefix (e.g. from "129:a3f1|UI.fatal(...", use
+                        "129:a3f1", NOT "129:a3f1|UI.fatal(...").
+                        """
+                      },
+                      old_string: %{
+                        type: "string",
+                        description: """
+                        The text content of the lines identified by hashes, copied from
+                        the file WITHOUT hashline prefixes. This is a comprehension check:
+                        it proves you read the target region correctly. Leading whitespace
+                        differences are tolerated, but the content must match.
+                        """
+                      },
+                      new_string: %{
+                        type: "string",
+                        description: """
+                        The replacement text for the identified line range. Whitespace
+                        fitting is applied automatically to match surrounding indentation.
+                        """
+                      }
+                    }
+                  },
                   %{
                     description: "Natural language change instruction",
                     type: "object",
@@ -306,24 +370,51 @@ defmodule AI.Tools.File.Edit do
 
   @type exact :: %{
           type: :exact,
-          instruction: String.t(),
           old_string: String.t(),
           new_string: String.t(),
           replace_all: boolean()
         }
 
+  @type hash_anchored :: %{
+          type: :hash_anchored,
+          hashes: [String.t()],
+          old_string: String.t(),
+          new_string: String.t()
+        }
+
   @type change ::
           natural_language
           | exact
+          | hash_anchored
 
   @spec parse_change(map) :: {:ok, change} | {:error, String.t()}
   defp parse_change(change_map) when is_map(change_map) do
     instruction = Map.get(change_map, "instructions", "")
+    hashes = Map.get(change_map, "hashes")
     old_string = Map.get(change_map, "old_string")
     new_string = Map.get(change_map, "new_string")
     replace_all = Map.get(change_map, "replace_all", false)
 
     cond do
+      # Hash-anchored replacement (preferred for editing existing content)
+      hashes != nil and is_list(hashes) and old_string != nil and new_string != nil ->
+        with true <- is_binary(old_string) and is_binary(new_string),
+             {:ok, _parsed} <- Patchwork.parse_hashline_ids(hashes) do
+          {:ok,
+           %{
+             type: :hash_anchored,
+             hashes: hashes,
+             old_string: old_string,
+             new_string: new_string
+           }}
+        else
+          false ->
+            {:error, "old_string and new_string must be strings"}
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+
       # Exact string matching mode (full parameters)
       old_string != nil and new_string != nil ->
         if is_binary(old_string) and is_binary(new_string) and is_boolean(replace_all) do
@@ -535,7 +626,7 @@ defmodule AI.Tools.File.Edit do
          Examples: "Add error handling to the login function", "Replace the hardcoded API URL on line 42"
          """}
 
-      not (String.contains?(instruction, [
+      not (String.contains?(String.downcase(instruction), [
              "after",
              "before",
              "at the",
@@ -543,14 +634,28 @@ defmodule AI.Tools.File.Edit do
              "replace",
              "add",
              "remove",
+             "delete",
+             "update",
+             "change",
+             "rename",
+             "move",
              "function",
-             "line"
+             "module",
+             "class",
+             "method",
+             "comment",
+             "import",
+             "line",
+             "top",
+             "bottom",
+             "beginning",
+             "end of"
            ]) or
                Regex.match?(~r/\d+/, instruction)) ->
         {:error,
          """
          Instruction lacks clear location anchors. Consider specifying:
-         - Line numbers: "on line 42", "after line 15"
+         - Hashline identifiers: "at line 42:a3", "lines 10:f1 through 15:0e"
          - Function names: "in the validateUser function"
          - Relative positions: "before the return statement", "after the imports"
          - Specific text: "replace 'localhost' with 'api.example.com'"
@@ -565,69 +670,16 @@ defmodule AI.Tools.File.Edit do
 
   # Apply a single change based on its type
   @spec apply_single_change(binary, binary, change) :: {:ok, binary} | {:error, String.t()}
+  defp apply_single_change(_file, contents, %{type: :hash_anchored} = change) do
+    Patchwork.patch_by_hashes(contents, change.hashes, change.old_string, change.new_string)
+  end
+
   defp apply_single_change(_file, contents, %{type: :exact} = change) do
-    apply_exact_change(contents, change)
+    Patchwork.patch(contents, change)
   end
 
   defp apply_single_change(file, contents, %{type: :natural_language} = change) do
     apply_natural_language_change(file, contents, change.instruction)
-  end
-
-  # Handle exact string replacement
-  @spec apply_exact_change(binary, change) :: {:ok, binary} | {:error, String.t()}
-  defp apply_exact_change(contents, %{old_string: old, new_string: new, replace_all: replace_all}) do
-    cond do
-      # File creation case: empty old_string with empty contents
-      byte_size(old) == 0 and byte_size(contents) == 0 ->
-        {:ok, new}
-
-      # Empty old_string with non-empty contents (invalid)
-      byte_size(old) == 0 ->
-        {:error, "old_string cannot be empty when editing existing content"}
-
-      # Normal replacement cases
-      not String.contains?(contents, old) ->
-        {:error, "String not found in file: #{inspect(old)}"}
-
-      replace_all ->
-        # Replace all occurrences
-        {:ok, String.replace(contents, old, new)}
-
-      true ->
-        # Check for multiple occurrences when replace_all is false
-        parts = String.split(contents, old)
-
-        case parts do
-          [before, after_part] ->
-            # Exactly one occurrence; allow skipping whitespace fitting based on FNORD_NO_FITTING
-            no_fitting? =
-              case Util.Env.fetch_env("FNORD_NO_FITTING") do
-                {:ok, v} when v in ["true", "True", "1"] -> true
-                _ -> false
-              end
-
-            replacement =
-              if no_fitting? do
-                new
-              else
-                AI.Tools.File.Edit.WhitespaceFitter.fit(
-                  String.split(before, "\n", trim: false),
-                  String.split(old, "\n", trim: false),
-                  String.split(after_part, "\n", trim: false),
-                  new
-                )
-              end
-
-            {:ok, before <> replacement <> after_part}
-
-          _ ->
-            # Multiple occurrences
-            count = length(parts) - 1
-
-            {:error,
-             "String appears #{count} times in file. Set replace_all: true to replace all occurrences"}
-        end
-    end
   end
 
   # Handle natural language changes using the existing patcher
@@ -641,6 +693,26 @@ defmodule AI.Tools.File.Edit do
 
   # Format error messages with context about which change failed
   @spec format_change_error(change, String.t()) :: String.t()
+  defp format_change_error(%{type: :hash_anchored, hashes: hashes}, reason) do
+    # The full error (including hashes) always goes back to the LLM via
+    # tool_call_failure_message. The hashes dump is noisy in the user's
+    # terminal, so we only include it when FNORD_DEBUG_EDITS is set.
+    hashes_detail =
+      if System.get_env("FNORD_DEBUG_EDITS"),
+        do: "Hashes: #{inspect(hashes)}\n",
+        else: ""
+
+    """
+    Hash-anchored replacement failed:
+    #{hashes_detail}Error: #{reason}
+
+    Suggestions:
+    - Re-read the file with file_contents_tool to get current hashes
+    - Verify old_string matches the content of the lines you are targeting
+    - Ensure hashes form a contiguous sequence in the file
+    """
+  end
+
   defp format_change_error(%{type: :exact, old_string: old}, reason) do
     """
     Exact string replacement failed:

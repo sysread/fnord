@@ -12,17 +12,19 @@ defmodule AI.Agent.Code.Patcher do
   You are an expert programmer and can understand the syntax and semantics of the file's contents.
   You are clever enough to DWIM and interpret the intent of changes requested by the Coordinating Agent, adapting them to the file's context.
   You will be provided with the contents of a file and a series of changes to apply to the file.
-  If you cannot a change, you must return an error.
+  If you cannot apply a change, you must return an error.
   NEVER delete comments or documentation unless explicitly instructed to do so.
   ALWAYS follow the style and formatting of the code already present in the file.
 
-  # Line Numbers
-  Line numbers appear as a number, followed by a pipe (`|`) character, followed *immediately* by the line text (no additional whitespace).
+  # Line Identifiers
+  Each line is prefixed with a hashline identifier: a line number, a colon, a 4-character content hash, then a pipe (`|`) character, followed *immediately* by the line text (no additional whitespace).
+  The content hash is a fingerprint of the line's text content.
+  Use the hash to verify you are targeting the correct lines; if the hash does not match the content you expect, the file may have changed since you last read it.
 
-  These numbered lines:
+  These hashlines:
   ```
-  1|This is the first line of the file.
-  2|  - This is the second line of the file.
+  1:a3f1|This is the first line of the file.
+  2:f10e|  - This is the second line of the file.
   ```
 
   Equate to this content:
@@ -33,12 +35,17 @@ defmodule AI.Agent.Code.Patcher do
 
   # Process
   You will be provided with a file's contents and each change in turn.
-  1. Identify the smallest contiguous range of lines required to apply the *complete* change.
-     All lines identified will be replaced *in their entirety*.
-  2. Generate a *complete* replacement for those lines.
-  3. You MUST ensure that the indentation is correct and consistent, paying special attention to whitespace (e.g. tabs vs spaces).
-  4. Make the textual changes as requested, preserving the file's existing formatting patterns.
-  5. Do NOT include the prefixed line numbers in the replacement text.
+  Your job is to produce a `hashes` / `old_string` / `new_string` triple:
+  1. Identify the contiguous region of lines to change using hashline identifiers.
+  2. Collect the full `line:hash` identifier from each line in that region, in order, and return them as the `hashes` array.
+     For example, from `42:a3f1|text`, the identifier is `"42:a3f1"`.
+     Every line in the contiguous region must be included, even lines you are not changing.
+  3. Copy the text of those lines into `old_string`, without hashline prefixes.
+     This proves you read the target region correctly.
+     Copy it character for character from the file content shown to you (stripping only the `<line>:<hash>|` prefix from each line).
+  4. Produce the `new_string` with the requested changes applied to that region.
+     Whitespace fitting is applied automatically, so focus on getting the content right rather than matching exact indentation.
+  5. Do not include the hashline prefixes (e.g. `1:a3f1|`) in `old_string` or `new_string`.
 
   # Language Agnostic Operation
   This tool works with any type of text file (code, configuration, plain text, etc.).
@@ -46,9 +53,19 @@ defmodule AI.Agent.Code.Patcher do
   Focus on making the requested textual changes accurately without syntax validation.
 
   # Best practices
+  - Include exactly the lines that need to change plus minimal surrounding context to avoid hash collisions.
+    For single-line changes, include 1-2 neighboring lines.
+  - For deletion, set new_string to an empty string.
   - Generate linear, atomic patches; avoid complex nested conditionals in a single patch.
   - If a requested change implies multiple steps, propose sequential, small patches rather than nesting logic.
-  - Use early validation or checks to enforce invariants before proceeding with deeper edits.
+
+  # Verification (REQUIRED before returning your patch)
+  Before returning your patch, verify your output by walking through these steps:
+  1. State which lines you are targeting and why (referencing hashline IDs).
+  2. Confirm that each `line:hash` identifier in your `hashes` array matches the corresponding hashline prefix in the file contents.
+  3. Confirm that `old_string` is copied exactly from the file content (without hashline prefixes, no modifications, no truncation).
+  4. Confirm that `new_string` contains the correct replacement text.
+  If your verification reveals a mismatch, fix the patch before returning.
   """
 
   @response_format %{
@@ -56,47 +73,49 @@ defmodule AI.Agent.Code.Patcher do
     json_schema: %{
       name: "patch",
       description: """
-      A JSON object describing an individual patch to a contiguous range of
-      lines within the file.
-
-      If you are unable to identify a suitable range or replacement for the
-      requested change, return an empty `patch` (setting line numbers to `-1`
-      and the replacement to an empty string) and set the `error` field to a
-      descriptive error message with a clear explanation of why the change
-      could not be applied, and suggestions for what additional information is
-      needed to successfully apply the changes.
+      A JSON object describing a hash-anchored replacement to apply to the
+      file. If you are unable to produce a patch for the requested change, set
+      the `error` field to a descriptive error message, leave `hashes` empty,
+      and set `old_string` and `new_string` to empty strings.
       """,
       schema: %{
         type: "object",
-        required: ["error", "start_line", "end_line", "replacement"],
+        required: ["error", "hashes", "old_string", "new_string"],
         additionalProperties: false,
         properties: %{
           error: %{
             type: "string",
             description: """
-            An error message if the patch could not be generated.
-            If you were able to come up with a patch, this MUST be an empty string.
+            An error message if the patch could not be generated. If you were
+            able to come up with a patch, this MUST be an empty string.
             """
           },
-          start_line: %{
-            type: "integer",
+          hashes: %{
+            type: "array",
+            items: %{type: "string"},
             description: """
-            The 1-based line number where the patch starts (inclusive).
-            If `error` is set, this MUST be `-1`.
+            Ordered list of `line:hash` identifiers for the contiguous region
+            of lines to replace. Collect these from the hashline prefixes in
+            the file contents (e.g. from "42:a3f1|text", the identifier is
+            "42:a3f1"). Every line in the contiguous region must be included.
+            If `error` is set, this MUST be an empty array.
             """
           },
-          end_line: %{
-            type: "integer",
-            description: """
-            The 1-based line number where the patch ends (inclusive).
-            If `error` is set, this MUST be `-1`.
-            """
-          },
-          replacement: %{
+          old_string: %{
             type: "string",
             description: """
-            The corrected replacement text that can be applied to the file.
-            If the replacement is an empty string, the entire hunk will be deleted.
+            The text content of the lines identified by hashes, copied from the
+            file WITHOUT hashline prefixes. This is a comprehension check that
+            proves you read the target region correctly. Copy it character for
+            character from the file. If `error` is set, this MUST be an empty
+            string.
+            """
+          },
+          new_string: %{
+            type: "string",
+            description: """
+            The replacement text for the identified line range. Whitespace
+            fitting is applied automatically to match surrounding indentation.
             If `error` is set, this MUST be an empty string.
             """
           }
@@ -147,10 +166,10 @@ defmodule AI.Agent.Code.Patcher do
          {:ok, contents} <- read_file(file) do
       UI.report_from(agent.name, "Working on", file)
 
-      # Build the toolbox once per apply_changes session
-      tools =
-        %{"shell_tool" => AI.Tools.Shell}
-        |> Map.merge(Frobs.module_map())
+      # The Patcher produces structured JSON patches via response_format -
+      # it should NOT have shell access, which tempts the LLM into sed/awk
+      # workarounds instead of using hash-anchored edits.
+      tools = %{"notify_tool" => AI.Tools.Notify}
 
       {:ok,
        %__MODULE__{
@@ -202,50 +221,41 @@ defmodule AI.Agent.Code.Patcher do
     )
     |> case do
       {:error, reason} ->
-        attempts = Map.get(state.retry_counts, change, 0) + 1
-
-        if attempts <= @max_retries do
-          updated_state = %{state | retry_counts: Map.put(state.retry_counts, change, attempts)}
-          apply_changes(updated_state)
-        else
-          {:error, "Failed to apply change after #{@max_retries} attempts: #{reason}"}
-        end
+        retry_or_fail(state, change, reason)
 
       {:ok, %{response: response}} ->
         case parse_patch_response(response) do
-          {:ok, {start_line, end_line, replacement}} ->
-            %{state | changes: remaining}
-            |> replace_contents(start_line, end_line, replacement)
-            |> apply_changes()
+          {:ok, {hashes, old_string, new_string}} ->
+            case Patchwork.patch_by_hashes(contents, hashes, old_string, new_string) do
+              {:ok, updated_contents} ->
+                %{state | changes: remaining, contents: updated_contents}
+                |> apply_changes()
+
+              {:error, reason} ->
+                # Patch application failed (e.g. copy error, hash mismatch).
+                # Retry with the same change so the LLM can correct itself
+                # using the error feedback from the previous attempt.
+                retry_or_fail(state, change, reason)
+            end
 
           {:error, reason} ->
-            error_response(change, reason)
+            # Response was structurally invalid (bad JSON, fabricated hashes).
+            retry_or_fail(state, change, reason)
         end
     end
   end
 
-  @spec replace_contents(t, integer, integer, binary) :: t
-  defp replace_contents(%{contents: ""} = state, 0, 0, replacement) do
-    %{state | contents: replacement}
-  end
+  # Increment the retry counter for this change and re-enter apply_changes.
+  # If retries are exhausted, return the error to the coordinator.
+  defp retry_or_fail(state, change, reason) do
+    attempts = Map.get(state.retry_counts, change, 0) + 1
 
-  defp replace_contents(%{contents: contents} = state, start_line, end_line, replacement) do
-    lines = String.split(contents, "\n")
-
-    # Clamp counts to avoid negative indices
-    before_count = max(start_line - 1, 0)
-    after_count = max(end_line, 0)
-
-    lines_before = Enum.take(lines, before_count)
-    lines_after = Enum.drop(lines, after_count)
-    lines_within = String.split(replacement, "\n")
-
-    new_contents =
-      [lines_before, lines_within, lines_after]
-      |> List.flatten()
-      |> Enum.join("\n")
-
-    %{state | contents: new_contents}
+    if attempts <= @max_retries do
+      updated_state = %{state | retry_counts: Map.put(state.retry_counts, change, attempts)}
+      apply_changes(updated_state)
+    else
+      error_response(change, reason)
+    end
   end
 
   @spec error_response(binary, any) :: {:error, binary}
@@ -260,49 +270,34 @@ defmodule AI.Agent.Code.Patcher do
      """}
   end
 
-  @doc false
-  # Parses the LLM JSON response into patch tuple or error
+  # Parses the LLM JSON response into a {hashes, old_string, new_string} tuple.
+  # Validates structure and ensures hashes is a non-empty list.
   defp parse_patch_response(json) do
     case SafeJson.decode(json) do
       {:ok, decoded} when is_map(decoded) ->
-        decoded
-        |> Map.get("patch", decoded)
-        |> case do
-          patch when is_map(patch) ->
-            patch
-            |> Map.get("error", "")
-            |> case do
-              "" ->
-                start_line = Map.get(patch, "start_line")
-                end_line = Map.get(patch, "end_line")
-                replacement = Map.get(patch, "replacement")
+        # The model may wrap the result in a "patch" key or return it flat
+        patch = Map.get(decoded, "patch", decoded)
 
-                cond do
-                  !is_integer(start_line) ->
-                    {:error, "Invalid patch structure: start_line is not an integer"}
+        case patch do
+          %{"error" => error} when is_binary(error) and byte_size(error) > 0 ->
+            {:error, error}
 
-                  !is_integer(end_line) ->
-                    {:error, "Invalid patch structure: end_line is not an integer"}
-
-                  !is_binary(replacement) ->
-                    {:error, "Invalid patch structure: replacement is not a string"}
-
-                  start_line < 1 ->
-                    {:error, "Invalid patch structure: start_line must be > 0"}
-
-                  start_line > end_line ->
-                    {:error, "Invalid patch structure: start_line must be <= end_line"}
-
-                  true ->
-                    {:ok, {start_line, end_line, replacement}}
-                end
-
-              reason ->
-                {:error, reason}
+          %{"hashes" => hashes, "old_string" => old, "new_string" => new}
+          when is_list(hashes) and is_binary(old) and is_binary(new) ->
+            if hashes == [] do
+              {:error, "Invalid patch: hashes cannot be empty"}
+            else
+              # Validate that each hash is a well-formed "line:hash" identifier
+              # before we even attempt to apply the patch. Catches fabricated
+              # hashes early (e.g. LLMs inventing "f6xf" instead of real hex).
+              case Patchwork.parse_hashline_ids(hashes) do
+                {:ok, _parsed} -> {:ok, {hashes, old, new}}
+                {:error, reason} -> {:error, reason}
+              end
             end
 
           _ ->
-            {:error, "Invalid patch structure: patch is not an object"}
+            {:error, "Invalid patch structure: expected hashes array, old_string, and new_string"}
         end
 
       {:ok, _} ->

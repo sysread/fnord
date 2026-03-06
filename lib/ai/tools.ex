@@ -228,10 +228,21 @@ defmodule AI.Tools do
     Services.MCP.start()
 
     @tools
-    |> Map.merge(Frobs.module_map())
     |> Map.merge(MCP.Tools.module_map())
     |> Enum.filter(fn {_name, mod} -> mod.is_available?() end)
     |> Map.new()
+  end
+
+  @doc """
+  Adds user-defined frobs to the toolbox. Frobs are local tooling (linters,
+  formatters, test runners, kubectl wrappers, etc.) so they should only be
+  given to agents that test, validate, or investigate - not to agents that
+  only produce structured output (e.g. the Patcher).
+  """
+  @spec with_frobs(toolbox) :: toolbox
+  def with_frobs(toolbox \\ %{}) do
+    toolbox
+    |> Map.merge(Frobs.module_map())
   end
 
   @doc """
@@ -244,6 +255,7 @@ defmodule AI.Tools do
   @spec all_tools() :: toolbox
   def all_tools() do
     basic_tools()
+    |> with_frobs()
     |> with_rw_tools()
     |> with_coding_tools()
     |> with_task_tools()

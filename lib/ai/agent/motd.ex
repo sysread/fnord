@@ -15,7 +15,7 @@ defmodule AI.Agent.MOTD do
   # Instructions
   - Select a **real** quote from a **real** historical figure.
   - **Invent a brief, fictional and humorous scenario** related to software development or programming where the quote would be relevant.
-  - The scenario should be a made-up situation involving coding, debugging, technology, etc..
+  - The scenario should be a made-up situation involving coding, debugging, technology, etc.
   - The scenario should be relevant and related to the user's prompt.
   - Attribute the quote to the real person, but as though speaking from the made-up scenario.
   - Example: "I have not failed. I've just found 10,000 ways that won't work." - Thomas Edison, on the importance of negative path testing."
@@ -27,7 +27,7 @@ defmodule AI.Agent.MOTD do
   # Output Template
   ```
   ### MOTD
-  > “[quote]” —[speaker], [briefly state made-up scenario]
+  > “[quote]” - [speaker], [briefly state made-up scenario]
   ```
 
   DO NOT include ANY additional text or explanations.

@@ -236,6 +236,40 @@ defmodule AI.Tools.File.Edit.OMFGTest do
 
       assert {:ok, ^expected} = OMFG.normalize_agent_chaos(args)
     end
+
+    test "hoists top-level replace_all into each change" do
+      args = %{
+        "file" => "test.ex",
+        "replace_all" => true,
+        "changes" => [
+          %{"old_string" => "foo", "new_string" => "bar"},
+          %{"old_string" => "baz", "new_string" => "qux"}
+        ]
+      }
+
+      {:ok, result} = OMFG.normalize_agent_chaos(args)
+
+      refute Map.has_key?(result, "replace_all")
+
+      assert [first, second] = result["changes"]
+      assert first["replace_all"] == true
+      assert second["replace_all"] == true
+    end
+
+    test "hoisted replace_all does not overwrite existing per-change value" do
+      args = %{
+        "file" => "test.ex",
+        "replace_all" => true,
+        "changes" => [
+          %{"old_string" => "foo", "new_string" => "bar", "replace_all" => false}
+        ]
+      }
+
+      {:ok, result} = OMFG.normalize_agent_chaos(args)
+
+      assert [change] = result["changes"]
+      assert change["replace_all"] == false
+    end
   end
 
   describe "edge cases and combinations" do

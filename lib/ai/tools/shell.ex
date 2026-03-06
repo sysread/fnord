@@ -460,79 +460,100 @@ defmodule AI.Tools.Shell do
   # The fact that this function exists at all is so, *so* frustrating.
   # ----------------------------------------------------------------------------
   defp route(op, commands, desc, timeout_ms, root) do
-    commands
-    |> SafeJson.encode(pretty: true)
-    |> case do
-      {:ok, json} ->
-        has_shell_invocation? =
-          Enum.any?(commands, fn %{"command" => cmd, "args" => args} ->
-            is_version_check? = "--version" in args
-            is_shell? = Path.basename(cmd) in ~w(sh ash bash csh dash fish ksh tcsh zsh)
-            is_shell? and !is_version_check?
-          end)
+    # Preflight checks run before any encoding or execution so that all code
+    # paths (including encoding-failure fallback) are covered.
+    has_shell_invocation? =
+      Enum.any?(commands, fn %{"command" => cmd, "args" => args} ->
+        is_version_check? = "--version" in args
+        is_shell? = Path.basename(cmd) in ~w(sh ash bash csh dash fish ksh tcsh zsh)
+        is_shell? and !is_version_check?
+      end)
 
-        # Ok, so we can fudge things this way, but the shell_tool is available
-        # outside of edit mode, so we need to double-check that the user
-        # actually wants to allow editing before we let them do it.
-        is_apply_patch? =
-          Enum.any?(commands, fn %{"command" => cmd, "args" => args} ->
-            cond do
-              cmd =~ ~r/\b(z|ba)?sh .*? <<<.*?\b(patch|apply_patch|git apply)\b/ ->
-                true
-
-              Path.basename(cmd) in ["bash", "sh", "zsh"] and
-                  Enum.any?(args, fn a ->
-                    String.contains?(a, "apply_patch") or String.contains?(a, "patch")
-                  end) ->
-                true
-
-              Path.basename(cmd) in ["apply_patch", "patch"] ->
-                true
-
-              Path.basename(cmd) == "git" and "apply" in args ->
-                true
-
-              true ->
-                false
-            end
-          end)
-
-        is_fnord_help? =
-          Enum.count(commands) == 1 &&
-            Enum.any?(commands, fn %{"command" => cmd, "args" => args} ->
-              Path.basename(cmd) == "fnord" &&
-                (Enum.any?(args, &String.contains?(&1, "help")) ||
-                   Enum.any?(args, &String.contains?(&1, "--help")) ||
-                   Enum.any?(args, &String.contains?(&1, "-h")))
-            end)
-
-        is_edit_mode? = Settings.get_edit_mode()
-
+    # The shell_tool is available outside of edit mode, so we need to
+    # double-check that the user actually wants to allow editing before
+    # we let an apply_patch through.
+    is_apply_patch? =
+      Enum.any?(commands, fn %{"command" => cmd, "args" => args} ->
         cond do
-          is_fnord_help? ->
-            UI.info("Oof", "The LLM called the shell_tool for its own help text. Rerouting.")
-            AI.Tools.SelfHelp.Cli.call(%{})
+          cmd =~ ~r/\b(z|ba)?sh .*? <<<.*?\b(patch|apply_patch|git apply)\b/ ->
+            true
 
-          has_shell_invocation? ->
-            {:denied,
-             """
-             Execute commands directly; do not invoke through a shell within
-             the shell_tool. If you need specific shell features, write a temp
-             script file and execute that directly.
-             """}
+          Path.basename(cmd) in ["bash", "sh", "zsh"] and
+              Enum.any?(args, fn a ->
+                String.contains?(a, "apply_patch") or String.contains?(a, "patch")
+              end) ->
+            true
 
-          is_edit_mode? and is_apply_patch? ->
-            UI.info("Oof", "The LLM attempted to apply a patch with the shell_tool. Rerouting.")
-            AI.Tools.ApplyPatch.call(%{"patch" => json})
+          Path.basename(cmd) in ["apply_patch", "patch"] ->
+            true
 
-          is_apply_patch? and not is_edit_mode? ->
-            {:denied, "Cannot edit files; the user did not pass --edit."}
+          Path.basename(cmd) == "git" and "apply" in args ->
+            true
 
           true ->
-            run_as_shell_commands(op, commands, desc, timeout_ms, root)
+            false
+        end
+      end)
+
+    is_fnord_help? =
+      Enum.count(commands) == 1 &&
+        Enum.any?(commands, fn %{"command" => cmd, "args" => args} ->
+          Path.basename(cmd) == "fnord" &&
+            (Enum.any?(args, &String.contains?(&1, "help")) ||
+               Enum.any?(args, &String.contains?(&1, "--help")) ||
+               Enum.any?(args, &String.contains?(&1, "-h")))
+        end)
+
+    is_edit_mode? = Settings.get_edit_mode()
+
+    cond do
+      is_fnord_help? ->
+        UI.info("Oof", "The LLM called the shell_tool for its own help text. Rerouting.")
+        AI.Tools.SelfHelp.Cli.call(%{})
+
+      # apply_patch check must come before the generic shell invocation denial,
+      # because LLMs often wrap apply_patch in `bash -lc "apply_patch ..."` which
+      # triggers both detections. We want to re-route to the RePatcher, not deny.
+      is_edit_mode? and is_apply_patch? ->
+        UI.info("Oof", "The LLM attempted to apply a patch with the shell_tool. Rerouting.")
+
+        # Encode the commands for ApplyPatch - it expects a JSON patch string.
+        # Wrap the result so the coordinator knows the changes were already
+        # applied by the re-route. Without this, the coordinator sees a
+        # shell_tool success and may attempt the same edit again with stale
+        # hashes, not realizing the file was already modified.
+        json =
+          case SafeJson.encode(commands, pretty: true) do
+            {:ok, j} -> j
+            _ -> inspect(commands)
+          end
+
+        case AI.Tools.ApplyPatch.call(%{"patch" => json}) do
+          {:ok, msg} ->
+            {:ok,
+             "NOTE: Your apply_patch was intercepted and applied via file_edit_tool. " <>
+               "The changes below have ALREADY been made to the file(s). " <>
+               "Do NOT attempt to apply them again.\n\n#{msg}"}
+
+          {:error, msg} ->
+            {:error,
+             "NOTE: Your apply_patch was intercepted and routed to file_edit_tool, " <>
+               "but the edit failed. Some changes MAY have been partially applied. " <>
+               "Re-read the target file(s) before deciding whether to retry.\n\n#{msg}"}
         end
 
-      _ ->
+      is_apply_patch? and not is_edit_mode? ->
+        {:denied, "Cannot edit files; the user did not pass --edit."}
+
+      has_shell_invocation? ->
+        {:denied,
+         """
+         Execute commands directly; do not invoke through a shell within
+         the shell_tool. If you need specific shell features, write a temp
+         script file and execute that directly.
+         """}
+
+      true ->
         run_as_shell_commands(op, commands, desc, timeout_ms, root)
     end
   end

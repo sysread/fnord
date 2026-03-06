@@ -249,7 +249,9 @@ defmodule Services.NamePool do
     end
   end
 
-  @doc false
+  # Ensures there are names available; allocates a new chunk when empty.
+  # This is a private helper; do not use @doc on private functions to avoid warnings.
+  # Returns {:ok, state} or {:error, reason}.
   # Ensures there are names available, allocating a new chunk if the pool is empty
   defp ensure_names_available(%__MODULE__{available: []} = state) do
     allocate_name_chunk(state)

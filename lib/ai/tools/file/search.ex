@@ -43,23 +43,19 @@ defmodule AI.Tools.File.Search do
       function: %{
         name: "file_search_tool",
         description: """
-        The search tool implements a robust semantic search to find project
-        files matching your query input. Each file in the search index was
-        primed for semantic search using an LLM to generate contextual content
-        related to the file contents, allowing for improved fuzzy searches.
+        Semantic search over project files. Your query is converted to an
+        embedding and compared against pre-computed file embeddings using
+        cosine similarity. This means your query must be **natural language**
+        describing the concept or topic you're looking for.
 
-        This tool is ideal when you need to find files related to a topic but
-        do not have an exact string to match. For example, you can search for
-        "user authentication" to find files related to user login, regardless
-        of whether they contain that exact phrase.
+        Your query is embedded as-is. Regex, syntax fragments, function
+        signatures, and boolean operators will NOT work - they will be
+        interpreted as literal text about those topics, not as patterns.
+        For exact string or pattern matching, use `rg` via `shell_tool`.
 
-        If you are looking for an exact pattern, your best bet is to use grep,
-        rg, or a similar command via the `shell_tool`. This tool is optimized
-        for identifying content when you are not sure what you are looking for.
-
-        This tool does not support regular expressions, boolean operators, or
-        exact string matches. Rather, it is designed to search using natural
-        language queries that match the *semantic content* of files.
+        Good queries: "user authentication", "database connection settings",
+        "error handling for HTTP requests", "modules that parse JSON"
+        Bad queries: "def.*auth", "conn |> put_status", "TODO|FIXME"
 
         Note that this tool does not have access to historical data or commit
         messages. It only searches the most recently indexed version of the
@@ -73,7 +69,9 @@ defmodule AI.Tools.File.Search do
             query: %{
               type: "string",
               description: """
-              The search query string.
+              A natural language query describing what you're looking for.
+              Write it as you would describe the topic to a person, not as
+              a code pattern or regex.
               Examples:
               - "user authentication"
               - "feature flag definitions"

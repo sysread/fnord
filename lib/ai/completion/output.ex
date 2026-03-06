@@ -76,13 +76,16 @@ defmodule AI.Completion.Output do
 
       border = "# " <> String.duplicate("-", 77)
 
-      IO.puts(:stderr, """
+      dump = """
       #{border}
       # Tool call args (#{tool})
       #{border}
       #{pretty}
       #{border}
-      """)
+      """
+
+      IO.puts(:stderr, dump)
+      UI.Tee.write([dump, "\n"])
     end
   end
 
