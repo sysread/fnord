@@ -82,7 +82,7 @@ defmodule MCP.OAuth2.Discovery do
           {:ok, _} ->
             {:error, {:invalid_metadata, "Discovery response is not a JSON object"}}
 
-          {:error, reason} ->
+          {:error, {:invalid_json, reason}} ->
             {:error, {:invalid_json, reason}}
         end
 

@@ -95,7 +95,7 @@ defmodule MCP.OAuth2.Client do
           {:ok, _} ->
             {:error, {:invalid_metadata, "Discovery response is not a JSON object"}}
 
-          {:error, reason} ->
+          {:error, {:invalid_json, reason}} ->
             {:error, {:invalid_json, reason}}
         end
 
@@ -242,7 +242,7 @@ defmodule MCP.OAuth2.Client do
           {:ok, _} ->
             {:error, {:invalid_response, "Token response is not a JSON object"}}
 
-          {:error, reason} ->
+          {:error, {:invalid_json, reason}} ->
             {:error, {:invalid_json, reason}}
         end
 

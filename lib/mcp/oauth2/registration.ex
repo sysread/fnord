@@ -79,7 +79,7 @@ defmodule MCP.OAuth2.Registration do
       {:ok, _} ->
         {:error, :missing_client_id}
 
-      {:error, reason} ->
+      {:error, {:invalid_json, reason}} ->
         {:error, {:invalid_json, reason}}
     end
   end

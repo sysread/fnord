@@ -29,7 +29,7 @@ defmodule Memory.SessionIndexerE2ETest do
 
     processed = ["Session One", "Session Two"]
 
-    response = Jason.encode!(%{"actions" => actions, "processed" => processed})
+    response = SafeJson.encode!(%{"actions" => actions, "processed" => processed})
 
     # Mock AI.Agent.get_response to return the structured JSON
     :meck.new(AI.Agent, [:no_link, :passthrough, :non_strict])

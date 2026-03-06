@@ -46,7 +46,7 @@ defmodule AI.Tools.Params do
   end
 
   @doc """
-  Normalize a parsed spec (from Jason) into a canonical map with string keys.
+  Normalize a parsed JSON spec into a canonical map with string keys.
 
   Returns `{:ok, %{properties: map, required: list}}` or `{:error, reason, msg}`.
   """

@@ -68,7 +68,7 @@ defmodule HttpTest do
   end
 
   test "json encode error does not retry and returns invalid_json_response" do
-    # Payload with a PID cannot be encoded by Jason
+    # Payload with a PID cannot be encoded as JSON
     bad_payload = %{pid: self()}
 
     assert {:transport_error, :invalid_json_response} =

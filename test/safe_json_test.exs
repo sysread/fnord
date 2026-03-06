@@ -102,10 +102,15 @@ defmodule SafeJsonTest do
     assert SafeJson.decode!(json) == Jason.decode!(json)
   end
 
-  test "decode! raises on invalid JSON" do
-    assert_raise Jason.DecodeError, fn ->
+  test "decode! raises a RuntimeError on invalid JSON" do
+    assert_raise RuntimeError, ~r/JSON decode failed/, fn ->
       SafeJson.decode!("not json")
     end
+  end
+
+  test "decode returns error tuple on invalid JSON" do
+    assert {:error, {:invalid_json, reason}} = SafeJson.decode("not json")
+    assert is_binary(reason)
   end
 
   # ---------------------------------------------------------------------------

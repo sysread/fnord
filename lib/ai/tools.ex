@@ -87,7 +87,7 @@ defmodule AI.Tools do
   @type invalid_arg_error :: {:error, :invalid_argument, binary}
   @type args_error :: missing_arg_error | invalid_arg_error
   @type frob_error :: {:error, non_neg_integer, binary}
-  @type json_parse_error :: {:error, Jason.DecodeError.t()}
+  @type json_parse_error :: {:error, Exception.t()}
 
   @type tool_result ::
           {:ok, binary}

@@ -99,22 +99,22 @@ defmodule AI.CompletionAPI do
             get_response(response)
         end
       rescue
-        e in Jason.DecodeError ->
-          {:error,
-           %{
-             http_status: 500,
-             error: """
-             JSON decode error: #{Exception.message(e)}
-             #{Exception.format_stacktrace(__STACKTRACE__)}
-             """
-           }}
-
         e in RuntimeError ->
           {:error,
            %{
              http_status: 500,
              error: """
              Runtime error: #{Exception.message(e)}
+             #{Exception.format_stacktrace(__STACKTRACE__)}
+             """
+           }}
+
+        e in ArgumentError ->
+          {:error,
+           %{
+             http_status: 500,
+             error: """
+             Argument error: #{Exception.message(e)}
              #{Exception.format_stacktrace(__STACKTRACE__)}
              """
            }}

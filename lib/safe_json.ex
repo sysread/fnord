@@ -1,19 +1,17 @@
 defmodule SafeJson do
   @moduledoc """
-  Thin wrapper around Jason that sanitizes binaries before encoding to prevent
-  `Jason.EncodeError` on invalid UTF-8. The JSON spec (RFC 8259) requires valid
-  Unicode strings, but subprocess output, CLI arguments, and external data can
-  contain arbitrary bytes. This module is the single chokepoint for all JSON
-  serialization in the app, so every path benefits from the same safety net.
+  Thin wrapper around a JSON library.
 
-  Decode functions delegate directly to Jason today. Routing all decodes through
-  this module gives us a seam for future work: migrating to Elixir's stdlib
-  `JSON`, normalizing string/atom keys, etc.
+  This module is a single chokepoint for JSON serialization in the app. It:
+
+  * Sanitizes binaries before encoding to avoid errors on invalid UTF-8.
+  * Translates backend-specific encode/decode errors into stable, backend-agnostic
+    error tuples.
 
   ## Struct serialization
 
   Structs that need JSON encoding should implement the `SafeJson.Serialize`
-  protocol rather than using `@derive {Jason.Encoder, ...}`. This keeps all
+  protocol rather than using `@derive {Jason.Encoder, ...}`. This keeps JSON
   serialization concerns inside SafeJson and avoids leaking the backend library
   into consuming modules.
 
@@ -28,27 +26,108 @@ defmodule SafeJson do
   # Encode
   # ---------------------------------------------------------------------------
 
-  @spec encode(term) :: {:ok, String.t()} | {:error, Jason.EncodeError.t() | Exception.t()}
-  def encode(term), do: term |> sanitize() |> Jason.encode()
+  @type decode_error :: {:invalid_json, String.t()}
+  @type encode_error :: {:invalid_json, String.t()}
 
-  @spec encode(term, keyword) ::
-          {:ok, String.t()} | {:error, Jason.EncodeError.t() | Exception.t()}
-  def encode(term, opts), do: term |> sanitize() |> Jason.encode(opts)
+  @spec encode(term) :: {:ok, String.t()} | {:error, encode_error}
+  def encode(term) do
+    Jason.encode(sanitize(term))
+    |> case do
+      {:ok, json} -> {:ok, json}
+      {:error, reason} -> {:error, {:invalid_json, error_message(reason)}}
+    end
+  rescue
+    e -> {:error, {:invalid_json, error_message(e)}}
+  end
+
+  @spec encode(term, keyword) :: {:ok, String.t()} | {:error, encode_error}
+  def encode(term, opts) do
+    Jason.encode(sanitize(term), opts)
+    |> case do
+      {:ok, json} -> {:ok, json}
+      {:error, reason} -> {:error, {:invalid_json, error_message(reason)}}
+    end
+  rescue
+    e -> {:error, {:invalid_json, error_message(e)}}
+  end
 
   @spec encode!(term) :: String.t()
-  def encode!(term), do: term |> sanitize() |> Jason.encode!()
+  def encode!(term) do
+    case encode(term) do
+      {:ok, json} ->
+        json
+
+      {:error, {:invalid_json, reason}} ->
+        raise("JSON encode failed: #{reason}")
+    end
+  end
 
   @spec encode!(term, keyword) :: String.t()
-  def encode!(term, opts), do: term |> sanitize() |> Jason.encode!(opts)
+  def encode!(term, opts) do
+    case encode(term, opts) do
+      {:ok, json} ->
+        json
+
+      {:error, {:invalid_json, reason}} ->
+        raise("JSON encode failed: #{reason}")
+    end
+  end
 
   # ---------------------------------------------------------------------------
-  # Decode - pass-through to Jason for now
+  # Decode
   # ---------------------------------------------------------------------------
 
-  defdelegate decode(input), to: Jason
-  defdelegate decode(input, opts), to: Jason
-  defdelegate decode!(input), to: Jason
-  defdelegate decode!(input, opts), to: Jason
+  @spec decode(binary) :: {:ok, term} | {:error, decode_error}
+  def decode(input) do
+    Jason.decode(input)
+    |> case do
+      {:ok, decoded} -> {:ok, decoded}
+      {:error, reason} -> {:error, {:invalid_json, error_message(reason)}}
+    end
+  rescue
+    e -> {:error, {:invalid_json, error_message(e)}}
+  end
+
+  @spec decode(binary, keyword) :: {:ok, term} | {:error, decode_error}
+  def decode(input, opts) do
+    Jason.decode(input, opts)
+    |> case do
+      {:ok, decoded} -> {:ok, decoded}
+      {:error, reason} -> {:error, {:invalid_json, error_message(reason)}}
+    end
+  rescue
+    e -> {:error, {:invalid_json, error_message(e)}}
+  end
+
+  @spec decode!(binary) :: term
+  def decode!(input) do
+    case decode(input) do
+      {:ok, decoded} ->
+        decoded
+
+      {:error, {:invalid_json, reason}} ->
+        raise("JSON decode failed: #{reason}")
+    end
+  end
+
+  @spec decode!(binary, keyword) :: term
+  def decode!(input, opts) do
+    case decode(input, opts) do
+      {:ok, decoded} ->
+        decoded
+
+      {:error, {:invalid_json, reason}} ->
+        raise("JSON decode failed: #{reason}")
+    end
+  end
+
+  defp error_message(reason) do
+    try do
+      Exception.message(reason)
+    rescue
+      _ -> to_string(reason)
+    end
+  end
 
   # ---------------------------------------------------------------------------
   # Sanitization

@@ -145,11 +145,11 @@ echo "Searching $PROJECT_ROOT for: $QUERY (limit: $LIMIT)"
 ```elixir
 #!/usr/bin/env elixir
 
-Mix.install([{:jason, "~> 1.4"}])
+Mix.install([{:fnord, "~> 0.9"}])
 
 project = System.fetch_env!("FNORD_PROJECT")
-config = System.fetch_env!("FNORD_CONFIG") |> Jason.decode!()
-args = System.fetch_env!("FNORD_ARGS_JSON") |> Jason.decode!()
+config = System.fetch_env!("FNORD_CONFIG") |> SafeJson.decode!()
+args = System.fetch_env!("FNORD_ARGS_JSON") |> SafeJson.decode!()
 
 query = Map.fetch!(args, "query")
 limit = Map.get(args, "limit", 10)

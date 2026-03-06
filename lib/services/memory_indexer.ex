@@ -226,7 +226,7 @@ defmodule Services.MemoryIndexer do
       memories: memories_with_candidates
     }
 
-    {:ok, Jason.encode!(payload)}
+    {:ok, SafeJson.encode!(payload)}
   end
 
   defp enrich_with_candidates(mem) do
@@ -259,7 +259,7 @@ defmodule Services.MemoryIndexer do
   end
 
   defp parse_indexer_response(response) do
-    case Jason.decode(response) do
+    case SafeJson.decode(response) do
       {:ok, decoded} -> {:ok, decoded}
       _ -> {:error, :invalid_json}
     end

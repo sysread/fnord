@@ -207,7 +207,11 @@ defmodule Memory.Consolidator do
     # Enforce scope walling - reject actions targeting a different scope than
     # the focus memory being consolidated.
     if scope != focus.scope do
-      UI.warn("consolidator", "Rejected cross-scope merge targeting #{scope} from #{focus.scope} scope")
+      UI.warn(
+        "consolidator",
+        "Rejected cross-scope merge targeting #{scope} from #{focus.scope} scope"
+      )
+
       []
     else
       title = target["title"]
@@ -256,7 +260,11 @@ defmodule Memory.Consolidator do
     # Enforce scope walling - reject actions targeting a different scope than
     # the focus memory being consolidated.
     if scope != focus.scope do
-      UI.warn("consolidator", "Rejected cross-scope delete targeting #{scope} from #{focus.scope} scope")
+      UI.warn(
+        "consolidator",
+        "Rejected cross-scope delete targeting #{scope} from #{focus.scope} scope"
+      )
+
       []
     else
       title = target["title"]
@@ -311,7 +319,7 @@ defmodule Memory.Consolidator do
             }
           end)
       }
-      |> Jason.encode!()
+      |> SafeJson.encode!()
 
     with {:ok, response} <- invoke_agent(payload),
          {:ok, decoded} <- parse_response(response),
@@ -327,7 +335,7 @@ defmodule Memory.Consolidator do
   end
 
   defp parse_response(response) do
-    case Jason.decode(response) do
+    case SafeJson.decode(response) do
       {:ok, decoded} -> {:ok, decoded}
       _ -> {:error, :invalid_json}
     end
