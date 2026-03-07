@@ -22,6 +22,7 @@ defmodule Services do
     Services.Notes.start_link()
     Services.Conversation.Interrupts.start_link([])
     AI.Agent.Researcher.start_link()
+    Services.SkillDepth.start_link()
     Services.BackupFile.start_link()
     Services.TempFile.start_link([])
     Services.FileCache.start_link()

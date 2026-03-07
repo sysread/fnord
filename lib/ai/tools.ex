@@ -211,7 +211,9 @@ defmodule AI.Tools do
     "tasks_show_list" => AI.Tools.Tasks.ShowList
   }
 
-  @skills_tools %{}
+  @skills_tools %{
+    "run_skill" => AI.Tools.RunSkill
+  }
 
   @doc """
   Adds the skills tools to the toolbox. Skills are specialized tools that should only be included when explicitly requested.
