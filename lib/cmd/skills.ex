@@ -239,10 +239,12 @@ defmodule Cmd.Skills do
 
       yes? = Map.get(opts, :yes, false)
 
-      if yes? or UI.confirm("Create skill #{name} in #{project_dir}?", false) do
+      with :ok <- validate_model_and_tools(model, tools),
+           :ok <- confirm_or_abort(yes?, "Create skill #{name} in #{project_dir}?", false) do
         AI.Tools.SaveSkill.call(args)
       else
-        {:ok, "Aborted"}
+        {:abort} -> {:ok, "Aborted"}
+        {:error, reason} -> {:error, reason}
       end
     else
       {:error, :no_project_selected} ->
@@ -362,6 +364,26 @@ defmodule Cmd.Skills do
   defp maybe_set_project_from_opts(%{project: project}) when is_binary(project) do
     Settings.set_project(project)
     :ok
+  end
+
+  # Validate model and tools
+  defp validate_model_and_tools(model, tools) do
+    with {:ok, _} <- Skills.Runtime.model_from_string(model),
+         {:ok, _} <- Skills.Runtime.toolbox_from_tags(tools) do
+      :ok
+    end
+  end
+
+  # Confirm or abort based on user input and yes flag.
+  # If yes? is true, returns :ok immediately.
+  # Otherwise prompts and returns :ok or {:abort}.
+  defp confirm_or_abort(true, _message, _default), do: :ok
+
+  defp confirm_or_abort(false, message, default) do
+    case UI.confirm(message, default) do
+      true -> :ok
+      false -> {:abort}
+    end
   end
 
   # Ensures that a project has been selected before proceeding.
