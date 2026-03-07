@@ -211,6 +211,19 @@ defmodule AI.Tools do
     "tasks_show_list" => AI.Tools.Tasks.ShowList
   }
 
+  @skills_tools %{}
+
+  @doc """
+  Adds the skills tools to the toolbox. Skills are specialized tools that should only be included when explicitly requested.
+  """
+  @spec with_skills(toolbox :: toolbox) :: toolbox
+  def with_skills(toolbox \\ %{}) do
+    toolbox
+    |> Map.merge(@skills_tools)
+    |> Enum.filter(fn {_name, mod} -> mod.is_available?() end)
+    |> Map.new()
+  end
+
   # ----------------------------------------------------------------------------
   # API Functions
   # ----------------------------------------------------------------------------
