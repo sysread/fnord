@@ -83,6 +83,22 @@ defmodule Skills do
   end
 
   @doc """
+  Get an enabled skill by name.
+  Returns `{:ok, resolved_skill}` if the skill is enabled in the current project context, `{:error, :not_found | list_error}` otherwise.
+  """
+  @spec get_enabled(String.t()) :: {:ok, resolved_skill} | {:error, :not_found | list_error}
+  def get_enabled(name) when is_binary(name) do
+    with {:ok, enabled} <- list_enabled() do
+      enabled
+      |> Enum.find(fn %{name: n} -> n == name end)
+      |> case do
+        nil -> {:error, :not_found}
+        found -> {:ok, found}
+      end
+    end
+  end
+
+  @doc """
   Returns the user skills directory path.
 
   This uses `Settings.get_user_home()` at runtime so tests can override HOME.

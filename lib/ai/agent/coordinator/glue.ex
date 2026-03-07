@@ -14,6 +14,7 @@ defmodule AI.Agent.Coordinator.Glue do
     AI.Tools.basic_tools()
     |> AI.Tools.with_frobs()
     |> AI.Tools.with_task_tools()
+    |> AI.Tools.with_skills()
     |> AI.Tools.with_rw_tools()
     |> AI.Tools.with_coding_tools()
     |> AI.Tools.with_web_tools()
@@ -23,6 +24,7 @@ defmodule AI.Agent.Coordinator.Glue do
     AI.Tools.basic_tools()
     |> AI.Tools.with_frobs()
     |> AI.Tools.with_task_tools()
+    |> AI.Tools.with_skills()
     |> AI.Tools.with_web_tools()
   end
 

@@ -82,7 +82,7 @@ defmodule AI.Tools.RunSkill do
     case Services.SkillDepth.inc_depth() do
       {:ok, _depth} ->
         try do
-          with {:ok, resolved} <- Skills.get(name),
+          with {:ok, resolved} <- Skills.get_enabled(name),
                :ok <- enforce_rw_gating(resolved),
                {:ok, response} <- run_skill(resolved, prompt) do
             {:ok, response}

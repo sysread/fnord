@@ -66,4 +66,31 @@ defmodule AI.Tools.RunSkillTest do
 
     assert msg =~ "--edit"
   end
+
+  test "call/1 refuses disabled skill when not enabled" do
+    project_name = "proj3"
+
+    Settings.set_project_data(Settings.new(), project_name, %{
+      "root" => "/tmp/#{project_name}",
+      "skills" => ["alpha"]
+    })
+
+    assert :ok = Settings.set_project(project_name)
+
+    _beta =
+      write_skill!(
+        Skills.user_skills_dir(),
+        "beta.toml",
+        """
+        name = "beta"
+        description = "Beta skill"
+        model = "smart"
+        tools = ["basic"]
+        system_prompt = "x"
+        """
+      )
+
+    assert {:error, :not_found} =
+             AI.Tools.RunSkill.call(%{"skill" => "beta", "prompt" => "hi"})
+  end
 end
