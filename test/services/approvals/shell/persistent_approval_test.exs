@@ -51,7 +51,8 @@ defmodule Services.Approvals.Shell.PersistentApprovalTest do
 
       stages = [
         {"git reflog", "git reflog --date=relative"},
-        {"git reflog", "git reflog --all"}
+        {"git reflog", "git reflog --all"},
+        {"git not-preapproved", "git not-preapproved --all"}
       ]
 
       :ok = :meck.new(UI, [:passthrough])
@@ -68,15 +69,15 @@ defmodule Services.Approvals.Shell.PersistentApprovalTest do
       :meck.expect(UI, :prompt, fn _ -> "" end)
       # Expect only one choose call for the shared prefix
       :meck.expect(UI, :choose, fn
-        "Choose approval scope for:\n    git reflog\n", _opts ->
+        "Choose approval scope for:\n    git not-preapproved\n", _opts ->
           "Approve for this session"
       end)
 
       {:approved, result_state} = Services.Approvals.Shell.customize(initial_state, stages)
 
-      # Session should contain exactly one entry for the prefix
+      # Session should contain exactly one entry for the prompted prefix
       assert result_state.session == [
-               {:prefix, "git reflog"}
+               {:prefix, "git not-preapproved"}
              ]
     end
   end

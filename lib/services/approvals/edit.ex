@@ -106,7 +106,7 @@ defmodule Services.Approvals.Edit do
 
         """
         The request was automatically denied after #{seconds} seconds due to an active auto-deny policy.
-        The user may not be monitoring their terminal. Only use pre-approved shell commands that will not require user confirmation.
+        The user may not be monitoring their terminal. Only use pre-approved commands that will not require user confirmation.
         """
         |> String.trim()
 

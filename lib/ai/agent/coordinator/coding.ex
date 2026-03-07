@@ -66,7 +66,7 @@ defmodule AI.Agent.Coordinator.Coding do
     - **Important:** AI slop comments have been removed (describing the change being made, noting specific user instructions, breaking the fourth wall)
 
   ## DEBUGGING/TROUBLESHOOTING
-  Use your coding tools and shell_tool to debug.
+  Use your coding tools and cmd_tool to debug.
   Propose a theory and test it with a unit test or tmp script.
   Rinse and repeat to winnow down to the root cause.
 

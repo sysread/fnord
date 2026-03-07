@@ -2,7 +2,7 @@ defmodule AI.Tools.ApplyPatch do
   @moduledoc """
   Note: The current crop of LLMs appear to be extremely overfitted to a tool
   called "apply_patch" for making code changes. This module is me giving up on
-  trying to prevent them from using the shell tool to call a non-existent
+  trying to prevent them from using the cmd_tool to call a non-existent
   apply_patch command and instead trying rolling with it.
   """
 

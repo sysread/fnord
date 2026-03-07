@@ -14,7 +14,7 @@ defmodule AI.Agent.Code.RePatcher do
 
   You will be provided with an LLM-generated "patch" command or tool_call:
   - The patch might be some attempt at a unified diff, git-style diff, or some combination.
-  - Sometimes the LLM tried to use the `shell_tool` to execute a non-existent `apply_patch` command on the host system.
+  - Sometimes the LLM tried to use the `cmd_tool` to execute a non-existent `apply_patch` command on the host system.
   - Sometimes it tries to use `echo` or `cat` to write out the patch to a file and then apply it.
   - One of their favorites is `bash apply_patch << 'EOF' ... EOF`.
 

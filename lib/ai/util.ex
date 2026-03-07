@@ -241,12 +241,12 @@ defmodule AI.Util do
   # When a tool produces a very large output, writing the entire contents into the
   # conversation can blow past the model's context window. For tool outputs, we
   # instead spill the full content to a temporary file and return a preview plus
-  # explicit instructions for using `shell_tool` to inspect the file.
+  # explicit instructions for using `cmd_tool` to inspect the file.
   defp spill_tool_output_if_needed(_id, _func, output) when is_binary(output) do
     if String.length(output) <= @max_msg_length do
       output
     else
-      # Use a temp path that the model can reference with shell_tool. We rely
+      # Use a temp path that the model can reference with cmd_tool. We rely
       # on Briefly for atomic, race-safe temp file creation and cleanup when
       # the owning process or BEAM exits.
       with dir when is_binary(dir) <- System.tmp_dir(),
@@ -268,7 +268,7 @@ defmodule AI.Util do
         Size: #{bytes} bytes (#{lines} lines)
 
         This file will be automatically cleaned up after your next complete response to the user.
-        To inspect more of this output, use `shell_tool` with a command like:
+        To inspect more of this output, use `cmd_tool` with a command like:
 
         - `cat #{filename}`
         - `sed -n 'START,ENDp' #{filename}`

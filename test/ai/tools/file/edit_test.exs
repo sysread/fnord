@@ -862,4 +862,82 @@ defmodule AI.Tools.File.EditTest do
       end
     end
   end
+
+  describe "natural language context passthrough" do
+    test "context is passed to Patcher when provided", %{project: project} do
+      file =
+        mock_source_file(project, "ctx.txt", """
+        Original content here.
+        """)
+
+      :meck.expect(AI.Agent.Code.Patcher, :get_response, fn args ->
+        assert args[:file] == file
+        assert args[:context] == "This file uses tab indentation and camelCase naming."
+
+        assert args[:changes] == [
+                 "Add a new function after the existing content"
+               ]
+
+        {:ok, "Original content here.\ndef newFunc(): pass\n"}
+      end)
+
+      assert {:ok, _result} =
+               Edit.call(%{
+                 "file" => file,
+                 "changes" => [
+                   %{
+                     "instructions" => "Add a new function after the existing content",
+                     "context" => "This file uses tab indentation and camelCase naming."
+                   }
+                 ]
+               })
+
+      assert :meck.num_calls(AI.Agent.Code.Patcher, :get_response, :_) == 1
+    end
+
+    test "context is nil when not provided", %{project: project} do
+      file =
+        mock_source_file(project, "noctx.txt", """
+        Some content.
+        """)
+
+      :meck.expect(AI.Agent.Code.Patcher, :get_response, fn args ->
+        assert args[:context] == nil
+        {:ok, "Some content.\nMore content.\n"}
+      end)
+
+      assert {:ok, _result} =
+               Edit.call(%{
+                 "file" => file,
+                 "changes" => [
+                   %{
+                     "instructions" => "Add more content after the existing line"
+                   }
+                 ]
+               })
+    end
+
+    test "empty string context is treated as nil", %{project: project} do
+      file =
+        mock_source_file(project, "emptyctx.txt", """
+        Content here.
+        """)
+
+      :meck.expect(AI.Agent.Code.Patcher, :get_response, fn args ->
+        assert args[:context] == nil
+        {:ok, "Content here.\nNew stuff.\n"}
+      end)
+
+      assert {:ok, _result} =
+               Edit.call(%{
+                 "file" => file,
+                 "changes" => [
+                   %{
+                     "instructions" => "Add new stuff after the existing content",
+                     "context" => ""
+                   }
+                 ]
+               })
+    end
+  end
 end

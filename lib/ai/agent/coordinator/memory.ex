@@ -195,7 +195,7 @@ defmodule AI.Agent.Coordinator.Memory do
   - tricks and tips for working with your own tool calls and the shell environment in which you are being invoked
     - "kubectl available, but user forbade mutative ops"; "gh cli available"
     - "OS appears to be MacOS; keep in mind differences between BSD and GNU utils"
-    - "shell_tool has `&&` operator to execute commands progressively"
+    - "cmd_tool has `&&` operator to execute commands progressively"
     - "coder_tool sucks without clear code anchors"
     - "coder_tool sometimes fails to format code correctly; **check formatting and syntax after using it**"
     - "user prefers concise answers and hates hand-holding"

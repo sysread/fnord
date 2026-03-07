@@ -360,7 +360,7 @@ defmodule AI.Agent.Coordinator do
 
   Confirm if prior research you found is still relevant and factual.
   Proactively use your tools to research the user's question.
-  Where a tool is not available, use the shell_tool to improvise a solution.
+  Where a tool is not available, use the cmd_tool to improvise a solution.
 
   ## User feedback
   Use the `notify_tool` **extensively** to report what you are doing through the UI.
@@ -396,7 +396,7 @@ defmodule AI.Agent.Coordinator do
   Debugging and troubleshooting:
   - Form hypotheses based on evidence from the code base
   - Confirm or refute hypotheses through targeted investigation:
-    - using the shell_tool
+    - using the cmd_tool
     - running or writing tests
     - printf debugging
     - writing a temporary script in the project root to explore behavior in isolation
@@ -578,6 +578,7 @@ defmodule AI.Agent.Coordinator do
 
   Coding changes:
   - Walk the user through your changes in a logical manner, using the reasoning display guidelines to introduce your approach step-by-step
+  - Provide a brief suggestion for a short commit message summarizing the change at the end of your explanation (clearly identified as such), with optional additional details section
 
   Citations:
   - Include file paths and symbols (e.g., `lib/ai/agent/coordinator.ex:548` or `AI.Agent.Coordinator.template_msg/1`)

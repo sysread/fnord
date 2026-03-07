@@ -93,6 +93,22 @@ defmodule AI.Tools.Shell.BasicsTest do
     assert msg =~ "Command not found"
   end
 
+  test "operator defaults to \"&&\" when omitted" do
+    mock_project("shell-default-operator")
+
+    args = %{
+      "description" => "Default operator test",
+      "timeout_ms" => 2_000,
+      "commands" => [
+        %{"command" => "echo", "args" => ["hi"]}
+      ]
+    }
+
+    assert {:ok, result} = AI.Tools.Shell.call(args)
+    out = if is_tuple(result), do: elem(result, 0), else: result
+    assert String.trim(out) == "hi"
+  end
+
   test "rg without explicit path under '&&' is denied" do
     mock_project("rg")
 
@@ -225,11 +241,28 @@ defmodule AI.Tools.Shell.BasicsTest do
     }
 
     {req_title, req_desc} = AI.Tools.Shell.ui_note_on_request(args)
-    assert String.starts_with?(req_title, "shell> ")
+    assert req_title =~ "cmd> "
     assert req_desc == "Describe"
 
     {res_title, _res_detail} = AI.Tools.Shell.ui_note_on_result(args, "ok")
-    assert String.starts_with?(res_title, "shell> ")
+    assert res_title =~ "cmd> "
+  end
+
+  test "ui notes default operator when omitted" do
+    args = %{
+      "description" => "Test default operator",
+      "commands" => [
+        %{"command" => "echo", "args" => ["hi"]},
+        %{"command" => "wc", "args" => ["-l"]}
+      ]
+    }
+
+    {req_title, _req_desc} = AI.Tools.Shell.ui_note_on_request(args)
+    assert req_title =~ "cmd> "
+    assert req_title =~ " && "
+    {res_title, _res_detail} = AI.Tools.Shell.ui_note_on_result(args, "ok")
+    assert res_title =~ "cmd> "
+    assert res_title =~ " && "
   end
 
   test "validate_timeout clamps and defaults correctly" do

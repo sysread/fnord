@@ -181,7 +181,7 @@ defmodule AI.Tools do
     "notify_tool" => AI.Tools.Notify,
     "prior_research" => AI.Tools.Notes,
     "research_tool" => AI.Tools.Research,
-    "shell_tool" => AI.Tools.Shell,
+    "cmd_tool" => AI.Tools.Shell,
     "conversation_tool" => AI.Tools.Conversation,
     "memory_tool" => AI.Tools.Memory,
     "fnord_help_cli_tool" => AI.Tools.SelfHelp.Cli
@@ -192,7 +192,7 @@ defmodule AI.Tools do
     "file_contents_tool" => AI.Tools.File.Contents,
     "file_edit_tool" => AI.Tools.File.Edit,
     "notify_tool" => AI.Tools.Notify,
-    "shell_tool" => AI.Tools.Shell
+    "cmd_tool" => AI.Tools.Shell
   }
 
   @web_tools %{

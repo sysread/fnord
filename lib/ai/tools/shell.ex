@@ -1,5 +1,5 @@
 defmodule AI.Tools.Shell do
-  @default_timeout_ms 5_000
+  @default_timeout_ms 30_000
   @max_timeout_ms 300_000
 
   @runner """
@@ -24,14 +24,14 @@ defmodule AI.Tools.Shell do
   def read_args(args) do
     case validate_commands(args) do
       :ok ->
-        with {:ok, op} <- AI.Tools.get_arg(args, "operator"),
-             true <- op in ["|", "&&"] do
-          {:ok, args}
-        else
-          {:error, :missing_argument, arg} ->
-            {:error, :invalid_argument, "missing required field '#{arg}'"}
+        case Map.get(args, "operator") do
+          nil ->
+            {:ok, args}
 
-          false ->
+          op when op in ["|", "&&"] ->
+            {:ok, args}
+
+          _ ->
             {:error, :invalid_argument, "operator must be '|' or '&&'"}
         end
 
@@ -42,20 +42,21 @@ defmodule AI.Tools.Shell do
 
   @impl AI.Tools
   def ui_note_on_request(%{"commands" => commands, "description" => desc} = args) do
-    op = Map.fetch!(args, "operator")
+    op = Map.get(args, "operator", "&&")
+    timeout = sanitize_timeout(args)
     command = format_commands(op, commands)
-    {"shell> #{command}", desc}
+    {"(timeout: #{div(timeout, 1000)}s) cmd> #{command}", desc}
   end
 
   def ui_note_on_request(other) do
-    {"shell", "Invalid JSON args: #{inspect(other)}"}
+    {"cmd", "Invalid JSON args: #{inspect(other)}"}
   end
 
   @impl AI.Tools
   def ui_note_on_result(%{"commands" => commands} = args, result) do
-    op = Map.fetch!(args, "operator")
+    op = Map.get(args, "operator", "&&")
     command = format_commands(op, commands)
-    {"shell> #{command}", result}
+    {"cmd> #{command}", result}
   end
 
   @impl AI.Tools
@@ -91,32 +92,39 @@ defmodule AI.Tools.Shell do
     %{
       type: "function",
       function: %{
-        name: "shell_tool",
+        name: "cmd_tool",
         description: """
-        Executes a series of shell commands, and returns the mixed STDOUT and STDERR output.
-        Commands are combined as a pipeline (`|`) or sequentially (`&&`), based on the *required* `operator` arg.
-        Use for fs ops (e.g. rm, mv, mkdir), project commands (e.g. git, go test, npm test), and other tools needed for your task.
-        Use to create tmp files as needed for testing, debugging, etc.
-        If a specialized tool exists for the exact operation, prefer.
-        Test if cli tools exist with `which <tool>` or `command -v <tool>` (tip: check several concurrently with multiple tool calls)
+        Runs commands via Elixir's System.cmd/3 - NOT through a shell interpreter.
+        Each entry in the `commands` array is executed directly as a process with
+        its own `command` and `args`. The `operator` field determines how commands
+        are combined: `|` pipes stdout between them, `&&` runs them sequentially.
 
-        IMPORTANT: Interactive commands are NOT supported through this interface.
-        IMPORTANT: Tools that can modify files (e.g., `awk`, `find -exec`, `patch`) require explicit user-approval.
-                   Safe, read-only `sed` invocations (without -i/-f/e/w) are preapproved.
-                   If the user is not monitoring, command approvals may be auto-denied.
-        IMPORTANT: This uses elixir's System.cmd/3 to execute commands.
-                   It *will* `cd` into the project's source root before executing commands.
-                   Some commands DO behave differently without a tty.
-                   Guardrails:
-                     - rg requires an explicit path when used under '&&' or as the first stage of a pipeline
-                     - wc must receive input via a pipeline or explicit file args. Use of '-' (stdin) is disallowed because it can cause the command to hang while waiting for input. wc is invalid under '&&' or as the first stage without files
-        IMPORTANT: Environment variables are NOT expanded in command args.
-                   If you need env vars, use a specialized tool or create a temp script file.
-        IMPORTANT: Your commands will be run in a non-interactive, non-login shell environment.
-                   Shell binaries themselves (bash, sh, zsh, etc) cannot be invoked directly.
-                   Do not include the shell as part of your command.
+        This is NOT a shell. Shell syntax (pipes, redirects, semicolons, subshells,
+        env var expansion) has no meaning inside `command` or `args` fields. To pipe
+        or chain commands, use the `operator` field with multiple `commands` entries.
 
-        For commands that vary based on OS (eg grep/sed), the current OS is: #{os_name} (#{os_family}).
+        Use for: filesystem ops (rm, mv, mkdir), project commands (git, make, npm),
+        and CLI tools needed for your task. Prefer specialized tools when available.
+        Check tool availability with `which <tool>` or `command -v <tool>`.
+
+        Execution context:
+        - Working directory: the project's source root
+        - No TTY - some commands behave differently
+        - Glob patterns (*.ex, src/**/*.ts) are NOT expanded; pass literal paths
+        - Environment variables are NOT expanded in args
+        - Shell binaries (bash, sh, zsh) cannot be invoked directly
+        - Interactive commands will hang and time out
+
+        Approval rules:
+        - File-modifying commands (awk, find -exec, patch) require user approval
+        - Read-only sed (without -i/-f/e/w) is preapproved
+        - Unapproved commands may be auto-denied if the user is not monitoring
+
+        Command-specific notes:
+        - rg: must include an explicit path arg when under '&&' or as first pipeline stage
+        - wc: must have file args or receive pipeline input; '-' (stdin) is disallowed
+
+        For commands that vary by OS (grep/sed), the current OS is: #{os_name} (#{os_family}).
 
         Available tools on PATH:
         #{available_tools()}
@@ -128,7 +136,7 @@ defmodule AI.Tools.Shell do
         """,
         parameters: %{
           type: "object",
-          required: ["description", "commands", "operator"],
+          required: ["description", "commands"],
           additionalProperties: false,
           properties: %{
             description: %{
@@ -149,24 +157,40 @@ defmodule AI.Tools.Shell do
             operator: %{
               type: "string",
               enum: ["|", "&&"],
+              default: "&&",
               description: """
-              REQUIRED: Specifies whether commands are piped together (`|`) or
-              run sequentially (`&&`). This field is required.
+              Optional: Determines how the `commands` array entries are combined. Defaults to `&&` when omitted.
+              `|` pipes stdout of each command into stdin of the next: cmd1 | cmd2 | cmd3
+              `&&` runs commands sequentially, stopping on failure: cmd1 && cmd2 && cmd3
+              The operator is inserted BETWEEN each entry in the `commands` array.
+              Do NOT place the operator inside any command's `args`.
               """
             },
             commands: %{
               type: "array",
               description: """
-              A list of commands to execute either piped together or run in
-              sequence, depending on the value of the `operator` argument.
+              A list of commands to execute, combined using the `operator`.
+              Each entry is a separate command stage with its own `command` and `args`.
 
-              Example:
+              WRONG - do not embed shell operators in args:
+              ```json
+              [{"command": "git", "args": ["log", "--oneline", "|", "head", "-5"]}]
+              ```
+              The `|` above becomes a literal argument to `git`, not a pipe.
 
-              - Equivalent to `ls -l -a -h | grep some_pattern`:
+              CORRECT - pipeline (operator: "|"):
               ```json
               [
-                {"command": "ls", "args": ["-l", "-a", "-h"]},
-                {"command": "grep", "args": ["some_pattern"]}
+                {"command": "git", "args": ["log", "--oneline"]},
+                {"command": "head", "args": ["-5"]}
+              ]
+              ```
+
+              CORRECT - sequential (operator: "&&"):
+              ```json
+              [
+                {"command": "mkdir", "args": ["-p", "out"]},
+                {"command": "cp", "args": ["src/config.json", "out/"]}
               ]
               ```
               """,
@@ -197,9 +221,12 @@ defmodule AI.Tools.Shell do
                     items: %{
                       type: "string",
                       description: """
-                      An argument or option for the command.
+                      A single argument or option for the command.
                       Do not escape or quote.
                       Env vars are NOT expanded.
+                      Shell operators (|, &&, ;, >, <, >>) are NOT valid args.
+                      To pipe or chain commands, use the `operator` field with
+                      multiple entries in the `commands` array.
                       """
                     }
                   }
@@ -235,15 +262,31 @@ defmodule AI.Tools.Shell do
   # Sanitize timeout to be a positive integer within allowed range
   # ----------------------------------------------------------------------------
   defp sanitize_timeout(opts) do
-    val = Map.get(opts, "timeout_ms", @default_timeout_ms)
+    opts
+    |> Map.get("timeout_ms", @default_timeout_ms)
+    |> to_integer()
+    |> clamp_timeout()
+  end
 
-    cond do
-      !is_integer(val) -> @default_timeout_ms
-      val <= 0 -> @default_timeout_ms
-      val > @max_timeout_ms -> @max_timeout_ms
-      true -> val
+  # Coerce timeout value to integer. JSON decoders and LLMs may deliver
+  # the value as a float (e.g. 300000.0) or string ("300000") even though
+  # the spec declares it as integer. Params coercion handles the common
+  # cases, but this is a safety net for any code path that bypasses it.
+  defp to_integer(val) when is_integer(val), do: val
+  defp to_integer(val) when is_float(val), do: trunc(val)
+
+  defp to_integer(val) when is_binary(val) do
+    case Integer.parse(val) do
+      {i, ""} -> i
+      _ -> @default_timeout_ms
     end
   end
+
+  defp to_integer(_), do: @default_timeout_ms
+
+  defp clamp_timeout(val) when val <= 0, do: @default_timeout_ms
+  defp clamp_timeout(val) when val > @max_timeout_ms, do: @max_timeout_ms
+  defp clamp_timeout(val), do: val
 
   # ----------------------------------------------------------------------------
   # Resolve commands to absolute paths where possible.
@@ -498,7 +541,7 @@ defmodule AI.Tools.Shell do
         is_shell? and !is_version_check?
       end)
 
-    # The shell_tool is available outside of edit mode, so we need to
+    # The cmd_tool is available outside of edit mode, so we need to
     # double-check that the user actually wants to allow editing before
     # we let an apply_patch through.
     is_apply_patch? =
@@ -537,19 +580,19 @@ defmodule AI.Tools.Shell do
 
     cond do
       is_fnord_help? ->
-        UI.info("Oof", "The LLM called the shell_tool for its own help text. Rerouting.")
+        UI.info("Oof", "The LLM called cmd_tool for its own help text. Rerouting.")
         AI.Tools.SelfHelp.Cli.call(%{})
 
       # apply_patch check must come before the generic shell invocation denial,
       # because LLMs often wrap apply_patch in `bash -lc "apply_patch ..."` which
       # triggers both detections. We want to re-route to the RePatcher, not deny.
       is_edit_mode? and is_apply_patch? ->
-        UI.info("Oof", "The LLM attempted to apply a patch with the shell_tool. Rerouting.")
+        UI.info("Oof", "The LLM attempted to apply a patch with cmd_tool. Rerouting.")
 
         # Encode the commands for ApplyPatch - it expects a JSON patch string.
         # Wrap the result so the coordinator knows the changes were already
         # applied by the re-route. Without this, the coordinator sees a
-        # shell_tool success and may attempt the same edit again with stale
+        # cmd_tool success and may attempt the same edit again with stale
         # hashes, not realizing the file was already modified.
         json =
           case SafeJson.encode(commands, pretty: true) do
@@ -577,9 +620,9 @@ defmodule AI.Tools.Shell do
       has_shell_invocation? ->
         {:denied,
          """
-         Execute commands directly; do not invoke through a shell within
-         the shell_tool. If you need specific shell features, write a temp
-         script file and execute that directly.
+         Execute commands directly; do not invoke through a shell.
+         If you need specific shell features, write a temp script file
+         and execute that directly.
          """}
 
       true ->
@@ -629,7 +672,7 @@ defmodule AI.Tools.Shell do
         "&&" -> nil
       end
 
-    UI.report_step("Executing shell command", format_command(command))
+    UI.report_step("Executing command", format_command(command))
 
     command
     |> shell_out(timeout_ms, root, input)
@@ -833,7 +876,7 @@ defmodule AI.Tools.Shell do
   # ----------------------------------------------------------------------------
   # Available tools
   # ----------------------------------------------------------------------------
-  @non_posix_tools_memo_table :shell_tools_cache
+  @non_posix_tools_memo_table :cmd_tools_cache
 
   @non_posix_tools [
     ["ack", "--version"],

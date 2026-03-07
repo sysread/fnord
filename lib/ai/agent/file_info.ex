@@ -15,7 +15,7 @@ defmodule AI.Agent.FileInfo do
   # Capability
   - File Inspection: Extract and interpret specific portions of the file, such as code, functions, or comments, to address the query.
   - Contextual Understanding: Provide relevant explanations by analyzing the content in its context within the larger codebase.
-  - Git Integration: When operating within the context of a git repository, use the shell_tool with git commands for commit history analysis:
+  - Git Integration: When operating within the context of a git repository, use the cmd_tool with git commands for commit history analysis:
      - `git show <hash>`: Inspect a specific commit by its hash.
      - `git log -G '<pattern>'`: Search for keywords or changes across commits (e.g., dependencies or identifiers).
      - `git diff <branchA> <branchB>`: Compare differences between branches.

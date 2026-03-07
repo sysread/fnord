@@ -146,7 +146,9 @@ defmodule AI.Agent.Code.Patcher do
     :changes,
     :contents,
     :tools,
-    :retry_counts
+    :retry_counts,
+    :error_context,
+    :context
   ]
 
   @type t :: %__MODULE__{
@@ -155,7 +157,9 @@ defmodule AI.Agent.Code.Patcher do
           changes: list(binary),
           contents: binary,
           tools: map(),
-          retry_counts: map()
+          retry_counts: map(),
+          error_context: %{response: binary, reason: binary} | nil,
+          context: binary | nil
         }
 
   @spec new(map) :: {:ok, t} | {:error, binary}
@@ -178,7 +182,9 @@ defmodule AI.Agent.Code.Patcher do
          changes: changes,
          contents: contents,
          tools: tools,
-         retry_counts: %{}
+         retry_counts: %{},
+         error_context: nil,
+         context: Map.get(opts, :context)
        }}
     end
   end
@@ -199,6 +205,7 @@ defmodule AI.Agent.Code.Patcher do
     UI.report_from(state.agent.name, "Patching #{state.file}", change)
 
     numbered = Util.numbered_lines(contents)
+    messages = build_messages(state, numbered, change)
 
     AI.Agent.get_completion(state.agent,
       model: @model,
@@ -206,53 +213,109 @@ defmodule AI.Agent.Code.Patcher do
       log_msgs: false,
       log_tool_calls: true,
       toolbox: state.tools,
-      messages: [
-        AI.Util.system_msg(@prompt),
-        AI.Util.user_msg("""
-        File contents:
-        ```
-        #{numbered}
-        ```
-
-        Please apply the following change to the file contents above:
-        #{change}
-        """)
-      ]
+      messages: messages
     )
     |> case do
       {:error, reason} ->
-        retry_or_fail(state, change, reason)
+        retry_or_fail(state, change, nil, reason)
 
       {:ok, %{response: response}} ->
         case parse_patch_response(response) do
           {:ok, {hashes, old_string, new_string}} ->
             case Patchwork.patch_by_hashes(contents, hashes, old_string, new_string) do
               {:ok, updated_contents} ->
-                %{state | changes: remaining, contents: updated_contents}
+                # Clear error_context on success before processing remaining
+                # changes - each change starts with a clean slate.
+                %{state | changes: remaining, contents: updated_contents, error_context: nil}
                 |> apply_changes()
 
               {:error, reason} ->
-                # Patch application failed (e.g. copy error, hash mismatch).
-                # Retry with the same change so the LLM can correct itself
-                # using the error feedback from the previous attempt.
-                retry_or_fail(state, change, reason)
+                retry_or_fail(state, change, response, reason)
             end
 
           {:error, reason} ->
-            # Response was structurally invalid (bad JSON, fabricated hashes).
-            retry_or_fail(state, change, reason)
+            retry_or_fail(state, change, response, reason)
         end
     end
   end
 
-  # Increment the retry counter for this change and re-enter apply_changes.
-  # If retries are exhausted, return the error to the coordinator.
-  defp retry_or_fail(state, change, reason) do
+  # ----------------------------------------------------------------------------
+  # Message construction
+  #
+  # Builds the message list for the LLM. On first attempt, this is a simple
+  # system + user pair. On retry, the previous failed response and error
+  # feedback are appended so the LLM can learn from its mistake instead of
+  # blindly repeating it.
+  # ----------------------------------------------------------------------------
+  defp build_messages(state, numbered_contents, change) do
+    context_section =
+      if state.context do
+        """
+        Background context from the coordinating agent:
+        #{state.context}
+
+        ---
+
+        """
+      else
+        ""
+      end
+
+    base = [
+      AI.Util.system_msg(@prompt),
+      AI.Util.user_msg("""
+      #{context_section}File contents:
+      ```
+      #{numbered_contents}
+      ```
+
+      Please apply the following change to the file contents above:
+      #{change}
+      """)
+    ]
+
+    case state.error_context do
+      nil ->
+        base
+
+      %{response: response, reason: reason} ->
+        base ++
+          [
+            AI.Util.assistant_msg(response),
+            AI.Util.user_msg("""
+            Your previous patch attempt failed with the following error:
+            #{reason}
+
+            Please re-examine the file contents and try again.
+            """)
+          ]
+    end
+  end
+
+  # ----------------------------------------------------------------------------
+  # Retry logic
+  #
+  # Increments the retry counter for this change and re-enters apply_changes
+  # with error context so the LLM receives feedback about what went wrong.
+  # If retries are exhausted, returns the error to the coordinator.
+  # ----------------------------------------------------------------------------
+  defp retry_or_fail(state, change, response, reason) do
     attempts = Map.get(state.retry_counts, change, 0) + 1
 
     if attempts <= @max_retries do
-      updated_state = %{state | retry_counts: Map.put(state.retry_counts, change, attempts)}
-      apply_changes(updated_state)
+      error_context =
+        if response do
+          %{response: response, reason: inspect(reason, pretty: true, limit: :infinity)}
+        else
+          nil
+        end
+
+      %{
+        state
+        | retry_counts: Map.put(state.retry_counts, change, attempts),
+          error_context: error_context
+      }
+      |> apply_changes()
     else
       error_response(change, reason)
     end

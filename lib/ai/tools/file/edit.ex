@@ -161,14 +161,14 @@ defmodule AI.Tools.File.Edit do
 
         For operations where the primary intent is to remove or move a file
         (for example: "delete this file from the project" or "move this file to
-        a new path"), prefer shell_tool with appropriate commands (such as
+        a new path"), prefer cmd_tool with appropriate commands (such as
         `rm`, `mv`, or `git mv`).
 
         Tool choice:
         - Use file_edit_tool when:
           - You are changing or adding code inside a single existing file, and
           - The file should continue to exist at the same path.
-        - Use shell_tool when:
+        - Use cmd_tool when:
           - You need to delete, move, or rename files or directories, or
           - You are applying changes that naturally affect many files at once.
         """,
@@ -252,6 +252,17 @@ defmodule AI.Tools.File.Edit do
                         - "Immediately after the declaration of the main function, add the following code block: ..."
                         - "Replace the entire contents of the calculate function with: ..."
                         - "At the top of the file, insert the following imports: ..."
+                        """
+                      },
+                      context: %{
+                        type: "string",
+                        description: """
+                        Optional background context for the AI that will interpret the
+                        instructions. The Patcher agent does not share your conversation
+                        history - it sees only the file and the instruction. Use this
+                        field to provide rationale, constraints, conventions, or scope
+                        that help the Patcher understand *why* the change is needed and
+                        how it fits into the broader task.
                         """
                       }
                     }
@@ -365,7 +376,8 @@ defmodule AI.Tools.File.Edit do
   # Define change types
   @type natural_language :: %{
           type: :natural_language,
-          instruction: String.t()
+          instruction: String.t(),
+          context: String.t() | nil
         }
 
   @type exact :: %{
@@ -496,10 +508,13 @@ defmodule AI.Tools.File.Edit do
 
       # Natural language mode
       instruction != "" ->
+        context = Map.get(change_map, "context")
+
         {:ok,
          %{
            type: :natural_language,
-           instruction: String.trim(instruction)
+           instruction: String.trim(instruction),
+           context: if(is_binary(context) and byte_size(context) > 0, do: context, else: nil)
          }}
 
       # No valid parameters
@@ -679,16 +694,19 @@ defmodule AI.Tools.File.Edit do
   end
 
   defp apply_single_change(file, contents, %{type: :natural_language} = change) do
-    apply_natural_language_change(file, contents, change.instruction)
+    apply_natural_language_change(file, contents, change.instruction, change.context)
   end
 
-  # Handle natural language changes using the existing patcher
-  @spec apply_natural_language_change(binary, binary, String.t()) ::
+  # Handle natural language changes using the existing patcher. The optional
+  # context field passes coordinator-level background (rationale, constraints,
+  # conventions) through to the Patcher so it can make informed decisions
+  # instead of guessing intent from the instruction alone.
+  @spec apply_natural_language_change(binary, binary, String.t(), String.t() | nil) ::
           {:ok, binary} | {:error, String.t()}
-  defp apply_natural_language_change(file, _contents, instruction) do
+  defp apply_natural_language_change(file, _contents, instruction, context) do
     AI.Agent.Code.Patcher
     |> AI.Agent.new()
-    |> AI.Agent.get_response(%{file: file, changes: [instruction]})
+    |> AI.Agent.get_response(%{file: file, changes: [instruction], context: context})
   end
 
   # Format error messages with context about which change failed

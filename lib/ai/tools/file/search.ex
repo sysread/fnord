@@ -51,7 +51,7 @@ defmodule AI.Tools.File.Search do
         Your query is embedded as-is. Regex, syntax fragments, function
         signatures, and boolean operators will NOT work - they will be
         interpreted as literal text about those topics, not as patterns.
-        For exact string or pattern matching, use `rg` via `shell_tool`.
+        For exact string or pattern matching, use `rg` via `cmd_tool`.
 
         Good queries: "user authentication", "database connection settings",
         "error handling for HTTP requests", "modules that parse JSON"

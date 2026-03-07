@@ -114,6 +114,7 @@ defmodule Services.Approvals.Shell do
 
   @full_cmd [
     "^find(?!.*-exec)",
+    "^git\s*remote\s*-v$",
     @sed_readonly_pattern
   ]
 
@@ -144,17 +145,25 @@ defmodule Services.Approvals.Shell do
     # git subcommands
     "git blame",
     "git branch",
+    "git check-ignore",
     "git describe",
     "git diff",
+    "git diff-tree",
+    "git fetch",
     "git grep",
     "git log",
+    "git ls",
     "git ls-files",
     "git ls-tree",
     "git merge-base",
+    "git reflog",
     "git rev-list",
     "git rev-parse",
     "git show",
-    "git status"
+    "git show-branch",
+    "git show-ref",
+    "git status",
+    "git worktree list"
   ]
 
   @rw_cmd [
@@ -315,10 +324,9 @@ defmodule Services.Approvals.Shell do
 
   defp unapproved_prefixes(state, stages) do
     stages
-    |> Enum.uniq()
-    |> Enum.reject(fn {prefix, full} -> approved?(state, {prefix, full}) end)
     |> Enum.map(fn {prefix, _full} -> prefix end)
     |> Enum.uniq()
+    |> Enum.reject(&prefix_approved?(state, &1))
   end
 
   @spec customize(state, list({String.t(), String.t()})) :: {:approved, state}

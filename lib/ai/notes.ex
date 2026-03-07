@@ -70,7 +70,7 @@ defmodule AI.Notes do
     - Gotchas and pitfalls to avoid
     - "Always check X before doing Y" type of advice
     - "The user prefers Z" type of advice
-    - Useful commands and command sequences for common tasks (when using the `shell_tool`)
+    - Useful commands and command sequences for common tasks (when using the `cmd_tool`)
     - Useful prompts for common tasks when using an LLM-backed tool call (e.g. the `research_tool` or `file_info_tool`)
     - Useful prompting patterns observed on successful calls to the `coder_tool` or `file_edit_tool` (e.g. "When using the coder_tool to insert a new function, always tell it exactly *where* to put it using anchors like 'above the function foo' or 'immediately below the function bar'")
     - Prompting patterns that FAIL to produce good results with the `coder_tool` or `file_edit_tool` (e.g. "When using the coder_tool to insert code, never say 'at the top of the file' because that confuses the model; instead, always use referential anchors like 'above the function foo' or 'immediately below the function bar'")
