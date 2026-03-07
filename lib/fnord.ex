@@ -86,6 +86,7 @@ defmodule Fnord do
       Cmd.Memory,
       Cmd.Replay,
       Cmd.Search,
+      Cmd.Skills,
       Cmd.Summary,
       Cmd.Torch,
       Cmd.Upgrade
