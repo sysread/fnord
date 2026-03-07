@@ -23,9 +23,6 @@ defmodule Fnord.Toml do
       {:ok, data} when is_map(data) ->
         {:ok, data}
 
-      {:ok, other} ->
-        {:error, {:toml_decode_error, "Expected a map but got: #{inspect(other)}"}}
-
       {:error, reason} ->
         {:error, {:toml_decode_error, format_decode_error(reason)}}
     end
@@ -41,9 +38,6 @@ defmodule Fnord.Toml do
           {:ok, data} when is_map(data) ->
             {:ok, data}
 
-          {:ok, other} ->
-            {:error, {:toml_decode_error, "Expected a map but got: #{inspect(other)}"}}
-
           {:error, reason} ->
             {:error, {:toml_decode_error, format_decode_error(reason)}}
         end
@@ -54,9 +48,10 @@ defmodule Fnord.Toml do
   end
 
   defp format_decode_error(reason) do
-    case reason do
-      %_{} = exception -> Exception.message(exception)
-      other -> inspect(other)
+    if is_binary(reason) do
+      reason
+    else
+      inspect(reason)
     end
   end
 end
