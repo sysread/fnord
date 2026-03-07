@@ -76,12 +76,20 @@ defmodule Skills.Runtime do
       |> Enum.filter(&is_binary/1)
       |> Enum.uniq()
 
-    if Enum.member?(tags, "basic") do
-      tags
-      |> build_toolbox_from_tags()
-      |> then(&{:ok, &1})
-    else
-      {:error, {:missing_basic_tool_tag, tags}}
+    allowed_tags = ["basic", "frobs", "task", "coding", "web", "rw", "skills"]
+
+    case Enum.find(tags, fn tag -> not Enum.member?(allowed_tags, tag) end) do
+      unknown_tag when is_binary(unknown_tag) ->
+        {:error, {:unknown_tool_tag, unknown_tag}}
+
+      nil ->
+        if Enum.member?(tags, "basic") do
+          tags
+          |> build_toolbox_from_tags()
+          |> then(&{:ok, &1})
+        else
+          {:error, {:missing_basic_tool_tag, tags}}
+        end
     end
   end
 

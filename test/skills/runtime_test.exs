@@ -29,4 +29,16 @@ defmodule Skills.RuntimeTest do
                Skills.Runtime.validate_response_format(%{"type" => "text"})
     end
   end
+
+  describe "toolbox_from_tags/1" do
+    test "errors on unknown tags" do
+      assert {:error, {:unknown_tool_tag, "foo"}} =
+               Skills.Runtime.toolbox_from_tags(["foo"])
+    end
+
+    test "errors when basic is missing" do
+      assert {:error, {:missing_basic_tool_tag, ["web"]}} =
+               Skills.Runtime.toolbox_from_tags(["web"])
+    end
+  end
 end
