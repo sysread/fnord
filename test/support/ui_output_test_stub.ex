@@ -41,6 +41,27 @@ defmodule UI.Output.TestStub do
   end
 
   @impl UI.Output
+  def choose_multi(label, options) do
+    IO.puts("#{label}")
+
+    options
+    |> Enum.with_index(1)
+    |> Enum.each(fn {option, index} ->
+      IO.puts("#{index}. #{option}")
+    end)
+
+    case options do
+      [first | _] -> [first]
+      _ -> []
+    end
+  end
+
+  @impl UI.Output
+  def choose_multi(label, options, _opts) do
+    choose_multi(label, options)
+  end
+
+  @impl UI.Output
   def choose(label, options, _timeout_ms, default) do
     IO.puts("#{label} (auto-selecting: #{default})")
 

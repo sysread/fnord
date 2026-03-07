@@ -435,6 +435,16 @@ defmodule UI do
     end
   end
 
+  def choose_multi(label, options), do: choose_multi(label, options, [])
+
+  def choose_multi(label, options, owl_opts) do
+    if UI.is_tty?() && !UI.quiet?() do
+      output_module().choose_multi(label, options, owl_opts)
+    else
+      {:error, :no_tty}
+    end
+  end
+
   def prompt(prompt, owl_opts \\ []) do
     if UI.is_tty?() && !UI.quiet?() do
       owl_opts = Keyword.put(owl_opts, :label, prompt)
@@ -476,7 +486,7 @@ defmodule UI do
   end
 
   def quiet?() do
-    Services.Globals.get_env(:fnord, :quiet)
+    Services.Globals.get_env(:fnord, :quiet) == true
   end
 
   def is_tty? do

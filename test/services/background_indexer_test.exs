@@ -96,6 +96,17 @@ defmodule UI.Output.Collector do
   def newline, do: :ok
   def box(_contents, _opts), do: :ok
   def flush, do: :ok
+
+  def choose_multi(_label, options) do
+    case options do
+      [first | _] -> [first]
+      _ -> []
+    end
+  end
+
+  def choose_multi(label, options, _opts) do
+    choose_multi(label, options)
+  end
 end
 
 defmodule Services.BackgroundIndexer.RelativePathTest do

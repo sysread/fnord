@@ -52,6 +52,22 @@ defmodule UI.Output.Production do
   end
 
   @impl UI.Output
+  def choose_multi(label, options), do: choose_multi(label, options, [])
+
+  @impl UI.Output
+  def choose_multi(label, options, owl_opts) do
+    interact(fn ->
+      with_notification_timeout(
+        fn ->
+          flush()
+          Owl.IO.multiselect(options, Keyword.put(owl_opts, :label, label))
+        end,
+        "Fnord is waiting for your selection: #{label}"
+      )
+    end)
+  end
+
+  @impl UI.Output
   def choose(label, options, timeout_ms, default) do
     interact(fn ->
       # Display the selection prompt

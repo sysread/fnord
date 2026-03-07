@@ -142,4 +142,31 @@ defmodule Skills.Runtime do
   end
 
   def validate_response_format(other), do: {:error, {:invalid_response_format, other}}
+
+  @doc """
+  Return the list of allowed toolboxes.
+
+  Toolboxes are the skill's tool tags; they select tool groups.
+  """
+  @spec allowed_toolboxes() :: [tool_tag]
+  def allowed_toolboxes(), do: @allowed_tags
+
+  @doc """
+  Return the list of allowed model presets.
+
+  This list is intended for interactive selection.
+  """
+  @spec allowed_model_presets() :: [String.t()]
+  def allowed_model_presets() do
+    [
+      "smart",
+      "balanced",
+      "fast",
+      "web",
+      "large_context",
+      "large_context:smart",
+      "large_context:balanced",
+      "large_context:fast"
+    ]
+  end
 end
