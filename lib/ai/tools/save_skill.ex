@@ -123,6 +123,8 @@ defmodule AI.Tools.SaveSkill do
       }) do
     with {:ok, project_dir} <- Skills.project_skills_dir(),
          :ok <- check_user_collision(name),
+         {:ok, _model_preset} <- Skills.Runtime.model_from_string(model),
+         {:ok, _toolbox} <- Skills.Runtime.toolbox_from_tags(tools),
          {:ok, toml} <-
            Skills.Toml.encode_skill(%Skills.Skill{
              name: name,

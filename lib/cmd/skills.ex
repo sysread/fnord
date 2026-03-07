@@ -220,29 +220,33 @@ defmodule Cmd.Skills do
 
   defp new_skill(opts) do
     maybe_set_project_from_opts(opts)
-    {:ok, project_dir} = Skills.project_skills_dir()
 
-    name = UI.prompt("Skill name")
-    description = UI.prompt("Description")
-    model = UI.prompt("Model preset (smart/balanced/fast/web/large_context)")
-    tools = UI.prompt("Tool tags (comma-separated)") |> parse_csv()
-    system_prompt = UI.prompt("System prompt")
+    with {:ok, _project, project_dir} <- ensure_project_selected() do
+      name = UI.prompt("Skill name")
+      description = UI.prompt("Description")
+      model = UI.prompt("Model preset (smart/balanced/fast/web/large_context)")
+      tools = UI.prompt("Tool tags (comma-separated)") |> parse_csv()
+      system_prompt = UI.prompt("System prompt")
 
-    args = %{
-      "name" => name,
-      "description" => description,
-      "model" => model,
-      "tools" => tools,
-      "system_prompt" => system_prompt,
-      "response_format" => nil
-    }
+      args = %{
+        "name" => name,
+        "description" => description,
+        "model" => model,
+        "tools" => tools,
+        "system_prompt" => system_prompt,
+        "response_format" => nil
+      }
 
-    yes? = Map.get(opts, :yes, false)
+      yes? = Map.get(opts, :yes, false)
 
-    if yes? or UI.confirm("Create skill #{name} in #{project_dir}?", false) do
-      AI.Tools.SaveSkill.call(args)
+      if yes? or UI.confirm("Create skill #{name} in #{project_dir}?", false) do
+        AI.Tools.SaveSkill.call(args)
+      else
+        {:ok, "Aborted"}
+      end
     else
-      {:ok, "Aborted"}
+      {:error, :no_project_selected} ->
+        return_no_project_error()
     end
   end
 
@@ -252,7 +256,7 @@ defmodule Cmd.Skills do
     name = opts.skill
 
     with {:ok, resolved} <- Skills.get(name),
-         {:ok, project_dir} <- Skills.project_skills_dir() do
+         {:ok, _project, project_dir} <- ensure_project_selected() do
       if resolved.effective.source == :user do
         {:error, {:cannot_edit_user_skill, name}}
       else
@@ -284,6 +288,8 @@ defmodule Cmd.Skills do
           {:ok, "Aborted"}
         end
       end
+    else
+      {:error, :no_project_selected} -> return_no_project_error()
     end
   end
 
@@ -292,7 +298,7 @@ defmodule Cmd.Skills do
 
     name = opts.skill
 
-    with {:ok, project_dir} <- Skills.project_skills_dir() do
+    with {:ok, _project, project_dir} <- ensure_project_selected() do
       path = Path.join(project_dir, "#{name}.toml")
 
       yes? = Map.get(opts, :yes, false)
@@ -305,6 +311,8 @@ defmodule Cmd.Skills do
       else
         {:ok, "Aborted"}
       end
+    else
+      {:error, :no_project_selected} -> return_no_project_error()
     end
   end
 
@@ -355,4 +363,22 @@ defmodule Cmd.Skills do
     Settings.set_project(project)
     :ok
   end
+
+  # Ensures that a project has been selected before proceeding.
+  # Returns {:ok, project_name, project_dir} if a project is set,
+  # or {:error, :no_project_selected} otherwise.
+  defp ensure_project_selected do
+    case Settings.get_selected_project() do
+      {:ok, project} ->
+        case Skills.project_skills_dir() do
+          {:ok, project_dir} -> {:ok, project, project_dir}
+          {:error, reason} -> {:error, reason}
+        end
+
+      {:error, _} ->
+        {:error, :no_project_selected}
+    end
+  end
+
+  defp return_no_project_error(), do: {:error, "No project selected. Pass --project <name>."}
 end

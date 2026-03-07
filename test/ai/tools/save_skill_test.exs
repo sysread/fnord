@@ -75,4 +75,57 @@ defmodule AI.Tools.SaveSkillTest do
 
     assert {:ok, %{"name" => "alpha"}} = Fnord.Toml.decode_file(path)
   end
+
+  test "invalid tool tag fails validation early and does not write a file" do
+    project_name = "proj3"
+
+    Settings.set_project_data(Settings.new(), project_name, %{
+      "root" => "/tmp/#{project_name}",
+      "skills" => ["alpha"]
+    })
+
+    assert :ok = Settings.set_project(project_name)
+
+    # stub confirm again in case it's used
+    stub(UI.Output.Mock, :confirm, fn _msg, _default -> true end)
+
+    # Call with an unknown tool tag "typo"
+    assert {:error, {:unknown_tool_tag, "typo"}} =
+             AI.Tools.SaveSkill.call(%{
+               "name" => "beta",
+               "description" => "desc",
+               "model" => "smart",
+               "tools" => ["typo"],
+               "system_prompt" => "sp",
+               "response_format" => nil
+             })
+
+    # Ensure file was not written
+    {:ok, project_dir} = Skills.project_skills_dir()
+    path = Path.join(project_dir, "beta.toml")
+    refute File.exists?(path)
+  end
+
+  test "invalid model preset fails validation early" do
+    project_name = "proj4"
+
+    Settings.set_project_data(Settings.new(), project_name, %{
+      "root" => "/tmp/#{project_name}",
+      "skills" => ["alpha"]
+    })
+
+    assert :ok = Settings.set_project(project_name)
+
+    stub(UI.Output.Mock, :confirm, fn _msg, _default -> true end)
+
+    assert {:error, {:unknown_model_preset, "nope"}} =
+             AI.Tools.SaveSkill.call(%{
+               "name" => "gamma",
+               "description" => "desc",
+               "model" => "nope",
+               "tools" => ["basic"],
+               "system_prompt" => "sp",
+               "response_format" => nil
+             })
+  end
 end

@@ -130,11 +130,7 @@ defmodule Skills do
   end
 
   defp resolve_definitions(user_loaded, project_loaded) do
-    all =
-      (user_loaded ++ project_loaded)
-      |> Enum.map(fn %{skill: skill, source: source, path: path} ->
-        %{skill: skill, source: source, path: path}
-      end)
+    all = user_loaded ++ project_loaded
 
     all
     |> Enum.group_by(& &1.skill.name)

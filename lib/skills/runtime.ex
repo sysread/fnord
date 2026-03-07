@@ -61,6 +61,9 @@ defmodule Skills.Runtime do
     end
   end
 
+  @allowed_tags ["basic", "frobs", "task", "coding", "web", "rw", "skills"]
+  @stable_tag_order ["frobs", "task", "coding", "web", "rw", "skills"]
+
   @doc """
   Build a toolbox from skill tool tags.
 
@@ -76,9 +79,7 @@ defmodule Skills.Runtime do
       |> Enum.filter(&is_binary/1)
       |> Enum.uniq()
 
-    allowed_tags = ["basic", "frobs", "task", "coding", "web", "rw", "skills"]
-
-    case Enum.find(tags, fn tag -> not Enum.member?(allowed_tags, tag) end) do
+    case Enum.find(tags, fn tag -> not Enum.member?(@allowed_tags, tag) end) do
       unknown_tag when is_binary(unknown_tag) ->
         {:error, {:unknown_tool_tag, unknown_tag}}
 
@@ -106,16 +107,7 @@ defmodule Skills.Runtime do
     end)
   end
 
-  defp stable_tag_order() do
-    [
-      "frobs",
-      "task",
-      "coding",
-      "web",
-      "rw",
-      "skills"
-    ]
-  end
+  defp stable_tag_order(), do: @stable_tag_order
 
   defp apply_tool_tag(tag, toolbox) do
     case tag do
@@ -125,7 +117,7 @@ defmodule Skills.Runtime do
       "web" -> AI.Tools.with_web_tools(toolbox)
       "rw" -> AI.Tools.with_rw_tools(toolbox)
       "skills" -> AI.Tools.with_skills(toolbox)
-      _ -> toolbox
+      _ -> raise "Unknown tool tag reached apply_tool_tag unexpectedly: #{tag}"
     end
   end
 

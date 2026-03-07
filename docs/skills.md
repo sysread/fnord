@@ -137,6 +137,8 @@ If a skill includes the `skills` tool tag, it can call other skills via the
 
 To prevent runaway recursion, Fnord enforces a maximum nested skill depth.
 
+Note: the depth budget is tracked globally (shared across concurrent skill invocations). This is a known v1 limitation.
+
 ---
 
 ## CLI usage

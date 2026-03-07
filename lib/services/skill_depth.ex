@@ -12,6 +12,7 @@ defmodule Services.SkillDepth do
   """
 
   use Agent
+  require Logger
 
   @type depth_result :: {:ok, non_neg_integer()} | {:error, :max_depth_reached}
 
@@ -48,6 +49,7 @@ defmodule Services.SkillDepth do
   def dec_depth() do
     Agent.get_and_update(__MODULE__, fn
       0 ->
+        Logger.warning("dec_depth called at 0 (underflow), clamping to 0")
         {{:ok, 0}, 0}
 
       depth ->
