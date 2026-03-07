@@ -256,7 +256,7 @@ defmodule Cmd.Skills do
     maybe_set_project_from_opts(opts)
 
     name = opts.skill
-
+    # Intentionally using Skills.get/1 (not get_enabled/1) so disabled skills can be edited
     with {:ok, resolved} <- Skills.get(name),
          {:ok, _project, project_dir} <- ensure_project_selected() do
       if resolved.effective.source == :user do
@@ -284,10 +284,12 @@ defmodule Cmd.Skills do
 
         yes? = Map.get(opts, :yes, false)
 
-        if yes? or UI.confirm("Overwrite skill #{name} in #{project_dir}?", false) do
+        with :ok <- validate_model_and_tools(model, tools),
+             :ok <- confirm_or_abort(yes?, "Overwrite skill #{name} in #{project_dir}?", false) do
           AI.Tools.SaveSkill.call(args)
         else
-          {:ok, "Aborted"}
+          {:abort} -> {:ok, "Aborted"}
+          {:error, reason} -> {:error, reason}
         end
       end
     else

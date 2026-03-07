@@ -128,4 +128,33 @@ defmodule AI.Tools.SaveSkillTest do
                "response_format" => nil
              })
   end
+
+  test "invalid response_format fails validation early and does not write a file" do
+    project_name = "proj5"
+
+    Settings.set_project_data(Settings.new(), project_name, %{
+      "root" => "/tmp/#{project_name}",
+      "skills" => ["alpha"]
+    })
+
+    assert :ok = Settings.set_project(project_name)
+
+    # stub confirm again in case it's used
+    stub(UI.Output.Mock, :confirm, fn _msg, _default -> true end)
+
+    assert {:error, {:invalid_response_format, "nope"}} =
+             AI.Tools.SaveSkill.call(%{
+               "name" => "delta",
+               "description" => "desc",
+               "model" => "smart",
+               "tools" => ["basic"],
+               "system_prompt" => "sp",
+               "response_format" => "nope"
+             })
+
+    # Ensure file was not written
+    {:ok, project_dir} = Skills.project_skills_dir()
+    path = Path.join(project_dir, "delta.toml")
+    refute File.exists?(path)
+  end
 end

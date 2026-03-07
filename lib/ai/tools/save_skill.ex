@@ -125,6 +125,7 @@ defmodule AI.Tools.SaveSkill do
          :ok <- check_user_collision(name),
          {:ok, _model_preset} <- Skills.Runtime.model_from_string(model),
          {:ok, _toolbox} <- Skills.Runtime.toolbox_from_tags(tools),
+         {:ok, _rf} <- Skills.Runtime.validate_response_format(response_format),
          {:ok, toml} <-
            Skills.Toml.encode_skill(%Skills.Skill{
              name: name,

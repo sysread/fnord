@@ -96,9 +96,9 @@ defmodule AI.Tools.RunSkillTest do
 
   test "call/1 returns max_skill_depth error when recursion depth limit is reached" do
     try do
-      Services.SkillDepth.inc_depth()
-      Services.SkillDepth.inc_depth()
-      Services.SkillDepth.inc_depth()
+      assert {:ok, _} = Services.SkillDepth.inc_depth()
+      assert {:ok, _} = Services.SkillDepth.inc_depth()
+      assert {:ok, _} = Services.SkillDepth.inc_depth()
 
       assert {:error, {:max_skill_depth, _}} =
                AI.Tools.RunSkill.call(%{"skill" => "dummy", "prompt" => "test"})
