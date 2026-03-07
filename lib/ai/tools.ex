@@ -212,7 +212,8 @@ defmodule AI.Tools do
   }
 
   @skills_tools %{
-    "run_skill" => AI.Tools.RunSkill
+    "run_skill" => AI.Tools.RunSkill,
+    "save_skill" => AI.Tools.SaveSkill
   }
 
   @doc """
