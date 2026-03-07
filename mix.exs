@@ -41,7 +41,8 @@ defmodule Fnord.MixProject do
         "docs/frobs-guide.md",
         "docs/frobs-http-get.md",
         "docs/mcp-advanced.md",
-        "docs/oauth-advanced.md"
+        "docs/oauth-advanced.md",
+        "docs/skills.md"
       ],
       groups_for_extras: [
         Guides: [
@@ -51,7 +52,8 @@ defmodule Fnord.MixProject do
           "docs/frobs-guide.md",
           "docs/frobs-http-get.md",
           "docs/mcp-advanced.md",
-          "docs/oauth-advanced.md"
+          "docs/oauth-advanced.md",
+          "docs/skills.md"
         ]
       ],
       source_url: "https://github.com/sysread/fnord",
