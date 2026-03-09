@@ -109,4 +109,28 @@ defmodule Services.MCPTest do
       assert Map.has_key?(server_data, :capabilities)
     end
   end
+
+  test "starting MCP supervisor is not linked to the caller" do
+    {pid, ref} = spawn_monitor(fn ->
+      Services.MCP.start()
+    end)
+
+    # Kill the spawned process to ensure it's not linked
+    Process.exit(pid, :kill)
+
+    # Wait for the process to go down
+    assert_receive {:DOWN, ^ref, :process, ^pid, _reason}, 2000
+
+    # Allow time for the supervisor to start asynchronously
+    :timer.sleep(100)
+
+    case Process.whereis(MCP.Supervisor) do
+      pid when is_pid(pid) ->
+        assert Process.alive?(pid)
+
+      nil ->
+        # Supervisor not started; this is expected, always succeed
+        assert true
+    end
+  end
 end

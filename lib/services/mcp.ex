@@ -41,8 +41,19 @@ defmodule Services.MCP do
 
   defp ensure_supervisor do
     case Process.whereis(MCPSup) do
-      nil -> MCPSup.start_link([])
-      _ -> :ok
+      nil ->
+        Task.start(fn ->
+          case MCPSup.start_link([]) do
+            {:ok, _pid} ->
+              :ok
+
+            {:error, reason} ->
+              UI.debug("Failed to start MCP supervisor: #{inspect(reason)}")
+          end
+        end)
+
+      _ ->
+        :ok
     end
 
     :ok
