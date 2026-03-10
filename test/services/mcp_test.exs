@@ -111,9 +111,10 @@ defmodule Services.MCPTest do
   end
 
   test "starting MCP supervisor is not linked to the caller" do
-    {pid, ref} = spawn_monitor(fn ->
-      Services.MCP.start()
-    end)
+    {pid, ref} =
+      spawn_monitor(fn ->
+        Services.MCP.start()
+      end)
 
     # Kill the spawned process to ensure it's not linked
     Process.exit(pid, :kill)

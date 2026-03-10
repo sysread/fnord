@@ -14,6 +14,13 @@ defmodule Cmd.FrobsEnableDisableTest do
     }
   end
 
+  test "parses --global flag for frobs enable" do
+    args = ["frobs", "enable", "--global", "--name", "x"]
+    {subcommand, result} = Fnord.spec() |> Optimus.new!() |> Optimus.parse!(args)
+    assert subcommand == [:frobs, :enable]
+    assert result.flags.global == true
+  end
+
   test "enable globally toggles settings and reports scope" do
     name = "cli_frob_global"
     {:ok, _frob} = Frobs.create(name)

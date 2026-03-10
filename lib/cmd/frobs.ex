@@ -59,15 +59,16 @@ defmodule Cmd.Frobs do
                 help: "Name of the frob",
                 required: true
               ],
-              global: [
-                long: "--global",
-                help: "Apply to global settings (otherwise current project)",
-                takes_value: false
-              ],
               project: [
                 long: "--project",
                 value_name: "PROJECT",
                 help: "Apply to the named project (overrides selected project)"
+              ]
+            ],
+            flags: [
+              global: [
+                long: "--global",
+                help: "Apply to global settings (otherwise current project)"
               ]
             ]
           ],
@@ -82,15 +83,16 @@ defmodule Cmd.Frobs do
                 help: "Name of the frob",
                 required: true
               ],
-              global: [
-                long: "--global",
-                help: "Apply to global settings (otherwise current project)",
-                takes_value: false
-              ],
               project: [
                 long: "--project",
                 value_name: "PROJECT",
                 help: "Apply to the named project (overrides selected project)"
+              ]
+            ],
+            flags: [
+              global: [
+                long: "--global",
+                help: "Apply to global settings (otherwise current project)"
               ]
             ]
           ],
