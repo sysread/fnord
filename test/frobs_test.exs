@@ -21,6 +21,7 @@ defmodule FrobsTest do
     assert output =~ "Frob invoked from project: blarg"
     assert output =~ "Project config:"
     assert output =~ "Hello, Alice!"
+    assert output =~ "Edit mode: 0"
   end
 
   describe "AI.Tools integration" do

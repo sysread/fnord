@@ -78,6 +78,11 @@ defmodule Frobs do
   fi
 
   #-----------------------------------------------------------------------------
+  # Optional guard for edit mode (uncomment if needed)
+  #-----------------------------------------------------------------------------
+  [ "${FNORD_EDIT_MODE:-}" = "1" ] && exit 1
+
+  #-----------------------------------------------------------------------------
   # Confirm that this is a $language project
   #-----------------------------------------------------------------------------
   # root="$(jq -r '.root' <<< "$FNORD_CONFIG")"
@@ -119,6 +124,7 @@ defmodule Frobs do
   echo "Project config:"
   echo "$FNORD_CONFIG" | jq
 
+  echo "Edit mode: $FNORD_EDIT_MODE"
   echo "---"
   echo "Hello, $name!"
   """
@@ -589,6 +595,9 @@ defmodule Frobs do
     |> then(&"#{&1}_#{hash}")
   end
 
+  defp bool_env(true), do: "1"
+  defp bool_env(_), do: "0"
+
   defp execute_main(frob, args_json) do
     with {:ok, project_name} <- Settings.get_selected_project(),
          {:ok, settings} <- Settings.get_project(Settings.new()),
@@ -596,7 +605,8 @@ defmodule Frobs do
       env = [
         {"FNORD_PROJECT", project_name},
         {"FNORD_CONFIG", settings_json},
-        {"FNORD_ARGS_JSON", args_json}
+        {"FNORD_ARGS_JSON", args_json},
+        {"FNORD_EDIT_MODE", bool_env(Settings.get_edit_mode())}
       ]
 
       frob.main
@@ -616,7 +626,8 @@ defmodule Frobs do
            {:ok, settings_json} <- SafeJson.encode(settings) do
         env = [
           {"FNORD_PROJECT", project_name},
-          {"FNORD_CONFIG", settings_json}
+          {"FNORD_CONFIG", settings_json},
+          {"FNORD_EDIT_MODE", bool_env(Settings.get_edit_mode())}
         ]
 
         frob.available

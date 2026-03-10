@@ -209,6 +209,7 @@ defmodule Cmd.Frobs do
            - FNORD_PROJECT:    The name of the currently selected project
            - FNORD_CONFIG:     JSON object of project config (see `$HOME/.fnord/settings.json`)
            - FNORD_ARGS_JSON:  JSON object of LLM-provided arguments (defined in your spec)
+           - FNORD_EDIT_MODE:  "1" when running with --edit, otherwise "0"
 
        !!! You can remove the frob at any time by deleting the directory.
        """}

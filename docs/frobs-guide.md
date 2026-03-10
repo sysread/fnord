@@ -122,6 +122,7 @@ Fnord passes data to your frob via environment variables:
 |`FNORD_PROJECT`|Current project name|String|
 |`FNORD_CONFIG`|Project configuration|JSON object|
 |`FNORD_ARGS_JSON`|LLM-provided arguments|JSON object|
+|`FNORD_EDIT_MODE`|Whether fnord is running in edit mode (`--edit`)|"1" or "0"|
 
 **Example shell script:**
 
