@@ -39,10 +39,26 @@ defmodule Services.MCP do
     :ok
   end
 
+  @doc """
+  Integration point for interactive flows (like `ask`) that want MCP tools available immediately.
+  """
+  @spec ensure_started_and_discovered() :: :ok
+  def ensure_started_and_discovered() do
+    servers = MCPSettings.effective_config(Settings.new())
+
+    if map_size(servers) == 0 do
+      :ok
+    else
+      ensure_supervisor()
+      discover_once(servers)
+      :ok
+    end
+  end
+
   defp ensure_supervisor do
     case Process.whereis(MCPSup) do
       nil ->
-        start_supervisor_unlinked()
+        start_supervisor_and_unlink()
 
       _pid ->
         :ok
@@ -51,26 +67,18 @@ defmodule Services.MCP do
     :ok
   end
 
-  defp start_supervisor_unlinked do
-    caller = self()
-    ref = make_ref()
-
-    _starter_pid =
-      spawn(fn ->
-        result = MCPSup.start_link([])
-        send(caller, {:mcp_supervisor_start_result, ref, result})
-      end)
-
-    receive do
-      {:mcp_supervisor_start_result, ^ref, {:ok, _pid}} ->
+  defp start_supervisor_and_unlink do
+    case MCPSup.start_link([]) do
+      {:ok, pid} ->
+        Process.unlink(pid)
         :ok
 
-      {:mcp_supervisor_start_result, ^ref, {:error, reason}} ->
+      {:error, {:already_started, pid}} ->
+        Process.unlink(pid)
+        :ok
+
+      {:error, reason} ->
         UI.debug("Failed to start MCP supervisor: #{inspect(reason)}")
-        :ok
-    after
-      5_000 ->
-        UI.debug("Timed out while starting MCP supervisor")
         :ok
     end
   end

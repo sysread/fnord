@@ -59,6 +59,8 @@ defmodule AI.Agent.Coordinator.Frippery do
   end
 
   def log_available_mcp_tools do
+    Services.MCP.ensure_started_and_discovered()
+
     MCP.Tools.module_map()
     |> Map.keys()
     |> Enum.join(" | ")
