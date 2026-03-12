@@ -67,11 +67,7 @@ defmodule UI.Queue do
 
   # Logger proxy (fast-path if in interaction context)
   def log(server \\ __MODULE__, level, chardata, md \\ [], timeout \\ :infinity) do
-    if in_ctx?(server) do
-      exec({:log, level, chardata, md})
-    else
-      GenServer.call(server, {:log, level, chardata, md}, timeout)
-    end
+    GenServer.call(server, {:log, level, chardata, md}, timeout)
   end
 
   # Interactive (priority). If already in context, run inline.
@@ -158,17 +154,28 @@ defmodule UI.Queue do
   # ----------------------------------------------------------------------------
   @impl true
   def init(:ok) do
-    state = %{busy: false, hq: :queue.new(), q: :queue.new()}
+    state = %{
+      busy: false,
+      hq: :queue.new(),
+      q: :queue.new(),
+      paused_logs: false,
+      log_buffer: :queue.new()
+    }
+
     {:ok, state}
   end
 
   # INTERACT
   @impl true
   def handle_call({:interact, fun}, from, %{busy: false} = st) do
-    st = %{st | busy: true}
+    # mark busy and pause logging
+    st1 = %{st | busy: true, paused_logs: true}
     result = exec({:interact, fun})
+    # unpause logging and flush buffered logs
+    st2 = %{st1 | paused_logs: false}
+    st3 = flush_log_buffer(st2)
     GenServer.reply(from, result)
-    {:noreply, drain(st)}
+    {:noreply, drain(st3)}
   end
 
   def handle_call({:interact, fun}, from, %{busy: true} = st) do
@@ -188,11 +195,21 @@ defmodule UI.Queue do
   end
 
   # LOG
+  def handle_call({:log, level, chardata, md}, _from, %{paused_logs: true} = st) do
+    st2 = buffer_log(st, {level, chardata, md})
+    {:reply, :ok, st2}
+  end
+
   def handle_call({:log, level, chardata, md}, from, %{busy: false} = st) do
     st = %{st | busy: true}
     result = exec({:log, level, chardata, md})
     GenServer.reply(from, result)
     {:noreply, drain(st)}
+  end
+
+  def handle_call({:log, level, chardata, md}, _from, %{busy: true, paused_logs: true} = st) do
+    st2 = buffer_log(st, {level, chardata, md})
+    {:reply, :ok, st2}
   end
 
   def handle_call({:log, level, chardata, md}, from, %{busy: true} = st) do
@@ -207,6 +224,23 @@ defmodule UI.Queue do
   # ----------------------------------------------------------------------------
   defp enqueue(:hq, item, %{hq: q} = st), do: %{st | hq: :queue.in(item, q)}
   defp enqueue(:q, item, %{q: q} = st), do: %{st | q: :queue.in(item, q)}
+
+  defp buffer_log(st, {level, chardata, md}) do
+    new_buffer = :queue.in({level, chardata, md}, st.log_buffer)
+    %{st | log_buffer: new_buffer}
+  end
+
+  defp flush_log_buffer(st) do
+    # Unpause logging and replay buffered entries
+    case :queue.out(st.log_buffer) do
+      {{:value, {level, chardata, md}}, buffer} ->
+        _ = exec({:log, level, chardata, md})
+        flush_log_buffer(%{st | log_buffer: buffer})
+
+      {:empty, _} ->
+        %{st | log_buffer: :queue.new()}
+    end
+  end
 
   defp drain(%{busy: true} = st) do
     case take_next(st) do

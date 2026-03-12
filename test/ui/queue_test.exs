@@ -1,6 +1,18 @@
 defmodule UI.Queue.Test do
   use Fnord.TestCase, async: false
 
+  defmodule LogCaptureHandler do
+    @moduledoc false
+
+    @spec log(:logger.log_event(), map()) :: :ok
+    def log(log_event, %{test_pid: pid}),
+      do:
+        (
+          send(pid, {:captured_log, log_event})
+          :ok
+        )
+  end
+
   describe "interaction_token/1 and interact/3 lifecycle" do
     test "token is nil outside, non-nil inside interact, then nil again" do
       # Before any interaction, token should be nil
@@ -170,6 +182,76 @@ defmodule UI.Queue.Test do
         end)
 
       assert result == {:ok, :ok}
+    end
+  end
+
+  describe "log buffering during interact" do
+    test "log events are buffered until interact completes" do
+      caller = self()
+      # Install temporary logger handler
+      assert :ok =
+               :logger.add_handler(:ui_queue_test_capture, LogCaptureHandler, %{
+                 test_pid: caller,
+                 level: :all
+               })
+
+      assert {:ok, _cfg} = :logger.get_handler_config(:ui_queue_test_capture)
+
+      on_exit(fn ->
+        try do
+          :logger.remove_handler(:ui_queue_test_capture)
+        rescue
+          _ -> :ok
+        end
+      end)
+
+      # Block the queue with an initial interact
+      _blocker =
+        Services.Globals.Spawn.spawn(fn ->
+          UI.Queue.interact(fn ->
+            send(caller, :interact_started)
+
+            receive do
+              :release -> :ok
+            end
+          end)
+        end)
+
+      assert_receive :interact_started, 500
+
+      # Attempt to log during interact
+      Services.Globals.Spawn.spawn(fn ->
+        send(caller, {:log_start, self()})
+        Process.delete({:uiq_ctx, Process.whereis(UI.Queue)})
+        send(caller, {:token_deleted, self()})
+        result = UI.Queue.log(UI.Queue, :error, "buffer-me")
+        send(caller, {:log_returned, result})
+      end)
+
+      assert_receive {:log_start, _pid}, 500
+      assert_receive {:token_deleted, _pid}, 500
+      refute_receive {:log_returned, :ok}, 200
+      refute_receive {:captured_log, _}, 200
+
+      # Release the interact
+      send(UI.Queue, :release)
+
+      assert_receive {:log_returned, :ok}, 1_000
+
+      # Assert log event is received after release
+      receive do
+        {:captured_log, log_event} ->
+          assert inspect(log_event) =~ "buffer-me"
+      after
+        1_000 ->
+          case :logger.get_handler_config(:ui_queue_test_capture) do
+            {:ok, cfg} ->
+              flunk("No log event received, handler config: #{inspect(cfg)}")
+
+            {:error, {:not_found, _}} ->
+              flunk("No log event received and handler not found")
+          end
+      end
     end
   end
 end
