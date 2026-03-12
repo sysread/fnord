@@ -231,7 +231,20 @@ defmodule AI.Completion.Output do
     # coordinate the two streams.
     Process.sleep(100)
 
-    UI.say("\n#{response.content}")
+    # Print the final assistant response to STDOUT.
+    #
+    # We only apply the external FNORD_FORMATTER when STDOUT is a TTY. When the
+    # output is piped (e.g. `fnord replay ... | pbcopy`), formatting is suppressed
+    # so that the resulting text is clean and copy/paste safe.
+    output = "\n#{response.content}\n"
+
+    output =
+      case UI.stdout_tty?() do
+        true -> UI.format(output)
+        false -> output
+      end
+
+    IO.write(:stdio, output)
 
     state
   end
