@@ -534,60 +534,20 @@ defmodule Cmd.Index do
   end
 
   defp process_entry(entry) do
-    with {:ok, contents} <- Store.Project.Entry.read_source_file(entry),
-         {:ok, summary, outline} <- get_derivatives(entry.file, contents),
-         {:ok, embeddings} <- get_embeddings(entry.file, summary, outline, contents),
-         :ok <- Store.Project.Entry.save(entry, summary, outline, embeddings) do
-      # If :quiet is true, the progress bar will be absent, so instead, we'll
-      # emit debug logs to stderr. The user can control whether those are
-      # displayed by setting LOGGER_LEVEL.
-      if Services.Globals.get_env(:fnord, :quiet) do
-        UI.info("✓ #{entry.file}")
-      end
+    case Indexer.index_entry(entry) do
+      {:ok, _entry} ->
+        # If :quiet is true, the progress bar will be absent, so instead, we'll
+        # emit debug logs to stderr. The user can control whether those are
+        # displayed by setting LOGGER_LEVEL.
+        if Services.Globals.get_env(:fnord, :quiet) do
+          UI.info("✓ #{entry.file}")
+        end
 
-      :ok
-    else
+        :ok
+
       {:error, reason} ->
         UI.warn("Error processing #{entry.file}", inspect(reason, pretty: true, limit: :infinity))
     end
-  end
-
-  defp get_derivatives(file, file_contents) do
-    summary_task = Services.Globals.Spawn.async(fn -> get_summary(file, file_contents) end)
-    outline_task = Services.Globals.Spawn.async(fn -> get_outline(file, file_contents) end)
-
-    with {:ok, summary} <- Task.await(summary_task, :infinity),
-         {:ok, outline} <- Task.await(outline_task, :infinity) do
-      {:ok, summary, outline}
-    end
-  end
-
-  defp get_outline(file, file_contents) do
-    Indexer.impl().get_outline(file, file_contents)
-  end
-
-  defp get_summary(file, file_contents) do
-    Indexer.impl().get_summary(file, file_contents)
-  end
-
-  defp get_embeddings(file, summary, outline, file_contents) do
-    to_embed = """
-      # File
-      `#{file}`
-
-      ## Summary
-      #{summary}
-
-      ## Outline
-      #{outline}
-
-      ## Contents
-      ```
-      #{file_contents}
-      ```
-    """
-
-    Indexer.impl().get_embeddings(to_embed)
   end
 
   @prime_prompt """

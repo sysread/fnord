@@ -1,0 +1,212 @@
+defmodule Skills.Runtime do
+  @moduledoc """
+  Runtime helpers for executing skills.
+
+  This module owns the glue between skill definitions (TOML) and the runtime
+  components used to execute them:
+
+  - model preset parsing (skill `model` string -> `AI.Model.t()`)
+  - tool tag mapping (skill `tools` -> `AI.Tools.toolbox()`)
+  - response_format validation
+
+  Keeping these helpers in one place avoids duplicating the execution rules
+  between the agent (`AI.Agent.Skill`) and the tool entry points.
+  """
+
+  @type model_error :: {:unknown_model_preset, String.t()}
+
+  @type tool_tag :: String.t()
+
+  @type toolbox_error ::
+          {:unknown_tool_tag, tool_tag}
+          | {:missing_basic_tool_tag, [tool_tag]}
+
+  @type response_format_error ::
+          {:invalid_response_format, term()}
+          | {:missing_response_format_type, map()}
+
+  @doc """
+  Resolve a model preset string (from skill TOML) into an `AI.Model` struct.
+
+  Supported values:
+  - `smart`
+  - `balanced`
+  - `fast`
+  - `web`
+  - `large_context`
+  - `large_context:<speed>` where speed is `smart|balanced|fast`
+
+  The plain `large_context` form preserves the default behavior by calling
+  `AI.Model.large_context/0`.
+  """
+  @spec model_from_string(String.t()) :: {:ok, AI.Model.t()} | {:error, model_error}
+  def model_from_string(model) when is_binary(model) do
+    case String.split(model, ":", parts: 2) do
+      ["smart"] -> {:ok, AI.Model.smart()}
+      ["balanced"] -> {:ok, AI.Model.balanced()}
+      ["fast"] -> {:ok, AI.Model.fast()}
+      ["web"] -> {:ok, AI.Model.web_search()}
+      ["large_context"] -> {:ok, AI.Model.large_context()}
+      ["large_context", speed] -> large_context_with_speed(speed)
+      _ -> {:error, {:unknown_model_preset, model}}
+    end
+  end
+
+  defp large_context_with_speed(speed) do
+    case speed do
+      "smart" -> {:ok, AI.Model.large_context(:smart)}
+      "balanced" -> {:ok, AI.Model.large_context(:balanced)}
+      "fast" -> {:ok, AI.Model.large_context(:fast)}
+      _ -> {:error, {:unknown_model_preset, "large_context:#{speed}"}}
+    end
+  end
+
+  @allowed_tags ["basic", "mcp", "frobs", "task", "coding", "web", "rw", "skills"]
+  @stable_tag_order ["mcp", "frobs", "task", "coding", "web", "rw", "skills"]
+
+  @doc """
+  Build a toolbox from skill tool tags.
+
+  Tags are mapped to `AI.Tools.with_*` groupers. Toolbox construction is
+  deterministic and ignores input order.
+
+  The `basic` tag is required; it acts as the toolbox entrypoint.
+  """
+  @spec toolbox_from_tags([tool_tag]) :: {:ok, AI.Tools.toolbox()} | {:error, toolbox_error}
+  def toolbox_from_tags(tags) when is_list(tags) do
+    tags =
+      tags
+      |> Enum.filter(&is_binary/1)
+      |> Enum.uniq()
+
+    case Enum.find(tags, fn tag -> not Enum.member?(@allowed_tags, tag) end) do
+      unknown_tag when is_binary(unknown_tag) ->
+        {:error, {:unknown_tool_tag, unknown_tag}}
+
+      nil ->
+        if Enum.member?(tags, "basic") do
+          tags
+          |> build_toolbox_from_tags()
+          |> then(&{:ok, &1})
+        else
+          {:error, {:missing_basic_tool_tag, tags}}
+        end
+    end
+  end
+
+  defp build_toolbox_from_tags(tags) do
+    base = AI.Tools.basic_tools()
+
+    # Apply tags in a stable order.
+    Enum.reduce(stable_tag_order(), base, fn tag, toolbox ->
+      if Enum.member?(tags, tag) do
+        apply_tool_tag(tag, toolbox)
+      else
+        toolbox
+      end
+    end)
+  end
+
+  defp stable_tag_order(), do: @stable_tag_order
+
+  defp apply_tool_tag(tag, toolbox) do
+    case tag do
+      "mcp" -> AI.Tools.with_mcps(toolbox)
+      "frobs" -> AI.Tools.with_frobs(toolbox)
+      "task" -> AI.Tools.with_task_tools(toolbox)
+      "coding" -> AI.Tools.with_coding_tools(toolbox)
+      "web" -> AI.Tools.with_web_tools(toolbox)
+      "rw" -> AI.Tools.with_rw_tools(toolbox)
+      "skills" -> AI.Tools.with_skills(toolbox)
+      _ -> raise "Unknown tool tag reached apply_tool_tag unexpectedly: #{tag}"
+    end
+  end
+
+  @doc """
+  Validate a response_format value from a skill.
+
+  `nil` is allowed and means default text responses.
+
+  When present, the response format must be a map and should include a `type`
+  key.
+  """
+  @spec validate_response_format(nil | map()) ::
+          {:ok, nil | map()} | {:error, response_format_error}
+  def validate_response_format(nil), do: {:ok, nil}
+
+  def validate_response_format(%{} = map) do
+    case Map.get(map, "type") || Map.get(map, :type) do
+      nil -> {:error, {:missing_response_format_type, map}}
+      type when is_binary(type) and byte_size(type) > 0 -> {:ok, map}
+      other -> {:error, {:invalid_response_format, other}}
+    end
+  end
+
+  def validate_response_format(other), do: {:error, {:invalid_response_format, other}}
+
+  # ---------------------------------------------------------------------------
+  # Reasoning preamble
+  #
+  # Injected before every skill's system_prompt to establish baseline reasoning
+  # discipline. This is a distilled version of the coordinator's reasoning and
+  # evidence-hygiene guidelines, adapted for autonomous skill agents that don't
+  # have interactive back-and-forth with the user.
+  # ---------------------------------------------------------------------------
+
+  @reasoning_preamble """
+  ## Reasoning discipline
+
+  Think step-by-step. Establish facts, then relationships, then conclusions.
+
+  Evidence hygiene:
+  - Cite only observable artifacts (file paths, line numbers, function names, log output).
+  - Connect facts explicitly: "X because Y" - not "X might be related to Y."
+  - Prefer the minimal sufficient chain of evidence. Short, correct, and traceable
+    beats long and speculative.
+
+  Validation and uncertainty:
+  - Identify assumptions and validate them against the source before relying on them.
+  - If uncertainty remains after investigation, state it plainly and explain what
+    would resolve it. Do not speculate past what the evidence supports.
+  - Tag unknowns explicitly (e.g., "Uncertain: X - could not confirm because Y").
+
+  Critical stance:
+  - Challenge weak premises and missing data early.
+  - Do not guess when the risk of being wrong is high. Say what you don't know.
+  """
+
+  @doc """
+  Returns the reasoning preamble that is prepended to every skill's system prompt.
+
+  This establishes baseline reasoning discipline for all skill agents.
+  """
+  @spec reasoning_preamble() :: String.t()
+  def reasoning_preamble, do: @reasoning_preamble
+
+  @doc """
+  Return the list of allowed toolboxes.
+
+  Toolboxes are the skill's tool tags; they select tool groups.
+  """
+  @spec allowed_toolboxes() :: [tool_tag]
+  def allowed_toolboxes(), do: @allowed_tags
+
+  @doc """
+  Return the list of allowed model presets.
+
+  This list is intended for interactive selection.
+  """
+  @spec allowed_model_presets() :: [String.t()]
+  def allowed_model_presets() do
+    [
+      "smart",
+      "balanced",
+      "fast",
+      "web",
+      "large_context",
+      "large_context:smart",
+      "large_context:balanced",
+      "large_context:fast"
+    ]
+  end
+end

@@ -145,6 +145,7 @@ defmodule AI.Agent.Coordinator do
   defp consider(state) do
     AI.Agent.Coordinator.Frippery.log_available_frobs()
     AI.Agent.Coordinator.Frippery.log_available_mcp_tools()
+    AI.Agent.Coordinator.Frippery.log_available_skills()
 
     if AI.Agent.Coordinator.Test.is_testing?(state) do
       state
@@ -393,6 +394,9 @@ defmodule AI.Agent.Coordinator do
   - Lean brief for straightforward tasks
   - Escalate to deeper reasoning for multi-step deduction or troubleshooting
 
+  Reviewing code changes:
+  - **IMPORTANT**: ALWAYS delegate review of code changes to the reviewer_tool (for unstaged diffs, commits, branches, PRs, etc.)
+
   Debugging and troubleshooting:
   - Form hypotheses based on evidence from the code base
   - Confirm or refute hypotheses through targeted investigation:
@@ -400,6 +404,10 @@ defmodule AI.Agent.Coordinator do
     - running or writing tests
     - printf debugging
     - writing a temporary script in the project root to explore behavior in isolation
+      - ALWAYS use either the current shell language or elixir for these scripts
+      - Those are the only languages you *know* are available, since your tui wrapper is written in elixir and is running in the user's shell
+      - If you need additional functionality, you can use Mix.install in elixir escripts to install dependencies on the fly!
+  - After testing hypotheses, use the notify_tool to inform the user of the findings and how it affects your understanding of the problem
 
   Reachability and Preconditions:
   - Before flagging an issue, confirm it is reachable in current control flow
@@ -447,6 +455,9 @@ defmodule AI.Agent.Coordinator do
   **Tool orchestration:**
   - Parallelize research; serialize only when outputs feed inputs.
   - Prefer agentic tools to preserve context window (eg file_info_tool over file_contents_tool)
+  - When a `run_skill` tool is available and a skill matches the task at hand, prefer
+    delegating to it. Skills are purpose-built agents with specialized prompts; they
+    produce better results than ad-hoc research and protect your context window.
 
   **DO NOT FINALIZE YOUR RESPONSE UNTIL INSTRUCTED.**
   """

@@ -181,7 +181,7 @@ defmodule AI.Tools do
     "notify_tool" => AI.Tools.Notify,
     "prior_research" => AI.Tools.Notes,
     "research_tool" => AI.Tools.Research,
-    "cmd_tool" => AI.Tools.Shell,
+    "cmd_tool" => AI.Tools.Cmd,
     "conversation_tool" => AI.Tools.Conversation,
     "memory_tool" => AI.Tools.Memory,
     "fnord_help_cli_tool" => AI.Tools.SelfHelp.Cli
@@ -192,7 +192,7 @@ defmodule AI.Tools do
     "file_contents_tool" => AI.Tools.File.Contents,
     "file_edit_tool" => AI.Tools.File.Edit,
     "notify_tool" => AI.Tools.Notify,
-    "cmd_tool" => AI.Tools.Shell
+    "cmd_tool" => AI.Tools.Cmd
   }
 
   @web_tools %{
@@ -203,6 +203,10 @@ defmodule AI.Tools do
     "coder_tool" => AI.Tools.Coder
   }
 
+  @review_tools %{
+    "reviewer_tool" => AI.Tools.Reviewer
+  }
+
   @task_tools %{
     "tasks_create_list" => AI.Tools.Tasks.CreateList,
     "tasks_add_task" => AI.Tools.Tasks.AddTask,
@@ -211,26 +215,58 @@ defmodule AI.Tools do
     "tasks_show_list" => AI.Tools.Tasks.ShowList
   }
 
+  @skills_tools %{
+    "run_skill" => AI.Tools.RunSkill,
+    "save_skill" => AI.Tools.SaveSkill
+  }
+
   # ----------------------------------------------------------------------------
   # API Functions
   # ----------------------------------------------------------------------------
   def tools, do: @tools
 
   @doc """
+  Returns a `toolbox` that includes all tools (basic, read/write, coding, task,
+  and web tools).
+
+  WARNING: `all_tools/0` includes mutational tools (file edits, shell commands,
+  coding tools). For normal runs, prefer `basic_tools/0` with selective
+  `with_*` merges. Reserve `all_tools/0` for cases requiring full lookup
+  fidelity (e.g., replay, diagnostics).
+  """
+  @spec all_tools() :: toolbox
+  def all_tools() do
+    basic_tools()
+    |> with_mcps()
+    |> with_frobs()
+    |> with_rw_tools()
+    |> with_coding_tools()
+    |> with_review_tools()
+    |> with_task_tools()
+    |> with_web_tools()
+  end
+
+  @doc """
   Returns a `toolbox` that includes all generally available tools and frobs.
   """
   @spec basic_tools() :: toolbox
   def basic_tools() do
-    # Only start the MCP service for agents that actually use tools. By placing
-    # the invocation here, we ensure that we only load it when there is an
-    # explicit need for it. A pid guard prevents it from being started multiple
-    # times if multiple agents are running concurrently.
-    Services.MCP.start()
-
     @tools
-    |> Map.merge(MCP.Tools.module_map())
     |> Enum.filter(fn {_name, mod} -> mod.is_available?() end)
     |> Map.new()
+  end
+
+  @doc """
+  Adds MCP (Model Context Protocol) tools to the toolbox. MCP tools are
+  externally hosted tool servers enabled at the project or global level.
+  Starts the MCP service lazily on first call.
+  """
+  @spec with_mcps(toolbox) :: toolbox
+  def with_mcps(toolbox \\ %{}) do
+    Services.MCP.start()
+
+    toolbox
+    |> Map.merge(MCP.Tools.module_map())
   end
 
   @doc """
@@ -246,20 +282,15 @@ defmodule AI.Tools do
   end
 
   @doc """
-  Returns a `toolbox` that includes all tools (basic, read/write, coding, task, and web tools).
-
-  WARNING: `all_tools/0` includes mutational tools (file edits, shell commands, coding tools).
-  For normal runs, prefer `basic_tools/0` with selective `with_*` merges. Reserve `all_tools/0` for cases requiring full lookup fidelity
-  (e.g., replay, diagnostics).
+  Adds the skills tools to the toolbox. Skills are specialized tools that
+  should only be included when explicitly requested.
   """
-  @spec all_tools() :: toolbox
-  def all_tools() do
-    basic_tools()
-    |> with_frobs()
-    |> with_rw_tools()
-    |> with_coding_tools()
-    |> with_task_tools()
-    |> with_web_tools()
+  @spec with_skills(toolbox :: toolbox) :: toolbox
+  def with_skills(toolbox \\ %{}) do
+    toolbox
+    |> Map.merge(@skills_tools)
+    |> Enum.filter(fn {_name, mod} -> mod.is_available?() end)
+    |> Map.new()
   end
 
   @doc """
@@ -304,6 +335,16 @@ defmodule AI.Tools do
   end
 
   @doc """
+  Adds the review tools to the toolbox. Review tools are read-only agents that
+  perform multi-specialist code review.
+  """
+  @spec with_review_tools(toolbox :: toolbox) :: toolbox
+  def with_review_tools(toolbox \\ %{}) do
+    toolbox
+    |> Map.merge(@review_tools)
+  end
+
+  @doc """
   Generate a list of tool specs from a toolbox map.
   """
   @spec toolbox_to_specs(toolbox) :: [tool_spec]
@@ -315,7 +356,7 @@ defmodule AI.Tools do
   def tool_module(tool_name, tools \\ nil) do
     tools =
       if is_nil(tools) do
-        basic_tools()
+        basic_tools() |> with_mcps()
       else
         tools
       end
@@ -640,15 +681,36 @@ defmodule AI.Tools do
 
   @spec get_file_contents(binary) :: {:ok, binary} | something_not_found
   def get_file_contents(file) do
-    with {:ok, project} <- get_project(),
-         {:ok, path} <- Util.find_file_within_root(file, project.source_root),
-         {:ok, contents} <- Services.FileCache.get_or_fetch(path, fn -> File.read(path) end) do
-      {:ok, contents}
+    if temp_file?(file) do
+      # Tool output offloaded to a temp file (via maybe_offload_tool_output or
+      # spill_tool_output_if_needed). These live outside the project root but
+      # are our own files, so we read them directly without the root check.
+      File.read(file)
+      |> case do
+        {:ok, _} = ok -> ok
+        {:error, _} -> {:error, :enoent}
+      end
     else
-      {:error, :enoent} -> {:error, :enoent}
-      {:error, :project_not_found} = err -> err
-      {:error, :project_not_set} = err -> err
-      _ -> {:error, :enoent}
+      with {:ok, project} <- get_project(),
+           {:ok, path} <- Util.find_file_within_root(file, project.source_root),
+           {:ok, contents} <- Services.FileCache.get_or_fetch(path, fn -> File.read(path) end) do
+        {:ok, contents}
+      else
+        {:error, :enoent} -> {:error, :enoent}
+        {:error, :project_not_found} = err -> err
+        {:error, :project_not_set} = err -> err
+        _ -> {:error, :enoent}
+      end
+    end
+  end
+
+  # Returns true if the path is under the system temp directory. This allows
+  # file_contents_tool to read offloaded tool outputs that live outside the
+  # project root.
+  defp temp_file?(path) when is_binary(path) do
+    case System.tmp_dir() do
+      nil -> false
+      tmp_dir -> Util.path_within_root?(Path.expand(path), Path.expand(tmp_dir))
     end
   end
 

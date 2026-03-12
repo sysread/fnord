@@ -435,6 +435,16 @@ defmodule UI do
     end
   end
 
+  def choose_multi(label, options), do: choose_multi(label, options, [])
+
+  def choose_multi(label, options, owl_opts) do
+    if UI.is_tty?() && !UI.quiet?() do
+      output_module().choose_multi(label, options, owl_opts)
+    else
+      {:error, :no_tty}
+    end
+  end
+
   def prompt(prompt, owl_opts \\ []) do
     if UI.is_tty?() && !UI.quiet?() do
       owl_opts = Keyword.put(owl_opts, :label, prompt)
@@ -467,6 +477,55 @@ defmodule UI do
   end
 
   # ----------------------------------------------------------------------------
+  # Editor
+  # ----------------------------------------------------------------------------
+
+  @doc """
+  Open `content` in the user's editor and return the edited text.
+
+  Respects `ELIXIR_EDITOR`, then `EDITOR`, falling back to `vi`.
+
+  Uses a Port with `:nouse_stdio` so the editor inherits the real terminal
+  file descriptors - this avoids the hang that `System.shell` causes with
+  TUI editors like vim/nvim (whose stdin would otherwise be BEAM's pipe).
+  """
+  @spec open_in_editor(String.t(), keyword()) :: String.t()
+  def open_in_editor(content, opts \\ []) do
+    editor =
+      Util.Env.get_env("ELIXIR_EDITOR") ||
+        Util.Env.get_env("EDITOR") ||
+        "vi"
+
+    extension = Keyword.get(opts, :extension, ".txt")
+    tmpfile = Path.join(System.tmp_dir!(), "fnord-#{:rand.uniform(1_000_000)}#{extension}")
+
+    try do
+      File.write!(tmpfile, content)
+
+      # Split the editor string to handle multi-word values like "code --wait".
+      # Spawn the executable directly with the temp file as an argument rather
+      # than interpolating into a shell command, avoiding breakage on paths
+      # with spaces and shell injection concerns.
+      [editor_cmd | editor_args] = String.split(editor)
+
+      port =
+        Port.open(
+          {:spawn_executable, System.find_executable(editor_cmd) || editor_cmd},
+          [:nouse_stdio, :exit_status, args: editor_args ++ [tmpfile]]
+        )
+
+      receive do
+        {^port, {:exit_status, 0}} -> :ok
+        {^port, {:exit_status, n}} -> raise "Editor exited with status #{n}"
+      end
+
+      File.read!(tmpfile)
+    after
+      File.rm(tmpfile)
+    end
+  end
+
+  # ----------------------------------------------------------------------------
   # Helper functions
   # ----------------------------------------------------------------------------
   def flush, do: output_module().flush()
@@ -476,7 +535,7 @@ defmodule UI do
   end
 
   def quiet?() do
-    Services.Globals.get_env(:fnord, :quiet)
+    Services.Globals.get_env(:fnord, :quiet) == true
   end
 
   def is_tty? do

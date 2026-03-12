@@ -58,6 +58,18 @@ defmodule AI.Agent.Coordinator.Frippery do
     end
   end
 
+  def log_available_skills do
+    case Skills.list_enabled() do
+      {:ok, skills} when skills != [] ->
+        skills
+        |> Enum.map_join(" | ", & &1.name)
+        |> then(&UI.info("Skills", &1))
+
+      _ ->
+        UI.info("Skills", "none")
+    end
+  end
+
   def log_available_mcp_tools do
     Services.MCP.ensure_started_and_discovered()
 

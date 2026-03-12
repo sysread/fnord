@@ -52,23 +52,13 @@ defmodule AI.Agent.Coordinator.Coding do
     - Confirm whether there unit tests to update
 
   ## POST-CODING CHECKLIST:
-  1. Syntax, formatting, spacing, style
-  2. Tests and docs updated
-  3. Changes visually inspected
-  4. Correctness manually verified
-    - Requested changes all present
-    - NO unintended or unrelated changes/artifacts
-    - NO existing functionality is broken
-    - Diff minimizes surface area for bugs/conflicts/review
-  5. Code changes are appropriately commented - comments should:
-    - Walk the user through the behavior of the code (if the code was hidden, do the comments form a clear narrative outline?)
-    - Explain how the changes fit into the larger feature or component behavior (eg, new functions, modules, components)
-    - **Important:** AI slop comments have been removed (describing the change being made, noting specific user instructions, breaking the fourth wall)
+  1. Manually inspect that the changes were actually applied to the files
+  2. Use the reviewer_tool to review the changes made
+  3. Address all legitimate issues identified by the reviewer_tool, either by making the (small) changes yourself or delegating (complex) fixes to the coder_tool
+  4. Run all tests, linters, and formatters available to you and address any issues identified by them
 
-  ## DEBUGGING/TROUBLESHOOTING
-  Use your coding tools and cmd_tool to debug.
-  Propose a theory and test it with a unit test or tmp script.
-  Rinse and repeat to winnow down to the root cause.
+  If at any time a bug indicates a deep-rooted problem in the overall design or an inconsistency with the user's intentions with the feature as you understand them, respond to the user immediately with a clear explanation of the blocker.
+  Include any detail necessary for the user to grasp the significance of the issue; they will be unfamiliar with the changes you have just made (since you made them, not them) and may need some hand-holding to grok the problem.
 
   ## CODING ATTITUDE
   Make the changes the user requested

@@ -121,6 +121,60 @@ defmodule SafeJson do
     end
   end
 
+  # ---------------------------------------------------------------------------
+  # Lenient decode
+  #
+  # LLM responses nominally constrained by response_format can still arrive
+  # wrapped in markdown code fences or prefixed with prose. These helpers strip
+  # that noise before decoding, making structured-output parsing more robust.
+  # ---------------------------------------------------------------------------
+
+  @doc """
+  Like `decode/1`, but strips markdown code fences and leading prose before
+  decoding. Use when parsing LLM responses that should be JSON but may be
+  wrapped in fences or prefixed with text.
+  """
+  @spec decode_lenient(binary | nil) :: {:ok, term} | {:error, decode_error}
+  def decode_lenient(nil), do: {:error, {:invalid_json, "nil input"}}
+
+  def decode_lenient(input) when is_binary(input) do
+    input
+    |> strip_code_fences()
+    |> extract_json_object()
+    |> decode()
+  end
+
+  @doc """
+  Like `decode/2`, but strips markdown code fences and leading prose before
+  decoding.
+  """
+  @spec decode_lenient(binary | nil, keyword) :: {:ok, term} | {:error, decode_error}
+  def decode_lenient(nil, _opts), do: {:error, {:invalid_json, "nil input"}}
+
+  def decode_lenient(input, opts) when is_binary(input) do
+    input
+    |> strip_code_fences()
+    |> extract_json_object()
+    |> decode(opts)
+  end
+
+  # Remove wrapping ```json ... ``` or ``` ... ``` fences.
+  defp strip_code_fences(text) do
+    text
+    |> String.trim()
+    |> String.replace(~r/^```json\s*/i, "")
+    |> String.replace(~r/^```\s*/, "")
+    |> String.replace(~r/\s*```$/, "")
+  end
+
+  # Drop any prefix before the first '{' so prose preamble doesn't break parsing.
+  defp extract_json_object(text) do
+    case String.split(text, "{", parts: 2) do
+      [_, rest] -> "{" <> rest
+      _ -> text
+    end
+  end
+
   defp error_message(reason) do
     try do
       Exception.message(reason)

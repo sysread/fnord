@@ -85,7 +85,7 @@ defmodule AI.Agent.FileInfo do
       tools =
         if GitCli.is_git_repo?() do
           [
-            AI.Tools.Shell
+            AI.Tools.Cmd
           ]
         else
           []

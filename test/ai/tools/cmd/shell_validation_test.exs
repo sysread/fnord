@@ -1,4 +1,4 @@
-defmodule AI.Tools.Shell.ValidationTest do
+defmodule AI.Tools.Cmd.ValidationTest do
   use Fnord.TestCase, async: false
 
   describe "read_args/1 validation" do
@@ -12,7 +12,7 @@ defmodule AI.Tools.Shell.ValidationTest do
         "description" => "List files and grep"
       }
 
-      assert {:ok, ^valid_args} = AI.Tools.Shell.read_args(valid_args)
+      assert {:ok, ^valid_args} = AI.Tools.Cmd.read_args(valid_args)
     end
 
     test "accepts valid command structure without args" do
@@ -25,7 +25,7 @@ defmodule AI.Tools.Shell.ValidationTest do
         "description" => "Simple commands"
       }
 
-      assert {:ok, ^valid_args} = AI.Tools.Shell.read_args(valid_args)
+      assert {:ok, ^valid_args} = AI.Tools.Cmd.read_args(valid_args)
     end
 
     test "rejects command with args as map instead of list" do
@@ -45,7 +45,7 @@ defmodule AI.Tools.Shell.ValidationTest do
         "description" => "Apply patch"
       }
 
-      assert {:error, :invalid_argument, error_msg} = AI.Tools.Shell.read_args(invalid_args)
+      assert {:error, :invalid_argument, error_msg} = AI.Tools.Cmd.read_args(invalid_args)
       assert error_msg =~ "command[0].args must be a list of strings"
     end
 
@@ -58,7 +58,7 @@ defmodule AI.Tools.Shell.ValidationTest do
         "description" => "Mixed arg types"
       }
 
-      assert {:error, :invalid_argument, error_msg} = AI.Tools.Shell.read_args(invalid_args)
+      assert {:error, :invalid_argument, error_msg} = AI.Tools.Cmd.read_args(invalid_args)
       assert error_msg =~ "command[0].args must be a list of strings"
     end
 
@@ -69,7 +69,7 @@ defmodule AI.Tools.Shell.ValidationTest do
         "description" => "Commands as map"
       }
 
-      assert {:error, :invalid_argument, error_msg} = AI.Tools.Shell.read_args(invalid_args)
+      assert {:error, :invalid_argument, error_msg} = AI.Tools.Cmd.read_args(invalid_args)
       assert error_msg =~ "commands must be a list"
     end
 
@@ -79,7 +79,7 @@ defmodule AI.Tools.Shell.ValidationTest do
         "description" => "No commands field"
       }
 
-      assert {:error, :invalid_argument, error_msg} = AI.Tools.Shell.read_args(invalid_args)
+      assert {:error, :invalid_argument, error_msg} = AI.Tools.Cmd.read_args(invalid_args)
       assert error_msg =~ "missing required field 'commands'"
     end
 
@@ -92,7 +92,7 @@ defmodule AI.Tools.Shell.ValidationTest do
         "description" => "Non-string command"
       }
 
-      assert {:error, :invalid_argument, error_msg} = AI.Tools.Shell.read_args(invalid_args)
+      assert {:error, :invalid_argument, error_msg} = AI.Tools.Cmd.read_args(invalid_args)
       assert error_msg =~ "command[0] invalid format: expected {command: string, args: [strings]}"
     end
 
@@ -105,7 +105,7 @@ defmodule AI.Tools.Shell.ValidationTest do
         "description" => "Missing command field"
       }
 
-      assert {:error, :invalid_argument, error_msg} = AI.Tools.Shell.read_args(invalid_args)
+      assert {:error, :invalid_argument, error_msg} = AI.Tools.Cmd.read_args(invalid_args)
       assert error_msg =~ "command[0] invalid format: expected {command: string, args: [strings]}"
     end
 
@@ -123,7 +123,7 @@ defmodule AI.Tools.Shell.ValidationTest do
         "description" => "Mixed valid and invalid"
       }
 
-      assert {:error, :invalid_argument, error_msg} = AI.Tools.Shell.read_args(invalid_args)
+      assert {:error, :invalid_argument, error_msg} = AI.Tools.Cmd.read_args(invalid_args)
       assert error_msg =~ "command[1].args must be a list of strings"
     end
   end

@@ -1,4 +1,4 @@
-defmodule AI.Tools.Shell.LocalPathsTest do
+defmodule AI.Tools.Cmd.LocalPathsTest do
   use Fnord.TestCase, async: false
 
   test "./ script inside project executes (positive path)" do
@@ -20,7 +20,7 @@ defmodule AI.Tools.Shell.LocalPathsTest do
       "commands" => [%{"command" => "./#{script_rel}", "args" => []}]
     }
 
-    assert {:ok, out} = AI.Tools.Shell.call(args)
+    assert {:ok, out} = AI.Tools.Cmd.call(args)
     assert String.contains?(out, "local-hit")
   end
 
@@ -33,7 +33,7 @@ defmodule AI.Tools.Shell.LocalPathsTest do
       "commands" => [%{"command" => "scripts/foo", "args" => []}]
     }
 
-    assert {:error, msg} = AI.Tools.Shell.call(args)
+    assert {:error, msg} = AI.Tools.Cmd.call(args)
     assert msg =~ "Command not found"
   end
 
@@ -57,7 +57,7 @@ defmodule AI.Tools.Shell.LocalPathsTest do
       "commands" => [%{"command" => "./#{link_rel}", "args" => []}]
     }
 
-    assert {:error, msg} = AI.Tools.Shell.call(args)
+    assert {:error, msg} = AI.Tools.Cmd.call(args)
     assert msg =~ "Command not found"
   end
 end

@@ -19,9 +19,9 @@ This project follows Perl-style test organization that mirrors the `lib/` struct
 
 When a module has multiple distinct aspects to test, create a subdirectory:
 
-- `AI.Tools.Shell` tests:
-  - `test/ai/tools/shell_test.exs` (module: `AI.Tools.ShellTest`)
-  - `test/ai/tools/shell/validation_test.exs` (module: `AI.Tools.Shell.ValidationTest`)
+- `AI.Tools.Cmd` tests:
+  - `test/ai/tools/cmd/basics_test.exs` (module: `AI.Tools.Cmd.BasicsTest`)
+  - `test/ai/tools/cmd/shell_validation_test.exs` (module: `AI.Tools.Cmd.ValidationTest`)
 
 - `Services.Approvals.Shell` tests:
   - `test/services/approvals/shell_test.exs` (module: `Services.Approvals.ShellTest`)

@@ -86,6 +86,7 @@ defmodule Fnord do
       Cmd.Memory,
       Cmd.Replay,
       Cmd.Search,
+      Cmd.Skills,
       Cmd.Summary,
       Cmd.Torch,
       Cmd.Upgrade
@@ -99,12 +100,32 @@ defmodule Fnord do
     ]
   end
 
+  # Optimus only recognizes `--help` as the sole argument or `help <subcommand>`
+  # as a prefix. It does NOT handle `<subcommand> --help` or `<subcommand> -h`.
+  # We normalize argv so that any occurrence of --help/-h is pulled out and
+  # rewritten into the `help <rest>` form that Optimus expects.
+  defp normalize_help(args) do
+    if Enum.any?(args, &(&1 in ["--help", "-h"])) do
+      rest = Enum.reject(args, &(&1 in ["--help", "-h"]))
+
+      case rest do
+        [] -> ["--help"]
+        _ -> ["help" | rest]
+      end
+    else
+      case args do
+        ["help"] -> ["--help"]
+        _ -> args
+      end
+    end
+  end
+
   @spec parse_options([String.t()]) ::
           {:ok, [atom()], map(), [String.t()]} | {:error, :no_subcommand}
   defp parse_options(args) do
     spec()
     |> Optimus.new!()
-    |> Optimus.parse!(args)
+    |> Optimus.parse!(normalize_help(args))
     |> case do
       {subcommand, %Optimus.ParseResult{} = result} ->
         {:ok, subcommand, merge_options(result), result.unknown}

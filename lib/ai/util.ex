@@ -335,4 +335,36 @@ defmodule AI.Util do
   end
 
   defp validate_msg_length(msg), do: msg
+
+  # ---------------------------------------------------------------------------
+  # Project context - shared preamble for any agent that needs to know where
+  # files live. The coordinator gets this via $$PROJECT$$ and $$GIT_INFO$$
+  # substitution; sub-agents (review specialists, skill agents, etc.) should
+  # prepend this to their system or user prompts so the LLM knows the actual
+  # filesystem paths and doesn't guess /repo or a CI prefix.
+  # ---------------------------------------------------------------------------
+
+  @doc """
+  Returns a short context block describing the current project and git state.
+  Suitable for prepending to any agent's system prompt.
+  """
+  @spec project_context() :: binary
+  def project_context do
+    project_info =
+      case Store.get_project() do
+        {:ok, project} ->
+          """
+          You are working in the project "#{project.name}".
+          The project root is `#{project.source_root}`.
+          All file paths are relative to this root unless absolute.
+          """
+
+        _ ->
+          ""
+      end
+
+    git_info = GitCli.git_info()
+
+    String.trim("#{project_info}#{git_info}")
+  end
 end

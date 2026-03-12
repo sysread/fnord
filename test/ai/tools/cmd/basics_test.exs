@@ -1,4 +1,4 @@
-defmodule AI.Tools.Shell.BasicsTest do
+defmodule AI.Tools.Cmd.BasicsTest do
   use Fnord.TestCase, async: false
 
   test "preapproved pipeline: cat -> wc -l counts lines in files" do
@@ -16,7 +16,7 @@ defmodule AI.Tools.Shell.BasicsTest do
       ]
     }
 
-    assert {:ok, out} = AI.Tools.Shell.call(args)
+    assert {:ok, out} = AI.Tools.Cmd.call(args)
     # wc -l prefixes with whitespace and count
     assert out |> String.trim() |> String.split() |> hd() == "2"
   end
@@ -34,7 +34,7 @@ defmodule AI.Tools.Shell.BasicsTest do
       ]
     }
 
-    assert {:ok, out} = AI.Tools.Shell.call(args)
+    assert {:ok, out} = AI.Tools.Cmd.call(args)
     assert String.trim(out) == "ABC"
   end
 
@@ -53,7 +53,7 @@ defmodule AI.Tools.Shell.BasicsTest do
       ]
     }
 
-    assert {:ok, msg} = AI.Tools.Shell.call(args)
+    assert {:ok, msg} = AI.Tools.Cmd.call(args)
     assert msg =~ "Exit status: 1"
     assert msg =~ "grep -q pattern data.txt"
   end
@@ -71,7 +71,7 @@ defmodule AI.Tools.Shell.BasicsTest do
       ]
     }
 
-    assert {:ok, msg} = AI.Tools.Shell.call(args)
+    assert {:ok, msg} = AI.Tools.Cmd.call(args)
 
     # run_with_timeout returns {:error, :timeout}, formatted as Exit code: timeout
     assert msg =~ "Error: timed out after"
@@ -89,7 +89,7 @@ defmodule AI.Tools.Shell.BasicsTest do
       ]
     }
 
-    assert {:error, msg} = AI.Tools.Shell.call(args)
+    assert {:error, msg} = AI.Tools.Cmd.call(args)
     assert msg =~ "Command not found"
   end
 
@@ -104,7 +104,7 @@ defmodule AI.Tools.Shell.BasicsTest do
       ]
     }
 
-    assert {:ok, result} = AI.Tools.Shell.call(args)
+    assert {:ok, result} = AI.Tools.Cmd.call(args)
     out = if is_tuple(result), do: elem(result, 0), else: result
     assert String.trim(out) == "hi"
   end
@@ -120,7 +120,7 @@ defmodule AI.Tools.Shell.BasicsTest do
       ]
     }
 
-    assert {:denied, msg} = AI.Tools.Shell.call(args)
+    assert {:denied, msg} = AI.Tools.Cmd.call(args)
     assert msg =~ "rg must include an explicit path"
   end
 
@@ -135,7 +135,7 @@ defmodule AI.Tools.Shell.BasicsTest do
       ]
     }
 
-    assert {:denied, msg} = AI.Tools.Shell.call(args)
+    assert {:denied, msg} = AI.Tools.Cmd.call(args)
     assert msg =~ "rg must include an explicit path"
   end
 
@@ -151,7 +151,7 @@ defmodule AI.Tools.Shell.BasicsTest do
       ]
     }
 
-    assert {:ok, _} = AI.Tools.Shell.call(args)
+    assert {:ok, _} = AI.Tools.Cmd.call(args)
   end
 
   test "rg with alternation pattern but no path under '&&' is denied (and does not crash)" do
@@ -165,7 +165,7 @@ defmodule AI.Tools.Shell.BasicsTest do
       ]
     }
 
-    assert {:denied, msg} = AI.Tools.Shell.call(args)
+    assert {:denied, msg} = AI.Tools.Cmd.call(args)
     assert msg =~ "rg must include an explicit path"
   end
 
@@ -181,7 +181,7 @@ defmodule AI.Tools.Shell.BasicsTest do
       ]
     }
 
-    assert {:ok, out} = AI.Tools.Shell.call(args)
+    assert {:ok, out} = AI.Tools.Cmd.call(args)
     assert out =~ "lib/b.txt"
   end
 
@@ -197,7 +197,7 @@ defmodule AI.Tools.Shell.BasicsTest do
       ]
     }
 
-    assert {:ok, _out} = AI.Tools.Shell.call(args)
+    assert {:ok, _out} = AI.Tools.Cmd.call(args)
   end
 
   test "deny when wc -l appears under '&&' without files" do
@@ -211,7 +211,7 @@ defmodule AI.Tools.Shell.BasicsTest do
       ]
     }
 
-    assert {:denied, msg} = AI.Tools.Shell.call(args)
+    assert {:denied, msg} = AI.Tools.Cmd.call(args)
     assert msg =~ "One or more commands require an explicit input source under '&&'"
   end
 
@@ -226,7 +226,7 @@ defmodule AI.Tools.Shell.BasicsTest do
       ]
     }
 
-    assert {:denied, msg} = AI.Tools.Shell.call(args)
+    assert {:denied, msg} = AI.Tools.Cmd.call(args)
     assert msg =~ "First stage requires an explicit input source:"
   end
 
@@ -240,11 +240,11 @@ defmodule AI.Tools.Shell.BasicsTest do
       ]
     }
 
-    {req_title, req_desc} = AI.Tools.Shell.ui_note_on_request(args)
+    {req_title, req_desc} = AI.Tools.Cmd.ui_note_on_request(args)
     assert req_title =~ "cmd> "
     assert req_desc == "Describe"
 
-    {res_title, _res_detail} = AI.Tools.Shell.ui_note_on_result(args, "ok")
+    {res_title, _res_detail} = AI.Tools.Cmd.ui_note_on_result(args, "ok")
     assert res_title =~ "cmd> "
   end
 
@@ -257,10 +257,10 @@ defmodule AI.Tools.Shell.BasicsTest do
       ]
     }
 
-    {req_title, _req_desc} = AI.Tools.Shell.ui_note_on_request(args)
+    {req_title, _req_desc} = AI.Tools.Cmd.ui_note_on_request(args)
     assert req_title =~ "cmd> "
     assert req_title =~ " && "
-    {res_title, _res_detail} = AI.Tools.Shell.ui_note_on_result(args, "ok")
+    {res_title, _res_detail} = AI.Tools.Cmd.ui_note_on_result(args, "ok")
     assert res_title =~ "cmd> "
     assert res_title =~ " && "
   end
@@ -276,7 +276,7 @@ defmodule AI.Tools.Shell.BasicsTest do
       "commands" => [%{"command" => "echo", "args" => ["x"]}]
     }
 
-    assert {:ok, _} = AI.Tools.Shell.call(args1)
+    assert {:ok, _} = AI.Tools.Cmd.call(args1)
 
     # too large value clamps at max, still should execute fine
     args2 = %{
@@ -286,7 +286,7 @@ defmodule AI.Tools.Shell.BasicsTest do
       "commands" => [%{"command" => "echo", "args" => ["y"]}]
     }
 
-    assert {:ok, _} = AI.Tools.Shell.call(args2)
+    assert {:ok, _} = AI.Tools.Cmd.call(args2)
 
     # negative value -> default
     args3 = %{
@@ -296,6 +296,6 @@ defmodule AI.Tools.Shell.BasicsTest do
       "commands" => [%{"command" => "echo", "args" => ["z"]}]
     }
 
-    assert {:ok, _} = AI.Tools.Shell.call(args3)
+    assert {:ok, _} = AI.Tools.Cmd.call(args3)
   end
 end

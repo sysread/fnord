@@ -1,4 +1,4 @@
-defmodule AI.Tools.Shell.InvocationTest do
+defmodule AI.Tools.Cmd.InvocationTest do
   use Fnord.TestCase, async: false
 
   setup do
@@ -15,7 +15,7 @@ defmodule AI.Tools.Shell.InvocationTest do
       ]
     }
 
-    assert {:denied, reason} = AI.Tools.Shell.call(args)
+    assert {:denied, reason} = AI.Tools.Cmd.call(args)
     assert reason =~ "Execute commands directly; do not invoke through a shell"
   end
 
@@ -28,7 +28,7 @@ defmodule AI.Tools.Shell.InvocationTest do
       ]
     }
 
-    case AI.Tools.Shell.call(args) do
+    case AI.Tools.Cmd.call(args) do
       {:denied, reason} ->
         # If denied, ensure the denial is not from the shell-invocation shortcut
         refute reason =~ "Execute commands directly; do not invoke through a shell"

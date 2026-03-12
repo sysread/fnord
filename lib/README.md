@@ -12,7 +12,7 @@ This project follows Perl-style module organization where module names correspon
 
 - `UI` module is in `lib/ui.ex`
 - `UI.Queue` module is in `lib/ui/queue.ex`
-- `AI.Tools.Shell` module is in `lib/ai/tools/shell.ex`
+- `AI.Tools.Cmd` module is in `lib/ai/tools/cmd.ex`
 - `Services.Approvals.Shell` module is in `lib/services/approvals/shell.ex`
 
 This organization makes it easy to locate modules and understand the codebase hierarchy at a glance.

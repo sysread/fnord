@@ -10,6 +10,8 @@ defmodule UI.Output do
   @callback log(atom(), iodata()) :: :ok
   @callback interact((-> any())) :: any()
   @callback choose(String.t(), list()) :: any()
+  @callback choose_multi(String.t(), list()) :: any()
+  @callback choose_multi(String.t(), list(), keyword()) :: any()
   @callback choose(String.t(), list(), non_neg_integer(), any()) :: any()
   @callback prompt(String.t()) :: String.t() | {:error, atom()}
   @callback prompt(String.t(), keyword()) :: String.t() | {:error, atom()}

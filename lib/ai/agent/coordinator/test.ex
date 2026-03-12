@@ -56,9 +56,12 @@ defmodule AI.Agent.Coordinator.Test do
     # Enable all tools for testing
     tools =
       AI.Tools.basic_tools()
+      |> AI.Tools.with_mcps()
       |> AI.Tools.with_frobs()
       |> AI.Tools.with_task_tools()
+      |> AI.Tools.with_skills()
       |> AI.Tools.with_coding_tools()
+      |> AI.Tools.with_review_tools()
       |> AI.Tools.with_rw_tools()
       |> AI.Tools.with_web_tools()
 

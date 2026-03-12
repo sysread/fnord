@@ -595,7 +595,8 @@ defmodule AI.Completion do
 
         File.write!(tmp, content)
 
-        "[Large tool output (#{byte_size(content)} bytes) written to #{tmp}. Preview:\n" <>
+        "[Large tool output (#{byte_size(content)} bytes) written to #{tmp}. " <>
+          "Use file_contents_tool to read the full output.\nPreview:\n" <>
           preview <> "]"
       rescue
         _ ->

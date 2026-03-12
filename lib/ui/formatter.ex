@@ -70,7 +70,9 @@ defmodule UI.Formatter do
         end
       end
     rescue
-      _ -> input
+      e ->
+        Logger.warning("format_output rescue: #{Exception.message(e)}")
+        input
     end
   end
 end

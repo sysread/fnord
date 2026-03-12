@@ -229,32 +229,8 @@ defmodule AI.Agent.Nomenclater do
     end
   end
 
-  # ----------------------------------------------------------------------------
-  # JSON parsing helpers
-  # ----------------------------------------------------------------------------
-
   # Returns {:ok, map} or {:error, reason}
   defp parse_json(response) do
-    response
-    |> String.trim()
-    |> strip_code_fences()
-    |> extract_json_object()
-    |> SafeJson.decode()
-  end
-
-  # Remove wrapping ``` or ```json fences
-  defp strip_code_fences(text) do
-    text
-    |> String.replace(~r/^```json\s*/i, "")
-    |> String.replace(~r/^```\s*/, "")
-    |> String.replace(~r/\s*```$/, "")
-  end
-
-  # Drop any prefix up to the first '{'
-  defp extract_json_object(text) do
-    case String.split(text, "{", parts: 2) do
-      [_, rest] -> "{" <> rest
-      _ -> text
-    end
+    SafeJson.decode_lenient(response)
   end
 end

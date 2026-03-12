@@ -112,6 +112,7 @@ defmodule AI.Agent.Code.RePatcher do
         "file_edit_tool" => AI.Tools.File.Edit
       },
       messages: [
+        AI.Util.system_msg(AI.Util.project_context()),
         AI.Util.system_msg(@prompt),
         AI.Util.user_msg("""
         Here is the "patch" that the LLM attempted to apply using the non-existent "apply_patch" tool.

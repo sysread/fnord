@@ -82,7 +82,7 @@ defmodule AI.Agent.Code.PatcherTest do
         else
           # Second attempt: verify error feedback is in messages, then succeed
           messages = Keyword.get(opts, :messages, [])
-          assert length(messages) == 4
+          assert length(messages) == 5
 
           assistant_msgs = assistant_messages(opts)
           assert length(assistant_msgs) == 1
@@ -133,7 +133,7 @@ defmodule AI.Agent.Code.PatcherTest do
 
       :meck.expect(AI.Completion, :get, fn opts ->
         messages = Keyword.get(opts, :messages, [])
-        assert length(messages) == 2
+        assert length(messages) == 3
 
         h1 = "1:" <> Util.line_hash("hello world")
 

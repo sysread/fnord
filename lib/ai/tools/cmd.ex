@@ -1,4 +1,4 @@
-defmodule AI.Tools.Shell do
+defmodule AI.Tools.Cmd do
   @default_timeout_ms 30_000
   @max_timeout_ms 300_000
 
@@ -25,14 +25,9 @@ defmodule AI.Tools.Shell do
     case validate_commands(args) do
       :ok ->
         case Map.get(args, "operator") do
-          nil ->
-            {:ok, args}
-
-          op when op in ["|", "&&"] ->
-            {:ok, args}
-
-          _ ->
-            {:error, :invalid_argument, "operator must be '|' or '&&'"}
+          nil -> {:ok, args}
+          op when op in ["|", "&&"] -> {:ok, args}
+          _ -> {:error, :invalid_argument, "operator must be '|' or '&&'"}
         end
 
       {:error, reason} ->
@@ -122,7 +117,7 @@ defmodule AI.Tools.Shell do
 
         Command-specific notes:
         - rg: must include an explicit path arg when under '&&' or as first pipeline stage
-        - wc: must have file args or receive pipeline input; '-' (stdin) is disallowed
+        - wc: must have file args or receive pipeline input; reading from stdin is not supported
 
         For commands that vary by OS (grep/sed), the current OS is: #{os_name} (#{os_family}).
 
@@ -352,27 +347,43 @@ defmodule AI.Tools.Shell do
 
   defp find_executable(%{"command" => command, "args" => args} = cmd, root)
        when is_list(args) do
-    if String.contains?(command, " ") do
-      command
-      |> find_executable(root)
-      |> case do
-        {:ok, resolved} ->
-          {:ok, %{"command" => resolved, "args" => args}}
+    result =
+      if String.contains?(command, " ") do
+        command
+        |> find_executable(root)
+        |> case do
+          {:ok, resolved} ->
+            {:ok, %{"command" => resolved, "args" => args}}
 
-        # Try splitting on spaces and see if the first part is executable
-        {:error, :not_found} ->
-          [base | extra_args] = String.split(command, " ")
+          # Try splitting on spaces and see if the first part is executable
+          {:error, :not_found} ->
+            [base | extra_args] = String.split(command, " ")
 
-          case find_executable(base, root) do
-            {:ok, resolved} -> {:ok, %{"command" => resolved, "args" => extra_args ++ args}}
-            {:error, :not_found} -> {:error, "Command not found: #{format_command(cmd)}"}
-          end
+            case find_executable(base, root) do
+              {:ok, resolved} -> {:ok, %{"command" => resolved, "args" => extra_args ++ args}}
+              {:error, :not_found} -> {:error, "Command not found: #{format_command(cmd)}"}
+            end
+        end
+      else
+        case find_executable(command, root) do
+          {:ok, resolved} -> {:ok, %{"command" => resolved, "args" => args}}
+          {:error, :not_found} -> {:error, "Command not found: #{format_command(cmd)}"}
+        end
       end
-    else
-      case find_executable(command, root) do
-        {:ok, resolved} -> {:ok, %{"command" => resolved, "args" => args}}
-        {:error, :not_found} -> {:error, "Command not found: #{format_command(cmd)}"}
-      end
+
+    # LLMs frequently stutter the command name into the first arg, e.g.
+    # command: "git", args: ["git", "status", ...]. Deduplicate when the
+    # resolved executable's basename matches the first argument.
+    case result do
+      {:ok, %{"command" => resolved, "args" => [first | rest]} = resolved_cmd} ->
+        if Path.basename(resolved) == first do
+          {:ok, %{resolved_cmd | "args" => rest}}
+        else
+          {:ok, resolved_cmd}
+        end
+
+      other ->
+        other
     end
   end
 

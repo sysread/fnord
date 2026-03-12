@@ -1,4 +1,13 @@
 defmodule AI.Agent.Code.Common do
+  @moduledoc """
+  State management for code-oriented agents (planner, implementor, validator).
+  Provides multi-turn conversation primitives and task management helpers.
+
+  This module manages its own struct and completion loop independently of
+  `AI.Agent.Composite`. The code agents use this directly rather than
+  implementing the Composite behaviour.
+  """
+
   defstruct [
     :agent,
     :model,
@@ -13,11 +22,6 @@ defmodule AI.Agent.Code.Common do
   @type task :: Services.Task.task()
   @type new_task :: %{label: binary, detail: binary}
 
-  @typedoc """
-  Common state for AI agents that work with code. Includes an `internal` `map`
-  that can be used to store additional state that is specific to the
-  implementation.
-  """
   @type t :: %__MODULE__{
           agent: AI.Agent.t(),
           model: AI.Model.t(),
@@ -29,17 +33,15 @@ defmodule AI.Agent.Code.Common do
           internal: map
         }
 
+  # ---------------------------------------------------------------------------
+  # Initialization
+  # ---------------------------------------------------------------------------
+
   @doc """
-  Creates a new state for an AI agent that works with code. The initial message
-  list includes the system prompt and the user prompt, as provided.
+  Creates a new state for a code agent. The initial message list contains the
+  system prompt and the user prompt.
   """
-  @spec new(
-          agent :: AI.Agent.t(),
-          model :: AI.Model.t(),
-          toolbox :: AI.Tools.toolbox(),
-          system_prompt :: binary,
-          user_prompt :: binary
-        ) :: t
+  @spec new(AI.Agent.t(), AI.Model.t(), AI.Tools.toolbox(), binary, binary) :: t
   def new(agent, model, toolbox, system_prompt, user_prompt) do
     %__MODULE__{
       agent: agent,
@@ -50,34 +52,18 @@ defmodule AI.Agent.Code.Common do
       response: nil,
       error: nil,
       messages: [
+        AI.Util.system_msg(AI.Util.project_context()),
         AI.Util.system_msg(system_prompt),
         AI.Util.user_msg(user_prompt)
       ]
     }
   end
 
-  @doc """
-  Sets the `internal`, implementation-specific state for the AI agent. `key`
-  may be either a single atom or a list of atoms representing a path to a value
-  in the `internal` map (per `put_in/3` semantics).
+  # ---------------------------------------------------------------------------
+  # Internal state accessors
+  # ---------------------------------------------------------------------------
 
-  When passing a list of keys, all keys must exist within the nested structure.
-  An exception will be thrown (by `put_in/3`) if any key is missing.
-
-  Examples:
-  ```
-  # Set a single value
-  state = AI.Agent.Code.Common.put_state(state, :blarg, "how now brown beaurocrat")
-
-  # Set a nested value
-  state = AI.Agent.Code.Common.put_state(state, [:blarg, :foo], "bar")
-  ```
-  """
-  @spec put_state(
-          state :: t,
-          key :: atom | list,
-          value :: any
-        ) :: t
+  @spec put_state(t, atom | list, any) :: t
   def put_state(state, key, value) when is_atom(key) do
     %{state | internal: Map.put(state.internal, key, value)}
   end
@@ -86,56 +72,31 @@ defmodule AI.Agent.Code.Common do
     %{state | internal: put_in(state.internal, keys, value)}
   end
 
-  @doc """
-  Retrieves a value from the `internal` state of the AI agent. `key` may be
-  either a single atom or a list of atoms representing a path to a value in the
-  `internal` map (per `get_in/2` semantics).
-
-  When passing a list of keys, all keys must exist within the nested structure.
-  `{:error, :not_found}` will be returned if any key is missing.
-
-  Examples:
-  ```
-  # Get a single value
-  {:ok, value} = AI.Agent.Code.Common.get_state(state, :blarg)
-
-  # Get a nested value
-  {:ok, value} = AI.Agent.Code.Common.get_state(state, [:blarg, :foo])
-  ```
-  """
-  @spec get_state(
-          state :: t,
-          key :: atom | list
-        ) :: {:ok, any} | {:error, any}
+  @spec get_state(t, atom | list) :: {:ok, any} | {:error, :not_found}
   def get_state(state, key) when is_atom(key) do
-    with {:ok, value} <- Map.fetch(state.internal, key) do
-      {:ok, value}
-    else
+    case Map.fetch(state.internal, key) do
+      {:ok, value} -> {:ok, value}
       :error -> {:error, :not_found}
     end
   end
 
   def get_state(state, keys) when is_list(keys) do
-    get_in(state.internal, keys)
-    |> case do
+    case get_in(state.internal, keys) do
       nil -> {:error, :not_found}
       value -> {:ok, value}
     end
   end
 
+  # ---------------------------------------------------------------------------
+  # Completion
+  # ---------------------------------------------------------------------------
+
   @doc """
-  Executes a completion request using the AI model specified in the state. The
-  `prompt` is appended to the existing messages in the state as a system
-  message. Unless `keep_prompt?` is `true`, the system prompt will be removed
-  from the messages after the completion is received to keep the cascade of
-  instructions clean.
+  Executes a completion request. The `prompt` is appended as a system message,
+  then removed after the completion (unless `keep_prompt?` is true). The
+  assistant's response is always appended to the message history.
   """
-  @spec get_completion(
-          state :: t,
-          prompt :: binary,
-          response_format :: map | nil,
-          keep_prompt? :: boolean
-        ) :: t
+  @spec get_completion(t, binary, map | nil, boolean) :: t
   def get_completion(state, prompt, response_format \\ nil, keep_prompt? \\ false) do
     state.agent
     |> AI.Agent.get_completion(
@@ -147,14 +108,11 @@ defmodule AI.Agent.Code.Common do
     )
     |> case do
       {:ok, %{response: response, messages: messages}} ->
-        # If keep_prompt? is false, we remove the last system message,
-        # which is the prompt we added above.
         messages =
           if keep_prompt? do
             messages
           else
-            messages
-            |> Enum.reject(&(Map.get(&1, :content, "") == prompt))
+            Enum.reject(messages, &(Map.get(&1, :content, "") == prompt))
           end
           |> Enum.concat([AI.Util.assistant_msg(response)])
 
@@ -168,12 +126,10 @@ defmodule AI.Agent.Code.Common do
     end
   end
 
-  @doc """
-  Returns a string that describes the values and principles that guide the code
-  agent's design and implementation decisions. This is used to inform the AI
-  agent's behavior and responses, ensuring that it adheres to a consistent set
-  of coding standards and practices.
-  """
+  # ---------------------------------------------------------------------------
+  # Coder values prompt
+  # ---------------------------------------------------------------------------
+
   @spec coder_values_prompt() :: binary
   def coder_values_prompt do
     """
@@ -230,7 +186,10 @@ defmodule AI.Agent.Code.Common do
     """
   end
 
-  # ----------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
+  # Task management helpers
+  # ---------------------------------------------------------------------------
+
   @spec add_tasks(Services.Task.list_id(), list(new_task)) :: :ok
   def add_tasks(list_id, new_tasks) do
     Enum.each(new_tasks, &add_task(list_id, &1))
@@ -260,13 +219,7 @@ defmodule AI.Agent.Code.Common do
     end
   end
 
-  @spec report_task_outcome(
-          state :: t,
-          task :: task,
-          error :: binary,
-          outcome :: binary,
-          follow_up_tasks :: list(new_task)
-        ) :: :ok
+  @spec report_task_outcome(t, task, binary, binary, list(new_task)) :: :ok
   def report_task_outcome(state, task, "", outcome, follow_up_tasks) do
     UI.report_from(
       state.agent.name,

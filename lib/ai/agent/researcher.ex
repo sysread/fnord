@@ -54,6 +54,7 @@ defmodule AI.Agent.Researcher do
           AI.Tools.basic_tools()
           |> Map.drop(["research_tool"])
         end
+        |> AI.Tools.with_mcps()
         |> AI.Tools.with_frobs()
         |> AI.Tools.with_web_tools()
 
@@ -69,6 +70,7 @@ defmodule AI.Agent.Researcher do
           model: @model,
           toolbox: tools,
           messages: [
+            AI.Util.system_msg(AI.Util.project_context()),
             AI.Util.system_msg(system_prompt),
             AI.Util.user_msg(prompt)
           ]
@@ -85,31 +87,36 @@ defmodule AI.Agent.Researcher do
   end
 
   # ----------------------------------------------------------------------------
-  # Agent: controls recursion, where the researcher can call itself as a tool
-  # call to investigate multiple lines of inquiry.
+  # Depth tracking: controls recursion, where the researcher can call itself as
+  # a tool call to investigate multiple lines of inquiry. Scoped per process
+  # tree via Services.Globals so concurrent researchers don't interfere.
   # ----------------------------------------------------------------------------
   @max_researchers 10
+  @globals_key :researcher_depth
 
-  def start_link(), do: Agent.start_link(fn -> 0 end, name: __MODULE__)
-  def depth, do: Agent.get(__MODULE__, fn depth -> depth end)
+  def depth, do: Services.Globals.get_env(:fnord, @globals_key, 0)
 
   def inc_depth do
-    Agent.get_and_update(__MODULE__, fn
-      depth when depth >= @max_researchers ->
-        {{:error, :max_depth_reached}, depth}
+    current = depth()
 
-      depth ->
-        {{:ok, depth + 1}, depth + 1}
-    end)
+    if current >= @max_researchers do
+      {:error, :max_depth_reached}
+    else
+      new_depth = current + 1
+      Services.Globals.put_env(:fnord, @globals_key, new_depth)
+      {:ok, new_depth}
+    end
   end
 
   def dec_depth do
-    Agent.get_and_update(__MODULE__, fn
-      0 ->
-        {{:ok, 0}, 0}
+    current = depth()
 
-      depth ->
-        {{:ok, depth - 1}, depth - 1}
-    end)
+    if current == 0 do
+      {:ok, 0}
+    else
+      new_depth = current - 1
+      Services.Globals.put_env(:fnord, @globals_key, new_depth)
+      {:ok, new_depth}
+    end
   end
 end

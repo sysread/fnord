@@ -57,6 +57,7 @@ defmodule AI.Agent.Spelunker do
         AI.Tools.File.Notes
       ],
       messages: [
+        AI.Util.system_msg(AI.Util.project_context()),
         AI.Util.system_msg(@prompt),
         AI.Util.user_msg("""
         The Answers Agent has requested your assistance in tracing a path through the code base.
