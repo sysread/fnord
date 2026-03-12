@@ -42,21 +42,37 @@ defmodule Services.MCP do
   defp ensure_supervisor do
     case Process.whereis(MCPSup) do
       nil ->
-        Task.start(fn ->
-          case MCPSup.start_link([]) do
-            {:ok, _pid} ->
-              :ok
+        start_supervisor_unlinked()
 
-            {:error, reason} ->
-              UI.debug("Failed to start MCP supervisor: #{inspect(reason)}")
-          end
-        end)
-
-      _ ->
+      _pid ->
         :ok
     end
 
     :ok
+  end
+
+  defp start_supervisor_unlinked do
+    caller = self()
+    ref = make_ref()
+
+    _starter_pid =
+      spawn(fn ->
+        result = MCPSup.start_link([])
+        send(caller, {:mcp_supervisor_start_result, ref, result})
+      end)
+
+    receive do
+      {:mcp_supervisor_start_result, ^ref, {:ok, _pid}} ->
+        :ok
+
+      {:mcp_supervisor_start_result, ^ref, {:error, reason}} ->
+        UI.debug("Failed to start MCP supervisor: #{inspect(reason)}")
+        :ok
+    after
+      5_000 ->
+        UI.debug("Timed out while starting MCP supervisor")
+        :ok
+    end
   end
 
   defp discover_once(servers) when is_map(servers) do

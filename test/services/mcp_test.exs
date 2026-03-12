@@ -122,9 +122,6 @@ defmodule Services.MCPTest do
     # Wait for the process to go down
     assert_receive {:DOWN, ^ref, :process, ^pid, _reason}, 2000
 
-    # Allow time for the supervisor to start asynchronously
-    :timer.sleep(100)
-
     case Process.whereis(MCP.Supervisor) do
       pid when is_pid(pid) ->
         assert Process.alive?(pid)
