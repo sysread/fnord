@@ -2,6 +2,8 @@ defmodule AI.CompletionOutputReplayTest do
   use Fnord.TestCase
   @moduletag :capture_log
 
+  import ExUnit.CaptureIO
+
   test "replay uses all_tools to render tool call UI notes even if tool not in basic toolbox" do
     # Build a minimal completion state with a transcript that includes a tool call
     # to a task tool (e.g., tasks_show_list) which is NOT in basic_tools/0.
@@ -182,7 +184,12 @@ defmodule AI.CompletionOutputReplayTest do
       :ok
     end)
 
-    AI.Completion.Output.replay_conversation_as_output(state)
+    output =
+      capture_io(:stdio, fn ->
+        AI.Completion.Output.replay_conversation_as_output(state)
+      end)
+
+    assert output == "\nFinal assistant response\n"
 
     receive do
       {:ui_step_msg, "Dev Agent", _step, _msg} -> :ok
