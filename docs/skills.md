@@ -116,6 +116,7 @@ Skill tool tags map onto tool groups:
 - `task`
 - `coding`
 - `web`
+- `ui`
 - `rw`
 - `skills` (allows skill-to-skill calls)
 

@@ -20,6 +20,7 @@ defmodule AI.Agent.Coordinator.Glue do
     |> AI.Tools.with_coding_tools()
     |> AI.Tools.with_review_tools()
     |> AI.Tools.with_web_tools()
+    |> AI.Tools.maybe_with_ui()
   end
 
   def get_tools(_) do
@@ -30,6 +31,7 @@ defmodule AI.Agent.Coordinator.Glue do
     |> AI.Tools.with_skills()
     |> AI.Tools.with_review_tools()
     |> AI.Tools.with_web_tools()
+    |> AI.Tools.maybe_with_ui()
   end
 
   # ----------------------------------------------------------------------------

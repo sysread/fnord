@@ -64,6 +64,7 @@ defmodule AI.Agent.Coordinator.Test do
       |> AI.Tools.with_review_tools()
       |> AI.Tools.with_rw_tools()
       |> AI.Tools.with_web_tools()
+      |> AI.Tools.maybe_with_ui()
 
     test_prompt_msg =
       @prompt

@@ -199,6 +199,12 @@ defmodule AI.Tools do
     "web_search_tool" => AI.Tools.WebSearch
   }
 
+  @ui_tools %{
+    "ui_ask_tool" => AI.Tools.UI.Ask,
+    "ui_choose_tool" => AI.Tools.UI.Choose,
+    "ui_confirm_tool" => AI.Tools.UI.Confirm
+  }
+
   @coding_tools %{
     "coder_tool" => AI.Tools.Coder
   }
@@ -239,6 +245,7 @@ defmodule AI.Tools do
     basic_tools()
     |> with_mcps()
     |> with_frobs()
+    |> with_ui()
     |> with_rw_tools()
     |> with_coding_tools()
     |> with_review_tools()
@@ -254,6 +261,22 @@ defmodule AI.Tools do
     @tools
     |> Enum.filter(fn {_name, mod} -> mod.is_available?() end)
     |> Map.new()
+  end
+
+  @doc """
+  Returns the allowed tool tags for skills. Skills.Runtime uses this to avoid duplicating the list.
+  """
+  @spec skill_tool_tags() :: [String.t()]
+  def skill_tool_tags() do
+    ["basic", "mcp", "frobs", "task", "coding", "web", "ui", "rw", "skills"]
+  end
+
+  @doc """
+  Returns the deterministic skill tool tags order, excluding "basic", used when applying tags.
+  """
+  @spec stable_skill_tool_tag_order() :: [String.t()]
+  def stable_skill_tool_tag_order() do
+    ["mcp", "frobs", "task", "coding", "web", "ui", "rw", "skills"]
   end
 
   @doc """
@@ -311,6 +334,33 @@ defmodule AI.Tools do
   def with_web_tools(toolbox \\ %{}) do
     toolbox
     |> Map.merge(@web_tools)
+  end
+
+  @doc """
+  Adds interactive UI tools to the toolbox.
+
+  These tools are intended for user-in-the-loop flows where the agent needs to
+  ask the user a question and proceed based on the answer.
+  """
+  @spec with_ui(toolbox :: toolbox) :: toolbox
+  def with_ui(toolbox \\ %{}) do
+    toolbox
+    |> Map.merge(@ui_tools)
+    |> Enum.filter(fn {_name, mod} -> mod.is_available?() end)
+    |> Map.new()
+  end
+
+  @doc """
+  Conditionally adds UI tools to the toolbox if the current environment
+  supports it (i.e., if we're running in a TTY and not in quiet mode).
+  """
+  @spec maybe_with_ui(AI.Tools.toolbox()) :: AI.Tools.toolbox()
+  def maybe_with_ui(toolbox) do
+    cond do
+      !UI.is_tty?() -> toolbox
+      UI.quiet?() -> toolbox
+      true -> with_ui(toolbox)
+    end
   end
 
   @doc """

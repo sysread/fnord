@@ -61,9 +61,6 @@ defmodule Skills.Runtime do
     end
   end
 
-  @allowed_tags ["basic", "mcp", "frobs", "task", "coding", "web", "rw", "skills"]
-  @stable_tag_order ["mcp", "frobs", "task", "coding", "web", "rw", "skills"]
-
   @doc """
   Build a toolbox from skill tool tags.
 
@@ -79,7 +76,9 @@ defmodule Skills.Runtime do
       |> Enum.filter(&is_binary/1)
       |> Enum.uniq()
 
-    case Enum.find(tags, fn tag -> not Enum.member?(@allowed_tags, tag) end) do
+    allowed_tags = AI.Tools.skill_tool_tags()
+
+    case Enum.find(tags, fn tag -> not Enum.member?(allowed_tags, tag) end) do
       unknown_tag when is_binary(unknown_tag) ->
         {:error, {:unknown_tool_tag, unknown_tag}}
 
@@ -107,7 +106,7 @@ defmodule Skills.Runtime do
     end)
   end
 
-  defp stable_tag_order(), do: @stable_tag_order
+  defp stable_tag_order(), do: AI.Tools.stable_skill_tool_tag_order()
 
   defp apply_tool_tag(tag, toolbox) do
     case tag do
@@ -116,6 +115,7 @@ defmodule Skills.Runtime do
       "task" -> AI.Tools.with_task_tools(toolbox)
       "coding" -> AI.Tools.with_coding_tools(toolbox)
       "web" -> AI.Tools.with_web_tools(toolbox)
+      "ui" -> AI.Tools.with_ui(toolbox)
       "rw" -> AI.Tools.with_rw_tools(toolbox)
       "skills" -> AI.Tools.with_skills(toolbox)
       _ -> raise "Unknown tool tag reached apply_tool_tag unexpectedly: #{tag}"
@@ -189,7 +189,7 @@ defmodule Skills.Runtime do
   Toolboxes are the skill's tool tags; they select tool groups.
   """
   @spec allowed_toolboxes() :: [tool_tag]
-  def allowed_toolboxes(), do: @allowed_tags
+  def allowed_toolboxes(), do: AI.Tools.skill_tool_tags()
 
   @doc """
   Return the list of allowed model presets.
