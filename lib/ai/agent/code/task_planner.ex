@@ -270,6 +270,26 @@ defmodule AI.Agent.Code.TaskPlanner do
 
   defp plan(state), do: state
 
+  defp valid_steps?(steps) when is_list(steps) do
+    Enum.all?(steps, &valid_step?/1)
+  end
+
+  defp valid_steps?(_), do: false
+
+  defp valid_step?(%{label: label, detail: detail} = step)
+       when is_binary(label) and is_binary(detail) and map_size(step) == 2,
+       do: true
+
+  defp valid_step?(_), do: false
+
+  # Helper to summarize steps for logging
+  defp inspect_steps_summary(steps) when is_list(steps) do
+    sample = steps |> Enum.take(3) |> inspect()
+    "count=#{length(steps)} sample=#{sample}"
+  end
+
+  defp inspect_steps_summary(other), do: inspect(other)
+
   @spec do_planning(t, binary) :: t
   defp do_planning(state, prompt) do
     UI.report_from(state.agent.name, "Planning steps to reach desired state", state.request)
@@ -300,10 +320,22 @@ defmodule AI.Agent.Code.TaskPlanner do
             %{state | error: error}
 
           {:ok, %{steps: steps}} ->
-            list_id = Services.Task.start_list()
-            state = Common.put_state(state, :list_id, list_id)
-            Common.add_tasks(list_id, steps)
-            state
+            case valid_steps?(steps) do
+              true ->
+                list_id = Services.Task.start_list()
+                state = Common.put_state(state, :list_id, list_id)
+                Common.add_tasks(list_id, steps)
+                state
+
+              false ->
+                UI.report_from(
+                  state.agent.name,
+                  "Planning failed",
+                  "Invalid steps: #{inspect_steps_summary(steps)}"
+                )
+
+                %{state | error: :invalid_response_format}
+            end
 
           _ ->
             UI.debug("Silly LLM!", """
