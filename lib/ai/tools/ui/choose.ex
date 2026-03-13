@@ -81,7 +81,10 @@ defmodule AI.Tools.UI.Choose do
     something_else_label = Map.get(args, "something_else_label") || "Something else"
     something_else_prompt = Map.get(args, "something_else_prompt") || "Please specify"
 
-    display_options = options ++ [something_else_label]
+    display_options =
+      options
+      |> Enum.reject(&(&1 == something_else_label))
+      |> Kernel.++([something_else_label])
 
     case UI.choose(prompt, display_options) do
       {:error, :no_tty} ->

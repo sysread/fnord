@@ -70,6 +70,31 @@ defmodule AI.Tools.UIToolsTest do
 
       assert {:ok, %{choice: :something_else, value: "custom"}} = AI.Tools.UI.Choose.call(args)
     end
+
+    test "dedupes something_else_label when already present in options" do
+      defmodule DedupeOutput do
+        def prompt(_label, _opts), do: raise("should not prompt")
+
+        def choose(_label, options) do
+          assert Enum.count(options, &(&1 == "Something else")) == 1
+          "a"
+        end
+
+        def choose(_label, options, _timeout_ms, _default) do
+          assert Enum.count(options, &(&1 == "Something else")) == 1
+          "a"
+        end
+
+        def confirm(_msg, _default), do: true
+        def newline, do: :ok
+        def box(_contents, _opts), do: :ok
+      end
+
+      Services.Globals.put_env(:fnord, :ui_output, DedupeOutput)
+
+      args = %{"prompt" => "pick", "options" => ["a", "Something else", "b"]}
+      assert {:ok, %{choice: :option, value: "a"}} = AI.Tools.UI.Choose.call(args)
+    end
   end
 
   describe "AI.Tools.UI.Confirm" do
