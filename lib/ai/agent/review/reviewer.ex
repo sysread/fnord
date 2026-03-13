@@ -105,7 +105,12 @@ defmodule AI.Agent.Review.Reviewer do
      `git log`, or other broad research commands. That work is already done.
   2. Check whether the quoted code actually exists at that location and
      whether the specialist's claim about its behavior is accurate.
-  3. Classify:
+  3. Determine whether the finding is a new issue introduced by this change or a
+     pre-existing problem. Note pre-existing bugs identified separately.
+  4. Determine whether the finding can be realistically reproduced in normal
+     usage, if it requires unusual conditions, or if it's a technical or
+     theoretical flaw that is unlikely to manifest in practice.
+  5. Classify:
      - **CONFIRMED**: The cited code matches and the claim is accurate.
      - **REJECTED**: The citation is wrong or the claim is inaccurate (explain
        why briefly).
@@ -137,7 +142,6 @@ defmodule AI.Agent.Review.Reviewer do
   - Design context (if provided)
 
   ### Confirmed findings
-
   For each finding, grouped by severity (BLOCKING > HIGH > MEDIUM > LOW):
   1. **Severity** and **category** (from the specialist's taxonomy)
   2. **Source**: which specialist found it
@@ -148,6 +152,10 @@ defmodule AI.Agent.Review.Reviewer do
 
   ### Rejected findings (appendix, brief)
   Findings you rejected and a one-line reason why.
+
+  ### Pre-existing bugs (appendix, brief)
+  Findings you verified as real but pre-existing, with a one-line note on the
+  issue and its potential impact.
 
   ### Coverage gaps
   Note which files or areas were NOT covered by any specialist.
