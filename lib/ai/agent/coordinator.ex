@@ -536,7 +536,7 @@ defmodule AI.Agent.Coordinator do
     state
   end
 
-  @template """
+  @template_base """
   Respond in well-formatted, well-organized markdown.
   - Use of headers for organization
   - Use lists, bold, italics, and underlines to highlight key points
@@ -587,10 +587,6 @@ defmodule AI.Agent.Coordinator do
     - Add an 'Open Questions / Next Steps' subsection to summarize outstanding unknowns
     - Suggest the next smallest action to move forward
 
-  Coding changes:
-  - Walk the user through your changes in a logical manner, using the reasoning display guidelines to introduce your approach step-by-step
-  - Provide a brief suggestion for a short commit message summarizing the change at the end of your explanation (clearly identified as such), with optional additional details section
-
   Citations:
   - Include file paths and symbols (e.g., `lib/ai/agent/coordinator.ex:548` or `AI.Agent.Coordinator.template_msg/1`)
   - Prefer precise references; if line numbers are unstable, cite the nearest stable anchor (module/function/constant)
@@ -614,14 +610,27 @@ defmodule AI.Agent.Coordinator do
   Respond NOW with your findings.
   """
 
+  @template_edit_appendix """
+
+  Coding changes:
+  - Walk the user through your changes in a logical manner, using the reasoning display guidelines to introduce your approach step-by-step
+  - Provide a brief suggestion for a short commit message summarizing the change at the end of your explanation (clearly identified as such), with optional additional details section
+  """
+
   @spec template_msg(t) :: t
   defp template_msg(%{conversation_pid: conversation_pid} = state) do
-    @template
+    state
+    |> template()
     |> AI.Util.system_msg()
     |> Services.Conversation.append_msg(conversation_pid)
 
     state
   end
+
+  @spec template(map()) :: binary
+  def template(%{edit?: true}), do: @template_base <> @template_edit_appendix
+  def template(%{edit?: false}), do: @template_base
+  def template(_), do: @template_base
 
   @spec project_prompt_msg(t) :: t
   defp project_prompt_msg(%{conversation_pid: conversation_pid} = state) do
