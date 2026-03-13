@@ -54,7 +54,10 @@ defmodule AI.Agent.Coordinator.Coding do
   ## POST-CODING CHECKLIST:
   1. Manually inspect that the changes were actually applied to the files
   2. Use the reviewer_tool to review the changes made
-  3. Address all legitimate issues identified by the reviewer_tool, either by making the (small) changes yourself or delegating (complex) fixes to the coder_tool
+  3. Address all legitimate issues identified by the reviewer_tool
+    - pre-existing bugs: report these to the user as unrelated to your changes in your response
+    - simple fixes: fix immediately yourself using the file_edit_tool
+    - complex fixes: delegate to the coder_tool as a separate milestone with its own task list and instructions
   4. Run all tests, linters, and formatters available to you and address any issues identified by them
 
   If at any time a bug indicates a deep-rooted problem in the overall design or an inconsistency with the user's intentions with the feature as you understand them, respond to the user immediately with a clear explanation of the blocker.
