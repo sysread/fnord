@@ -163,6 +163,42 @@ defmodule Store.Project.ConversationTest do
     assert [%{id: "a1", data: "info", outcome: :done, result: "ok"}] = task_list
   end
 
+  test "read/1 does not crash when migration write fails", ctx do
+    # Prepare a legacy JSON file to trigger migration
+    id = "mig_fail"
+    convo = Conversation.new(id, ctx.project)
+    File.mkdir_p!(Path.dirname(convo.store_path))
+
+    legacy_tasks = [
+      %{"id" => "t1", "data" => "d1", "outcome" => "todo", "result" => nil}
+    ]
+
+    legacy_data = %{
+      "messages" => [],
+      "metadata" => %{},
+      "memory" => [],
+      "tasks" => %{"123" => legacy_tasks}
+    }
+
+    timestamp = 99
+    File.write!(convo.store_path, "#{timestamp}:" <> SafeJson.encode!(legacy_data))
+
+    # Create a directory at .tmp to cause migration write to fail
+    tmp_path = convo.store_path <> ".tmp"
+    File.mkdir_p!(tmp_path)
+
+    before_contents = File.read!(convo.store_path)
+    # Ensure read/1 still succeeds
+    assert {:ok, %{tasks: tasks_map}} = Conversation.read(convo)
+
+    assert Map.has_key?(tasks_map, "123")
+    assert %{tasks: tasks_list, description: nil} = tasks_map["123"]
+    assert [%{id: "t1", data: "d1", outcome: :todo, result: nil}] = tasks_list
+
+    # File contents remain unchanged
+    assert File.read!(convo.store_path) == before_contents
+  end
+
   test "list/1 returns conversations in descending timestamp order", ctx do
     id1 = "one"
     id2 = "two"
