@@ -79,15 +79,19 @@ defmodule Cmd.Skills do
                 help: "Skill name",
                 required: true
               ],
-              global: [
-                long: "--global",
-                help: "Apply to global settings (otherwise current project)",
-                takes_value: false
-              ],
               project: [
                 long: "--project",
                 value_name: "PROJECT",
                 help: "Apply to the named project (overrides selected project)"
+              ]
+            ],
+            flags: [
+              global: [
+                long: "--global",
+                short: "-g",
+                help: "Apply to global settings (otherwise current project)",
+                required: false,
+                default: false
               ]
             ]
           ],
@@ -102,15 +106,55 @@ defmodule Cmd.Skills do
                 help: "Skill name",
                 required: true
               ],
-              global: [
-                long: "--global",
-                help: "Apply to global settings (otherwise current project)",
-                takes_value: false
-              ],
               project: [
                 long: "--project",
                 value_name: "PROJECT",
                 help: "Apply to the named project (overrides selected project)"
+              ]
+            ],
+            flags: [
+              global: [
+                long: "--global",
+                short: "-g",
+                help: "Apply to global settings (otherwise current project)",
+                required: false,
+                default: false
+              ]
+            ]
+          ],
+          generate: [
+            name: "generate",
+            about: "Generate a skill using an LLM",
+            options: [
+              project: Cmd.project_arg(),
+              description: [
+                value_name: "DESCRIPTION",
+                long: "--description",
+                short: "-d",
+                help: "What the skill should do",
+                required: true
+              ],
+              name: [
+                value_name: "NAME",
+                long: "--name",
+                short: "-n",
+                help: "Requested skill name slug"
+              ]
+            ],
+            flags: [
+              global: [
+                long: "--global",
+                short: "-g",
+                help: "Generate a user-global skill",
+                required: false,
+                default: false
+              ],
+              enable: [
+                long: "--enable",
+                short: "-e",
+                help: "Print commands to enable/disable this skill after generation",
+                required: false,
+                default: false
               ]
             ]
           ]
@@ -146,6 +190,7 @@ defmodule Cmd.Skills do
   defp call_subcommand(opts, [:remove], _unknown), do: remove_skill(opts)
   defp call_subcommand(opts, [:enable], _unknown), do: enable_skill(opts)
   defp call_subcommand(opts, [:disable], _unknown), do: disable_skill(opts)
+  defp call_subcommand(opts, [:generate], _unknown), do: generate_skill(opts)
   defp call_subcommand(_opts, _sub, _unknown), do: {:error, :invalid_subcommand}
 
   defp list(opts) do
@@ -380,6 +425,205 @@ defmodule Cmd.Skills do
       {:ok, "Disabled #{opts.skill} in #{scope_label(scope)} scope."}
     end
   end
+
+  @spec generate_skill(map()) :: {:ok, String.t()} | {:error, any()}
+  defp generate_skill(opts) do
+    scope = save_scope(opts)
+    toolbox = %{"save_skill" => AI.Tools.SaveSkill, "notify_tool" => AI.Tools.Notify}
+
+    with :ok <- ensure_generate_prereqs(scope, opts),
+         {:ok, user_prompt} <- generate_user_prompt(opts),
+         {:ok, completion} <-
+           AI.Completion.get(
+             model: AI.Model.balanced(),
+             toolbox: toolbox,
+             log_msgs: true,
+             replay_conversation: false,
+             messages: [
+               AI.Util.system_msg(generate_system_prompt(scope)),
+               AI.Util.user_msg(user_prompt)
+             ]
+           ) do
+      tools = AI.Completion.tools_used(completion)
+
+      case Map.get(tools, "save_skill", 0) do
+        count when count < 1 ->
+          {:error, "Skill generation failed: model did not call save_skill."}
+
+        _ ->
+          hint = enablement_hint(opts, skill_placeholder(opts))
+          {:ok, append_hint(completion.response, hint)}
+      end
+    else
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @spec ensure_generate_prereqs(String.t(), map()) :: :ok | {:error, String.t()}
+  defp ensure_generate_prereqs("global", _opts), do: :ok
+  defp ensure_generate_prereqs("project", opts), do: ensure_project_for_generate(opts)
+
+  @spec save_scope(map()) :: String.t()
+  defp save_scope(%{global: true}), do: "global"
+  defp save_scope(_opts), do: "project"
+
+  @spec ensure_project_for_generate(map()) :: :ok | {:error, String.t()}
+  defp ensure_project_for_generate(%{project: project})
+       when is_binary(project) and project != "" do
+    Settings.set_project(project)
+    :ok
+  end
+
+  defp ensure_project_for_generate(_opts) do
+    case ResolveProject.resolve() do
+      {:ok, pn} ->
+        Settings.set_project(pn)
+        :ok
+
+      _ ->
+        {:error,
+         "No project provided and could not auto-detect from cwd. Pass --project or use --global to create a global skill."}
+    end
+  end
+
+  @spec generate_system_prompt(String.t()) :: String.t()
+  defp generate_system_prompt(scope) do
+    """
+    You are generating a fnord Skill definition.
+
+    Rules:
+    - You MUST call the `save_skill` tool exactly once.
+    - The tool call MUST include a `scope` argument equal to "#{scope}".
+    - Tool tags are not tool names. You MUST choose tool tags ONLY from this list:
+      #{Enum.join(Skills.Runtime.allowed_toolboxes(), ", ")}
+    - The tool tag "basic" is REQUIRED in every skill.
+    - If the skill needs to use the cursor-agent frob, include the "frobs" tag (do not invent a tag like "cursor-agent").
+    - You cannot enable or disable skills; you cannot change permissions.
+    - If you include the "rw" tool tag, explain that the user must run fnord with `--edit`; you cannot bypass this.
+
+    After the tool call succeeds, print the exact CLI commands from the enablement hints in the user prompt.
+    """
+    |> String.trim()
+  end
+
+  @spec generate_user_prompt(map()) :: {:ok, String.t()} | {:error, String.t()}
+  defp generate_user_prompt(opts) do
+    name_hint = generate_name_hint(opts)
+    scope_hint = generate_scope_hint(opts)
+
+    case enablement_command_hints(opts) do
+      {:ok, enablement_hints} ->
+        prompt =
+          """
+          Skill request:
+          #{opts.description}
+
+          #{name_hint}
+          #{scope_hint}
+
+          Enablement hints (print these commands after saving; do not claim you ran them):
+          #{enablement_hints}
+          """
+          |> String.trim()
+
+        {:ok, prompt}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @spec generate_name_hint(map()) :: String.t()
+  defp generate_name_hint(%{name: name}) when is_binary(name) and name != "" do
+    "Use skill name: #{name}"
+  end
+
+  defp generate_name_hint(_opts) do
+    "Choose a short, descriptive slug name matching [a-z0-9][a-z0-9_-]*."
+  end
+
+  @spec generate_scope_hint(map()) :: String.t()
+  defp generate_scope_hint(%{global: true}), do: "Save as a global (user) skill."
+
+  defp generate_scope_hint(%{project: project}) when is_binary(project) and project != "" do
+    "Save as a project skill for project: #{project}."
+  end
+
+  defp generate_scope_hint(_opts) do
+    case Settings.get_selected_project() do
+      {:ok, project} -> "Save as a project skill for the selected project: #{project}."
+      _ -> "Save as a project skill (project selection should already be set)."
+    end
+  end
+
+  @spec enablement_command_hints(map()) :: {:ok, String.t()} | {:error, String.t()}
+  defp enablement_command_hints(%{enable: false} = _opts), do: {:ok, "(none)"}
+
+  defp enablement_command_hints(%{enable: true, global: true} = opts) do
+    skill = skill_placeholder(opts)
+
+    commands =
+      "fnord skills enable --skill #{skill} --global\n" <>
+        "fnord skills disable --skill #{skill} --global"
+
+    {:ok, commands}
+  end
+
+  defp enablement_command_hints(%{enable: true, project: project} = opts)
+       when is_binary(project) and project != "" do
+    with :ok <- validate_project_exists(project) do
+      skill = skill_placeholder(opts)
+
+      commands =
+        "fnord skills enable --skill #{skill} --project #{project}\n" <>
+          "fnord skills disable --skill #{skill} --project #{project}"
+
+      {:ok, commands}
+    end
+  end
+
+  defp enablement_command_hints(%{enable: true} = opts) do
+    with {:ok, project} <- ResolveProject.resolve(),
+         :ok <- validate_project_exists(project) do
+      skill = skill_placeholder(opts)
+
+      commands =
+        "fnord skills enable --skill #{skill} --project #{project}\n" <>
+          "fnord skills disable --skill #{skill} --project #{project}"
+
+      {:ok, commands}
+    end
+  end
+
+  @spec validate_project_exists(String.t()) :: :ok | {:error, String.t()}
+  defp validate_project_exists(project) do
+    projects = Settings.list_projects(Settings.new())
+
+    if project in projects do
+      :ok
+    else
+      {:error, "Unknown project '#{project}'."}
+    end
+  end
+
+  @spec skill_placeholder(map()) :: String.t()
+  defp skill_placeholder(%{name: name}) when is_binary(name) and name != "", do: name
+  defp skill_placeholder(_opts), do: "<SKILL>"
+
+  @spec enablement_hint(map(), String.t()) :: String.t()
+  defp enablement_hint(%{enable: true}, _skill), do: ""
+
+  defp enablement_hint(%{enable: false, global: true}, skill) do
+    "Use `fnord skills enable --skill #{skill} --global` to enable this skill."
+  end
+
+  defp enablement_hint(%{enable: false}, skill) do
+    "Use `fnord skills enable --skill #{skill}` to enable this skill for the selected project."
+  end
+
+  @spec append_hint(String.t(), String.t()) :: String.t()
+  defp append_hint(response, ""), do: response
+  defp append_hint(response, hint), do: response <> "\n\n" <> hint
 
   # Resolve --global / --project flags into a scope, defaulting to the
   # currently selected project when neither is given.

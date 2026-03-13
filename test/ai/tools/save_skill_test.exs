@@ -38,6 +38,7 @@ defmodule AI.Tools.SaveSkillTest do
 
     assert {:error, "A user-defined skill named 'alpha' already exists" <> _} =
              AI.Tools.SaveSkill.call(%{
+               "scope" => "project",
                "name" => "alpha",
                "description" => "d",
                "model" => "smart",
@@ -59,6 +60,7 @@ defmodule AI.Tools.SaveSkillTest do
 
     assert {:ok, msg} =
              AI.Tools.SaveSkill.call(%{
+               "scope" => "project",
                "name" => "alpha",
                "description" => "d",
                "model" => "smart",
@@ -92,6 +94,7 @@ defmodule AI.Tools.SaveSkillTest do
     # Call with an unknown tool tag "typo"
     assert {:error, {:unknown_tool_tag, "typo"}} =
              AI.Tools.SaveSkill.call(%{
+               "scope" => "project",
                "name" => "beta",
                "description" => "desc",
                "model" => "smart",
@@ -120,6 +123,7 @@ defmodule AI.Tools.SaveSkillTest do
 
     assert {:error, {:unknown_model_preset, "nope"}} =
              AI.Tools.SaveSkill.call(%{
+               "scope" => "project",
                "name" => "gamma",
                "description" => "desc",
                "model" => "nope",
@@ -144,6 +148,7 @@ defmodule AI.Tools.SaveSkillTest do
 
     assert {:error, {:invalid_response_format, "nope"}} =
              AI.Tools.SaveSkill.call(%{
+               "scope" => "project",
                "name" => "delta",
                "description" => "desc",
                "model" => "smart",
@@ -156,5 +161,56 @@ defmodule AI.Tools.SaveSkillTest do
     {:ok, project_dir} = Skills.project_skills_dir()
     path = Path.join(project_dir, "delta.toml")
     refute File.exists?(path)
+  end
+
+  test "schema-level accepts nil response_format" do
+    assert {:ok, coerced} =
+             AI.Tools.Params.validate_json_args(AI.Tools.SaveSkill.spec(), %{
+               "name" => "a",
+               "description" => "d",
+               "model" => "smart",
+               "tools" => ["basic"],
+               "system_prompt" => "sp",
+               "response_format" => nil
+             })
+
+    assert coerced["response_format"] == nil
+  end
+
+  test "writes a new skill into the user skills directory when scope is global" do
+    stub(UI.Output.Mock, :confirm, fn _msg, _default -> true end)
+
+    assert {:ok, _msg} =
+             AI.Tools.SaveSkill.call(%{
+               "scope" => "global",
+               "name" => "omega",
+               "description" => "desc",
+               "model" => "smart",
+               "tools" => ["basic"],
+               "system_prompt" => "sp",
+               "response_format" => nil
+             })
+
+    user_dir = Skills.user_skills_dir()
+    path = Path.join(user_dir, "omega.toml")
+    assert File.exists?(path)
+  end
+
+  test "project scope returns friendly error when no project selected" do
+    # no project selected
+    stub(UI.Output.Mock, :confirm, fn _msg, _default -> true end)
+
+    Services.Globals.delete_env(:fnord, :project)
+
+    assert {:error, "No project selected" <> _} =
+             AI.Tools.SaveSkill.call(%{
+               "scope" => "project",
+               "name" => "theta",
+               "description" => "desc",
+               "model" => "smart",
+               "tools" => ["basic"],
+               "system_prompt" => "sp",
+               "response_format" => nil
+             })
   end
 end

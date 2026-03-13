@@ -1,5 +1,18 @@
 # Skills
 
+## Quick start
+
+```bash
+# Create a new project skill (without selecting a project)
+fnord skills new --project myproject --skill example_skill
+
+# Enable the skill
+fnord skills enable --project myproject --skill example_skill
+
+# List all skills
+fnord skills list
+```
+
 Skills are reusable agent presets defined as TOML files.
 
 A skill packages:
@@ -24,7 +37,7 @@ A skill TOML file must define:
 - `name` (string)
 - `description` (string; brief)
 - `model` (string; preset)
-- `tools` (array of tool tags)
+- `tools` (array of tool tags; must include `basic`, unknown tags are rejected)
 - `system_prompt` (string)
 
 Optional:
@@ -61,6 +74,8 @@ Fnord loads skill definitions from two locations:
 2. **Project skills**
 
    `~/.fnord/projects/<project>/skills/*.toml`
+
+Project skills are loaded for the currently selected project. Many `fnord skills` subcommands accept `--project` to target a project without changing the selected project.
 
 ### Definition precedence (user overrides project)
 
@@ -171,13 +186,37 @@ fnord skills disable --global --skill <name>
 fnord skills disable --project <project> --skill <name>
 ```
 
+### Generate
+
+`fnord skills generate` asks an LLM to draft a new skill definition and saves it to disk.
+
+It uses the coordinator's `save_skill` tool under the hood, and saving requires an explicit confirmation prompt.
+
+```bash
+fnord skills generate --project <project> --description "Describe what you want this skill to do"
+
+# Generate a user-global skill
+fnord skills generate --global --description "..."
+
+# Print enable/disable commands after generation
+fnord skills generate --project <project> --description "..." --enable
+```
+
 ---
 
 ## Tool usage (Coordinator)
 
 Two coordinator-facing tools are provided:
 
-- `run_skill` — run an enabled skill by name with an input prompt
-- `save_skill` — save a new skill TOML into the current project's skills dir
+- `run_skill` - run an enabled skill by name with an input prompt
+- `save_skill` - save a new skill TOML into the current project's skills dir
 
 `save_skill` requires explicit user confirmation.
+
+---
+
+## Troubleshooting / gotchas
+
+- Shadowing: if the same skill name exists in both user and project locations, the user definition wins.
+- Not enabled: `run_skill` only lists enabled skills. Use `fnord skills enable ...` if a skill is not showing up.
+- RW gating: skills tagged with `rw` require running `fnord` with `--edit`.

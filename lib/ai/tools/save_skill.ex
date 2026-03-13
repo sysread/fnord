@@ -1,17 +1,17 @@
 defmodule AI.Tools.SaveSkill do
   @moduledoc """
-  Save a new skill definition into the current project's skills directory.
+  Save a new skill definition either into the current project's skills directory or into the user-global skills directory.
 
   The coordinator can use this tool to persist skill TOML files under:
 
-    `~/.fnord/projects/<project>/skills/<name>.toml`
+    project scope: `~/.fnord/projects/<project>/skills/<name>.toml`
+    global scope:  `~/.fnord/skills/<name>.toml`
 
   Safety rules:
   - The tool is synchronous.
   - It requires explicit user confirmation via `UI.confirm/2`.
-  - It refuses to create a project skill if a user-defined skill with the same
-    name already exists in `~/fnord/skills` (because user definitions override
-    project definitions).
+  - For project scope, it refuses to create a project skill if a user-defined skill with the same name already exists in `~/fnord/skills` (because user definitions override project definitions).
+  - For global scope, it writes directly to the user skills directory (overwriting existing entries if any).
   """
 
   @behaviour AI.Tools
@@ -44,7 +44,8 @@ defmodule AI.Tools.SaveSkill do
          {:ok, model} <- get_string(args, "model"),
          {:ok, tools} <- get_string_list(args, "tools"),
          {:ok, system_prompt} <- get_string(args, "system_prompt"),
-         {:ok, response_format} <- get_optional_map(args, "response_format") do
+         {:ok, response_format} <- get_optional_map(args, "response_format"),
+         {:ok, scope} <- get_scope(args) do
       {:ok,
        %{
          "name" => name,
@@ -52,7 +53,8 @@ defmodule AI.Tools.SaveSkill do
          "model" => model,
          "tools" => tools,
          "system_prompt" => system_prompt,
-         "response_format" => response_format
+         "response_format" => response_format,
+         "scope" => scope
        }}
     end
   end
@@ -88,6 +90,20 @@ defmodule AI.Tools.SaveSkill do
     end
   end
 
+  @spec get_scope(map) :: {:ok, String.t()} | {:error, String.t()}
+  defp get_scope(args) do
+    case Map.fetch(args, "scope") do
+      :error ->
+        {:ok, "project"}
+
+      {:ok, val} when val in ["project", "global"] ->
+        {:ok, val}
+
+      {:ok, invalid} ->
+        {:error, "Invalid scope '#{invalid}'. Allowed values are \"project\" or \"global\"."}
+    end
+  end
+
   @impl AI.Tools
   def spec() do
     %{
@@ -95,7 +111,7 @@ defmodule AI.Tools.SaveSkill do
       function: %{
         name: @tool_name,
         description:
-          "Save a skill into the current project's skills directory (~/.fnord/projects/<project>/skills).",
+          "Save a skill into either the current project's skills directory (~/.fnord/projects/<project>/skills) or the user-global skills directory (~/.fnord/skills).",
         parameters: %{
           type: "object",
           additionalProperties: false,
@@ -108,7 +124,14 @@ defmodule AI.Tools.SaveSkill do
             },
             tools: %{type: "array", items: %{type: "string"}, description: "Tool tags"},
             system_prompt: %{type: "string", description: "Base system prompt"},
-            response_format: %{type: "object", description: "Optional response_format map"}
+            response_format: %{
+              anyOf: [%{type: "object"}, %{type: "null"}],
+              description: "Optional response_format map"
+            },
+            scope: %{
+              type: "string",
+              description: "Scope of the skill: \"project\" or \"global\" (default \"project\")"
+            }
           },
           required: ["name", "description", "model", "tools", "system_prompt"]
         }
@@ -118,6 +141,24 @@ defmodule AI.Tools.SaveSkill do
 
   @valid_name_pattern ~r/^[a-z0-9][a-z0-9_-]*$/
 
+  @spec resolve_target_dir(binary, binary) :: {:ok, binary} | {:error, any}
+  defp resolve_target_dir("project", name) do
+    case Skills.project_skills_dir() do
+      {:ok, dir} ->
+        case check_user_collision(name) do
+          :ok -> {:ok, dir}
+          {:error, reason} -> {:error, reason}
+        end
+
+      {:error, :no_project_selected} ->
+        {:error, "No project selected. Select a project or set scope=\"global\"."}
+    end
+  end
+
+  defp resolve_target_dir("global", _name) do
+    {:ok, Skills.user_skills_dir()}
+  end
+
   @impl AI.Tools
   def call(%{
         "name" => name,
@@ -125,11 +166,11 @@ defmodule AI.Tools.SaveSkill do
         "model" => model,
         "tools" => tools,
         "system_prompt" => system_prompt,
-        "response_format" => response_format
+        "response_format" => response_format,
+        "scope" => scope
       }) do
     with :ok <- validate_name(name),
-         {:ok, project_dir} <- Skills.project_skills_dir(),
-         :ok <- check_user_collision(name),
+         {:ok, target_dir} <- resolve_target_dir(scope, name),
          {:ok, _model_preset} <- Skills.Runtime.model_from_string(model),
          {:ok, _toolbox} <- Skills.Runtime.toolbox_from_tags(tools),
          {:ok, _rf} <- Skills.Runtime.validate_response_format(response_format),
@@ -142,7 +183,7 @@ defmodule AI.Tools.SaveSkill do
              system_prompt: system_prompt,
              response_format: response_format
            }),
-         {:ok, path} <- skill_path(project_dir, name),
+         {:ok, path} <- skill_path(target_dir, name),
          :ok <- confirm_write(path),
          :ok <- write_skill_file(path, toml) do
       {:ok, "Saved skill #{name} to #{path}"}
@@ -150,10 +191,9 @@ defmodule AI.Tools.SaveSkill do
   end
 
   defp validate_name(name) do
-    if Regex.match?(@valid_name_pattern, name) do
-      :ok
-    else
-      {:error, "Invalid skill name '#{name}'. Names must match [a-z0-9][a-z0-9_-]*."}
+    case Regex.match?(@valid_name_pattern, name) do
+      true -> :ok
+      false -> {:error, "Invalid skill name '#{name}'. Names must match [a-z0-9][a-z0-9_-]*."}
     end
   end
 
@@ -183,10 +223,9 @@ defmodule AI.Tools.SaveSkill do
   end
 
   defp confirm_write(path) do
-    if UI.confirm("Write skill to #{path}?", false) do
-      :ok
-    else
-      {:error, :aborted}
+    case UI.confirm("Write skill to #{path}?", false) do
+      true -> :ok
+      false -> {:error, :aborted}
     end
   end
 

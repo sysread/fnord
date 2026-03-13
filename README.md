@@ -34,6 +34,7 @@ If you've ever pasted multiple files into ChatGPT or worked with it iteratively 
 - Improves its research capabilities with each interaction
 - Layered approvals for shell/file operations
 - User integrations
+- Skills (reusable agent presets): see [docs/skills.md](docs/skills.md)
 - MCP server support
 
 ## Installation

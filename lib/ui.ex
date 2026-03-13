@@ -302,20 +302,35 @@ defmodule UI do
   # Directly write to ensure visibility even if output is paused.
   @spec fatal(binary) :: no_return()
   def fatal(msg) do
-    Logger.error(IO.ANSI.format([:red, msg, :reset], colorize?()))
-    Logger.flush()
-    System.halt(1)
+    case Services.Globals.get_env(:fnord, :test_no_halt, false) do
+      true ->
+        raise RuntimeError, message: msg
+
+      _ ->
+        Logger.error(IO.ANSI.format([:red, msg, :reset], colorize?()))
+        Logger.flush()
+        System.halt(1)
+    end
   end
 
   # Directly write to ensure visibility even if output is paused.
   @spec fatal(binary, binary) :: no_return()
   def fatal(msg, detail) do
-    Logger.error(
-      IO.ANSI.format([:red, msg, :reset, ": ", :cyan, clean_detail(detail), :reset], colorize?())
-    )
+    case Services.Globals.get_env(:fnord, :test_no_halt, false) do
+      true ->
+        raise RuntimeError, message: "#{msg}: #{detail}"
 
-    Logger.flush()
-    System.halt(1)
+      _ ->
+        Logger.error(
+          IO.ANSI.format(
+            [:red, msg, :reset, ": ", :cyan, clean_detail(detail), :reset],
+            colorize?()
+          )
+        )
+
+        Logger.flush()
+        System.halt(1)
+    end
   end
 
   # Directly write to stderr to ensure visibility even if output is paused.
