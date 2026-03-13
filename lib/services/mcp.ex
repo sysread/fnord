@@ -10,20 +10,8 @@ defmodule Services.MCP do
 
   @spec start(String.t() | atom() | nil) :: :ok
   def start(command \\ nil) do
-    # Configure Hermes MCP logging - only show debug output when FNORD_DEBUG_MCP=1
-    log_level =
-      if Util.Env.mcp_debug_enabled?() do
-        :debug
-      else
-        :error
-      end
-
-    Application.put_env(:hermes_mcp, :logging,
-      client_events: log_level,
-      server_events: log_level,
-      transport_events: log_level,
-      protocol_messages: log_level
-    )
+    # Configure Hermes MCP logging early to prevent noisy Hermes debug logs when LOGGER_LEVEL=debug unless FNORD_DEBUG_MCP is enabled.
+    MCP.HermesLogging.configure()
 
     # Skip MCP discovery for config commands to avoid premature connection attempts
     # Users should be able to configure OAuth without triggering server connections
@@ -44,6 +32,9 @@ defmodule Services.MCP do
   """
   @spec ensure_started_and_discovered() :: :ok
   def ensure_started_and_discovered() do
+    # Configure Hermes MCP logging early to prevent noisy Hermes debug logs when LOGGER_LEVEL=debug unless FNORD_DEBUG_MCP is enabled.
+    MCP.HermesLogging.configure()
+
     servers = MCPSettings.effective_config(Settings.new())
 
     if map_size(servers) == 0 do

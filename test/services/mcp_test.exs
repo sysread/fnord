@@ -1,5 +1,6 @@
 defmodule Services.MCPTest do
   use Fnord.TestCase, async: false
+  import ExUnit.CaptureLog
 
   setup do
     # Just stub Settings.MCP - much faster than mocking core modules
@@ -130,5 +131,43 @@ defmodule Services.MCPTest do
         # Supervisor not started; this is expected, always succeed
         assert true
     end
+  end
+
+  test "suppresses Hermes MCP debug logs unless FNORD_DEBUG_MCP is set" do
+    original_level = :logger.get_primary_config() |> Map.fetch!(:level)
+    original_debug_var = System.get_env("FNORD_DEBUG_MCP")
+    original_hermes_log = Application.get_env(:hermes_mcp, :log)
+    original_hermes_logging = Application.get_env(:hermes_mcp, :logging)
+
+    on_exit(fn ->
+      :logger.set_primary_config(:level, original_level)
+
+      case original_debug_var do
+        nil -> System.delete_env("FNORD_DEBUG_MCP")
+        val -> System.put_env("FNORD_DEBUG_MCP", val)
+      end
+
+      case original_hermes_log do
+        nil -> Application.delete_env(:hermes_mcp, :log)
+        val -> Application.put_env(:hermes_mcp, :log, val)
+      end
+
+      case original_hermes_logging do
+        nil -> Application.delete_env(:hermes_mcp, :logging)
+        val -> Application.put_env(:hermes_mcp, :logging, val)
+      end
+    end)
+
+    :logger.set_primary_config(:level, :debug)
+    Util.Env.delete_env("FNORD_DEBUG_MCP")
+
+    log =
+      capture_log(fn ->
+        Services.MCP.start()
+        Process.sleep(200)
+      end)
+
+    refute String.contains?(log, "MCP client event")
+    refute String.contains?(log, "[MCP message]")
   end
 end

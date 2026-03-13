@@ -12,6 +12,8 @@ defmodule MCP.Supervisor do
 
   @impl true
   def init(_opts) do
+    # Must configure Hermes logging before starting any client children so it doesn't default to debug when LOGGER_LEVEL=debug
+    MCP.HermesLogging.configure()
     settings = Settings.new()
     servers = Settings.MCP.effective_config(settings)
 
