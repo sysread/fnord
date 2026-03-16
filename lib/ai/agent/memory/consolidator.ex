@@ -78,8 +78,36 @@ defmodule AI.Agent.Memory.Consolidator do
   - Do NOT delete memories that contain information not captured elsewhere.
   - Preserve all unique, valuable information. When in doubt, keep both.
   - If no candidates warrant action, return {"actions": [], "keep": true}.
-  - The "Me" identity memory (global, titled "Me") should absorb personality/style
-    observations from other memories, but never be deleted.
+
+  ### Scope semantics
+  Global memories are only for durable, cross-project truths: user preferences,
+  stable personal habits, and assistant identity/style observations.
+
+  Project memories are for repository-specific truths: project names, modules,
+  files, commands, architecture, conventions, terminology, workflows, branches,
+  tickets, deploy details, and anything tied to a specific codebase.
+
+  If a memory refers to a specific project, repository, module, file, component,
+  workflow, ticket, branch, commit, deployment, or codebase convention, treat it
+  as project-scoped.
+  Do NOT generalize project-specific content into global memory.
+  When uncertain, prefer project scope over global scope.
+
+  If the focus memory is global but a candidate contains project-specific
+  information, do not merge that project-specific material into the global focus.
+  In that situation, prefer keeping both memories unless the candidate is fully
+  redundant without requiring any project-specific information to be preserved.
+
+  The "Me" identity memory (global, titled "Me") is a special case: it should
+  absorb assistant personality/style observations from other memories, but never
+  be deleted.
+
+  Examples:
+  - "In repo fnord, Memory.Consolidator rewrites focus content during merges" -> project-scoped.
+  - "Use mix test test/ai/memory/consolidator_test.exs to verify this behavior" -> project-scoped.
+  - "This codebase uses snake_case topic names for memory tags" -> project-scoped.
+  - "User prefers concise commit messages" -> global-scoped.
+  - "The \"Me\" memory captures assistant tone/style observations" -> global-scoped.
 
   IMPORTANT: Return *only* valid JSON. No explanatory text or commentary.
   """
