@@ -248,7 +248,22 @@ defmodule Cmd.Ask do
       stop_conversation_indexer(conversation_indexer_pid)
       stop_memory_indexer()
 
-      Services.BackupFile.offer_cleanup()
+      case Settings.backup_file_handling() do
+        "never-create" ->
+          :ok
+
+        "auto-delete" ->
+          Services.BackupFile.auto_delete_session_backups()
+
+        "ask-to-delete" ->
+          Services.BackupFile.offer_cleanup()
+
+        "create-and-ignore" ->
+          Services.BackupFile.list_session_backups()
+
+        _ ->
+          Services.BackupFile.offer_cleanup()
+      end
 
       UI.spin(build_notes_spinner_label(), fn ->
         Services.Notes.join()

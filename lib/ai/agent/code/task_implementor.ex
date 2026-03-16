@@ -147,8 +147,9 @@ defmodule AI.Agent.Code.TaskImplementor do
     The Coordinating Agent has asked you to implement the above tasks.
 
     # Handling file editing problems
-    The `file_edit_tool` creates a backup of each file it modifies in the same directory, with a `.bak` extension.
-    In case of problems, you may revert changes by replacing the file with the latest .bak file.
+    The `file_edit_tool` may create a backup of each existing file it modifies in the same directory, with a `.bak` extension.
+    Backup behavior is controlled by the `edit-mode.backup-file-handling` setting in `~/.fnord/settings.json`.
+    #{backup_guidance()}
     """
 
     tools = AI.Tools.with_rw_tools()
@@ -172,6 +173,14 @@ defmodule AI.Agent.Code.TaskImplementor do
 
       %{error: error} ->
         {:error, error}
+    end
+  end
+
+  defp backup_guidance do
+    if Settings.should_create_backup_files?() do
+      "If backup files are available to the user, you may revert changes by replacing the file with the latest `.bak` file."
+    else
+      ""
     end
   end
 
