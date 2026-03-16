@@ -19,6 +19,10 @@ defmodule Services.MemoryIndexer do
 
   use GenServer
 
+  @cleanup_message :cleanup_orphan_memory_locks
+  @lock_cleanup_interval_ms :timer.minutes(5)
+  @orphan_lock_stale_ms :timer.minutes(2)
+  @lock_owner_file "owner"
   @lt_memory_tool %{"long_term_memory_tool" => AI.Tools.LongTermMemory}
 
   # --------------------------------------------------------------------------
@@ -49,11 +53,12 @@ defmodule Services.MemoryIndexer do
   def init(opts) do
     {:ok, sup} = Task.Supervisor.start_link()
     auto_scan = Keyword.get(opts, :auto_scan, true)
+    :ok = safe_cleanup_orphan_memory_locks()
+    state = %{task: nil, sup: sup, cleanup_timer: safe_schedule_lock_cleanup()}
 
-    if auto_scan do
-      {:ok, %{task: nil, sup: sup}, {:continue, :scan}}
-    else
-      {:ok, %{task: nil, sup: sup}}
+    case auto_scan do
+      true -> {:ok, state, {:continue, :scan}}
+      false -> {:ok, state}
     end
   end
 
@@ -111,15 +116,19 @@ defmodule Services.MemoryIndexer do
     {:noreply, %{state | task: nil}, {:continue, :scan}}
   end
 
-  def handle_info(_msg, state), do: {:noreply, state}
-
-  # On shutdown, kill any in-flight task so the BEAM can exit promptly.
-  def terminate(_reason, %{task: %Task{pid: pid}}) when is_pid(pid) do
-    Process.exit(pid, :kill)
-    :ok
+  def handle_info(@cleanup_message, state) do
+    :ok = safe_cleanup_orphan_memory_locks()
+    {:noreply, %{state | cleanup_timer: safe_schedule_lock_cleanup()}}
   end
 
-  def terminate(_reason, _state), do: :ok
+  def handle_info(_msg, state), do: {:noreply, state}
+
+  # On shutdown, cancel maintenance work and kill any in-flight task so the
+  # BEAM can exit promptly.
+  def terminate(_reason, state) do
+    :ok = cancel_lock_cleanup(state.cleanup_timer)
+    :ok = stop_processing_task(state.task)
+  end
 
   # --------------------------------------------------------------------------
   # Scanning
@@ -377,6 +386,210 @@ defmodule Services.MemoryIndexer do
 
   defp maybe_put_content(args, nil), do: args
   defp maybe_put_content(args, content), do: Map.put(args, "content", content)
+
+  # --------------------------------------------------------------------------
+  # Orphaned memory lock cleanup
+  # --------------------------------------------------------------------------
+
+  @doc """
+  Cleans up abandoned stale per-memory lock directories whose target memory
+  files no longer exist.
+
+  FileLock creates a `*.json.lock` directory before the target `*.json` file may
+  exist and records the owning local pid in an `owner` file inside that lock
+  directory. This maintenance path intentionally mirrors that lifecycle: it only
+  inspects `*.json.lock` entries under the project and global memory storage
+  roots, leaves allocation locks and unrelated store locks alone, and only
+  removes a lock when the target file is missing, the lock age is strictly
+  greater than the stale threshold, and no live local owner pid can be found.
+  """
+  @spec cleanup_orphan_memory_locks() :: :ok
+  def cleanup_orphan_memory_locks do
+    memory_storage_roots()
+    |> Enum.flat_map(&memory_lock_dirs/1)
+    |> Enum.filter(&orphaned_memory_lock?/1)
+    |> Enum.each(&File.rm_rf/1)
+
+    :ok
+  end
+
+  @spec safe_cleanup_orphan_memory_locks() :: :ok
+  defp safe_cleanup_orphan_memory_locks do
+    cleanup_orphan_memory_locks()
+  rescue
+    e ->
+      UI.debug("memory_indexer", "Lock cleanup skipped: #{Exception.message(e)}")
+      :ok
+  end
+
+  @spec safe_schedule_lock_cleanup() :: reference() | nil
+  defp safe_schedule_lock_cleanup do
+    schedule_lock_cleanup()
+  rescue
+    e ->
+      UI.debug("memory_indexer", "Lock cleanup timer not scheduled: #{Exception.message(e)}")
+      nil
+  end
+
+  @spec schedule_lock_cleanup() :: reference()
+  defp schedule_lock_cleanup do
+    Process.send_after(self(), @cleanup_message, @lock_cleanup_interval_ms)
+  end
+
+  @spec cancel_lock_cleanup(reference() | nil) :: :ok
+  defp cancel_lock_cleanup(nil), do: :ok
+
+  defp cancel_lock_cleanup(timer_ref) do
+    _ = Process.cancel_timer(timer_ref)
+    :ok
+  end
+
+  @spec stop_processing_task(Task.t() | nil) :: :ok
+  defp stop_processing_task(nil), do: :ok
+
+  defp stop_processing_task(%Task{pid: pid}) when is_pid(pid) do
+    Process.exit(pid, :kill)
+    :ok
+  end
+
+  defp stop_processing_task(%Task{}), do: :ok
+
+  @spec memory_storage_roots() :: [String.t()]
+  defp memory_storage_roots do
+    [global_memory_storage_root(), project_memory_storage_root()]
+    |> Enum.reject(&is_nil/1)
+  end
+
+  @spec global_memory_storage_root() :: String.t()
+  defp global_memory_storage_root do
+    Path.join(Store.store_home(), "memory")
+  end
+
+  @spec project_memory_storage_root() :: String.t() | nil
+  defp project_memory_storage_root do
+    case Store.get_project() do
+      {:ok, project} -> Path.join(project.store_path, "memory")
+      _ -> nil
+    end
+  end
+
+  @spec memory_lock_dirs(String.t()) :: [String.t()]
+  defp memory_lock_dirs(storage_root) do
+    storage_root
+    |> Path.join("*.json.lock")
+    |> Path.wildcard()
+  end
+
+  @spec orphaned_memory_lock?(String.t()) :: boolean()
+  defp orphaned_memory_lock?(lock_dir) do
+    case {memory_file_missing?(lock_dir), stale_lock_dir?(lock_dir), live_lock_owner?(lock_dir)} do
+      {true, true, false} -> true
+      _ -> false
+    end
+  end
+
+  @spec memory_file_missing?(String.t()) :: boolean()
+  defp memory_file_missing?(lock_dir) do
+    not File.exists?(memory_file_for_lock(lock_dir))
+  end
+
+  @spec memory_file_for_lock(String.t()) :: String.t()
+  defp memory_file_for_lock(lock_dir) do
+    Path.rootname(lock_dir, ".lock")
+  end
+
+  @spec stale_lock_dir?(String.t()) :: boolean()
+  defp stale_lock_dir?(lock_dir) do
+    case lock_dir_age_ms(lock_dir) do
+      {:ok, age_ms} when age_ms > @orphan_lock_stale_ms -> true
+      _ -> false
+    end
+  end
+
+  @spec lock_dir_age_ms(String.t()) :: {:ok, non_neg_integer()} | :error
+  defp lock_dir_age_ms(lock_dir) do
+    case File.stat(lock_dir, time: :posix) do
+      {:ok, %File.Stat{mtime: mtime}} ->
+        now = System.system_time(:second)
+        {:ok, max(0, (now - mtime) * 1_000)}
+
+      _ ->
+        :error
+    end
+  end
+
+  @spec live_lock_owner?(String.t()) :: boolean()
+  defp live_lock_owner?(lock_dir) do
+    case lock_owner_pid(lock_dir) do
+      {:ok, pid} -> Process.alive?(pid)
+      :error -> false
+    end
+  end
+
+  @spec lock_owner_pid(String.t()) :: {:ok, pid()} | :error
+  defp lock_owner_pid(lock_dir) do
+    case read_lock_owner(lock_dir) do
+      {:ok, owner} -> parse_lock_owner_pid(owner)
+      :error -> :error
+    end
+  end
+
+  @spec read_lock_owner(String.t()) :: {:ok, String.t()} | :error
+  defp read_lock_owner(lock_dir) do
+    lock_dir
+    |> lock_owner_file()
+    |> File.read()
+    |> normalize_lock_owner_contents()
+  end
+
+  @spec lock_owner_file(String.t()) :: String.t()
+  defp lock_owner_file(lock_dir) do
+    Path.join(lock_dir, @lock_owner_file)
+  end
+
+  @spec normalize_lock_owner_contents({:ok, binary()} | {:error, any()}) ::
+          {:ok, String.t()} | :error
+  defp normalize_lock_owner_contents({:ok, owner}) do
+    case String.trim(owner) do
+      "" -> :error
+      trimmed -> {:ok, trimmed}
+    end
+  end
+
+  defp normalize_lock_owner_contents({:error, _}), do: :error
+
+  @spec parse_lock_owner_pid(String.t()) :: {:ok, pid()} | :error
+  defp parse_lock_owner_pid(owner) do
+    case owner_pid_line(owner) do
+      {:ok, pid_line} -> parse_pid_line(pid_line)
+      :error -> :error
+    end
+  end
+
+  @spec owner_pid_line(String.t()) :: {:ok, String.t()} | :error
+  defp owner_pid_line(owner) do
+    owner
+    |> String.split("\n", trim: true)
+    |> Enum.find_value(:error, fn line ->
+      case String.trim(line) do
+        "pid: " <> pid_text -> {:ok, pid_text}
+        _ -> false
+      end
+    end)
+  end
+
+  @spec parse_pid_line(String.t()) :: {:ok, pid()} | :error
+  defp parse_pid_line(pid_line) do
+    pid_line
+    |> String.to_charlist()
+    |> :erlang.list_to_pid()
+    |> normalize_lock_owner_pid()
+  catch
+    :error, _ -> :error
+  end
+
+  @spec normalize_lock_owner_pid(pid()) :: {:ok, pid()}
+  defp normalize_lock_owner_pid(pid) when is_pid(pid), do: {:ok, pid}
 
   # --------------------------------------------------------------------------
   # Conversation summarization
