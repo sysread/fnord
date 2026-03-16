@@ -59,12 +59,12 @@ defmodule AI.Model do
     end
   end
 
-  def smart(), do: gpt5(:minimal)
-  def smarter(), do: gpt5(:medium)
-  def balanced(), do: gpt5_mini(:low)
+  def smart(), do: gpt5(:none)
+  def smarter(), do: gpt5(:low)
+  def balanced(), do: gpt5_mini(:medium)
   def fast(), do: gpt41_nano()
 
-  def coding(), do: o4_mini(:medium)
+  def coding(), do: gpt5(:none)
   def web_search(), do: gpt_4o_mini_search_preview()
 
   def large_context(), do: large_context(:smart)
@@ -75,7 +75,7 @@ defmodule AI.Model do
   # ----------------------------------------------------------------------------
   # OpenAI Models
   # ----------------------------------------------------------------------------
-  def gpt5(reasoning \\ :medium), do: new("gpt-5.2", 400_000, reasoning)
+  def gpt5(reasoning \\ :medium), do: new("gpt-5.4", 1_050_000, reasoning)
   def gpt5_mini(reasoning \\ :medium), do: new("gpt-5-mini", 400_000, reasoning)
   def gpt5_nano(reasoning \\ :medium), do: new("gpt-5-nano", 400_000, reasoning)
 
