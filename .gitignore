@@ -60,3 +60,6 @@ cover/
 
 # fnord-generated planning docs
 .fnord/*
+
+# direnv
+.envrc
