@@ -8,7 +8,8 @@ defmodule Cmd.MemoryTest do
   end
 
   describe "run/3" do
-    test "prints markdown listing of all global memories by default" do
+    @tag :no_project_error
+    test "errors when no project selected without --global flag" do
       mem = %Memory{
         scope: :global,
         title: "Global Test",
@@ -20,12 +21,14 @@ defmodule Cmd.MemoryTest do
 
       assert :ok = Memory.Global.save(mem)
 
-      {stdout, _stderr} = capture_all(fn -> Cmd.Memory.run(%{}, [], []) end)
+      Services.Globals.put_env(:fnord, :test_no_halt, true)
+      on_exit(fn -> Services.Globals.delete_env(:fnord, :test_no_halt) end)
 
-      assert stdout =~ "# Memories"
-      assert stdout =~ "## global"
-      assert stdout =~ "### [global] Global Test"
-      assert stdout =~ "some content"
+      assert_raise RuntimeError,
+                   ~r/No project selected/,
+                   fn ->
+                     Cmd.Memory.run(%{}, [], [])
+                   end
     end
 
     test "supports filtering by scope (global)" do
@@ -40,7 +43,7 @@ defmodule Cmd.MemoryTest do
 
       assert :ok = Memory.Global.save(mem)
 
-      {stdout, _stderr} = capture_all(fn -> Cmd.Memory.run(%{scope: ["global"]}, [], []) end)
+      {stdout, _stderr} = capture_all(fn -> Cmd.Memory.run(%{global: true}, [], []) end)
 
       assert stdout =~ "## global"
       refute stdout =~ "## project"
@@ -48,7 +51,7 @@ defmodule Cmd.MemoryTest do
       assert stdout =~ "### [global] Only Global"
     end
 
-    test "semantic search includes score line" do
+    test "semantic search includes score line in global mode" do
       mem = %Memory{
         scope: :global,
         title: "Scored",
@@ -61,7 +64,8 @@ defmodule Cmd.MemoryTest do
       assert :ok = Memory.Global.save(mem)
 
       # StubIndexer.get_embeddings/1 returns [1,2,3] in tests
-      {stdout, _stderr} = capture_all(fn -> Cmd.Memory.run(%{query: "anything"}, [], []) end)
+      {stdout, _stderr} =
+        capture_all(fn -> Cmd.Memory.run(%{global: true, query: "anything"}, [], []) end)
 
       assert stdout =~ "### Scored"
       assert stdout =~ "_Score:_ "

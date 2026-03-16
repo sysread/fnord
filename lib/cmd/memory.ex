@@ -14,15 +14,17 @@ defmodule Cmd.Memory do
       memory: [
         name: "memory",
         about: "List memories or perform a semantic search across memory scopes",
-        options: [
-          scope: [
-            value_name: "SCOPE",
-            long: "--scope",
-            short: "-s",
-            help: "Limit to scope(s): global, project (may be repeated)",
+        flags: [
+          global: [
+            long: "--global",
+            short: "-g",
+            help: "Use global (user) memories. If not set, project memories are used.",
             required: false,
-            multiple: true
-          ],
+            default: false
+          ]
+        ],
+        options: [
+          project: Cmd.project_arg(),
           query: [
             value_name: "QUERY",
             long: "--query",
@@ -41,7 +43,7 @@ defmodule Cmd.Memory do
       UI.warn("Ignoring unknown arguments: #{Enum.join(unknown, " ")}")
     end
 
-    scopes = parse_scopes(Map.get(opts, :scope))
+    scopes = resolve_scopes!(opts)
 
     markdown =
       case Map.get(opts, :query) do
@@ -235,35 +237,33 @@ defmodule Cmd.Memory do
   end
 
   # ----------------------------------------------------------------------------
-  # Scope helpers
+  # Scope resolution
   # ----------------------------------------------------------------------------
 
-  defp parse_scopes(nil), do: [:global, :project]
-  defp parse_scopes([]), do: [:global, :project]
+  defp resolve_scopes!(%{global: true}), do: [:global]
 
-  defp parse_scopes(scopes) when is_list(scopes) do
-    scopes
-    |> Enum.map(&parse_scope!/1)
-    |> Enum.uniq()
-    |> Enum.sort_by(&scope_order/1)
-  end
+  defp resolve_scopes!(opts) do
+    maybe_set_project(opts)
 
-  defp parse_scope!(s) when is_binary(s) do
-    case String.downcase(s) do
-      "global" ->
-        :global
+    case Settings.get_selected_project() do
+      {:ok, _project} ->
+        [:project]
 
-      "project" ->
-        :project
+      {:error, _reason} ->
+        UI.fatal(
+          "No project selected; use --project or run in a project directory, or pass --global."
+        )
 
-      other ->
-        UI.fatal("Invalid --scope #{inspect(other)}; expected global, project")
         exit({:shutdown, 1})
     end
   end
 
-  defp scope_order(:global), do: 1
-  defp scope_order(:project), do: 2
+  defp maybe_set_project(%{project: project}) when is_binary(project) and project != "" do
+    Settings.set_project(project)
+    :ok
+  end
+
+  defp maybe_set_project(_), do: :ok
 
   defp available?(:global), do: true
   defp available?(:project), do: Memory.Project.is_available?()
