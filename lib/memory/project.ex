@@ -1,7 +1,10 @@
 defmodule Memory.Project do
   @moduledoc """
   Project-level memory storage implementation for the `Memory` behaviour.
-  Memories are stored as JSON files in `~/.fnord/projects/<project>/memory`.
+
+  Project memory uses the shared file-backed store in `Memory.FileStore`. This
+  module primarily resolves the current project and derives the runtime storage
+  paths for that shared store.
   """
 
   # ----------------------------------------------------------------------------
@@ -11,93 +14,45 @@ defmodule Memory.Project do
 
   @impl Memory
   def init() do
-    with {:ok, project} <- get_project(),
-         {:ok, _path} <- ensure_storage_path(project) do
-      drop_old_storage(project)
-      :ok
+    with {:ok, project} <- get_project() do
+      Memory.FileStore.init(store(project))
     end
   end
 
   @impl Memory
   def list() do
-    with {:ok, project} <- get_project(),
-         {:ok, files} <- project |> storage_path() |> File.ls() do
-      titles =
-        files
-        |> Enum.filter(&String.ends_with?(&1, ".json"))
-        |> Enum.map(fn file ->
-          path = Path.join(storage_path(project), file)
-
-          case read_file(path) do
-            {:ok, contents} ->
-              case Memory.unmarshal(contents) do
-                {:ok, mem} when is_map(mem) and is_binary(mem.title) -> mem.title
-                _ -> Memory.slug_to_title(Path.rootname(file))
-              end
-
-            {:error, _} ->
-              Memory.slug_to_title(Path.rootname(file))
-          end
-        end)
-        |> Enum.uniq()
-        |> Enum.sort()
-
-      {:ok, titles}
+    with {:ok, project} <- get_project() do
+      Memory.FileStore.list(store(project))
     end
   end
 
   @impl Memory
   def exists?(title) do
-    with {:ok, project} <- get_project(),
-         {:ok, _path} <- find_file_path_by_title(title, project) do
-      true
+    with {:ok, project} <- get_project() do
+      Memory.FileStore.exists?(store(project), title)
     else
-      _ -> false
+      _reason -> false
     end
   end
 
   @impl Memory
   def read(title) do
-    with {:ok, project} <- get_project(),
-         {:ok, path} <- find_file_path_by_title(title, project),
-         {:ok, content} <- read_file(path),
-         {:ok, memory} <- Memory.unmarshal(content) do
-      {:ok, memory}
+    with {:ok, project} <- get_project() do
+      Memory.FileStore.read(store(project), title)
     end
   end
 
   @impl Memory
-  def save(%{title: title} = memory) do
-    with {:ok, project} <- get_project(),
-         {:ok, json} <- Memory.marshal(memory),
-         {:ok, _path} <- ensure_storage_path(project) do
-      lockfile = Path.join(storage_path(project), ".alloc.lock")
-
-      case FileLock.with_lock(lockfile, fn ->
-             # If a file with this title already exists, overwrite it in place.
-             # Only allocate a new unique path for genuinely new memories (which
-             # handles slug collisions from different titles).
-             {:ok, path} =
-               case find_file_path_by_title(title, project) do
-                 {:ok, existing_path} -> {:ok, existing_path}
-                 {:error, :not_found} -> allocate_unique_path_for_title(title, project)
-               end
-
-             write_file(path, json)
-           end) do
-        {:ok, {:ok, :ok}} -> :ok
-        {:ok, {:ok, {:error, reason}}} -> {:error, reason}
-        {:ok, {:error, reason}} -> {:error, reason}
-        {:error, reason} -> {:error, reason}
-      end
+  def save(memory) do
+    with {:ok, project} <- get_project() do
+      Memory.FileStore.save(store(project), memory)
     end
   end
 
   @impl Memory
   def forget(title) do
-    with {:ok, project} <- get_project(),
-         {:ok, path} <- find_file_path_by_title(title, project) do
-      rm_path(path)
+    with {:ok, project} <- get_project() do
+      Memory.FileStore.forget(store(project), title)
     end
   end
 
@@ -109,6 +64,20 @@ defmodule Memory.Project do
     end
   end
 
+  @doc """
+  Returns decoded memories for the current project for integration points that
+  need full `Memory.t()` structs.
+
+  Use `list_memories/0` when callers need decoded memory records. Use `list/0`
+  for the title-oriented listing required by the `Memory` behaviour.
+  """
+  @spec list_memories() :: {:ok, [Memory.t()]} | {:error, term()}
+  def list_memories() do
+    with {:ok, project} <- get_project() do
+      Memory.FileStore.list_memories(store(project))
+    end
+  end
+
   # ----------------------------------------------------------------------------
   # Internals
   # ----------------------------------------------------------------------------
@@ -116,138 +85,11 @@ defmodule Memory.Project do
     Store.get_project()
   end
 
-  defp storage_path(%Store.Project{store_path: store_path}) do
-    Path.join(store_path, "memory")
-  end
-
-  defp old_storage_path(%Store.Project{store_path: store_path}) do
-    Path.join(store_path, "memories")
-  end
-
-  defp ensure_storage_path(project) do
-    path = storage_path(project)
-
-    with false <- File.exists?(path),
-         :ok <- File.mkdir_p(path) do
-      {:ok, path}
-    else
-      true -> {:ok, path}
-    end
-  end
-
-  defp drop_old_storage(project) do
-    path = old_storage_path(project)
-
-    if File.exists?(path) do
-      UI.debug("memory:project", "Removing old project memory storage at #{path}")
-      File.rm_rf!(path)
-    end
-  end
-
-  defp read_file(path) do
-    case FileLock.with_lock(path, fn -> File.read(path) end) do
-      {:ok, {:ok, contents}} ->
-        {:ok, contents}
-
-      {:ok, {:error, reason}} ->
-        {:error, reason}
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
-  defp write_file(path, json) do
-    # Optional debug (controlled by FNORD_DEBUG_MEMORY). Use UI.debug so the
-    # output can be enabled via environment when diagnosing issues in CI or
-    # locally. This avoids noisy stdout in normal runs.
-    if Util.Env.looks_truthy?("FNORD_DEBUG_MEMORY") do
-      UI.debug("memory.project.write", "writing memory to #{path} (#{byte_size(json)} bytes)")
-    end
-
-    case FileLock.with_lock(path, fn -> File.write(path, json) end) do
-      {:ok, :ok} ->
-        {:ok, :ok}
-
-      {:ok, {:error, reason}} ->
-        {:error, reason}
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
-  defp rm_path(path) do
-    case FileLock.with_lock(path, fn -> File.rm(path) end) do
-      {:ok, :ok} ->
-        :ok
-
-      {:ok, {:error, reason}} ->
-        {:error, reason}
-
-      {:error, reason} ->
-        {:error, reason}
-
-      {:callback_error, reason} ->
-        {:error, reason}
-    end
-  end
-
-  # Helper functions for title-based lookup and unique path allocation
-
-  defp find_file_path_by_title(title, project) do
-    storage = storage_path(project)
-
-    case File.ls(storage) do
-      {:ok, files} ->
-        files
-        |> Enum.filter(&String.ends_with?(&1, ".json"))
-        |> Enum.find_value({:error, :not_found}, fn file ->
-          path = Path.join(storage, file)
-
-          case read_file(path) do
-            {:ok, content} ->
-              case Memory.unmarshal(content) do
-                {:ok, mem} when is_map(mem) and is_binary(mem.title) ->
-                  if mem.title == title, do: {:ok, path}, else: false
-
-                _ ->
-                  if Memory.slug_to_title(Path.rootname(file)) == title,
-                    do: {:ok, path},
-                    else: false
-              end
-
-            {:error, _reason} ->
-              if Memory.slug_to_title(Path.rootname(file)) == title, do: {:ok, path}, else: false
-          end
-        end)
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
-  defp allocate_unique_path_for_title(title, project) do
-    with {:ok, storage} <- ensure_storage_path(project) do
-      base = Memory.title_to_slug(title)
-      path = Path.join(storage, "#{base}.json")
-
-      if File.exists?(path) do
-        generate_suffixed_path(storage, base)
-      else
-        {:ok, path}
-      end
-    end
-  end
-
-  defp generate_suffixed_path(storage, base, counter \\ 1) do
-    name = "#{base}_#{counter}"
-    path = Path.join(storage, "#{name}.json")
-
-    if File.exists?(path) do
-      generate_suffixed_path(storage, base, counter + 1)
-    else
-      {:ok, path}
-    end
+  defp store(%Store.Project{store_path: store_path}) do
+    Memory.FileStore.new(
+      storage_path: Path.join(store_path, "memory"),
+      old_storage_path: Path.join(store_path, "memories"),
+      debug_label: "memory:project"
+    )
   end
 end

@@ -71,5 +71,28 @@ defmodule Cmd.MemoryTest do
       assert stdout =~ "_Score:_ "
       assert stdout =~ "queryable content"
     end
+
+    test "lists project memories in project mode" do
+      project = mock_project("cmd_memory_project_listing")
+      File.mkdir_p!(project.store_path)
+
+      mem = %Memory{
+        scope: :project,
+        title: "Project Listed",
+        slug: Memory.title_to_slug("Project Listed"),
+        content: "project content",
+        topics: ["project"],
+        embeddings: [0.4, 0.5, 0.6]
+      }
+
+      assert :ok = Memory.Project.init()
+      assert :ok = Memory.Project.save(mem)
+
+      {stdout, _stderr} = capture_all(fn -> Cmd.Memory.run(%{}, [], []) end)
+
+      assert stdout =~ "## project"
+      assert stdout =~ "### [project] Project Listed"
+      assert stdout =~ "project content"
+    end
   end
 end

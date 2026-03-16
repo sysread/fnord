@@ -29,6 +29,8 @@ defmodule MemoryTest do
     end
 
     test "accepts same title in different scopes" do
+      _project = mock_project("memory_new_project_scope")
+
       assert {:ok, _} = Memory.new(:global, "Scoped Title", "g", [])
       assert {:ok, _} = Memory.new(:project, "Scoped Title", "p", [])
     end

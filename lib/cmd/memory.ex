@@ -66,17 +66,16 @@ defmodule Cmd.Memory do
       |> Enum.map(fn scope ->
         case available?(scope) do
           true ->
-            {:ok, titles} = list_titles(scope)
+            {:ok, memories} = list_memories(scope)
 
-            memories =
-              titles
-              |> Enum.sort()
-              |> Enum.map(fn title ->
-                {:ok, mem} = Memory.read(scope, title)
-                {mem, nil}
+            rendered_memories =
+              memories
+              |> Enum.sort_by(& &1.title)
+              |> Enum.map(fn memory ->
+                {memory, nil}
               end)
 
-            render_scope_section(scope, memories, %{mode: :list})
+            render_scope_section(scope, rendered_memories, %{mode: :list})
 
           false ->
             render_unavailable_scope_section(scope)
@@ -267,6 +266,9 @@ defmodule Cmd.Memory do
 
   defp available?(:global), do: true
   defp available?(:project), do: Memory.Project.is_available?()
+
+  defp list_memories(:global), do: Memory.Global.list_memories()
+  defp list_memories(:project), do: Memory.Project.list_memories()
 
   defp list_titles(:global), do: Memory.Global.list()
   defp list_titles(:project), do: Memory.Project.list()
