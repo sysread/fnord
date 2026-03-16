@@ -32,12 +32,25 @@ defmodule Cmd.Memory do
             help: "Semantic search query. If omitted, all memories are shown.",
             required: false
           ]
+        ],
+        subcommands: [
+          defrag: [
+            name: "defrag",
+            about: "Consolidate long-term memories (merge duplicates, prune redundancies)",
+            options: [
+              project: Cmd.project_arg()
+            ]
+          ]
         ]
       ]
     ]
   end
 
   @impl Cmd
+  def run(_opts, [:defrag], _unknown) do
+    run_defrag()
+  end
+
   def run(opts, _subcommands, unknown) do
     if unknown != [] do
       UI.warn("Ignoring unknown arguments: #{Enum.join(unknown, " ")}")
@@ -54,6 +67,55 @@ defmodule Cmd.Memory do
     markdown
     |> UI.format()
     |> UI.puts()
+  end
+
+  # ----------------------------------------------------------------------------
+  # Defrag (memory consolidation)
+  # ----------------------------------------------------------------------------
+
+  # Runs the memory consolidation pipeline with a spinner and progress bar.
+  # Merges duplicate and redundant long-term memories across global and project
+  # scopes in parallel.
+  defp run_defrag do
+    total = count_long_term_memories()
+
+    if total == 0 do
+      UI.warn("No long-term memories to consolidate")
+      :ok
+    else
+      UI.spin("Consolidating #{total} long-term memories", fn ->
+        UI.progress_bar_start(:consolidation, "Consolidating", total)
+        on_progress = fn -> UI.progress_bar_update(:consolidation) end
+
+        case Memory.Consolidator.run(on_progress: on_progress) do
+          {:ok, report} ->
+            msg =
+              "Merged: #{report.merged}, Deleted: #{report.deleted}, " <>
+                "Kept: #{report.kept}, Errors: #{report.errors}"
+
+            {msg, :ok}
+
+          {:error, reason} ->
+            {"Failed: #{inspect(reason)}", {:error, reason}}
+        end
+      end)
+    end
+  end
+
+  defp count_long_term_memories do
+    global =
+      case Memory.list(:global) do
+        {:ok, l} -> length(l)
+        _ -> 0
+      end
+
+    project =
+      case Memory.list(:project) do
+        {:ok, l} -> length(l)
+        _ -> 0
+      end
+
+    global + project
   end
 
   # ----------------------------------------------------------------------------

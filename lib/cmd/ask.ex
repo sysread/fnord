@@ -601,7 +601,7 @@ defmodule Cmd.Ask do
     - Deleted: #{Enum.count(deleted)}
     - Memory:  #{count_memories(:session)} session; #{count_memories(:project)} project; #{count_memories(:global)} global#{format_search_stats()}
 
-    _Run_ `fnord index` _to update the index, or_ `fnord index --long-con` _to consolidate memories._
+    _Run_ `fnord index` _to update the index, or_ `fnord memory defrag` _to consolidate memories._
     """)
 
     UI.flush()

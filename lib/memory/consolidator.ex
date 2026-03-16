@@ -7,7 +7,7 @@ defmodule Memory.Consolidator do
   coordinator for a focus memory and its live candidates, call the LLM agent,
   apply the results, and report back which memories were consumed.
 
-  This module is invoked by `Cmd.Index --long-con` and runs synchronously in
+  This module is invoked by `Cmd.Memory defrag` and runs synchronously in
   the foreground.
   """
 
