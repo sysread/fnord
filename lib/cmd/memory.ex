@@ -1,5 +1,5 @@
 defmodule Cmd.Memory do
-  @min_match_threshold 0.2
+  @min_match_threshold 0.3
 
   alias Memory.Presentation
 

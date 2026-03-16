@@ -72,6 +72,46 @@ defmodule Cmd.MemoryTest do
       assert stdout =~ "queryable content"
     end
 
+    test "semantic search filters out weaker matches below the threshold" do
+      strongest = %Memory{
+        scope: :global,
+        title: "Strongest Match",
+        slug: Memory.title_to_slug("Strongest Match"),
+        content: "strongest content",
+        topics: [],
+        embeddings: [1.0, 2.0, 3.0]
+      }
+
+      still_good = %Memory{
+        scope: :global,
+        title: "Still Good Match",
+        slug: Memory.title_to_slug("Still Good Match"),
+        content: "still good content",
+        topics: [],
+        embeddings: [0.35, 0.65, 1.0]
+      }
+
+      too_weak = %Memory{
+        scope: :global,
+        title: "Too Weak Match",
+        slug: Memory.title_to_slug("Too Weak Match"),
+        content: "too weak content",
+        topics: [],
+        embeddings: [-3.0, 1.0, 0.0]
+      }
+
+      assert :ok = Memory.Global.save(strongest)
+      assert :ok = Memory.Global.save(still_good)
+      assert :ok = Memory.Global.save(too_weak)
+
+      {stdout, _stderr} =
+        capture_all(fn -> Cmd.Memory.run(%{global: true, query: "anything"}, [], []) end)
+
+      assert stdout =~ "### Strongest Match"
+      assert stdout =~ "### Still Good Match"
+      refute stdout =~ "### Too Weak Match"
+    end
+
     test "lists project memories in project mode" do
       project = mock_project("cmd_memory_project_listing")
       File.mkdir_p!(project.store_path)

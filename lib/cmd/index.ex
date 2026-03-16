@@ -61,7 +61,7 @@ defmodule Cmd.Index do
             help: "Assume 'yes' to all prompts",
             required: false,
             default: false
-          ],
+          ]
         ]
       ]
     ]
