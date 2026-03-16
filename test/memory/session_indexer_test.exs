@@ -38,6 +38,10 @@ defmodule Memory.SessionIndexerTest do
     File.touch!(path, System.os_time(:second) - 3600)
   end
 
+  defp released_lock_dir(memory_dir, basename) do
+    Path.join(memory_dir, "#{basename}.json.lock.released.test")
+  end
+
   defp write_live_owner_file(lock_dir, pid \\ self()) do
     File.mkdir_p!(lock_dir)
 
@@ -92,6 +96,19 @@ defmodule Memory.SessionIndexerTest do
     refute File.exists?(lock_dir)
   end
 
+  test "startup removes orphaned stale released memory lock dirs" do
+    stop_memory_indexer()
+
+    project = mock_project("si-lock-released-orphan")
+    memory_dir = Path.join(project.store_path, "memory")
+    lock_dir = released_lock_dir(memory_dir, "orphan")
+
+    stale_lock_dir(lock_dir)
+    restart_memory_indexer(auto_scan: false)
+
+    refute File.exists?(lock_dir)
+  end
+
   test "startup keeps stale memory lock dirs when target json exists" do
     stop_memory_indexer()
 
@@ -103,6 +120,36 @@ defmodule Memory.SessionIndexerTest do
     File.mkdir_p!(memory_dir)
     File.write!(json_path, "{}")
     stale_lock_dir(lock_dir)
+    restart_memory_indexer(auto_scan: false)
+
+    assert File.dir?(lock_dir)
+  end
+
+  test "startup keeps stale released memory lock dirs when target json exists" do
+    stop_memory_indexer()
+
+    project = mock_project("si-lock-released-present")
+    memory_dir = Path.join(project.store_path, "memory")
+    json_path = Path.join(memory_dir, "present.json")
+    lock_dir = released_lock_dir(memory_dir, "present")
+
+    File.mkdir_p!(memory_dir)
+    File.write!(json_path, "{}")
+    stale_lock_dir(lock_dir)
+    restart_memory_indexer(auto_scan: false)
+
+    assert File.dir?(lock_dir)
+  end
+
+  test "startup keeps stale released memory lock dirs with live owner pid" do
+    stop_memory_indexer()
+
+    project = mock_project("si-lock-released-live-owner")
+    memory_dir = Path.join(project.store_path, "memory")
+    lock_dir = released_lock_dir(memory_dir, "live-owner")
+
+    stale_lock_dir(lock_dir)
+    write_live_owner_file(lock_dir)
     restart_memory_indexer(auto_scan: false)
 
     assert File.dir?(lock_dir)

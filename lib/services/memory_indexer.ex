@@ -396,12 +396,13 @@ defmodule Services.MemoryIndexer do
   files no longer exist.
 
   FileLock creates a `*.json.lock` directory before the target `*.json` file may
-  exist and records the owning local pid in an `owner` file inside that lock
-  directory. This maintenance path intentionally mirrors that lifecycle: it only
-  inspects `*.json.lock` entries under the project and global memory storage
-  roots, leaves allocation locks and unrelated store locks alone, and only
-  removes a lock when the target file is missing, the lock age is strictly
-  greater than the stale threshold, and no live local owner pid can be found.
+  exist, and `release_lock/1` may temporarily rename that directory to
+  `*.json.lock.released.*` before removing it. This maintenance path
+  intentionally mirrors that lifecycle: it only inspects those lock-directory
+  forms under the project and global memory storage roots, leaves allocation
+  locks and unrelated store locks alone, and only removes a lock when the
+  target file is missing, the lock age is strictly greater than the stale
+  threshold, and no live local owner pid can be found.
   """
   @spec cleanup_orphan_memory_locks() :: :ok
   def cleanup_orphan_memory_locks do
@@ -475,9 +476,17 @@ defmodule Services.MemoryIndexer do
 
   @spec memory_lock_dirs(String.t()) :: [String.t()]
   defp memory_lock_dirs(storage_root) do
-    storage_root
-    |> Path.join("*.json.lock")
-    |> Path.wildcard()
+    memory_lock_patterns(storage_root)
+    |> Enum.flat_map(&Path.wildcard/1)
+    |> Enum.uniq()
+  end
+
+  @spec memory_lock_patterns(String.t()) :: [String.t()]
+  defp memory_lock_patterns(storage_root) do
+    [
+      Path.join(storage_root, "*.json.lock"),
+      Path.join(storage_root, "*.json.lock.released.*")
+    ]
   end
 
   @spec orphaned_memory_lock?(String.t()) :: boolean()
@@ -490,12 +499,49 @@ defmodule Services.MemoryIndexer do
 
   @spec memory_file_missing?(String.t()) :: boolean()
   defp memory_file_missing?(lock_dir) do
-    not File.exists?(memory_file_for_lock(lock_dir))
+    lock_dir
+    |> memory_file_for_lock()
+    |> File.exists?()
+    |> Kernel.not()
   end
 
   @spec memory_file_for_lock(String.t()) :: String.t()
   defp memory_file_for_lock(lock_dir) do
-    Path.rootname(lock_dir, ".lock")
+    lock_dir
+    |> normalize_lock_dir_path()
+    |> Path.rootname(".lock")
+  end
+
+  @spec normalize_lock_dir_path(String.t()) :: String.t()
+  defp normalize_lock_dir_path(lock_dir) do
+    dirname = Path.dirname(lock_dir)
+    basename = Path.basename(lock_dir)
+
+    Path.join(dirname, normalize_lock_dir_basename(basename))
+  end
+
+  @spec normalize_lock_dir_basename(String.t()) :: String.t()
+  defp normalize_lock_dir_basename(basename) do
+    case released_lock_basename?(basename) do
+      true -> released_lock_target_basename(basename)
+      false -> basename
+    end
+  end
+
+  @spec released_lock_basename?(String.t()) :: boolean()
+  defp released_lock_basename?(basename) do
+    case Regex.run(~r/^.+\.json\.lock\.released\..+$/, basename) do
+      nil -> false
+      _ -> true
+    end
+  end
+
+  @spec released_lock_target_basename(String.t()) :: String.t()
+  defp released_lock_target_basename(basename) do
+    case Regex.run(~r/^(?<target>.+\.json\.lock)\.released\..+$/, basename, capture: :all_names) do
+      [target] -> target
+      [] -> basename
+    end
   end
 
   @spec stale_lock_dir?(String.t()) :: boolean()
