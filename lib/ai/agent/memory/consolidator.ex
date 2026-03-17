@@ -103,6 +103,7 @@ defmodule AI.Agent.Memory.Consolidator do
   If a memory refers to a specific project, repository, module, file, component,
   workflow, ticket, branch, commit, deployment, or codebase convention, treat it
   as project-scoped.
+
   Do NOT generalize project-specific content into global memory.
   When uncertain, prefer project scope over global scope.
 

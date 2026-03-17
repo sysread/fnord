@@ -83,22 +83,17 @@ defmodule Cmd.Memory do
       UI.warn("No long-term memories to consolidate")
       :ok
     else
-      UI.spin("Consolidating #{total} long-term memories", fn ->
-        UI.progress_bar_start(:consolidation, "Consolidating", total)
-        on_progress = fn -> UI.progress_bar_update(:consolidation) end
+      case Memory.Consolidator.run() do
+        {:ok, report} ->
+          msg =
+            "Merged: #{report.merged}, Deleted: #{report.deleted}, " <>
+              "Kept: #{report.kept}, Errors: #{report.errors}"
 
-        case Memory.Consolidator.run(on_progress: on_progress) do
-          {:ok, report} ->
-            msg =
-              "Merged: #{report.merged}, Deleted: #{report.deleted}, " <>
-                "Kept: #{report.kept}, Errors: #{report.errors}"
+          {msg, :ok}
 
-            {msg, :ok}
-
-          {:error, reason} ->
-            {"Failed: #{inspect(reason)}", {:error, reason}}
-        end
-      end)
+        {:error, reason} ->
+          {"Failed: #{inspect(reason)}", {:error, reason}}
+      end
     end
   end
 

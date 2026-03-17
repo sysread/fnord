@@ -28,16 +28,11 @@ defmodule Memory.Consolidator do
   processed by its own coordinator GenServer with concurrent workers. The two
   scopes run in parallel since consolidation is walled - no cross-scope merges.
 
-  Options:
-  - `:on_progress` - zero-arity function called after each memory is
-    evaluated, regardless of outcome. Useful for driving a progress bar.
-
   Returns a combined report summarizing what happened across both scopes.
   """
-  @spec run(keyword()) :: {:ok, report} | {:error, term}
-  def run(opts \\ []) do
+  @spec run() :: {:ok, report} | {:error, term}
+  def run() do
     HttpPool.set(:ai_memory)
-    on_progress = Keyword.get(opts, :on_progress, fn -> :ok end)
 
     with {:ok, global_memories} <- load_memories(:global),
          {:ok, project_memories} <- load_memories(:project) do
@@ -48,13 +43,13 @@ defmodule Memory.Consolidator do
       global_task =
         Services.Globals.Spawn.async(fn ->
           HttpPool.set(:ai_memory)
-          safe_consolidate_scope(:global, global_memories, on_progress)
+          safe_consolidate_scope(:global, global_memories)
         end)
 
       project_task =
         Services.Globals.Spawn.async(fn ->
           HttpPool.set(:ai_memory)
-          safe_consolidate_scope(:project, project_memories, on_progress)
+          safe_consolidate_scope(:project, project_memories)
         end)
 
       global_report = Task.await(global_task, :infinity)
@@ -69,8 +64,8 @@ defmodule Memory.Consolidator do
   # --------------------------------------------------------------------------
 
   # Guard against a scope-level crash taking down the whole consolidation run.
-  defp safe_consolidate_scope(scope_name, memories, on_progress) do
-    consolidate_scope(memories, on_progress)
+  defp safe_consolidate_scope(scope_name, memories) do
+    consolidate_scope(memories)
   rescue
     e ->
       UI.error("consolidator", "#{scope_name} scope crashed: #{Exception.message(e)}")
@@ -82,11 +77,11 @@ defmodule Memory.Consolidator do
   end
 
   # Start a pool for this scope, spawn workers, collect results.
-  defp consolidate_scope([], _on_progress) do
+  defp consolidate_scope([]) do
     %{merged: 0, deleted: 0, kept: 0, errors: 0}
   end
 
-  defp consolidate_scope(memories, on_progress) do
+  defp consolidate_scope(memories) do
     {:ok, coordinator} = Services.MemoryConsolidation.start_link(memories)
 
     try do
@@ -96,7 +91,7 @@ defmodule Memory.Consolidator do
 
       1..worker_count
       |> Util.async_stream(fn _ ->
-        worker_loop(coordinator, on_progress)
+        worker_loop(coordinator)
       end)
       |> Enum.to_list()
 
@@ -113,7 +108,7 @@ defmodule Memory.Consolidator do
   # Each worker repeatedly checks out a focus memory from the coordinator,
   # processes it, and reports back. Stops when the coordinator has no more
   # work.
-  defp worker_loop(coordinator, on_progress) do
+  defp worker_loop(coordinator) do
     HttpPool.set(:ai_memory)
 
     case Services.MemoryConsolidation.checkout(coordinator) do
@@ -123,13 +118,11 @@ defmodule Memory.Consolidator do
       {:ok, focus, candidates} ->
         result = process_one(coordinator, focus, candidates)
         Services.MemoryConsolidation.complete(coordinator, focus, result)
-        on_progress.()
-        worker_loop(coordinator, on_progress)
+        worker_loop(coordinator)
 
       {:skip, _focus} ->
         # No live candidates - coordinator already counted it as kept.
-        on_progress.()
-        worker_loop(coordinator, on_progress)
+        worker_loop(coordinator)
     end
   end
 
