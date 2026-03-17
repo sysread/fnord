@@ -85,15 +85,25 @@ defmodule Services.NamePool do
   end
 
   @doc """
-  Restores the association between a `pid` and a `name`. This is useful to
-  re-associate a name after a process restart or similar event.
+  Restores the association between the current process and a `name`.
+
+  This path is used when a worker process needs the same speaking identity as
+  its parent so UI reporting and tool logs remain attributed to the right
+  character. The update is synchronous because callers may read the association
+  immediately after restoring it.
   """
-  def associate_name(name, server \\ @name)
+  @spec associate_name(String.t() | nil, atom() | pid(), timeout()) :: :ok | {:error, :timeout}
+  def associate_name(name, server \\ @name, timeout_ms \\ 30_000)
 
-  def associate_name(nil, _), do: :ok
+  def associate_name(nil, _, _), do: :ok
 
-  def associate_name(name, server) do
-    GenServer.call(server, {:associate_name, name})
+  def associate_name(name, server, timeout_ms) do
+    try do
+      GenServer.call(server, {:associate_name, name}, timeout_ms)
+    catch
+      :exit, {:timeout, _} -> {:error, :timeout}
+      :exit, :timeout -> {:error, :timeout}
+    end
   end
 
   @doc "Returns pool statistics for debugging/monitoring"
@@ -164,30 +174,21 @@ defmodule Services.NamePool do
   @impl GenServer
   def handle_call({:associate_name, name}, {caller_pid, _ref}, state) do
     prev_pid = Map.get(state.name_to_pid, name)
+    caller_name = Map.get(state.pid_to_name, caller_pid)
 
-    state =
-      case prev_pid do
-        nil ->
-          state
-
-        ^caller_pid ->
-          state
-
-        other ->
-          %{
-            state
-            | pid_to_name: Map.delete(state.pid_to_name, other),
-              name_to_pid: Map.delete(state.name_to_pid, name)
-          }
-      end
-
-    new_state = %{
+    new_state =
       state
-      | checked_out: MapSet.put(state.checked_out, name),
-        pid_to_name: Map.put(state.pid_to_name, caller_pid, name),
-        name_to_pid: Map.put(state.name_to_pid, name, caller_pid),
-        available: List.delete(state.available, name)
-    }
+      |> maybe_delete_pid_name(prev_pid, name, caller_pid)
+      |> maybe_delete_pid_name(caller_pid, caller_name, name)
+      |> then(fn state ->
+        %{
+          state
+          | available: List.delete(state.available, name),
+            checked_out: MapSet.put(state.checked_out, name),
+            pid_to_name: Map.put(state.pid_to_name, caller_pid, name),
+            name_to_pid: Map.put(state.name_to_pid, name, caller_pid)
+        }
+      end)
 
     {:reply, :ok, new_state}
   end
@@ -248,6 +249,18 @@ defmodule Services.NamePool do
       {:noreply, state}
     end
   end
+
+  defp maybe_delete_pid_name(state, pid, mapped_name, keep_name)
+       when is_pid(pid) and is_binary(mapped_name) and mapped_name != keep_name do
+    %{
+      state
+      | pid_to_name: Map.delete(state.pid_to_name, pid),
+        name_to_pid: Map.delete(state.name_to_pid, mapped_name),
+        checked_out: MapSet.delete(state.checked_out, mapped_name)
+    }
+  end
+
+  defp maybe_delete_pid_name(state, _pid, _mapped_name, _keep_name), do: state
 
   # Ensures there are names available; allocates a new chunk when empty.
   # This is a private helper; do not use @doc on private functions to avoid warnings.

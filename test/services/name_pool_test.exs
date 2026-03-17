@@ -114,6 +114,60 @@ defmodule Services.NamePoolTest do
     end)
 
     assert_receive {:spawned, new_pid}
+
+    wait_for_name_remap(old_pid, new_pid, name)
+  end
+
+  test "associate_name/3 returns timeout when target server never replies" do
+    NamePool.reset()
+
+    defmodule NoAssociateReplyServer do
+      use GenServer
+
+      def init(:ok), do: {:ok, %{}}
+
+      def handle_call({:associate_name, _name}, _from, state) do
+        {:noreply, state}
+      end
+    end
+
+    {:ok, pid} = GenServer.start_link(NoAssociateReplyServer, :ok)
+
+    on_exit(fn ->
+      if Process.alive?(pid) do
+        Process.exit(pid, :kill)
+      end
+    end)
+
+    assert {:error, :timeout} = NamePool.associate_name("NPC #99", pid, 1)
+  end
+
+  test "associate_name/1 replaces the caller's previous name mapping" do
+    NamePool.reset()
+    {:ok, _first_name} = NamePool.checkout_name()
+    {:ok, second_name} = NamePool.checkout_name()
+
+    assert :ok = NamePool.associate_name(second_name)
+    assert {:ok, ^second_name} = NamePool.get_name_by_pid(self())
+
+    stats = NamePool.pool_stats()
+    assert stats.checked_out_count == 2
+  end
+
+  defp wait_for_name_remap(old_pid, new_pid, name, attempts \\ 20)
+
+  defp wait_for_name_remap(old_pid, new_pid, name, attempts) when attempts > 0 do
+    case {NamePool.get_name_by_pid(old_pid), NamePool.get_name_by_pid(new_pid)} do
+      {{:error, :not_found}, {:ok, ^name}} ->
+        :ok
+
+      _other ->
+        Process.sleep(10)
+        wait_for_name_remap(old_pid, new_pid, name, attempts - 1)
+    end
+  end
+
+  defp wait_for_name_remap(old_pid, new_pid, name, 0) do
     assert {:error, :not_found} = NamePool.get_name_by_pid(old_pid)
     assert {:ok, ^name} = NamePool.get_name_by_pid(new_pid)
   end
