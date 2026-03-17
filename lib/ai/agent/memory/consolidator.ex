@@ -1,7 +1,7 @@
 defmodule AI.Agent.Memory.Consolidator do
   @moduledoc """
   Agent that examines a single long-term memory ("focus") alongside its most
-  similar candidates and decides whether to merge, delete, or keep them.
+  similar candidates and decides whether to merge, delete, move, or keep them.
 
   Returns a structured JSON response (no prose) with shape:
 
@@ -17,6 +17,10 @@ defmodule AI.Agent.Memory.Consolidator do
     candidate will be deleted after the merge.
   - {"action": "delete", "target": {"scope": "...", "title": "..."}, "reason": "..."}
     Delete a candidate that is fully subsumed by the focus memory.
+  - {"action": "move", "target": {"scope": "project", "title": "..."}, "reason": "..."}
+    Move the focus memory into the named project scope, preserving its title
+    and content but changing its scope. This action applies to the focus
+    memory, not a candidate.
 
   When "keep" is false, the focus memory itself is redundant and should be
   deleted (e.g. it duplicates something already processed earlier in the run).
@@ -40,6 +44,7 @@ defmodule AI.Agent.Memory.Consolidator do
   Action objects must be one of:
     {"action":"merge","target":{"scope":"...","title":"..."},"content":"...","reason":"..."}
     {"action":"delete","target":{"scope":"...","title":"..."},"reason":"..."}
+    {"action":"move","target":{"scope":"project","title":"..."},"reason":"..."}
 
   Every action MUST include a "reason" field -- a brief explanation of why this
   action was chosen (e.g. "near-duplicate of focus", "fully subsumed by focus",
@@ -61,6 +66,14 @@ defmodule AI.Agent.Memory.Consolidator do
   ### Delete action
   When a candidate is fully subsumed by the focus memory (all its information
   is already captured), emit a delete action for the candidate.
+
+  ### Move action
+  Emit a move action ONLY when the focus memory is currently global but is
+  clearly project-specific to a specific project. In that case, set the target
+  scope to "project" and the target title to the destination project name.
+  Preserve the focus memory's existing title and content; the move only changes
+  scope. Do NOT use move for ambiguous cases, and do NOT emit move actions for
+  candidates.
 
   ### Keep = false
   Set "keep" to false ONLY when the focus memory itself is completely redundant

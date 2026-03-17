@@ -152,29 +152,88 @@ defmodule Memory.Consolidator do
   # Focus processing (runs in worker)
   # --------------------------------------------------------------------------
 
-  # Process a single focus memory: ask the agent, apply actions. Returns a
-  # result tuple the coordinator can use to update its state.
+  # Process a single focus memory: first try a bounded ownership pre-step for
+  # suspicious global memories, then fall back to the consolidator agent.
+  # Returns the same result tuples consumed by the coordinator.
   defp process_focus(focus, candidates) do
-    case run_agent(focus, candidates) do
-      {:ok, decoded} ->
-        apply_actions(focus, decoded)
+    case maybe_move_global_focus_to_project(focus) do
+      {:delete, eaten} ->
+        {:delete, eaten}
 
-      {:error, reason} ->
-        UI.warn("Consolidation failed for #{focus.title}", inspect(reason))
-        {:error, []}
+      :continue ->
+        case run_agent(focus, candidates) do
+          {:ok, decoded} ->
+            apply_actions(focus, decoded)
+
+          {:error, reason} ->
+            UI.warn("Consolidation failed for #{focus.title}", inspect(reason))
+            {:error, []}
+        end
     end
   end
 
-  # Apply the agent's decisions to disk. Returns {:ok | :delete, eaten_slugs}
-  # or {:error, eaten_slugs} so the coordinator knows what was consumed.
+  # For suspicious global memories, score ownership against projects before the
+  # normal global consolidator runs. A confident move consumes the global focus
+  # immediately; otherwise the usual agent path continues.
+  defp maybe_move_global_focus_to_project(%Memory{scope: :global} = focus) do
+    with true <- Memory.ProjectOwnership.suspicious_global_memory?(focus),
+         {:ok, verdict} <- Memory.ProjectOwnership.classify(focus),
+         {:move, project, score, margin} <- ownership_move(verdict),
+         {:ok, _moved} <- move_focus_to_project(focus, project) do
+      UI.debug(
+        "consolidator",
+        "Moved suspicious global memory #{focus.title} to project #{project} (score=#{Float.round(score, 4)}, margin=#{Float.round(margin, 4)})"
+      )
+
+      {:delete, []}
+    else
+      _ -> :continue
+    end
+  end
+
+  defp maybe_move_global_focus_to_project(_focus), do: :continue
+
+  defp ownership_move(%{project: project, score: score, margin: margin, confident: true})
+       when is_binary(project) and is_number(score) and is_number(margin) do
+    {:move, project, score, margin}
+  end
+
+  defp ownership_move(_), do: :continue
+
+  # Apply the agent's decisions to disk. Returns {:ok, eaten_slugs},
+  # {:delete, eaten_slugs}, or {:error, eaten_slugs}.
   defp apply_actions(focus, decoded) do
     actions = Map.get(decoded, "actions", [])
     keep = Map.get(decoded, "keep", true)
 
-    eaten =
-      actions
-      |> Enum.flat_map(&apply_action(focus, &1))
+    case apply_actions_list(focus, actions) do
+      {:ok, eaten} ->
+        maybe_delete_focus(focus, keep, eaten, decoded)
 
+      {:delete, eaten} ->
+        {:delete, eaten}
+
+      {:error, eaten} ->
+        {:error, eaten}
+    end
+  end
+
+  defp apply_actions_list(focus, actions) do
+    Enum.reduce_while(actions, {:ok, []}, fn action, {:ok, eaten} ->
+      case apply_action(focus, action) do
+        {:ok, more_eaten} ->
+          {:cont, {:ok, eaten ++ more_eaten}}
+
+        {:delete, more_eaten} ->
+          {:halt, {:delete, eaten ++ more_eaten}}
+
+        {:error, more_eaten} ->
+          {:halt, {:error, eaten ++ more_eaten}}
+      end
+    end)
+  end
+
+  defp maybe_delete_focus(focus, keep, eaten, decoded) do
     if keep or me_memory?(focus) do
       if not keep and me_memory?(focus) do
         UI.debug("consolidator", "Refused to delete Me identity memory")
@@ -197,7 +256,7 @@ defmodule Memory.Consolidator do
   end
 
   # Merge: rewrite the focus memory's content, then delete the candidate.
-  # Returns a list of eaten slug keys (0 or 1 element).
+  # Returns consumed slug keys for candidates eaten by the merge.
   defp apply_action(
          focus,
          %{"action" => "merge", "target" => target, "content" => content} = action
@@ -212,7 +271,7 @@ defmodule Memory.Consolidator do
         "Rejected cross-scope merge targeting #{scope} from #{focus.scope} scope"
       )
 
-      []
+      {:ok, []}
     else
       title = target["title"]
       slug = Memory.title_to_slug(title)
@@ -234,12 +293,40 @@ defmodule Memory.Consolidator do
               :ok
           end
 
-          [{scope, slug}]
+          {:ok, [{scope, slug}]}
 
         {:error, reason} ->
           UI.warn("Failed to save merged memory #{focus.title}", inspect(reason))
-          []
+          {:ok, []}
       end
+    end
+  end
+
+  # Move: re-home the global focus memory into project scope. This uses the same
+  # explicit save+forget flow as project ownership reassignment, rather than
+  # pretending the move is a merge or candidate delete.
+  defp apply_action(focus, %{"action" => "move", "target" => target} = action) do
+    target_scope = parse_scope(target["scope"])
+    project = target["title"]
+    reason = Map.get(action, "reason", "no reason given")
+
+    if valid_move_target?(focus, target_scope, project) do
+      case move_focus_to_project(focus, project) do
+        {:ok, _moved} ->
+          UI.debug("consolidator", "Moved #{focus.title} to project #{project} - #{reason}")
+          {:delete, []}
+
+        {:error, reason} ->
+          UI.warn("Failed to move #{focus.title} to project #{project}", inspect(reason))
+          {:error, []}
+      end
+    else
+      UI.warn(
+        "consolidator",
+        "Rejected invalid move targeting #{inspect(target_scope)}:#{inspect(project)} from #{focus.scope} scope"
+      )
+
+      {:ok, []}
     end
   end
 
@@ -251,7 +338,7 @@ defmodule Memory.Consolidator do
          "target" => %{"scope" => "global", "title" => "Me"}
        }) do
     UI.debug("consolidator", "Refused to delete Me identity memory")
-    []
+    {:ok, []}
   end
 
   defp apply_action(focus, %{"action" => "delete", "target" => target} = action) do
@@ -265,7 +352,7 @@ defmodule Memory.Consolidator do
         "Rejected cross-scope delete targeting #{scope} from #{focus.scope} scope"
       )
 
-      []
+      {:ok, []}
     else
       title = target["title"]
       slug = Memory.title_to_slug(title)
@@ -276,21 +363,21 @@ defmodule Memory.Consolidator do
           case Memory.forget(memory) do
             :ok ->
               UI.debug("consolidator", "Deleted: #{title} - #{reason}")
-              [{scope, slug}]
+              {:ok, [{scope, slug}]}
 
             {:error, reason} ->
               UI.warn("Failed to delete #{title}", inspect(reason))
-              []
+              {:ok, []}
           end
 
         {:error, _} ->
           # Already gone.
-          []
+          {:ok, []}
       end
     end
   end
 
-  defp apply_action(_, _), do: []
+  defp apply_action(_, _), do: {:ok, []}
 
   # --------------------------------------------------------------------------
   # Agent invocation
@@ -354,15 +441,29 @@ defmodule Memory.Consolidator do
 
   defp valid_action?(%{
          "action" => "merge",
-         "target" => %{"scope" => _, "title" => _},
+         "target" => %{"scope" => scope, "title" => _},
          "content" => _
-       }),
-       do: true
+       }) do
+    valid_scope_string?(scope)
+  end
 
-  defp valid_action?(%{"action" => "delete", "target" => %{"scope" => _, "title" => _}}),
-    do: true
+  defp valid_action?(%{"action" => "move", "target" => %{"scope" => "project", "title" => title}}) do
+    is_binary(title)
+  end
+
+  defp valid_action?(%{"action" => "delete", "target" => %{"scope" => scope, "title" => _}}) do
+    valid_scope_string?(scope)
+  end
 
   defp valid_action?(_), do: false
+
+  defp valid_move_target?(%Memory{scope: :global}, :project, project) when is_binary(project),
+    do: true
+
+  defp valid_move_target?(_, _, _), do: false
+
+  defp move_focus_to_project(focus, project),
+    do: Memory.ProjectOwnership.move_to_project(focus, project)
 
   # --------------------------------------------------------------------------
   # Helpers
@@ -408,6 +509,10 @@ defmodule Memory.Consolidator do
       {:ok, memories}
     end
   end
+
+  defp valid_scope_string?("global"), do: true
+  defp valid_scope_string?("project"), do: true
+  defp valid_scope_string?(_), do: false
 
   defp parse_scope("global"), do: :global
   defp parse_scope("project"), do: :project
