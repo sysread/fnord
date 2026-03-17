@@ -267,6 +267,26 @@ defmodule Store.Project.ConversationTest do
     assert [%{id: "t1", outcome: :todo}, %{id: "t2", outcome: :done, result: "ok"}] = tasks_list
   end
 
+  test "read/1 returns error tuple for corrupt conversation data", ctx do
+    id = "corrupt"
+    convo = Conversation.new(id, ctx.project)
+    File.mkdir_p!(Path.dirname(convo.store_path))
+
+    # Write a conversation file whose memory field contains garbage keys that
+    # would blow up string_keys_to_atoms via the atom table limit
+    garbage_key = String.duplicate("}]} ", 200)
+
+    corrupt_data = %{
+      "messages" => [],
+      "metadata" => %{},
+      "memory" => [%{garbage_key => "bad"}]
+    }
+
+    File.write!(convo.store_path, "42:" <> SafeJson.encode!(corrupt_data))
+
+    assert {:error, {:corrupt_conversation, _reason}} = Conversation.read(convo)
+  end
+
   test "roundtrip preserves nil description for task lists" do
     convo = Conversation.new()
 

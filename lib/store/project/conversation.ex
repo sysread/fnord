@@ -302,6 +302,10 @@ defmodule Store.Project.Conversation do
          tasks: tasks
        }}
     end
+  rescue
+    e ->
+      UI.warn("Skipping corrupt conversation file", conversation.store_path)
+      {:error, {:corrupt_conversation, Exception.message(e)}}
   end
 
   @doc """
