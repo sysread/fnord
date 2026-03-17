@@ -169,7 +169,8 @@ defmodule Memory.Consolidator do
   # normal global consolidator runs. A confident move consumes the global focus
   # immediately; otherwise the usual agent path continues.
   defp maybe_move_global_focus_to_project(%Memory{scope: :global} = focus) do
-    with true <- Memory.ProjectOwnership.suspicious_global_memory?(focus),
+    with true <- Memory.ScopePolicy.allow_automatic_move?(focus, :project),
+         true <- Memory.ProjectOwnership.suspicious_global_memory?(focus),
          {:ok, verdict} <- Memory.ProjectOwnership.classify(focus),
          {:move, project, score, margin} <- ownership_move(verdict),
          {:ok, _moved} <- move_focus_to_project(focus, project) do
@@ -450,8 +451,9 @@ defmodule Memory.Consolidator do
 
   defp valid_action?(_), do: false
 
-  defp valid_move_target?(%Memory{scope: :global}, :project, project) when is_binary(project),
-    do: true
+  defp valid_move_target?(%Memory{} = focus, :project, project) when is_binary(project) do
+    Memory.ScopePolicy.allow_automatic_move?(focus, :project)
+  end
 
   defp valid_move_target?(_, _, _), do: false
 

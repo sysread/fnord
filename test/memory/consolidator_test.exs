@@ -266,5 +266,93 @@ defmodule Memory.ConsolidatorTest do
 
       GenServer.stop(pool)
     end
+
+    test "scope policy allows only global scope for Me" do
+      assert Memory.ScopePolicy.allowed_scopes_for_title("Me") == [:global]
+    end
+
+    test "move_to_project/2 rejects moving Me with invalid target scope" do
+      project = mock_project("alpha")
+      File.mkdir_p!(project.store_path)
+      :ok = Memory.Project.init()
+
+      memory = %Memory{
+        scope: :global,
+        title: "Me",
+        slug: "me",
+        content: "Personal profile and preferences that should stay globally scoped.",
+        embeddings: [1.0, 2.0, 3.0]
+      }
+
+      assert {:ok, saved} = Memory.save(memory)
+
+      assert {:error, :invalid_target_scope} =
+               ProjectOwnership.move_to_project(saved, project.name)
+
+      assert {:ok, _global_copy} = Memory.read(:global, saved.title)
+      assert {:error, :not_found} = Memory.read(:project, saved.title)
+    end
+
+    test "ownership path keeps Me global even when notes and content would otherwise suggest a move" do
+      project = mock_project("alpha")
+      File.mkdir_p!(project.store_path)
+      :ok = Memory.Project.init()
+
+      File.write!(
+        Path.join(project.store_path, "notes.md"),
+        """
+        Me cache invalidation plan
+        Release blocker investigation
+        Deploy sequencing and rollback notes
+        """
+      )
+
+      memory = %Memory{
+        scope: :global,
+        title: "Me",
+        slug: "me",
+        content:
+          "Release blocker caused by cache invalidation during deploy sequencing for alpha.",
+        embeddings: [1.0, 2.0, 3.0]
+      }
+
+      assert {:ok, saved} = Memory.save(memory)
+      {:ok, pool} = MemoryConsolidation.start_link([saved])
+
+      result =
+        case MemoryConsolidation.checkout(pool) do
+          {:ok, focus, _candidates} ->
+            verdict = ProjectOwnership.classify(focus)
+            move_result = ProjectOwnership.move_to_project(focus, project.name)
+            MemoryConsolidation.complete(pool, focus, {:ok, []})
+            {focus, verdict, move_result}
+
+          {:skip, focus} ->
+            verdict = ProjectOwnership.classify(focus)
+            move_result = ProjectOwnership.move_to_project(focus, project.name)
+            MemoryConsolidation.complete(pool, focus, {:ok, []})
+            {focus, verdict, move_result}
+        end
+
+      assert {focus, verdict, move_result} = result
+      assert focus.title == "Me"
+      assert {:error, :invalid_target_scope} = move_result
+
+      case verdict do
+        {:ok, %{project: project_name}} -> assert project_name == project.name
+        :inconclusive -> :ok
+      end
+
+      assert :done = MemoryConsolidation.checkout(pool)
+
+      report = MemoryConsolidation.report(pool)
+      assert report.merged == 0
+      assert report.kept == 2
+
+      assert {:ok, _global_copy} = Memory.read(:global, saved.title)
+      assert {:error, :not_found} = Memory.read(:project, saved.title)
+
+      GenServer.stop(pool)
+    end
   end
 end

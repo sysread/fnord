@@ -75,9 +75,14 @@ defmodule Memory.ProjectOwnership do
   @spec move_to_project(Memory.t(), String.t()) :: {:ok, Memory.t()} | {:error, term()}
   def move_to_project(%Memory{scope: :global} = memory, project_name)
       when is_binary(project_name) do
-    with {:ok, project_memory} <- save_into_project(memory, project_name),
+    with :ok <- Memory.ScopePolicy.validate_scope(memory, :project),
+         {:ok, project_memory} <- save_into_project(memory, project_name),
          :ok <- Memory.forget(memory) do
       {:ok, project_memory}
+    else
+      {:error, :invalid_scope} -> {:error, :invalid_target_scope}
+      {:error, :project_scope_not_allowed} -> {:error, :invalid_target_scope}
+      {:error, reason} -> {:error, reason}
     end
   end
 
