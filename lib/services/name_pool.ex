@@ -120,9 +120,15 @@ defmodule Services.NamePool do
   Returns `{:ok, name}` if the given `pid` has a checked‐out name,
   or `{:error, :not_found}` otherwise.
   """
-  @spec get_name_by_pid(pid(), atom() | pid()) :: {:ok, String.t()} | {:error, :not_found}
-  def get_name_by_pid(pid, server \\ @name) when is_pid(pid) do
-    GenServer.call(server, {:get_name_by_pid, pid})
+  @spec get_name_by_pid(pid(), atom() | pid(), timeout()) ::
+          {:ok, String.t()} | {:error, :not_found} | {:error, :timeout}
+  def get_name_by_pid(pid, server \\ @name, timeout_ms \\ 5_000) when is_pid(pid) do
+    try do
+      GenServer.call(server, {:get_name_by_pid, pid}, timeout_ms)
+    catch
+      :exit, {:timeout, _} -> {:error, :timeout}
+      :exit, :timeout -> {:error, :timeout}
+    end
   end
 
   # -----------------------------------------------------------------------------

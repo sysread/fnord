@@ -172,6 +172,30 @@ defmodule Services.NamePoolTest do
     assert {:ok, ^name} = NamePool.get_name_by_pid(new_pid)
   end
 
+  test "get_name_by_pid/3 returns timeout when target server never replies" do
+    NamePool.reset()
+
+    defmodule NoGetNameReplyServer do
+      use GenServer
+
+      def init(:ok), do: {:ok, %{}}
+
+      def handle_call({:get_name_by_pid, _pid}, _from, state) do
+        {:noreply, state}
+      end
+    end
+
+    {:ok, pid} = GenServer.start_link(NoGetNameReplyServer, :ok)
+
+    on_exit(fn ->
+      if Process.alive?(pid) do
+        Process.exit(pid, :kill)
+      end
+    end)
+
+    assert {:error, :timeout} = NamePool.get_name_by_pid(self(), pid, 1)
+  end
+
   test "pool_stats reflects checked-out and available counts" do
     NamePool.reset()
     {:ok, _name1} = NamePool.checkout_name()
