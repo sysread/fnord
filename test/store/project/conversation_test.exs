@@ -287,6 +287,44 @@ defmodule Store.Project.ConversationTest do
     assert {:error, {:corrupt_conversation, _reason}} = Conversation.read(convo)
   end
 
+  test "read/1 heals tool call arguments stored as maps", ctx do
+    id = "heal_args"
+    convo = Conversation.new(id, ctx.project)
+    File.mkdir_p!(Path.dirname(convo.store_path))
+
+    # Simulate the corruption: arguments stored as a decoded map instead of a
+    # JSON string (caused by the now-removed responses branch).
+    data = %{
+      "messages" => [
+        %{
+          "role" => "assistant",
+          "content" => nil,
+          "tool_calls" => [
+            %{
+              "id" => "call_1",
+              "type" => "function",
+              "function" => %{
+                "name" => "notify_tool",
+                "arguments" => %{"level" => "info", "message" => "hello"}
+              }
+            }
+          ]
+        }
+      ],
+      "metadata" => %{},
+      "memory" => []
+    }
+
+    File.write!(convo.store_path, "42:" <> SafeJson.encode!(data))
+
+    assert {:ok, %{messages: [msg]}} = Conversation.read(convo)
+    args = msg.tool_calls |> hd() |> Map.get(:function) |> Map.get(:arguments)
+
+    # After healing, arguments should be a JSON string, not a map
+    assert is_binary(args)
+    assert {:ok, %{"level" => "info", "message" => "hello"}} = SafeJson.decode(args)
+  end
+
   test "roundtrip preserves nil description for task lists" do
     convo = Conversation.new()
 

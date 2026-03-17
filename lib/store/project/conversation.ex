@@ -229,6 +229,11 @@ defmodule Store.Project.Conversation do
         timestamp_str
       )
 
+      # A now-removed code path stored tool call arguments as decoded maps.
+      # Re-encode them to JSON strings before atomizing to prevent garbage
+      # LLM-generated keys from exhausting the atom table.
+      data = heal_tool_call_arguments_and_maybe_write(data, conversation, timestamp_str)
+
       msgs =
         data
         |> Map.get("messages", [])
@@ -417,5 +422,71 @@ defmodule Store.Project.Conversation do
   defp marshal_ts() do
     DateTime.utc_now()
     |> DateTime.to_unix()
+  end
+
+  # A now-removed code path stored tool call arguments as decoded maps instead
+  # of their canonical JSON-string form. Re-encode any map arguments and
+  # persist the fix so subsequent reads don't need to heal again.
+  defp heal_tool_call_arguments_and_maybe_write(data, conversation, timestamp_str) do
+    messages = Map.get(data, "messages", [])
+
+    {healed_messages, changed} =
+      Enum.map_reduce(messages, false, fn msg, changed ->
+        case Map.get(msg, "tool_calls") do
+          tool_calls when is_list(tool_calls) ->
+            {healed_tcs, tc_changed} =
+              Enum.map_reduce(tool_calls, false, fn tc, tc_changed ->
+                function = Map.get(tc, "function", %{})
+                arguments = Map.get(function, "arguments")
+
+                if is_map(arguments) do
+                  case SafeJson.encode(arguments) do
+                    {:ok, json_str} ->
+                      healed_fn = Map.put(function, "arguments", json_str)
+                      {Map.put(tc, "function", healed_fn), true}
+
+                    {:error, _} ->
+                      {tc, tc_changed}
+                  end
+                else
+                  {tc, tc_changed}
+                end
+              end)
+
+            if tc_changed do
+              {Map.put(msg, "tool_calls", healed_tcs), true}
+            else
+              {msg, changed}
+            end
+
+          _ ->
+            {msg, changed}
+        end
+      end)
+
+    if changed do
+      repaired = Map.put(data, "messages", healed_messages)
+      persist_healed_data(repaired, conversation, timestamp_str)
+      repaired
+    else
+      data
+    end
+  end
+
+  defp persist_healed_data(data, conversation, timestamp_str) do
+    tmp = conversation.store_path <> ".tmp"
+
+    with {:ok, json} <- SafeJson.encode(data),
+         :ok <- File.write(tmp, "#{timestamp_str}:" <> json),
+         :ok <- File.rename(tmp, conversation.store_path) do
+      :ok
+    else
+      {:error, reason} ->
+        File.rm(tmp)
+
+        UI.warn(
+          "Could not persist healed tool arguments for conversation #{conversation.id}: #{inspect(reason)}"
+        )
+    end
   end
 end

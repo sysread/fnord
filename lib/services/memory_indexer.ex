@@ -54,7 +54,7 @@ defmodule Services.MemoryIndexer do
     {:ok, sup} = Task.Supervisor.start_link()
     auto_scan = Keyword.get(opts, :auto_scan, true)
     :ok = safe_cleanup_orphan_memory_locks()
-    state = %{task: nil, sup: sup, cleanup_timer: safe_schedule_lock_cleanup()}
+    state = %{task: nil, sup: sup, cleanup_timer: safe_schedule_lock_cleanup(), skip_ids: %{}}
 
     case auto_scan do
       true -> {:ok, state, {:continue, :scan}}
@@ -65,13 +65,13 @@ defmodule Services.MemoryIndexer do
   # Scan for the next conversation with unprocessed memories and spawn a
   # background task to process it. If already busy or nothing found, no-op.
   def handle_continue(:scan, %{task: nil, sup: sup} = state) do
-    case find_next_conversation() do
-      nil ->
-        {:noreply, state}
+    case find_next_conversation(state.skip_ids) do
+      {nil, skip_ids} ->
+        {:noreply, %{state | skip_ids: skip_ids}}
 
-      convo ->
+      {convo, skip_ids} ->
         task = spawn_processing_task(sup, convo)
-        {:noreply, %{state | task: task}}
+        {:noreply, %{state | task: task, skip_ids: skip_ids}}
     end
   end
 
@@ -135,17 +135,26 @@ defmodule Services.MemoryIndexer do
   # --------------------------------------------------------------------------
 
   # Walk conversations oldest-first, return the first that has unprocessed
-  # session memories. Skips the currently active conversation.
-  defp find_next_conversation do
+  # session memories. Skips the currently active conversation and any
+  # conversations that previously failed to read (corrupt files).
+  defp find_next_conversation(skip_ids) do
     with {:ok, project} <- Store.get_project() do
       current_id = current_conversation_id()
 
       project
       |> Store.Project.Conversation.list()
-      |> Enum.reject(fn convo -> convo.id == current_id end)
-      |> Enum.find(&has_unprocessed_memories?/1)
+      |> Enum.reject(fn convo ->
+        convo.id == current_id or Map.has_key?(skip_ids, convo.id)
+      end)
+      |> Enum.reduce_while({nil, skip_ids}, fn convo, {_match, skips} ->
+        case has_unprocessed_memories?(convo) do
+          true -> {:halt, {convo, skips}}
+          false -> {:cont, {nil, skips}}
+          :error -> {:cont, {nil, Map.put(skips, convo.id, true)}}
+        end
+      end)
     else
-      _ -> nil
+      _ -> {nil, skip_ids}
     end
   end
 
@@ -159,6 +168,7 @@ defmodule Services.MemoryIndexer do
   defp has_unprocessed_memories?(convo) do
     case Store.Project.Conversation.read(convo) do
       {:ok, data} -> find_unprocessed_memories(data) != []
+      {:error, {:corrupt_conversation, _}} -> :error
       _ -> false
     end
   end
