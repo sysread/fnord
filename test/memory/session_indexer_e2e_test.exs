@@ -28,8 +28,14 @@ defmodule Memory.SessionIndexerE2ETest do
     ]
 
     processed = ["Session One", "Session Two"]
+    status_updates = %{"Session Two" => "analyzed"}
 
-    response = SafeJson.encode!(%{"actions" => actions, "processed" => processed})
+    response =
+      SafeJson.encode!(%{
+        "actions" => actions,
+        "processed" => processed,
+        "status_updates" => status_updates
+      })
 
     # Mock AI.Agent.get_response to return the structured JSON
     :meck.new(AI.Agent, [:no_link, :passthrough, :non_strict])
@@ -91,7 +97,8 @@ defmodule Memory.SessionIndexerE2ETest do
         :ok
     end
 
-    assert :ok = Services.MemoryIndexer.process_sync(conv)
+    assert {:ok, {:ok, %Store.Project.Conversation{}}} =
+             Services.MemoryIndexer.process_sync(conv)
 
     # Long-term memory should have been created under project scope. Allow a
     # short, bounded polling window to account for any scheduling jitter when
@@ -131,6 +138,446 @@ defmodule Memory.SessionIndexerE2ETest do
     assert Enum.any?(data.memory, fn
              %Memory{scope: :session, title: "Session Two", index_status: :analyzed} -> true
              _ -> false
+           end)
+  end
+
+  test "session indexer rejects invalid target and does not mark the session memory processed" do
+    mock_project("si-e2e-invalid-target")
+
+    conv = Store.Project.Conversation.new()
+    {:ok, session_mem} = Memory.new(:session, "Session One", "First content", ["topic1"])
+
+    assert {:ok, _} =
+             Store.Project.Conversation.write(conv, %{
+               messages: [],
+               metadata: %{},
+               memory: [session_mem]
+             })
+
+    actions = [
+      %{
+        "action" => "add",
+        "target" => %{"scope" => "project", "title" => "Me"},
+        "from" => %{"title" => "Session One"},
+        "content" => "Should be rejected"
+      }
+    ]
+
+    response = SafeJson.encode!(%{"actions" => actions, "processed" => ["Session One"]})
+
+    :meck.new(AI.Agent, [:no_link, :passthrough, :non_strict])
+    :meck.expect(AI.Agent, :get_response, fn _agent, _opts -> {:ok, response} end)
+
+    :meck.new(AI.Tools.LongTermMemory, [:no_link, :passthrough, :non_strict])
+    :meck.expect(AI.Tools.LongTermMemory, :call, fn _args -> {:ok, :unexpected_success} end)
+
+    on_exit(fn ->
+      :meck.unload(AI.Agent)
+      :meck.unload(AI.Tools.LongTermMemory)
+    end)
+
+    case Process.whereis(Services.MemoryIndexer) do
+      nil ->
+        case Services.MemoryIndexer.start_link(auto_scan: false) do
+          {:ok, _} ->
+            on_exit(fn ->
+              pid = Process.whereis(Services.MemoryIndexer)
+
+              if is_pid(pid) and Process.alive?(pid) do
+                try do
+                  GenServer.stop(Services.MemoryIndexer)
+                catch
+                  :exit, _ -> :ok
+                end
+              end
+            end)
+
+          _ ->
+            :ok
+        end
+
+      _pid ->
+        :ok
+    end
+
+    assert :ok = Services.MemoryIndexer.process_sync(conv)
+
+    write_calls =
+      :meck.history(AI.Tools.LongTermMemory)
+      |> Enum.filter(fn
+        {_pid, {AI.Tools.LongTermMemory, :call, [%{"action" => "remember"} | _]}, _result} -> true
+        _ -> false
+      end)
+
+    assert write_calls == []
+
+    assert {:ok, data} = Store.Project.Conversation.read(conv)
+
+    assert Enum.any?(data.memory, fn
+             %Memory{scope: :session, title: "Session One", index_status: status}
+             when status in [:new, nil, :pending] ->
+               true
+
+             _ ->
+               false
+           end)
+  end
+
+  test "session indexer does not mark source session memory processed when long-term tool fails" do
+    mock_project("si-e2e-tool-failure")
+
+    conv = Store.Project.Conversation.new()
+    {:ok, session_mem} = Memory.new(:session, "Session One", "First content", ["topic1"])
+
+    assert {:ok, _} =
+             Store.Project.Conversation.write(conv, %{
+               messages: [],
+               metadata: %{},
+               memory: [session_mem]
+             })
+
+    actions = [
+      %{
+        "action" => "add",
+        "target" => %{"scope" => "project", "title" => "Merged Sessions"},
+        "from" => %{"title" => "Session One"},
+        "content" => "Should fail to save"
+      }
+    ]
+
+    response = SafeJson.encode!(%{"actions" => actions, "processed" => ["Session One"]})
+
+    :meck.new(AI.Agent, [:no_link, :passthrough, :non_strict])
+    :meck.expect(AI.Agent, :get_response, fn _agent, _opts -> {:ok, response} end)
+
+    :meck.new(AI.Tools.LongTermMemory, [:no_link, :passthrough, :non_strict])
+    :meck.expect(AI.Tools.LongTermMemory, :call, fn _args -> {:error, "boom"} end)
+
+    on_exit(fn ->
+      :meck.unload(AI.Agent)
+      :meck.unload(AI.Tools.LongTermMemory)
+    end)
+
+    case Process.whereis(Services.MemoryIndexer) do
+      nil ->
+        case Services.MemoryIndexer.start_link(auto_scan: false) do
+          {:ok, _} ->
+            on_exit(fn ->
+              pid = Process.whereis(Services.MemoryIndexer)
+
+              if is_pid(pid) and Process.alive?(pid) do
+                try do
+                  GenServer.stop(Services.MemoryIndexer)
+                catch
+                  :exit, _ -> :ok
+                end
+              end
+            end)
+
+          _ ->
+            :ok
+        end
+
+      _pid ->
+        :ok
+    end
+
+    assert {:ok, {:ok, %Store.Project.Conversation{}}} =
+             Services.MemoryIndexer.process_sync(conv)
+
+    write_calls =
+      :meck.history(AI.Tools.LongTermMemory)
+      |> Enum.filter(fn
+        {_pid, {AI.Tools.LongTermMemory, :call, [%{"action" => "remember"} | _]}, _result} -> true
+        _ -> false
+      end)
+
+    assert length(write_calls) == 1
+
+    assert {:ok, data} = Store.Project.Conversation.read(conv)
+
+    assert Enum.any?(data.memory, fn
+             %Memory{scope: :session, title: "Session One", index_status: status}
+             when status in [:new, nil, :pending] ->
+               true
+
+             _ ->
+               false
+           end)
+  end
+
+  test "session indexer marks only the explicit from.title source memory as processed when add succeeds" do
+    mock_project("si-e2e-explicit-from")
+
+    conv = Store.Project.Conversation.new()
+
+    {:ok, m1} = Memory.new(:session, "Session One", "First content", ["topic1"])
+    {:ok, m2} = Memory.new(:session, "Session Two", "Second content", ["topic2"])
+
+    assert {:ok, _} =
+             Store.Project.Conversation.write(conv, %{
+               messages: [],
+               metadata: %{},
+               memory: [m1, m2]
+             })
+
+    actions = [
+      %{
+        "action" => "add",
+        "target" => %{"scope" => "project", "title" => "Merged Sessions"},
+        "from" => %{"title" => "Session One"},
+        "content" => "Only first session incorporated"
+      }
+    ]
+
+    response = SafeJson.encode!(%{"actions" => actions, "processed" => []})
+
+    :meck.new(AI.Agent, [:no_link, :passthrough, :non_strict])
+    :meck.expect(AI.Agent, :get_response, fn _agent, _opts -> {:ok, response} end)
+
+    :meck.new(AI.Tools.LongTermMemory, [:no_link, :passthrough, :non_strict])
+
+    :meck.expect(AI.Tools.LongTermMemory, :call, fn
+      %{"action" => "remember", "scope" => scope, "title" => title, "content" => content} ->
+        scope_atom = String.to_atom(scope)
+
+        case Memory.new(scope_atom, title, content, []) do
+          {:ok, mem} ->
+            case Memory.save(mem) do
+              {:ok, saved} -> {:ok, saved}
+              :ok -> {:ok, mem}
+              {:error, reason} -> {:error, reason}
+            end
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+
+      _ ->
+        {:error, "unsupported"}
+    end)
+
+    on_exit(fn ->
+      :meck.unload(AI.Agent)
+      :meck.unload(AI.Tools.LongTermMemory)
+    end)
+
+    case Process.whereis(Services.MemoryIndexer) do
+      nil ->
+        case Services.MemoryIndexer.start_link(auto_scan: false) do
+          {:ok, _} ->
+            on_exit(fn ->
+              pid = Process.whereis(Services.MemoryIndexer)
+
+              if is_pid(pid) and Process.alive?(pid) do
+                try do
+                  GenServer.stop(Services.MemoryIndexer)
+                catch
+                  :exit, _ -> :ok
+                end
+              end
+            end)
+
+          _ ->
+            :ok
+        end
+
+      _pid ->
+        :ok
+    end
+
+    assert {:ok, {:ok, %Store.Project.Conversation{}}} =
+             Services.MemoryIndexer.process_sync(conv)
+
+    assert {:ok, data} = Store.Project.Conversation.read(conv)
+
+    assert Enum.any?(data.memory, fn
+             %Memory{scope: :session, title: "Session One", index_status: :analyzed} -> true
+             _ -> false
+           end)
+
+    assert Enum.any?(data.memory, fn
+             %Memory{scope: :session, title: "Session Two", index_status: status}
+             when status in [:new, nil, :pending] ->
+               true
+
+             _ ->
+               false
+           end)
+  end
+
+  test "session indexer does not auto-mark processed titles for add actions without from unless status updates explicitly authorize it" do
+    mock_project("si-e2e-no-from-processed")
+
+    conv = Store.Project.Conversation.new()
+
+    {:ok, m1} = Memory.new(:session, "Session One", "First content", ["topic1"])
+    {:ok, m2} = Memory.new(:session, "Session Two", "Second content", ["topic2"])
+
+    assert {:ok, _} =
+             Store.Project.Conversation.write(conv, %{
+               messages: [],
+               metadata: %{},
+               memory: [m1, m2]
+             })
+
+    actions = [
+      %{
+        "action" => "add",
+        "target" => %{"scope" => "project", "title" => "Merged Sessions"},
+        "content" => "Generalized summary without explicit source"
+      }
+    ]
+
+    processed = ["Session One", "Session Two"]
+    status_updates = %{"Session Two" => "analyzed"}
+
+    response =
+      SafeJson.encode!(%{
+        "actions" => actions,
+        "processed" => processed,
+        "status_updates" => status_updates
+      })
+
+    :meck.new(AI.Agent, [:no_link, :passthrough, :non_strict])
+    :meck.expect(AI.Agent, :get_response, fn _agent, _opts -> {:ok, response} end)
+
+    :meck.new(AI.Tools.LongTermMemory, [:no_link, :passthrough, :non_strict])
+
+    :meck.expect(AI.Tools.LongTermMemory, :call, fn
+      %{"action" => "remember", "scope" => scope, "title" => title, "content" => content} ->
+        scope_atom = String.to_atom(scope)
+
+        case Memory.new(scope_atom, title, content, []) do
+          {:ok, mem} ->
+            case Memory.save(mem) do
+              {:ok, saved} -> {:ok, saved}
+              :ok -> {:ok, mem}
+              {:error, reason} -> {:error, reason}
+            end
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+
+      _ ->
+        {:error, "unsupported"}
+    end)
+
+    on_exit(fn ->
+      :meck.unload(AI.Agent)
+      :meck.unload(AI.Tools.LongTermMemory)
+    end)
+
+    case Process.whereis(Services.MemoryIndexer) do
+      nil ->
+        case Services.MemoryIndexer.start_link(auto_scan: false) do
+          {:ok, _} ->
+            on_exit(fn ->
+              pid = Process.whereis(Services.MemoryIndexer)
+
+              if is_pid(pid) and Process.alive?(pid) do
+                try do
+                  GenServer.stop(Services.MemoryIndexer)
+                catch
+                  :exit, _ -> :ok
+                end
+              end
+            end)
+
+          _ ->
+            :ok
+        end
+
+      _pid ->
+        :ok
+    end
+
+    assert {:ok, {:ok, %Store.Project.Conversation{}}} =
+             Services.MemoryIndexer.process_sync(conv)
+
+    assert {:ok, data} = Store.Project.Conversation.read(conv)
+
+    assert Enum.any?(data.memory, fn
+             %Memory{scope: :session, title: "Session One", index_status: status}
+             when status in [:new, nil, :pending] ->
+               true
+
+             _ ->
+               false
+           end)
+
+    assert Enum.any?(data.memory, fn
+             %Memory{scope: :session, title: "Session Two", index_status: :analyzed} -> true
+             _ -> false
+           end)
+  end
+
+  test "session indexer returns an error when processed includes a title not present in the conversation" do
+    mock_project("si-e2e-invalid-processed-title")
+
+    conv = Store.Project.Conversation.new()
+    {:ok, session_mem} = Memory.new(:session, "Session One", "First content", ["topic1"])
+
+    assert {:ok, _} =
+             Store.Project.Conversation.write(conv, %{
+               messages: [],
+               metadata: %{},
+               memory: [session_mem]
+             })
+
+    response =
+      SafeJson.encode!(%{
+        "actions" => [],
+        "processed" => ["Missing Session"]
+      })
+
+    :meck.new(AI.Agent, [:no_link, :passthrough, :non_strict])
+    :meck.expect(AI.Agent, :get_response, fn _agent, _opts -> {:ok, response} end)
+
+    :meck.new(AI.Tools.LongTermMemory, [:no_link, :passthrough, :non_strict])
+    :meck.expect(AI.Tools.LongTermMemory, :call, fn _args -> {:ok, :unexpected_success} end)
+
+    on_exit(fn ->
+      :meck.unload(AI.Agent)
+      :meck.unload(AI.Tools.LongTermMemory)
+    end)
+
+    case Process.whereis(Services.MemoryIndexer) do
+      nil ->
+        case Services.MemoryIndexer.start_link(auto_scan: false) do
+          {:ok, _} ->
+            on_exit(fn ->
+              pid = Process.whereis(Services.MemoryIndexer)
+
+              if is_pid(pid) and Process.alive?(pid) do
+                try do
+                  GenServer.stop(Services.MemoryIndexer)
+                catch
+                  :exit, _ -> :ok
+                end
+              end
+            end)
+
+          _ ->
+            :ok
+        end
+
+      _pid ->
+        :ok
+    end
+
+    assert {:ok, {:error, _reason}} = Services.MemoryIndexer.process_sync(conv)
+
+    assert {:ok, data} = Store.Project.Conversation.read(conv)
+
+    assert Enum.any?(data.memory, fn
+             %Memory{scope: :session, title: "Session One", index_status: status}
+             when status in [:new, nil, :pending] ->
+               true
+
+             _ ->
+               false
            end)
   end
 end

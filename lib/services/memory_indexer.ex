@@ -310,14 +310,29 @@ defmodule Services.MemoryIndexer do
 
   defp validate_indexer_response(_), do: {:error, "missing actions or processed keys"}
 
-  defp valid_action?(%{"action" => a, "target" => %{"scope" => _s, "title" => _t}})
-       when a in ["add", "replace", "delete"],
-       do: true
+  defp valid_action?(%{"action" => action, "target" => target} = candidate)
+       when action in ["add", "replace", "delete"] do
+    valid_target?(target) and valid_action_content?(action, candidate)
+  end
 
   defp valid_action?(_), do: false
 
+  defp valid_target?(%{"scope" => scope, "title" => title}) do
+    Memory.ScopePolicy.valid_long_term_target?(title, scope)
+  end
+
+  defp valid_target?(_), do: false
+
+  defp valid_action_content?("delete", _candidate), do: true
+
+  defp valid_action_content?(action, %{"content" => content}) when action in ["add", "replace"] do
+    is_binary(content) and String.trim(content) != ""
+  end
+
+  defp valid_action_content?(_, _), do: false
+
   # --------------------------------------------------------------------------
-  # Apply actions and mark session memories as processed
+  # Apply actions and derive handled session-memory titles
   # --------------------------------------------------------------------------
   defp apply_actions_and_mark(conversation, decoded) do
     actions = Map.get(decoded, "actions", [])
@@ -325,61 +340,165 @@ defmodule Services.MemoryIndexer do
     status_updates = Map.get(decoded, "status_updates", %{})
 
     FileLock.with_lock(conversation.store_path, fn ->
-      {:ok, fresh} = Store.Project.Conversation.read(conversation)
+      with {:ok, fresh} <- Store.Project.Conversation.read(conversation),
+           {:ok, valid_processed} <- validate_processed_titles(fresh.memory, processed) do
+        handled = collect_handled_titles(actions)
 
-      Enum.each(actions, &apply_action/1)
+        fresh
+        |> Map.put(
+          :memory,
+          mark_processed(fresh.memory, handled, valid_processed, status_updates)
+        )
+        |> then(&Store.Project.Conversation.write(conversation, &1))
+      else
+        {:error, {:invalid_processed_titles, invalid_titles}} ->
+          {:error, {:invalid_processed_titles, invalid_titles}}
 
-      fresh
-      |> Map.put(:memory, mark_processed(fresh.memory, processed, status_updates))
-      |> then(&Store.Project.Conversation.write(conversation, &1))
+        error ->
+          error
+      end
     end)
-
-    :ok
   end
 
-  # First pass: mark all processed session memories as :analyzed.
-  # Second pass: override with explicit status_updates from the agent.
-  defp mark_processed(memories, processed, status_updates) do
+  defp validate_processed_titles(memories, processed) do
+    session_titles =
+      memories
+      |> Enum.flat_map(fn
+        %Memory{scope: :session, title: title} when is_binary(title) -> [title]
+        _ -> []
+      end)
+
+    invalid_titles = Enum.reject(processed, &(&1 in session_titles))
+
+    case invalid_titles do
+      [] -> {:ok, processed}
+      _ -> {:error, {:invalid_processed_titles, invalid_titles}}
+    end
+  end
+
+  defp collect_handled_titles(actions) do
+    actions
+    |> Enum.reduce(MapSet.new(), fn action, handled ->
+      case apply_action(action) do
+        {:ok, source_title} when is_binary(source_title) ->
+          MapSet.put(handled, source_title)
+
+        {:ok, _} ->
+          handled
+
+        {:error, _reason} ->
+          handled
+      end
+    end)
+    |> MapSet.to_list()
+  end
+
+  # First pass: mark successfully handled session memories as :analyzed.
+  # Second pass: apply explicit status_updates only for actual session-memory
+  # titles that were handled, or for validated processed titles explicitly set
+  # to analyzed/rejected.
+  defp mark_processed(memories, handled, processed, status_updates) do
+    handled_set = MapSet.new(handled)
+    processed_set = MapSet.new(processed)
+    session_titles = session_memory_titles(memories)
+
+    status_update_titles =
+      eligible_status_update_titles(status_updates, session_titles, handled_set, processed_set)
+
     memories
     |> Enum.map(fn
-      %Memory{scope: :session, title: title} = m ->
-        if title in processed, do: %{m | index_status: :analyzed}, else: m
+      %Memory{scope: :session, title: title} = mem ->
+        mark_memory_analyzed(mem, title, handled_set)
 
       other ->
         other
     end)
     |> Enum.map(fn
-      %Memory{scope: :session, title: title} = m ->
-        maybe_apply_status_update(m, Map.get(status_updates, title))
+      %Memory{scope: :session, title: title} = mem ->
+        maybe_apply_status_update(mem, title, status_update_titles, status_updates)
 
       other ->
         other
     end)
+  end
+
+  defp session_memory_titles(memories) do
+    memories
+    |> Enum.reduce(MapSet.new(), fn
+      %Memory{scope: :session, title: title}, acc when is_binary(title) -> MapSet.put(acc, title)
+      _, acc -> acc
+    end)
+  end
+
+  defp eligible_status_update_titles(status_updates, session_titles, handled_set, processed_set) do
+    status_updates
+    |> Enum.reduce(MapSet.new(), fn {title, status}, acc ->
+      eligible? =
+        MapSet.member?(session_titles, title) and
+          (MapSet.member?(handled_set, title) or
+             (status in ["analyzed", "rejected"] and MapSet.member?(processed_set, title)))
+
+      case eligible? do
+        true -> MapSet.put(acc, title)
+        false -> acc
+      end
+    end)
+  end
+
+  defp mark_memory_analyzed(mem, title, handled_set) do
+    case MapSet.member?(handled_set, title) do
+      true -> %{mem | index_status: :analyzed}
+      false -> mem
+    end
   end
 
   @valid_statuses ["analyzed", "rejected", "incorporated", "merged"]
-  defp maybe_apply_status_update(mem, status) when status in @valid_statuses do
+  defp maybe_apply_status_update(mem, title, eligible_titles, status_updates) do
+    case MapSet.member?(eligible_titles, title) do
+      true -> apply_status_update(mem, Map.get(status_updates, title))
+      false -> mem
+    end
+  end
+
+  defp apply_status_update(mem, status) when status in @valid_statuses do
     %{mem | index_status: String.to_existing_atom(status)}
   end
 
-  defp maybe_apply_status_update(mem, _), do: mem
+  defp apply_status_update(mem, _), do: mem
 
   # --------------------------------------------------------------------------
   # Action dispatch
   # --------------------------------------------------------------------------
-  defp apply_action(%{"action" => "add", "target" => target, "content" => content}) do
-    call_lt_memory("remember", target, content)
+  defp apply_action(%{"action" => "add", "target" => target, "content" => content} = action) do
+    case call_lt_memory("remember", target, content) do
+      :ok -> action_success_source(action)
+      {:error, reason} -> {:error, reason}
+    end
   end
 
-  defp apply_action(%{"action" => "replace", "target" => target, "content" => content}) do
-    call_lt_memory("update", target, content)
+  defp apply_action(%{"action" => "replace", "target" => target, "content" => content} = action) do
+    case call_lt_memory("update", target, content) do
+      :ok -> action_success_source(action)
+      {:error, reason} -> {:error, reason}
+    end
   end
 
-  defp apply_action(%{"action" => "delete", "target" => target}) do
-    call_lt_memory("forget", target, nil)
+  defp apply_action(%{"action" => "delete", "target" => target} = action) do
+    case call_lt_memory("forget", target, nil) do
+      :ok -> action_success_source(action)
+      {:error, reason} -> {:error, reason}
+    end
   end
 
-  defp apply_action(_), do: :ok
+  defp apply_action(_), do: {:error, :invalid_action}
+
+  defp action_success_source(action) do
+    case Map.get(action, "from") do
+      %{"title" => title} when is_binary(title) -> {:ok, title}
+      title when is_binary(title) -> {:ok, title}
+      _ -> {:ok, :no_source}
+    end
+  end
 
   defp call_lt_memory(action, %{"scope" => scope, "title" => title}, content) do
     args =
@@ -387,11 +506,13 @@ defmodule Services.MemoryIndexer do
       |> maybe_put_content(content)
 
     case AI.Tools.perform_tool_call("long_term_memory_tool", args, @lt_memory_tool) do
-      {:ok, _} -> :ok
-      {:error, reason} -> UI.debug("memory_indexer", "#{action} failed: #{inspect(reason)}")
-    end
+      {:ok, _} ->
+        :ok
 
-    :ok
+      {:error, reason} ->
+        UI.debug("memory_indexer", "#{action} failed: #{inspect(reason)}")
+        {:error, reason}
+    end
   end
 
   defp maybe_put_content(args, nil), do: args

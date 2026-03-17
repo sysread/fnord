@@ -99,18 +99,73 @@ defmodule Memory.ConsolidatorTest do
     end
   end
 
-  describe "Memory.ProjectOwnership" do
-    test "suspicious_global_memory?/1 is positive for project-like global memories" do
+  describe "Memory.ScopePolicy" do
+    test "allowed_scopes_for_title/1 allows only global scope for Me" do
+      assert Memory.ScopePolicy.allowed_scopes_for_title("Me") == [:global]
+    end
+
+    test "automatic_move_candidate?/1 is false for a global Me memory" do
       memory = %Memory{
         scope: :global,
-        title: "Build cache invalidation for alpha",
-        slug: "build-cache-invalidation-alpha",
+        title: "Me",
+        slug: "me",
+        content: "Personal profile and preferences that should stay globally scoped.",
+        embeddings: [1.0, 2.0, 3.0]
+      }
+
+      refute Memory.ScopePolicy.automatic_move_candidate?(memory)
+    end
+
+    test "automatic_move_candidate?/1 is false for a vague global memory without enough project signals" do
+      memory = %Memory{
+        scope: :global,
+        title: "Team principles",
+        slug: "team-principles",
+        content: "General collaboration guidance for planning and communication.",
+        embeddings: List.duplicate(0.1, 10)
+      }
+
+      refute Memory.ScopePolicy.automatic_move_candidate?(memory)
+    end
+
+    test "automatic_move_candidate?/1 is true for a non-reserved global memory with multiple project signals" do
+      memory = %Memory{
+        scope: :global,
+        title: "Memory.Consolidator mix workflow for lib/memory/consolidator.ex",
+        slug: "memory-consolidator-mix-workflow-lib-memory-consolidator-ex",
         content:
-          "Alpha project notes mention cache invalidation, release blockers, and deploy steps.",
+          "Project scope notes for alpha cover Memory.Consolidator changes in lib/memory/consolidator.ex, mix test workflow updates, and project-to-global scope decisions.",
+        embeddings: List.duplicate(0.9, 10)
+      }
+
+      assert Memory.ScopePolicy.automatic_move_candidate?(memory)
+    end
+  end
+
+  describe "Memory.ProjectOwnership" do
+    test "suspicious_global_memory?/1 is positive for project-like global memories with multiple signals" do
+      memory = %Memory{
+        scope: :global,
+        title: "Memory.Consolidator mix workflow for lib/memory/consolidator.ex",
+        slug: "memory-consolidator-mix-workflow-lib-memory-consolidator-ex",
+        content:
+          "Project scope notes for alpha cover Memory.Consolidator changes in lib/memory/consolidator.ex, mix test workflow updates, and project-to-global scope decisions.",
         embeddings: List.duplicate(0.9, 10)
       }
 
       assert ProjectOwnership.suspicious_global_memory?(memory)
+    end
+
+    test "suspicious_global_memory?/1 is negative for a global memory with only one weak project signal" do
+      memory = %Memory{
+        scope: :global,
+        title: "Alpha thoughts",
+        slug: "alpha-thoughts",
+        content: "General planning notes for later.",
+        embeddings: List.duplicate(0.1, 10)
+      }
+
+      refute ProjectOwnership.suspicious_global_memory?(memory)
     end
 
     test "suspicious_global_memory?/1 is negative for ordinary global memories" do

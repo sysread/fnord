@@ -3,11 +3,11 @@ defmodule Memory.ProjectOwnership do
   Scores suspicious global memories against all known projects to determine
   whether a memory likely belongs to a specific project.
 
-  Ownership scoring is intentionally bounded and deterministic-ish. The scorer
-  reads compact per-project notes directly from project storage, generates
-  embeddings for those notes, and compares them to the candidate memory's
-  embeddings. A project match is accepted only when it clears both a minimum
-  score and a margin over the runner-up project.
+  Ownership scoring is intentionally bounded and stable. The scorer reads
+  compact per-project notes directly from project storage, generates embeddings
+  for those notes, and compares them to the candidate memory's embeddings. A
+  project match is accepted only when it clears both a minimum score and a
+  margin over the runner-up project.
   """
 
   @min_project_match_score 0.45
@@ -48,21 +48,25 @@ defmodule Memory.ProjectOwnership do
   def classify(_memory), do: :inconclusive
 
   @doc """
-  Returns true when the memory looks project-specific enough to warrant an
-  ownership lookup.
+  Returns true only for global memories that are eligible for automatic moves
+  under `Memory.ScopePolicy` and that also contain project-ownership signals
+  strong enough to justify ownership classification.
 
   The heuristic is intentionally bounded and deterministic.
   """
   @spec suspicious_global_memory?(Memory.t()) :: boolean()
   def suspicious_global_memory?(%Memory{scope: :global} = memory) do
-    text = memory_text(memory)
+    Memory.ScopePolicy.automatic_move_candidate?(memory) and
+      (
+        text = memory_text(memory)
 
-    Enum.any?([
-      mentions_code_identifier?(text),
-      mentions_file_path?(text),
-      mentions_cli_or_workflow_term?(text),
-      mentions_projectish_tokens?(text)
-    ])
+        Enum.any?([
+          mentions_code_identifier?(text),
+          mentions_file_path?(text),
+          mentions_cli_or_workflow_term?(text),
+          mentions_projectish_tokens?(text)
+        ])
+      )
   end
 
   def suspicious_global_memory?(_memory), do: false
