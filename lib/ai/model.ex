@@ -59,12 +59,11 @@ defmodule AI.Model do
     end
   end
 
-  def smart(), do: gpt5(:none)
-  def smarter(), do: gpt5(:low)
-  def balanced(), do: gpt5_mini(:medium)
-  def fast(), do: gpt41_nano()
-
-  def coding(), do: gpt5(:none)
+  def smart(), do: gpt5_mini(:medium)
+  def smarter(), do: gpt5(:none)
+  def balanced(), do: gpt5_mini(:low)
+  def fast(), do: gpt5_nano(:none)
+  def coding(), do: balanced()
   def web_search(), do: gpt_4o_mini_search_preview()
 
   def large_context(), do: large_context(:smart)
@@ -76,13 +75,10 @@ defmodule AI.Model do
   # OpenAI Models
   # ----------------------------------------------------------------------------
   def gpt5(reasoning \\ :medium), do: new("gpt-5.4", 1_050_000, reasoning)
-  def gpt5_mini(reasoning \\ :medium), do: new("gpt-5-mini", 400_000, reasoning)
-  def gpt5_nano(reasoning \\ :medium), do: new("gpt-5-nano", 400_000, reasoning)
-
+  def gpt5_mini(reasoning \\ :medium), do: new("gpt-5.4-mini", 400_000, reasoning)
+  def gpt5_nano(reasoning \\ :medium), do: new("gpt-5.4-nano", 400_000, reasoning)
   def gpt41(), do: new("gpt-4.1", 1_000_000, :none)
   def gpt41_mini(), do: new("gpt-4.1-mini", 1_000_000, :none)
   def gpt41_nano(), do: new("gpt-4.1-nano", 1_000_000, :none)
-
-  def o4_mini(reasoning \\ :medium), do: new("o4-mini", 200_000, reasoning)
   def gpt_4o_mini_search_preview(), do: new("gpt-4o-mini-search-preview", 128_000, :none)
 end
