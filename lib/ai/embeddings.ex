@@ -32,40 +32,84 @@ defmodule AI.Embeddings do
   @type attempt :: non_neg_integer()
   @type inputs :: list(String.t())
 
+  @doc """
+  Centralizes embeddings generation for all upstream producers and recovers from
+  oversize inputs by progressively retrying smaller chunks.
+  """
   @spec get(String.t()) :: {:ok, embeddings} | error
   def get(input) do
     input
     |> split_into_batches()
-    |> get(1, [])
+    |> get_batches(1, [])
   end
 
-  @spec get(inputs, attempt, embeddings) :: {:ok, embeddings} | error
-  defp get(batches, attempt, acc)
-  defp get([], _attempt, acc), do: {:ok, acc}
+  @spec get_batches(inputs, attempt, embeddings) :: {:ok, embeddings} | error
+  defp get_batches([], _attempt, acc), do: {:ok, acc}
 
-  defp get(_batches, attempt, _acc) when attempt > @max_attempts do
-    {:error, :max_attempts_reached}
-  end
+  defp get_batches([batch | rest], attempt, acc) do
+    case process_batch(batch, attempt) do
+      {:ok, embeddings} ->
+        get_batches(rest, 1, merge_embeddings(embeddings, acc))
 
-  defp get([batch | rest], attempt, acc) do
-    if attempt > 1 do
-      Process.sleep(@retry_interval)
+      {:retry, smaller_batches} ->
+        sleep_before_retry(attempt)
+        get_batches(smaller_batches ++ rest, attempt + 1, acc)
+
+      {:error, reason} when is_atom(reason) or is_binary(reason) ->
+        {:error, reason}
     end
+  end
 
+  @spec process_batch(String.t(), attempt) :: {:ok, embeddings} | {:retry, inputs} | error
+  defp process_batch(batch, attempt) do
     batch
     |> split_into_chunks(attempt)
     |> endpoint()
     |> case do
       {:ok, embeddings} ->
-        get(rest, 1, merge_embeddings(embeddings, acc))
+        {:ok, embeddings}
 
       {:error, :token_limit_exceeded} ->
-        get([batch | rest], attempt + 1, acc)
+        retry_with_smaller_batch(batch, attempt)
 
-      other ->
-        {:error, other}
+      {:error, reason} when is_atom(reason) or is_binary(reason) ->
+        {:error, reason}
     end
   end
+
+  @spec retry_with_smaller_batch(String.t(), attempt) :: {:retry, inputs} | error
+  defp retry_with_smaller_batch(_batch, attempt) when attempt >= @max_attempts do
+    {:error, :max_attempts_reached}
+  end
+
+  defp retry_with_smaller_batch(batch, attempt) do
+    split_batch_for_retry(batch, attempt + 1)
+  end
+
+  @spec split_batch_for_retry(String.t(), attempt) :: {:retry, inputs} | error
+  defp split_batch_for_retry(batch, attempt) do
+    reduction_factor = token_reduction_factor(attempt)
+    smaller_batches = AI.PretendTokenizer.chunk(batch, @chunk_size, reduction_factor)
+
+    case smaller_batches do
+      [] ->
+        {:error, :max_attempts_reached}
+
+      [^batch] ->
+        {:error, :max_attempts_reached}
+
+      batches ->
+        {:retry, batches}
+    end
+  end
+
+  @spec sleep_before_retry(attempt) :: :ok
+  defp sleep_before_retry(attempt) when attempt > 1 do
+    Process.sleep(@retry_interval)
+    :ok
+  end
+
+  defp sleep_before_retry(_attempt), do: :ok
 
   @spec split_into_batches(String.t()) :: inputs
   defp split_into_batches(input) do
@@ -128,8 +172,83 @@ defmodule AI.Embeddings do
 
   @spec token_limit_error?(String.t()) :: boolean
   defp token_limit_error?(body) do
-    String.contains?(body, "maximum context length")
+    case decode_body(body) do
+      {:ok, decoded_body} ->
+        token_limit_error_in_decoded_body?(decoded_body) or token_limit_phrase?(body)
+
+      :error ->
+        token_limit_phrase?(body)
+    end
   end
+
+  @spec decode_body(String.t()) :: {:ok, term()} | :error
+  defp decode_body(body) do
+    case SafeJson.decode(body) do
+      {:ok, decoded_body} -> {:ok, decoded_body}
+      {:error, _reason} -> :error
+    end
+  end
+
+  @spec token_limit_error_in_decoded_body?(term()) :: boolean
+  defp token_limit_error_in_decoded_body?(decoded_body)
+
+  defp token_limit_error_in_decoded_body?(%{"error" => error}) do
+    token_limit_error_map?(error) or token_limit_error_string?(error)
+  end
+
+  defp token_limit_error_in_decoded_body?(%{"message" => message}) do
+    token_limit_error_string?(message)
+  end
+
+  defp token_limit_error_in_decoded_body?(%{"errors" => errors}) when is_list(errors) do
+    Enum.any?(errors, &token_limit_error_in_decoded_body?/1)
+  end
+
+  defp token_limit_error_in_decoded_body?(%{} = decoded_body) do
+    Enum.any?(decoded_body, fn {_key, value} -> token_limit_error_in_decoded_body?(value) end)
+  end
+
+  defp token_limit_error_in_decoded_body?(decoded_body) when is_list(decoded_body) do
+    Enum.any?(decoded_body, &token_limit_error_in_decoded_body?/1)
+  end
+
+  defp token_limit_error_in_decoded_body?(_), do: false
+
+  @spec token_limit_error_map?(map()) :: boolean
+  defp token_limit_error_map?(error) when is_map(error) do
+    token_limit_error_code?(Map.get(error, "code")) or
+      token_limit_error_code?(Map.get(error, :code)) or
+      token_limit_error_string?(Map.get(error, "message")) or
+      token_limit_error_string?(Map.get(error, :message)) or
+      token_limit_error_in_decoded_body?(Map.get(error, "error")) or
+      token_limit_error_in_decoded_body?(Map.get(error, :error))
+  end
+
+  defp token_limit_error_map?(_), do: false
+
+  @spec token_limit_error_string?(term()) :: boolean
+  defp token_limit_error_string?(value) when is_binary(value) do
+    token_limit_phrase?(value)
+  end
+
+  defp token_limit_error_string?(_), do: false
+
+  @spec token_limit_phrase?(String.t()) :: boolean
+  defp token_limit_phrase?(body) do
+    String.contains?(body, [
+      "maximum input length",
+      "maximum context length",
+      "token limit",
+      "context length"
+    ])
+  end
+
+  @spec token_limit_error_code?(term()) :: boolean
+  defp token_limit_error_code?(code) when is_binary(code) do
+    code in ["context_length_exceeded", "token_limit_exceeded", "max_tokens_exceeded"]
+  end
+
+  defp token_limit_error_code?(_), do: false
 
   @spec endpoint(inputs) ::
           {:ok, embeddings}
@@ -137,15 +256,6 @@ defmodule AI.Embeddings do
           | {:error, :http_error}
           | {:error, :transport_error}
   defp endpoint(input) do
-    endpoint(input, 1)
-  end
-
-  @spec endpoint(inputs, attempt) ::
-          {:ok, embeddings}
-          | {:error, :token_limit_exceeded}
-          | {:error, :http_error}
-          | {:error, :transport_error}
-  defp endpoint(input, _attempt) do
     api_key = get_api_key!()
 
     headers = [
@@ -165,16 +275,26 @@ defmodule AI.Embeddings do
         {:ok, Enum.map(embeddings, &Map.get(&1, "embedding"))}
 
       {:http_error, {status_code, body}} ->
-        if token_limit_error?(body) do
-          {:error, :token_limit_exceeded}
-        else
-          UI.warn("[AI.Embeddings] Error getting embeddings: #{status_code} - #{body}")
-          {:error, :http_error}
-        end
+        handle_http_error(status_code, body)
 
       {:transport_error, error} ->
         UI.warn("[AI.Embeddings] Error getting embeddings: #{inspect(error)}")
         {:error, :transport_error}
     end
+  end
+
+  @spec handle_http_error(integer(), String.t()) ::
+          {:error, :token_limit_exceeded} | {:error, :http_error}
+  defp handle_http_error(_status_code, body) do
+    case token_limit_error?(body) do
+      true -> {:error, :token_limit_exceeded}
+      false -> warn_http_error(body)
+    end
+  end
+
+  @spec warn_http_error(String.t()) :: {:error, :http_error}
+  defp warn_http_error(body) do
+    UI.warn("[AI.Embeddings] Error getting embeddings: #{body}")
+    {:error, :http_error}
   end
 end

@@ -51,14 +51,29 @@ defmodule AI.Splitter do
     max_tokens = max_chunk_tokens || max_tokens(tok.model)
     remaining_tokens = max_tokens - bespoke_tokens
 
-    if remaining_tokens <= 0 do
-      {"", %{tok | done: true, input: ""}}
-    else
-      remaining_chars = remaining_tokens * 4
-      {slice, remaining} = String.split_at(tok.input, remaining_chars)
-      is_done? = remaining == ""
-      {slice, %{tok | done: is_done?, input: remaining}}
-    end
+    next_chunk_result(tok, remaining_tokens)
+  end
+
+  defp next_chunk_result(tok, remaining_tokens) when remaining_tokens <= 0 do
+    exhausted_budget_result(tok)
+  end
+
+  defp next_chunk_result(tok, remaining_tokens) do
+    split_by_remaining_budget(tok, remaining_tokens)
+  end
+
+  defp exhausted_budget_result(tok) do
+    {"", %{tok | done: true, input: ""}}
+  end
+
+  defp split_by_remaining_budget(tok, remaining_tokens) do
+    remaining_chars = remaining_tokens * estimated_chars_per_token()
+    {slice, remaining} = String.split_at(tok.input, remaining_chars)
+    {slice, %{tok | done: remaining == "", input: remaining}}
+  end
+
+  defp estimated_chars_per_token do
+    3
   end
 
   defp max_tokens(model) do
