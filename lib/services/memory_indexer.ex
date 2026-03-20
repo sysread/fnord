@@ -25,6 +25,9 @@ defmodule Services.MemoryIndexer do
   @lock_owner_file "owner"
   @lt_memory_tool %{"long_term_memory_tool" => AI.Tools.LongTermMemory}
 
+  @deep_sleep_passes 3
+  @deep_sleep_min_score 0.5
+
   # --------------------------------------------------------------------------
   # Public API
   # --------------------------------------------------------------------------
@@ -63,11 +66,13 @@ defmodule Services.MemoryIndexer do
   end
 
   # Scan for the next conversation with unprocessed memories and spawn a
-  # background task to process it. If already busy or nothing found, no-op.
+  # background task to process it. When the queue empties, transition to deep
+  # sleep (once per process lifetime). If already busy or nothing found, no-op.
   def handle_continue(:scan, %{task: nil, sup: sup} = state) do
     case find_next_conversation(state.skip_ids) do
       {nil, skip_ids} ->
-        {:noreply, %{state | skip_ids: skip_ids}}
+        UI.debug("Dozing", "Dreaming of electric sheep")
+        {:noreply, %{state | skip_ids: skip_ids}, {:continue, :deep_sleep}}
 
       {convo, skip_ids} ->
         task = spawn_processing_task(sup, convo)
@@ -76,6 +81,23 @@ defmodule Services.MemoryIndexer do
   end
 
   def handle_continue(:scan, state), do: {:noreply, state}
+
+  # Deep sleep: consolidate similar memories within each scope. Runs at most
+  # once per process lifetime, gated by Services.Once, after light sleep
+  # exhausts the pending session memory queue.
+  def handle_continue(:deep_sleep, %{task: nil, sup: sup} = state) do
+    case Services.Once.set(:deep_sleep) do
+      true ->
+        UI.debug("REM", "Nightswimming deserves a quiet night -- REM")
+        task = spawn_deep_sleep_task(sup)
+        {:noreply, %{state | task: task}}
+
+      false ->
+        {:noreply, state}
+    end
+  end
+
+  def handle_continue(:deep_sleep, state), do: {:noreply, state}
 
   def handle_cast(:scan, %{task: nil} = state) do
     {:noreply, state, {:continue, :scan}}
@@ -189,6 +211,159 @@ defmodule Services.MemoryIndexer do
       HttpPool.set(:ai_memory)
       do_process_conversation(convo)
     end)
+  end
+
+  defp spawn_deep_sleep_task(sup) do
+    root = Services.Globals.current_root()
+
+    Task.Supervisor.async_nolink(sup, fn ->
+      if root, do: Process.put(:globals_root_pid, root)
+      HttpPool.set(:ai_memory)
+      run_deep_sleep()
+    end)
+  end
+
+  # --------------------------------------------------------------------------
+  # Deep sleep: same-scope memory deduplication
+  # --------------------------------------------------------------------------
+
+  defp run_deep_sleep do
+    run_deep_sleep_passes(@deep_sleep_passes)
+  end
+
+  defp run_deep_sleep_passes(0), do: :ok
+
+  defp run_deep_sleep_passes(passes_remaining) do
+    with {:ok, global_pairs} <- find_consolidation_pairs(:global),
+         {:ok, project_pairs} <- find_consolidation_pairs(:project) do
+      all_pairs = global_pairs ++ project_pairs
+
+      case all_pairs do
+        [] ->
+          :ok
+
+        _ ->
+          all_pairs
+          |> Services.Globals.Spawn.async_stream(fn {scope, a, b} ->
+            consolidate_pair(scope, a, b)
+          end)
+          |> Enum.to_list()
+
+          run_deep_sleep_passes(passes_remaining - 1)
+      end
+    end
+  end
+
+  # Build the set of non-overlapping pairs above the similarity threshold for
+  # a single scope. Highest-scoring pairs are preferred; once a memory appears
+  # in a selected pair it is excluded from further pairs in this pass.
+  defp find_consolidation_pairs(scope) do
+    with {:ok, memories} <- load_memories_for_dedup(scope) do
+      pairs =
+        memories
+        |> all_pairs_above_threshold()
+        |> select_non_overlapping()
+        |> Enum.map(fn {_score, a, b} -> {scope, a, b} end)
+
+      {:ok, pairs}
+    end
+  end
+
+  # Load all long-term memories for a scope, generating embeddings for any
+  # that are missing them. Memories that fail to load or embed are skipped.
+  defp load_memories_for_dedup(scope) do
+    with {:ok, titles} <- Memory.list(scope) do
+      memories =
+        titles
+        |> Enum.reduce([], fn title, acc ->
+          case Memory.read(scope, title) do
+            {:ok, %Memory{embeddings: nil} = mem} ->
+              case Memory.generate_embeddings(mem) do
+                {:ok, mem_with_emb} ->
+                  Memory.save(mem_with_emb, skip_embeddings: true)
+                  [mem_with_emb | acc]
+
+                {:error, _} ->
+                  acc
+              end
+
+            {:ok, mem} ->
+              [mem | acc]
+
+            {:error, _} ->
+              acc
+          end
+        end)
+        |> Enum.reverse()
+
+      {:ok, memories}
+    end
+  end
+
+  defp all_pairs_above_threshold(memories) do
+    for a <- memories, b <- memories, a.title < b.title do
+      score = AI.Util.cosine_similarity(a.embeddings, b.embeddings)
+      {score, a, b}
+    end
+    |> Enum.filter(fn {score, _, _} -> score >= @deep_sleep_min_score end)
+    |> Enum.sort_by(fn {score, _, _} -> score end, :desc)
+  end
+
+  # Walk pairs highest-score first. Take a pair only when neither memory has
+  # already been claimed by a higher-scoring pair in this pass.
+  defp select_non_overlapping(pairs) do
+    {selected, _claimed} =
+      Enum.reduce(pairs, {[], MapSet.new()}, fn {score, a, b}, {selected, claimed} ->
+        if MapSet.member?(claimed, a.title) or MapSet.member?(claimed, b.title) do
+          {selected, claimed}
+        else
+          claimed = claimed |> MapSet.put(a.title) |> MapSet.put(b.title)
+          {[{score, a, b} | selected], claimed}
+        end
+      end)
+
+    Enum.reverse(selected)
+  end
+
+  # Ask the deduplicator agent whether two memories should be merged. On a
+  # merge decision, save the synthesized memory first, then delete both
+  # originals so a failure mid-delete never loses information.
+  defp consolidate_pair(_scope, a, b) do
+    case AI.Agent.Memory.Deduplicator.run(a, b) do
+      {:ok, %{"merge" => true, "title" => title, "content" => content} = result} ->
+        topics = Map.get(result, "topics", [])
+
+        merged = %Memory{
+          scope: a.scope,
+          title: title,
+          content: content,
+          topics: topics,
+          embeddings: nil,
+          index_status: nil
+        }
+
+        case Memory.save(merged) do
+          {:ok, _} ->
+            Memory.forget(a)
+            Memory.forget(b)
+            UI.debug("memory_indexer", "Merged '#{a.title}' + '#{b.title}' -> '#{title}'")
+
+          {:error, reason} ->
+            UI.warn(
+              "memory_indexer",
+              "Failed to save merged memory '#{title}': #{inspect(reason)}"
+            )
+        end
+
+      {:ok, %{"merge" => false}} ->
+        :ok
+
+      {:error, reason} ->
+        UI.warn(
+          "memory_indexer",
+          "Deduplication failed for '#{a.title}' + '#{b.title}': #{inspect(reason)}"
+        )
+    end
   end
 
   # --------------------------------------------------------------------------
