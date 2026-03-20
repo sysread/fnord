@@ -393,10 +393,11 @@ defmodule Services.MemoryIndexer do
     |> MapSet.to_list()
   end
 
-  # First pass: mark successfully handled session memories as :analyzed.
-  # Second pass: apply explicit status_updates only for actual session-memory
-  # titles that were handled, or for validated processed titles explicitly set
-  # to analyzed/rejected.
+  # First pass: mark session memories as :analyzed only when confirmed in the
+  # handled set (a successful action with a matching "from" field). Second pass:
+  # apply status_updates for titles in handled_set or, for all valid statuses,
+  # in processed_set. This lets replace/delete actions (which lack "from")
+  # still reach :incorporated/:merged via status_updates + processed.
   defp mark_processed(memories, handled, processed, status_updates) do
     handled_set = MapSet.new(handled)
     processed_set = MapSet.new(processed)
@@ -430,13 +431,14 @@ defmodule Services.MemoryIndexer do
     end)
   end
 
+  @valid_statuses ["analyzed", "rejected", "incorporated", "merged"]
   defp eligible_status_update_titles(status_updates, session_titles, handled_set, processed_set) do
     status_updates
     |> Enum.reduce(MapSet.new(), fn {title, status}, acc ->
       eligible? =
         MapSet.member?(session_titles, title) and
-          (MapSet.member?(handled_set, title) or
-             (status in ["analyzed", "rejected"] and MapSet.member?(processed_set, title)))
+          (MapSet.member?(handled_set, title) or MapSet.member?(processed_set, title)) and
+          status in @valid_statuses
 
       case eligible? do
         true -> MapSet.put(acc, title)
@@ -452,7 +454,6 @@ defmodule Services.MemoryIndexer do
     end
   end
 
-  @valid_statuses ["analyzed", "rejected", "incorporated", "merged"]
   defp maybe_apply_status_update(mem, title, eligible_titles, status_updates) do
     case MapSet.member?(eligible_titles, title) do
       true -> apply_status_update(mem, Map.get(status_updates, title))

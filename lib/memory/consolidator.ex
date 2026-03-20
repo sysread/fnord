@@ -403,7 +403,10 @@ defmodule Memory.Consolidator do
               score: Float.round(score, 4),
               tier: tier
             }
-          end)
+          end),
+        # Included so the agent can emit valid move action target titles.
+        # Move actions targeting names outside this list are rejected.
+        available_projects: Settings.new() |> Settings.list_projects()
       }
       |> SafeJson.encode!()
 
@@ -457,7 +460,13 @@ defmodule Memory.Consolidator do
   defp valid_action?(_), do: false
 
   defp valid_move_target?(%Memory{} = focus, :project, project) when is_binary(project) do
-    Memory.ScopePolicy.allow_automatic_move?(focus, :project)
+    # Verify the project actually exists before committing an automatic move.
+    # Without this check a hallucinated project name would create a phantom
+    # directory and silently delete the global memory.
+    known_projects = Settings.new() |> Settings.list_projects()
+
+    Memory.ScopePolicy.allow_automatic_move?(focus, :project) and
+      project in known_projects
   end
 
   defp valid_move_target?(_, _, _), do: false

@@ -69,10 +69,12 @@ defmodule AI.Agent.Memory.Consolidator do
 
   ### Move action
   Emit a move action ONLY when the focus memory is currently global but is
-  clearly project-specific to a specific project. In that case, set the target
-  scope to "project" and the target title to the destination project name.
-  Preserve the focus memory's existing title and content; the move only changes
-  scope. Do NOT use move for ambiguous cases, and do NOT emit move actions for
+  clearly project-specific to a known project. The payload includes an
+  "available_projects" list. You MUST use one of those exact names as the
+  target title -- do not invent or guess project names. Set the target scope to
+  "project" and the target title to the matching project name. Preserve the
+  focus memory's existing title and content; the move only changes scope. Do
+  NOT use move for ambiguous cases, and do NOT emit move actions for
   candidates.
 
   ### Keep = false
