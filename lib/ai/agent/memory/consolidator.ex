@@ -144,10 +144,10 @@ defmodule AI.Agent.Memory.Consolidator do
   be deleted.
 
   Examples:
-  - "In repo fnord, Memory.Consolidator rewrites focus content during merges" -> project-scoped.
-  - "Use mix test test/ai/memory/consolidator_test.exs to verify this behavior" -> project-scoped.
+  - "In repo acme-api, the auth module uses a custom token rotation scheme" -> project-scoped.
+  - "Use mix test test/services/billing_test.exs to verify charge behavior" -> project-scoped.
   - "This codebase uses snake_case topic names for memory tags" -> project-scoped.
-  - "In repo trufflehog, PR descriptions must reference the affected scan rule" -> project-scoped (conditioned on a specific repo).
+  - "In repo acme-api, PR descriptions must reference the affected service contract" -> project-scoped (conditioned on a specific repo).
   - "User prefers concise commit messages" -> global-scoped.
   - "PR descriptions must match the current branch diff, terse and technical" -> global-scoped (applies to all projects, not one).
   - "User prefers PR descriptions scoped to the branch point" -> global-scoped (universal preference).
