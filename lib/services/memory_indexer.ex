@@ -340,40 +340,17 @@ defmodule Services.MemoryIndexer do
     status_updates = Map.get(decoded, "status_updates", %{})
 
     FileLock.with_lock(conversation.store_path, fn ->
-      with {:ok, fresh} <- Store.Project.Conversation.read(conversation),
-           {:ok, valid_processed} <- validate_processed_titles(fresh.memory, processed) do
+      with {:ok, fresh} <- Store.Project.Conversation.read(conversation) do
         handled = collect_handled_titles(actions)
 
         fresh
         |> Map.put(
           :memory,
-          mark_processed(fresh.memory, handled, valid_processed, status_updates)
+          mark_processed(fresh.memory, handled, processed, status_updates)
         )
         |> then(&Store.Project.Conversation.write(conversation, &1))
-      else
-        {:error, {:invalid_processed_titles, invalid_titles}} ->
-          {:error, {:invalid_processed_titles, invalid_titles}}
-
-        error ->
-          error
       end
     end)
-  end
-
-  defp validate_processed_titles(memories, processed) do
-    session_titles =
-      memories
-      |> Enum.flat_map(fn
-        %Memory{scope: :session, title: title} when is_binary(title) -> [title]
-        _ -> []
-      end)
-
-    invalid_titles = Enum.reject(processed, &(&1 in session_titles))
-
-    case invalid_titles do
-      [] -> {:ok, processed}
-      _ -> {:error, {:invalid_processed_titles, invalid_titles}}
-    end
   end
 
   defp collect_handled_titles(actions) do

@@ -513,7 +513,7 @@ defmodule Memory.SessionIndexerE2ETest do
            end)
   end
 
-  test "session indexer returns an error when processed includes a title not present in the conversation" do
+  test "session indexer silently ignores processed titles not present in the conversation" do
     mock_project("si-e2e-invalid-processed-title")
 
     conv = Store.Project.Conversation.new()
@@ -567,7 +567,7 @@ defmodule Memory.SessionIndexerE2ETest do
         :ok
     end
 
-    assert {:ok, {:error, _reason}} = Services.MemoryIndexer.process_sync(conv)
+    assert {:ok, {:ok, %Store.Project.Conversation{}}} = Services.MemoryIndexer.process_sync(conv)
 
     assert {:ok, data} = Store.Project.Conversation.read(conv)
 
