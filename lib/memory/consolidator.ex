@@ -212,20 +212,52 @@ defmodule Memory.Consolidator do
     end
   end
 
+  # Actions are processed as a WAL: each action targets a distinct memory, so
+  # failures in one do not necessarily invalidate the rest. The exception is an
+  # error on the focus itself (merge save failure, explicit keep:false delete
+  # failure), which halts to avoid operating on a corrupted state.
+  #
+  # A successful move is tracked via the `moved` flag. Subsequent merge actions
+  # are skipped with a diagnostic - they would incorrectly recreate the global
+  # file that the move just deleted. Subsequent delete actions (which target
+  # candidates, not the focus) continue normally.
   defp apply_actions_list(focus, actions) do
-    Enum.reduce_while(actions, {:ok, []}, fn action, {:ok, eaten} ->
-      case apply_action(focus, action) do
-        {:ok, more_eaten} ->
-          {:cont, {:ok, eaten ++ more_eaten}}
+    result =
+      Enum.reduce_while(actions, {:ok, _moved = false, []}, fn action,
+                                                                {_status, moved, eaten} ->
+        case dispatch_action(focus, action, moved) do
+          {:ok, more_eaten} ->
+            {:cont, {:ok, moved, eaten ++ more_eaten}}
 
-        {:delete, more_eaten} ->
-          {:halt, {:delete, eaten ++ more_eaten}}
+          {:moved, more_eaten} ->
+            {:cont, {:ok, _moved = true, eaten ++ more_eaten}}
 
-        {:error, more_eaten} ->
-          {:halt, {:error, eaten ++ more_eaten}}
-      end
-    end)
+          {:error, more_eaten} ->
+            {:halt, {:error, moved, eaten ++ more_eaten}}
+        end
+      end)
+
+    case result do
+      {:ok, true, eaten} -> {:delete, eaten}
+      {:ok, false, eaten} -> {:ok, eaten}
+      {:error, _, eaten} -> {:error, eaten}
+    end
   end
+
+  # After a successful move the focus file is gone. A merge would re-create it
+  # in the old scope, partially undoing the move. Skip and warn instead.
+  defp dispatch_action(focus, %{"action" => "merge"} = action, _moved = true) do
+    candidate_title = get_in(action, ["target", "title"]) || "unknown"
+
+    UI.warn(
+      "consolidator",
+      "Skipped merge of #{candidate_title} into #{focus.title} - focus was already moved"
+    )
+
+    {:ok, []}
+  end
+
+  defp dispatch_action(focus, action, _moved), do: apply_action(focus, action)
 
   defp maybe_delete_focus(focus, keep, eaten, decoded) do
     if keep or me_memory?(focus) do
@@ -313,7 +345,7 @@ defmodule Memory.Consolidator do
       case move_focus_to_project(focus, project) do
         {:ok, _moved} ->
           UI.debug("consolidator", "Moved #{focus.title} to project #{project} - #{reason}")
-          {:delete, []}
+          {:moved, []}
 
         {:error, reason} ->
           UI.warn("Failed to move #{focus.title} to project #{project}", inspect(reason))

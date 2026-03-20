@@ -93,6 +93,11 @@ defmodule AI.Agent.Memory.Consolidator do
   - Do NOT delete memories that contain information not captured elsewhere.
   - Preserve all unique, valuable information. When in doubt, keep both.
   - If no candidates warrant action, return {"actions": [], "keep": true}.
+  - Actions are applied as a sequence (WAL). Each action targets a distinct
+    memory. A move and a delete may appear in the same response -- they operate
+    on different memories. Do NOT emit a merge alongside a move for the same
+    focus: after a move the focus no longer exists in its original scope, so
+    the merge would be skipped.
 
   ### Scope semantics
   Global memories are only for durable, cross-project truths: user preferences,
