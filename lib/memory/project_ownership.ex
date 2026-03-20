@@ -109,7 +109,7 @@ defmodule Memory.ProjectOwnership do
 
   defp score_project(%Memory{embeddings: embeddings}, project_name) do
     with {:ok, notes} <- project_notes(project_name),
-         {:ok, notes_embeddings} <- embeddings_for_notes(project_name, notes),
+         {:ok, notes_embeddings} <- cached_project_embeddings(project_name, notes),
          true <- compatible_embeddings?(embeddings, notes_embeddings) do
       score = AI.Util.cosine_similarity(embeddings, notes_embeddings)
       {:ok, %{project: project_name, score: score}}
@@ -124,6 +124,29 @@ defmodule Memory.ProjectOwnership do
         "" -> {:error, :no_notes}
         trimmed -> {:ok, String.slice(trimmed, 0, @notes_preview_bytes)}
       end
+    end
+  end
+
+  # Cache project note embeddings in the process dictionary for the lifetime of
+  # the calling worker. Each consolidator worker processes many memories
+  # sequentially, so this eliminates O(N) redundant API calls per project per
+  # run without requiring any shared state or API changes.
+  defp cached_project_embeddings(project_name, notes) do
+    cache_key = {__MODULE__, :project_embeddings, project_name}
+
+    case Process.get(cache_key) do
+      nil ->
+        case embeddings_for_notes(project_name, notes) do
+          {:ok, embeddings} ->
+            Process.put(cache_key, embeddings)
+            {:ok, embeddings}
+
+          error ->
+            error
+        end
+
+      cached ->
+        {:ok, cached}
     end
   end
 
