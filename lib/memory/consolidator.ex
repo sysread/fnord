@@ -338,7 +338,7 @@ defmodule Memory.Consolidator do
   # pretending the move is a merge or candidate delete.
   defp apply_action(focus, %{"action" => "move", "target" => target} = action) do
     target_scope = parse_scope(target["scope"])
-    project = target["title"]
+    project = target["project"]
     reason = Map.get(action, "reason", "no reason given")
 
     if valid_move_target?(focus, target_scope, project) do
@@ -481,8 +481,8 @@ defmodule Memory.Consolidator do
     valid_scope_string?(scope)
   end
 
-  defp valid_action?(%{"action" => "move", "target" => %{"scope" => "project", "title" => title}}) do
-    is_binary(title)
+  defp valid_action?(%{"action" => "move", "target" => %{"scope" => "project", "project" => project}}) do
+    is_binary(project)
   end
 
   defp valid_action?(%{"action" => "delete", "target" => %{"scope" => scope, "title" => _}}) do

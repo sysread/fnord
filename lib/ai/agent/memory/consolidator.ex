@@ -17,7 +17,7 @@ defmodule AI.Agent.Memory.Consolidator do
     candidate will be deleted after the merge.
   - {"action": "delete", "target": {"scope": "...", "title": "..."}, "reason": "..."}
     Delete a candidate that is fully subsumed by the focus memory.
-  - {"action": "move", "target": {"scope": "project", "title": "..."}, "reason": "..."}
+  - {"action": "move", "target": {"scope": "project", "project": "..."}, "reason": "..."}
     Move the focus memory into the named project scope, preserving its title
     and content but changing its scope. This action applies to the focus
     memory, not a candidate.
@@ -44,7 +44,7 @@ defmodule AI.Agent.Memory.Consolidator do
   Action objects must be one of:
     {"action":"merge","target":{"scope":"...","title":"..."},"content":"...","reason":"..."}
     {"action":"delete","target":{"scope":"...","title":"..."},"reason":"..."}
-    {"action":"move","target":{"scope":"project","title":"..."},"reason":"..."}
+    {"action":"move","target":{"scope":"project","project":"..."},"reason":"..."}
 
   Every action MUST include a "reason" field -- a brief explanation of why this
   action was chosen (e.g. "near-duplicate of focus", "fully subsumed by focus",
@@ -71,11 +71,11 @@ defmodule AI.Agent.Memory.Consolidator do
   Emit a move action ONLY when the focus memory is currently global but is
   clearly project-specific to a known project. The payload includes an
   "available_projects" list. You MUST use one of those exact names as the
-  target title -- do not invent or guess project names. Set the target scope to
-  "project" and the target title to the matching project name. Preserve the
-  focus memory's existing title and content; the move only changes scope. Do
-  NOT use move for ambiguous cases, and do NOT emit move actions for
-  candidates.
+  target "project" field -- do not invent or guess project names. Set the
+  target scope to "project" and the target project to the matching project
+  name. Preserve the focus memory's existing title and content; the move only
+  changes scope. Do NOT use move for ambiguous cases, and do NOT emit move
+  actions for candidates.
 
   ### Keep = false
   Set "keep" to false ONLY when the focus memory itself is completely redundant
