@@ -56,12 +56,15 @@ defmodule AI.Agent.Memory.Consolidator do
 
   ### Merge action
   When a candidate is highly similar to the focus memory, merge the candidate's
-  unique information INTO the focus memory. The "content" field must contain the
-  complete rewritten content for the focus memory, incorporating any valuable
-  information from the candidate. The candidate will be deleted after the merge.
+  unique information INTO the focus memory.
 
-  When merging, preserve the focus memory's title and scope. The merged content
-  should be a clean synthesis -- not a concatenation -- of both memories.
+  Direction: information flows FROM the candidate TO the focus. After a merge:
+  - The CANDIDATE is permanently deleted.
+  - The FOCUS is updated with the merged "content" and KEPT.
+
+  The "content" field must be the complete rewritten content for the focus
+  memory -- a clean synthesis of both, not a concatenation. Preserve the focus
+  memory's title and scope.
 
   ### Delete action
   When a candidate is fully subsumed by the focus memory (all its information
@@ -69,18 +72,35 @@ defmodule AI.Agent.Memory.Consolidator do
 
   ### Move action
   Emit a move action ONLY when the focus memory is currently global but is
-  clearly project-specific to a known project. The payload includes an
-  "available_projects" list. You MUST use one of those exact names as the
-  target "project" field -- do not invent or guess project names. Set the
-  target scope to "project" and the target project to the matching project
+  clearly and unambiguously project-specific to a known project. The payload
+  includes an "available_projects" list. You MUST use one of those exact names
+  as the target "project" field -- do not invent or guess project names. Set
+  the target scope to "project" and the target project to the matching project
   name. Preserve the focus memory's existing title and content; the move only
   changes scope. Do NOT use move for ambiguous cases, and do NOT emit move
   actions for candidates.
 
+  User preferences -- communication style, PR review habits, documentation
+  preferences, workflow conventions -- are GLOBAL even when first observed on a
+  specific project. Only move a preference to project scope when it is
+  explicitly conditioned on that project (e.g., "in repo X, always do Y"). If
+  the preference would apply regardless of which project is active, keep it
+  global.
+
   ### Keep = false
-  Set "keep" to false ONLY when the focus memory itself is completely redundant
-  -- all of its information is already captured in other memories that will NOT
-  be deleted by this response's actions. This is rare; default to true.
+  Set "keep" to false ONLY when the focus memory is completely redundant with a
+  memory that is NOT involved in this batch -- one that already exists
+  independently and will survive this consolidation pass unchanged.
+
+  CRITICAL: Do NOT set keep=false simply because you just merged a candidate
+  into the focus. After a merge, the candidate is deleted and the focus holds
+  the combined content. Setting keep=false at that point destroys the merged
+  content -- both memories are gone, and information is permanently lost.
+
+  The only valid reason for keep=false after a merge is if a THIRD memory (not
+  the candidate you merged) already captures everything now in the focus. If
+  you are reasoning "the content is now in the candidate" -- stop. The
+  candidate was deleted. The content is in the FOCUS. Keep the focus.
 
   ### Similarity tiers
   Each candidate includes a "tier" label based on cosine similarity:
@@ -127,7 +147,10 @@ defmodule AI.Agent.Memory.Consolidator do
   - "In repo fnord, Memory.Consolidator rewrites focus content during merges" -> project-scoped.
   - "Use mix test test/ai/memory/consolidator_test.exs to verify this behavior" -> project-scoped.
   - "This codebase uses snake_case topic names for memory tags" -> project-scoped.
+  - "In repo trufflehog, PR descriptions must reference the affected scan rule" -> project-scoped (conditioned on a specific repo).
   - "User prefers concise commit messages" -> global-scoped.
+  - "PR descriptions must match the current branch diff, terse and technical" -> global-scoped (applies to all projects, not one).
+  - "User prefers PR descriptions scoped to the branch point" -> global-scoped (universal preference).
   - "The \"Me\" memory captures assistant tone/style observations" -> global-scoped.
 
   IMPORTANT: Return *only* valid JSON. No explanatory text or commentary.
