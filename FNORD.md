@@ -13,6 +13,7 @@ Conventions
   - Separate concerns into distinct files.
 - Build / quality
   - ALWAYS run `make check` before finalizing your response.
+  - Validation rules configured for this project will run automatically after code-modifying tools, but `make check` remains your responsibility as a final gate.
   - Treat compilation warnings as errors. Public functions should have `@spec`.
   - This is not a library; there is no need to worry about any external API stability.
   - NEVER commit changes yourself unless explicitly instructed
@@ -58,7 +59,4 @@ Conventions
 # Operational note (important)
 - This repository is *the runtime for the assistant*.
 - Edits you make here change how the assistant behaves when operating inside this project.
-- Make changes carefully:
-  - Keep diffs small and covered by tests.
-  - ALWAYS run `make check` locally with test HOME overrides whenever you believe changes are complete.
-  - ALWAYS run `mix format` after edits!
+- Keep diffs small and covered by tests.

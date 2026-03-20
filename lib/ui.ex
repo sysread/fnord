@@ -223,6 +223,21 @@ defmodule UI do
     )
   end
 
+  def fail_step(msg) do
+    IO.ANSI.format([:red, "✗ ", msg, :reset], colorize?())
+    |> info()
+  end
+
+  def fail_step(msg, detail) do
+    output_module().log(
+      :info,
+      IO.ANSI.format(
+        [:red, "✗ ", msg, :reset, ": ", :cyan, clean_detail(detail), :reset],
+        colorize?()
+      )
+    )
+  end
+
   def end_step_background(msg) do
     IO.ANSI.format([:light_black, "✓ ", msg, :reset], colorize?())
     |> info()

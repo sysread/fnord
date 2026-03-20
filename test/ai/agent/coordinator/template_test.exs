@@ -1,7 +1,7 @@
 defmodule AI.Agent.Coordinator.TemplateTest do
   use Fnord.TestCase, async: false
 
-  @commit_message_snippet "Provide a brief suggestion for a short commit message"
+  @commit_message_snippet "Provide a suggestion for a commit message summarizing any unstaged changes"
 
   setup do
     set_log_level(:none)

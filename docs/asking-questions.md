@@ -194,6 +194,14 @@ FNORD_DEBUG_TOOL_CALLS=1 LOGGER_LEVEL=debug fnord ask -p myproject -q "your ques
 This dumps the raw JSON args directly to stderr, bypassing the logger so nothing gets truncated.
 Useful when the LLM sends malformed or unexpectedly large arguments.
 
+To trace automatic validation decisions and execution, set `FNORD_DEBUG_VALIDATION`:
+
+```bash
+FNORD_DEBUG_VALIDATION=1 LOGGER_LEVEL=debug fnord ask -p myproject --edit -q "make the requested code changes"
+```
+
+This emits validation-specific debug traces showing when automatic validation is triggered, which changed files and rules were considered, and which validation commands were selected and run.
+
 ### Understanding Tool Calls
 
 During research, fnord may use:

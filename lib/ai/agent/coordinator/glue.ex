@@ -76,10 +76,7 @@ defmodule AI.Agent.Coordinator.Glue do
         end)
 
         editing_tools_used =
-          state.editing_tools_used ||
-            Map.has_key?(tools_used, "coder_tool") ||
-            Map.has_key?(tools_used, "file_edit_tool") ||
-            Map.has_key?(tools_used, "apply_patch")
+          state.editing_tools_used || code_modifying_tools_used?(tools_used)
 
         new_state =
           state
@@ -87,6 +84,7 @@ defmodule AI.Agent.Coordinator.Glue do
           |> Map.put(:last_response, response)
           |> Map.put(:editing_tools_used, editing_tools_used)
           |> Map.put(:model, state.model)
+          |> maybe_run_validation(tools_used)
           |> log_usage()
           |> log_response()
           |> append_context_remaining()
@@ -153,4 +151,89 @@ defmodule AI.Agent.Coordinator.Glue do
 
     state
   end
+
+  # Deduplication is keyed only on the changed-file fingerprint, not on rule
+  # configuration or command outcomes. If the dirty file set is unchanged but
+  # rules were edited externally (e.g. via settings.json), the report for the
+  # new rule set will be suppressed until the file set changes. In practice
+  # this is a narrow window since rules are managed via CLI in a separate
+  # process, not mid-conversation.
+  defp maybe_run_validation(state, tools_used) do
+    if code_modifying_tools_used?(tools_used) do
+      Validation.Rules.debug("Running validation after code-modifying tools")
+      result = Validation.Rules.run()
+
+      case result do
+        {:ok, :no_changes} ->
+          Validation.Rules.debug("Validation returned no fingerprint: no changes")
+          state
+
+        {:error, :discovery_failed} ->
+          Validation.Rules.debug("Changed file discovery failed")
+          report_validation_result(state, result)
+
+        _ ->
+          fingerprint = validation_fingerprint(result)
+
+          if fingerprint == state.last_validation_fingerprint do
+            Validation.Rules.debug("Validation fingerprint unchanged: skipping report")
+            state
+          else
+            Validation.Rules.debug("Validation fingerprint changed: reporting result")
+            report_validation_result(state, result)
+          end
+      end
+    else
+      state
+    end
+  end
+
+  # These are the tools that produce source code changes in the project tree.
+  # cmd_tool is excluded because it primarily runs read-only commands (git log,
+  # grep, etc.) and any file mutations it causes will be picked up on the next
+  # edit-tool turn when the fingerprint changes. save_skill writes to ~/.fnord/,
+  # not project source files.
+  defp code_modifying_tools_used?(tools_used) do
+    Enum.any?(tools_used, fn
+      {tool, count} when count > 0 -> tool in ["coder_tool", "file_edit_tool", "apply_patch"]
+      _ -> false
+    end)
+  end
+
+  defp validation_fingerprint({:ok, :no_rules, _, fingerprint}), do: fingerprint
+  defp validation_fingerprint({:ok, :no_matches, _, fingerprint}), do: fingerprint
+  defp validation_fingerprint({:ok, _results, fingerprint}), do: fingerprint
+  defp validation_fingerprint({:error, _result, fingerprint}), do: fingerprint
+
+  defp report_validation_result(state, {:error, :discovery_failed} = result) do
+    summary = Validation.Rules.summarize(result)
+    UI.error("Validation", "Could not determine changed files (git status failed)")
+
+    AI.Util.system_msg(summary)
+    |> Services.Conversation.append_msg(state.conversation_pid)
+
+    state
+  end
+
+  defp report_validation_result(state, result) do
+    summary = Validation.Rules.summarize(result)
+
+    case validation_ui_detail(result) do
+      {:info, detail} -> UI.info("Validation", detail)
+      {:error, detail} -> UI.error("Validation", detail)
+    end
+
+    AI.Util.system_msg(summary)
+    |> Services.Conversation.append_msg(state.conversation_pid)
+
+    Map.put(state, :last_validation_fingerprint, validation_fingerprint(result))
+  end
+
+  defp validation_ui_detail({:ok, :no_rules, _, _}), do: {:info, "No rules found"}
+  defp validation_ui_detail({:ok, :no_matches, _, _}), do: {:info, "No matching rules"}
+
+  defp validation_ui_detail({:ok, results, _}) when is_list(results),
+    do: {:info, "#{length(results)} commands succeeded"}
+
+  defp validation_ui_detail({:error, reason, _}), do: {:error, "Run failed: #{inspect(reason)}"}
 end

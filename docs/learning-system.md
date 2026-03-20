@@ -247,7 +247,7 @@ fnord ask -p myproject -q "Review your memories. Use the memory tool to remove r
 **Solution:** Re-prime to consolidate:
 
 ```bash
-mv ~/.fnord/myproject/notes ~/.fnord/myproject/notes.old
+mv ~/.fnord/projects/myproject/notes ~/.fnord/projects/myproject/notes.old
 fnord prime --project myproject
 ```
 

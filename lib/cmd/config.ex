@@ -86,6 +86,63 @@ defmodule Cmd.Config do
               ]
             ]
           ],
+          validation: [
+            name: "validation",
+            about: "Manage project validation rules",
+            subcommands: [
+              list: [
+                name: "list",
+                about: "List project validation rules",
+                options: [
+                  project: Cmd.project_arg()
+                ]
+              ],
+              add: [
+                name: "add",
+                about: "Add a project validation rule",
+                args: [
+                  command: [
+                    value_name: "COMMAND",
+                    help:
+                      "Command to run from the selected project root when changed files match this rule",
+                    required: true
+                  ]
+                ],
+                options: [
+                  project: Cmd.project_arg(),
+                  path_glob: [
+                    value_name: "PATH_GLOB",
+                    long: "--path-glob",
+                    help:
+                      "Repeatable path glob specifying files that trigger the validation command. If omitted, the command is triggered for any changed file.",
+                    required: false,
+                    multiple: true
+                  ]
+                ]
+              ],
+              remove: [
+                name: "remove",
+                about: "Remove a project validation rule by displayed index",
+                args: [
+                  index: [
+                    value_name: "INDEX",
+                    help: "Displayed validation rule index",
+                    required: true
+                  ]
+                ],
+                options: [
+                  project: Cmd.project_arg()
+                ]
+              ],
+              clear: [
+                name: "clear",
+                about: "Remove all project validation rules",
+                options: [
+                  project: Cmd.project_arg()
+                ]
+              ]
+            ]
+          ],
           mcp: [
             name: "mcp",
             about: "Manage MCP server configuration",
@@ -405,6 +462,19 @@ defmodule Cmd.Config do
   @impl Cmd
   def run(opts, [:approvals], args), do: Cmd.Config.Approvals.run(opts, [:approvals], args)
   def run(opts, [:approve], args), do: Cmd.Config.Approvals.run(opts, [:approve], args)
+
+  def run(opts, [:validation, :list], args),
+    do: Cmd.Config.Validation.run(opts, [:validation, :list], args)
+
+  def run(opts, [:validation, :add], args),
+    do: Cmd.Config.Validation.run(opts, [:validation, :add], args)
+
+  def run(opts, [:validation, :remove], args),
+    do: Cmd.Config.Validation.run(opts, [:validation, :remove], args)
+
+  def run(opts, [:validation, :clear], args),
+    do: Cmd.Config.Validation.run(opts, [:validation, :clear], args)
+
   def run(opts, [:mcp, :list], args), do: Cmd.Config.MCP.run(opts, [:mcp, :list], args)
   def run(opts, [:mcp, :add], args), do: Cmd.Config.MCP.run(opts, [:mcp, :add], args)
   def run(opts, [:mcp, :update], args), do: Cmd.Config.MCP.run(opts, [:mcp, :update], args)

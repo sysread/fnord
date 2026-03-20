@@ -129,6 +129,17 @@ fnord config list --project blarg
 fnord config set --project blarg --root $HOME/dev/blarg --exclude 'node_modules' --exclude 'vendor'
 ```
 
+Projects can also define validation commands that fnord runs automatically after code-modifying tool usage when the configured rules match the changed files. If you omit `--path-glob`, the rule applies to any changed file in the project.
+
+```bash
+fnord config validation list --project blarg
+fnord config validation add --project blarg "mix format"
+fnord config validation add --project blarg "mix test"
+fnord config validation add --project blarg "mix format" --path-glob 'lib/**/*.ex'
+fnord config validation remove --project blarg 2
+fnord config validation clear --project blarg
+```
+
 ### Approval patterns
 
 For safety, fnord requires approval for shell commands and file operations. You'll be prompted to approve operations as fnord works. To streamline your workflow, you can pre-approve specific commands using regex patterns. See [docs/approval-patterns.md](docs/approval-patterns.md) for details.

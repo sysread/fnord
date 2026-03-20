@@ -26,6 +26,7 @@ defmodule AI.Agent.Coordinator do
     :context,
     :intuition,
     :editing_tools_used,
+    :last_validation_fingerprint,
     :interrupts
   ]
 
@@ -50,6 +51,7 @@ defmodule AI.Agent.Coordinator do
           context: non_neg_integer,
           intuition: binary | nil,
           editing_tools_used: boolean,
+          last_validation_fingerprint: String.t() | nil,
 
           # Interrupt handling: set by AI.Agent.Coordinator.Interrupts.init
           interrupts: AI.Agent.Coordinator.Interrupts.t()
@@ -136,6 +138,7 @@ defmodule AI.Agent.Coordinator do
         context: model.context,
         intuition: nil,
         editing_tools_used: false,
+        last_validation_fingerprint: nil,
         interrupts: AI.Agent.Coordinator.Interrupts.new()
       }
     end
@@ -614,7 +617,14 @@ defmodule AI.Agent.Coordinator do
 
   Coding changes:
   - Walk the user through your changes in a logical manner, using the reasoning display guidelines to introduce your approach step-by-step
-  - Provide a brief suggestion for a short commit message summarizing the change at the end of your explanation (clearly identified as such), with optional additional details section
+  - Provide a suggestion for a commit message summarizing any unstaged changes you made during this session, following conventional commit style.
+    ONLY do this if there are unstaged changes to actually commit!
+    ```
+    # Commit message suggestion
+    [one-line summary of change]
+
+    [explanation of change, purpose, and any relevant details]
+    ```
   """
 
   @spec template_msg(t) :: t

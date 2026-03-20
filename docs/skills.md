@@ -3,7 +3,7 @@
 ## Quick start
 
 ```bash
-# Create a new project skill (without selecting a project)
+# Create a new project skill
 fnord skills new --project myproject --skill example_skill
 
 # Enable the skill

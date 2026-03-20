@@ -55,4 +55,132 @@ defmodule AI.Agent.Coordinator.GlueToolsTest do
       refute Map.has_key?(tools, "ui_confirm_tool")
     end
   end
+
+  describe "validation integration" do
+    setup do
+      :meck.new(Services.Conversation, [:passthrough])
+      :meck.new(Services.Conversation.Interrupts, [:passthrough])
+      :meck.new(AI.Agent, [:passthrough])
+      :meck.new(Validation.Rules, [:passthrough])
+
+      on_exit(fn ->
+        for module <- [
+              Services.Conversation,
+              Services.Conversation.Interrupts,
+              AI.Agent,
+              Validation.Rules
+            ] do
+          try do
+            :meck.unload(module)
+          rescue
+            _ -> :ok
+          end
+        end
+      end)
+
+      :ok
+    end
+
+    test "does not run validation when no code-modifying tools were used" do
+      state = %{
+        agent: :coordinator,
+        conversation_pid: self(),
+        model: AI.Model.smart(),
+        context: 100,
+        editing_tools_used: false,
+        last_validation_fingerprint: nil
+      }
+
+      :meck.expect(Services.Conversation, :get_messages, fn _ -> [] end)
+      :meck.expect(Services.Conversation, :save, fn _conversation -> {:ok, %{id: "conv-1"}} end)
+
+      :meck.expect(Services.Conversation, :replace_msgs, fn conversation, _messages ->
+        conversation
+      end)
+
+      :meck.expect(Services.Conversation, :append_msg, fn conversation, _message ->
+        conversation
+      end)
+
+      :meck.expect(Services.Conversation.Interrupts, :pending?, fn _ -> false end)
+
+      :meck.expect(AI.Agent, :get_completion, fn _, _ ->
+        {:ok,
+         %{
+           response: "done",
+           messages: [
+             %{role: "user", content: "do it"},
+             %{role: "assistant", content: "done"}
+           ],
+           usage: 2,
+           tool_calls: []
+         }}
+      end)
+
+      :meck.expect(Validation.Rules, :run, fn ->
+        raise "validation should not run"
+      end)
+
+      assert %{last_validation_fingerprint: nil} =
+               AI.Agent.Coordinator.Glue.get_completion(state, false)
+    end
+
+    test "records validation fingerprint when code-modifying tools were used" do
+      state = %{
+        agent: :coordinator,
+        conversation_pid: self(),
+        model: AI.Model.smart(),
+        context: 100,
+        editing_tools_used: false,
+        last_validation_fingerprint: nil
+      }
+
+      :meck.expect(Services.Conversation, :get_messages, fn _ -> [] end)
+      :meck.expect(Services.Conversation, :save, fn _conversation -> {:ok, %{id: "conv-1"}} end)
+
+      :meck.expect(Services.Conversation, :replace_msgs, fn conversation, _messages ->
+        conversation
+      end)
+
+      :meck.expect(Services.Conversation, :append_msg, fn conversation, _message ->
+        conversation
+      end)
+
+      :meck.expect(Services.Conversation.Interrupts, :pending?, fn _ -> false end)
+
+      :meck.expect(AI.Agent, :get_completion, fn _, _ ->
+        {:ok,
+         %{
+           response: "done",
+           messages: [
+             %{role: "user", content: "do it"},
+             %{
+               role: "assistant",
+               content: nil,
+               tool_calls: [
+                 %{function: %{name: "file_edit_tool"}}
+               ]
+             }
+           ],
+           usage: 2,
+           tool_calls: [
+             %{
+               function: %{name: "file_edit_tool"}
+             }
+           ]
+         }}
+      end)
+
+      :meck.expect(Validation.Rules, :run, fn ->
+        {:ok, :no_matches, ["lib/foo.ex"], "fp-1"}
+      end)
+
+      :meck.expect(Validation.Rules, :summarize, fn _ ->
+        "No validation rules matched for lib/foo.ex"
+      end)
+
+      assert %{last_validation_fingerprint: "fp-1"} =
+               AI.Agent.Coordinator.Glue.get_completion(state, false)
+    end
+  end
 end
