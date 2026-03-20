@@ -243,10 +243,10 @@ defmodule Cmd.Ask do
           {:error, other}
       end
     after
-      # stop background indexers if still running
+      # stop background indexers if still running; memory indexer is left to
+      # run until the BEAM exits so it can complete light/deep sleep passes
       stop_file_indexer(file_indexer_pid)
       stop_conversation_indexer(conversation_indexer_pid)
-      stop_memory_indexer()
 
       Services.BackupFile.offer_cleanup()
 
@@ -429,19 +429,6 @@ defmodule Cmd.Ask do
     end
   end
 
-  defp stop_memory_indexer do
-    case Process.whereis(Services.MemoryIndexer) do
-      pid when is_pid(pid) ->
-        try do
-          GenServer.stop(pid, :normal, 1_000)
-        catch
-          :exit, _ -> :ok
-        end
-
-      _ ->
-        :ok
-    end
-  end
 
   # ----------------------------------------------------------------------------
   # Worktree setting
