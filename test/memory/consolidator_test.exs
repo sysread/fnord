@@ -97,6 +97,26 @@ defmodule Memory.ConsolidatorTest do
 
       GenServer.stop(pool)
     end
+
+    test "complete records propagated worker errors without merging" do
+      emb = List.duplicate(1.0, 10)
+
+      a = %Memory{scope: :project, title: "A", slug: "a", content: "a", embeddings: emb}
+      b = %Memory{scope: :project, title: "B", slug: "b", content: "b", embeddings: emb}
+
+      {:ok, pool} = MemoryConsolidation.start_link([a, b])
+
+      assert {:ok, focus, candidates} = MemoryConsolidation.checkout(pool)
+      assert length(candidates) == 1
+
+      MemoryConsolidation.complete(pool, focus, {:error, []})
+
+      report = MemoryConsolidation.report(pool)
+      assert report.errors == 1
+      assert report.merged == 0
+
+      GenServer.stop(pool)
+    end
   end
 
   describe "Memory.ScopePolicy" do

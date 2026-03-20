@@ -279,19 +279,24 @@ defmodule Memory.Consolidator do
         {:ok, _} ->
           case Memory.read(scope, title) do
             {:ok, candidate} ->
-              Memory.forget(candidate)
-              UI.debug("consolidator", "Merged #{title} into #{focus.title} - #{reason}")
+              case Memory.forget(candidate) do
+                :ok ->
+                  UI.debug("consolidator", "Merged #{title} into #{focus.title} - #{reason}")
+                  {:ok, [{scope, slug}]}
+
+                {:error, reason} ->
+                  UI.warn("Failed to delete merged candidate #{title}", inspect(reason))
+                  {:error, []}
+              end
 
             {:error, _} ->
               # Candidate already gone - another worker ate it.
-              :ok
+              {:ok, [{scope, slug}]}
           end
-
-          {:ok, [{scope, slug}]}
 
         {:error, reason} ->
           UI.warn("Failed to save merged memory #{focus.title}", inspect(reason))
-          {:ok, []}
+          {:error, []}
       end
     end
   end
@@ -361,7 +366,7 @@ defmodule Memory.Consolidator do
 
             {:error, reason} ->
               UI.warn("Failed to delete #{title}", inspect(reason))
-              {:ok, []}
+              {:error, []}
           end
 
         {:error, _} ->
