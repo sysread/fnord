@@ -613,7 +613,7 @@ defmodule Services.MemoryIndexer do
     memories
     |> Enum.map(fn
       %Memory{scope: :session, title: title} = mem ->
-        mark_memory_analyzed(mem, title, handled_set)
+        mark_memory_analyzed(mem, title, handled_set, processed_set)
 
       other ->
         other
@@ -651,10 +651,11 @@ defmodule Services.MemoryIndexer do
     end)
   end
 
-  defp mark_memory_analyzed(mem, title, handled_set) do
-    case MapSet.member?(handled_set, title) do
-      true -> %{mem | index_status: :analyzed}
-      false -> mem
+  defp mark_memory_analyzed(mem, title, handled_set, processed_set) do
+    if MapSet.member?(handled_set, title) or MapSet.member?(processed_set, title) do
+      %{mem | index_status: :analyzed}
+    else
+      mem
     end
   end
 

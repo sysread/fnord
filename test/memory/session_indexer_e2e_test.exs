@@ -223,7 +223,7 @@ defmodule Memory.SessionIndexerE2ETest do
            end)
   end
 
-  test "session indexer does not mark source session memory processed when long-term tool fails" do
+  test "session indexer marks session memory analyzed even when long-term tool fails" do
     mock_project("si-e2e-tool-failure")
 
     conv = Store.Project.Conversation.new()
@@ -296,17 +296,17 @@ defmodule Memory.SessionIndexerE2ETest do
 
     assert {:ok, data} = Store.Project.Conversation.read(conv)
 
+    # The agent returned a valid response so the memory is marked :analyzed
+    # even though the tool call failed. Re-processing would produce the same
+    # agent decision, so looping on a persistent tool failure is worse than
+    # marking it done and moving on.
     assert Enum.any?(data.memory, fn
-             %Memory{scope: :session, title: "Session One", index_status: status}
-             when status in [:new, nil, :pending] ->
-               true
-
-             _ ->
-               false
+             %Memory{scope: :session, title: "Session One", index_status: :analyzed} -> true
+             _ -> false
            end)
   end
 
-  test "session indexer marks only the explicit from.title source memory as processed when add succeeds" do
+  test "session indexer marks all payload memories as analyzed after valid response" do
     mock_project("si-e2e-explicit-from")
 
     conv = Store.Project.Conversation.new()
@@ -391,22 +391,20 @@ defmodule Memory.SessionIndexerE2ETest do
 
     assert {:ok, data} = Store.Project.Conversation.read(conv)
 
+    # Both memories were in the payload, so both are marked regardless of
+    # whether they appeared in the agent's "from" or "processed" fields.
     assert Enum.any?(data.memory, fn
              %Memory{scope: :session, title: "Session One", index_status: :analyzed} -> true
              _ -> false
            end)
 
     assert Enum.any?(data.memory, fn
-             %Memory{scope: :session, title: "Session Two", index_status: status}
-             when status in [:new, nil, :pending] ->
-               true
-
-             _ ->
-               false
+             %Memory{scope: :session, title: "Session Two", index_status: :analyzed} -> true
+             _ -> false
            end)
   end
 
-  test "session indexer does not auto-mark processed titles for add actions without from unless status updates explicitly authorize it" do
+  test "session indexer marks all payload memories analyzed and applies status_updates on top" do
     mock_project("si-e2e-no-from-processed")
 
     conv = Store.Project.Conversation.new()
@@ -498,13 +496,12 @@ defmodule Memory.SessionIndexerE2ETest do
 
     assert {:ok, data} = Store.Project.Conversation.read(conv)
 
+    # Both memories were in the payload, so both get baseline :analyzed.
+    # Session Two additionally has a status_update to :analyzed (no-op on top
+    # of the baseline, but confirms status_updates still apply).
     assert Enum.any?(data.memory, fn
-             %Memory{scope: :session, title: "Session One", index_status: status}
-             when status in [:new, nil, :pending] ->
-               true
-
-             _ ->
-               false
+             %Memory{scope: :session, title: "Session One", index_status: :analyzed} -> true
+             _ -> false
            end)
 
     assert Enum.any?(data.memory, fn
@@ -513,7 +510,7 @@ defmodule Memory.SessionIndexerE2ETest do
            end)
   end
 
-  test "session indexer silently ignores processed titles not present in the conversation" do
+  test "session indexer marks payload memory analyzed even when agent processed list contains unknown titles" do
     mock_project("si-e2e-invalid-processed-title")
 
     conv = Store.Project.Conversation.new()
@@ -571,13 +568,11 @@ defmodule Memory.SessionIndexerE2ETest do
 
     assert {:ok, data} = Store.Project.Conversation.read(conv)
 
+    # Session One was in the payload, so it gets :analyzed regardless of the
+    # agent's processed list containing an unknown title.
     assert Enum.any?(data.memory, fn
-             %Memory{scope: :session, title: "Session One", index_status: status}
-             when status in [:new, nil, :pending] ->
-               true
-
-             _ ->
-               false
+             %Memory{scope: :session, title: "Session One", index_status: :analyzed} -> true
+             _ -> false
            end)
   end
 
