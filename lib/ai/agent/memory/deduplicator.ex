@@ -92,7 +92,12 @@ defmodule AI.Agent.Memory.Deduplicator do
 
   defp validate_response(%{"merge" => false}), do: :ok
 
-  defp validate_response(%{"merge" => true, "title" => title, "content" => content, "topics" => topics})
+  defp validate_response(%{
+         "merge" => true,
+         "title" => title,
+         "content" => content,
+         "topics" => topics
+       })
        when is_binary(title) and title != "" and is_binary(content) and content != "" and
               is_list(topics),
        do: :ok

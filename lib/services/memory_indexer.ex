@@ -18,6 +18,7 @@ defmodule Services.MemoryIndexer do
   """
 
   use GenServer
+  require Logger
 
   @cleanup_message :cleanup_orphan_memory_locks
   @lock_cleanup_interval_ms :timer.minutes(5)
@@ -58,6 +59,7 @@ defmodule Services.MemoryIndexer do
     auto_scan = Keyword.get(opts, :auto_scan, true)
     :ok = safe_cleanup_orphan_memory_locks()
     state = %{task: nil, sup: sup, cleanup_timer: safe_schedule_lock_cleanup(), skip_ids: %{}}
+    Logger.debug("[memory_indexer] started (auto_scan=#{auto_scan})")
 
     case auto_scan do
       true -> {:ok, state, {:continue, :scan}}
@@ -71,10 +73,12 @@ defmodule Services.MemoryIndexer do
   def handle_continue(:scan, %{task: nil, sup: sup} = state) do
     case find_next_conversation(state.skip_ids) do
       {nil, skip_ids} ->
+        Logger.debug("[memory_indexer] queue empty - transitioning to deep sleep")
         UI.debug("Dozing", "Dreaming of electric sheep")
         {:noreply, %{state | skip_ids: skip_ids}, {:continue, :deep_sleep}}
 
       {convo, skip_ids} ->
+        Logger.debug("[memory_indexer] processing conversation #{convo.id}")
         task = spawn_processing_task(sup, convo)
         {:noreply, %{state | task: task, skip_ids: skip_ids}}
     end
@@ -88,11 +92,13 @@ defmodule Services.MemoryIndexer do
   def handle_continue(:deep_sleep, %{task: nil, sup: sup} = state) do
     case Services.Once.set(:deep_sleep) do
       true ->
+        Logger.debug("[memory_indexer] entering deep sleep")
         UI.debug("REM", "Nightswimming deserves a quiet night -- REM")
         task = spawn_deep_sleep_task(sup)
         {:noreply, %{state | task: task}}
 
       false ->
+        Logger.debug("[memory_indexer] deep sleep already ran this session - idle")
         {:noreply, state}
     end
   end
@@ -130,11 +136,13 @@ defmodule Services.MemoryIndexer do
   # Task completed: clear state and scan for more work.
   def handle_info({ref, _result}, %{task: %Task{ref: ref}} = state) do
     Process.demonitor(ref, [:flush])
+    Logger.debug("[memory_indexer] task done - scanning for more work")
     {:noreply, %{state | task: nil}, {:continue, :scan}}
   end
 
   # Task crashed: clear state and scan for more work.
   def handle_info({:DOWN, _ref, :process, _pid, _reason}, state) do
+    Logger.debug("[memory_indexer] task crashed - scanning for more work")
     {:noreply, %{state | task: nil}, {:continue, :scan}}
   end
 
@@ -228,18 +236,29 @@ defmodule Services.MemoryIndexer do
   # --------------------------------------------------------------------------
 
   defp run_deep_sleep do
+    Logger.debug("[memory_indexer] deep sleep started")
     run_deep_sleep_passes(@deep_sleep_passes)
+    Logger.debug("[memory_indexer] deep sleep complete")
   end
 
-  defp run_deep_sleep_passes(0), do: :ok
+  defp run_deep_sleep_passes(0) do
+    Logger.debug("[memory_indexer] deep sleep pass limit reached")
+    :ok
+  end
 
   defp run_deep_sleep_passes(passes_remaining) do
     with {:ok, global_pairs} <- find_consolidation_pairs(:global),
          {:ok, project_pairs} <- find_consolidation_pairs(:project) do
       all_pairs = global_pairs ++ project_pairs
+      pass = @deep_sleep_passes - passes_remaining + 1
+
+      Logger.debug(
+        "[memory_indexer] deep sleep pass #{pass}: #{length(all_pairs)} pair(s) to evaluate"
+      )
 
       case all_pairs do
         [] ->
+          Logger.debug("[memory_indexer] deep sleep: no pairs above threshold - done")
           :ok
 
         _ ->
@@ -381,18 +400,31 @@ defmodule Services.MemoryIndexer do
   defp process_conversation(conversation) do
     with {:ok, data} <- Store.Project.Conversation.read(conversation),
          session_mems when session_mems != [] <- find_unprocessed_memories(data),
+         _ <-
+           Logger.debug(
+             "[memory_indexer] indexing #{length(session_mems)} session memory/memories from #{conversation.id}"
+           ),
          {:ok, payload} <- build_indexer_payload(data, session_mems),
          {:ok, response} <- invoke_indexer_agent(payload),
+         _ <- Logger.debug("[memory_indexer] agent response: #{inspect(response)}"),
          {:ok, decoded} <- parse_indexer_response(response),
          :ok <- validate_indexer_response(decoded) do
-      apply_actions_and_mark(conversation, decoded)
+      # Pass the payload titles so apply_actions_and_mark can treat all
+      # memories given to the agent as processed, regardless of what titles
+      # the agent echoes back. Agents are unreliable at exact string matching.
+      payload_titles = Enum.map(session_mems, & &1.title)
+      apply_actions_and_mark(conversation, decoded, payload_titles)
     else
-      [] -> :ok
-      _ -> :ok
+      [] ->
+        :ok
+
+      other ->
+        Logger.debug("[memory_indexer] with-else: #{inspect(other)}")
+        :ok
     end
   rescue
     e ->
-      UI.debug("memory_indexer", "Processing failed: #{Exception.message(e)}")
+      Logger.debug("[memory_indexer] processing failed: #{Exception.message(e)}")
       :ok
   end
 
@@ -509,23 +541,43 @@ defmodule Services.MemoryIndexer do
   # --------------------------------------------------------------------------
   # Apply actions and derive handled session-memory titles
   # --------------------------------------------------------------------------
-  defp apply_actions_and_mark(conversation, decoded) do
+  # payload_titles: the session memory titles passed to the indexer agent.
+  # These are merged with the agent's processed list so that all memories given
+  # to the agent are marked as at minimum :analyzed after a valid response.
+  # Agents often paraphrase or hallucinate titles; relying on exact echoes back
+  # from the agent causes memories to stay :new forever and loop indefinitely.
+  defp apply_actions_and_mark(conversation, decoded, payload_titles) do
     actions = Map.get(decoded, "actions", [])
-    processed = Map.get(decoded, "processed", [])
+    agent_processed = Map.get(decoded, "processed", [])
     status_updates = Map.get(decoded, "status_updates", %{})
+    processed = Enum.uniq(payload_titles ++ agent_processed)
 
-    FileLock.with_lock(conversation.store_path, fn ->
-      with {:ok, fresh} <- Store.Project.Conversation.read(conversation) do
-        handled = collect_handled_titles(actions)
+    Logger.debug(
+      "[memory_indexer] apply: #{length(actions)} action(s), processed=#{inspect(processed)}, status_updates=#{inspect(status_updates)}"
+    )
 
-        fresh
-        |> Map.put(
-          :memory,
-          mark_processed(fresh.memory, handled, processed, status_updates)
-        )
-        |> then(&Store.Project.Conversation.write(conversation, &1))
-      end
-    end)
+    result =
+      FileLock.with_lock(conversation.store_path, fn ->
+        with {:ok, fresh} <- Store.Project.Conversation.read(conversation) do
+          handled = collect_handled_titles(actions)
+
+          Logger.debug("[memory_indexer] handled=#{inspect(handled)}")
+
+          updated =
+            fresh
+            |> Map.put(
+              :memory,
+              mark_processed(fresh.memory, handled, processed, status_updates)
+            )
+
+          write_result = Store.Project.Conversation.write(conversation, updated)
+          Logger.debug("[memory_indexer] write result: #{inspect(write_result)}")
+          write_result
+        end
+      end)
+
+    Logger.debug("[memory_indexer] apply_actions_and_mark result: #{inspect(result)}")
+    result
   end
 
   defp collect_handled_titles(actions) do

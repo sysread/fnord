@@ -300,14 +300,12 @@ defmodule AI.Agent.Coordinator do
     Services.Conversation.Interrupts.block(state.conversation_pid)
 
     try do
-      # Spawn the memory reflection agent in parallel with finalize. It runs
-      # a dedicated completion with only memory_tool in its toolbox, writing
-      # session memories as side effects. We await it before returning to
-      # ensure all memories are saved before the process exits.
-      reflect_task =
-        Services.Globals.Spawn.async(fn ->
-          AI.Agent.Coordinator.Memory.reflect(state)
-        end)
+      # Memory reflection temporarily disabled to drain the indexer backlog.
+      # reflect_task =
+      #   Services.Globals.Spawn.async(fn ->
+      #     AI.Agent.Coordinator.Memory.reflect(state)
+      #   end)
+      reflect_task = Services.Globals.Spawn.async(fn -> :ok end)
 
       finalize_state =
         state

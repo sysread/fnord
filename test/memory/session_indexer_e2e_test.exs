@@ -580,4 +580,92 @@ defmodule Memory.SessionIndexerE2ETest do
                false
            end)
   end
+
+  test "session indexer does not leave session memories in :new after processing (no infinite reprocessing)" do
+    mock_project("si-e2e-no-infinite-loop")
+
+    conv = Store.Project.Conversation.new()
+
+    {:ok, m1} = Memory.new(:session, "Alpha Memory", "Content alpha", ["topic1"])
+    {:ok, m2} = Memory.new(:session, "Beta Memory", "Content beta", ["topic2"])
+    {:ok, m3} = Memory.new(:session, "Gamma Memory", "Content gamma", ["topic3"])
+    {:ok, m4} = Memory.new(:session, "Delta Memory", "Content delta", ["topic4"])
+
+    assert {:ok, _} =
+             Store.Project.Conversation.write(conv, %{
+               messages: [],
+               metadata: %{},
+               memory: [m1, m2, m3, m4]
+             })
+
+    # Agent responds with no actions but marks all session memories via
+    # processed + status_updates (the replace/delete path - no "from" fields).
+    # This is the path most likely to leave memories unmarked and cause
+    # the indexer to reprocess the same conversation indefinitely.
+    processed = ["Alpha Memory", "Beta Memory", "Gamma Memory", "Delta Memory"]
+
+    status_updates = %{
+      "Alpha Memory" => "analyzed",
+      "Beta Memory" => "analyzed",
+      "Gamma Memory" => "incorporated",
+      "Delta Memory" => "incorporated"
+    }
+
+    response =
+      SafeJson.encode!(%{
+        "actions" => [],
+        "processed" => processed,
+        "status_updates" => status_updates
+      })
+
+    :meck.new(AI.Agent, [:no_link, :passthrough, :non_strict])
+    :meck.expect(AI.Agent, :get_response, fn _agent, _opts -> {:ok, response} end)
+
+    :meck.new(AI.Tools.LongTermMemory, [:no_link, :passthrough, :non_strict])
+    :meck.expect(AI.Tools.LongTermMemory, :call, fn _args -> {:ok, []} end)
+
+    on_exit(fn ->
+      :meck.unload(AI.Agent)
+      :meck.unload(AI.Tools.LongTermMemory)
+    end)
+
+    case Process.whereis(Services.MemoryIndexer) do
+      nil ->
+        case Services.MemoryIndexer.start_link(auto_scan: false) do
+          {:ok, _} ->
+            on_exit(fn ->
+              pid = Process.whereis(Services.MemoryIndexer)
+
+              if is_pid(pid) and Process.alive?(pid) do
+                try do
+                  GenServer.stop(Services.MemoryIndexer)
+                catch
+                  :exit, _ -> :ok
+                end
+              end
+            end)
+
+          _ ->
+            :ok
+        end
+
+      _pid ->
+        :ok
+    end
+
+    Services.MemoryIndexer.process_sync(conv)
+
+    assert {:ok, data} = Store.Project.Conversation.read(conv)
+
+    # No session memory should remain :new or nil after processing.
+    # If any do, the indexer would loop forever on the same conversation.
+    stuck =
+      Enum.filter(data.memory, fn
+        %Memory{scope: :session, index_status: status} when status in [nil, :new] -> true
+        _ -> false
+      end)
+
+    assert stuck == [],
+           "Session memories left unprocessed (would cause infinite reprocessing): #{inspect(Enum.map(stuck, & &1.title))}"
+  end
 end

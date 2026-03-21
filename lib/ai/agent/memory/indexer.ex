@@ -32,11 +32,14 @@ defmodule AI.Agent.Memory.Indexer do
   You MUST return a single JSON object (no prose) with these keys:
 
   - "actions": an array of action objects (may be empty)
-  - "processed": an array of session memory titles that this response handled
-  - "status_updates": (optional) a map of session memory title -> status string (one of: "analyzed","rejected","incorporated","merged")
+  - "processed": an array of session memory titles that this response handled.
+    IMPORTANT: titles in "processed" and "status_updates" MUST be copied
+    verbatim from the input payload `title` fields. Do not paraphrase,
+    abbreviate, or reword them.
+  - "status_updates": (optional) a map of session memory `title` -> status string (one of: "analyzed","rejected","incorporated","merged")
 
   Action objects must be one of:
-    {"action":"add","target":{"scope":"project|global","title":"..."},"from":{"title":"Session Title"},"content":"..."}
+    {"action":"add","target":{"scope":"project|global","title":"..."},"from":{"title":"`Session Title`"},"content":"..."}
     {"action":"replace","target":{"scope":"project|global","title":"..."},"content":"..."}
     {"action":"delete","target":{"scope":"project|global","title":"..."}}
 
@@ -48,7 +51,7 @@ defmodule AI.Agent.Memory.Indexer do
   - Prefer to MERGE highly similar session memories into an existing project/global memory when the content clearly matches.
   - If session memories conflict (A says X, B says not-X), synthesize a single consolidated memory that documents both findings and the current best understanding.
   - You may decide to create a new project memory when none of the project/global candidates are suitable.
-  - When you decide to incorporate session memories into a long-term memory, include those session titles in "processed" and set their status to "incorporated" in "status_updates". If you decide to ignore them, mark as "analyzed".
+  - When you decide to incorporate session memories into a long-term memory, include those session `title` strings (verbatim) in "processed" and set their status to "incorporated" in "status_updates". If you decide to ignore them, mark as "analyzed".
   - Return provenance (the candidate objects already include provenance). Use it to justify merges in your own reasoning, but do NOT include any free-form prose in the output.
   - Do NOT store or rely on the assistant's current conversation name/ID in long-term memory; it may change.
 
