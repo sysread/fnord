@@ -25,6 +25,9 @@ defmodule Services.MemoryIndexer do
   @lock_owner_file "owner"
   @lt_memory_tool %{"long_term_memory_tool" => AI.Tools.LongTermMemory}
 
+  @deep_sleep_passes 3
+  @deep_sleep_min_score 0.5
+
   # --------------------------------------------------------------------------
   # Public API
   # --------------------------------------------------------------------------
@@ -63,19 +66,40 @@ defmodule Services.MemoryIndexer do
   end
 
   # Scan for the next conversation with unprocessed memories and spawn a
-  # background task to process it. If already busy or nothing found, no-op.
+  # background task to process it. When the queue empties, transition to deep
+  # sleep (once per process lifetime). If already busy or nothing found, no-op.
   def handle_continue(:scan, %{task: nil, sup: sup} = state) do
     case find_next_conversation(state.skip_ids) do
       {nil, skip_ids} ->
-        {:noreply, %{state | skip_ids: skip_ids}}
+        debug("queue empty - transitioning to deep sleep")
+        UI.debug("Dozing", "Dreaming of electric sheep")
+        {:noreply, %{state | skip_ids: skip_ids}, {:continue, :deep_sleep}}
 
       {convo, skip_ids} ->
+        debug("processing conversation #{convo.id}")
         task = spawn_processing_task(sup, convo)
         {:noreply, %{state | task: task, skip_ids: skip_ids}}
     end
   end
 
   def handle_continue(:scan, state), do: {:noreply, state}
+
+  # Deep sleep: consolidate similar memories within each scope. Runs at most
+  # once per process lifetime, gated by Services.Once, after light sleep
+  # exhausts the pending session memory queue.
+  def handle_continue(:deep_sleep, %{task: nil, sup: sup} = state) do
+    case Services.Once.set(:deep_sleep) do
+      true ->
+        UI.debug("REM", "Nightswimming deserves a quiet night -- REM")
+        task = spawn_deep_sleep_task(sup)
+        {:noreply, %{state | task: task}}
+
+      false ->
+        {:noreply, state}
+    end
+  end
+
+  def handle_continue(:deep_sleep, state), do: {:noreply, state}
 
   def handle_cast(:scan, %{task: nil} = state) do
     {:noreply, state, {:continue, :scan}}
@@ -191,6 +215,164 @@ defmodule Services.MemoryIndexer do
     end)
   end
 
+  defp spawn_deep_sleep_task(sup) do
+    root = Services.Globals.current_root()
+
+    Task.Supervisor.async_nolink(sup, fn ->
+      if root, do: Process.put(:globals_root_pid, root)
+      HttpPool.set(:ai_memory)
+      run_deep_sleep()
+    end)
+  end
+
+  # --------------------------------------------------------------------------
+  # Deep sleep: same-scope memory deduplication
+  # --------------------------------------------------------------------------
+
+  defp run_deep_sleep do
+    run_deep_sleep_passes(@deep_sleep_passes)
+  end
+
+  defp run_deep_sleep_passes(0), do: :ok
+
+  defp run_deep_sleep_passes(passes_remaining) do
+    with {:ok, global_pairs} <- find_consolidation_pairs(:global),
+         {:ok, project_pairs} <- find_consolidation_pairs(:project) do
+      all_pairs = global_pairs ++ project_pairs
+      pass = @deep_sleep_passes - passes_remaining + 1
+
+      case all_pairs do
+        [] ->
+          debug("deep sleep: no pairs above threshold")
+          :ok
+
+        _ ->
+          debug("deep sleep pass #{pass}: #{length(all_pairs)} pair(s)")
+
+          all_pairs
+          |> Services.Globals.Spawn.async_stream(
+            fn {scope, a, b} -> consolidate_pair(scope, a, b) end,
+            timeout: :infinity
+          )
+          |> Enum.to_list()
+
+          run_deep_sleep_passes(passes_remaining - 1)
+      end
+    end
+  end
+
+  # Build the set of non-overlapping pairs above the similarity threshold for
+  # a single scope. Highest-scoring pairs are preferred; once a memory appears
+  # in a selected pair it is excluded from further pairs in this pass.
+  defp find_consolidation_pairs(scope) do
+    with {:ok, memories} <- load_memories_for_dedup(scope) do
+      pairs =
+        memories
+        |> all_pairs_above_threshold()
+        |> select_non_overlapping()
+        |> Enum.map(fn {_score, a, b} -> {scope, a, b} end)
+
+      {:ok, pairs}
+    end
+  end
+
+  # Load all long-term memories for a scope, generating embeddings for any
+  # that are missing them. Memories that fail to load or embed are skipped.
+  defp load_memories_for_dedup(scope) do
+    with {:ok, titles} <- Memory.list(scope) do
+      memories =
+        titles
+        |> Enum.reduce([], fn title, acc ->
+          case Memory.read(scope, title) do
+            {:ok, %Memory{embeddings: nil} = mem} ->
+              case Memory.generate_embeddings(mem) do
+                {:ok, mem_with_emb} ->
+                  Memory.save(mem_with_emb, skip_embeddings: true)
+                  [mem_with_emb | acc]
+
+                {:error, _} ->
+                  acc
+              end
+
+            {:ok, mem} ->
+              [mem | acc]
+
+            {:error, _} ->
+              acc
+          end
+        end)
+        |> Enum.reverse()
+
+      {:ok, memories}
+    end
+  end
+
+  defp all_pairs_above_threshold(memories) do
+    for a <- memories, b <- memories, a.title < b.title do
+      score = AI.Util.cosine_similarity(a.embeddings, b.embeddings)
+      {score, a, b}
+    end
+    |> Enum.filter(fn {score, _, _} -> score >= @deep_sleep_min_score end)
+    |> Enum.sort_by(fn {score, _, _} -> score end, :desc)
+  end
+
+  # Walk pairs highest-score first. Take a pair only when neither memory has
+  # already been claimed by a higher-scoring pair in this pass.
+  defp select_non_overlapping(pairs) do
+    {selected, _claimed} =
+      Enum.reduce(pairs, {[], MapSet.new()}, fn {score, a, b}, {selected, claimed} ->
+        if MapSet.member?(claimed, a.title) or MapSet.member?(claimed, b.title) do
+          {selected, claimed}
+        else
+          claimed = claimed |> MapSet.put(a.title) |> MapSet.put(b.title)
+          {[{score, a, b} | selected], claimed}
+        end
+      end)
+
+    Enum.reverse(selected)
+  end
+
+  # Ask the deduplicator agent whether two memories should be merged. On a
+  # merge decision, save the synthesized memory first, then delete both
+  # originals so a failure mid-delete never loses information.
+  defp consolidate_pair(_scope, a, b) do
+    case AI.Agent.Memory.Deduplicator.run(a, b) do
+      {:ok, %{"merge" => true, "title" => title, "content" => content} = result} ->
+        topics = Map.get(result, "topics", [])
+
+        merged = %Memory{
+          scope: a.scope,
+          title: title,
+          content: content,
+          topics: topics,
+          embeddings: nil,
+          index_status: nil
+        }
+
+        case Memory.save(merged) do
+          {:ok, _} ->
+            Memory.forget(a)
+            Memory.forget(b)
+            UI.debug("memory_indexer", "Merged '#{a.title}' + '#{b.title}' -> '#{title}'")
+
+          {:error, reason} ->
+            UI.warn(
+              "memory_indexer",
+              "Failed to save merged memory '#{title}': #{inspect(reason)}"
+            )
+        end
+
+      {:ok, %{"merge" => false}} ->
+        :ok
+
+      {:error, reason} ->
+        UI.warn(
+          "memory_indexer",
+          "Deduplication failed for '#{a.title}' + '#{b.title}': #{inspect(reason)}"
+        )
+    end
+  end
+
   # --------------------------------------------------------------------------
   # Conversation processing
   # --------------------------------------------------------------------------
@@ -206,11 +388,16 @@ defmodule Services.MemoryIndexer do
   defp process_conversation(conversation) do
     with {:ok, data} <- Store.Project.Conversation.read(conversation),
          session_mems when session_mems != [] <- find_unprocessed_memories(data),
+         _ <- debug("indexing #{length(session_mems)} session memories from #{conversation.id}"),
          {:ok, payload} <- build_indexer_payload(data, session_mems),
          {:ok, response} <- invoke_indexer_agent(payload),
          {:ok, decoded} <- parse_indexer_response(response),
          :ok <- validate_indexer_response(decoded) do
-      apply_actions_and_mark(conversation, decoded)
+      # Pass the payload titles so apply_actions_and_mark can treat all
+      # memories given to the agent as processed, regardless of what titles
+      # the agent echoes back. Agents are unreliable at exact string matching.
+      payload_titles = Enum.map(session_mems, & &1.title)
+      apply_actions_and_mark(conversation, decoded, payload_titles)
     else
       [] -> :ok
       _ -> :ok
@@ -310,76 +497,180 @@ defmodule Services.MemoryIndexer do
 
   defp validate_indexer_response(_), do: {:error, "missing actions or processed keys"}
 
-  defp valid_action?(%{"action" => a, "target" => %{"scope" => _s, "title" => _t}})
-       when a in ["add", "replace", "delete"],
-       do: true
+  defp valid_action?(%{"action" => action, "target" => target} = candidate)
+       when action in ["add", "replace", "delete"] do
+    valid_target?(target) and valid_action_content?(action, candidate)
+  end
 
   defp valid_action?(_), do: false
 
-  # --------------------------------------------------------------------------
-  # Apply actions and mark session memories as processed
-  # --------------------------------------------------------------------------
-  defp apply_actions_and_mark(conversation, decoded) do
-    actions = Map.get(decoded, "actions", [])
-    processed = Map.get(decoded, "processed", [])
-    status_updates = Map.get(decoded, "status_updates", %{})
-
-    FileLock.with_lock(conversation.store_path, fn ->
-      {:ok, fresh} = Store.Project.Conversation.read(conversation)
-
-      Enum.each(actions, &apply_action/1)
-
-      fresh
-      |> Map.put(:memory, mark_processed(fresh.memory, processed, status_updates))
-      |> then(&Store.Project.Conversation.write(conversation, &1))
-    end)
-
-    :ok
+  defp valid_target?(%{"scope" => scope, "title" => title}) do
+    Memory.ScopePolicy.valid_long_term_target?(title, scope)
   end
 
-  # First pass: mark all processed session memories as :analyzed.
-  # Second pass: override with explicit status_updates from the agent.
-  defp mark_processed(memories, processed, status_updates) do
+  defp valid_target?(_), do: false
+
+  defp valid_action_content?("delete", _candidate), do: true
+
+  defp valid_action_content?(action, %{"content" => content}) when action in ["add", "replace"] do
+    is_binary(content) and String.trim(content) != ""
+  end
+
+  defp valid_action_content?(_, _), do: false
+
+  # --------------------------------------------------------------------------
+  # Apply actions and derive handled session-memory titles
+  # --------------------------------------------------------------------------
+  # payload_titles: the session memory titles passed to the indexer agent.
+  # These are merged with the agent's processed list so that all memories given
+  # to the agent are marked as at minimum :analyzed after a valid response.
+  # Agents often paraphrase or hallucinate titles; relying on exact echoes back
+  # from the agent causes memories to stay :new forever and loop indefinitely.
+  defp apply_actions_and_mark(conversation, decoded, payload_titles) do
+    actions = Map.get(decoded, "actions", [])
+    agent_processed = Map.get(decoded, "processed", [])
+    status_updates = Map.get(decoded, "status_updates", %{})
+    processed = Enum.uniq(payload_titles ++ agent_processed)
+
+    FileLock.with_lock(conversation.store_path, fn ->
+      with {:ok, fresh} <- Store.Project.Conversation.read(conversation) do
+        handled = collect_handled_titles(actions)
+
+        fresh
+        |> Map.put(
+          :memory,
+          mark_processed(fresh.memory, handled, processed, status_updates)
+        )
+        |> then(&Store.Project.Conversation.write(conversation, &1))
+      end
+    end)
+  end
+
+  defp collect_handled_titles(actions) do
+    actions
+    |> Enum.reduce(MapSet.new(), fn action, handled ->
+      case apply_action(action) do
+        {:ok, source_title} when is_binary(source_title) ->
+          MapSet.put(handled, source_title)
+
+        {:ok, _} ->
+          handled
+
+        {:error, _reason} ->
+          handled
+      end
+    end)
+    |> MapSet.to_list()
+  end
+
+  # First pass: mark session memories as :analyzed only when confirmed in the
+  # handled set (a successful action with a matching "from" field). Second pass:
+  # apply status_updates for titles in handled_set or, for all valid statuses,
+  # in processed_set. This lets replace/delete actions (which lack "from")
+  # still reach :incorporated/:merged via status_updates + processed.
+  defp mark_processed(memories, handled, processed, status_updates) do
+    handled_set = MapSet.new(handled)
+    processed_set = MapSet.new(processed)
+    session_titles = session_memory_titles(memories)
+
+    status_update_titles =
+      eligible_status_update_titles(status_updates, session_titles, handled_set, processed_set)
+
     memories
     |> Enum.map(fn
-      %Memory{scope: :session, title: title} = m ->
-        if title in processed, do: %{m | index_status: :analyzed}, else: m
+      %Memory{scope: :session, title: title} = mem ->
+        mark_memory_analyzed(mem, title, handled_set, processed_set)
 
       other ->
         other
     end)
     |> Enum.map(fn
-      %Memory{scope: :session, title: title} = m ->
-        maybe_apply_status_update(m, Map.get(status_updates, title))
+      %Memory{scope: :session, title: title} = mem ->
+        maybe_apply_status_update(mem, title, status_update_titles, status_updates)
 
       other ->
         other
+    end)
+  end
+
+  defp session_memory_titles(memories) do
+    memories
+    |> Enum.reduce(MapSet.new(), fn
+      %Memory{scope: :session, title: title}, acc when is_binary(title) -> MapSet.put(acc, title)
+      _, acc -> acc
     end)
   end
 
   @valid_statuses ["analyzed", "rejected", "incorporated", "merged"]
-  defp maybe_apply_status_update(mem, status) when status in @valid_statuses do
+  defp eligible_status_update_titles(status_updates, session_titles, handled_set, processed_set) do
+    status_updates
+    |> Enum.reduce(MapSet.new(), fn {title, status}, acc ->
+      eligible? =
+        MapSet.member?(session_titles, title) and
+          (MapSet.member?(handled_set, title) or MapSet.member?(processed_set, title)) and
+          status in @valid_statuses
+
+      case eligible? do
+        true -> MapSet.put(acc, title)
+        false -> acc
+      end
+    end)
+  end
+
+  defp mark_memory_analyzed(mem, title, handled_set, processed_set) do
+    if MapSet.member?(handled_set, title) or MapSet.member?(processed_set, title) do
+      %{mem | index_status: :analyzed}
+    else
+      mem
+    end
+  end
+
+  defp maybe_apply_status_update(mem, title, eligible_titles, status_updates) do
+    case MapSet.member?(eligible_titles, title) do
+      true -> apply_status_update(mem, Map.get(status_updates, title))
+      false -> mem
+    end
+  end
+
+  defp apply_status_update(mem, status) when status in @valid_statuses do
     %{mem | index_status: String.to_existing_atom(status)}
   end
 
-  defp maybe_apply_status_update(mem, _), do: mem
+  defp apply_status_update(mem, _), do: mem
 
   # --------------------------------------------------------------------------
   # Action dispatch
   # --------------------------------------------------------------------------
-  defp apply_action(%{"action" => "add", "target" => target, "content" => content}) do
-    call_lt_memory("remember", target, content)
+  defp apply_action(%{"action" => "add", "target" => target, "content" => content} = action) do
+    case call_lt_memory("remember", target, content) do
+      :ok -> action_success_source(action)
+      {:error, reason} -> {:error, reason}
+    end
   end
 
-  defp apply_action(%{"action" => "replace", "target" => target, "content" => content}) do
-    call_lt_memory("update", target, content)
+  defp apply_action(%{"action" => "replace", "target" => target, "content" => content} = action) do
+    case call_lt_memory("update", target, content) do
+      :ok -> action_success_source(action)
+      {:error, reason} -> {:error, reason}
+    end
   end
 
-  defp apply_action(%{"action" => "delete", "target" => target}) do
-    call_lt_memory("forget", target, nil)
+  defp apply_action(%{"action" => "delete", "target" => target} = action) do
+    case call_lt_memory("forget", target, nil) do
+      :ok -> action_success_source(action)
+      {:error, reason} -> {:error, reason}
+    end
   end
 
-  defp apply_action(_), do: :ok
+  defp apply_action(_), do: {:error, :invalid_action}
+
+  defp action_success_source(action) do
+    case Map.get(action, "from") do
+      %{"title" => title} when is_binary(title) -> {:ok, title}
+      title when is_binary(title) -> {:ok, title}
+      _ -> {:ok, :no_source}
+    end
+  end
 
   defp call_lt_memory(action, %{"scope" => scope, "title" => title}, content) do
     args =
@@ -387,11 +678,13 @@ defmodule Services.MemoryIndexer do
       |> maybe_put_content(content)
 
     case AI.Tools.perform_tool_call("long_term_memory_tool", args, @lt_memory_tool) do
-      {:ok, _} -> :ok
-      {:error, reason} -> UI.debug("memory_indexer", "#{action} failed: #{inspect(reason)}")
-    end
+      {:ok, _} ->
+        :ok
 
-    :ok
+      {:error, reason} ->
+        UI.debug("memory_indexer", "#{action} failed: #{inspect(reason)}")
+        {:error, reason}
+    end
   end
 
   defp maybe_put_content(args, nil), do: args
@@ -688,4 +981,12 @@ defmodule Services.MemoryIndexer do
 
   defp extract_content(%{content: c}), do: String.slice(c, 0, 400)
   defp extract_content(_), do: ""
+
+  # Gated behind FNORD_DEBUG_MEMORY so indexer activity is visible during
+  # development without polluting normal output.
+  defp debug(msg) do
+    if Util.Env.looks_truthy?("FNORD_DEBUG_MEMORY") do
+      UI.debug("memory_indexer", msg)
+    end
+  end
 end

@@ -50,6 +50,8 @@ defmodule AI.Agent.Coordinator.Tasks do
     - For every new line of inquiry, create a task
     - When you conclude or drop a line, resolve it with a clear outcome
     - Before moving to the next, call `tasks_show_list` to review and update open tasks
+    - Create new task lists for each discrete line of work or inquiry
+    - Tasks help prevent you from losing track or hallucinating about what you have done
     """
     |> AI.Util.system_msg()
     |> Services.Conversation.append_msg(conversation_pid)

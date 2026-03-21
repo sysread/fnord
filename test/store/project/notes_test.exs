@@ -3,7 +3,7 @@ defmodule Store.Project.NotesTest do
 
   alias Store.Project.Notes
 
-  describe "reset/1" do
+  describe "reset/0 and reset/1" do
     setup do
       project = mock_project("notes_reset_test")
       # ensure store_path & notes_dir exist so we can create files under them
@@ -28,7 +28,7 @@ defmodule Store.Project.NotesTest do
     end
   end
 
-  describe "write/2" do
+  describe "write/1 and write/2" do
     setup do
       project = mock_project("notes_write_test")
       File.mkdir_p!(project.store_path)
@@ -52,7 +52,7 @@ defmodule Store.Project.NotesTest do
     end
   end
 
-  describe "read/1" do
+  describe "read/0 and read/1" do
     setup do
       project = mock_project("notes_read_test")
       File.mkdir_p!(project.store_path)
@@ -67,6 +67,53 @@ defmodule Store.Project.NotesTest do
 
     test "returns error if no notes found" do
       assert {:error, :no_notes} = Notes.read()
+    end
+  end
+
+  describe "by-project overloads" do
+    setup do
+      project = mock_project("notes_by_project_test")
+      other_project = mock_project("notes_by_project_other_test")
+
+      File.mkdir_p!(project.store_path)
+      File.mkdir_p!(other_project.store_path)
+
+      {:ok, project: project, other_project: other_project}
+    end
+
+    test "read/1 reads notes for the named project", %{
+      project: project,
+      other_project: other_project
+    } do
+      File.write!(Path.join(project.store_path, "notes.md"), "project notes content")
+      File.write!(Path.join(other_project.store_path, "notes.md"), "other project notes content")
+
+      assert {:ok, "project notes content"} = Notes.read(project.name)
+    end
+
+    test "write/2 writes content to the named project's notes file", %{
+      project: project,
+      other_project: other_project
+    } do
+      content = "hello from named project write"
+      :ok = Notes.write(project.name, content)
+
+      assert File.read!(Path.join(project.store_path, "notes.md")) == content
+      refute File.exists?(Path.join(other_project.store_path, "notes.md"))
+    end
+
+    test "file_path/1 returns the named project's notes path", %{project: project} do
+      expected = Path.join(project.store_path, "notes.md")
+      assert {:ok, actual} = Notes.file_path(project.name)
+      assert actual == expected
+    end
+
+    test "file_path/1 returns the project's notes path when given a project struct", %{
+      project: project
+    } do
+      expected = Path.join(project.store_path, "notes.md")
+      assert {:ok, actual} = Notes.file_path(project)
+      assert actual == expected
     end
   end
 end

@@ -78,11 +78,30 @@ defmodule Memory.Project do
     end
   end
 
+  @doc """
+  Saves a memory into the given project without changing the currently selected
+  project.
+
+  Accepts either a `%Store.Project{}` struct or a project name binary.
+  """
+  @spec save_into(Store.Project.t() | binary(), Memory.t()) :: :ok | {:error, term()}
+  def save_into(project, memory) do
+    with {:ok, project} <- resolve_project(project) do
+      Memory.FileStore.save(store(project), memory)
+    end
+  end
+
   # ----------------------------------------------------------------------------
   # Internals
   # ----------------------------------------------------------------------------
   defp get_project() do
     Store.get_project()
+  end
+
+  defp resolve_project(%Store.Project{} = project), do: {:ok, project}
+
+  defp resolve_project(project_name) when is_binary(project_name) do
+    Store.get_project(project_name)
   end
 
   defp store(%Store.Project{store_path: store_path}) do
