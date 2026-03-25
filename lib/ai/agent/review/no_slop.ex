@@ -40,7 +40,11 @@ defmodule AI.Agent.Review.NoSlop do
   - "This was changed because the user wanted..."
 
   ### AI writing style tells
-  - Em dashes (U+2014: —) anywhere in code, comments, or strings
+  - Typography, when not part of visible UI output (eg in code, comments, or docstrings):
+    - Em dashes (U+2014: —) or double hyphens "--" used as a substitute; devs use single hyphens or semicolons instead
+    - Smart quotes (U+201C/U+201D: “/”), smart apostrophes (U+2018/U+2019: ‘/’)
+    - Glyphs or emojis (e.g. ✅, 🚀, 🔥, →, ⟶, ⇒, ⟹, ➜, ➔, ▶, ►, »)
+  - Overly formal or verbose language: "In order to ensure that...", "It is imperative that..."
   - "Note:" or "Important:" prefixes on comments (real developers don't write this way)
   - Hedging: "This might...", "This could potentially...", "It's worth noting that..."
   - Filler: "In order to", "It should be noted", "As mentioned above"
