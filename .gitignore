@@ -50,6 +50,8 @@ tags
 # AI artifacts
 FNORD.local.md
 .claude
+.codex
+.mcp.json
 
 # Notes and plans
 .notes
@@ -63,4 +65,3 @@ cover/
 
 # direnv
 .envrc
-.mcp.json
