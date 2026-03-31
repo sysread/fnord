@@ -81,8 +81,7 @@ defmodule GitCli.Worktree do
   """
   def merge(root, path) when is_binary(root) and is_binary(path) do
     with {:ok, branch} <- git_worktree_branch(root, path),
-         {:ok, current_branch} <- current_branch(root),
-         {:ok, _out} <- git_cmd(root, ["merge", branch, current_branch]) do
+         {:ok, _out} <- git_cmd(root, ["merge", branch]) do
       {:ok, :ok}
     else
       {:error, :worktree_not_found} -> {:error, :worktree_not_found}
@@ -145,8 +144,8 @@ defmodule GitCli.Worktree do
 
   defp resolve_default_base_branch(root) do
     case default_base_branch(root) do
+      branch when is_binary(branch) -> {:ok, branch}
       nil -> {:error, :invalid_branch}
-      branch -> {:ok, branch}
     end
   end
 
@@ -277,16 +276,12 @@ defmodule GitCli.Worktree do
   defp normalize_branch(branch, _base_branch) when is_binary(branch), do: {:ok, branch}
   defp normalize_branch(_, _), do: {:error, :invalid_branch}
 
-  defp default_base_branch(nil), do: nil
-
   defp default_base_branch(root) when is_binary(root) do
     case repo_default_branch(root) do
+      branch when is_binary(branch) -> branch
       nil -> current_branch(root)
-      branch -> branch
     end
   end
-
-  defp repo_default_branch(nil), do: nil
 
   defp repo_default_branch(root) when is_binary(root) do
     with {:ok, out} <- git_cmd(root, ["symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"]) do
@@ -297,18 +292,22 @@ defmodule GitCli.Worktree do
         "" -> nil
         branch -> branch
       end
+    else
+      _ -> nil
     end
   end
 
-  defp current_branch(root) do
+  defp current_branch(root) when is_binary(root) do
     with {:ok, branch} <- git_cmd(root, ["rev-parse", "--abbrev-ref", "HEAD"]) do
       branch = String.trim(branch)
 
-      if branch == "HEAD" do
-        {:error, :invalid_branch}
-      else
-        {:ok, branch}
+      case branch do
+        "HEAD" -> nil
+        "" -> nil
+        valid_branch -> valid_branch
       end
+    else
+      _ -> nil
     end
   end
 
@@ -332,7 +331,8 @@ defmodule GitCli.Worktree do
   defp recursive_entries(path) do
     if File.dir?(path) do
       path
-      |> Path.wildcard("**/*")
+      |> Path.join("**/*")
+      |> Path.wildcard()
       |> Enum.filter(&File.regular?/1)
     else
       []

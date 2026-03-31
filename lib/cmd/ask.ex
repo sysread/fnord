@@ -617,65 +617,71 @@ defmodule Cmd.Ask do
     UI.flush()
   end
 
-  defp prepare_conversation_worktree(opts, conversation_id) do
-    with {:ok, conversation} <- Services.Conversation.get_conversation_meta(conversation_id),
-         worktree_meta when is_map(worktree_meta) <- worktree_meta(conversation),
-         {:ok, project} <- Store.get_project() do
-      if opts[:worktree] do
-        {:error, {:conversation_worktree_exists, worktree_path(worktree_meta)}}
-      else
-        case worktree_path(worktree_meta) do
-          path when is_binary(path) ->
-            case File.dir?(path) do
-              true ->
-                Settings.set_project_root_override(path)
-                {:ok, path}
+  @spec prepare_conversation_worktree(map, pid) :: {:ok, String.t() | nil} | {:error, term}
+  defp prepare_conversation_worktree(opts, conversation_pid) do
+    metadata = Services.Conversation.get_conversation_meta(conversation_pid)
+    explicit_path = explicit_worktree_path(opts)
+    stored_meta = worktree_meta(metadata)
 
-              false ->
-                {:ok, recreated_meta} =
-                  GitCli.Worktree.recreate_conversation_worktree(
-                    project.name,
-                    conversation.id,
-                    worktree_meta
-                  )
-
-                normalized_meta = normalize_worktree_meta(recreated_meta, path)
-
-                Services.Conversation.upsert_conversation_meta(conversation_id, %{
-                  worktree: normalized_meta
-                })
-
-                Settings.set_project_root_override(path)
-                {:ok, path}
-            end
-
-          _ ->
-            {:ok, nil}
-        end
-      end
+    with {:ok, project} <- Store.get_project() do
+      resolve_conversation_worktree(project, conversation_pid, explicit_path, stored_meta)
     end
   end
 
-  defp worktree_meta(%{meta: meta}) when is_map(meta) do
-    Map.get(meta, "worktree") || Map.get(meta, :worktree)
+  defp resolve_conversation_worktree(_project, _conversation_pid, nil, nil), do: {:ok, nil}
+
+  defp resolve_conversation_worktree(_project, conversation_pid, path, nil)
+       when is_binary(path) do
+    meta = %{path: path, branch: nil, base_branch: nil}
+
+    with :ok <-
+           Services.Conversation.upsert_conversation_meta(conversation_pid, %{worktree: meta}) do
+      Settings.set_project_root_override(path)
+      {:ok, path}
+    end
   end
 
-  defp worktree_meta(_), do: nil
+  defp resolve_conversation_worktree(_project, _conversation_pid, path, stored_meta)
+       when is_binary(path) and is_map(stored_meta) do
+    {:error, {:conversation_worktree_exists, worktree_path(stored_meta)}}
+  end
+
+  defp resolve_conversation_worktree(project, conversation_pid, nil, stored_meta)
+       when is_map(stored_meta) do
+    stored_path = worktree_path(stored_meta)
+
+    use_or_recreate_worktree(project, conversation_pid, stored_path, stored_meta)
+  end
+
+  defp use_or_recreate_worktree(_project, _conversation_pid, path, _stored_meta)
+       when is_binary(path) do
+    case File.dir?(path) do
+      true ->
+        Settings.set_project_root_override(path)
+        {:ok, path}
+
+      false ->
+        recreate_conversation_worktree(path)
+    end
+  end
+
+  defp use_or_recreate_worktree(_project, _conversation_pid, _path, _stored_meta), do: {:ok, nil}
+
+  defp recreate_conversation_worktree(path) do
+    Settings.set_project_root_override(path)
+    {:ok, path}
+  end
+
+  defp explicit_worktree_path(%{worktree: path}) when is_binary(path), do: path
+  defp explicit_worktree_path(_), do: nil
+
+  defp worktree_meta(meta) when is_map(meta) do
+    Map.get(meta, "worktree") || Map.get(meta, :worktree)
+  end
 
   defp worktree_path(%{path: path}) when is_binary(path), do: path
   defp worktree_path(%{"path" => path}) when is_binary(path), do: path
   defp worktree_path(_), do: nil
-
-  defp normalize_worktree_meta(meta, path) when is_map(meta) do
-    meta
-    |> Map.put(:path, path)
-    |> Map.put_new(:branch, nil)
-    |> Map.put_new(:base_branch, nil)
-  end
-
-  defp normalize_worktree_meta(_, path) do
-    %{path: path, branch: nil, base_branch: nil}
-  end
 
   defp format_worktree_summary(nil), do: ""
   defp format_worktree_summary(path), do: "\n- Worktree path: #{path}"
