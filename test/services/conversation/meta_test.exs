@@ -39,4 +39,28 @@ defmodule Services.Conversation.TaskListMetaTest do
       assert {:error, :not_found} = Conversation.upsert_task_list_meta(pid, missing, "desc")
     end
   end
+
+  describe "conversation metadata operations" do
+    test "updates conversation metadata worktree and preserves existing keys", %{pid: pid} do
+      assert :ok =
+               Conversation.upsert_conversation_meta(pid, %{
+                 worktree: %{path: "/tmp/worktree", branch: "main"}
+               })
+
+      assert {:ok, %{worktree: %{path: "/tmp/worktree", branch: "main"}}} =
+               Conversation.get_conversation_meta(pid)
+
+      assert :ok = Conversation.upsert_conversation_meta(pid, %{owner: "alice"})
+
+      assert {:ok, %{worktree: %{path: "/tmp/worktree", branch: "main"}, owner: "alice"}} =
+               Conversation.get_conversation_meta(pid)
+    end
+
+    test "returns not_found when conversation pid is missing" do
+      assert {:error, :not_found} = Conversation.get_conversation_meta(:missing_pid)
+
+      assert {:error, :not_found} =
+               Conversation.upsert_conversation_meta(:missing_pid, %{worktree: %{}})
+    end
+  end
 end

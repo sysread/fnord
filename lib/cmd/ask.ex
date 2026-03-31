@@ -201,11 +201,21 @@ defmodule Cmd.Ask do
                :ok
              ),
            :ok <- Memory.init(),
+           {:ok, worktree_path} <- prepare_conversation_worktree(opts, pid),
            {:ok, usage, context, response} <- get_response(opts, pid),
            {:ok, conversation_id} <- save_conversation(pid) do
         end_time = System.monotonic_time(:second)
 
-        print_result(start_time, end_time, response, usage, context, conversation_id)
+        print_result(
+          start_time,
+          end_time,
+          response,
+          usage,
+          context,
+          conversation_id,
+          worktree_path
+        )
+
         maybe_save_output(opts, conversation_id, response)
         Clipboard.copy(conversation_id)
 
@@ -237,6 +247,10 @@ defmodule Cmd.Ask do
         {:error, :conversation_not_found} ->
           UI.error("Conversation ID #{opts[:conversation]} not found")
           {:error, :conversation_not_found}
+
+        {:error, {:conversation_worktree_exists, path}} ->
+          UI.error("This conversation already has an associated worktree at #{path}")
+          {:error, {:conversation_worktree_exists, path}}
 
         {:error, other} ->
           UI.error("An error occurred while generating the response:\n\n#{other}")
@@ -554,7 +568,15 @@ defmodule Cmd.Ask do
   # ----------------------------------------------------------------------------
   # Output
   # ----------------------------------------------------------------------------
-  defp print_result(start_time, end_time, response, usage, context, conversation_id) do
+  defp print_result(
+         start_time,
+         end_time,
+         response,
+         usage,
+         context,
+         conversation_id,
+         worktree_path
+       ) do
     time_taken = end_time - start_time
     duration = Util.Duration.format(time_taken)
 
@@ -571,6 +593,8 @@ defmodule Cmd.Ask do
     {:ok, project} = Store.get_project()
     %{new: new, stale: stale, deleted: deleted} = Store.Project.index_status(project)
 
+    worktree_summary = format_worktree_summary(worktree_path)
+
     UI.say("""
     #{response}
 
@@ -579,7 +603,7 @@ defmodule Cmd.Ask do
     ### Response Summary:
     - Response generated in #{duration}
     - Tokens used: #{usage_str} | #{pct_context_used}% of context window (#{context_str})
-    - Conversation saved with ID #{conversation_id} (_copied to clipboard_)
+    - Conversation saved with ID #{conversation_id} (_copied to clipboard_)#{worktree_summary}
 
     ### Index Status:
     - Stale:   #{Enum.count(stale)}
@@ -592,6 +616,69 @@ defmodule Cmd.Ask do
 
     UI.flush()
   end
+
+  defp prepare_conversation_worktree(opts, conversation_id) do
+    with {:ok, conversation} <- Services.Conversation.get_conversation_meta(conversation_id),
+         worktree_meta when is_map(worktree_meta) <- worktree_meta(conversation),
+         {:ok, project} <- Store.get_project() do
+      if opts[:worktree] do
+        {:error, {:conversation_worktree_exists, worktree_path(worktree_meta)}}
+      else
+        case worktree_path(worktree_meta) do
+          path when is_binary(path) ->
+            case File.dir?(path) do
+              true ->
+                Settings.set_project_root_override(path)
+                {:ok, path}
+
+              false ->
+                {:ok, recreated_meta} =
+                  GitCli.Worktree.recreate_conversation_worktree(
+                    project.name,
+                    conversation.id,
+                    worktree_meta
+                  )
+
+                normalized_meta = normalize_worktree_meta(recreated_meta, path)
+
+                Services.Conversation.upsert_conversation_meta(conversation_id, %{
+                  worktree: normalized_meta
+                })
+
+                Settings.set_project_root_override(path)
+                {:ok, path}
+            end
+
+          _ ->
+            {:ok, nil}
+        end
+      end
+    end
+  end
+
+  defp worktree_meta(%{meta: meta}) when is_map(meta) do
+    Map.get(meta, "worktree") || Map.get(meta, :worktree)
+  end
+
+  defp worktree_meta(_), do: nil
+
+  defp worktree_path(%{path: path}) when is_binary(path), do: path
+  defp worktree_path(%{"path" => path}) when is_binary(path), do: path
+  defp worktree_path(_), do: nil
+
+  defp normalize_worktree_meta(meta, path) when is_map(meta) do
+    meta
+    |> Map.put(:path, path)
+    |> Map.put_new(:branch, nil)
+    |> Map.put_new(:base_branch, nil)
+  end
+
+  defp normalize_worktree_meta(_, path) do
+    %{path: path, branch: nil, base_branch: nil}
+  end
+
+  defp format_worktree_summary(nil), do: ""
+  defp format_worktree_summary(path), do: "\n- Worktree path: #{path}"
 
   defp count_memories(scope) do
     case Memory.list(scope) do

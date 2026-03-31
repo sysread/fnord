@@ -56,6 +56,28 @@ defmodule AI.Agent.Coordinator.GlueToolsTest do
     end
   end
 
+  test "coordinator worktree tool is gated on edit mode and git repo" do
+    :meck.expect(UI, :is_tty?, 0, false)
+    :meck.expect(UI, :quiet?, 0, false)
+    :meck.expect(GitCli, :is_git_repo?, 0, true)
+
+    edit_tools = AI.Agent.Coordinator.Glue.get_tools(%{edit?: true})
+    non_edit_tools = AI.Agent.Coordinator.Glue.get_tools(%{edit?: false})
+
+    assert Map.has_key?(edit_tools, "git_worktree_tool")
+    refute Map.has_key?(non_edit_tools, "git_worktree_tool")
+  end
+
+  test "coordinator worktree tool is omitted outside git repos" do
+    :meck.expect(UI, :is_tty?, 0, false)
+    :meck.expect(UI, :quiet?, 0, false)
+    :meck.expect(GitCli, :is_git_repo?, 0, false)
+
+    tools = AI.Agent.Coordinator.Glue.get_tools(%{edit?: true})
+
+    refute Map.has_key?(tools, "git_worktree_tool")
+  end
+
   describe "validation integration" do
     setup do
       :meck.new(Services.Conversation, [:passthrough])

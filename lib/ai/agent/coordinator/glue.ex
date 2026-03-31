@@ -17,6 +17,7 @@ defmodule AI.Agent.Coordinator.Glue do
     |> AI.Tools.with_task_tools()
     |> AI.Tools.with_skills()
     |> AI.Tools.with_rw_tools()
+    |> maybe_with_worktree_tool()
     |> AI.Tools.with_coding_tools()
     |> AI.Tools.with_review_tools()
     |> AI.Tools.with_web_tools()
@@ -32,6 +33,14 @@ defmodule AI.Agent.Coordinator.Glue do
     |> AI.Tools.with_review_tools()
     |> AI.Tools.with_web_tools()
     |> AI.Tools.maybe_with_ui()
+  end
+
+  defp maybe_with_worktree_tool(toolbox) do
+    if GitCli.is_git_repo?() do
+      AI.Tools.with_worktree_tool(toolbox, true)
+    else
+      toolbox
+    end
   end
 
   # ----------------------------------------------------------------------------

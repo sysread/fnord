@@ -31,6 +31,11 @@ defmodule Services.Conversation do
     GenServer.cast(pid, {:load, conversation_id})
   end
 
+  @spec merge_conversation_meta(pid, map) :: :ok | {:error, :not_found}
+  def merge_conversation_meta(pid, meta) when is_map(meta) do
+    GenServer.call(pid, {:merge_conversation_meta, meta})
+  end
+
   @doc """
   Append a new message to the conversation.
   Does not save the conversation.
@@ -76,9 +81,25 @@ defmodule Services.Conversation do
   @doc """
   Get the conversation metadata.
   """
+  @spec get_conversation_meta(pid) :: map
+  def get_conversation_meta(pid) do
+    GenServer.call(pid, :get_conversation_meta)
+  end
+
+  @doc """
+  Get the conversation metadata.
+  """
   @spec get_metadata(pid) :: map
   def get_metadata(pid) do
-    GenServer.call(pid, :get_metadata)
+    get_conversation_meta(pid)
+  end
+
+  @doc """
+  Merge the provided map into the conversation metadata.
+  """
+  @spec upsert_conversation_meta(pid, map) :: :ok | {:error, :not_found}
+  def upsert_conversation_meta(pid, meta) when is_map(meta) do
+    GenServer.call(pid, {:merge_conversation_meta, meta})
   end
 
   @doc """
@@ -230,8 +251,19 @@ defmodule Services.Conversation do
   end
 
   @impl true
+  def handle_call(:get_conversation_meta, _from, state) do
+    {:reply, state.metadata, state}
+  end
+
+  @impl true
   def handle_call(:get_metadata, _from, state) do
     {:reply, state.metadata, state}
+  end
+
+  @impl true
+  def handle_call({:merge_conversation_meta, meta}, _from, state) do
+    new_state = %{state | metadata: Map.merge(state.metadata, meta)}
+    {:reply, :ok, new_state}
   end
 
   @impl true

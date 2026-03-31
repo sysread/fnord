@@ -195,6 +195,10 @@ defmodule AI.Tools do
     "cmd_tool" => AI.Tools.Cmd
   }
 
+  @worktree_tools %{
+    "git_worktree_tool" => AI.Tools.Git.Worktree
+  }
+
   @web_tools %{
     "web_search_tool" => AI.Tools.WebSearch
   }
@@ -373,6 +377,21 @@ defmodule AI.Tools do
     toolbox
     |> Map.merge(@rw_tools)
   end
+
+  @doc """
+  Adds the worktree tool to the toolbox when worktree actions are enabled.
+  """
+  @spec with_worktree_tool(toolbox :: toolbox, boolean) :: toolbox
+  def with_worktree_tool(toolbox \\ %{}, enabled)
+
+  def with_worktree_tool(toolbox, true) do
+    toolbox
+    |> Map.merge(@worktree_tools)
+    |> Enum.filter(fn {_name, mod} -> mod.is_available?() end)
+    |> Map.new()
+  end
+
+  def with_worktree_tool(toolbox, false), do: toolbox
 
   @doc """
   Adds the coding tools to the toolbox. Coding tools mutate the codebase, but
