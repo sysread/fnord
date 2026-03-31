@@ -586,10 +586,11 @@ defmodule AI.Agent.Coordinator do
     - Only document "known unknowns"
   - Do not speculate; mark unknowns and provide a next step to verify
   - Tag uncertainty explicitly (e.g., 'Uncertain: X because Y is absent.')
-  - If you cannot complete the task with reasonable confident:
+  - If you cannot complete the task with reasonable confidence:
     - Clearly state that this is the case
     - Add an 'Open Questions / Next Steps' subsection to summarize outstanding unknowns
     - Suggest the next smallest action to move forward
+    - NOTE: incomplete implementation with a clear path forward (remaining milestones, known next steps) is NOT uncertainty - it is work remaining. Report it as progress, not as a blocker.
 
   Citations:
   - Include file paths and symbols (e.g., `lib/ai/agent/coordinator.ex:548` or `AI.Agent.Coordinator.template_msg/1`)

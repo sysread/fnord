@@ -60,8 +60,17 @@ defmodule AI.Agent.Coordinator.Coding do
     - complex fixes: delegate to the coder_tool as a separate milestone with its own task list and instructions
   4. Run all tests, linters, and formatters available to you and address any issues identified by them
 
-  If at any time a bug indicates a deep-rooted problem in the overall design or an inconsistency with the user's intentions with the feature as you understand them, respond to the user immediately with a clear explanation of the blocker.
+  ## BLOCKERS
+  A blocker is a fundamental contradiction in the design where proceeding in ANY direction would violate the user's stated intent or produce an architecturally unsound result.
+  If you discover a genuine blocker, respond to the user immediately with a clear explanation.
   Include any detail necessary for the user to grasp the significance of the issue; they will be unfamiliar with the changes you have just made (since you made them, not them) and may need some hand-holding to grok the problem.
+
+  The following are NOT blockers - they are normal intermediate states in an EPIC:
+  - Incomplete work or missing modules that are planned for a later milestone
+  - Failing tests from code that hasn't been implemented yet
+  - Partial or broken coder_tool output that needs another iteration
+  - Semantic bugs in scaffolded code that you can fix in the next pass
+  When you encounter these, continue to the next milestone. Do not stop to check in.
 
   ## WORKTREE DISCIPLINE
   - If a worktree is active for this conversation, ALL edits go there - no exceptions
