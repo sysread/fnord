@@ -63,3 +63,4 @@ cover/
 
 # direnv
 .envrc
+.mcp.json
