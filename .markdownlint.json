@@ -1,4 +1,3 @@
-# https://github.com/DavidAnson/markdownlint?tab=readme-ov-file
 {
   "MD013": {"enabled": false},
   "MD038": {"enabled": false},

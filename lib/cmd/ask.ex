@@ -628,6 +628,18 @@ defmodule Cmd.Ask do
     end
   end
 
+  @type worktree_meta :: %{
+          path: String.t(),
+          branch: String.t() | nil,
+          base_branch: String.t() | nil
+        }
+
+  @spec resolve_conversation_worktree(
+          any,
+          pid,
+          String.t() | nil,
+          worktree_meta | nil
+        ) :: {:ok, String.t() | nil} | {:error, {:conversation_worktree_exists, String.t() | nil}}
   defp resolve_conversation_worktree(_project, _conversation_pid, nil, nil), do: {:ok, nil}
 
   defp resolve_conversation_worktree(_project, conversation_pid, path, nil)
@@ -650,10 +662,12 @@ defmodule Cmd.Ask do
        when is_map(stored_meta) do
     stored_path = worktree_path(stored_meta)
 
-    use_or_recreate_worktree(project, conversation_pid, stored_path, stored_meta)
+    recreate_or_reuse_worktree(project, conversation_pid, stored_path, stored_meta)
   end
 
-  defp use_or_recreate_worktree(_project, _conversation_pid, path, _stored_meta)
+  @spec recreate_or_reuse_worktree(any, pid, String.t(), worktree_meta) ::
+          {:ok, String.t()} | {:error, atom() | term()}
+  defp recreate_or_reuse_worktree(project, conversation_pid, path, stored_meta)
        when is_binary(path) do
     case File.dir?(path) do
       true ->
@@ -661,27 +675,51 @@ defmodule Cmd.Ask do
         {:ok, path}
 
       false ->
-        recreate_conversation_worktree(path)
+        recreate_conversation_worktree(project, conversation_pid, stored_meta)
     end
   end
 
-  defp use_or_recreate_worktree(_project, _conversation_pid, _path, _stored_meta), do: {:ok, nil}
+  @spec recreate_conversation_worktree(any, pid, worktree_meta) ::
+          {:ok, String.t()} | {:error, atom() | term()}
+  defp recreate_conversation_worktree(project, conversation_pid, stored_meta) do
+    case GitCli.Worktree.recreate_conversation_worktree(
+           project.name,
+           Services.Conversation.get_id(conversation_pid),
+           GitCli.Worktree.normalize_worktree_meta(stored_meta)
+         ) do
+      {:ok, meta} ->
+        case Services.Conversation.upsert_conversation_meta(conversation_pid, %{worktree: meta}) do
+          :ok ->
+            Settings.set_project_root_override(meta.path)
+            {:ok, meta.path}
 
-  defp recreate_conversation_worktree(path) do
-    Settings.set_project_root_override(path)
-    {:ok, path}
+          other ->
+            other
+        end
+
+      other ->
+        other
+    end
   end
 
   defp explicit_worktree_path(%{worktree: path}) when is_binary(path), do: path
   defp explicit_worktree_path(_), do: nil
 
+  # Extracts and normalizes worktree metadata from conversation metadata.
+  # Conversation metadata may arrive with string keys (from JSON deserialization)
+  # or atom keys (from in-memory state), so we normalize before returning.
+  @spec worktree_meta(map) :: worktree_meta | nil
   defp worktree_meta(meta) when is_map(meta) do
-    Map.get(meta, "worktree") || Map.get(meta, :worktree)
+    raw = Map.get(meta, :worktree) || Map.get(meta, "worktree")
+
+    case raw do
+      nil -> nil
+      m when is_map(m) -> GitCli.Worktree.normalize_worktree_meta(m)
+    end
   end
 
+  @spec worktree_path(worktree_meta) :: String.t()
   defp worktree_path(%{path: path}) when is_binary(path), do: path
-  defp worktree_path(%{"path" => path}) when is_binary(path), do: path
-  defp worktree_path(_), do: nil
 
   defp format_worktree_summary(nil), do: ""
   defp format_worktree_summary(path), do: "\n- Worktree path: #{path}"

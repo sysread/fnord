@@ -16,6 +16,8 @@
 `fnord` is a command line tool that uses multiple LLM-powered agents and tools to provide a conversational interface to your codebase, notes, and other (non-binary) files.
 It can be used to generate on-demand tutorials, playbooks, and documentation for your project, as well as to search for examples, explanations, and solutions to problems in your codebase.
 
+For markdownlint rules and configuration reference, see [the markdownlint documentation](https://github.com/DavidAnson/markdownlint?tab=readme-ov-file). The `.markdownlint.json` file is kept as strict JSON for compatibility with the installed `markdownlint-cli2` parser.
+
 ## Why `fnord`?
 
 AI-powered tools are limited to the data built into their training data. **RAG (Retrieval-Augmented Generation)** using tool calls can supplement the training data with information, such as your code base, to provide more accurate and relevant answers to your questions.

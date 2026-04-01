@@ -47,20 +47,19 @@ defmodule Services.Conversation.TaskListMetaTest do
                  worktree: %{path: "/tmp/worktree", branch: "main"}
                })
 
-      assert {:ok, %{worktree: %{path: "/tmp/worktree", branch: "main"}}} =
+      assert %{worktree: %{path: "/tmp/worktree", branch: "main"}} =
                Conversation.get_conversation_meta(pid)
 
       assert :ok = Conversation.upsert_conversation_meta(pid, %{owner: "alice"})
 
-      assert {:ok, %{worktree: %{path: "/tmp/worktree", branch: "main"}, owner: "alice"}} =
+      assert %{worktree: %{path: "/tmp/worktree", branch: "main"}, owner: "alice"} =
                Conversation.get_conversation_meta(pid)
     end
 
     test "returns not_found when conversation pid is missing" do
-      assert {:error, :not_found} = Conversation.get_conversation_meta(:missing_pid)
+      assert catch_exit(Conversation.get_conversation_meta(:missing_pid))
 
-      assert {:error, :not_found} =
-               Conversation.upsert_conversation_meta(:missing_pid, %{worktree: %{}})
+      assert catch_exit(Conversation.upsert_conversation_meta(:missing_pid, %{worktree: %{}}))
     end
   end
 end

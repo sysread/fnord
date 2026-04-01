@@ -178,6 +178,7 @@ defmodule AI.Agent.Coordinator do
     |> AI.Agent.Coordinator.Intuition.automatic_thoughts_msg()
     |> with_memories()
     |> project_prompt_msg()
+    |> worktree_context_msg()
     |> AI.Agent.Coordinator.Tasks.research_msg()
     |> AI.Agent.Coordinator.Tasks.list_msg()
     |> AI.Agent.Coordinator.Interrupts.init()
@@ -641,6 +642,41 @@ defmodule AI.Agent.Coordinator do
   def template(%{edit?: true}), do: @template_base <> @template_edit_appendix
   def template(%{edit?: false}), do: @template_base
   def template(_), do: @template_base
+
+  # Injects worktree context into the coordinator so it knows whether the
+  # conversation already has an associated worktree or needs to create one.
+  @spec worktree_context_msg(t) :: t
+  defp worktree_context_msg(%{edit?: true, conversation_pid: conversation_pid} = state) do
+    meta =
+      conversation_pid
+      |> Services.Conversation.get_conversation_meta()
+      |> GitCli.Worktree.normalize_worktree_meta_in_parent()
+
+    case meta do
+      %{worktree: %{path: path, branch: branch}} when is_binary(path) ->
+        """
+        This conversation has an active worktree:
+        - Path: #{path}
+        - Branch: #{branch || "unknown"}
+        All file edits MUST target this worktree. Do NOT create a second worktree for this conversation.
+        """
+        |> AI.Util.system_msg()
+        |> Services.Conversation.append_msg(conversation_pid)
+
+      _ ->
+        """
+        This conversation does not yet have a worktree.
+        Before making any file changes, use the git_worktree_tool to create a worktree for this conversation.
+        All subsequent edits must target the created worktree.
+        """
+        |> AI.Util.system_msg()
+        |> Services.Conversation.append_msg(conversation_pid)
+    end
+
+    state
+  end
+
+  defp worktree_context_msg(state), do: state
 
   @spec project_prompt_msg(t) :: t
   defp project_prompt_msg(%{conversation_pid: conversation_pid} = state) do

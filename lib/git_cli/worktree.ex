@@ -5,7 +5,7 @@ defmodule GitCli.Worktree do
   """
 
   @type worktree_meta :: %{
-          optional(String.t() | atom()) => any()
+          optional(atom()) => any()
         }
 
   @type worktree_entry :: %{
@@ -15,6 +15,13 @@ defmodule GitCli.Worktree do
           merge_status: :merged | :ahead | :diverged | :unknown,
           size: non_neg_integer(),
           exists?: boolean()
+        }
+
+  @type recreation_result :: %{
+          root: String.t(),
+          path: String.t(),
+          branch: String.t(),
+          meta: worktree_meta()
         }
 
   @spec default_root(String.t()) :: String.t()
@@ -91,27 +98,16 @@ defmodule GitCli.Worktree do
   end
 
   @spec recreate_conversation_worktree(String.t(), String.t(), worktree_meta()) ::
-          {:ok, worktree_entry()} | {:error, atom()}
+          {:ok, worktree_meta()} | {:error, atom()}
   @doc """
   Recreates a missing conversation worktree at its default path from stored
   metadata.
   """
   def recreate_conversation_worktree(project, conversation_id, meta)
       when is_binary(project) and is_binary(conversation_id) and is_map(meta) do
-    path = conversation_path(project, conversation_id)
-    branch = meta_branch(meta)
-    base_branch = meta_base_branch(meta)
-
-    with {:ok, root} <- project_root(),
-         {:ok, ensured_path} <- ensure_conversation_path(project, conversation_id),
-         {:ok, branch} <- normalize_branch(branch, base_branch || default_base_branch(root)),
-         {:ok, _out} <- git_worktree_add(root, ensured_path, branch) do
-      {:ok,
-       normalize_worktree_meta(
-         Map.put(meta, :path, path)
-         |> Map.put(:branch, branch)
-         |> Map.put(:base_branch, base_branch || default_base_branch(root))
-       )}
+    with {:ok, prepared} <- prepare_recreated_worktree(project, conversation_id, meta),
+         {:ok, _out} <- git_worktree_add(prepared.root, prepared.path, prepared.branch) do
+      {:ok, prepared.meta}
     end
   end
 
@@ -127,12 +123,27 @@ defmodule GitCli.Worktree do
     end
   end
 
-  @spec normalize_worktree_meta(map()) :: map()
+  @spec normalize_worktree_meta(map()) :: worktree_meta()
   @doc """
   Normalizes stored worktree metadata into the shape expected by the context.
   """
   def normalize_worktree_meta(meta) when is_map(meta) do
     %{path: meta_path(meta), branch: meta_branch(meta), base_branch: meta_base_branch(meta)}
+  end
+
+  @spec normalize_worktree_meta_in_parent(map()) :: map()
+  @doc """
+  Normalizes the worktree sub-map within a parent metadata map, handling both
+  atom and string keys for the worktree entry itself. Returns the parent map
+  with a normalized :worktree value, or unchanged if no worktree is present.
+  """
+  def normalize_worktree_meta_in_parent(meta) when is_map(meta) do
+    raw = Map.get(meta, :worktree) || Map.get(meta, "worktree")
+
+    case raw do
+      nil -> meta
+      m when is_map(m) -> Map.put(meta, :worktree, normalize_worktree_meta(m))
+    end
   end
 
   @spec recursive_size(String.t()) :: non_neg_integer()
@@ -155,6 +166,39 @@ defmodule GitCli.Worktree do
     case File.mkdir_p(default_root(project)) do
       :ok -> {:ok, path}
       _ -> {:error, :git_failed}
+    end
+  end
+
+  defp ensure_parent_dir(path) do
+    case File.mkdir_p(Path.dirname(path)) do
+      :ok -> :ok
+      _ -> {:error, :git_failed}
+    end
+  end
+
+  @spec prepare_recreated_worktree(String.t(), String.t(), worktree_meta()) ::
+          {:ok, recreation_result()} | {:error, atom()}
+  # Preserves the stored worktree path when one exists in metadata, falling
+  # back to the default conversation path only for worktrees that were created
+  # without an explicit location.
+  defp prepare_recreated_worktree(project, conversation_id, meta) do
+    stored_path = meta_path(meta)
+    target_path = if is_binary(stored_path), do: stored_path, else: conversation_path(project, conversation_id)
+    branch = meta_branch(meta)
+    base_branch = meta_base_branch(meta)
+
+    with {:ok, root} <- project_root(),
+         :ok <- ensure_parent_dir(target_path),
+         {:ok, resolved_base_branch} <- resolve_default_base_branch(root),
+         {:ok, branch} <- normalize_branch(branch, base_branch || resolved_base_branch) do
+      normalized_meta =
+        meta
+        |> Map.put(:path, target_path)
+        |> Map.put(:branch, branch)
+        |> Map.put(:base_branch, base_branch || resolved_base_branch)
+        |> normalize_worktree_meta()
+
+      {:ok, %{root: root, path: target_path, branch: branch, meta: normalized_meta}}
     end
   end
 

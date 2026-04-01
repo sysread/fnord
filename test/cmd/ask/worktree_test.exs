@@ -7,14 +7,14 @@ defmodule Cmd.Ask.WorktreeTest do
   end
 
   setup do
-    :meck.new(Services.Conversation, [:no_link, :passthrough, :non_strict])
-    on_exit(fn -> :meck.unload(Services.Conversation) end)
+    safe_meck_new(Services.Conversation, [:no_link, :passthrough, :non_strict])
+    on_exit(fn -> safe_meck_unload(Services.Conversation) end)
 
-    :meck.new(GitCli, [:no_link, :passthrough, :non_strict])
-    on_exit(fn -> :meck.unload(GitCli) end)
+    safe_meck_new(GitCli, [:no_link, :passthrough, :non_strict])
+    on_exit(fn -> safe_meck_unload(GitCli) end)
 
-    :meck.new(UI, [:no_link, :passthrough, :non_strict])
-    on_exit(fn -> :meck.unload(UI) end)
+    safe_meck_new(UI, [:no_link, :passthrough, :non_strict])
+    on_exit(fn -> safe_meck_unload(UI) end)
 
     :ok
   end
@@ -68,10 +68,10 @@ defmodule Cmd.Ask.WorktreeTest do
 
   test "explicit --worktree is rejected when the conversation already has one" do
     :meck.expect(Services.Conversation, :get_conversation_meta, fn _pid ->
-      {:ok, %{worktree: %{path: "/tmp/existing", branch: "feature", base_branch: "main"}}}
+      %{worktree: %{path: "/tmp/existing", branch: "feature", base_branch: "main"}}
     end)
 
-    assert {:error, {:conversation_worktree_exists, _}} =
+    assert {:error, :invalid_worktree} =
              Cmd.Ask.run(
                %{
                  worktree: "/tmp/another",
@@ -83,19 +83,25 @@ defmodule Cmd.Ask.WorktreeTest do
   end
 
   test "missing stored worktree is recreated without reinterpreting --worktree" do
-    {:ok, dir} = tmpdir()
+    dir = Path.join(Settings.get_user_home(), "missing-conversation-worktree")
+    meta = %{path: dir, branch: "feature", base_branch: "main"}
 
     :meck.expect(Services.Conversation, :get_conversation_meta, fn _pid ->
-      {:ok, %{worktree: %{path: dir, branch: "feature", base_branch: "main"}}}
+      %{worktree: meta}
     end)
 
-    :meck.expect(GitCli.Worktree, :recreate_conversation_worktree, fn _project,
-                                                                      _conversation,
-                                                                      _meta ->
+    :meck.expect(Services.Conversation, :get_id, fn _pid -> "conv-1" end)
+
+    :meck.expect(GitCli.Worktree, :recreate_conversation_worktree, fn "ask_worktree_test",
+                                                                      "conv-1",
+                                                                      ^meta ->
+      send(self(), :recreate_called)
+      File.mkdir_p!(dir)
       {:ok, %{path: dir, branch: "feature", base_branch: "main"}}
     end)
 
-    :meck.expect(Services.Conversation, :update_conversation_meta, fn _pid, _meta ->
+    :meck.expect(Services.Conversation, :upsert_conversation_meta, fn _pid, update ->
+      assert update == %{worktree: %{path: dir, branch: "feature", base_branch: "main"}}
       :ok
     end)
 
@@ -109,6 +115,7 @@ defmodule Cmd.Ask.WorktreeTest do
       assert :ok = Cmd.Ask.run(%{question: "Q", edit: true}, [], [])
     end)
 
+    assert_received :recreate_called
     assert Settings.get_project_root_override() == dir
   end
 
@@ -116,10 +123,10 @@ defmodule Cmd.Ask.WorktreeTest do
     {:ok, dir} = tmpdir()
 
     :meck.expect(Services.Conversation, :get_conversation_meta, fn _pid ->
-      {:ok, %{}}
+      %{}
     end)
 
-    :meck.expect(Services.Conversation, :update_conversation_meta, fn _pid, meta ->
+    :meck.expect(Services.Conversation, :upsert_conversation_meta, fn _pid, meta ->
       assert meta == %{worktree: %{path: dir, branch: nil, base_branch: nil}}
       :ok
     end)
@@ -135,5 +142,20 @@ defmodule Cmd.Ask.WorktreeTest do
     end)
 
     assert Settings.get_project_root_override() == dir
+  end
+
+  defp safe_meck_new(module, opts) do
+    safe_meck_unload(module)
+    :meck.new(module, opts)
+  end
+
+  defp safe_meck_unload(module) do
+    try do
+      :meck.unload(module)
+    catch
+      _, _ -> :ok
+    end
+
+    :ok
   end
 end

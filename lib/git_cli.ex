@@ -8,16 +8,24 @@ defmodule GitCli do
 
   @spec is_git_repo?() :: boolean()
   def is_git_repo? do
-    System.find_executable("git") != nil and File.dir?(".git")
+    dir = Settings.get_project_root_override() || File.cwd!()
+
+    case System.cmd("git", ["rev-parse", "--is-inside-work-tree"],
+           cd: dir,
+           stderr_to_stdout: true
+         ) do
+      {"true\n", 0} -> true
+      _ -> false
+    end
   end
 
   def repo_root() do
     git = System.find_executable("git")
 
     if git do
-      cwd = File.cwd!()
+      dir = Settings.get_project_root_override() || File.cwd!()
 
-      case System.cmd(git, ["rev-parse", "--git-common-dir"], cd: cwd, stderr_to_stdout: true) do
+      case System.cmd(git, ["rev-parse", "--git-common-dir"], cd: dir, stderr_to_stdout: true) do
         {out, 0} ->
           out
           |> String.trim()

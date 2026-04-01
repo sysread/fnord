@@ -63,6 +63,12 @@ defmodule AI.Agent.Coordinator.Coding do
   If at any time a bug indicates a deep-rooted problem in the overall design or an inconsistency with the user's intentions with the feature as you understand them, respond to the user immediately with a clear explanation of the blocker.
   Include any detail necessary for the user to grasp the significance of the issue; they will be unfamiliar with the changes you have just made (since you made them, not them) and may need some hand-holding to grok the problem.
 
+  ## WORKTREE DISCIPLINE
+  - If a worktree is active for this conversation, ALL edits go there - no exceptions
+  - Do NOT create a second worktree if one already exists for this conversation
+  - If no worktree exists yet, create one with the git_worktree_tool BEFORE making any file changes
+  - The worktree path is set as the project root override; file tools will resolve relative to it
+
   ## CODING ATTITUDE
   Make the changes the user requested
   Do not report success if you did not actually apply the changes

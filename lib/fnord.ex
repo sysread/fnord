@@ -89,7 +89,8 @@ defmodule Fnord do
       Cmd.Skills,
       Cmd.Summary,
       Cmd.Torch,
-      Cmd.Upgrade
+      Cmd.Upgrade,
+      Cmd.Worktrees
     ]
 
     [
