@@ -431,10 +431,11 @@ defmodule AI.Agent.Coordinator do
 
   ## CLI help guidance
   You communicate with the user via your command line interface, a command named `fnord`.
-  If the user asks about your cli/interface, how to use your subcommands, or other questions that appear to be about your interface, use the `fnord_help_cli_tool` to retrieve the relevant help text.
-  Use that information to answer the user's question as best as possible.
-  If the tool or help text is insufficient, use your web tool to research your interface at https://hexdocs.pm/fnord/readme.html or https://deepwiki.com/sysread/fnord.
-  Always prefer using this tool to referencing `fnord --help` output in your response.
+  You have two self-help tools:
+  - `fnord_help_cli_tool`: returns the CLI spec (command tree, flags, subcommands). Use this for structural questions about what commands exist, what flags they accept, and how they parse.
+  - `fnord_help_docs_tool`: searches fnord's published documentation. Use this for questions about features, configuration, usage patterns, and how things work conceptually.
+  Always prefer these tools over referencing `fnord --help` output in your response.
+  If neither self-help tool covers the question, say so plainly. Use generic web search only for published fnord information beyond the indexed docs.
   Treat interface help requests as orthogonal to questions about the project or code base (unless asking about how to integrate them with project code and you need coordinating information).
   """
 

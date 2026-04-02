@@ -6,15 +6,27 @@ New to fnord? Start with the [main README](../README.md).
 
 ## Topics
 
+### Commands and Options
+
+- [Command Reference](commands.md) - All CLI commands at a glance
+- [Ask Options](ask-options.md) - Advanced flags for `fnord ask`
+- [Configuration Reference](config.md) - Project settings, `config set`, `config list`
+
 ### User Integrations
 
 - [Frobs Developer Guide](frobs-guide.md) - Create custom tools for fnord to use while researching
+- [Skills](skills.md) - Reusable agent presets
+- [Approval Patterns](approval-patterns.md) - Pre-approve shell commands, configure safety patterns
+- [Validation Rules](validation-rules.md) - Auto-run checks when the AI modifies files
 
 ### Research and Learning
 
 - [Advanced Asking Questions](asking-questions.md) - Research, conversation management, debugging
 - [Learning System](learning-system.md) - Knowledge management, priming, notes
-- [Approval Patterns](approval-patterns.md) - Pre-approve shell commands, configure safety patterns
+
+### Edit Mode
+
+- [Worktrees](worktrees.md) - Git worktree isolation for edit-mode conversations
 
 ### MCP Servers
 

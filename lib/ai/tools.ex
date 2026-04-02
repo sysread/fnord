@@ -184,7 +184,8 @@ defmodule AI.Tools do
     "cmd_tool" => AI.Tools.Cmd,
     "conversation_tool" => AI.Tools.Conversation,
     "memory_tool" => AI.Tools.Memory,
-    "fnord_help_cli_tool" => AI.Tools.SelfHelp.Cli
+    "fnord_help_cli_tool" => AI.Tools.SelfHelp.Cli,
+    "fnord_help_docs_tool" => AI.Tools.SelfHelp.Docs
   }
 
   @rw_tools %{
