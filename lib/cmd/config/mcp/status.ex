@@ -14,11 +14,16 @@ defmodule Cmd.Config.MCP.Status do
 
     with {:ok, _srv_cfg} <- fetch_server(cfgs, server) do
       case MCP.OAuth2.CredentialsStore.read(server) do
-        {:ok, %{"access_token" => _at, "expires_at" => exp} = m} ->
+        {:ok, %{"access_token" => _at} = m} ->
           now = System.os_time(:second)
+          exp = Map.get(m, "expires_at")
           age = now - Map.get(m, "last_updated", now)
           UI.info("Token", "present")
-          UI.info("Expires in", Integer.to_string(max(exp - now, 0)) <> "s")
+
+          if is_integer(exp),
+            do: UI.info("Expires in", Integer.to_string(max(exp - now, 0)) <> "s"),
+            else: UI.info("Expires in", "unknown")
+
           UI.info("Age", Integer.to_string(age) <> "s")
 
         {:error, :not_found} ->
