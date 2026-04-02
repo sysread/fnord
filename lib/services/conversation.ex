@@ -461,9 +461,19 @@ defmodule Services.Conversation do
   @spec load_tasks(map) :: {:ok, map} | {:error, :corrupt_conversation}
   defp load_tasks(data) do
     case Map.fetch(data, :tasks) do
-      :error -> {:ok, %{}}
-      {:ok, tasks} when is_map(tasks) -> {:ok, tasks}
-      _ -> {:error, :corrupt_conversation}
+      :error ->
+        {:ok, %{}}
+
+      {:ok, tasks} when is_map(tasks) ->
+        # Store.Project.Conversation.read/1 normalizes the persisted task entries
+        # used by the current conversation-loading path before they reach this
+        # loader. This branch therefore accepts a map so the conversation
+        # service can continue to load older or already-healed persisted task
+        # payloads without re-encoding them here.
+        {:ok, tasks}
+
+      _ ->
+        {:error, :corrupt_conversation}
     end
   end
 

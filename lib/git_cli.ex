@@ -57,17 +57,51 @@ defmodule GitCli do
     end
   end
 
+  # Branch reporting follows the same effective directory semantics as the
+  # other repo and worktree helpers in this module.
   @spec current_branch() :: String.t() | nil
   def current_branch() do
-    case System.cmd("git", ["rev-parse", "--abbrev-ref", "HEAD"],
-           cd: effective_git_dir(),
+    git = System.find_executable("git")
+
+    if git do
+      case System.cmd(git, ["rev-parse", "--abbrev-ref", "HEAD"],
+             cd: effective_git_dir(),
+             stderr_to_stdout: true
+           ) do
+        {out, 0} ->
+          case String.trim(out) do
+            "HEAD" ->
+              case System.cmd(git, ["rev-parse", "--short", "HEAD"],
+                     cd: effective_git_dir(),
+                     stderr_to_stdout: true
+                   ) do
+                {sha, 0} -> "@" <> String.trim(sha)
+                _ -> nil
+              end
+
+            branch ->
+              branch
+          end
+
+        _ ->
+          nil
+      end
+    else
+      nil
+    end
+  end
+
+  @spec branch_name(String.t(), String.t()) :: String.t() | nil
+  defp branch_name(git, dir) do
+    case System.cmd(git, ["rev-parse", "--abbrev-ref", "HEAD"],
+           cd: dir,
            stderr_to_stdout: true
          ) do
       {out, 0} ->
         case String.trim(out) do
           "HEAD" ->
-            case System.cmd("git", ["rev-parse", "--short", "HEAD"],
-                   cd: effective_git_dir(),
+            case System.cmd(git, ["rev-parse", "--short", "HEAD"],
+                   cd: dir,
                    stderr_to_stdout: true
                  ) do
               {sha, 0} -> "@" <> String.trim(sha)
@@ -99,13 +133,7 @@ defmodule GitCli do
 
       branch =
         if root do
-          case System.cmd(git, ["rev-parse", "--abbrev-ref", "HEAD"],
-                 cd: root,
-                 stderr_to_stdout: true
-               ) do
-            {out, 0} -> String.trim(out)
-            _ -> nil
-          end
+          branch_name(git, effective_git_dir())
         end
 
       if root && branch do

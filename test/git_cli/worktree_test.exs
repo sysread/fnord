@@ -69,7 +69,8 @@ defmodule GitCli.WorktreeTest do
         assert GitCli.repo_root() =~ Path.basename(project.source_root)
         assert GitCli.worktree_root() =~ Path.basename(project.source_root)
 
-        assert GitCli.git_info() == "Note: this project is not under git version control."
+        info = GitCli.git_info()
+        assert info == "Note: this project is not under git version control."
       end)
     end
 
