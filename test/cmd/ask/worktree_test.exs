@@ -82,6 +82,27 @@ defmodule Cmd.Ask.WorktreeTest do
              )
   end
 
+  test "explicit rejected --worktree restores the stored worktree override" do
+    {:ok, explicit_dir} = tmpdir()
+    stored_dir = Path.join(Settings.get_user_home(), "stored-conversation-worktree")
+
+    :meck.expect(Services.Conversation, :get_conversation_meta, fn _pid ->
+      %{worktree: %{path: stored_dir, branch: "feature", base_branch: "main"}}
+    end)
+
+    assert {:error, {:conversation_worktree_exists, ^stored_dir}} =
+             Cmd.Ask.run(
+               %{
+                 worktree: explicit_dir,
+                 question: "hello"
+               },
+               [],
+               []
+             )
+
+    assert Settings.get_project_root_override() == stored_dir
+  end
+
   test "missing stored worktree is recreated without reinterpreting --worktree" do
     dir = Path.join(Settings.get_user_home(), "missing-conversation-worktree")
     meta = %{path: dir, branch: "feature", base_branch: "main"}

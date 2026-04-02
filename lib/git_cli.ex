@@ -8,10 +8,8 @@ defmodule GitCli do
 
   @spec is_git_repo?() :: boolean()
   def is_git_repo? do
-    dir = Settings.get_project_root_override() || File.cwd!()
-
     case System.cmd("git", ["rev-parse", "--is-inside-work-tree"],
-           cd: dir,
+           cd: effective_git_dir(),
            stderr_to_stdout: true
          ) do
       {"true\n", 0} -> true
@@ -23,16 +21,12 @@ defmodule GitCli do
     git = System.find_executable("git")
 
     if git do
-      dir = Settings.get_project_root_override() || File.cwd!()
-
-      case System.cmd(git, ["rev-parse", "--git-common-dir"], cd: dir, stderr_to_stdout: true) do
-        {out, 0} ->
-          out
-          |> String.trim()
-          |> Path.dirname()
-
-        _ ->
-          nil
+      case System.cmd(git, ["rev-parse", "--show-toplevel"],
+             cd: effective_git_dir(),
+             stderr_to_stdout: true
+           ) do
+        {out, 0} -> String.trim(out)
+        _ -> nil
       end
     else
       nil
@@ -41,7 +35,7 @@ defmodule GitCli do
 
   def is_worktree? do
     case System.cmd("git", ["rev-parse", "--is-inside-work-tree"],
-           cd: File.cwd!(),
+           cd: effective_git_dir(),
            stderr_to_stdout: true
          ) do
       {"true\n", 0} -> true
@@ -52,7 +46,7 @@ defmodule GitCli do
   def worktree_root() do
     if is_worktree?() do
       case System.cmd("git", ["rev-parse", "--show-toplevel"],
-             cd: File.cwd!(),
+             cd: effective_git_dir(),
              stderr_to_stdout: true
            ) do
         {result, 0} -> String.trim(result)
@@ -66,14 +60,14 @@ defmodule GitCli do
   @spec current_branch() :: String.t() | nil
   def current_branch() do
     case System.cmd("git", ["rev-parse", "--abbrev-ref", "HEAD"],
-           cd: File.cwd!(),
+           cd: effective_git_dir(),
            stderr_to_stdout: true
          ) do
       {out, 0} ->
         case String.trim(out) do
           "HEAD" ->
             case System.cmd("git", ["rev-parse", "--short", "HEAD"],
-                   cd: File.cwd!(),
+                   cd: effective_git_dir(),
                    stderr_to_stdout: true
                  ) do
               {sha, 0} -> "@" <> String.trim(sha)
@@ -94,10 +88,11 @@ defmodule GitCli do
     git = System.find_executable("git")
 
     if git do
-      cwd = File.cwd!()
-
       root =
-        case System.cmd(git, ["rev-parse", "--show-toplevel"], cd: cwd, stderr_to_stdout: true) do
+        case System.cmd(git, ["rev-parse", "--show-toplevel"],
+               cd: effective_git_dir(),
+               stderr_to_stdout: true
+             ) do
           {out, 0} -> String.trim(out)
           _ -> nil
         end
@@ -125,6 +120,11 @@ defmodule GitCli do
     else
       "Note: git executable not found on PATH."
     end
+  end
+
+  @spec effective_git_dir() :: String.t()
+  defp effective_git_dir() do
+    Settings.get_project_root_override() || File.cwd!()
   end
 
   @spec ignored_files(String.t() | nil) :: map()

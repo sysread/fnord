@@ -56,6 +56,21 @@ defmodule Services.Conversation.TaskListMetaTest do
                Conversation.get_conversation_meta(pid)
     end
 
+    test "loads legacy conversation data with defaulted metadata, memory, and tasks" do
+      conversation = Store.Project.Conversation.new("legacy-conversation")
+      File.mkdir_p!(Path.dirname(conversation.store_path))
+
+      payload = %{messages: [%{role: "user", content: "hello from the past"}]}
+      contents = Integer.to_string(System.system_time(:second)) <> ":" <> Jason.encode!(payload)
+      File.write!(conversation.store_path, contents)
+
+      assert {:ok, pid} = Services.Conversation.start_link(conversation.id)
+      assert Conversation.get_conversation_meta(pid) == %{}
+      assert Conversation.get_memory(pid) == []
+      assert Conversation.get_task_lists(pid) == []
+      assert [%{role: "user", content: "hello from the past"}] = Conversation.get_messages(pid)
+    end
+
     test "returns not_found when conversation pid is missing" do
       assert catch_exit(Conversation.get_conversation_meta(:missing_pid))
 

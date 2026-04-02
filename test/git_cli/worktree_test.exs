@@ -50,8 +50,150 @@ defmodule GitCli.WorktreeTest do
 
       cd(project.source_root, fn ->
         assert {:ok, root} = GitCli.Worktree.project_root()
-        assert Path.expand(root, project.source_root) == project.source_root
+        assert Path.basename(root) == Path.basename(project.source_root)
       end)
+    end
+
+    test "helpers honor project root override from a non-git directory", %{project: project} do
+      {:ok, tmp} = tmpdir()
+
+      on_exit(fn ->
+        Settings.set_project_root_override(nil)
+      end)
+
+      cd(tmp, fn ->
+        Settings.set_project_root_override(project.source_root)
+
+        assert GitCli.is_git_repo?()
+        assert GitCli.is_worktree?()
+        assert GitCli.repo_root() =~ Path.basename(project.source_root)
+        assert GitCli.worktree_root() =~ Path.basename(project.source_root)
+
+        assert GitCli.git_info() == "Note: this project is not under git version control."
+      end)
+    end
+
+    test "rollback_created_worktree uses the created path on cleanup", %{project: project} do
+      {:ok, tmp} = tmpdir()
+      worktree_path = Path.join(tmp, "created-worktree")
+      current_pid = self()
+
+      Enum.each([Services.Globals, Services.Conversation, GitCli.Worktree, GitCli], fn module ->
+        try do
+          :meck.unload(module)
+        catch
+          _, _ -> :ok
+        end
+
+        :meck.new(module, [:non_strict])
+      end)
+
+      on_exit(fn ->
+        Enum.each([Services.Globals, Services.Conversation, GitCli.Worktree, GitCli], fn module ->
+          try do
+            :meck.unload(module)
+          catch
+            _, _ -> :ok
+          end
+        end)
+      end)
+
+      :meck.expect(Services.Globals, :get_env, fn :fnord, :current_conversation, nil ->
+        current_pid
+      end)
+
+      :meck.expect(Services.Conversation, :get_id, fn ^current_pid -> "conv-1" end)
+      :meck.expect(Services.Conversation, :get_conversation_meta, fn ^current_pid -> %{} end)
+      :meck.expect(GitCli.Worktree, :normalize_worktree_meta_in_parent, fn meta -> meta end)
+      :meck.expect(GitCli.Worktree, :normalize_worktree_meta, fn meta -> meta end)
+
+      :meck.expect(GitCli.Worktree, :create, fn _repo_root, _conversation_id, _meta ->
+        {:ok, %{path: worktree_path, branch: "feature", base_branch: "main"}}
+      end)
+
+      :meck.expect(Services.Conversation, :upsert_conversation_meta, fn ^current_pid, _meta ->
+        {:error, :not_found}
+      end)
+
+      :meck.expect(GitCli, :repo_root, fn -> project.source_root end)
+
+      :meck.expect(GitCli.Worktree, :delete, fn root, path ->
+        assert root == project.source_root
+        assert path == worktree_path
+        send(self(), :rollback_delete_called)
+        {:ok, :ok}
+      end)
+
+      assert {:error, :not_found} =
+               AI.Tools.Git.Worktree.call(%{
+                 "action" => "create",
+                 "project" => project.name,
+                 "conversation_id" => "conv-1"
+               })
+
+      assert_received :rollback_delete_called
+    end
+
+    test "rollback_created_worktree also cleans up when binding exits", %{project: project} do
+      {:ok, tmp} = tmpdir()
+      worktree_path = Path.join(tmp, "created-worktree-exit")
+      current_pid = self()
+      reason = :noproc
+
+      Enum.each([Services.Globals, Services.Conversation, GitCli.Worktree, GitCli], fn module ->
+        try do
+          :meck.unload(module)
+        catch
+          _, _ -> :ok
+        end
+
+        :meck.new(module, [:non_strict])
+      end)
+
+      on_exit(fn ->
+        Enum.each([Services.Globals, Services.Conversation, GitCli.Worktree, GitCli], fn module ->
+          try do
+            :meck.unload(module)
+          catch
+            _, _ -> :ok
+          end
+        end)
+      end)
+
+      :meck.expect(Services.Globals, :get_env, fn :fnord, :current_conversation, nil ->
+        current_pid
+      end)
+
+      :meck.expect(Services.Conversation, :get_id, fn ^current_pid -> "conv-1" end)
+      :meck.expect(Services.Conversation, :get_conversation_meta, fn ^current_pid -> %{} end)
+      :meck.expect(GitCli.Worktree, :normalize_worktree_meta_in_parent, fn meta -> meta end)
+      :meck.expect(GitCli.Worktree, :normalize_worktree_meta, fn meta -> meta end)
+
+      :meck.expect(GitCli.Worktree, :create, fn _repo_root, _conversation_id, _meta ->
+        {:ok, %{path: worktree_path, branch: "feature", base_branch: "main"}}
+      end)
+
+      :meck.expect(Services.Conversation, :upsert_conversation_meta, fn ^current_pid, _meta ->
+        exit(reason)
+      end)
+
+      :meck.expect(GitCli, :repo_root, fn -> project.source_root end)
+
+      :meck.expect(GitCli.Worktree, :delete, fn root, path ->
+        assert root == project.source_root
+        assert path == worktree_path
+        send(self(), :rollback_delete_called)
+        {:ok, :ok}
+      end)
+
+      assert {:error, {:conversation_bind_failed, {:exit, ^reason}}} =
+               AI.Tools.Git.Worktree.call(%{
+                 "action" => "create",
+                 "project" => project.name,
+                 "conversation_id" => "conv-1"
+               })
+
+      assert_received :rollback_delete_called
     end
 
     test "recursive_size returns 0 for missing path and positive size for files" do

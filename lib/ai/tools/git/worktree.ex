@@ -89,13 +89,20 @@ defmodule AI.Tools.Git.Worktree do
     end
   end
 
+  @doc """
+  Create is the integration point where a conversation-scoped worktree becomes
+  part of the active session. It verifies the live conversation identity,
+  creates the worktree, binds the resulting metadata back to that same
+  conversation, and rolls back the created worktree if metadata binding fails.
+  """
   def call(
         %{"action" => "create", "project" => project, "conversation_id" => conversation_id} = args
       ) do
-    # Guard: a conversation may have at most one worktree association
-    with :ok <- check_no_existing_worktree(),
-         {:ok, result} <- GitCli.Worktree.create(project, conversation_id, Map.get(args, "branch")),
-         :ok <- bind_worktree_to_conversation(result) do
+    with {:ok, conversation_pid} <- conversation_pid_for(conversation_id),
+         :ok <- check_no_existing_worktree(conversation_pid),
+         {:ok, result} <-
+           GitCli.Worktree.create(project, conversation_id, Map.get(args, "branch")),
+         {:ok, result} <- finalize_created_worktree(conversation_pid, result) do
       Settings.set_project_root_override(result.path)
       {:ok, result}
     end
@@ -119,38 +126,95 @@ defmodule AI.Tools.Git.Worktree do
 
   def call(_), do: {:error, "Missing required field 'action'"}
 
-  # Persists the worktree association to conversation metadata so that
-  # resume, recreate, and coordinator bootstrap all see a consistent state.
-  defp bind_worktree_to_conversation(result) do
-    case Services.Globals.get_env(:fnord, :current_conversation, nil) do
-      nil ->
-        :ok
+  # This is the handoff point between low-level worktree creation and the
+  # higher-level session state that makes the worktree part of the active
+  # conversation. If metadata binding fails for any reason, including a crashed
+  # conversation process, the created worktree is rolled back before the error
+  # is surfaced to the caller.
+  @spec finalize_created_worktree(pid(), map()) :: {:ok, map()} | {:error, term()}
+  defp finalize_created_worktree(conversation_pid, result) do
+    try do
+      case bind_worktree_to_conversation(conversation_pid, result) do
+        :ok ->
+          {:ok, result}
 
-      pid ->
-        meta = %{path: result.path, branch: result.branch, base_branch: result.base_branch}
-        Services.Conversation.upsert_conversation_meta(pid, %{worktree: meta})
+        {:error, reason} ->
+          rollback_created_worktree(result)
+          {:error, reason}
+      end
+    catch
+      :exit, reason ->
+        rollback_created_worktree(result)
+        {:error, {:conversation_bind_failed, {:exit, reason}}}
     end
   end
 
-  # Returns :ok if no worktree is already bound to the current conversation,
-  # or an error guiding the model to reuse the existing one.
-  defp check_no_existing_worktree do
+  @spec rollback_created_worktree(map()) :: :ok
+  defp rollback_created_worktree(%{path: path}) do
+    with root when is_binary(root) <- GitCli.repo_root(),
+         {:ok, :ok} <- GitCli.Worktree.delete(root, path) do
+      :ok
+    else
+      _ -> :ok
+    end
+  end
+
+  @spec conversation_pid_for(String.t()) :: {:ok, pid} | {:error, String.t()}
+  defp conversation_pid_for(conversation_id) do
     case Services.Globals.get_env(:fnord, :current_conversation, nil) do
+      nil ->
+        {:error,
+         "No active conversation is available for worktree binding. " <>
+           "Create the worktree from within the target conversation session."}
+
+      pid ->
+        case Services.Conversation.get_id(pid) do
+          ^conversation_id -> {:ok, pid}
+          other -> {:error, conversation_mismatch_error(conversation_id, other)}
+        end
+    end
+  end
+
+  @spec bind_worktree_to_conversation(pid, map) :: :ok | {:error, :not_found}
+  defp bind_worktree_to_conversation(pid, result) do
+    meta =
+      GitCli.Worktree.normalize_worktree_meta(%{
+        path: result.path,
+        branch: result.branch,
+        base_branch: result.base_branch
+      })
+
+    Services.Conversation.upsert_conversation_meta(pid, %{worktree: meta})
+  end
+
+  @spec check_no_existing_worktree(pid) :: :ok | {:error, String.t()}
+  defp check_no_existing_worktree(pid) do
+    case existing_worktree_path(pid) do
       nil ->
         :ok
 
-      pid ->
-        meta = Services.Conversation.get_conversation_meta(pid)
-
-        case meta do
-          %{worktree: %{path: path}} when is_binary(path) ->
-            {:error,
-             "This conversation already has a worktree at #{path}. " <>
-               "Use the existing worktree or ask the user before creating another."}
-
-          _ ->
-            :ok
-        end
+      path ->
+        {:error,
+         "This conversation already has a worktree at #{path}. " <>
+           "Use the existing worktree or ask the user before creating another."}
     end
+  end
+
+  @spec existing_worktree_path(pid) :: String.t() | nil
+  defp existing_worktree_path(pid) do
+    pid
+    |> Services.Conversation.get_conversation_meta()
+    |> GitCli.Worktree.normalize_worktree_meta_in_parent()
+    |> case do
+      %{worktree: %{path: path}} when is_binary(path) -> path
+      _ -> nil
+    end
+  end
+
+  @spec conversation_mismatch_error(String.t(), String.t()) :: String.t()
+  defp conversation_mismatch_error(requested, actual) do
+    "Cannot bind a worktree for conversation #{requested} while the active " <>
+      "conversation is #{actual}. Create the worktree from the matching " <>
+      "conversation session instead."
   end
 end

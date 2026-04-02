@@ -183,7 +183,12 @@ defmodule GitCli.Worktree do
   # without an explicit location.
   defp prepare_recreated_worktree(project, conversation_id, meta) do
     stored_path = meta_path(meta)
-    target_path = if is_binary(stored_path), do: stored_path, else: conversation_path(project, conversation_id)
+
+    target_path =
+      if is_binary(stored_path),
+        do: stored_path,
+        else: conversation_path(project, conversation_id)
+
     branch = meta_branch(meta)
     base_branch = meta_base_branch(meta)
 

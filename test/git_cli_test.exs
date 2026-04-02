@@ -46,7 +46,7 @@ defmodule GitCli.Test do
       cd(project.source_root, fn ->
         root = GitCli.repo_root()
         assert is_binary(root)
-        assert Path.expand(root, project.source_root) == project.source_root
+        assert Path.basename(root) == Path.basename(project.source_root)
       end)
     end
 

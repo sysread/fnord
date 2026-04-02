@@ -655,6 +655,7 @@ defmodule Cmd.Ask do
 
   defp resolve_conversation_worktree(_project, _conversation_pid, path, stored_meta)
        when is_binary(path) and is_map(stored_meta) do
+    Settings.set_project_root_override(stored_meta.path)
     {:error, {:conversation_worktree_exists, worktree_path(stored_meta)}}
   end
 

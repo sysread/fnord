@@ -387,15 +387,12 @@ defmodule Services.Conversation do
   defp new(id) do
     conversation = Store.Project.Conversation.new(id)
 
-    with {:ok, data} <- Store.Project.Conversation.read(conversation) do
-      %{
-        timestamp: ts,
-        messages: msgs,
-        metadata: metadata,
-        memory: memory,
-        tasks: tasks
-      } = data
-
+    with {:ok, data} <- Store.Project.Conversation.read(conversation),
+         {:ok, ts} <- load_timestamp(data),
+         {:ok, msgs} <- load_messages(data),
+         {:ok, metadata} <- load_metadata(data),
+         {:ok, memory} <- load_memory(data),
+         {:ok, tasks} <- load_tasks(data) do
       agent_args =
         msgs
         |> find_agent_name()
@@ -424,6 +421,49 @@ defmodule Services.Conversation do
          memory: memory,
          tasks: tasks
        }}
+    end
+  end
+
+  @spec load_timestamp(map) :: {:ok, any} | {:error, :corrupt_conversation}
+  defp load_timestamp(data) do
+    case Map.fetch(data, :timestamp) do
+      {:ok, ts} when not is_nil(ts) -> {:ok, ts}
+      _ -> {:error, :corrupt_conversation}
+    end
+  end
+
+  @spec load_messages(map) :: {:ok, [AI.Util.msg()]} | {:error, :corrupt_conversation}
+  defp load_messages(data) do
+    case Map.fetch(data, :messages) do
+      {:ok, messages} when is_list(messages) -> {:ok, messages}
+      _ -> {:error, :corrupt_conversation}
+    end
+  end
+
+  @spec load_metadata(map) :: {:ok, map} | {:error, :corrupt_conversation}
+  defp load_metadata(data) do
+    case Map.fetch(data, :metadata) do
+      :error -> {:ok, %{}}
+      {:ok, metadata} when is_map(metadata) -> {:ok, metadata}
+      _ -> {:error, :corrupt_conversation}
+    end
+  end
+
+  @spec load_memory(map) :: {:ok, list} | {:error, :corrupt_conversation}
+  defp load_memory(data) do
+    case Map.fetch(data, :memory) do
+      :error -> {:ok, []}
+      {:ok, memory} when is_list(memory) -> {:ok, memory}
+      _ -> {:error, :corrupt_conversation}
+    end
+  end
+
+  @spec load_tasks(map) :: {:ok, map} | {:error, :corrupt_conversation}
+  defp load_tasks(data) do
+    case Map.fetch(data, :tasks) do
+      :error -> {:ok, %{}}
+      {:ok, tasks} when is_map(tasks) -> {:ok, tasks}
+      _ -> {:error, :corrupt_conversation}
     end
   end
 
