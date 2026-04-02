@@ -33,7 +33,9 @@ defmodule AI.Agent.Review.Pedantic do
   - **Project style guidelines** (read FNORD.md or equivalent project guidelines
     and check adherence - inline conditionals, alias usage, etc.)
   - **Spec completeness** (do new public functions have @spec? Do changed function
-    signatures have updated @spec?)
+    signatures have updated @spec? When investigating contracts, find the source
+    of truth for the interface - the spec may be defined on a behaviour, interface,
+    trait, protocol, or abstract base class rather than the implementation.)
   - **Formatting consistency** (indentation, blank lines, module attribute ordering)
   - **Stale artifacts** (TODO comments that reference completed work, commented-out
     code, debug prints left behind)
@@ -75,6 +77,7 @@ defmodule AI.Agent.Review.Pedantic do
      - Docs: @moduledoc and @doc match current behavior?
      - Naming: consistent with project conventions and the rest of the changes?
      - Specs: present for new public functions? Updated for changed signatures?
+       Find the source of truth for each interface before flagging.
      - Style: follows project guidelines?
      - Dead references: mentions of old names, removed functions, deleted files?
   5. Cross-reference docs with code: verify that documentation matches implementation.
