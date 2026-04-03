@@ -40,10 +40,12 @@ defmodule AI.Tools.Git.Worktree do
 
         Required fields per action:
         - list: (none, root is optional)
-        - create: project, conversation_id (branch is optional)
+        - create: branch (optional, defaults to fnord-<conversation_id>)
         - commit: message (required), wip (optional, default false)
         - delete: root, path
         - merge: root, path
+
+        Create derives the project and conversation from the active session.
         """,
         parameters: %{
           type: "object",
@@ -55,17 +57,11 @@ defmodule AI.Tools.Git.Worktree do
               enum: ["list", "create", "commit", "delete", "merge"],
               description: "Which worktree operation to perform."
             },
-            "project" => %{
-              type: "string",
-              description: "Required for create. Project name for worktree path resolution."
-            },
-            "conversation_id" => %{
-              type: "string",
-              description: "Required for create. Conversation id for worktree naming."
-            },
             "branch" => %{
               type: "string",
-              description: "Optional branch name for create. Defaults to a generated branch."
+              description:
+                "Optional branch name for create. Provide a short descriptive name " <>
+                  "for the work being done. Defaults to fnord-<conversation_id>."
             },
             "message" => %{
               type: "string",
@@ -104,14 +100,15 @@ defmodule AI.Tools.Git.Worktree do
 
   @doc """
   Create is the integration point where a conversation-scoped worktree becomes
-  part of the active session. It verifies the live conversation identity,
-  creates the worktree, binds the resulting metadata back to that same
-  conversation, and rolls back the created worktree if metadata binding fails.
+  part of the active session. It derives the project and conversation from the
+  active session, creates the worktree, binds the resulting metadata back to
+  that conversation, and rolls back the created worktree if metadata binding
+  fails. An optional branch name lets the coordinator label the work.
   """
-  def call(
-        %{"action" => "create", "project" => project, "conversation_id" => conversation_id} = args
-      ) do
-    with {:ok, conversation_pid} <- conversation_pid_for(conversation_id),
+  def call(%{"action" => "create"} = args) do
+    with {:ok, conversation_pid} <- active_conversation_pid(),
+         {:ok, project} <- project_name(),
+         conversation_id = Services.Conversation.get_id(conversation_pid),
          :ok <- check_no_existing_worktree(conversation_pid),
          {:ok, result} <-
            GitCli.Worktree.create(project, conversation_id, Map.get(args, "branch")),
@@ -153,10 +150,6 @@ defmodule AI.Tools.Git.Worktree do
     {:error, "Missing required field 'message' for action 'commit'"}
   end
 
-  def call(%{"action" => "create"}) do
-    {:error, "Missing required fields 'project' and 'conversation_id' for action 'create'"}
-  end
-
   def call(%{"action" => action}) when action in ["delete", "merge"] do
     {:error, "Missing required fields 'root' and 'path' for worktree action"}
   end
@@ -196,8 +189,8 @@ defmodule AI.Tools.Git.Worktree do
     end
   end
 
-  @spec conversation_pid_for(String.t()) :: {:ok, pid} | {:error, String.t()}
-  defp conversation_pid_for(conversation_id) do
+  @spec active_conversation_pid() :: {:ok, pid} | {:error, String.t()}
+  defp active_conversation_pid do
     case Services.Globals.get_env(:fnord, :current_conversation, nil) do
       nil ->
         {:error,
@@ -205,10 +198,7 @@ defmodule AI.Tools.Git.Worktree do
            "Create the worktree from within the target conversation session."}
 
       pid ->
-        case Services.Conversation.get_id(pid) do
-          ^conversation_id -> {:ok, pid}
-          other -> {:error, conversation_mismatch_error(conversation_id, other)}
-        end
+        {:ok, pid}
     end
   end
 
@@ -262,12 +252,5 @@ defmodule AI.Tools.Git.Worktree do
       {:ok, project} -> {:ok, project.name}
       _ -> {:error, "No project selected."}
     end
-  end
-
-  @spec conversation_mismatch_error(String.t(), String.t()) :: String.t()
-  defp conversation_mismatch_error(requested, actual) do
-    "Cannot bind a worktree for conversation #{requested} while the active " <>
-      "conversation is #{actual}. Create the worktree from the matching " <>
-      "conversation session instead."
   end
 end

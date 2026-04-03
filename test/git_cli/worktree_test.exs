@@ -79,7 +79,9 @@ defmodule GitCli.WorktreeTest do
       worktree_path = Path.join(tmp, "created-worktree")
       current_pid = self()
 
-      Enum.each([Services.Globals, Services.Conversation, GitCli.Worktree, GitCli], fn module ->
+      mocked = [Services.Globals, Services.Conversation, GitCli.Worktree, GitCli, Store]
+
+      Enum.each(mocked, fn module ->
         try do
           :meck.unload(module)
         catch
@@ -90,7 +92,7 @@ defmodule GitCli.WorktreeTest do
       end)
 
       on_exit(fn ->
-        Enum.each([Services.Globals, Services.Conversation, GitCli.Worktree, GitCli], fn module ->
+        Enum.each(mocked, fn module ->
           try do
             :meck.unload(module)
           catch
@@ -103,6 +105,7 @@ defmodule GitCli.WorktreeTest do
         current_pid
       end)
 
+      :meck.expect(Store, :get_project, fn -> {:ok, %{name: project.name}} end)
       :meck.expect(Services.Conversation, :get_id, fn ^current_pid -> "conv-1" end)
       :meck.expect(Services.Conversation, :get_conversation_meta, fn ^current_pid -> %{} end)
       :meck.expect(GitCli.Worktree, :normalize_worktree_meta_in_parent, fn meta -> meta end)
@@ -126,11 +129,7 @@ defmodule GitCli.WorktreeTest do
       end)
 
       assert {:error, :not_found} =
-               AI.Tools.Git.Worktree.call(%{
-                 "action" => "create",
-                 "project" => project.name,
-                 "conversation_id" => "conv-1"
-               })
+               AI.Tools.Git.Worktree.call(%{"action" => "create"})
 
       assert_received :rollback_delete_called
     end
@@ -141,7 +140,9 @@ defmodule GitCli.WorktreeTest do
       current_pid = self()
       reason = :noproc
 
-      Enum.each([Services.Globals, Services.Conversation, GitCli.Worktree, GitCli], fn module ->
+      mocked = [Services.Globals, Services.Conversation, GitCli.Worktree, GitCli, Store]
+
+      Enum.each(mocked, fn module ->
         try do
           :meck.unload(module)
         catch
@@ -152,7 +153,7 @@ defmodule GitCli.WorktreeTest do
       end)
 
       on_exit(fn ->
-        Enum.each([Services.Globals, Services.Conversation, GitCli.Worktree, GitCli], fn module ->
+        Enum.each(mocked, fn module ->
           try do
             :meck.unload(module)
           catch
@@ -165,6 +166,7 @@ defmodule GitCli.WorktreeTest do
         current_pid
       end)
 
+      :meck.expect(Store, :get_project, fn -> {:ok, %{name: project.name}} end)
       :meck.expect(Services.Conversation, :get_id, fn ^current_pid -> "conv-1" end)
       :meck.expect(Services.Conversation, :get_conversation_meta, fn ^current_pid -> %{} end)
       :meck.expect(GitCli.Worktree, :normalize_worktree_meta_in_parent, fn meta -> meta end)
@@ -188,11 +190,7 @@ defmodule GitCli.WorktreeTest do
       end)
 
       assert {:error, {:conversation_bind_failed, {:exit, ^reason}}} =
-               AI.Tools.Git.Worktree.call(%{
-                 "action" => "create",
-                 "project" => project.name,
-                 "conversation_id" => "conv-1"
-               })
+               AI.Tools.Git.Worktree.call(%{"action" => "create"})
 
       assert_received :rollback_delete_called
     end

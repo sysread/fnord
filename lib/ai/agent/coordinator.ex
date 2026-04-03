@@ -760,7 +760,8 @@ defmodule AI.Agent.Coordinator do
       _ ->
         """
         This conversation does not yet have a worktree.
-        Before making any file changes, use the git_worktree_tool to create a worktree for this conversation.
+        Before making any file changes, use the git_worktree_tool with action "create" to create a worktree.
+        You may optionally provide a short descriptive branch name. The project and conversation are derived automatically.
         All subsequent edits must target the created worktree.
         """
         |> AI.Util.system_msg()
