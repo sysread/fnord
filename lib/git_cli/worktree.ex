@@ -62,11 +62,12 @@ defmodule GitCli.Worktree do
   path.
   """
   def create(project, conversation_id, branch \\ nil) do
+    branch = branch || "fnord-#{conversation_id}"
+
     with {:ok, root} <- project_root(),
          {:ok, base_branch} <- resolve_default_base_branch(root),
-         {:ok, branch} <- normalize_branch(branch, base_branch),
          {:ok, path} <- ensure_conversation_path(project, conversation_id),
-         {:ok, _out} <- git_worktree_add(root, path, branch) do
+         {:ok, _out} <- git_worktree_add_branch(root, path, branch, base_branch) do
       {:ok, normalize_worktree_entry(path, branch, base_branch, root)}
     end
   end
@@ -291,6 +292,19 @@ defmodule GitCli.Worktree do
   defp parse_worktree_line("HEAD " <> _head, acc), do: acc
   defp parse_worktree_line(_, acc), do: acc
 
+  # Creates a worktree with a new branch forked from a start point. Used by
+  # create/3 for fresh conversation worktrees.
+  defp git_worktree_add_branch(root, path, branch, start_point) do
+    case git_cmd(root, ["worktree", "add", "--force", "-b", branch, path, start_point]) do
+      {:ok, out} -> {:ok, out}
+      {:error, :invalid_branch} -> {:error, :invalid_branch}
+      {:error, :not_a_repo} -> {:error, :not_a_repo}
+      _ -> {:error, :git_failed}
+    end
+  end
+
+  # Checks out an existing branch into a worktree. Used by
+  # recreate_conversation_worktree/3 to restore a previously created worktree.
   defp git_worktree_add(root, path, branch) do
     case git_cmd(root, ["worktree", "add", "--force", path, branch]) do
       {:ok, out} -> {:ok, out}
