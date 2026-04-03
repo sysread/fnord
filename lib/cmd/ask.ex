@@ -530,6 +530,7 @@ defmodule Cmd.Ask do
     if Store.Project.Conversation.exists?(fork_conv) do
       with {:ok, new_conv} <- Store.Project.Conversation.fork(fork_conv) do
         UI.info("Conversation #{fork_id} forked as #{new_conv.id}")
+        maybe_handle_forked_worktree(new_conv)
         {:ok, Map.put(opts, :follow, new_conv.id)}
       end
     else
@@ -538,6 +539,60 @@ defmodule Cmd.Ask do
   end
 
   defp maybe_fork_conversation(opts), do: {:ok, opts}
+
+  @reuse_worktree "Reuse existing worktree"
+  @new_worktree "Create new worktree"
+  @no_worktree "No worktree"
+
+  # When a forked conversation inherits worktree metadata from its source,
+  # prompt the user about whether to reuse the original worktree, create a
+  # new one, or proceed without a worktree. Stripping metadata before the
+  # conversation server starts means the coordinator naturally sees the
+  # correct state via worktree_context_msg/1.
+  defp maybe_handle_forked_worktree(new_conv) do
+    with {:ok, data} <- Store.Project.Conversation.read(new_conv),
+         meta when is_map(meta) <- extract_forked_worktree_meta(data.metadata),
+         true <- UI.is_tty?() do
+      case UI.choose(
+             "Source conversation has a worktree at #{meta.path}. What would you like to do?",
+             [@reuse_worktree, @new_worktree, @no_worktree]
+           ) do
+        @reuse_worktree ->
+          :ok
+
+        choice when choice in [@new_worktree, @no_worktree] ->
+          strip_worktree_metadata(new_conv, data)
+
+        {:error, :no_tty} ->
+          :ok
+      end
+    else
+      _ -> :ok
+    end
+  end
+
+  defp extract_forked_worktree_meta(metadata) when is_map(metadata) do
+    meta =
+      metadata
+      |> GitCli.Worktree.normalize_worktree_meta_in_parent()
+      |> Map.get(:worktree)
+
+    case meta do
+      %{path: path} when is_binary(path) -> meta
+      _ -> nil
+    end
+  end
+
+  defp strip_worktree_metadata(conv, data) do
+    updated_metadata = Map.delete(data.metadata, :worktree)
+
+    Store.Project.Conversation.write(conv, %{
+      data
+      | metadata: updated_metadata
+    })
+
+    :ok
+  end
 
   # ----------------------------------------------------------------------------
   # Agent response
@@ -823,41 +878,12 @@ defmodule Cmd.Ask do
         case GitCli.Worktree.Review.interactive_review(repo_root, meta) do
           :cleaned_up ->
             conv_id = Services.Conversation.get_id(conversation_pid)
-            clear_worktree_from_conversation(conv_id)
+            Cmd.WorktreeLifecycle.clear_worktree_from_conversation(conv_id)
 
           :ok ->
             :ok
         end
       end
-    end
-
-    :ok
-  end
-
-  # Removes worktree metadata from the conversation and appends a system
-  # message so the LLM knows the worktree is gone if the conversation is
-  # continued later.
-  @spec clear_worktree_from_conversation(String.t()) :: :ok
-  defp clear_worktree_from_conversation(conv_id) do
-    conv = Store.Project.Conversation.new(conv_id)
-
-    with {:ok, data} <- Store.Project.Conversation.read(conv) do
-      updated_metadata = Map.delete(data.metadata, :worktree)
-
-      worktree_deleted_msg =
-        AI.Util.system_msg("""
-        The worktree previously associated with this conversation has been deleted.
-        You will need to verify whether your changes were merged before building on
-        top of them. Keep this in mind when responding to the user.
-        """)
-
-      updated_messages = data.messages ++ [worktree_deleted_msg]
-
-      Store.Project.Conversation.write(conv, %{
-        data
-        | metadata: updated_metadata,
-          messages: updated_messages
-      })
     end
 
     :ok

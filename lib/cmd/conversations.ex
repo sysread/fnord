@@ -122,6 +122,7 @@ defmodule Cmd.Conversations do
       if UI.confirm("Confirm deletion of the listed conversations. This action cannot be undone.") do
         to_delete
         |> Enum.each(fn conversation ->
+          Cmd.WorktreeLifecycle.cleanup_worktree_for_conversation(conversation)
           Store.Project.Conversation.delete(conversation)
           Store.Project.ConversationIndex.delete(project, conversation.id)
         end)
@@ -150,6 +151,8 @@ defmodule Cmd.Conversations do
         "Confirm deletion of conversation #{id} (\"#{question}\"). This action cannot be undone."
 
       if UI.confirm(message) do
+        Cmd.WorktreeLifecycle.cleanup_worktree_for_conversation(conversation)
+
         case Store.Project.Conversation.delete(conversation) do
           :ok ->
             Store.Project.ConversationIndex.delete(project, id)
