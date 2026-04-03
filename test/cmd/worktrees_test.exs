@@ -43,6 +43,8 @@ defmodule Cmd.WorktreesTest do
          ]}
       end)
 
+      :meck.expect(GitCli.Worktree, :has_uncommitted_changes?, fn _path -> false end)
+
       output =
         capture_io(fn ->
           assert :ok == Cmd.Worktrees.run(%{}, [:list], [])
