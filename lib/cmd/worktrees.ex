@@ -42,13 +42,13 @@ defmodule Cmd.Worktrees do
           ],
           delete: [
             name: "delete",
-            about: "Remove a worktree by path",
+            about: "Remove a conversation worktree",
             options: [
-              path: [
-                value_name: "PATH",
-                long: "--path",
-                short: "-P",
-                help: "Absolute worktree path to remove",
+              conversation: [
+                value_name: "CONVERSATION_ID",
+                long: "--conversation",
+                short: "-c",
+                help: "Conversation id whose worktree to remove",
                 parser: :string,
                 required: true
               ]
@@ -56,13 +56,13 @@ defmodule Cmd.Worktrees do
           ],
           merge: [
             name: "merge",
-            about: "Merge a worktree branch and remove the worktree",
+            about: "Review, merge, and optionally clean up a conversation worktree",
             options: [
-              path: [
-                value_name: "PATH",
-                long: "--path",
-                short: "-P",
-                help: "Absolute worktree path to merge",
+              conversation: [
+                value_name: "CONVERSATION_ID",
+                long: "--conversation",
+                short: "-c",
+                help: "Conversation id whose worktree to merge",
                 parser: :string,
                 required: true
               ]
@@ -110,10 +110,17 @@ defmodule Cmd.Worktrees do
     end
   end
 
-  def run(%{path: path}, [:delete], _unknown) do
-    with {:ok, root} <- GitCli.Worktree.project_root(),
-         {:ok, :ok} <- GitCli.Worktree.delete(root, path) do
-      UI.info("Deleted worktree", path)
+  def run(%{conversation: conv_id}, [:delete], _unknown) do
+    with {:ok, meta} <- resolve_worktree_meta(conv_id),
+         {:ok, root} <- GitCli.Worktree.project_root(),
+         {:ok, :ok} <- GitCli.Worktree.delete(root, meta.path) do
+      UI.info("Deleted worktree", meta.path)
+
+      case GitCli.Worktree.delete_branch(root, meta.branch) do
+        {:ok, :ok} -> UI.info("Deleted branch", meta.branch)
+        {:error, reason} -> UI.warn("Failed to delete branch: #{format_reason(reason)}")
+      end
+
       :ok
     else
       {:error, :not_a_repo} ->
@@ -126,11 +133,10 @@ defmodule Cmd.Worktrees do
     end
   end
 
-  def run(%{path: path}, [:merge], _unknown) do
-    with {:ok, root} <- GitCli.Worktree.project_root(),
-         {:ok, :ok} <- GitCli.Worktree.merge(root, path) do
-      UI.info("Merged worktree", path)
-      :ok
+  def run(%{conversation: conv_id}, [:merge], _unknown) do
+    with {:ok, meta} <- resolve_worktree_meta(conv_id),
+         {:ok, root} <- GitCli.Worktree.project_root() do
+      GitCli.Worktree.Review.interactive_review(root, meta)
     else
       {:error, :not_a_repo} ->
         UI.error("Not inside a git repository")
@@ -148,6 +154,27 @@ defmodule Cmd.Worktrees do
 
   def run(_opts, _subcommands, _unknown) do
     UI.error("Unknown subcommand. Use 'fnord worktrees --help' for help.")
+  end
+
+  # Resolves worktree metadata from a conversation id by reading the
+  # conversation's persisted metadata from disk.
+  @spec resolve_worktree_meta(String.t()) ::
+          {:ok, GitCli.Worktree.Review.worktree_info()} | {:error, atom()}
+  defp resolve_worktree_meta(conv_id) do
+    conv = Store.Project.Conversation.new(conv_id)
+
+    with {:ok, data} <- Store.Project.Conversation.read(conv) do
+      raw =
+        data.metadata
+        |> GitCli.Worktree.normalize_worktree_meta_in_parent()
+        |> Map.get(:worktree)
+
+      case raw do
+        %{path: path, branch: branch} when is_binary(path) and is_binary(branch) -> {:ok, raw}
+        %{path: path} when is_binary(path) -> {:ok, raw}
+        _ -> {:error, :no_worktree_metadata}
+      end
+    end
   end
 
   defp format_reason(reason) when is_atom(reason), do: Atom.to_string(reason)

@@ -202,9 +202,11 @@ defmodule Cmd.Ask do
              ),
            :ok <- Memory.init(),
            {:ok, worktree_path} <- prepare_conversation_worktree(opts, pid),
-           {:ok, usage, context, response} <- get_response(opts, pid),
+           {:ok, usage, context, response, edited?} <- get_response(opts, pid),
            {:ok, conversation_id} <- save_conversation(pid) do
         end_time = System.monotonic_time(:second)
+
+        maybe_auto_commit(worktree_path, edited?, pid)
 
         print_result(
           start_time,
@@ -217,6 +219,7 @@ defmodule Cmd.Ask do
         )
 
         maybe_save_output(opts, conversation_id, response)
+        maybe_worktree_review(worktree_path, edited?, pid)
         Clipboard.copy(conversation_id)
 
         unless UI.quiet?() do
@@ -539,14 +542,14 @@ defmodule Cmd.Ask do
   # Agent response
   # ----------------------------------------------------------------------------
   @spec get_response(map, pid) ::
-          {:ok, non_neg_integer, non_neg_integer, binary}
+          {:ok, non_neg_integer, non_neg_integer, binary, boolean}
           | {:error, any}
   defp get_response(opts, conversation_server) do
     opts
     |> get_agent_response(conversation_server)
     |> case do
-      {:ok, %{usage: usage, context: context, last_response: res}} ->
-        {:ok, usage, context, res}
+      {:ok, %{usage: usage, context: context, last_response: res} = state} ->
+        {:ok, usage, context, res, Map.get(state, :editing_tools_used, false)}
 
       {:error, reason} ->
         {:error, reason}
@@ -767,6 +770,52 @@ defmodule Cmd.Ask do
     else
       base
     end
+  end
+
+  # ----------------------------------------------------------------------------
+  # Worktree auto-commit and review
+  # ----------------------------------------------------------------------------
+
+  # Automatically commits all changes in a fnord-managed worktree after the
+  # coordinator finishes editing. Bypasses the approval system entirely since
+  # this is infrastructure, not a tool call.
+  @spec maybe_auto_commit(String.t() | nil, boolean, pid) :: :ok
+  defp maybe_auto_commit(nil, _edited?, _conversation_pid), do: :ok
+  defp maybe_auto_commit(_path, false, _conversation_pid), do: :ok
+
+  defp maybe_auto_commit(path, true, _conversation_pid) do
+    with {:ok, project} <- Store.get_project(),
+         true <- GitCli.Worktree.fnord_managed?(project.name, path) do
+      case GitCli.Worktree.commit_all(path, "auto-commit") do
+        {:ok, :ok} -> UI.info("Auto-committed changes in worktree", path)
+        {:error, :nothing_to_commit} -> :ok
+        {:error, reason} -> UI.warn("Auto-commit failed: #{reason}")
+      end
+    end
+
+    :ok
+  end
+
+  # Offers an interactive review/merge/cleanup flow when the coordinator made
+  # edits in a fnord-managed worktree and the user's cwd is outside it.
+  @spec maybe_worktree_review(String.t() | nil, boolean, pid) :: :ok
+  defp maybe_worktree_review(nil, _edited?, _conversation_pid), do: :ok
+  defp maybe_worktree_review(_path, false, _conversation_pid), do: :ok
+
+  defp maybe_worktree_review(path, true, conversation_pid) do
+    cwd = File.cwd!()
+
+    with true <- cwd != path,
+         {:ok, project} <- Store.get_project(),
+         true <- GitCli.Worktree.fnord_managed?(project.name, path) do
+      meta = worktree_meta(Services.Conversation.get_conversation_meta(conversation_pid))
+
+      if meta do
+        GitCli.Worktree.Review.interactive_review(project.source_root, meta)
+      end
+    end
+
+    :ok
   end
 
   @spec maybe_save_output(map(), String.t(), String.t()) :: :ok

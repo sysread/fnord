@@ -112,6 +112,55 @@ defmodule GitCli.Worktree do
     end
   end
 
+  @spec fnord_managed?(String.t(), String.t()) :: boolean()
+  @doc """
+  Returns true when the given worktree path lives under the default
+  fnord-managed worktree root for the project. Worktrees at this location are
+  always created by fnord with an `fnord-` prefixed branch, so the path check
+  alone is sufficient to identify internally managed worktrees.
+  """
+  def fnord_managed?(project, path)
+      when is_binary(project) and is_binary(path) do
+    String.starts_with?(path, default_root(project) <> "/")
+  end
+
+  @spec commit_all(String.t(), String.t()) :: {:ok, :ok} | {:error, atom()}
+  @doc """
+  Stages all changes and commits them in the given worktree directory.
+  Returns `{:error, :nothing_to_commit}` when there is nothing to commit.
+  """
+  def commit_all(path, message) when is_binary(path) and is_binary(message) do
+    with {:ok, _} <- git_cmd(path, ["add", "-A"]),
+         {:ok, _} <- git_cmd(path, ["commit", "-m", message]) do
+      {:ok, :ok}
+    else
+      {:error, :git_failed} -> {:error, :nothing_to_commit}
+      error -> error
+    end
+  end
+
+  @spec diff_against_base(String.t(), String.t(), String.t()) ::
+          {:ok, String.t()} | {:error, atom()}
+  @doc """
+  Returns the diff between a base branch and a worktree branch, run from the
+  repository root.
+  """
+  def diff_against_base(root, branch, base_branch)
+      when is_binary(root) and is_binary(branch) and is_binary(base_branch) do
+    git_cmd(root, ["diff", "#{base_branch}...#{branch}"])
+  end
+
+  @spec delete_branch(String.t(), String.t()) :: {:ok, :ok} | {:error, atom()}
+  @doc """
+  Deletes a local branch from the repository. Uses `-d` (safe delete) which
+  refuses to delete unmerged branches.
+  """
+  def delete_branch(root, branch) when is_binary(root) and is_binary(branch) do
+    with {:ok, _} <- git_cmd(root, ["branch", "-d", branch]) do
+      {:ok, :ok}
+    end
+  end
+
   @spec project_root() :: {:ok, String.t()} | {:error, atom()}
   @doc """
   Returns the current repository root or `:not_a_repo` when the process is not
@@ -360,7 +409,12 @@ defmodule GitCli.Worktree do
     end
   end
 
-  defp current_branch(root) when is_binary(root) do
+  @spec current_branch(String.t()) :: String.t() | nil
+  @doc """
+  Returns the currently checked-out branch name for the given repo root, or
+  nil when HEAD is detached or the branch cannot be determined.
+  """
+  def current_branch(root) when is_binary(root) do
     with {:ok, branch} <- git_cmd(root, ["rev-parse", "--abbrev-ref", "HEAD"]) do
       branch = String.trim(branch)
 
