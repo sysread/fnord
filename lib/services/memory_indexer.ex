@@ -108,7 +108,7 @@ defmodule Services.MemoryIndexer do
   def handle_continue(:deep_sleep, %{task: nil, sup: sup} = state) do
     case Services.Once.set(:deep_sleep) do
       true ->
-        UI.info("<snoring>", Enum.random(@deep_sleep_lyrics))
+        UI.info("<snoring>", @deep_sleep_lyrics |> Enum.random() |> UI.italicize())
         task = spawn_deep_sleep_task(sup)
         {:noreply, %{state | task: task}}
 
