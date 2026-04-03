@@ -87,16 +87,21 @@ defmodule Cmd.WorktreesTest do
         store_path: "/tmp/conv-1.json"
       }
 
+      meta = %{worktree: %{path: "/tmp/wt", branch: "fnord-conv-1", base_branch: "main"}}
+
       :meck.expect(Store.Project.Conversation, :new, fn "conv-1" -> conv end)
 
       :meck.expect(Store.Project.Conversation, :read, fn ^conv ->
-        {:ok,
-         %{
-           metadata: %{worktree: %{path: "/tmp/wt", branch: "fnord-conv-1", base_branch: "main"}}
-         }}
+        {:ok, %{metadata: meta, messages: [], memory: [], tasks: %{}}}
       end)
 
+      :meck.expect(Store.Project.Conversation, :write, fn ^conv, _data -> {:ok, conv} end)
       :meck.expect(GitCli.Worktree, :project_root, fn -> {:ok, "/repo"} end)
+
+      :meck.expect(GitCli.Worktree, :diff_against_base, fn "/repo", "fnord-conv-1", "main" ->
+        {:ok, ""}
+      end)
+
       :meck.expect(GitCli.Worktree, :delete, fn "/repo", "/tmp/wt" -> {:ok, :ok} end)
       :meck.expect(GitCli.Worktree, :delete_branch, fn "/repo", "fnord-conv-1" -> {:ok, :ok} end)
 

@@ -134,6 +134,7 @@ defmodule Cmd.Worktrees do
   def run(%{conversation: conv_id}, [:delete], _unknown) do
     with {:ok, meta} <- resolve_worktree_meta(conv_id),
          {:ok, root} <- GitCli.Worktree.project_root(),
+         :ok <- warn_if_unmerged(root, meta),
          {:ok, :ok} <- delete_worktree(root, meta.path) do
       UI.info("Deleted worktree", meta.path)
 
@@ -142,6 +143,7 @@ defmodule Cmd.Worktrees do
         {:error, reason} -> UI.warn("Failed to delete branch: #{format_reason(reason)}")
       end
 
+      clear_worktree_from_conversation(conv_id)
       :ok
     else
       {:error, :cancelled} ->
@@ -161,7 +163,10 @@ defmodule Cmd.Worktrees do
   def run(%{conversation: conv_id}, [:merge], _unknown) do
     with {:ok, meta} <- resolve_worktree_meta(conv_id),
          {:ok, root} <- GitCli.Worktree.project_root() do
-      GitCli.Worktree.Review.interactive_review(root, meta)
+      case GitCli.Worktree.Review.interactive_review(root, meta) do
+        :cleaned_up -> clear_worktree_from_conversation(conv_id)
+        :ok -> :ok
+      end
     else
       {:error, :not_a_repo} ->
         UI.error("Not inside a git repository")
@@ -179,6 +184,58 @@ defmodule Cmd.Worktrees do
 
   def run(_opts, _subcommands, _unknown) do
     UI.error("Unknown subcommand. Use 'fnord worktrees --help' for help.")
+  end
+
+  # Warns the user if the worktree branch has not been merged into the base
+  # branch. Returns :ok to continue or {:error, :cancelled} if the user
+  # declines to proceed.
+  @spec warn_if_unmerged(String.t(), map()) :: :ok | {:error, :cancelled}
+  defp warn_if_unmerged(root, %{branch: branch, base_branch: base_branch})
+       when is_binary(branch) and is_binary(base_branch) do
+    case GitCli.Worktree.diff_against_base(root, branch, base_branch) do
+      {:ok, diff} when byte_size(diff) > 0 ->
+        UI.warn("Branch #{branch} has commits that have NOT been merged into #{base_branch}.")
+
+        if UI.confirm("Proceed with deletion anyway?") do
+          :ok
+        else
+          {:error, :cancelled}
+        end
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp warn_if_unmerged(_root, _meta), do: :ok
+
+  # Removes worktree metadata from the conversation and appends a system
+  # message so the LLM knows the worktree is gone if the conversation is
+  # continued later.
+  @spec clear_worktree_from_conversation(String.t()) :: :ok
+  defp clear_worktree_from_conversation(conv_id) do
+    conv = Store.Project.Conversation.new(conv_id)
+
+    with {:ok, data} <- Store.Project.Conversation.read(conv) do
+      updated_metadata = Map.delete(data.metadata, :worktree)
+
+      worktree_deleted_msg =
+        AI.Util.system_msg("""
+        The worktree previously associated with this conversation has been deleted.
+        You will need to verify whether your changes were merged before building on
+        top of them. Keep this in mind when responding to the user.
+        """)
+
+      updated_messages = data.messages ++ [worktree_deleted_msg]
+
+      Store.Project.Conversation.write(conv, %{
+        data
+        | metadata: updated_metadata,
+          messages: updated_messages
+      })
+    end
+
+    :ok
   end
 
   # Attempts a clean worktree removal. If the worktree has uncommitted changes,

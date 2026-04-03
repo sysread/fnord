@@ -11,11 +11,12 @@ defmodule GitCli.Worktree.Review do
           base_branch: String.t()
         }
 
-  @spec interactive_review(String.t(), worktree_info()) :: :ok
+  @spec interactive_review(String.t(), worktree_info()) :: :ok | :cleaned_up
   @doc """
   Walks the user through inspecting the diff, merging, and optionally deleting
-  the worktree and its local branch. Silently returns `:ok` when running
-  non-interactively.
+  the worktree and its local branch. Returns `:cleaned_up` when the worktree
+  was deleted so callers can update conversation metadata. Silently returns
+  `:ok` when running non-interactively or the user declines.
   """
   def interactive_review(root, %{path: path, branch: branch, base_branch: base_branch}) do
     unless UI.is_tty?() do
@@ -37,7 +38,10 @@ defmodule GitCli.Worktree.Review do
     case GitCli.Worktree.merge(root, path) do
       {:ok, _} ->
         UI.info("Merged", "#{branch} into #{target}")
-        maybe_cleanup(root, path, branch)
+
+        if maybe_cleanup(root, path, branch) do
+          throw(:cleaned_up)
+        end
 
       {:error, reason} ->
         UI.error("Merge failed: #{reason}")
@@ -46,6 +50,7 @@ defmodule GitCli.Worktree.Review do
     :ok
   catch
     :throw, :skip -> :ok
+    :throw, :cleaned_up -> :cleaned_up
   end
 
   defp show_diff(root, branch, base_branch) do
@@ -63,6 +68,7 @@ defmodule GitCli.Worktree.Review do
     end
   end
 
+  # Returns true if the worktree was deleted.
   defp maybe_cleanup(root, path, branch) do
     if UI.confirm("Delete worktree and local branch #{branch}?") do
       case GitCli.Worktree.delete(root, path) do
@@ -74,6 +80,10 @@ defmodule GitCli.Worktree.Review do
         {:ok, _} -> UI.info("Deleted branch", branch)
         {:error, reason} -> UI.warn("Failed to delete branch: #{reason}")
       end
+
+      true
+    else
+      false
     end
   end
 

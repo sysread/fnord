@@ -818,8 +818,45 @@ defmodule Cmd.Ask do
         # Use the un-overridden project root for merge operations, not the
         # worktree path that source_root resolves to during the session.
         repo_root = original_project_root(project.name)
-        GitCli.Worktree.Review.interactive_review(repo_root, meta)
+
+        case GitCli.Worktree.Review.interactive_review(repo_root, meta) do
+          :cleaned_up ->
+            conv_id = Services.Conversation.get_id(conversation_pid)
+            clear_worktree_from_conversation(conv_id)
+
+          :ok ->
+            :ok
+        end
       end
+    end
+
+    :ok
+  end
+
+  # Removes worktree metadata from the conversation and appends a system
+  # message so the LLM knows the worktree is gone if the conversation is
+  # continued later.
+  @spec clear_worktree_from_conversation(String.t()) :: :ok
+  defp clear_worktree_from_conversation(conv_id) do
+    conv = Store.Project.Conversation.new(conv_id)
+
+    with {:ok, data} <- Store.Project.Conversation.read(conv) do
+      updated_metadata = Map.delete(data.metadata, :worktree)
+
+      worktree_deleted_msg =
+        AI.Util.system_msg("""
+        The worktree previously associated with this conversation has been deleted.
+        You will need to verify whether your changes were merged before building on
+        top of them. Keep this in mind when responding to the user.
+        """)
+
+      updated_messages = data.messages ++ [worktree_deleted_msg]
+
+      Store.Project.Conversation.write(conv, %{
+        data
+        | metadata: updated_metadata,
+          messages: updated_messages
+      })
     end
 
     :ok
