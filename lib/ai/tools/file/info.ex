@@ -16,15 +16,18 @@ defmodule AI.Tools.File.Info do
 
   @impl AI.Tools
   def ui_note_on_request(%{"files" => files, "question" => question}) do
-    {"Considering #{Enum.join(files, ", ")}", question}
+    display_files = Enum.map_join(files, ", ", &AI.Tools.display_path/1)
+    {"Considering #{display_files}", question}
   end
 
   @impl AI.Tools
   def ui_note_on_result(%{"files" => files, "question" => question}, result) do
+    display_files = Enum.map_join(files, ", ", &AI.Tools.display_path/1)
+
     {"Finished considerable considerations",
      """
      # Files
-     #{Enum.join(files, ", ")}
+     #{display_files}
 
      # Question
      #{question}

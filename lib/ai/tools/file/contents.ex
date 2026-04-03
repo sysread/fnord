@@ -17,12 +17,13 @@ defmodule AI.Tools.File.Contents do
   end
 
   defp ui_note_file_ref(%{"file" => file} = args) do
+    display = AI.Tools.display_path(file)
     start_line = Map.get(args, "start_line", 1)
     end_line = Map.get(args, "end_line", -1)
 
     case {start_line, end_line} do
-      {1, -1} -> "#{file} (full)"
-      {s, e} -> "#{file}:#{s}...#{e}"
+      {1, -1} -> "#{display} (full)"
+      {s, e} -> "#{display}:#{s}...#{e}"
     end
   end
 

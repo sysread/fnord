@@ -22,9 +22,11 @@ defmodule Services.Approvals.Edit do
 
   @impl Services.Approvals.Workflow
   def confirm(state, {file, diff}) do
+    display = AI.Tools.display_path(file)
+
     cond do
       !edit?() ->
-        UI.warn("Edit #{file}", @not_edit_mode)
+        UI.warn("Edit #{display}", @not_edit_mode)
         {:denied, @not_edit_mode, state}
 
       auto?() ->
@@ -40,12 +42,12 @@ defmodule Services.Approvals.Edit do
               3 -> "Auto-approved. Ayyyyy! Sit on it!"
             end
 
-          UI.info("Edit #{file}", msg)
+          UI.info("Edit #{display}", msg)
           {:approved, state}
         end)
 
       !interactive?() ->
-        UI.error("Edit #{file}", @no_tty)
+        UI.error("Edit #{display}", @no_tty)
         {:error, @no_tty, state}
 
       true ->
@@ -142,14 +144,13 @@ defmodule Services.Approvals.Edit do
   end
 
   defp render_file_path(file) do
-    # Determine terminal width
     cols = safe_columns()
-
-    # Subtract padding/borders (12 chars)
     max_width = max(cols - 12, 0)
 
-    # Compute relative file path and truncate if too long
-    file_display = Path.relative_to_cwd(file)
+    # Relativize against source root rather than cwd for worktree clarity
+    rel_path = AI.Tools.display_path(file)
+    branch = GitCli.current_branch()
+    file_display = if branch, do: "#{rel_path} (#{branch})", else: rel_path
 
     if String.length(file_display) > max_width do
       "..." <> String.slice(file_display, -max_width..-1)

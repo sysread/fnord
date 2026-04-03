@@ -749,6 +749,21 @@ defmodule AI.Tools do
     Store.Project.find_entry(project, file)
   end
 
+  @spec display_path(binary) :: binary
+  @doc """
+  Returns a file path relative to the current source root for display purposes.
+  Falls back to the original path if it can't be relativized.
+  """
+  def display_path(path) when is_binary(path) do
+    case Store.get_project() do
+      {:ok, project} when is_binary(project.source_root) ->
+        Path.relative_to(path, project.source_root)
+
+      _ ->
+        path
+    end
+  end
+
   @spec get_file_contents(binary) :: {:ok, binary} | something_not_found
   def get_file_contents(file) do
     if temp_file?(file) do

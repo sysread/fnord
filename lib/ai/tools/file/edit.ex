@@ -39,12 +39,12 @@ defmodule AI.Tools.File.Edit do
 
   @impl AI.Tools
   def ui_note_on_request(%{"file" => file}) do
-    {"Preparing changes", file}
+    {"Preparing changes", AI.Tools.display_path(file)}
   end
 
   @impl AI.Tools
   def ui_note_on_result(%{"file" => file}, _result) do
-    {"Changes applied", file}
+    {"Changes applied", AI.Tools.display_path(file)}
   end
 
   @impl AI.Tools

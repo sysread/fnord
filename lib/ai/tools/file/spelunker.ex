@@ -16,7 +16,7 @@ defmodule AI.Tools.File.Spelunker do
     {"Spelunking the code",
      """
 
-     Start file: #{start_file}
+     Start file: #{AI.Tools.display_path(start_file)}
          Symbol: #{symbol}
            Goal: #{goal}
      """}
@@ -34,7 +34,7 @@ defmodule AI.Tools.File.Spelunker do
     {"Finished spelunking",
      """
 
-     Start file: #{start_file}
+     Start file: #{AI.Tools.display_path(start_file)}
          Symbol: #{symbol}
            Goal: #{goal}
      -----
