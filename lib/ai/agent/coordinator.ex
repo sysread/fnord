@@ -739,33 +739,38 @@ defmodule AI.Agent.Coordinator do
 
   # Injects worktree context into the coordinator so it knows whether the
   # conversation already has an associated worktree or needs to create one.
+  # Only inject worktree context when operating in a git repository. Non-git
+  # projects (e.g., markdown folders) don't have worktrees and the tool won't
+  # be in the toolbox, so telling the LLM to create one would just confuse it.
   @spec worktree_context_msg(t) :: t
   defp worktree_context_msg(%{edit?: true, conversation_pid: conversation_pid} = state) do
-    meta =
-      conversation_pid
-      |> Services.Conversation.get_conversation_meta()
-      |> GitCli.Worktree.normalize_worktree_meta_in_parent()
+    if GitCli.is_git_repo?() do
+      meta =
+        conversation_pid
+        |> Services.Conversation.get_conversation_meta()
+        |> GitCli.Worktree.normalize_worktree_meta_in_parent()
 
-    case meta do
-      %{worktree: %{path: path, branch: branch}} when is_binary(path) ->
-        """
-        This conversation has an active worktree:
-        - Path: #{path}
-        - Branch: #{branch || "unknown"}
-        All file edits MUST target this worktree. Do NOT create a second worktree for this conversation.
-        """
-        |> AI.Util.system_msg()
-        |> Services.Conversation.append_msg(conversation_pid)
+      case meta do
+        %{worktree: %{path: path, branch: branch}} when is_binary(path) ->
+          """
+          This conversation has an active worktree:
+          - Path: #{path}
+          - Branch: #{branch || "unknown"}
+          All file edits MUST target this worktree. Do NOT create a second worktree for this conversation.
+          """
+          |> AI.Util.system_msg()
+          |> Services.Conversation.append_msg(conversation_pid)
 
-      _ ->
-        """
-        This conversation does not yet have a worktree.
-        Before making any file changes, use the git_worktree_tool with action "create" to create a worktree.
-        You may optionally provide a short descriptive branch name. The project and conversation are derived automatically.
-        All subsequent edits must target the created worktree.
-        """
-        |> AI.Util.system_msg()
-        |> Services.Conversation.append_msg(conversation_pid)
+        _ ->
+          """
+          This conversation does not yet have a worktree.
+          Before making any file changes, use the git_worktree_tool with action "create" to create a worktree.
+          You may optionally provide a short descriptive branch name. The project and conversation are derived automatically.
+          All subsequent edits must target the created worktree.
+          """
+          |> AI.Util.system_msg()
+          |> Services.Conversation.append_msg(conversation_pid)
+      end
     end
 
     state

@@ -793,8 +793,21 @@ defmodule AI.Tools.File.Edit do
     end)
   end
 
+  # Skip backups when working in a fnord-managed worktree — the worktree
+  # branch is itself an isolation mechanism, making .bak files redundant.
   defp backup_file(file) do
-    Services.BackupFile.create_backup(file)
+    case Settings.get_project_root_override() do
+      nil ->
+        Services.BackupFile.create_backup(file)
+
+      path ->
+        with {:ok, project} <- Store.get_project(),
+             true <- GitCli.Worktree.fnord_managed?(project.name, path) do
+          :ok
+        else
+          _ -> Services.BackupFile.create_backup(file)
+        end
+    end
   end
 
   @spec commit_changes(binary, binary) :: :ok | {:error, term}
