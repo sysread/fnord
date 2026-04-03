@@ -718,7 +718,27 @@ defmodule Cmd.Ask do
           String.t() | nil,
           worktree_meta | nil
         ) :: {:ok, String.t() | nil} | {:error, {:conversation_worktree_exists, String.t() | nil}}
-  defp resolve_conversation_worktree(_project, _conversation_pid, nil, nil), do: {:ok, nil}
+  # No explicit path and no stored metadata. Check whether a worktree exists
+  # on disk at the default location for this conversation (handles the case
+  # where a prior session created the worktree but metadata was lost, e.g.,
+  # due to SIGTERM before conversation save).
+  defp resolve_conversation_worktree(project, conversation_pid, nil, nil) do
+    conv_id = Services.Conversation.get_id(conversation_pid)
+    path = GitCli.Worktree.conversation_path(project.name, conv_id)
+
+    if File.dir?(path) do
+      UI.info("Adopting orphaned worktree", path)
+      meta = %{path: path, branch: "fnord-#{conv_id}", base_branch: nil}
+
+      with :ok <-
+             Services.Conversation.upsert_conversation_meta(conversation_pid, %{worktree: meta}) do
+        Settings.set_project_root_override(path)
+        {:ok, path}
+      end
+    else
+      {:ok, nil}
+    end
+  end
 
   defp resolve_conversation_worktree(_project, conversation_pid, path, nil)
        when is_binary(path) do

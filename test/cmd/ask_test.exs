@@ -134,6 +134,7 @@ defmodule Cmd.AskTest do
       :meck.expect(UI, :warn, fn _ -> :ok end)
       :meck.expect(UI, :spin, fn _label, fun -> fun.() end)
       :meck.expect(Services.Conversation, :start_link, fn _ -> {:ok, self()} end)
+      :meck.expect(Services.Conversation, :get_id, fn _ -> "conv-1" end)
       :meck.expect(Services.Conversation, :get_conversation_meta, fn _ -> %{} end)
 
       :meck.expect(Services.Conversation, :get_response, fn _, _ ->
