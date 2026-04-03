@@ -53,14 +53,18 @@ defmodule Cmd.AskTest do
     setup do
       # Force exception in Services.Conversation.start_link via :meck
       :meck.new(Services.Conversation, [:passthrough])
+      :meck.new(GitCli, [:passthrough])
       :meck.expect(Services.Conversation, :start_link, fn _args -> raise "boom" end)
+      :meck.expect(GitCli, :is_worktree?, fn -> false end)
       :meck.validate(Services.Conversation)
 
       on_exit(fn ->
-        try do
-          :meck.unload(Services.Conversation)
-        catch
-          _, _ -> :ok
+        for mod <- [Services.Conversation, GitCli] do
+          try do
+            :meck.unload(mod)
+          catch
+            _, _ -> :ok
+          end
         end
       end)
 
@@ -81,15 +85,28 @@ defmodule Cmd.AskTest do
       :meck.new(Store, [:passthrough])
       :meck.new(Outputs, [:passthrough])
       :meck.new(UI, [:passthrough])
+      :meck.new(GitCli, [:passthrough])
       :meck.new(Services.Conversation, [:passthrough])
       :meck.new(Services.Task, [:passthrough])
       :meck.new(Memory, [:passthrough])
       :meck.new(Clipboard, [:passthrough])
       :meck.new(Notifier, [:passthrough])
 
+      :meck.expect(GitCli, :is_worktree?, fn -> false end)
+
       on_exit(fn ->
         Enum.each(
-          [Store, Outputs, UI, Services.Conversation, Services.Task, Memory, Clipboard, Notifier],
+          [
+            Store,
+            Outputs,
+            UI,
+            GitCli,
+            Services.Conversation,
+            Services.Task,
+            Memory,
+            Clipboard,
+            Notifier
+          ],
           fn mod ->
             try do
               :meck.unload(mod)
