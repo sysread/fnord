@@ -5,11 +5,16 @@ Each conversation can be bound to its own worktree so edits happen on a separate
 
 ## How it works
 
-In edit mode, the coordinator instructs the AI to create a worktree before making file changes.
+In edit mode (`--edit`), fnord always works in a worktree.
+The coordinator creates one automatically before making any file changes.
+All edits happen on an isolated branch - your working tree is never modified directly.
+
+At the end of the session, you decide what to do with the changes: inspect the diff, merge into your current branch, or leave them in the worktree for later.
+The `--cowboy` flag skips the prompts and auto-merges.
+
 The worktree is associated with the conversation and persisted in conversation metadata, so resuming the conversation (`--follow`) reuses the same worktree.
 
-All file edits are scoped to the worktree directory.
-The project root override mechanism ensures file tools resolve paths relative to the worktree, not the original working tree.
+File paths in UI output (tool notes, edit approval dialogs) are displayed relative to the source root, with the branch name shown in parentheses on edit approvals.
 
 ## The --worktree flag
 
@@ -38,6 +43,37 @@ On resume (`--follow`), fnord:
 - Recreates it from the stored metadata if it was deleted
 - Sets the project root override automatically
 
+## Committing changes
+
+The coordinator is nudged to commit its worktree changes at two points:
+
+1. **Inline with validation**: after each code-modifying tool use, if uncommitted changes exist, a system message reminds the AI to commit via the `git_worktree_tool` commit action.
+2. **Dedicated step**: a `:commit_worktree` step runs after task checking, before finalization. It loops up to 3 times if changes remain uncommitted.
+
+The AI can commit normally or use `wip: true` for incomplete work, which prefixes the message with `WIP:`.
+
+As a last resort, `maybe_auto_commit` in the ask command commits any remaining changes after the coordinator finishes.
+
+## Post-session review
+
+After the coordinator finishes in a fnord-managed worktree, the user is prompted to:
+
+1. **Inspect changes**: view the diff between the worktree branch and its base
+2. **Merge**: merge the branch into whatever is checked out in the actual project root
+3. **Clean up**: delete the worktree directory and local branch
+
+The `--cowboy / -C` flag skips all prompts and auto-merges with cleanup.
+
+## Forking conversations with worktrees
+
+When forking a conversation (`--fork / -F`) that has an associated worktree, the user is prompted:
+
+- **Reuse existing worktree** (default): the forked conversation shares the original worktree
+- **Create new worktree**: worktree metadata is stripped; the coordinator will create a fresh one
+- **No worktree**: worktree metadata is stripped; no worktree is created
+
+In non-interactive mode, the default (reuse) is applied.
+
 ## CLI management
 
 The `fnord worktrees` command provides direct management:
@@ -46,14 +82,16 @@ The `fnord worktrees` command provides direct management:
 fnord worktrees list
 fnord worktrees create --conversation <uuid>
 fnord worktrees create --conversation <uuid> --branch feature-name
-fnord worktrees delete --path /path/to/worktree
-fnord worktrees merge --path /path/to/worktree
+fnord worktrees delete --conversation <uuid>
+fnord worktrees merge --conversation <uuid>
 ```
 
 ### list
 
-Lists all worktrees with branch, merge status, and directory size.
-Output is tab-separated.
+Lists fnord-managed worktrees in a formatted table with columns:
+Conversation, Branch, Status, Dirty, Size, Path.
+
+Only worktrees under the default fnord-managed path are shown (not user-created external worktrees).
 
 ### create
 
@@ -64,15 +102,25 @@ Creates a new conversation-scoped worktree.
 
 ### delete
 
-Removes a worktree by path.
+Removes a conversation's worktree. Checks for uncommitted and unmerged changes before deleting.
 
-- `--path / -P PATH` - absolute worktree path (required)
+- `--conversation / -c UUID` - conversation id (required)
+
+If the worktree has uncommitted changes, prompts for confirmation before force-deleting.
+If the worktree branch has unmerged commits, warns and prompts before proceeding.
+On deletion, worktree metadata is stripped from the conversation and a system message is injected so the AI knows the worktree is gone on follow-up.
 
 ### merge
 
-Merges a worktree branch into the base branch and removes the worktree.
+Interactive review, merge, and cleanup of a conversation's worktree.
 
-- `--path / -P PATH` - absolute worktree path (required)
+- `--conversation / -c UUID` - conversation id (required)
+
+Walks through the same inspect/merge/cleanup flow as the post-session review.
+
+## Conversation deletion
+
+When deleting conversations (`fnord conversations --prune`), fnord checks each conversation for an associated worktree. If one exists on disk, the user is prompted about cleanup with status information (dirty/unmerged/clean).
 
 ## Design notes
 
@@ -80,3 +128,5 @@ Merges a worktree branch into the base branch and removes the worktree.
 - One worktree per conversation - the coordinator enforces this
 - Worktree recreation preserves the originally stored path
 - The worktree tool is only available in edit mode on git repositories
+- The `git_worktree_tool` create action derives project and conversation from the active session; only branch is user-specified
+- The `git_worktree_tool` commit action only works in fnord-managed worktrees

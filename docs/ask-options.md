@@ -60,6 +60,12 @@ Override the project source root for this run.
 PATH must be an existing directory.
 See [Worktrees](worktrees.md) for the full worktree lifecycle.
 
+### --cowboy / -C
+
+Auto-merge and clean up worktree changes after the conversation without prompting.
+Shows the diff for the record but skips all confirmation dialogs.
+Requires `--edit` and an active worktree (either pre-existing or created during the session).
+
 ## Conversation management
 
 ### --follow / -f UUID
