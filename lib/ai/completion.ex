@@ -30,6 +30,7 @@ defmodule AI.Completion do
     :archive_notes,
     :replay_conversation,
     :name,
+    :verbosity,
     :usage,
     :messages,
     :tool_call_requests,
@@ -50,6 +51,7 @@ defmodule AI.Completion do
           archive_notes: boolean(),
           replay_conversation: boolean(),
           name: String.t() | nil,
+          verbosity: String.t() | nil,
           usage: integer(),
           messages: list(AI.Util.msg()),
           tool_call_requests: list(),
@@ -85,6 +87,7 @@ defmodule AI.Completion do
          {:ok, messages} <- Keyword.fetch(opts, :messages) do
       response_format = Keyword.get(opts, :response_format, nil)
       name = Keyword.get(opts, :name, nil)
+      verbosity = Keyword.get(opts, :verbosity, nil)
       compact? = Keyword.get(opts, :compact?, true)
       web_search? = Keyword.get(opts, :web_search?, false)
 
@@ -134,6 +137,7 @@ defmodule AI.Completion do
           archive_notes: archive?,
           replay_conversation: replay,
           name: name,
+          verbosity: verbosity,
           conversation_pid: conversation_pid,
           usage: 0,
           messages: messages,
@@ -238,7 +242,8 @@ defmodule AI.Completion do
       state.messages,
       state.specs,
       state.response_format,
-      state.web_search?
+      state.web_search?,
+      state.verbosity
     )
     |> handle_response(state)
   end

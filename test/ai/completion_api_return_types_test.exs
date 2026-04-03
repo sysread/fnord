@@ -26,13 +26,12 @@ defmodule AI.CompletionAPITransportErrorTest do
     # Expect post_json to capture and assert verbosity in payload
     :meck.expect(AI.Endpoint, :post_json, fn endpoint_mod, _headers, payload ->
       assert endpoint_mod == AI.CompletionAPI
-      assert payload["verbosity"] == "detailed"
+      assert payload["verbosity"] == "high"
       {:ok, %{"choices" => []}}
     end)
 
-    base_model = %Model{model: "test-model", context: 0, reasoning: :medium}
-    model = Model.with_verbosity(base_model, :detailed)
-    _result = AI.CompletionAPI.get(model, [], nil, nil, false)
+    model = %Model{model: "test-model", context: 0, reasoning: :medium}
+    _result = AI.CompletionAPI.get(model, [], nil, nil, false, "high")
   end
 
   test "does not include verbosity in payload when verbosity is nil" do
@@ -44,6 +43,6 @@ defmodule AI.CompletionAPITransportErrorTest do
     end)
 
     model = %Model{model: "test-model", context: 0, reasoning: :medium}
-    _result = AI.CompletionAPI.get(model, [], nil, nil, false)
+    _result = AI.CompletionAPI.get(model, [], nil, nil, false, nil)
   end
 end
