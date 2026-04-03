@@ -50,8 +50,7 @@ defmodule AI.Agent.Coordinator.Frippery do
 
   def log_available_frobs do
     Frobs.list()
-    |> Enum.map(& &1.name)
-    |> Enum.join(" | ")
+    |> format_names()
     |> case do
       "" -> UI.info("Frobs", "none")
       some -> UI.info("Frobs", some)
@@ -75,11 +74,55 @@ defmodule AI.Agent.Coordinator.Frippery do
 
     MCP.Tools.module_map()
     |> Map.keys()
-    |> Enum.join(" | ")
+    |> format_mcp_tools()
     |> case do
       "" -> UI.info("MCP tools", "none")
       some -> UI.info("MCP tools", some)
     end
+  end
+
+  defp format_names(frobs) do
+    frobs
+    |> Enum.map(& &1.name)
+    |> sort_case_insensitive()
+    |> Enum.join(" | ")
+  end
+
+  defp format_mcp_tools(names) do
+    names
+    |> split_mcp_tools()
+    |> render_mcp_tool_groups()
+  end
+
+  defp split_mcp_tools(names) do
+    Enum.reduce(names, {%{}, []}, fn name, {grouped, ungrouped} ->
+      case String.split(name, "_", parts: 2) do
+        [service, tool] when service != "" and tool != "" ->
+          {Map.update(grouped, service, [tool], &[tool | &1]), ungrouped}
+
+        _ ->
+          {grouped, [name | ungrouped]}
+      end
+    end)
+  end
+
+  defp render_mcp_tool_groups({grouped, ungrouped}) do
+    grouped_entries =
+      grouped
+      |> Enum.sort_by(fn {service, _tools} -> String.downcase(service) end)
+      |> Enum.map(fn {service, tools} ->
+        tools = tools |> sort_case_insensitive() |> Enum.join(" | ")
+        "#{service}( #{tools} )"
+      end)
+
+    ungrouped_entries = ungrouped |> sort_case_insensitive()
+
+    (grouped_entries ++ ungrouped_entries)
+    |> Enum.join("\n")
+  end
+
+  defp sort_case_insensitive(names) do
+    Enum.sort_by(names, &String.downcase/1)
   end
 
   @spec get_motd(state) :: state
