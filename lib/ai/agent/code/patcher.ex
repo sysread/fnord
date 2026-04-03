@@ -202,7 +202,7 @@ defmodule AI.Agent.Code.Patcher do
   defp apply_changes(%{changes: []} = state), do: {:ok, state}
 
   defp apply_changes(%{changes: [change | remaining], contents: contents} = state) do
-    UI.report_from(state.agent.name, "Patching #{state.file}", change)
+    UI.report_from(state.agent.name, "Patching #{AI.Tools.display_path(state.file)}", change)
 
     numbered = Util.numbered_lines(contents)
     messages = build_messages(state, numbered, change)
