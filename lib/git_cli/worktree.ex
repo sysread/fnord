@@ -112,6 +112,37 @@ defmodule GitCli.Worktree do
     end
   end
 
+  @spec has_uncommitted_changes?(String.t()) :: boolean()
+  @doc """
+  Returns true when the worktree at `path` has staged, unstaged, or untracked
+  changes that would be lost by a non-force removal.
+  """
+  def has_uncommitted_changes?(path) when is_binary(path) do
+    case git_cmd(path, ["status", "--porcelain"]) do
+      {:ok, ""} -> false
+      {:ok, _output} -> true
+      _ -> false
+    end
+  end
+
+  @spec force_delete(String.t(), String.t()) :: {:ok, :ok} | {:error, atom()}
+  @doc """
+  Removes a worktree even when it contains uncommitted changes.
+  """
+  def force_delete(root, path) when is_binary(root) and is_binary(path) do
+    case File.dir?(path) do
+      false ->
+        {:error, :worktree_not_found}
+
+      true ->
+        case git_cmd(root, ["worktree", "remove", "--force", path]) do
+          {:ok, _out} -> {:ok, :ok}
+          {:error, :not_a_repo} -> {:error, :not_a_repo}
+          _ -> {:error, :git_failed}
+        end
+    end
+  end
+
   @spec fnord_managed?(String.t(), String.t()) :: boolean()
   @doc """
   Returns true when the given worktree path lives under the default

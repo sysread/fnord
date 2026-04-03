@@ -41,6 +41,7 @@ defmodule AI.Tools.Git.Worktree do
         Required fields per action:
         - list: (none, root is optional)
         - create: project, conversation_id (branch is optional)
+        - commit: message (required), wip (optional, default false)
         - delete: root, path
         - merge: root, path
         """,
@@ -51,7 +52,7 @@ defmodule AI.Tools.Git.Worktree do
           properties: %{
             "action" => %{
               type: "string",
-              enum: ["list", "create", "delete", "merge"],
+              enum: ["list", "create", "commit", "delete", "merge"],
               description: "Which worktree operation to perform."
             },
             "project" => %{
@@ -65,6 +66,18 @@ defmodule AI.Tools.Git.Worktree do
             "branch" => %{
               type: "string",
               description: "Optional branch name for create. Defaults to a generated branch."
+            },
+            "message" => %{
+              type: "string",
+              description:
+                "Required for commit. Commit message describing the changes. " <>
+                  "When wip is true, describe what was accomplished and what problems remain."
+            },
+            "wip" => %{
+              type: "boolean",
+              description:
+                "Optional for commit (default false). Set to true when stopping " <>
+                  "due to blockers or incomplete work; prefixes the message with 'WIP: '."
             },
             "path" => %{
               type: "string",
@@ -108,12 +121,36 @@ defmodule AI.Tools.Git.Worktree do
     end
   end
 
+  # Commits all staged and unstaged changes in the active worktree. Only works
+  # in fnord-managed worktrees. When `wip` is true, prefixes the commit message
+  # to signal incomplete work.
+  def call(%{"action" => "commit", "message" => message} = args) do
+    wip? = Map.get(args, "wip", false)
+    commit_message = if wip?, do: "WIP: #{message}", else: message
+
+    with {:ok, path} <- active_worktree_path(),
+         {:ok, project} <- project_name(),
+         true <- GitCli.Worktree.fnord_managed?(project, path) || {:error, :not_fnord_managed} do
+      GitCli.Worktree.commit_all(path, commit_message)
+    else
+      {:error, :not_fnord_managed} ->
+        {:error, "Commits via this tool are only allowed in fnord-managed worktrees."}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
   def call(%{"action" => "delete", "root" => root, "path" => path}) do
     GitCli.Worktree.delete(root, path)
   end
 
   def call(%{"action" => "merge", "root" => root, "path" => path}) do
     GitCli.Worktree.merge(root, path)
+  end
+
+  def call(%{"action" => "commit"}) do
+    {:error, "Missing required field 'message' for action 'commit'"}
   end
 
   def call(%{"action" => "create"}) do
@@ -208,6 +245,22 @@ defmodule AI.Tools.Git.Worktree do
     |> case do
       %{worktree: %{path: path}} when is_binary(path) -> path
       _ -> nil
+    end
+  end
+
+  @spec active_worktree_path() :: {:ok, String.t()} | {:error, String.t()}
+  defp active_worktree_path do
+    case Settings.get_project_root_override() do
+      nil -> {:error, "No active worktree for this conversation."}
+      path -> {:ok, path}
+    end
+  end
+
+  @spec project_name() :: {:ok, String.t()} | {:error, String.t()}
+  defp project_name do
+    case Store.get_project() do
+      {:ok, project} -> {:ok, project.name}
+      _ -> {:error, "No project selected."}
     end
   end
 

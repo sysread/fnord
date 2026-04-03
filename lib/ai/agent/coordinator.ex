@@ -190,11 +190,11 @@ defmodule AI.Agent.Coordinator do
   @spec select_steps(t) :: t
 
   defp select_steps(%{edit?: true, followup?: false} = state) do
-    %{state | steps: [:initial, :coding, :check_tasks, :finalize]}
+    %{state | steps: [:initial, :coding, :check_tasks, :commit_worktree, :finalize]}
   end
 
   defp select_steps(%{edit?: true, followup?: true} = state) do
-    %{state | steps: [:followup, :coding, :check_tasks, :finalize]}
+    %{state | steps: [:followup, :coding, :check_tasks, :commit_worktree, :finalize]}
   end
 
   defp select_steps(%{edit?: false, followup?: true} = state) do
@@ -291,6 +291,29 @@ defmodule AI.Agent.Coordinator do
   end
 
   # ----------------------------------------------------------------------------
+  # Commit worktree: if working in a fnord-managed worktree with uncommitted
+  # changes, pester the coordinator until it commits. It can use the
+  # git_worktree_tool commit action with wip: true if stopping due to blockers.
+  # ----------------------------------------------------------------------------
+  defp perform_step(%{steps: [:commit_worktree | steps]} = state) do
+    state = Map.put(state, :steps, steps)
+
+    case worktree_needs_commit?() do
+      false ->
+        perform_step(state)
+
+      true ->
+        UI.begin_step("Committing worktree changes")
+
+        state
+        |> commit_worktree_msg()
+        |> AI.Agent.Coordinator.Glue.get_completion()
+        |> commit_worktree_loop()
+        |> perform_step()
+    end
+  end
+
+  # ----------------------------------------------------------------------------
   # Finalization: get the final answer, and unblock interrupts so any pending
   # interrupts can be displayed to the user after we have the final answer
   # ready. We block interrupts during finalization to avoid interjecting them
@@ -331,6 +354,70 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp perform_step(state), do: state
+
+  # ----------------------------------------------------------------------------
+  # Worktree commit helpers
+  # ----------------------------------------------------------------------------
+
+  # Repeats until the worktree is clean or gives up after max attempts.
+  @commit_worktree_max_attempts 3
+  defp commit_worktree_loop(state, attempt \\ 1) do
+    if worktree_needs_commit?() and attempt < @commit_worktree_max_attempts do
+      state
+      |> commit_worktree_nag_msg()
+      |> AI.Agent.Coordinator.Glue.get_completion()
+      |> commit_worktree_loop(attempt + 1)
+    else
+      state
+    end
+  end
+
+  defp worktree_needs_commit? do
+    case Settings.get_project_root_override() do
+      nil ->
+        false
+
+      path ->
+        with {:ok, project} <- Store.get_project(),
+             true <- GitCli.Worktree.fnord_managed?(project.name, path) do
+          GitCli.Worktree.has_uncommitted_changes?(path)
+        else
+          _ -> false
+        end
+    end
+  end
+
+  @spec commit_worktree_msg(t) :: t
+  defp commit_worktree_msg(%{conversation_pid: conversation_pid} = state) do
+    """
+    # Commit your worktree changes
+
+    You have uncommitted changes in the active worktree. Before finishing, commit
+    them using the `git_worktree_tool` with action `commit`.
+
+    - If your work is complete: use a clear, descriptive commit message.
+    - If you are stopping due to problems or blockers: set `wip` to `true` and
+      describe what was accomplished and what issues remain in the message body.
+
+    Either way, commit now. Do not leave uncommitted changes in the worktree.
+    """
+    |> AI.Util.system_msg()
+    |> Services.Conversation.append_msg(conversation_pid)
+
+    state
+  end
+
+  @spec commit_worktree_nag_msg(t) :: t
+  defp commit_worktree_nag_msg(%{conversation_pid: conversation_pid} = state) do
+    """
+    The worktree still has uncommitted changes. Use `git_worktree_tool` with
+    action `commit` to commit them now.
+    """
+    |> AI.Util.system_msg()
+    |> Services.Conversation.append_msg(conversation_pid)
+
+    state
+  end
 
   # ----------------------------------------------------------------------------
   # Message shortcuts

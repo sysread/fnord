@@ -134,7 +134,7 @@ defmodule Cmd.Worktrees do
   def run(%{conversation: conv_id}, [:delete], _unknown) do
     with {:ok, meta} <- resolve_worktree_meta(conv_id),
          {:ok, root} <- GitCli.Worktree.project_root(),
-         {:ok, :ok} <- GitCli.Worktree.delete(root, meta.path) do
+         {:ok, :ok} <- delete_worktree(root, meta.path) do
       UI.info("Deleted worktree", meta.path)
 
       case GitCli.Worktree.delete_branch(root, meta.branch) do
@@ -144,6 +144,10 @@ defmodule Cmd.Worktrees do
 
       :ok
     else
+      {:error, :cancelled} ->
+        UI.info("Worktree deletion cancelled")
+        :ok
+
       {:error, :not_a_repo} ->
         UI.error("Not inside a git repository")
         {:error, :not_a_repo}
@@ -175,6 +179,29 @@ defmodule Cmd.Worktrees do
 
   def run(_opts, _subcommands, _unknown) do
     UI.error("Unknown subcommand. Use 'fnord worktrees --help' for help.")
+  end
+
+  # Attempts a clean worktree removal. If the worktree has uncommitted changes,
+  # warns the user and asks for confirmation before force-deleting.
+  @spec delete_worktree(String.t(), String.t()) :: {:ok, :ok} | {:error, atom()}
+  defp delete_worktree(root, path) do
+    case GitCli.Worktree.delete(root, path) do
+      {:ok, :ok} ->
+        {:ok, :ok}
+
+      {:error, _} when is_binary(path) ->
+        if GitCli.Worktree.has_uncommitted_changes?(path) do
+          UI.warn("Worktree at #{path} has uncommitted changes that will be lost.")
+
+          if UI.confirm("Force delete anyway?") do
+            GitCli.Worktree.force_delete(root, path)
+          else
+            {:error, :cancelled}
+          end
+        else
+          {:error, :git_failed}
+        end
+    end
   end
 
   # Resolves worktree metadata from a conversation id by reading the

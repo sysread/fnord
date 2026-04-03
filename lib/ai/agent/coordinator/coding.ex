@@ -77,6 +77,8 @@ defmodule AI.Agent.Coordinator.Coding do
   - Do NOT create a second worktree if one already exists for this conversation
   - If no worktree exists yet, create one with the git_worktree_tool BEFORE making any file changes
   - The worktree path is set as the project root override; file tools will resolve relative to it
+  - Commit your changes using `git_worktree_tool` action `commit` when your work is done
+  - If stopping due to blockers, use `commit` with `wip: true` and describe the problems in the message
 
   ## CODING ATTITUDE
   Make the changes the user requested

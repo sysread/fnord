@@ -786,11 +786,15 @@ defmodule Cmd.Ask do
   defp maybe_auto_commit(path, true, _conversation_pid) do
     with {:ok, project} <- Store.get_project(),
          true <- GitCli.Worktree.fnord_managed?(project.name, path) do
+      UI.debug("worktree", "Auto-committing in #{path}")
+
       case GitCli.Worktree.commit_all(path, "auto-commit") do
         {:ok, :ok} -> UI.info("Auto-committed changes in worktree", path)
-        {:error, :nothing_to_commit} -> :ok
+        {:error, :nothing_to_commit} -> UI.debug("worktree", "Nothing to commit")
         {:error, reason} -> UI.warn("Auto-commit failed: #{reason}")
       end
+    else
+      other -> UI.debug("worktree", "Skipping auto-commit: #{inspect(other)}")
     end
 
     :ok
@@ -811,11 +815,26 @@ defmodule Cmd.Ask do
       meta = worktree_meta(Services.Conversation.get_conversation_meta(conversation_pid))
 
       if meta do
-        GitCli.Worktree.Review.interactive_review(project.source_root, meta)
+        # Use the un-overridden project root for merge operations, not the
+        # worktree path that source_root resolves to during the session.
+        repo_root = original_project_root(project.name)
+        GitCli.Worktree.Review.interactive_review(repo_root, meta)
       end
     end
 
     :ok
+  end
+
+  # Returns the project's actual source root from settings, bypassing any
+  # session-level worktree override. Needed for merge/diff operations that must
+  # target the real repository, not the worktree.
+  @spec original_project_root(String.t()) :: String.t()
+  defp original_project_root(project_name) do
+    settings = Settings.new()
+
+    Settings.get_project_data(settings, project_name)
+    |> Map.get("root", File.cwd!())
+    |> Path.expand()
   end
 
   @spec maybe_save_output(map(), String.t(), String.t()) :: :ok
