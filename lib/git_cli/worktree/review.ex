@@ -23,6 +23,7 @@ defmodule GitCli.Worktree.Review do
       throw(:skip)
     end
 
+    print_header()
     target = GitCli.Worktree.current_branch(root) || "HEAD"
 
     unless UI.confirm("Inspect changes from worktree branch #{branch}?") do
@@ -53,6 +54,40 @@ defmodule GitCli.Worktree.Review do
     :throw, :cleaned_up -> :cleaned_up
   end
 
+  @spec auto_merge(String.t(), worktree_info()) :: :ok | :cleaned_up
+  @doc """
+  Merges worktree changes and cleans up without prompting (cowboy mode).
+  Shows the diff for the record but doesn't ask for confirmation.
+  """
+  def auto_merge(root, %{path: path, branch: branch, base_branch: base_branch}) do
+    print_header()
+    target = GitCli.Worktree.current_branch(root) || "HEAD"
+    UI.info("Cowboy mode", "auto-merging #{branch} into #{target}")
+    show_diff(root, branch, base_branch)
+
+    case GitCli.Worktree.merge(root, path) do
+      {:ok, _} ->
+        UI.info("Merged", "#{branch} into #{target}")
+        cleanup(root, path, branch)
+        :cleaned_up
+
+      {:error, reason} ->
+        UI.error("Merge failed: #{reason}")
+        :ok
+    end
+  end
+
+  defp print_header do
+    header =
+      IO.ANSI.format(
+        [:cyan_background, :black, :bright, " Worktree Review ", :reset],
+        true
+      )
+
+    IO.puts(:stderr, "\n#{header}\n")
+    UI.Tee.write(["\n", header, "\n\n"])
+  end
+
   defp show_diff(root, branch, base_branch) do
     case GitCli.Worktree.diff_against_base(root, branch, base_branch) do
       {:ok, diff} when byte_size(diff) > 0 ->
@@ -71,19 +106,22 @@ defmodule GitCli.Worktree.Review do
   # Returns true if the worktree was deleted.
   defp maybe_cleanup(root, path, branch) do
     if UI.confirm("Delete worktree and local branch #{branch}?") do
-      case GitCli.Worktree.delete(root, path) do
-        {:ok, _} -> UI.info("Deleted worktree", path)
-        {:error, reason} -> UI.warn("Failed to delete worktree: #{reason}")
-      end
-
-      case GitCli.Worktree.delete_branch(root, branch) do
-        {:ok, _} -> UI.info("Deleted branch", branch)
-        {:error, reason} -> UI.warn("Failed to delete branch: #{reason}")
-      end
-
+      cleanup(root, path, branch)
       true
     else
       false
+    end
+  end
+
+  defp cleanup(root, path, branch) do
+    case GitCli.Worktree.force_delete(root, path) do
+      {:ok, _} -> UI.info("Deleted worktree", path)
+      {:error, reason} -> UI.warn("Failed to delete worktree: #{reason}")
+    end
+
+    case GitCli.Worktree.delete_branch(root, branch) do
+      {:ok, _} -> UI.info("Deleted branch", branch)
+      {:error, reason} -> UI.warn("Failed to delete branch: #{reason}")
     end
   end
 

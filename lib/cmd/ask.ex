@@ -131,6 +131,12 @@ defmodule Cmd.Ask do
             help: """
             Use a pricier model, trading speed and cash for improved accuracy on large, complex tasks
             """
+          ],
+          cowboy: [
+            long: "--cowboy",
+            short: "-C",
+            default: false,
+            help: "Auto-merge worktree changes without prompting (yeehaw)"
           ]
         ]
       ]
@@ -229,7 +235,7 @@ defmodule Cmd.Ask do
         )
 
         maybe_save_output(opts, conversation_id, response)
-        maybe_worktree_review(effective_worktree_path, edited?, pid)
+        maybe_worktree_review(effective_worktree_path, edited?, pid, opts[:cowboy] == true)
         Clipboard.copy(conversation_id)
 
         unless UI.quiet?() do
@@ -867,11 +873,11 @@ defmodule Cmd.Ask do
 
   # Offers an interactive review/merge/cleanup flow when the coordinator made
   # edits in a fnord-managed worktree and the user's cwd is outside it.
-  @spec maybe_worktree_review(String.t() | nil, boolean, pid) :: :ok
-  defp maybe_worktree_review(nil, _edited?, _conversation_pid), do: :ok
-  defp maybe_worktree_review(_path, false, _conversation_pid), do: :ok
+  @spec maybe_worktree_review(String.t() | nil, boolean, pid, boolean) :: :ok
+  defp maybe_worktree_review(nil, _edited?, _conversation_pid, _cowboy?), do: :ok
+  defp maybe_worktree_review(_path, false, _conversation_pid, _cowboy?), do: :ok
 
-  defp maybe_worktree_review(path, true, conversation_pid) do
+  defp maybe_worktree_review(path, true, conversation_pid, cowboy?) do
     cwd = File.cwd!()
 
     with true <- cwd != path,
@@ -880,11 +886,16 @@ defmodule Cmd.Ask do
       meta = worktree_meta(Services.Conversation.get_conversation_meta(conversation_pid))
 
       if meta do
-        # Use the un-overridden project root for merge operations, not the
-        # worktree path that source_root resolves to during the session.
         repo_root = original_project_root(project.name)
 
-        case GitCli.Worktree.Review.interactive_review(repo_root, meta) do
+        result =
+          if cowboy? do
+            GitCli.Worktree.Review.auto_merge(repo_root, meta)
+          else
+            GitCli.Worktree.Review.interactive_review(repo_root, meta)
+          end
+
+        case result do
           :cleaned_up ->
             conv_id = Services.Conversation.get_id(conversation_pid)
             Cmd.WorktreeLifecycle.clear_worktree_from_conversation(conv_id)
