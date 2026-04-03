@@ -816,14 +816,31 @@ defmodule AI.Tools.File.Edit do
     dir = Path.dirname(file)
     tmp = Path.join(dir, ".#{Path.basename(file)}.tmp")
 
+    UI.debug("file_edit", "commit_changes: target=#{file}")
+    UI.debug("file_edit", "commit_changes: staged=#{staged} exists=#{File.exists?(staged)}")
+
     case File.cp(staged, tmp) do
       :ok ->
         case File.rename(tmp, file) do
-          :ok -> :ok
-          {:error, reason} -> {:error, reason}
+          :ok ->
+            # Verify the write actually landed
+            case File.stat(file) do
+              {:ok, %{size: size}} ->
+                UI.debug("file_edit", "commit_changes: success, size=#{size}")
+
+              {:error, reason} ->
+                UI.debug("file_edit", "commit_changes: stat after rename failed: #{reason}")
+            end
+
+            :ok
+
+          {:error, reason} ->
+            UI.debug("file_edit", "commit_changes: rename failed: #{reason}")
+            {:error, reason}
         end
 
       {:error, reason} ->
+        UI.debug("file_edit", "commit_changes: cp failed: #{reason}")
         {:error, reason}
     end
   end
