@@ -75,11 +75,32 @@ defmodule Cmd.Worktrees do
 
   @impl Cmd
   def run(_opts, [:list], _unknown) do
-    with {:ok, root} <- GitCli.Worktree.project_root(),
+    with {:ok, project} <- Store.get_project(),
+         {:ok, root} <- GitCli.Worktree.project_root(),
          {:ok, entries} <- GitCli.Worktree.list(root) do
-      Enum.each(entries, fn entry ->
-        UI.puts("#{entry.path}\t#{entry.branch}\t#{entry.merge_status}\t#{entry.size}")
-      end)
+      managed =
+        Enum.filter(entries, fn entry ->
+          GitCli.Worktree.fnord_managed?(project.name, entry.path)
+        end)
+
+      if managed == [] do
+        UI.info("No fnord-managed worktrees found")
+      else
+        managed
+        |> Enum.map(fn entry ->
+          %{
+            "Conversation" => Path.basename(entry.path),
+            "Branch" => entry.branch || "-",
+            "Status" => format_merge_status(entry.merge_status),
+            "Size" => format_size(entry.size)
+          }
+        end)
+        |> Owl.Table.new(
+          padding_x: 1,
+          sort_columns: fn a, b -> column_order(a) <= column_order(b) end
+        )
+        |> UI.puts()
+      end
 
       :ok
     else
@@ -176,6 +197,18 @@ defmodule Cmd.Worktrees do
       end
     end
   end
+
+  defp format_merge_status(:merged), do: "merged"
+  defp format_merge_status(:ahead), do: "ahead"
+  defp format_merge_status(:diverged), do: "diverged"
+  defp format_merge_status(_), do: "unknown"
+
+  defp format_size(bytes) when bytes >= 1_048_576, do: "#{Float.round(bytes / 1_048_576, 1)} MB"
+  defp format_size(bytes) when bytes >= 1_024, do: "#{Float.round(bytes / 1_024, 1)} KB"
+  defp format_size(bytes), do: "#{bytes} B"
+
+  @column_order %{"Conversation" => 0, "Branch" => 1, "Status" => 2, "Size" => 3}
+  defp column_order(col), do: Map.get(@column_order, col, 99)
 
   defp format_reason(reason) when is_atom(reason), do: Atom.to_string(reason)
 end
