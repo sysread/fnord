@@ -92,6 +92,8 @@ defmodule Cmd.Worktrees do
             "Conversation" => Path.basename(entry.path),
             "Branch" => entry.branch || "-",
             "Status" => format_merge_status(entry.merge_status),
+            "Dirty" =>
+              if(GitCli.Worktree.has_uncommitted_changes?(entry.path), do: "yes", else: "-"),
             "Size" => format_size(entry.size),
             "Path" => entry.path
           }
@@ -239,7 +241,14 @@ defmodule Cmd.Worktrees do
   defp format_size(bytes) when bytes >= 1_024, do: "#{Float.round(bytes / 1_024, 1)} KB"
   defp format_size(bytes), do: "#{bytes} B"
 
-  @column_order %{"Conversation" => 0, "Branch" => 1, "Status" => 2, "Size" => 3, "Path" => 4}
+  @column_order %{
+    "Conversation" => 0,
+    "Branch" => 1,
+    "Status" => 2,
+    "Dirty" => 3,
+    "Size" => 4,
+    "Path" => 5
+  }
   defp column_order(col), do: Map.get(@column_order, col, 99)
 
   defp format_reason(reason) when is_atom(reason), do: Atom.to_string(reason)
