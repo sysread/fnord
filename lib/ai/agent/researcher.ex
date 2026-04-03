@@ -69,6 +69,7 @@ defmodule AI.Agent.Researcher do
         AI.Agent.get_completion(agent,
           model: @model,
           toolbox: tools,
+          verbosity: "low",
           messages: [
             AI.Util.system_msg(AI.Util.project_context()),
             AI.Util.system_msg(system_prompt),

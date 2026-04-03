@@ -56,6 +56,7 @@ defmodule AI.Agent.Spelunker do
         AI.Tools.File.Contents,
         AI.Tools.File.Notes
       ],
+      verbosity: "low",
       messages: [
         AI.Util.system_msg(AI.Util.project_context()),
         AI.Util.system_msg(@prompt),

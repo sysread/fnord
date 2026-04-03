@@ -85,7 +85,8 @@ defmodule AI.Agent.Memory.Indexer do
         log_msgs: false,
         log_tool_calls: false,
         messages: messages,
-        toolbox: %{}
+        toolbox: %{},
+        verbosity: "low"
       )
       |> case do
         {:ok, %{response: response}} -> {:ok, response}

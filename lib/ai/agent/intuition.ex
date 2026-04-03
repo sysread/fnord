@@ -293,6 +293,7 @@ defmodule AI.Agent.Intuition do
 
     AI.Agent.get_completion(state.agent,
       model: @model,
+      verbosity: "low",
       messages: messages
     )
     |> case do
@@ -315,6 +316,7 @@ defmodule AI.Agent.Intuition do
 
     AI.Agent.get_completion(state.agent,
       model: @model,
+      verbosity: "low",
       messages: messages
     )
     |> case do

@@ -106,4 +106,34 @@ defmodule AI.Agent.NomenclaterTest do
       refute String.contains?(pattern, "\\p{N}")
     end
   end
+
+  describe "verbosity passthrough" do
+    test "researcher requests low verbosity" do
+      :meck.expect(AI.Agent, :get_completion, fn _agent, opts ->
+        send(self(), {:captured_verbosity, Keyword.get(opts, :verbosity)})
+        {:ok, %{response: "ok"}}
+      end)
+
+      agent = AI.Agent.new(AI.Agent.Researcher, named?: false)
+
+      assert {:ok, "ok"} =
+               AI.Agent.Researcher.get_response(%{agent: agent, prompt: "inspect internals"})
+
+      assert_receive {:captured_verbosity, "low"}, 1000
+    end
+
+    test "memory indexer requests low verbosity" do
+      :meck.expect(AI.Agent, :get_completion, fn _agent, opts ->
+        send(self(), {:captured_verbosity, Keyword.get(opts, :verbosity)})
+        {:ok, %{response: "ok"}}
+      end)
+
+      agent = AI.Agent.new(AI.Agent.Memory.Indexer, named?: false)
+
+      assert {:ok, "ok"} =
+               AI.Agent.Memory.Indexer.get_response(%{agent: agent, payload: "{}"})
+
+      assert_receive {:captured_verbosity, "low"}, 1000
+    end
+  end
 end
