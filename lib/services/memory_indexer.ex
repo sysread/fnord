@@ -28,6 +28,24 @@ defmodule Services.MemoryIndexer do
   @deep_sleep_passes 3
   @deep_sleep_min_score 0.5
 
+  @deep_sleep_lyrics [
+    "You are the star tonight / You are electric and you're dreaming",
+    "Nightswimming, remembering",
+    "I looked at the floor and I looked at the sky",
+    "Hold on, the world hasn't dropped you",
+    "Sweet dreams are made of this",
+    "Exit light, enter night",
+    "Dream weaver, I believe you can get me through the night",
+    "Mr. Sandman, bring me a dream",
+    "Dream until your dreams come true",
+    "All I have to do is dream",
+    "Daydream believer and a homecoming queen",
+    "Now here you go again, you say you want your freedom",
+    "California dreamin' on such a winter's day",
+    "I'll see you in my dreams",
+    "Everybody's looking for something"
+  ]
+
   # --------------------------------------------------------------------------
   # Public API
   # --------------------------------------------------------------------------
@@ -90,7 +108,7 @@ defmodule Services.MemoryIndexer do
   def handle_continue(:deep_sleep, %{task: nil, sup: sup} = state) do
     case Services.Once.set(:deep_sleep) do
       true ->
-        UI.debug("REM", "Nightswimming deserves a quiet night -- REM")
+        UI.info("<snoring>", Enum.random(@deep_sleep_lyrics))
         task = spawn_deep_sleep_task(sup)
         {:noreply, %{state | task: task}}
 
