@@ -206,6 +206,7 @@ defmodule Cmd.Ask do
            {:ok, conversation_id} <- save_conversation(pid) do
         end_time = System.monotonic_time(:second)
 
+        UI.debug("worktree", "post-ask: path=#{inspect(worktree_path)} edited=#{edited?}")
         maybe_auto_commit(worktree_path, edited?, pid)
 
         print_result(

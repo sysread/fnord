@@ -94,6 +94,7 @@ defmodule AI.Agent.Coordinator.Glue do
           |> Map.put(:editing_tools_used, editing_tools_used)
           |> Map.put(:model, state.model)
           |> maybe_run_validation(tools_used)
+          |> maybe_nudge_worktree_commit(tools_used)
           |> log_usage()
           |> log_response()
           |> append_context_remaining()
@@ -194,6 +195,41 @@ defmodule AI.Agent.Coordinator.Glue do
       end
     else
       state
+    end
+  end
+
+  # After validation, remind the coordinator to commit if working in a
+  # fnord-managed worktree with uncommitted changes. Appended to the
+  # conversation so the LLM sees it alongside validation results and can act
+  # in the same turn.
+  defp maybe_nudge_worktree_commit(state, tools_used) do
+    if code_modifying_tools_used?(tools_used) and worktree_has_uncommitted_changes?() do
+      """
+      You have uncommitted changes in the active worktree. Use `git_worktree_tool`
+      with action `commit` to commit them. If stopping due to blockers, set `wip`
+      to `true` and describe the problems in the message.
+      """
+      |> AI.Util.system_msg()
+      |> Services.Conversation.append_msg(state.conversation_pid)
+
+      state
+    else
+      state
+    end
+  end
+
+  defp worktree_has_uncommitted_changes? do
+    case Settings.get_project_root_override() do
+      nil ->
+        false
+
+      path ->
+        with {:ok, project} <- Store.get_project(),
+             true <- GitCli.Worktree.fnord_managed?(project.name, path) do
+          GitCli.Worktree.has_uncommitted_changes?(path)
+        else
+          _ -> false
+        end
     end
   end
 
