@@ -142,8 +142,14 @@ defmodule Cmd.Worktrees do
       UI.info("Deleted worktree", meta.path)
 
       case GitCli.Worktree.delete_branch(root, meta.branch) do
-        {:ok, :ok} -> UI.info("Deleted branch", meta.branch)
-        {:error, reason} -> UI.warn("Failed to delete branch: #{format_reason(reason)}")
+        {:ok, :ok} ->
+          UI.info("Deleted branch", meta.branch)
+
+        {:error, _} ->
+          case GitCli.Worktree.force_delete_branch(root, meta.branch) do
+            {:ok, :ok} -> UI.info("Force-deleted branch", meta.branch)
+            {:error, reason} -> UI.warn("Failed to delete branch: #{format_reason(reason)}")
+          end
       end
 
       Cmd.WorktreeLifecycle.clear_worktree_from_conversation(conv_id)

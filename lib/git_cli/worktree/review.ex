@@ -120,8 +120,14 @@ defmodule GitCli.Worktree.Review do
     end
 
     case GitCli.Worktree.delete_branch(root, branch) do
-      {:ok, _} -> UI.info("Deleted branch", branch)
-      {:error, reason} -> UI.warn("Failed to delete branch: #{reason}")
+      {:ok, _} ->
+        UI.info("Deleted branch", branch)
+
+      {:error, _} ->
+        case GitCli.Worktree.force_delete_branch(root, branch) do
+          {:ok, _} -> UI.info("Force-deleted branch", branch)
+          {:error, reason} -> UI.warn("Failed to delete branch: #{reason}")
+        end
     end
   end
 

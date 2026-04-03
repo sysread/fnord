@@ -192,6 +192,16 @@ defmodule GitCli.Worktree do
     end
   end
 
+  @spec force_delete_branch(String.t(), String.t()) :: {:ok, :ok} | {:error, atom()}
+  @doc """
+  Force-deletes a local branch regardless of merge status.
+  """
+  def force_delete_branch(root, branch) when is_binary(root) and is_binary(branch) do
+    with {:ok, _} <- git_cmd(root, ["branch", "-D", branch]) do
+      {:ok, :ok}
+    end
+  end
+
   @spec project_root() :: {:ok, String.t()} | {:error, atom()}
   @doc """
   Returns the current repository root or `:not_a_repo` when the process is not
