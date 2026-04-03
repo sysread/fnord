@@ -147,8 +147,11 @@ defmodule Cmd.Worktrees do
 
         {:error, _} ->
           case GitCli.Worktree.force_delete_branch(root, meta.branch) do
-            {:ok, :ok} -> UI.info("Force-deleted branch", meta.branch)
-            {:error, reason} -> UI.warn("Failed to delete branch: #{format_reason(reason)}")
+            {:ok, :ok} ->
+              UI.info("Force-deleted branch", meta.branch)
+
+            {:error, _} ->
+              UI.debug("worktrees", "Branch #{meta.branch} not found (already cleaned up)")
           end
       end
 
