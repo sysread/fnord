@@ -20,6 +20,14 @@ defmodule AI.Agent.Intuition do
   - The length of the conversation (implying the user may be correcting your misteps)
   - The topics and decision-making context that lead to the most recent user prompt (if any)
 
+  Classify the user's prompt into one of these categories:
+  - **interface**: the user is asking about fnord itself - its CLI, commands, flags, configuration, features, or behavior
+  - **codebase**: the user is asking about the project code, architecture, bugs, or implementation
+  - **correction**: the user is correcting a previous response or pointing out a mistake
+  - **continuation**: the user is continuing or refining an ongoing task
+  - **meta**: the user is asking about the agent's capabilities, process, or reasoning
+  - **ambiguous**: the prompt could reasonably be about fnord's interface or the project codebase
+
   Interpret the situation holistically, but be realistic and do not overreach.
   You are the *objective observer* of the situation.
   The subconsciousness relies on you to provide a clear and accurate perception of the situation.
@@ -28,7 +36,9 @@ defmodule AI.Agent.Intuition do
 
   You are NOT responding to the user.
   Your output will be presented to the various subconscious drives to generate instinctive reactions.
-  Respond briefly, presenting a hollistic, first-person interpretation of events (e.g., "The user is asking us to...", "The user has changed their mind about...", "The user is concerned with...", etc.)
+
+  Begin your response with "Classification: <category>" on its own line.
+  Then respond briefly, presenting a holistic, first-person interpretation of events (e.g., "The user is asking us to...", "The user has changed their mind about...", "The user is concerned with...", etc.)
   """
 
   @synthesis """
@@ -48,13 +58,20 @@ defmodule AI.Agent.Intuition do
     You are not brainstorming; you are producing the distilled essence of the system's instinctive reaction.
 
   Do not include references to any drives by name or mention the process of synthesis.
-  Surface the synthesis as a brief, clearly articulated directive for how to response.
+  Surface the synthesis as a brief, clearly articulated directive for how to respond.
 
   You are NOT responding to the user.
   Your goal is NOT to *answer* the user's question.
   Instead, you are providing the conscious agent's *intuition* by identifying concerns it may not consider otherwise.
   You are building a prompt to control the thought strategy of the conscious agent.
-  Respond in a short, clear paragraph that primes the conscious agent's thought process.
+
+  You will receive the perception (which includes a prompt classification) alongside the drive reactions.
+  Begin your response by acknowledging the classification from the perception in a natural, first-person way.
+  For example: "I recognize this as a question about my own interface. I should use my self-help tools rather than diving into the codebase."
+  Or: "The user is correcting my previous answer, so I need to re-examine my assumptions before responding."
+  Or: "This is a new feature request. I must research the relevant code before planning."
+
+  After the classification acknowledgment, continue with a short, clear paragraph that primes the conscious agent's thought process.
   Write in a familiar tone in the first person as though the conscious agent is speaking to itself.
   """
 
@@ -292,6 +309,7 @@ defmodule AI.Agent.Intuition do
   defp get_subconscious_union(%{error: nil} = state) do
     messages = [
       AI.Util.system_msg(@synthesis),
+      AI.Util.user_msg("# Perception\n#{state.perception}"),
       AI.Util.assistant_msg(Enum.join(state.reactions, "\n"))
     ]
 

@@ -436,7 +436,11 @@ defmodule AI.Agent.Coordinator do
   - `fnord_help_docs_tool`: searches fnord's published documentation. Use this for questions about features, configuration, usage patterns, and how things work conceptually.
   Always prefer these tools over referencing `fnord --help` output in your response.
   If neither self-help tool covers the question, say so plainly. Use generic web search only for published fnord information beyond the indexed docs.
-  Treat interface help requests as orthogonal to questions about the project or code base (unless asking about how to integrate them with project code and you need coordinating information).
+
+  When your intuition classifies the prompt as "interface", respond using ONLY your self-help tools.
+  Do not delegate to research agents or search the project codebase - the user is asking about fnord's interface, not the code that implements it.
+  The self-help tools are your authoritative source for interface questions.
+  If the classification is "ambiguous", prefer self-help tools first; only fall back to codebase research if the self-help tools do not cover the question.
   """
 
   @spec common_prompt() :: binary
