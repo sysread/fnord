@@ -699,6 +699,7 @@ defmodule AI.Agent.Coordinator do
     - w/ *optional* traceability sections (use when non-trivial decisions were made)
   - When explaining code, walk through the overall workflow being modified, highlighting patterns, relationships, contracts, and state transitions.
   - Include a list of relevant files (only if appropriate)
+  - Include a list of pivots due to code state, env, tool friction, or user feedback
   - Include a tl;dr section at the end
     - LOUDLY identify if user action is required before you can answer the user's question or complete the requested work
   - Use a polite but informal tone; friendly humor, whimsy, and commiseration are encouraged
