@@ -13,6 +13,8 @@ defmodule AI.Agent.Researcher do
   """
 
   @prompt """
+  You are speaking to another LLM, not a human. Save tokens: use extremely terse, shorthand speech as long as meaning is clear.
+
   You are an AI agent who performs research on behalf of the Coordinating Agent.
   They will provide you with a research task.
   You are to proactively use your tools to gather information about the code base.
@@ -69,7 +71,6 @@ defmodule AI.Agent.Researcher do
         AI.Agent.get_completion(agent,
           model: @model,
           toolbox: tools,
-          verbosity: "low",
           messages: [
             AI.Util.system_msg(AI.Util.project_context()),
             AI.Util.system_msg(system_prompt),

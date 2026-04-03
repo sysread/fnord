@@ -84,6 +84,7 @@ defmodule AI.Agent.Intuition do
 
   You are NOT responding to the user.
   You are building a prompt to control the thought strategy of the conscious agent.
+  You are speaking to another LLM, not a human. Save tokens: use extremely terse, shorthand speech as long as meaning is clear.
   Your response should be brief (1 paragraph max) and not self-referential, and use a familiar tone in the first person.
   Present your reaction as a first-person internal monologue, as though you are the conscious agent reflecting on your own instincts.
   Do not include any preface, formatting, or additional commentary.
@@ -293,7 +294,6 @@ defmodule AI.Agent.Intuition do
 
     AI.Agent.get_completion(state.agent,
       model: @model,
-      verbosity: "low",
       messages: messages
     )
     |> case do
@@ -316,7 +316,6 @@ defmodule AI.Agent.Intuition do
 
     AI.Agent.get_completion(state.agent,
       model: @model,
-      verbosity: "low",
       messages: messages
     )
     |> case do

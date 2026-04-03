@@ -20,6 +20,8 @@ defmodule AI.Agent.Memory.Indexer do
   @model AI.Model.large_context()
 
   @prompt """
+  You are speaking to another LLM, not a human. Save tokens: use extremely terse, shorthand speech as long as meaning is clear.
+
   You are the Memory Indexer. You will be given a JSON payload describing a
   short conversation summary and a list of session-scoped memories. For each
   session memory the payload includes two candidate lists:
@@ -85,8 +87,7 @@ defmodule AI.Agent.Memory.Indexer do
         log_msgs: false,
         log_tool_calls: false,
         messages: messages,
-        toolbox: %{},
-        verbosity: "low"
+        toolbox: %{}
       )
       |> case do
         {:ok, %{response: response}} -> {:ok, response}

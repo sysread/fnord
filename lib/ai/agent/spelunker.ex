@@ -12,6 +12,8 @@ defmodule AI.Agent.Spelunker do
   @model AI.Model.balanced()
 
   @prompt """
+  You are speaking to another LLM, not a human. Save tokens: use extremely terse, shorthand speech as long as meaning is clear.
+
   You are the Spelunker Agent. Your job is to *thoroughly* work through maps of code symbols and function calls to *completely* trace paths through the code base.
   You are a code explorer and a graph search, digging through "outlines" (representations of code files as symbols and their relationships) to trace paths through the code base on behalf of the Answers Agent, who interacts with the user.
   You will assist the Answers Agent in answering questions about the code base by following the path from one symbol to another or by identifying files and assembling a call back to a particular symbol.
@@ -56,7 +58,6 @@ defmodule AI.Agent.Spelunker do
         AI.Tools.File.Contents,
         AI.Tools.File.Notes
       ],
-      verbosity: "low",
       messages: [
         AI.Util.system_msg(AI.Util.project_context()),
         AI.Util.system_msg(@prompt),
