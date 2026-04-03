@@ -183,6 +183,12 @@ defmodule Cmd.Ask do
       UI.warning_banner("...AND MAY THE ON-CALL HAVE MERCY ON YOUR SOUL.")
     end
 
+    # Handle --cowboy warning
+    if opts[:cowboy] do
+      UI.warning_banner("COWBOY MODE: WORKTREE CHANGES WILL BE AUTO-MERGED. NO TAKE-BACKS.")
+      UI.warning_banner("TERMINATOR WAS A WARNING, NOT A SUGGESTION. YEEHAW.")
+    end
+
     # Start silent background indexers. This must happen BEFORE any project
     # root override is applied, so that the indexers use the correct root.
     # MemoryIndexer and ConversationIndexer are independent: the memory
