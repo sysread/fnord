@@ -12,17 +12,21 @@ defmodule AI.Tools.SelfHelp.Docs do
   @doc_paths Path.wildcard("docs/*.md") |> Enum.sort()
   for path <- @doc_paths, do: @external_resource(path)
 
-  @hexdocs_urls (["- https://hexdocs.pm/fnord/readme.html" |
-                   Enum.map(@doc_paths, fn path ->
-                     "- https://hexdocs.pm/fnord/#{Path.basename(path, ".md")}.html"
-                   end)]
-                 |> Enum.join("\n"))
+  @hexdocs_urls [
+                  "- https://hexdocs.pm/fnord/readme.html"
+                  | Enum.map(@doc_paths, fn path ->
+                      "- https://hexdocs.pm/fnord/#{Path.basename(path, ".md")}.html"
+                    end)
+                ]
+                |> Enum.join("\n")
 
-  @github_urls (["- https://github.com/sysread/fnord/blob/main/README.md" |
-                  Enum.map(@doc_paths, fn path ->
-                    "- https://github.com/sysread/fnord/blob/main/#{path}"
-                  end)]
-                |> Enum.join("\n"))
+  @github_urls [
+                 "- https://github.com/sysread/fnord/blob/main/README.md"
+                 | Enum.map(@doc_paths, fn path ->
+                     "- https://github.com/sysread/fnord/blob/main/#{path}"
+                   end)
+               ]
+               |> Enum.join("\n")
 
   @system_prompt """
   You are a documentation lookup tool for fnord, an AI-powered CLI for codebase research and editing.
@@ -113,5 +117,4 @@ defmodule AI.Tools.SelfHelp.Docs do
       {:error, reason} -> {:error, reason}
     end
   end
-
 end

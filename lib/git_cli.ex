@@ -33,14 +33,11 @@ defmodule GitCli do
     end
   end
 
+  # We currently treat any effective directory inside a git working tree as
+  # worktree-aware enough for callers using this predicate, including detached
+  # HEAD state.
   def is_worktree? do
-    case System.cmd("git", ["rev-parse", "--is-inside-work-tree"],
-           cd: effective_git_dir(),
-           stderr_to_stdout: true
-         ) do
-      {"true\n", 0} -> true
-      _ -> false
-    end
+    is_git_repo?()
   end
 
   def worktree_root() do

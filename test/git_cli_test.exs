@@ -79,6 +79,20 @@ defmodule GitCli.Test do
         assert Path.basename(wt) == Path.basename(project.source_root)
       end)
     end
+
+    test "inside a detached HEAD: still true and returns the repo root", %{project: project} do
+      cd(project.source_root, fn ->
+        git_config_user!(project)
+        git_empty_commit!(project)
+        sha = System.cmd("git", ["rev-parse", "--short", "HEAD"]) |> elem(0) |> String.trim()
+        git_checkout_detached!(project, sha)
+
+        assert GitCli.is_worktree?()
+        wt = GitCli.worktree_root()
+        assert is_binary(wt)
+        assert Path.basename(wt) == Path.basename(project.source_root)
+      end)
+    end
   end
 
   describe "git_info/0" do
