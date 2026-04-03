@@ -191,7 +191,17 @@ defmodule Cmd.Worktrees do
   # conversation's persisted metadata from disk.
   @spec resolve_worktree_meta(String.t()) ::
           {:ok, GitCli.Worktree.Review.worktree_info()} | {:error, atom()}
+  # Resolves worktree metadata from conversation metadata first, then falls
+  # back to the default worktree path on disk for orphaned worktrees that
+  # were never bound to the conversation (e.g., failed creation).
   defp resolve_worktree_meta(conv_id) do
+    case resolve_worktree_meta_from_conversation(conv_id) do
+      {:ok, _} = ok -> ok
+      {:error, _} -> resolve_worktree_meta_from_disk(conv_id)
+    end
+  end
+
+  defp resolve_worktree_meta_from_conversation(conv_id) do
     conv = Store.Project.Conversation.new(conv_id)
 
     with {:ok, data} <- Store.Project.Conversation.read(conv) do
@@ -204,6 +214,18 @@ defmodule Cmd.Worktrees do
         %{path: path, branch: branch} when is_binary(path) and is_binary(branch) -> {:ok, raw}
         %{path: path} when is_binary(path) -> {:ok, raw}
         _ -> {:error, :no_worktree_metadata}
+      end
+    end
+  end
+
+  defp resolve_worktree_meta_from_disk(conv_id) do
+    with {:ok, project} <- Store.get_project() do
+      path = GitCli.Worktree.conversation_path(project.name, conv_id)
+
+      if File.dir?(path) do
+        {:ok, %{path: path, branch: "fnord-#{conv_id}", base_branch: nil}}
+      else
+        {:error, :no_worktree_metadata}
       end
     end
   end
