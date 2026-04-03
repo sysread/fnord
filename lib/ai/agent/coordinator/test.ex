@@ -66,6 +66,7 @@ defmodule AI.Agent.Coordinator.Test do
       |> AI.Tools.with_rw_tools()
       |> AI.Tools.with_web_tools()
       |> AI.Tools.maybe_with_ui()
+      |> maybe_with_worktree_tool()
 
     test_prompt_msg =
       @prompt
@@ -124,5 +125,13 @@ defmodule AI.Agent.Coordinator.Test do
     end
 
     {:error, :testing}
+  end
+
+  defp maybe_with_worktree_tool(toolbox) do
+    if GitCli.is_git_repo?() do
+      AI.Tools.with_worktree_tool(toolbox, true)
+    else
+      toolbox
+    end
   end
 end
