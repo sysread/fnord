@@ -20,7 +20,7 @@ defmodule Cmd.SkillsGenerateTest do
     ref = :erlang.make_ref()
     Process.put(ref, 0)
 
-    :meck.expect(AI.CompletionAPI, :get, fn _model, _msgs, _tools, _rf, _web ->
+    :meck.expect(AI.CompletionAPI, :get, fn _model, _msgs, _tools, _rf, _web, _verbosity ->
       case Process.get(ref) do
         0 ->
           Process.put(ref, 1)

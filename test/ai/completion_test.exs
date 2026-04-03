@@ -23,6 +23,17 @@ defmodule AI.CompletionTest do
       assert is_nil(state.specs)
     end
 
+    test "stores optional verbosity from opts" do
+      opts = [
+        model: "test-model",
+        messages: [%{role: "user", content: "yo"}],
+        verbosity: "high"
+      ]
+
+      assert {:ok, state} = AI.Completion.new(opts)
+      assert state.verbosity == "high"
+    end
+
     test "returns error when :model is missing" do
       opts = [
         messages: [%{role: "user", content: "yo"}]
@@ -136,8 +147,57 @@ defmodule AI.CompletionTest do
   end
 
   describe "get/1" do
+    test "Completion.get/1 passes nil verbosity to the API layer" do
+      :meck.expect(AI.CompletionAPI, :get, fn _model,
+                                              _msgs,
+                                              _specs,
+                                              _res_fmt,
+                                              _web_srch?,
+                                              verbosity ->
+        assert is_nil(verbosity)
+        {:ok, :msg, "ok", 7}
+      end)
+
+      assert {:ok, state} =
+               AI.Completion.get(
+                 model: AI.Model.new("dummy", 0),
+                 messages: [%{role: "user", content: "hi"}],
+                 toolbox: %{},
+                 verbosity: nil
+               )
+
+      assert state.response == "ok"
+    end
+
+    test "Completion.get/1 forwards verbosity to the API" do
+      :meck.expect(AI.CompletionAPI, :get, fn _model,
+                                              _msgs,
+                                              _specs,
+                                              _res_fmt,
+                                              _web_srch?,
+                                              verbosity ->
+        assert verbosity == "low"
+        {:ok, :msg, "ok", 7}
+      end)
+
+      assert {:ok, state} =
+               AI.Completion.get(
+                 model: AI.Model.new("dummy", 0),
+                 messages: [%{role: "user", content: "hi"}],
+                 toolbox: %{},
+                 verbosity: "low"
+               )
+
+      assert state.response == "ok"
+    end
+
     test "Completion.get/1 surfaces API error response to user" do
-      :meck.expect(AI.CompletionAPI, :get, fn _model, _msgs, _specs, _res_fmt, _web_srch? ->
+      :meck.expect(AI.CompletionAPI, :get, fn _model,
+                                              _msgs,
+                                              _specs,
+                                              _res_fmt,
+                                              _web_srch?,
+                                              _verbosity ->
         {:error, %{http_status: 500, code: "server_error", message: "backend exploded"}}
       end)
 
@@ -156,7 +216,12 @@ defmodule AI.CompletionTest do
     end
 
     test "Completion.get/1 surfaces rate limit error response and can print it" do
-      :meck.expect(AI.CompletionAPI, :get, fn _model, _msgs, _specs, _res_fmt, _web_srch? ->
+      :meck.expect(AI.CompletionAPI, :get, fn _model,
+                                              _msgs,
+                                              _specs,
+                                              _res_fmt,
+                                              _web_srch?,
+                                              _verbosity ->
         {:error, %{http_status: 429, code: "rate_limit", message: "Rate limit exceeded"}}
       end)
 
@@ -318,7 +383,12 @@ defmodule AI.CompletionTest do
     end
 
     test "Completion.get/1 invokes local tools from toolbox" do
-      :meck.expect(AI.CompletionAPI, :get, fn _model, msgs, _specs, _res_fmt, _web_srch? ->
+      :meck.expect(AI.CompletionAPI, :get, fn _model,
+                                              msgs,
+                                              _specs,
+                                              _res_fmt,
+                                              _web_srch?,
+                                              _verbosity ->
         tool_calls_sent? = Enum.any?(msgs, fn msg -> Map.has_key?(msg, :tool_calls) end)
 
         if tool_calls_sent? do
@@ -351,7 +421,12 @@ defmodule AI.CompletionTest do
     end
 
     test "Tool calls invocation respects async?/0" do
-      :meck.expect(AI.CompletionAPI, :get, fn _model, msgs, _specs, _response_fmt, _web_srch? ->
+      :meck.expect(AI.CompletionAPI, :get, fn _model,
+                                              msgs,
+                                              _specs,
+                                              _response_fmt,
+                                              _web_srch?,
+                                              _verbosity ->
         tool_calls_sent? = Enum.any?(msgs, fn msg -> Map.has_key?(msg, :tool_calls) end)
 
         if tool_calls_sent? do
@@ -389,7 +464,12 @@ defmodule AI.CompletionTest do
     end
 
     test "Completion.get/1 handles unknown tool requests gracefully" do
-      :meck.expect(AI.CompletionAPI, :get, fn _model, msgs, _specs, _res_fmt, _web_srch? ->
+      :meck.expect(AI.CompletionAPI, :get, fn _model,
+                                              msgs,
+                                              _specs,
+                                              _res_fmt,
+                                              _web_srch?,
+                                              _verbosity ->
         tool_calls_sent? = Enum.any?(msgs, fn msg -> Map.has_key?(msg, :tool_calls) end)
 
         if tool_calls_sent? do
@@ -420,7 +500,12 @@ defmodule AI.CompletionTest do
 
     test "deduplicates identical tool calls within a single batch and preserves order" do
       # First API.get returns duplicated tool calls, second returns final assistant message
-      :meck.expect(AI.CompletionAPI, :get, fn _model, msgs, _specs, _res_fmt, _web_srch? ->
+      :meck.expect(AI.CompletionAPI, :get, fn _model,
+                                              msgs,
+                                              _specs,
+                                              _res_fmt,
+                                              _web_srch?,
+                                              _verbosity ->
         if Enum.any?(msgs, fn msg -> Map.has_key?(msg, :tool_calls) end) do
           {:ok, :msg, "done", 0}
         else

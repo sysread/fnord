@@ -7,6 +7,7 @@ defmodule AI.CompletionAPI do
   @type tools :: nil | [AI.Tools.tool_spec()]
   @type response_format :: nil | map
   @type web_search? :: boolean
+  @type verbosity :: nil | String.t()
 
   @type usage :: non_neg_integer
   @type msg_response :: {:ok, :msg, binary, usage}
@@ -23,8 +24,15 @@ defmodule AI.CompletionAPI do
   @impl AI.Endpoint
   def endpoint_path, do: "#{@base_url}/v1/chat/completions"
 
-  @spec get(model, msgs, tools, response_format, web_search?) :: response
-  def get(model, msgs, tools \\ nil, response_format \\ nil, web_search? \\ false) do
+  @spec get(model, msgs, tools, response_format, web_search?, verbosity) :: response
+  def get(
+        model,
+        msgs,
+        tools \\ nil,
+        response_format \\ nil,
+        web_search? \\ false,
+        verbosity \\ nil
+      ) do
     api_key = get_api_key!()
 
     response_format =
@@ -60,11 +68,9 @@ defmodule AI.CompletionAPI do
         end
       )
       |> Map.merge(
-        case model.verbosity do
-          :low -> %{verbosity: "low"}
-          :medium -> %{verbosity: "medium"}
-          :high -> %{verbosity: "high"}
-          _ -> %{}
+        case verbosity do
+          nil -> %{}
+          value -> %{verbosity: value}
         end
       )
       |> Map.merge(
