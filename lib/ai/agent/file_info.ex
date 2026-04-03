@@ -75,7 +75,10 @@ defmodule AI.Agent.FileInfo do
          {:ok, file} <- Map.fetch(opts, :file),
          {:ok, question} <- Map.fetch(opts, :question),
          {:ok, content} <- Map.fetch(opts, :content) do
-      UI.report_from(agent.name, "Researching in #{file}: #{UI.italicize(question)}")
+      UI.report_from(
+        agent.name,
+        "Researching in #{AI.Tools.display_path(file)}: #{UI.italicize(question)}"
+      )
 
       question = """
       File: #{file}
