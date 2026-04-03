@@ -53,6 +53,7 @@ defmodule AI.Agent.Intuition do
   - Where a reaction stands alone as an outlier, deprioritize or omit it unless it addresses a serious blind spot or risk.
   - Discard superficial agreement; only amplify points when the drives independently converge.
   - The longer the conversation, the more weight you should give to the *standing* and *empathy* drives.
+  - If stewardship raises a concern, consider whether consensus is actually converging on the right thing, or just converging quickly.
   - Express this aggregate thought as a single, strong internal monologue for presentation to the conscious agent.
   - Your synthesis should be concise, direct, actionable, and unambiguous.
     You are not brainstorming; you are producing the distilled essence of the system's instinctive reaction.
