@@ -75,4 +75,71 @@ defmodule Cmd.AskTest do
       end
     end
   end
+
+  describe "run/3 save failures" do
+    setup do
+      :meck.new(Store, [:passthrough])
+      :meck.new(Outputs, [:passthrough])
+      :meck.new(UI, [:passthrough])
+      :meck.new(Services.Conversation, [:passthrough])
+      :meck.new(Services.Task, [:passthrough])
+      :meck.new(Memory, [:passthrough])
+      :meck.new(Clipboard, [:passthrough])
+      :meck.new(Notifier, [:passthrough])
+
+      on_exit(fn ->
+        Enum.each(
+          [Store, Outputs, UI, Services.Conversation, Services.Task, Memory, Clipboard, Notifier],
+          fn mod ->
+            try do
+              :meck.unload(mod)
+            catch
+              _, _ -> :ok
+            end
+          end
+        )
+      end)
+
+      :ok
+    end
+
+    test "logs a save failure instead of crashing when output persistence fails" do
+      project = Store.Project.new("demo", "/tmp/demo")
+
+      :meck.expect(Store, :get_project, fn -> {:ok, project} end)
+      :meck.expect(Outputs, :save, fn _project_name, _response, _opts -> {:error, :disk_full} end)
+      :meck.expect(UI, :quiet?, fn -> true end)
+      :meck.expect(UI, :debug, fn _, _ -> :ok end)
+      :meck.expect(UI, :error, fn _ -> :ok end)
+      :meck.expect(UI, :report_step, fn _, _ -> :ok end)
+      :meck.expect(UI, :say, fn _ -> :ok end)
+      :meck.expect(UI, :flush, fn -> :ok end)
+      :meck.expect(UI, :warn, fn _ -> :ok end)
+      :meck.expect(UI, :spin, fn _label, fun -> fun.() end)
+      :meck.expect(Services.Conversation, :start_link, fn _ -> {:ok, self()} end)
+      :meck.expect(Services.Conversation, :get_conversation_meta, fn _ -> %{} end)
+
+      :meck.expect(Services.Conversation, :get_response, fn _, _ ->
+        {:ok, %{usage: 1, context: 2, last_response: "hello"}}
+      end)
+
+      :meck.expect(Services.Conversation, :save, fn _ ->
+        {:ok, %{id: "conv-1", store_path: "/tmp/conv-1.json"}}
+      end)
+
+      :meck.expect(Services.Task, :start_link, fn opts ->
+        assert Keyword.get(opts, :conversation_pid) == self()
+        {:ok, self()}
+      end)
+
+      :meck.expect(Memory, :init, fn -> :ok end)
+      :meck.expect(Memory, :list, fn _ -> {:ok, []} end)
+      :meck.expect(Memory, :search_stats, fn -> nil end)
+      :meck.expect(Clipboard, :copy, fn _ -> :ok end)
+      :meck.expect(Notifier, :notify, fn _, _ -> :ok end)
+
+      assert :ok == Cmd.Ask.run(%{question: "hello", save: true}, [], [])
+      assert :meck.called(UI, :error, ["Failed to save output: disk_full"])
+    end
+  end
 end

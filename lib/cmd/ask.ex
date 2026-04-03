@@ -910,14 +910,31 @@ defmodule Cmd.Ask do
     |> Path.expand()
   end
 
-  @spec maybe_save_output(map(), String.t(), String.t()) :: :ok
+  # Persists the final assistant response when `--save` is enabled.
+  # This is the integration point between the ask workflow and output storage,
+  # so it translates storage failures into command-level errors instead of
+  # letting pattern matches crash the command after the response has already
+  # been generated.
+  @spec maybe_save_output(map(), String.t(), String.t()) :: :ok | {:error, {:save_failed, term()}}
   defp maybe_save_output(opts, conversation_id, response) do
-    if opts[:save] do
-      {:ok, project} = Store.get_project()
-      {:ok, path} = Outputs.save(project.name, response, conversation_id: conversation_id)
-      UI.report_step("Output saved", Path.basename(path))
+    case opts[:save] do
+      true -> save_output(conversation_id, response)
+      _ -> :ok
     end
+  end
 
-    :ok
+  # Saves an ask response for the current project and reports the saved
+  # filename.
+  @spec save_output(String.t(), String.t()) :: :ok | {:error, {:save_failed, term()}}
+  defp save_output(conversation_id, response) do
+    with {:ok, project} <- Store.get_project(),
+         {:ok, path} <- Outputs.save(project.name, response, conversation_id: conversation_id) do
+      UI.report_step("Output saved", Path.basename(path))
+      :ok
+    else
+      {:error, reason} ->
+        UI.error("Failed to save output: #{reason}")
+        {:error, {:save_failed, reason}}
+    end
   end
 end
