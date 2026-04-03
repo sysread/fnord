@@ -1,6 +1,12 @@
 defmodule FileLockTest do
   use Fnord.TestCase
 
+  defmodule RetryDelayProbe do
+    def sample_retry_delay(attempt) do
+      FileLock.retry_delay_ms_for_test(attempt)
+    end
+  end
+
   # Helper to determine the lock path for tests.
   # Uses the provided tmp_dir or creates one via Fnord.TestCase.tmpdir/0.
   # Returns the full path to "lock_target.txt" within that directory.
@@ -42,6 +48,25 @@ defmodule FileLockTest do
     assert :ok = FileLock.acquire_lock(path)
     assert :ok = FileLock.release_lock(path)
     assert :ok = FileLock.release_lock(path)
+  end
+
+  test "retry delay grows with contention and stays bounded" do
+    delays = Enum.map(0..6, &RetryDelayProbe.sample_retry_delay/1)
+
+    assert Enum.at(delays, 0) >= 10
+    assert Enum.at(delays, 0) <= 20
+    assert Enum.at(delays, 1) >= 20
+    assert Enum.at(delays, 1) <= 40
+    assert Enum.at(delays, 2) >= 40
+    assert Enum.at(delays, 2) <= 80
+    assert Enum.at(delays, 3) >= 80
+    assert Enum.at(delays, 3) <= 160
+    assert Enum.at(delays, 4) >= 160
+    assert Enum.at(delays, 4) <= 250
+    assert Enum.at(delays, 5) >= 160
+    assert Enum.at(delays, 5) <= 250
+    assert Enum.at(delays, 6) >= 160
+    assert Enum.at(delays, 6) <= 250
   end
 
   test "mutual exclusion: callbacks do not overlap under contention" do
