@@ -206,8 +206,17 @@ defmodule Cmd.Ask do
            {:ok, conversation_id} <- save_conversation(pid) do
         end_time = System.monotonic_time(:second)
 
-        UI.debug("worktree", "post-ask: path=#{inspect(worktree_path)} edited=#{edited?}")
-        maybe_auto_commit(worktree_path, edited?, pid)
+        # Re-read the worktree path: it may have been created by the
+        # coordinator during the session via git_worktree_tool, after
+        # prepare_conversation_worktree returned nil.
+        effective_worktree_path = Settings.get_project_root_override() || worktree_path
+
+        UI.debug(
+          "worktree",
+          "post-ask: path=#{inspect(effective_worktree_path)} edited=#{edited?}"
+        )
+
+        maybe_auto_commit(effective_worktree_path, edited?, pid)
 
         print_result(
           start_time,
@@ -216,11 +225,11 @@ defmodule Cmd.Ask do
           usage,
           context,
           conversation_id,
-          worktree_path
+          effective_worktree_path
         )
 
         maybe_save_output(opts, conversation_id, response)
-        maybe_worktree_review(worktree_path, edited?, pid)
+        maybe_worktree_review(effective_worktree_path, edited?, pid)
         Clipboard.copy(conversation_id)
 
         unless UI.quiet?() do
