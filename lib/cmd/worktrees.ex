@@ -54,6 +54,20 @@ defmodule Cmd.Worktrees do
               ]
             ]
           ],
+          view: [
+            name: "view",
+            about: "Show the diff of a conversation worktree from its fork point",
+            options: [
+              conversation: [
+                value_name: "CONVERSATION_ID",
+                long: "--conversation",
+                short: "-c",
+                help: "Conversation id whose worktree diff to view",
+                parser: :string,
+                required: true
+              ]
+            ]
+          ],
           merge: [
             name: "merge",
             about: "Review, merge, and optionally clean up a conversation worktree",
@@ -113,6 +127,30 @@ defmodule Cmd.Worktrees do
 
       {:error, reason} ->
         UI.error("Failed to list worktrees: #{format_reason(reason)}")
+        {:error, reason}
+    end
+  end
+
+  def run(%{conversation: conv_id}, [:view], _unknown) do
+    with {:ok, meta} <- resolve_worktree_meta(conv_id),
+         {:ok, root} <- GitCli.Worktree.project_root(),
+         {:ok, diff} <- GitCli.Worktree.diff_from_fork_point(root, meta.branch, meta.base_branch) do
+      if byte_size(diff) > 0 do
+        diff
+        |> GitCli.Worktree.Review.colorize_diff()
+        |> UI.puts()
+      else
+        UI.info("No changes from fork point")
+      end
+
+      :ok
+    else
+      {:error, :not_a_repo} ->
+        UI.error("Not inside a git repository")
+        {:error, :not_a_repo}
+
+      {:error, reason} ->
+        UI.error("Failed to view worktree diff: #{format_reason(reason)}")
         {:error, reason}
     end
   end

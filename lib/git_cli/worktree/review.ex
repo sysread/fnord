@@ -144,7 +144,8 @@ defmodule GitCli.Worktree.Review do
     end
   end
 
-  defp colorize_diff(diff) do
+  @doc "Colorizes a unified diff string for terminal display."
+  def colorize_diff(diff) do
     diff
     |> String.split("\n")
     |> Enum.map(fn line ->

@@ -181,6 +181,20 @@ defmodule GitCli.Worktree do
     git_cmd(root, ["diff", "#{base_branch}...#{branch}"])
   end
 
+  @spec diff_from_fork_point(String.t(), String.t(), String.t()) ::
+          {:ok, String.t()} | {:error, atom()}
+  @doc """
+  Returns the diff between the fork point (merge-base) of the worktree branch
+  and its base branch. This shows all changes since the branch was created,
+  regardless of what has happened on the base branch since.
+  """
+  def diff_from_fork_point(root, branch, base_branch)
+      when is_binary(root) and is_binary(branch) and is_binary(base_branch) do
+    with {:ok, merge_base} <- git_cmd(root, ["merge-base", base_branch, branch]) do
+      git_cmd(root, ["diff", String.trim(merge_base), branch])
+    end
+  end
+
   @spec delete_branch(String.t(), String.t()) :: {:ok, :ok} | {:error, atom()}
   @doc """
   Deletes a local branch from the repository. Uses `-d` (safe delete) which
