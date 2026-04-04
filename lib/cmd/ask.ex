@@ -131,12 +131,6 @@ defmodule Cmd.Ask do
             help: """
             Use a pricier model, trading speed and cash for improved accuracy on large, complex tasks
             """
-          ],
-          cowboy: [
-            long: "--cowboy",
-            short: "-C",
-            default: false,
-            help: "Auto-merge worktree changes without prompting (yeehaw)"
           ]
         ]
       ]
@@ -171,6 +165,7 @@ defmodule Cmd.Ask do
       if opts[:edit] do
         UI.warning_banner("AUTO-CONFIRMATION ENABLED FOR CODE EDIT PROMPTS.")
         UI.warning_banner("ALL YOU'VE *REALLY* AUTO-CONFIRMED IS THAT YOU ARE INDEED NUTS.")
+        UI.warning_banner("TERMINATOR WAS A WARNING, NOT A SUGGESTION.")
       else
         UI.warn("--yes has no effect unless you also pass --edit; ignoring")
       end
@@ -181,12 +176,6 @@ defmodule Cmd.Ask do
       UI.warning_banner("APPROVALS WILL BE GRANTED AFTER #{opts[:auto_approve_after]} SECONDS.")
       UI.warning_banner("MAY YOUR FUTURE SELF FORGIVE YOU FOR THIS DECISION.")
       UI.warning_banner("...AND MAY THE ON-CALL HAVE MERCY ON YOUR SOUL.")
-    end
-
-    # Handle --cowboy warning
-    if opts[:cowboy] do
-      UI.warning_banner("COWBOY MODE: WORKTREE CHANGES WILL BE AUTO-MERGED. NO TAKE-BACKS.")
-      UI.warning_banner("TERMINATOR WAS A WARNING, NOT A SUGGESTION. YEEHAW.")
     end
 
     # Start silent background indexers. This must happen BEFORE any project
@@ -241,7 +230,11 @@ defmodule Cmd.Ask do
         )
 
         maybe_save_output(opts, conversation_id, response)
-        maybe_worktree_review(effective_worktree_path, edited?, pid, opts[:cowboy] == true)
+        # In a managed worktree, --yes means auto-merge at the end (the
+        # worktree itself is the safety net). In non-worktree mode, --yes
+        # only affects per-edit approval dialogs.
+        auto_merge? = opts[:yes] == true or (is_integer(opts[:yes]) and opts[:yes] > 0)
+        maybe_worktree_review(effective_worktree_path, edited?, pid, auto_merge?)
         Clipboard.copy(conversation_id)
 
         unless UI.quiet?() do

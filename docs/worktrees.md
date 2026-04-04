@@ -10,7 +10,7 @@ The coordinator creates one automatically before making any file changes.
 All edits happen on an isolated branch - your working tree is never modified directly.
 
 At the end of the session, you decide what to do with the changes: inspect the diff, merge into your current branch, or leave them in the worktree for later.
-The `--cowboy` flag skips the prompts and auto-merges.
+With `--yes`, the worktree changes are auto-merged and cleaned up at the end.
 
 The worktree is associated with the conversation and persisted in conversation metadata, so resuming the conversation (`--follow`) reuses the same worktree.
 
@@ -62,7 +62,7 @@ After the coordinator finishes in a fnord-managed worktree, the user is prompted
 2. **Merge**: merge the branch into whatever is checked out in the actual project root
 3. **Clean up**: delete the worktree directory and local branch
 
-The `--cowboy / -C` flag skips all prompts and auto-merges with cleanup.
+With `--yes`, the post-session review is skipped and changes are auto-merged with cleanup.
 
 ## Forking conversations with worktrees
 

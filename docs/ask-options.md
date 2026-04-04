@@ -43,6 +43,8 @@ Auto-approve file edit prompts.
 Requires `--edit`.
 Can be repeated (`-yy`) to also auto-approve potentially dangerous operations.
 
+In a git repository (where edits are sandboxed to a worktree), `--yes` also auto-merges and cleans up the worktree at the end of the session without prompting.
+
 ### --auto-approve-after / -A SECONDS
 
 Automatically approve pending edit prompts after SECONDS of no user input.
@@ -59,12 +61,6 @@ Mutually exclusive with `--auto-approve-after`.
 Override the project source root for this run.
 PATH must be an existing directory.
 See [Worktrees](worktrees.md) for the full worktree lifecycle.
-
-### --cowboy / -C
-
-Auto-merge and clean up worktree changes after the conversation without prompting.
-Shows the diff for the record but skips all confirmation dialogs.
-Requires `--edit` and an active worktree (either pre-existing or created during the session).
 
 ## Conversation management
 
