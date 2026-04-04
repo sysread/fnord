@@ -558,7 +558,12 @@ defmodule AI.Tools.File.Edit do
   defp do_edits(file, changes, create_if_missing) do
     try do
       with {:ok, project} <- Store.get_project(),
-           absolute_path <- Store.Project.expand_path(file, project),
+           absolute_path = Store.Project.expand_path(file, project),
+           _ =
+             UI.debug(
+               "file_edit",
+               "do_edits: source_root=#{project.source_root} file=#{file} abs=#{absolute_path}"
+             ),
            {orig_exists, orig_text} = read_file(absolute_path),
            base_hash = :crypto.hash(:sha256, orig_text),
            :ok <- ensure_file(absolute_path, create_if_missing),
@@ -601,6 +606,10 @@ defmodule AI.Tools.File.Edit do
            {:ok, _} <- verify_no_race(file, base_hash, orig_exists),
            :ok <- commit_changes(file, temp) do
         {:ok, diff, backup_file}
+      else
+        error ->
+          UI.debug("file_edit", "stage_changes failed: #{inspect(error)}")
+          error
       end
     end)
   end
@@ -803,7 +812,7 @@ defmodule AI.Tools.File.Edit do
       path ->
         with {:ok, project} <- Store.get_project(),
              true <- GitCli.Worktree.fnord_managed?(project.name, path) do
-          :ok
+          {:ok, nil}
         else
           _ -> Services.BackupFile.create_backup(file)
         end
