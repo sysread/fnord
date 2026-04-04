@@ -75,7 +75,8 @@ defmodule AI.Tools.Coder do
 
   @impl AI.Tools
   def call(args) do
-    with {:ok, requirements} <- AI.Tools.get_arg(args, "requirements"),
+    with :ok <- AI.Tools.require_worktree_if_git(),
+         {:ok, requirements} <- AI.Tools.get_arg(args, "requirements"),
          {:ok, state} <- code_stuff(requirements) do
       {:ok, summarize_outcome(state)}
     end

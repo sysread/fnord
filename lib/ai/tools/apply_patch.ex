@@ -57,7 +57,8 @@ defmodule AI.Tools.ApplyPatch do
 
   @impl AI.Tools
   def call(args) do
-    with {:ok, patch} <- AI.Tools.get_arg(args, "patch") do
+    with :ok <- AI.Tools.require_worktree_if_git(),
+         {:ok, patch} <- AI.Tools.get_arg(args, "patch") do
       AI.Agent.Code.RePatcher
       |> AI.Agent.new()
       |> AI.Agent.get_response(%{patch: patch})

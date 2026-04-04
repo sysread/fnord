@@ -764,6 +764,24 @@ defmodule AI.Tools do
     end
   end
 
+  @spec require_worktree_if_git() :: :ok | {:error, String.t()}
+  @doc """
+  Gate for write operations in git repositories. In a git repo, edits must
+  target a worktree (either fnord-managed or user-supplied via `-W`). Returns
+  `:ok` if not a git repo or if a project root override is set, otherwise
+  returns an error instructing the LLM to create a worktree first.
+  """
+  def require_worktree_if_git do
+    if GitCli.is_git_repo?() and is_nil(Settings.get_project_root_override()) do
+      {:error,
+       "This project is a git repository. All file edits must target a worktree " <>
+         "to protect the main checkout. Use git_worktree_tool with action " <>
+         "\"create\" to create a worktree before making changes."}
+    else
+      :ok
+    end
+  end
+
   @spec get_file_contents(binary) :: {:ok, binary} | something_not_found
   def get_file_contents(file) do
     if temp_file?(file) do

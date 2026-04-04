@@ -328,7 +328,8 @@ defmodule AI.Tools.File.Edit do
 
   @impl AI.Tools
   def call(raw_args) do
-    with {:ok, args} <- read_args(raw_args),
+    with :ok <- AI.Tools.require_worktree_if_git(),
+         {:ok, args} <- read_args(raw_args),
          {:ok, file} <- AI.Tools.get_arg(args, "file"),
          {:ok, changes} <- read_changes(args) do
       create? = Map.get(args, "create_if_missing", false)

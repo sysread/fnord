@@ -5,6 +5,9 @@ defmodule AI.Tools.File.EditTest do
 
   setup do
     project = mock_project("edit-test")
+    # Set override so the worktree gate passes (we're in a git repo)
+    Settings.set_project_root_override(project.source_root)
+    on_exit(fn -> Settings.set_project_root_override(nil) end)
     {:ok, project: project}
   end
 

@@ -9,6 +9,8 @@ defmodule AI.Tools.File.EditAgentPatternsTest do
 
   setup do
     project = mock_project("agent-pattern-test")
+    Settings.set_project_root_override(project.source_root)
+    on_exit(fn -> Settings.set_project_root_override(nil) end)
     {:ok, project: project}
   end
 
