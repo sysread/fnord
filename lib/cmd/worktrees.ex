@@ -268,11 +268,13 @@ defmodule Cmd.Worktrees do
   end
 
   defp resolve_worktree_meta_from_disk(conv_id) do
-    with {:ok, project} <- Store.get_project() do
+    with {:ok, project} <- Store.get_project(),
+         {:ok, root} <- GitCli.Worktree.project_root() do
       path = GitCli.Worktree.conversation_path(project.name, conv_id)
 
       if File.dir?(path) do
-        {:ok, %{path: path, branch: "fnord-#{conv_id}", base_branch: nil}}
+        base = GitCli.Worktree.default_base_branch(root)
+        {:ok, %{path: path, branch: "fnord-#{conv_id}", base_branch: base}}
       else
         {:error, :no_worktree_metadata}
       end

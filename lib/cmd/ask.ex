@@ -721,7 +721,8 @@ defmodule Cmd.Ask do
 
     if File.dir?(path) do
       UI.info("Adopting orphaned worktree", path)
-      meta = %{path: path, branch: "fnord-#{conv_id}", base_branch: nil}
+      base = GitCli.Worktree.default_base_branch(GitCli.repo_root())
+      meta = %{path: path, branch: "fnord-#{conv_id}", base_branch: base}
 
       with :ok <-
              Services.Conversation.upsert_conversation_meta(conversation_pid, %{worktree: meta}) do

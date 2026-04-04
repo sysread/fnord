@@ -443,7 +443,12 @@ defmodule GitCli.Worktree do
   defp normalize_branch(branch, _base_branch) when is_binary(branch), do: {:ok, branch}
   defp normalize_branch(_, _), do: {:error, :invalid_branch}
 
-  defp default_base_branch(root) when is_binary(root) do
+  @spec default_base_branch(String.t()) :: String.t() | nil
+  @doc """
+  Returns the default base branch for the repository — either the remote HEAD
+  (e.g., `main`) or the current branch as a fallback.
+  """
+  def default_base_branch(root) when is_binary(root) do
     case repo_default_branch(root) do
       branch when is_binary(branch) -> branch
       nil -> current_branch(root)
