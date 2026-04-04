@@ -26,13 +26,13 @@ defmodule GitCli.Worktree.Review do
     print_header()
     target = GitCli.Worktree.current_branch(root) || "HEAD"
 
-    unless UI.confirm("Inspect changes from worktree branch #{branch}?") do
+    unless UI.confirm(wt_prompt("Inspect changes from worktree branch #{branch}?")) do
       throw(:skip)
     end
 
     show_diff(root, branch, base_branch)
 
-    unless UI.confirm("Merge #{branch} into #{target}?") do
+    unless UI.confirm(wt_prompt("Merge #{branch} into #{target}?")) do
       throw(:skip)
     end
 
@@ -80,12 +80,25 @@ defmodule GitCli.Worktree.Review do
   defp print_header do
     header =
       IO.ANSI.format(
-        [:cyan_background, :black, :bright, " Worktree Review ", :reset],
+        [:cyan_background, :black, :bright, " ◆ Worktree Review ◆ ", :reset],
         true
       )
 
-    IO.puts(:stderr, "\n#{header}\n")
-    UI.Tee.write(["\n", header, "\n\n"])
+    separator =
+      IO.ANSI.format(
+        [:cyan, String.duplicate("─", 60), :reset],
+        true
+      )
+
+    IO.puts(:stderr, "\n#{separator}\n#{header}\n#{separator}\n")
+    UI.Tee.write(["\n", separator, "\n", header, "\n", separator, "\n\n"])
+  end
+
+  # Formats a worktree review prompt with color so it stands out from
+  # the surrounding log output.
+  defp wt_prompt(msg) do
+    IO.ANSI.format([:bright, :cyan, "◆ ", :reset, :bright, msg, :reset], true)
+    |> IO.chardata_to_string()
   end
 
   defp show_diff(root, branch, base_branch) do
@@ -105,7 +118,7 @@ defmodule GitCli.Worktree.Review do
 
   # Returns true if the worktree was deleted.
   defp maybe_cleanup(root, path, branch) do
-    if UI.confirm("Delete worktree and local branch #{branch}?") do
+    if UI.confirm(wt_prompt("Delete worktree and local branch #{branch}?")) do
       cleanup(root, path, branch)
       true
     else
