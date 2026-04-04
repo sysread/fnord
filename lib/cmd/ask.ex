@@ -921,13 +921,21 @@ defmodule Cmd.Ask do
             GitCli.Worktree.Review.interactive_review(repo_root, meta)
           end
 
+        conv_id = Services.Conversation.get_id(conversation_pid)
+
         case result do
           :cleaned_up ->
-            conv_id = Services.Conversation.get_id(conversation_pid)
             Cmd.WorktreeLifecycle.clear_worktree_from_conversation(conv_id)
 
           :ok ->
-            :ok
+            UI.say("""
+
+            The worktree at `#{path}` still contains your changes.
+            - Continue working: `fnord ask -f #{conv_id} -ey -q "..."`
+            - Review the diff:  `fnord worktrees view -c #{conv_id}`
+            - Merge later:      `fnord worktrees merge -c #{conv_id}`
+            - Discard:          `fnord worktrees delete -c #{conv_id}`
+            """)
         end
       end
     end
