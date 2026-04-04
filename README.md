@@ -309,7 +309,7 @@ It *cannot* perform write operations with `git` or act on files outside of the p
 fnord ask --project myproj --edit --question "Add a docstring to foo/thing.ex"
 ```
 
-**You can also use `--worktree` to specify a git worktree path to operate within.**
+**You can also use `--worktree` to specify a git worktree path to operate within. When `fnord` is operating in a git repository, code changes are sandboxed to that worktree rather than applied to the main checkout.**
 
 ```bash
 fnord ask --project myproj --worktree /path/to/myproj-wt --edit --question "Add a docstring to foo/thing.ex"
