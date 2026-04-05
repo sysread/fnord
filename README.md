@@ -233,7 +233,7 @@ fnord upgrade
 Note that this is just a shortcut for:
 
 ```bash
-mix escript.install github sysread/fnord
+mix escript.install --force github sysread/fnord
 ```
 
 ### Other commands

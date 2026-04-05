@@ -64,7 +64,10 @@ defmodule Cmd.WorktreeLifecycle do
     conv = Store.Project.Conversation.new(conv_id)
 
     with {:ok, data} <- Store.Project.Conversation.read(conv) do
-      updated_metadata = Map.delete(data.metadata, :worktree)
+      updated_metadata =
+        data.metadata
+        |> Map.delete(:worktree)
+        |> Map.delete("worktree")
 
       worktree_deleted_msg =
         AI.Util.system_msg("""

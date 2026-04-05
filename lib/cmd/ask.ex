@@ -598,7 +598,10 @@ defmodule Cmd.Ask do
   end
 
   defp strip_worktree_metadata(conv, data) do
-    updated_metadata = Map.delete(data.metadata, :worktree)
+    updated_metadata =
+      data.metadata
+      |> Map.delete(:worktree)
+      |> Map.delete("worktree")
 
     Store.Project.Conversation.write(conv, %{
       data

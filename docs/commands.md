@@ -158,6 +158,24 @@ List or search across memory scopes (session, project, global).
 ```bash
 fnord memory
 fnord memory -q "validation rules"
+fnord memory --global
+```
+
+## notes
+
+List facts about the project inferred from prior research conversations.
+
+```bash
+fnord notes
+fnord notes --reset
+```
+
+## prime
+
+Prime fnord's research notes with basic information about the project by running an initial indexing pass.
+
+```bash
+fnord prime
 ```
 
 ## worktrees

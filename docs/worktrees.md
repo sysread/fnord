@@ -5,9 +5,10 @@ Each conversation can be bound to its own worktree so edits happen on a separate
 
 ## How it works
 
-In edit mode (`--edit`), fnord always works in a worktree.
-The coordinator creates one automatically before making any file changes.
-All edits happen on an isolated branch - your working tree is never modified directly.
+In edit mode (`--edit`) on a git repository, fnord enforces worktree usage.
+The coordinator is instructed to create a worktree before making any file changes, and file edit tools refuse to write without one.
+All edits happen on an isolated branch — your working tree is never modified directly.
+For non-git projects, edits are applied directly to the source files.
 
 At the end of the session, you decide what to do with the changes: inspect the diff, merge into your current branch, or leave them in the worktree for later.
 With `--yes`, the worktree changes are auto-merged and cleaned up at the end.

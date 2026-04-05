@@ -43,7 +43,7 @@ Auto-approve file edit prompts.
 Requires `--edit`.
 Can be repeated (`-yy`) to also auto-approve potentially dangerous operations.
 
-In a git repository (where edits are sandboxed to a worktree), `--yes` also auto-merges and cleans up the worktree at the end of the session without prompting.
+In a git repository (where edits are sandboxed to a fnord-managed worktree), `--yes` also auto-merges and cleans up the worktree at the end of the session without prompting. This does not apply to user-supplied worktrees via `--worktree`.
 
 ### --auto-approve-after / -A SECONDS
 
