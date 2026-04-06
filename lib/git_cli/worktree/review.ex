@@ -3,6 +3,11 @@ defmodule GitCli.Worktree.Review do
   Shared interactive flow for reviewing, merging, and cleaning up a
   fnord-managed worktree. Used by both `Cmd.Ask` (post-completion) and
   `Cmd.Worktrees merge`.
+
+  Includes pre-merge and post-merge validation gates that run the project's
+  configured validation rules against the worktree (before merge) and the
+  main checkout (after merge). Post-merge validation failure triggers an
+  automatic revert.
   """
 
   @type worktree_info :: %{
@@ -11,12 +16,16 @@ defmodule GitCli.Worktree.Review do
           base_branch: String.t()
         }
 
-  @spec interactive_review(String.t(), worktree_info()) :: :ok | :cleaned_up
+  @type review_result ::
+          :ok
+          | :cleaned_up
+          | {:validation_failed, :pre_merge, String.t()}
+          | {:validation_failed, :post_merge, String.t()}
+
+  @spec interactive_review(String.t(), worktree_info()) :: review_result()
   @doc """
   Walks the user through inspecting the diff, merging, and optionally deleting
-  the worktree and its local branch. Returns `:cleaned_up` when the worktree
-  was deleted so callers can update conversation metadata. Silently returns
-  `:ok` when running non-interactively or the user declines.
+  the worktree and its local branch. Runs validation before and after merge.
   """
   def interactive_review(root, %{path: path, branch: branch, base_branch: base_branch}) do
     unless UI.is_tty?() do
@@ -36,44 +45,124 @@ defmodule GitCli.Worktree.Review do
       throw(:skip)
     end
 
-    case GitCli.Worktree.merge(root, path) do
-      {:ok, _} ->
-        UI.info("Merged", "#{branch} into #{target}")
+    # Pre-merge validation: run in the worktree
+    case run_validation(path, "Pre-merge") do
+      :ok ->
+        :ok
 
+      {:failed, summary} ->
+        UI.error("Pre-merge validation failed")
+        UI.say(summary)
+
+        unless UI.confirm(wt_prompt("Merge anyway despite validation failure?")) do
+          throw({:validation_failed, :pre_merge, summary})
+        end
+    end
+
+    case do_merge_with_post_validation(root, path, branch, target) do
+      :ok ->
         if maybe_cleanup(root, path, branch) do
           throw(:cleaned_up)
         end
 
-      {:error, reason} ->
-        UI.error("Merge failed: #{reason}")
-    end
+        :ok
 
-    :ok
+      {:validation_failed, :post_merge, _summary} = failure ->
+        throw(failure)
+    end
   catch
     :throw, :skip -> :ok
     :throw, :cleaned_up -> :cleaned_up
+    :throw, {:validation_failed, _, _} = failure -> failure
   end
 
-  @spec auto_merge(String.t(), worktree_info()) :: :ok | :cleaned_up
+  @spec auto_merge(String.t(), worktree_info()) :: review_result()
   @doc """
-  Merges worktree changes and cleans up without prompting (cowboy mode).
-  Shows the diff for the record but doesn't ask for confirmation.
+  Merges worktree changes and cleans up without prompting. Runs validation
+  before and after merge. Pre-merge validation failure blocks the merge.
   """
   def auto_merge(root, %{path: path, branch: branch, base_branch: base_branch}) do
     print_header()
     target = GitCli.Worktree.current_branch(root) || "HEAD"
-    UI.info("Cowboy mode", "auto-merging #{branch} into #{target}")
+    UI.info("Auto-merge", "#{branch} into #{target}")
     show_diff(root, branch, base_branch)
 
+    # Pre-merge validation: block on failure
+    case run_validation(path, "Pre-merge") do
+      :ok -> :ok
+      {:failed, summary} -> throw({:validation_failed, :pre_merge, summary})
+    end
+
+    case do_merge_with_post_validation(root, path, branch, target) do
+      :ok ->
+        cleanup(root, path, branch)
+        :cleaned_up
+
+      {:validation_failed, :post_merge, _summary} = failure ->
+        throw(failure)
+    end
+  catch
+    :throw, {:validation_failed, _, _} = failure -> failure
+  end
+
+  # Merges the worktree branch into root, then runs post-merge validation.
+  # If post-merge validation fails, reverts the merge.
+  defp do_merge_with_post_validation(root, path, branch, target) do
     case GitCli.Worktree.merge(root, path) do
       {:ok, _} ->
         UI.info("Merged", "#{branch} into #{target}")
-        cleanup(root, path, branch)
-        :cleaned_up
+
+        case run_validation(root, "Post-merge") do
+          :ok ->
+            :ok
+
+          {:failed, summary} ->
+            UI.error("Post-merge validation failed; reverting merge")
+
+            case GitCli.Worktree.revert_head(root) do
+              {:ok, :ok} -> UI.info("Reverted merge commit")
+              {:error, reason} -> UI.warn("Revert failed: #{reason}")
+            end
+
+            {:validation_failed, :post_merge, summary}
+        end
 
       {:error, reason} ->
         UI.error("Merge failed: #{reason}")
         :ok
+    end
+  end
+
+  # Runs validation rules against the given root and returns :ok or {:failed, summary}.
+  # Returns :ok when there are no rules, no matches, or no changes.
+  defp run_validation(root, label) do
+    with {:ok, project} <- Store.get_project() do
+      UI.info(label, "running validation in #{AI.Tools.display_path(root)}")
+      result = Validation.Rules.run(project.name, root)
+
+      case result do
+        {:ok, :no_changes} ->
+          :ok
+
+        {:ok, :no_rules, _, _} ->
+          :ok
+
+        {:ok, :no_matches, _, _} ->
+          :ok
+
+        {:ok, _results, _fingerprint} ->
+          UI.info(label, "validation passed")
+          :ok
+
+        {:error, :discovery_failed} ->
+          UI.warn("#{label}: could not determine changed files")
+          :ok
+
+        {:error, _, _} ->
+          {:failed, Validation.Rules.summarize(result)}
+      end
+    else
+      _ -> :ok
     end
   end
 

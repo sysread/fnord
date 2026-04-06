@@ -910,11 +910,34 @@ defmodule Cmd.Ask do
 
   # Offers an interactive review/merge/cleanup flow when the coordinator made
   # edits in a fnord-managed worktree and the user's cwd is outside it.
-  @spec maybe_worktree_review(String.t() | nil, boolean, pid, boolean) :: :ok
-  defp maybe_worktree_review(nil, _edited?, _conversation_pid, _cowboy?), do: :ok
-  defp maybe_worktree_review(_path, false, _conversation_pid, _cowboy?), do: :ok
+  # On validation failure, retries up to @max_merge_attempts times by invoking
+  # the coordinator to fix the issues in the worktree.
+  @max_merge_attempts 3
 
-  defp maybe_worktree_review(path, true, conversation_pid, cowboy?) do
+  @spec maybe_worktree_review(String.t() | nil, boolean, pid, boolean, non_neg_integer) :: :ok
+  defp maybe_worktree_review(path, edited?, pid, auto_merge?, attempt \\ 1)
+  defp maybe_worktree_review(nil, _edited?, _conversation_pid, _cowboy?, _attempt), do: :ok
+  defp maybe_worktree_review(_path, false, _conversation_pid, _cowboy?, _attempt), do: :ok
+
+  defp maybe_worktree_review(path, true, conversation_pid, _cowboy?, attempt)
+       when attempt > @max_merge_attempts do
+    conv_id = Services.Conversation.get_id(conversation_pid)
+
+    UI.error("Merge failed after #{@max_merge_attempts} validation attempts")
+
+    UI.say("""
+
+    The worktree at `#{path}` still contains your changes.
+    - Continue working: `fnord ask -f #{conv_id} -ey -q "..."`
+    - Review the diff:  `fnord worktrees view -c #{conv_id}`
+    - Merge later:      `fnord worktrees merge -c #{conv_id}`
+    - Discard:          `fnord worktrees delete -c #{conv_id}`
+    """)
+
+    :ok
+  end
+
+  defp maybe_worktree_review(path, true, conversation_pid, auto_merge?, attempt) do
     cwd = File.cwd!()
 
     with true <- cwd != path,
@@ -926,7 +949,7 @@ defmodule Cmd.Ask do
         repo_root = original_project_root(project.name)
 
         result =
-          if cowboy? do
+          if auto_merge? do
             GitCli.Worktree.Review.auto_merge(repo_root, meta)
           else
             GitCli.Worktree.Review.interactive_review(repo_root, meta)
@@ -937,6 +960,12 @@ defmodule Cmd.Ask do
         case result do
           :cleaned_up ->
             Cmd.WorktreeLifecycle.clear_worktree_from_conversation(conv_id)
+
+          {:validation_failed, phase, summary} ->
+            UI.warn("Validation failed (#{phase}, attempt #{attempt}/#{@max_merge_attempts})")
+            run_validation_fix(conversation_pid, path, summary)
+            maybe_auto_commit(path, true, conversation_pid)
+            maybe_worktree_review(path, true, conversation_pid, auto_merge?, attempt + 1)
 
           :ok ->
             UI.say("""
@@ -952,6 +981,35 @@ defmodule Cmd.Ask do
     end
 
     :ok
+  end
+
+  # Invokes the coordinator for one completion cycle to fix validation failures.
+  # Injects the failure context as a system message, then runs get_response
+  # with the fix instructions as the question.
+  defp run_validation_fix(conversation_pid, worktree_path, validation_output) do
+    UI.begin_step("Fixing validation failures")
+
+    """
+    # Validation Failed
+
+    The following validation output was produced when attempting to merge your
+    worktree changes. Fix the issues in the worktree, then commit your changes.
+
+    ```
+    #{validation_output}
+    ```
+
+    The worktree is at: #{worktree_path}
+    """
+    |> AI.Util.system_msg()
+    |> Services.Conversation.append_msg(conversation_pid)
+
+    Services.Conversation.get_response(conversation_pid,
+      edit: true,
+      question: "Fix the validation failures shown above and commit the fixes.",
+      replay: false,
+      yes: true
+    )
   end
 
   # Returns the project's actual source root from settings, bypassing any

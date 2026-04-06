@@ -206,6 +206,17 @@ defmodule GitCli.Worktree do
     end
   end
 
+  @spec revert_head(String.t()) :: {:ok, :ok} | {:error, atom()}
+  @doc """
+  Reverts the most recent commit in the repository root. Used to undo a merge
+  that failed post-merge validation.
+  """
+  def revert_head(root) when is_binary(root) do
+    with {:ok, _} <- git_cmd(root, ["revert", "--no-edit", "HEAD"]) do
+      {:ok, :ok}
+    end
+  end
+
   @spec force_delete_branch(String.t(), String.t()) :: {:ok, :ok} | {:error, atom()}
   @doc """
   Force-deletes a local branch regardless of merge status.
