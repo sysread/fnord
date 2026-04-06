@@ -144,12 +144,14 @@ defmodule Cmd.WorktreesTest do
         store_path: "/tmp/conv-1.json"
       }
 
+      {:ok, path} = tmpdir()
+
       :meck.expect(Store.Project.Conversation, :new, fn "conv-1" -> conv end)
 
       :meck.expect(Store.Project.Conversation, :read, fn ^conv ->
         {:ok,
          %{
-           metadata: %{worktree: %{path: "/tmp/wt", branch: "fnord-conv-1", base_branch: "main"}}
+           metadata: %{worktree: %{path: path, branch: "fnord-conv-1", base_branch: "main"}}
          }}
       end)
 
@@ -168,7 +170,7 @@ defmodule Cmd.WorktreesTest do
       :meck.new(System, [:passthrough])
 
       :meck.expect(System, :cmd, fn
-        "git", ["rev-parse", "--show-toplevel"], [cd: "/tmp/wt", stderr_to_stdout: true] ->
+        "git", ["rev-parse", "--show-toplevel"], [cd: ^path, stderr_to_stdout: true] ->
           {"/repo\n", 0}
 
         command, args, opts ->
@@ -184,10 +186,122 @@ defmodule Cmd.WorktreesTest do
       assert :meck.called(System, :cmd, [
                "git",
                ["rev-parse", "--show-toplevel"],
-               [cd: "/tmp/wt", stderr_to_stdout: true]
+               [cd: path, stderr_to_stdout: true]
              ])
 
       assert :meck.validate(System)
+    end
+
+    test "views a worktree diff by discovering a fnord-managed worktree when conversation metadata is empty" do
+      conv = %Store.Project.Conversation{
+        id: "conv-1",
+        project_home: "/tmp",
+        store_path: "/tmp/conv-1.json"
+      }
+
+      path = Path.join(GitCli.Worktree.default_root("demo"), "conv-1")
+      File.mkdir_p!(path)
+
+      :meck.expect(Store, :get_project, fn -> {:ok, %{name: "demo"}} end)
+      :meck.expect(Store.Project.Conversation, :new, fn "conv-1" -> conv end)
+      :meck.expect(Store.Project.Conversation, :read, fn ^conv -> {:ok, %{metadata: %{}}} end)
+      :meck.expect(GitCli.Worktree, :project_root, fn -> {:ok, "/repo"} end)
+
+      :meck.expect(GitCli.Worktree, :list, fn "/repo" ->
+        {:ok,
+         [
+           %{
+             path: path,
+             branch: "feature-branch",
+             base_branch: "main",
+             merge_status: :ahead,
+             size: 0
+           },
+           %{
+             path: "/outside/demo/conv-1",
+             branch: "other-branch",
+             base_branch: "main",
+             merge_status: :ahead,
+             size: 0
+           }
+         ]}
+      end)
+
+      :meck.new(System, [:passthrough])
+
+      :meck.expect(System, :cmd, fn
+        "git", ["rev-parse", "--show-toplevel"], [cd: ^path, stderr_to_stdout: true] ->
+          {"/repo\n", 0}
+
+        command, args, opts ->
+          :meck.passthrough([command, args, opts])
+      end)
+
+      :meck.expect(GitCli.Worktree, :diff_from_fork_point, fn "/repo", "feature-branch", "main" ->
+        {:ok, ""}
+      end)
+
+      assert :ok == Cmd.Worktrees.run(%{conversation: "conv-1"}, [:view], [])
+    end
+
+    test "reports a missing worktree path when viewing a diff" do
+      conv = %Store.Project.Conversation{
+        id: "conv-1",
+        project_home: "/tmp",
+        store_path: "/tmp/conv-1.json"
+      }
+
+      :meck.expect(Store.Project.Conversation, :new, fn "conv-1" -> conv end)
+
+      :meck.expect(Store.Project.Conversation, :read, fn ^conv ->
+        {:ok,
+         %{
+           metadata: %{
+             worktree: %{path: "/tmp/missing-wt", branch: "fnord-conv-1", base_branch: "main"}
+           }
+         }}
+      end)
+
+      :meck.expect(UI, :error, fn message ->
+        send(self(), {:ui_error, message})
+        :ok
+      end)
+
+      assert {:error, :missing_worktree_path} ==
+               Cmd.Worktrees.run(%{conversation: "conv-1"}, [:view], [])
+
+      assert_receive {:ui_error, "Worktree path does not exist or is inaccessible"}
+    end
+
+    test "reports a non-repo directory when viewing a diff" do
+      conv = %Store.Project.Conversation{
+        id: "conv-1",
+        project_home: "/tmp",
+        store_path: "/tmp/conv-1.json"
+      }
+
+      {:ok, path} = tmpdir()
+
+      :meck.expect(Store.Project.Conversation, :new, fn "conv-1" -> conv end)
+
+      :meck.expect(Store.Project.Conversation, :read, fn ^conv ->
+        {:ok,
+         %{
+           metadata: %{
+             worktree: %{path: path, branch: "fnord-conv-1", base_branch: "main"}
+           }
+         }}
+      end)
+
+      :meck.expect(UI, :error, fn message ->
+        send(self(), {:ui_error, message})
+        :ok
+      end)
+
+      assert {:error, :not_a_repo} ==
+               Cmd.Worktrees.run(%{conversation: "conv-1"}, [:view], [])
+
+      assert_receive {:ui_error, "Worktree path is not inside a git repository"}
     end
   end
 

@@ -145,8 +145,12 @@ defmodule Cmd.Worktrees do
 
       :ok
     else
+      {:error, :missing_worktree_path} ->
+        UI.error("Worktree path does not exist or is inaccessible")
+        {:error, :missing_worktree_path}
+
       {:error, :not_a_repo} ->
-        UI.error("Not inside a git repository")
+        UI.error("Worktree path is not inside a git repository")
         {:error, :not_a_repo}
 
       {:error, reason} ->
@@ -236,13 +240,11 @@ defmodule Cmd.Worktrees do
     UI.error("Unknown subcommand. Use 'fnord worktrees --help' for help.")
   end
 
-  # Resolves worktree metadata from a conversation id by reading the
-  # conversation's persisted metadata from disk.
+  # Resolves worktree metadata from a conversation id by first consulting the
+  # conversation's persisted metadata and then falling back to a matching
+  # fnord-managed worktree discovered from the repository's worktree list.
   @spec resolve_worktree_meta(String.t()) ::
           {:ok, GitCli.Worktree.Review.worktree_info()} | {:error, atom()}
-  # Resolves worktree metadata from conversation metadata first, then falls
-  # back to the default worktree path on disk for orphaned worktrees that
-  # were never bound to the conversation (e.g., failed creation).
   defp resolve_worktree_meta(conv_id) do
     case resolve_worktree_meta_from_conversation(conv_id) do
       {:ok, _} = ok -> ok
@@ -260,32 +262,42 @@ defmodule Cmd.Worktrees do
         |> Map.get(:worktree)
 
       case raw do
-        %{path: path, branch: branch} when is_binary(path) and is_binary(branch) -> {:ok, raw}
-        %{path: path} when is_binary(path) -> {:ok, raw}
-        _ -> {:error, :no_worktree_metadata}
+        %{path: path, branch: branch, base_branch: base_branch}
+        when is_binary(path) and is_binary(branch) and is_binary(base_branch) ->
+          {:ok, raw}
+
+        _ ->
+          {:error, :no_worktree_metadata}
       end
     end
   end
 
   defp resolve_worktree_meta_from_disk(conv_id) do
     with {:ok, project} <- Store.get_project(),
-         {:ok, root} <- GitCli.Worktree.project_root() do
-      path = GitCli.Worktree.conversation_path(project.name, conv_id)
-
-      if File.dir?(path) do
-        base = GitCli.Worktree.default_base_branch(root)
-        {:ok, %{path: path, branch: "fnord-#{conv_id}", base_branch: base}}
-      else
-        {:error, :no_worktree_metadata}
+         {:ok, root} <- GitCli.Worktree.project_root(),
+         {:ok, entries} <- GitCli.Worktree.list(root) do
+      case Enum.find(entries, fn entry ->
+             GitCli.Worktree.fnord_managed?(project.name, entry.path) and
+               Path.basename(entry.path) == conv_id and
+               is_binary(entry.branch) and
+               is_binary(entry.base_branch)
+           end) do
+        nil -> {:error, :no_worktree_metadata}
+        entry -> {:ok, %{path: entry.path, branch: entry.branch, base_branch: entry.base_branch}}
       end
     end
   end
 
-  @spec resolve_repo_root_for_view(String.t()) :: {:ok, String.t()} | {:error, :not_a_repo}
+  @spec resolve_repo_root_for_view(String.t()) ::
+          {:ok, String.t()} | {:error, :missing_worktree_path | :not_a_repo}
   defp resolve_repo_root_for_view(path) when is_binary(path) do
-    case System.cmd("git", ["rev-parse", "--show-toplevel"], cd: path, stderr_to_stdout: true) do
-      {out, 0} -> {:ok, String.trim(out)}
-      _ -> {:error, :not_a_repo}
+    if File.dir?(path) do
+      case System.cmd("git", ["rev-parse", "--show-toplevel"], cd: path, stderr_to_stdout: true) do
+        {out, 0} -> {:ok, String.trim(out)}
+        _ -> {:error, :not_a_repo}
+      end
+    else
+      {:error, :missing_worktree_path}
     end
   end
 

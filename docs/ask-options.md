@@ -58,7 +58,8 @@ Mutually exclusive with `--auto-approve-after`.
 
 ### --worktree / -W PATH
 
-Override the project source root for this run.
+Use PATH as the conversation's working directory for this run.
+When you resume the conversation later, fnord reuses that recorded worktree path instead of the current shell directory.
 PATH must be an existing directory.
 See [Worktrees](worktrees.md) for the full worktree lifecycle.
 
@@ -103,7 +104,7 @@ After each response, fnord prints:
 
 - Duration
 - Token usage and context window percentage
-- Conversation ID (also copied to clipboard)
+- Conversation ID (with clipboard status when copying succeeds)
 - Active worktree path (if any)
 - Index staleness (new, changed, deleted files since last index)
 - Memory counts (session, project, global)

@@ -82,15 +82,15 @@ defmodule Cmd.AskTest do
 
   describe "run/3 save failures" do
     setup do
-      :meck.new(Store, [:passthrough])
-      :meck.new(Outputs, [:passthrough])
-      :meck.new(UI, [:passthrough])
-      :meck.new(GitCli, [:passthrough])
-      :meck.new(Services.Conversation, [:passthrough])
-      :meck.new(Services.Task, [:passthrough])
-      :meck.new(Memory, [:passthrough])
-      :meck.new(Clipboard, [:passthrough])
-      :meck.new(Notifier, [:passthrough])
+      :ok = safe_meck_new(Store, [:passthrough])
+      :ok = safe_meck_new(Outputs, [:passthrough])
+      :ok = safe_meck_new(UI, [:passthrough])
+      :ok = safe_meck_new(GitCli, [:passthrough])
+      :ok = safe_meck_new(Services.Conversation, [:passthrough])
+      :ok = safe_meck_new(Services.Task, [:passthrough])
+      :ok = safe_meck_new(Memory, [:passthrough])
+      :ok = safe_meck_new(Clipboard, [:passthrough])
+      :ok = safe_meck_new(Notifier, [:passthrough])
 
       :meck.expect(GitCli, :is_worktree?, fn -> false end)
 
@@ -159,5 +159,67 @@ defmodule Cmd.AskTest do
       assert :ok == Cmd.Ask.run(%{question: "hello", save: true}, [], [])
       assert :meck.called(UI, :error, ["Failed to save output: disk_full"])
     end
+
+    test "omits clipboard success text when copying the conversation id fails" do
+      project = Store.Project.new("demo", "/tmp/demo")
+      parent = self()
+
+      :meck.expect(Store, :get_project, fn -> {:ok, project} end)
+      :meck.expect(UI, :quiet?, fn -> true end)
+      :meck.expect(UI, :debug, fn _, _ -> :ok end)
+      :meck.expect(UI, :error, fn _ -> :ok end)
+      :meck.expect(UI, :report_step, fn _, _ -> :ok end)
+
+      :meck.expect(UI, :say, fn message ->
+        send(parent, {:ui_say, message})
+        :ok
+      end)
+
+      :meck.expect(UI, :flush, fn -> :ok end)
+      :meck.expect(UI, :warn, fn _ -> :ok end)
+      :meck.expect(UI, :spin, fn _label, fun -> fun.() end)
+      :meck.expect(Services.Conversation, :start_link, fn _ -> {:ok, self()} end)
+      :meck.expect(Services.Conversation, :get_id, fn _ -> "conv-1" end)
+      :meck.expect(Services.Conversation, :get_conversation_meta, fn _ -> %{} end)
+
+      :meck.expect(Services.Conversation, :get_response, fn _, _ ->
+        {:ok, %{usage: 1, context: 2, last_response: "hello"}}
+      end)
+
+      :meck.expect(Services.Conversation, :save, fn _ ->
+        {:ok, %{id: "conv-1", store_path: "/tmp/conv-1.json"}}
+      end)
+
+      :meck.expect(Services.Task, :start_link, fn opts ->
+        assert Keyword.get(opts, :conversation_pid) == self()
+        {:ok, self()}
+      end)
+
+      :meck.expect(Memory, :init, fn -> :ok end)
+      :meck.expect(Memory, :list, fn _ -> {:ok, []} end)
+      :meck.expect(Memory, :search_stats, fn -> nil end)
+      :meck.expect(Clipboard, :copy, fn _ -> {:error, :unavailable} end)
+      :meck.expect(Notifier, :notify, fn _, _ -> :ok end)
+
+      assert :ok == Cmd.Ask.run(%{question: "hello"}, [], [])
+      assert_receive {:ui_say, output}
+      assert output =~ "Conversation saved with ID conv-1"
+      refute output =~ "copied to clipboard"
+    end
+  end
+
+  defp safe_meck_new(module, options) do
+    safe_meck_unload(module)
+    :meck.new(module, options)
+  end
+
+  defp safe_meck_unload(module) do
+    try do
+      :meck.unload(module)
+    catch
+      _, _ -> :ok
+    end
+
+    :ok
   end
 end

@@ -224,6 +224,11 @@ defmodule Cmd.Ask do
         auto_merge? = opts[:yes] == true or (is_integer(opts[:yes]) and opts[:yes] > 0)
         maybe_worktree_review(effective_worktree_path, edited?, pid, auto_merge?)
 
+        maybe_save_output(opts, conversation_id, response)
+
+        copied_to_clipboard? =
+          copied_to_clipboard?(Clipboard.copy(conversation_id), conversation_id)
+
         print_result(
           start_time,
           end_time,
@@ -231,11 +236,9 @@ defmodule Cmd.Ask do
           usage,
           context,
           conversation_id,
-          effective_worktree_path
+          effective_worktree_path,
+          copied_to_clipboard?
         )
-
-        maybe_save_output(opts, conversation_id, response)
-        Clipboard.copy(conversation_id)
 
         unless UI.quiet?() do
           Notifier.notify("Fnord response ready", opts.question)
@@ -651,7 +654,8 @@ defmodule Cmd.Ask do
          usage,
          context,
          conversation_id,
-         worktree_path
+         worktree_path,
+         copied_to_clipboard?
        ) do
     time_taken = end_time - start_time
     duration = Util.Duration.format(time_taken)
@@ -679,7 +683,7 @@ defmodule Cmd.Ask do
     ### Response Summary:
     - Response generated in #{duration}
     - Tokens used: #{usage_str} | #{pct_context_used}% of context window (#{context_str})
-    - Conversation saved with ID #{conversation_id} (_copied to clipboard_)#{worktree_summary}
+    - Conversation saved with ID #{conversation_id}#{clipboard_summary(copied_to_clipboard?)}#{worktree_summary}
 
     ### Index Status:
     - Stale:   #{Enum.count(stale)}
@@ -690,6 +694,16 @@ defmodule Cmd.Ask do
 
     UI.flush()
   end
+
+  defp copied_to_clipboard?(copied_value, conversation_id)
+       when is_binary(conversation_id) do
+    IO.iodata_to_binary(copied_value) == conversation_id
+  rescue
+    ArgumentError -> false
+  end
+
+  defp clipboard_summary(true), do: " (_copied to clipboard_)"
+  defp clipboard_summary(false), do: ""
 
   @spec prepare_conversation_worktree(map, pid) :: {:ok, String.t() | nil} | {:error, term}
   defp prepare_conversation_worktree(opts, conversation_pid) do
