@@ -14,6 +14,7 @@ fnord config set --project myproject --root /path/to/project
 
 `config set` selects a project and optionally sets its root directory.
 The `--project` flag is required.
+The project must already exist in fnord's store, typically because you indexed it earlier or selected it in a previous session.
 
 ### Options
 
@@ -27,7 +28,7 @@ The `--project` flag is required.
 fnord config list
 ```
 
-Shows global settings and current project configuration as JSON.
+Shows the current approval settings together with the selected project's stored configuration as JSON.
 
 ## Approval patterns
 
@@ -57,6 +58,8 @@ See [Advanced MCP Configuration](mcp-advanced.md) for the full guide.
 
 ```bash
 fnord config mcp list
+fnord config mcp list --global
+fnord config mcp list --effective
 fnord config mcp add myserver --transport stdio --command /path/to/server
 fnord config mcp update myserver --timeout-ms 30000
 fnord config mcp remove myserver
@@ -64,6 +67,8 @@ fnord config mcp check
 fnord config mcp login myserver
 fnord config mcp status myserver
 ```
+
+Use [Advanced MCP Configuration](mcp-advanced.md) for transport-specific flags such as headers, env vars, OAuth options, and timeouts.
 
 ## Settings structure
 

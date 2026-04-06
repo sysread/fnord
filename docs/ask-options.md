@@ -43,7 +43,7 @@ Auto-approve file edit prompts.
 Requires `--edit`.
 Can be repeated (`-yy`) to also auto-approve potentially dangerous operations.
 
-In a git repository (where edits are sandboxed to a fnord-managed worktree), `--yes` also auto-merges and cleans up the worktree at the end of the session without prompting. This does not apply to user-supplied worktrees via `--worktree`.
+In a git repository, `--yes` also skips the interactive post-session review for fnord-managed worktrees and attempts the usual merge-and-cleanup flow automatically. This does not apply to user-supplied worktrees via `--worktree`.
 
 ### --auto-approve-after / -A SECONDS
 
@@ -87,7 +87,7 @@ Save the AI's response to `~/fnord/outputs/<project>/<slug>.md`.
 ### --tee / -t FILE
 
 Write a clean transcript of the conversation to FILE.
-Prompts before overwriting an existing file.
+Prompts before overwriting an existing file in interactive use; non-interactive runs fail and require `--TEE`.
 
 ### --TEE / -T FILE
 

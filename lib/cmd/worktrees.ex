@@ -133,7 +133,7 @@ defmodule Cmd.Worktrees do
 
   def run(%{conversation: conv_id}, [:view], _unknown) do
     with {:ok, meta} <- resolve_worktree_meta(conv_id),
-         {:ok, root} <- GitCli.Worktree.project_root(),
+         {:ok, root} <- resolve_repo_root_for_view(meta.path),
          {:ok, diff} <- GitCli.Worktree.diff_from_fork_point(root, meta.branch, meta.base_branch) do
       if byte_size(diff) > 0 do
         diff
@@ -278,6 +278,14 @@ defmodule Cmd.Worktrees do
       else
         {:error, :no_worktree_metadata}
       end
+    end
+  end
+
+  @spec resolve_repo_root_for_view(String.t()) :: {:ok, String.t()} | {:error, :not_a_repo}
+  defp resolve_repo_root_for_view(path) when is_binary(path) do
+    case System.cmd("git", ["rev-parse", "--show-toplevel"], cd: path, stderr_to_stdout: true) do
+      {out, 0} -> {:ok, String.trim(out)}
+      _ -> {:error, :not_a_repo}
     end
   end
 

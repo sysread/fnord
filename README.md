@@ -193,7 +193,7 @@ By default, files are written under `~/fnord/outputs/<project_id>/<slug>.md`.
 The `<slug>` comes from the first line `# Title: ...` in the response.
 
 Use `--tee <file>` (or `-t <file>`) to write a plain-text (no ANSI) transcript of the entire `ask` run to a file.
-If the file already exists, fnord prompts before overwriting (and fails non-interactively).
+If the file already exists, fnord prompts before overwriting in interactive use; non-interactive runs fail and require `--TEE`.
 Use `--TEE <file>` (or `-T <file>`) to overwrite/truncate without prompting.
 
 ```bash
@@ -274,7 +274,7 @@ fnord config mcp add <name> --transport stdio --command ./server
 # Add an HTTP server
 fnord config mcp add <name> --transport http --url https://api.example.com
 
-# Add with OAuth (auto-configures everything)
+# Add with OAuth when the server supports automatic discovery and registration
 fnord config mcp add <name> --transport http --url https://api.example.com --oauth
 fnord config mcp login <name>
 ```
@@ -283,7 +283,7 @@ fnord config mcp login <name>
 
 #### OAuth Authentication
 
-Fnord supports OAuth2 for MCP servers with automatic discovery and registration:
+Fnord supports OAuth2 for MCP servers, including automatic discovery and registration when the server supports it:
 
 ```bash
 fnord config mcp add myserver --transport http --url https://example.com --oauth
@@ -298,7 +298,7 @@ Fnord can (optionally) automate code changes in your project using the `ask` com
 
 - Use `--edit` with extreme caution.
 - AI-driven code modification is unsafe, may corrupt or break files, and must always be manually reviewed.
-- Optionally add `--yes` to pre-approve edits without prompting.
+- Optionally add `--yes` to auto-confirm edit prompts. In fnord-managed worktrees, it also skips the interactive post-session review and attempts the usual merge-and-cleanup flow automatically.
 
 ### How it works
 
@@ -309,7 +309,7 @@ It *cannot* perform write operations with `git` or act on files outside of the p
 fnord ask --project myproj --edit --question "Add a docstring to foo/thing.ex"
 ```
 
-**You can also use `--worktree` to specify a git worktree path to operate within. When `fnord` is operating in a git repository, code changes are sandboxed to that worktree rather than applied to the main checkout.**
+**In git repositories, fnord requires worktree-backed editing. Use `--worktree` to point fnord at an existing git worktree directory for the current run; edits are applied there instead of the main checkout.**
 
 ```bash
 fnord ask --project myproj --worktree /path/to/myproj-wt --edit --question "Add a docstring to foo/thing.ex"

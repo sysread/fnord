@@ -138,8 +138,9 @@ defmodule Services.Conversation do
   end
 
   @doc """
-  Get the metadata for the given task list (currently only description).
-  Returns {:ok, description} | {:error, :not_found}
+  Get the metadata for the given task list.
+  Returns `{:ok, meta}` when the list exists, where `meta` includes the task
+  list description and any tracked status fields.
   """
   @spec get_task_list_meta(pid, binary) :: {:ok, map} | {:error, :not_found}
   def get_task_list_meta(pid, task_list_id) do
@@ -147,7 +148,9 @@ defmodule Services.Conversation do
   end
 
   @doc """
-  Upsert the metadata for the given task list (now a map with at least :description).
+  Upsert the metadata for the given task list.
+  Callers may pass a metadata map, a raw description string, or `nil`, which is
+  wrapped into `%{description: description}` for backwards compatibility.
   """
   @spec upsert_task_list_meta(pid, binary, map | binary | nil) :: :ok | {:error, :not_found}
   def upsert_task_list_meta(pid, task_list_id, meta) when is_map(meta) do

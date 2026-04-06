@@ -93,7 +93,7 @@ fnord conversations --prune <uuid>
 - `--limit / -l N` - max search results (default: 5)
 - `--prune / -P VALUE` - prune by age (integer = days) or delete a specific conversation (uuid)
 
-Default output (no options) lists all conversations as JSON with id, timestamp, question, and message count.
+Default output (no options) lists all conversations as JSON with `id`, `timestamp`, `question`, `file`, and `length`.
 
 Pruning by age requires interactive confirmation and cannot be undone.
 
@@ -130,7 +130,7 @@ Deletes all indexed data, conversations, and notes for the project.
 
 ## config
 
-See [Configuration Reference](config.md) for `config set`, `config list`, and related subcommands.
+See [Configuration Reference](config.md) for `config set`, `config list`, validation rule management, MCP subcommands, and related subcommands.
 
 Approval-specific commands:
 

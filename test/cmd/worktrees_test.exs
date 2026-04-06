@@ -136,6 +136,59 @@ defmodule Cmd.WorktreesTest do
 
       assert :ok == Cmd.Worktrees.run(%{conversation: "conv-1"}, [:merge], [])
     end
+
+    test "views a worktree diff using the conversation worktree path even when override state is stale" do
+      conv = %Store.Project.Conversation{
+        id: "conv-1",
+        project_home: "/tmp",
+        store_path: "/tmp/conv-1.json"
+      }
+
+      :meck.expect(Store.Project.Conversation, :new, fn "conv-1" -> conv end)
+
+      :meck.expect(Store.Project.Conversation, :read, fn ^conv ->
+        {:ok,
+         %{
+           metadata: %{worktree: %{path: "/tmp/wt", branch: "fnord-conv-1", base_branch: "main"}}
+         }}
+      end)
+
+      Settings.set_project_root_override("/definitely/not/a/repo")
+
+      on_exit(fn ->
+        Settings.set_project_root_override(nil)
+
+        try do
+          :meck.unload(System)
+        catch
+          _, _ -> :ok
+        end
+      end)
+
+      :meck.new(System, [:passthrough])
+
+      :meck.expect(System, :cmd, fn
+        "git", ["rev-parse", "--show-toplevel"], [cd: "/tmp/wt", stderr_to_stdout: true] ->
+          {"/repo\n", 0}
+
+        command, args, opts ->
+          :meck.passthrough([command, args, opts])
+      end)
+
+      :meck.expect(GitCli.Worktree, :diff_from_fork_point, fn "/repo", "fnord-conv-1", "main" ->
+        {:ok, ""}
+      end)
+
+      assert :ok == Cmd.Worktrees.run(%{conversation: "conv-1"}, [:view], [])
+
+      assert :meck.called(System, :cmd, [
+               "git",
+               ["rev-parse", "--show-toplevel"],
+               [cd: "/tmp/wt", stderr_to_stdout: true]
+             ])
+
+      assert :meck.validate(System)
+    end
   end
 
   defp safe_meck_new(module, options) do

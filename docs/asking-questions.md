@@ -6,7 +6,7 @@ Deep dive into fnord's `ask` command and research capabilities.
 
 For basic usage, see the [main README](../README.md#generate-answers-on-demand).
 
-Use `--tee <file>` / `-t <file>` to write a plain-text (no ANSI) transcript of the entire run, prompting before overwriting an existing file and failing non-interactively by default.
+Use `--tee <file>` / `-t <file>` to write a plain-text (no ANSI) transcript of the entire run. If the file already exists, fnord prompts before overwriting in interactive use; non-interactive runs fail and require `--TEE`.
 Use `--TEE <file>` / `-T <file>` to overwrite or truncate the output without prompting.
 
 ## Persistent Research Notes
@@ -37,9 +37,11 @@ You don't need a semantic index to ask questions, but you do need a configured p
 **Setup:**
 
 ```bash
-# Configure project root (no indexing)
-fnord config set --project myproject --root /path/to/project
+# Create the project entry and configure its root
+fnord index --project myproject --dir /path/to/project
 ```
+
+If you already have a stored project entry, you can update its root with `fnord config set --project myproject --root /path/to/project`. `config set` does not create new project entries.
 
 **What works:**
 

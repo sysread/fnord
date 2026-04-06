@@ -17,7 +17,7 @@ New to fnord? Start with the [main README](../README.md).
 - [Frobs Developer Guide](frobs-guide.md) - Create custom tools for fnord to use while researching
 - [Skills](skills.md) - Reusable agent presets
 - [Approval Patterns](approval-patterns.md) - Pre-approve shell commands, configure safety patterns
-- [Validation Rules](validation-rules.md) - Auto-run checks when the AI modifies files
+- [Validation Rules](validation-rules.md) - Auto-run checks when code-modifying tool usage changes files
 
 ### Research and Learning
 
@@ -36,4 +36,4 @@ New to fnord? Start with the [main README](../README.md).
 ## Getting Help
 
 - Report issues: [GitHub Issues](https://github.com/sysread/fnord/issues)
-- Get help: see the main README, or run `fnord help ask` (or `fnord --help`) for CLI usage
+- Get help: see the main README, use `fnord --help` for CLI usage, or ask fnord directly about features and configuration

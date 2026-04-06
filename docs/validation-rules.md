@@ -1,7 +1,7 @@
 # Validation Rules
 
 Validation rules let you define shell commands that run automatically when the AI modifies files matching specified patterns.
-Use them to enforce linting, type checking, formatting, or test suites during edit-mode conversations.
+Use them to enforce linting, type checking, formatting, or test suites whenever code-modifying tool usage changes matching files.
 
 ## Adding a rule
 
@@ -52,4 +52,4 @@ Set up a rule to run the full check suite whenever Elixir source files change:
 fnord config validation add "make check" --path-glob "lib/**/*.ex" --path-glob "test/**/*.exs"
 ```
 
-Now when the AI edits any `.ex` or `.exs` file during an `--edit` session, `make check` runs automatically and the AI sees the output.
+Now when code-modifying tool usage changes any `.ex` or `.exs` file, `make check` runs automatically and the AI sees the output.
