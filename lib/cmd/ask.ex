@@ -219,6 +219,11 @@ defmodule Cmd.Ask do
 
         maybe_auto_commit(effective_worktree_path, edited?, pid)
 
+        # Run worktree review (merge prompt) BEFORE printing the final
+        # response so the diff + prompts don't push the response off screen.
+        auto_merge? = opts[:yes] == true or (is_integer(opts[:yes]) and opts[:yes] > 0)
+        maybe_worktree_review(effective_worktree_path, edited?, pid, auto_merge?)
+
         print_result(
           start_time,
           end_time,
@@ -230,11 +235,6 @@ defmodule Cmd.Ask do
         )
 
         maybe_save_output(opts, conversation_id, response)
-        # In a managed worktree, --yes means auto-merge at the end (the
-        # worktree itself is the safety net). In non-worktree mode, --yes
-        # only affects per-edit approval dialogs.
-        auto_merge? = opts[:yes] == true or (is_integer(opts[:yes]) and opts[:yes] > 0)
-        maybe_worktree_review(effective_worktree_path, edited?, pid, auto_merge?)
         Clipboard.copy(conversation_id)
 
         unless UI.quiet?() do
