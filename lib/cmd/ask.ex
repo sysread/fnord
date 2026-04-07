@@ -706,7 +706,18 @@ defmodule Cmd.Ask do
     UI.flush()
   end
 
-  defp print_worktree_status(:merged) do
+  defp print_worktree_status({:merged, sha}) when is_binary(sha) do
+    line =
+      IO.ANSI.format(
+        [:green, :bright, "✓ Worktree changes merged successfully (#{sha})", :reset],
+        true
+      )
+
+    IO.puts(:stderr, "\n#{line}\n")
+    UI.Tee.write(["\n", line, "\n\n"])
+  end
+
+  defp print_worktree_status({:merged, _}) do
     line =
       IO.ANSI.format(
         [:green, :bright, "✓ Worktree changes merged successfully", :reset],
@@ -1003,7 +1014,7 @@ defmodule Cmd.Ask do
   # the coordinator to fix the issues in the worktree.
   @max_merge_attempts 3
 
-  @type worktree_status :: :no_changes | :merged | :unmerged
+  @type worktree_status :: :no_changes | {:merged, String.t() | nil} | :unmerged
 
   @spec maybe_worktree_review(String.t() | nil, boolean, pid, boolean, non_neg_integer) ::
           worktree_status()
@@ -1039,9 +1050,9 @@ defmodule Cmd.Ask do
         conv_id = Services.Conversation.get_id(conversation_pid)
 
         case result do
-          :cleaned_up ->
+          {:cleaned_up, sha} ->
             Cmd.WorktreeLifecycle.clear_worktree_from_conversation(conv_id)
-            :merged
+            {:merged, sha}
 
           {:validation_failed, phase, summary} ->
             UI.warn("Validation failed (#{phase}, attempt #{attempt}/#{@max_merge_attempts})")

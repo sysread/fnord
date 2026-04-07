@@ -18,7 +18,7 @@ defmodule GitCli.Worktree.Review do
 
   @type review_result ::
           :ok
-          | :cleaned_up
+          | {:cleaned_up, String.t() | nil}
           | {:validation_failed, :pre_merge, String.t()}
           | {:validation_failed, :post_merge, String.t()}
 
@@ -60,9 +60,9 @@ defmodule GitCli.Worktree.Review do
     end
 
     case do_merge_with_post_validation(root, path, branch, target) do
-      :ok ->
+      {:ok, sha} ->
         if maybe_cleanup(root, path, branch) do
-          throw(:cleaned_up)
+          throw({:cleaned_up, sha})
         end
 
         :ok
@@ -72,7 +72,7 @@ defmodule GitCli.Worktree.Review do
     end
   catch
     :throw, :skip -> :ok
-    :throw, :cleaned_up -> :cleaned_up
+    :throw, {:cleaned_up, sha} -> {:cleaned_up, sha}
     :throw, {:validation_failed, _, _} = failure -> failure
   end
 
@@ -94,9 +94,9 @@ defmodule GitCli.Worktree.Review do
     end
 
     case do_merge_with_post_validation(root, path, branch, target) do
-      :ok ->
+      {:ok, sha} ->
         cleanup(root, path, branch)
-        :cleaned_up
+        {:cleaned_up, sha}
 
       {:validation_failed, :post_merge, _summary} = failure ->
         throw(failure)
@@ -110,11 +110,12 @@ defmodule GitCli.Worktree.Review do
   defp do_merge_with_post_validation(root, path, branch, target) do
     case GitCli.Worktree.merge(root, path) do
       {:ok, _} ->
+        sha = GitCli.Worktree.head_sha(root)
         UI.info("Merged", "#{branch} into #{target}")
 
         case run_validation(root, "Post-merge") do
           :ok ->
-            :ok
+            {:ok, sha}
 
           {:failed, summary} ->
             UI.error("Post-merge validation failed; reverting merge")
@@ -129,7 +130,7 @@ defmodule GitCli.Worktree.Review do
 
       {:error, reason} ->
         UI.error("Merge failed: #{reason}")
-        :ok
+        {:ok, nil}
     end
   end
 

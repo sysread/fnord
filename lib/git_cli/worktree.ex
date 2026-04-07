@@ -210,6 +210,17 @@ defmodule GitCli.Worktree do
     end
   end
 
+  @spec head_sha(String.t()) :: String.t() | nil
+  @doc """
+  Returns the short SHA of HEAD in the given repo root, or nil on failure.
+  """
+  def head_sha(root) when is_binary(root) do
+    case git_cmd(root, ["rev-parse", "--short", "HEAD"]) do
+      {:ok, out} -> String.trim(out)
+      _ -> nil
+    end
+  end
+
   @spec revert_head(String.t()) :: {:ok, :ok} | {:error, atom()}
   @doc """
   Reverts the most recent commit in the repository root. Used to undo a merge

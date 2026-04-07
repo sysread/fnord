@@ -218,8 +218,8 @@ defmodule Cmd.Worktrees do
     with {:ok, meta} <- resolve_worktree_meta(conv_id),
          {:ok, root} <- GitCli.Worktree.project_root() do
       case GitCli.Worktree.Review.interactive_review(root, meta) do
-        :cleaned_up -> Cmd.WorktreeLifecycle.clear_worktree_from_conversation(conv_id)
-        :ok -> :ok
+        {:cleaned_up, _sha} -> Cmd.WorktreeLifecycle.clear_worktree_from_conversation(conv_id)
+        _ -> :ok
       end
     else
       {:error, :not_a_repo} ->
