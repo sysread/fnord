@@ -33,6 +33,26 @@ defmodule Services.Conversation.TaskListMetaTest do
                Conversation.get_task_list_meta(pid, list_id)
     end
 
+    test "status-only metadata updates preserve the existing description", %{pid: pid} do
+      list_id = 2
+      tasks = [%{id: "task1", data: "info"}]
+
+      assert :ok = Conversation.upsert_task_list(pid, list_id, tasks)
+
+      assert :ok =
+               Conversation.upsert_task_list_meta(pid, list_id, %{
+                 description: "Persistent description"
+               })
+
+      assert :ok =
+               Conversation.upsert_task_list_meta(pid, list_id, %{
+                 status: :in_progress
+               })
+
+      assert {:ok, %{description: "Persistent description", status: :in_progress}} =
+               Conversation.get_task_list_meta(pid, list_id)
+    end
+
     test "meta operations on nonexistent list return error", %{pid: pid} do
       missing = 999
       assert {:error, :not_found} = Conversation.get_task_list_meta(pid, missing)
