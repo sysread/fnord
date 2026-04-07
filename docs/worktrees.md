@@ -44,6 +44,27 @@ On resume (`--follow`), fnord:
 - Recreates it from the stored metadata if it was deleted
 - Sets the project root override automatically
 
+## Initializing fresh worktrees
+
+Many projects need a one-time setup step before tooling works in a fresh worktree (fetching dependencies, building artifacts, etc.). Fnord doesn't run any language-specific commands itself, but git's `post-checkout` hook runs automatically when `git worktree add` creates a new working tree, which is exactly the moment fnord creates a worktree.
+
+The cleanest way to wire this up is to check a `post-checkout` hook into the repository under a versioned hooks directory, then point git at it:
+
+```sh
+mkdir -p .githooks
+cat > .githooks/post-checkout <<'EOF'
+#!/bin/sh
+# Runs after `git checkout` and `git worktree add`. Add any project-specific
+# setup commands here (fetch dependencies, build initial artifacts, etc.).
+EOF
+chmod +x .githooks/post-checkout
+git config core.hooksPath .githooks
+```
+
+The hook receives three arguments: previous HEAD, new HEAD, and a flag (1 for branch checkout, 0 for file checkout). Use `$3 = 1` to limit setup to branch/worktree checkouts.
+
+Each contributor only needs to run `git config core.hooksPath .githooks` once after cloning. From then on, every `git worktree add` (including the ones fnord creates) runs the hook automatically.
+
 ## Committing changes
 
 The coordinator is nudged to commit its worktree changes at two points:
