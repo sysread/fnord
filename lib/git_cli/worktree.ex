@@ -350,7 +350,14 @@ defmodule GitCli.Worktree do
     })
   end
 
-  defp merge_status(path, root, branch, base_branch) do
+  @spec merge_status(String.t(), String.t(), String.t() | nil, String.t() | nil) ::
+          :merged | :ahead | :diverged | :unknown
+  @doc """
+  Returns the merge status of a worktree branch relative to its base branch.
+  Returns `:diverged` when the base has commits the worktree branch lacks
+  (indicating a rebase is needed).
+  """
+  def merge_status(path, root, branch, base_branch) do
     cond do
       not File.dir?(path) ->
         :unknown

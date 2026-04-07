@@ -751,12 +751,15 @@ defmodule AI.Agent.Coordinator do
         |> GitCli.Worktree.normalize_worktree_meta_in_parent()
 
       case meta do
-        %{worktree: %{path: path, branch: branch}} when is_binary(path) ->
+        %{worktree: %{path: path, branch: branch} = wt} when is_binary(path) ->
+          base_branch = Map.get(wt, :base_branch)
+          divergence_note = worktree_divergence_note(path, branch, base_branch)
+
           """
           This conversation has an active worktree:
           - Path: #{path}
           - Branch: #{branch || "unknown"}
-          All file edits MUST target this worktree. Do NOT create a second worktree for this conversation.
+          All file edits MUST target this worktree. Do NOT create a second worktree for this conversation.#{divergence_note}
           """
           |> AI.Util.system_msg()
           |> Services.Conversation.append_msg(conversation_pid)
@@ -777,6 +780,30 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp worktree_context_msg(state), do: state
+
+  # If the worktree branch has diverged from its base (i.e., the base branch
+  # has moved forward since the worktree was created), instruct the
+  # coordinator to rebase before making further changes. Otherwise returns an
+  # empty string.
+  @spec worktree_divergence_note(String.t(), String.t() | nil, String.t() | nil) :: String.t()
+  defp worktree_divergence_note(path, branch, base_branch)
+       when is_binary(branch) and is_binary(base_branch) do
+    case GitCli.Worktree.project_root() do
+      {:ok, root} ->
+        case GitCli.Worktree.merge_status(path, root, branch, base_branch) do
+          :diverged ->
+            "\n\nWARNING: this worktree's base branch (#{base_branch}) has advanced since the worktree was created. Rebase onto #{base_branch} before making further changes to avoid merge conflicts at the end of the session."
+
+          _ ->
+            ""
+        end
+
+      _ ->
+        ""
+    end
+  end
+
+  defp worktree_divergence_note(_path, _branch, _base_branch), do: ""
 
   @spec project_prompt_msg(t) :: t
   defp project_prompt_msg(%{conversation_pid: conversation_pid} = state) do
