@@ -227,7 +227,9 @@ defmodule Cmd.Ask do
         # Run worktree review (merge prompt) BEFORE printing the final
         # response so the diff + prompts don't push the response off screen.
         auto_merge? = opts[:yes] == true or (is_integer(opts[:yes]) and opts[:yes] > 0)
-        maybe_worktree_review(effective_worktree_path, edited?, pid, auto_merge?)
+
+        worktree_status =
+          maybe_worktree_review(effective_worktree_path, edited?, pid, auto_merge?)
 
         maybe_save_output(opts, conversation_id, response)
 
@@ -242,7 +244,8 @@ defmodule Cmd.Ask do
           context,
           conversation_id,
           effective_worktree_path,
-          copied_to_clipboard?
+          copied_to_clipboard?,
+          worktree_status
         )
 
         unless UI.quiet?() do
@@ -660,7 +663,8 @@ defmodule Cmd.Ask do
          context,
          conversation_id,
          worktree_path,
-         copied_to_clipboard?
+         copied_to_clipboard?,
+         worktree_status
        ) do
     time_taken = end_time - start_time
     duration = Util.Duration.format(time_taken)
@@ -697,8 +701,45 @@ defmodule Cmd.Ask do
     - Memory:  #{count_memories(:session)} session; #{count_memories(:project)} project; #{count_memories(:global)} global#{format_search_stats()}
     """)
 
+    print_worktree_status(worktree_status)
+
     UI.flush()
   end
+
+  defp print_worktree_status(:merged) do
+    line =
+      IO.ANSI.format(
+        [:green, :bright, "✓ Worktree changes merged successfully", :reset],
+        true
+      )
+
+    IO.puts(:stderr, "\n#{line}\n")
+    UI.Tee.write(["\n", line, "\n\n"])
+  end
+
+  defp print_worktree_status(:unmerged) do
+    line =
+      IO.ANSI.format(
+        [:yellow, :bright, "⚠ Worktree changes were not merged", :reset],
+        true
+      )
+
+    IO.puts(:stderr, "\n#{line}\n")
+    UI.Tee.write(["\n", line, "\n\n"])
+  end
+
+  defp print_worktree_status(:no_changes) do
+    line =
+      IO.ANSI.format(
+        [:light_black, :italic, "(no file changes during this session)", :reset],
+        true
+      )
+
+    IO.puts(:stderr, "\n#{line}\n")
+    UI.Tee.write(["\n", line, "\n\n"])
+  end
+
+  defp print_worktree_status(_), do: :ok
 
   defp copied_to_clipboard?(copied_value, conversation_id)
        when is_binary(conversation_id) do
@@ -964,27 +1005,19 @@ defmodule Cmd.Ask do
   # the coordinator to fix the issues in the worktree.
   @max_merge_attempts 3
 
-  @spec maybe_worktree_review(String.t() | nil, boolean, pid, boolean, non_neg_integer) :: :ok
+  @type worktree_status :: :no_changes | :merged | :unmerged
+
+  @spec maybe_worktree_review(String.t() | nil, boolean, pid, boolean, non_neg_integer) ::
+          worktree_status()
   defp maybe_worktree_review(path, edited?, pid, auto_merge?, attempt \\ 1)
-  defp maybe_worktree_review(nil, _edited?, _conversation_pid, _cowboy?, _attempt), do: :ok
-  defp maybe_worktree_review(_path, false, _conversation_pid, _cowboy?, _attempt), do: :ok
+  defp maybe_worktree_review(nil, _edited?, _pid, _auto?, _attempt), do: :no_changes
+  defp maybe_worktree_review(_path, false, _pid, _auto?, _attempt), do: :no_changes
 
-  defp maybe_worktree_review(path, true, conversation_pid, _cowboy?, attempt)
+  defp maybe_worktree_review(path, true, conversation_pid, _auto?, attempt)
        when attempt > @max_merge_attempts do
-    conv_id = Services.Conversation.get_id(conversation_pid)
-
     UI.error("Merge failed after #{@max_merge_attempts} validation attempts")
-
-    UI.say("""
-
-    The worktree at `#{path}` still contains your changes.
-    - Continue working: `fnord ask -f #{conv_id} -ey -q "..."`
-    - Review the diff:  `fnord worktrees view -c #{conv_id}`
-    - Merge later:      `fnord worktrees merge -c #{conv_id}`
-    - Discard:          `fnord worktrees delete -c #{conv_id}`
-    """)
-
-    :ok
+    show_worktree_hints(path, conversation_pid)
+    :unmerged
   end
 
   defp maybe_worktree_review(path, true, conversation_pid, auto_merge?, attempt) do
@@ -1010,6 +1043,7 @@ defmodule Cmd.Ask do
         case result do
           :cleaned_up ->
             Cmd.WorktreeLifecycle.clear_worktree_from_conversation(conv_id)
+            :merged
 
           {:validation_failed, phase, summary} ->
             UI.warn("Validation failed (#{phase}, attempt #{attempt}/#{@max_merge_attempts})")
@@ -1018,19 +1052,28 @@ defmodule Cmd.Ask do
             maybe_worktree_review(path, true, conversation_pid, auto_merge?, attempt + 1)
 
           :ok ->
-            UI.say("""
-
-            The worktree at `#{path}` still contains your changes.
-            - Continue working: `fnord ask -f #{conv_id} -ey -q "..."`
-            - Review the diff:  `fnord worktrees view -c #{conv_id}`
-            - Merge later:      `fnord worktrees merge -c #{conv_id}`
-            - Discard:          `fnord worktrees delete -c #{conv_id}`
-            """)
+            show_worktree_hints(path, conversation_pid)
+            :unmerged
         end
+      else
+        :unmerged
       end
+    else
+      _ -> :unmerged
     end
+  end
 
-    :ok
+  defp show_worktree_hints(path, conversation_pid) do
+    conv_id = Services.Conversation.get_id(conversation_pid)
+
+    UI.say("""
+
+    The worktree at `#{path}` still contains your changes.
+    - Continue working: `fnord ask -f #{conv_id} -ey -q "..."`
+    - Review the diff:  `fnord worktrees view -c #{conv_id}`
+    - Merge later:      `fnord worktrees merge -c #{conv_id}`
+    - Discard:          `fnord worktrees delete -c #{conv_id}`
+    """)
   end
 
   # Invokes the coordinator for one completion cycle to fix validation failures.
