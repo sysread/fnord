@@ -80,6 +80,40 @@ defmodule Cmd.AskTest do
     end
   end
 
+  describe "run/3 missing conversations" do
+    setup do
+      :ok = safe_meck_new(UI, [:passthrough])
+      :ok = safe_meck_new(Store.Project.Conversation, [:passthrough])
+      :ok = safe_meck_new(GitCli, [:passthrough])
+
+      :meck.expect(UI, :quiet?, fn -> true end)
+      :meck.expect(UI, :error, fn _ -> :ok end)
+      :meck.expect(UI, :spin, fn _label, fun -> fun.() end)
+      :meck.expect(GitCli, :is_worktree?, fn -> false end)
+      :meck.expect(Store.Project.Conversation, :new, fn id -> %{id: id} end)
+      :meck.expect(Store.Project.Conversation, :exists?, fn _ -> false end)
+
+      on_exit(fn ->
+        Enum.each([UI, Store.Project.Conversation, GitCli], fn mod ->
+          try do
+            :meck.unload(mod)
+          catch
+            _, _ -> :ok
+          end
+        end)
+      end)
+
+      :ok
+    end
+
+    test "reports the missing fork conversation id" do
+      assert {:error, :conversation_not_found} =
+               Cmd.Ask.run(%{question: "hello", fork: "fork-404"}, [], [])
+
+      assert :meck.called(UI, :error, ["Conversation ID fork-404 not found"])
+    end
+  end
+
   describe "run/3 save failures" do
     setup do
       :ok = safe_meck_new(Store, [:passthrough])

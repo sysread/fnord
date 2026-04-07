@@ -324,6 +324,31 @@ defmodule AI.Completion do
     {:error, %{state | response: error_msg}}
   end
 
+  defp handle_response({:error, %{http_status: http_status, error: msg}}, state)
+       when is_binary(msg) do
+    error_msg =
+      """
+      I encountered an error while processing your request.
+
+      - HTTP Status: #{http_status}
+      - Error: #{msg}
+      """
+
+    {:error, %{state | response: error_msg}}
+  end
+
+  defp handle_response({:error, %{http_status: http_status, error: msg}}, state) do
+    error_msg =
+      """
+      I encountered an error while processing your request.
+
+      - HTTP Status: #{http_status}
+      - Error: #{inspect(msg, pretty: true)}
+      """
+
+    {:error, %{state | response: error_msg}}
+  end
+
   defp handle_response({:error, reason}, state) do
     reason =
       if is_binary(reason) do

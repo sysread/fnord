@@ -215,6 +215,52 @@ defmodule AI.CompletionTest do
       assert state.response =~ "backend exploded"
     end
 
+    test "Completion.get/1 surfaces structured error field response to user" do
+      :meck.expect(AI.CompletionAPI, :get, fn _model,
+                                              _msgs,
+                                              _specs,
+                                              _res_fmt,
+                                              _web_srch?,
+                                              _verbosity ->
+        {:error, %{http_status: 500, error: "Unexpected response %{foo: :bar}"}}
+      end)
+
+      user_msg = %{role: "user", content: "trigger error"}
+
+      assert {:error, state} =
+               AI.Completion.get(
+                 model: AI.Model.new("dummy", 0),
+                 messages: [user_msg],
+                 toolbox: %{}
+               )
+
+      assert state.response =~ "HTTP Status: 500"
+      assert state.response =~ "Error: Unexpected response %{foo: :bar}"
+    end
+
+    test "Completion.get/1 inspects non-binary structured error field values" do
+      :meck.expect(AI.CompletionAPI, :get, fn _model,
+                                              _msgs,
+                                              _specs,
+                                              _res_fmt,
+                                              _web_srch?,
+                                              _verbosity ->
+        {:error, %{http_status: 500, error: %{foo: :bar}}}
+      end)
+
+      user_msg = %{role: "user", content: "trigger error"}
+
+      assert {:error, state} =
+               AI.Completion.get(
+                 model: AI.Model.new("dummy", 0),
+                 messages: [user_msg],
+                 toolbox: %{}
+               )
+
+      assert state.response =~ "HTTP Status: 500"
+      assert state.response =~ "Error: %{foo: :bar}"
+    end
+
     test "Completion.get/1 surfaces rate limit error response and can print it" do
       :meck.expect(AI.CompletionAPI, :get, fn _model,
                                               _msgs,

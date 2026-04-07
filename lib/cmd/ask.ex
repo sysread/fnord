@@ -27,7 +27,7 @@ defmodule Cmd.Ask do
             long: "--auto-approve-after",
             short: "-A",
             help:
-              "After notification, auto-APPROVE in SECONDS if no input. Default: auto-DENY after 180 seconds.",
+              "After notification, auto-APPROVE in SECONDS if no input. SECONDS must be a positive integer. Default: auto-DENY after 180 seconds.",
             parser: :integer,
             required: false
           ],
@@ -36,7 +36,7 @@ defmodule Cmd.Ask do
             long: "--auto-deny-after",
             short: "-D",
             help:
-              "After notification, auto-DENY in SECONDS if no input. Default: auto-DENY after 180 seconds.",
+              "After notification, auto-DENY in SECONDS if no input. SECONDS must be a positive integer. Default: auto-DENY after 180 seconds.",
             parser: :integer,
             required: false
           ],
@@ -274,7 +274,8 @@ defmodule Cmd.Ask do
           {:error, :invalid_auto_deny_after}
 
         {:error, :conversation_not_found} ->
-          UI.error("Conversation ID #{opts[:conversation]} not found")
+          missing_id = opts[:fork] || opts[:follow] || opts[:conversation]
+          UI.error("Conversation ID #{missing_id} not found")
           {:error, :conversation_not_found}
 
         {:error, {:conversation_worktree_exists, path}} ->

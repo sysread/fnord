@@ -329,8 +329,8 @@ defmodule Services.Conversation do
         # Merge existing entry with provided meta keys (description/status)
         new_entry =
           entry
-          |> Map.put(:description, Map.get(meta, :description))
-          |> Map.put(:status, Map.get(meta, :status))
+          |> maybe_put_meta(:description, meta)
+          |> maybe_put_meta(:status, meta)
 
         new_state = %{state | tasks: Map.put(state.tasks, list_id, new_entry)}
         {:reply, :ok, new_state}
@@ -432,6 +432,14 @@ defmodule Services.Conversation do
     case Map.fetch(data, :timestamp) do
       {:ok, ts} when not is_nil(ts) -> {:ok, ts}
       _ -> {:error, :corrupt_conversation}
+    end
+  end
+
+  defp maybe_put_meta(entry, key, meta) do
+    if Map.has_key?(meta, key) do
+      Map.put(entry, key, Map.get(meta, key))
+    else
+      entry
     end
   end
 
