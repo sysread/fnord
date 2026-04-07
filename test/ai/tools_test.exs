@@ -211,6 +211,40 @@ defmodule AI.ToolsTest do
       assert {"Result", "some value"} =
                AI.Tools.on_tool_result("mock_tool", @req_args, "some value", @tools)
     end
+
+    test "returns nil when ui_note_on_result raises" do
+      defmodule RaisingResultTool do
+        @behaviour AI.Tools
+
+        @impl AI.Tools
+        def async?, do: true
+
+        @impl AI.Tools
+        def is_available?, do: true
+
+        @impl AI.Tools
+        def ui_note_on_request(_args), do: nil
+
+        @impl AI.Tools
+        def ui_note_on_result(_args, _result), do: raise(RuntimeError, "boom")
+
+        @impl AI.Tools
+        def tool_call_failure_message(_args, _reason), do: :default
+
+        @impl AI.Tools
+        def read_args(args), do: {:ok, args}
+
+        @impl AI.Tools
+        def call(_args), do: {:ok, :ok}
+
+        @impl AI.Tools
+        def spec, do: %{function: %{name: "raising_result_tool"}}
+      end
+
+      tools = %{"raising_result_tool" => RaisingResultTool}
+
+      assert AI.Tools.on_tool_result("raising_result_tool", %{}, "some value", tools) |> is_nil()
+    end
   end
 
   describe "build_toolbox/1" do

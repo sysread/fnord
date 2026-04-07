@@ -1,9 +1,9 @@
 # Configuration Reference
 
 Fnord stores configuration in `~/.fnord/settings.json`.
-The `config` command manages project settings, approval patterns, validation rules, and MCP servers.
+The `config` command manages global and project settings, approval patterns, validation rules, and MCP servers.
 
-Commands operate on the currently selected project unless `--project` is provided.
+Commands operate on the currently selected project by default. Some project-scoped commands also accept `--project` to target a different project explicitly.
 
 ## Project selection
 

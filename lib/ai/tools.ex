@@ -604,8 +604,8 @@ defmodule AI.Tools do
       try do
         module.ui_note_on_result(args, result)
       rescue
-        e in ArgumentError ->
-          {
+        e ->
+          UI.debug(
             "Error logging tool call result",
             """
             # #{tool}
@@ -617,7 +617,7 @@ defmodule AI.Tools do
             # Error
             #{Exception.format(:error, e, __STACKTRACE__)}
             """
-          }
+          )
 
           nil
       end
