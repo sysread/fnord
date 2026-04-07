@@ -219,6 +219,11 @@ defmodule Cmd.Ask do
 
         maybe_auto_commit(effective_worktree_path, edited?, pid)
 
+        # Discard empty worktrees (no edits made). The coordinator may have
+        # speculatively created one even though no file changes were needed.
+        # A fresh worktree can be created on the next --follow.
+        effective_worktree_path = maybe_discard_empty_worktree(effective_worktree_path, pid)
+
         # Run worktree review (merge prompt) BEFORE printing the final
         # response so the diff + prompts don't push the response off screen.
         auto_merge? = opts[:yes] == true or (is_integer(opts[:yes]) and opts[:yes] > 0)
@@ -906,6 +911,51 @@ defmodule Cmd.Ask do
     end
 
     :ok
+  end
+
+  # If the worktree exists but has no commits beyond its base and no
+  # uncommitted changes, delete it. The coordinator may have speculatively
+  # created a worktree that turned out to be unused. Returns the (possibly
+  # nilled) worktree path.
+  @spec maybe_discard_empty_worktree(String.t() | nil, pid) :: String.t() | nil
+  defp maybe_discard_empty_worktree(nil, _conversation_pid), do: nil
+
+  defp maybe_discard_empty_worktree(path, conversation_pid) do
+    with {:ok, project} <- Store.get_project(),
+         true <- GitCli.Worktree.fnord_managed?(project.name, path),
+         false <- GitCli.Worktree.has_uncommitted_changes?(path),
+         meta when is_map(meta) <-
+           worktree_meta(Services.Conversation.get_conversation_meta(conversation_pid)),
+         repo_root = original_project_root(project.name),
+         {:ok, diff} <-
+           GitCli.Worktree.diff_from_fork_point(repo_root, meta.branch, meta.base_branch),
+         true <- byte_size(diff) == 0 do
+      UI.info("Discarding empty worktree", path)
+
+      case GitCli.Worktree.delete(repo_root, path) do
+        {:ok, _} -> :ok
+        {:error, reason} -> UI.warn("Failed to delete empty worktree: #{reason}")
+      end
+
+      _ =
+        case GitCli.Worktree.delete_branch(repo_root, meta.branch) do
+          {:ok, _} ->
+            :ok
+
+          {:error, _} ->
+            case GitCli.Worktree.force_delete_branch(repo_root, meta.branch) do
+              {:ok, _} -> :ok
+              _ -> :ok
+            end
+        end
+
+      conv_id = Services.Conversation.get_id(conversation_pid)
+      Cmd.WorktreeLifecycle.clear_worktree_from_conversation(conv_id)
+      Settings.set_project_root_override(nil)
+      nil
+    else
+      _ -> path
+    end
   end
 
   # Offers an interactive review/merge/cleanup flow when the coordinator made
