@@ -52,7 +52,10 @@ defmodule Fnord.TestCase do
           mock_conversation: 0,
           set_log_level: 1,
           set_config: 1,
-          set_config: 2
+          set_config: 2,
+          safe_meck_new: 1,
+          safe_meck_new: 2,
+          safe_meck_unload: 1
         ]
 
       setup do
@@ -202,6 +205,33 @@ defmodule Fnord.TestCase do
   """
   def tmpdir() do
     Briefly.create(directory: true)
+  end
+
+  @doc """
+  Safely creates a new meck mock for the given module. If the module is
+  already mocked (from a previous test that didn't clean up properly), it is
+  unloaded first. Prevents `:already_started` errors from meck collisions.
+  """
+  @spec safe_meck_new(module(), list()) :: :ok
+  def safe_meck_new(module, opts \\ [:passthrough]) do
+    safe_meck_unload(module)
+    :meck.new(module, opts)
+    :ok
+  end
+
+  @doc """
+  Safely unloads a meck mock. Suppresses any errors from attempting to unload
+  a module that wasn't mocked or was already unloaded.
+  """
+  @spec safe_meck_unload(module()) :: :ok
+  def safe_meck_unload(module) do
+    try do
+      :meck.unload(module)
+    catch
+      _, _ -> :ok
+    end
+
+    :ok
   end
 
   @doc """

@@ -69,7 +69,7 @@ defmodule Services.Approvals.Shell.RegexWorkflowsTest do
     baseline_project_regex = ["^baseline.*project"]
 
     # Mock UI for interactive testing - enable tty mode and set up default responses
-    :meck.new(UI, [:passthrough])
+    safe_meck_new(UI, [:passthrough])
     :meck.expect(UI, :is_tty?, fn -> true end)
 
     :meck.expect(UI, :choose, fn
@@ -81,7 +81,7 @@ defmodule Services.Approvals.Shell.RegexWorkflowsTest do
 
     on_exit(fn ->
       try do
-        :meck.unload(UI)
+        safe_meck_unload(UI)
       rescue
         _ -> :ok
       end

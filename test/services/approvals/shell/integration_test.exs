@@ -70,13 +70,13 @@ defmodule Services.Approvals.Shell.IntegrationTest do
     # Mock UI functions using Mox for better performance
     # UI.Output.Mock is already set up in Fnord.TestCase for UI.Output behaviour functions
     # However, UI.is_tty?/0 and UI.quiet?/0 are not part of UI.Output behaviour, so we use meck just for those
-    :meck.new(UI, [:passthrough])
+    safe_meck_new(UI, [:passthrough])
     :meck.expect(UI, :is_tty?, fn -> true end)
     :meck.expect(UI, :quiet?, fn -> false end)
 
     on_exit(fn ->
       try do
-        :meck.unload(UI)
+        safe_meck_unload(UI)
       rescue
         _ -> :ok
       end

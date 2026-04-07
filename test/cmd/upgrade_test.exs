@@ -4,14 +4,14 @@ defmodule Cmd.UpgradeTest do
 
   describe "run/3" do
     test "upgrades when newer version is available and user confirms" do
-      :meck.new(Util, [:no_link, :passthrough, :non_strict])
-      :meck.new(UI, [:no_link, :passthrough, :non_strict])
-      :meck.new(System, [:no_link, :passthrough, :non_strict])
+      safe_meck_new(Util, [:no_link, :passthrough, :non_strict])
+      safe_meck_new(UI, [:no_link, :passthrough, :non_strict])
+      safe_meck_new(System, [:no_link, :passthrough, :non_strict])
 
       on_exit(fn ->
-        :meck.unload(Util)
-        :meck.unload(UI)
-        :meck.unload(System)
+        safe_meck_unload(Util)
+        safe_meck_unload(UI)
+        safe_meck_unload(System)
       end)
 
       :meck.expect(Util, :get_latest_version, fn -> {:ok, "1.2.3"} end)
@@ -45,14 +45,14 @@ defmodule Cmd.UpgradeTest do
     end
 
     test "reinstalls when on latest version and user confirms" do
-      :meck.new(Util, [:no_link, :passthrough, :non_strict])
-      :meck.new(UI, [:no_link, :passthrough, :non_strict])
-      :meck.new(System, [:no_link, :passthrough, :non_strict])
+      safe_meck_new(Util, [:no_link, :passthrough, :non_strict])
+      safe_meck_new(UI, [:no_link, :passthrough, :non_strict])
+      safe_meck_new(System, [:no_link, :passthrough, :non_strict])
 
       on_exit(fn ->
-        :meck.unload(Util)
-        :meck.unload(UI)
-        :meck.unload(System)
+        safe_meck_unload(Util)
+        safe_meck_unload(UI)
+        safe_meck_unload(System)
       end)
 
       :meck.expect(Util, :get_latest_version, fn -> {:ok, "1.2.3"} end)
@@ -80,12 +80,12 @@ defmodule Cmd.UpgradeTest do
     end
 
     test "cancels when newer version available but user declines" do
-      :meck.new(Util, [:no_link, :passthrough, :non_strict])
-      :meck.new(UI, [:no_link, :passthrough, :non_strict])
+      safe_meck_new(Util, [:no_link, :passthrough, :non_strict])
+      safe_meck_new(UI, [:no_link, :passthrough, :non_strict])
 
       on_exit(fn ->
-        :meck.unload(Util)
-        :meck.unload(UI)
+        safe_meck_unload(Util)
+        safe_meck_unload(UI)
       end)
 
       :meck.expect(Util, :get_latest_version, fn -> {:ok, "1.2.3"} end)
@@ -105,10 +105,10 @@ defmodule Cmd.UpgradeTest do
     end
 
     test "handles error from get_latest_version" do
-      :meck.new(Util, [:no_link, :passthrough, :non_strict])
+      safe_meck_new(Util, [:no_link, :passthrough, :non_strict])
 
       on_exit(fn ->
-        :meck.unload(Util)
+        safe_meck_unload(Util)
       end)
 
       :meck.expect(Util, :get_latest_version, fn -> {:error, :api_request_failed} end)

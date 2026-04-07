@@ -304,19 +304,4 @@ defmodule Cmd.WorktreesTest do
       assert_receive {:ui_error, "Worktree path is not inside a git repository"}
     end
   end
-
-  defp safe_meck_new(module, options) do
-    safe_meck_unload(module)
-    :meck.new(module, options)
-  end
-
-  defp safe_meck_unload(module) do
-    try do
-      :meck.unload(module)
-    catch
-      _, _ -> :ok
-    end
-
-    :ok
-  end
 end

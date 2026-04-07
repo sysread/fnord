@@ -207,19 +207,4 @@ defmodule Cmd.AskTest do
       refute output =~ "copied to clipboard"
     end
   end
-
-  defp safe_meck_new(module, options) do
-    safe_meck_unload(module)
-    :meck.new(module, options)
-  end
-
-  defp safe_meck_unload(module) do
-    try do
-      :meck.unload(module)
-    catch
-      _, _ -> :ok
-    end
-
-    :ok
-  end
 end

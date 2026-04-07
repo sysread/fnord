@@ -15,12 +15,12 @@ defmodule Services.Approvals.Shell.SedSecurityPatternsTest do
     File.rm_rf!(Settings.settings_file())
 
     # Allow UI calls to pass through but simulate non-interactive mode
-    :meck.new(UI, [:passthrough])
+    safe_meck_new(UI, [:passthrough])
     :meck.expect(UI, :is_tty?, fn -> false end)
 
     on_exit(fn ->
       try do
-        :meck.unload(UI)
+        safe_meck_unload(UI)
       rescue
         _ -> :ok
       end

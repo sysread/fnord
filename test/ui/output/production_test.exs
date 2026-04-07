@@ -22,19 +22,13 @@ defmodule UI.Output.ProductionTest do
 
     test "fallback: raises RuntimeError for other error kinds" do
       # Force a non-standard error kind from the queue layer
-      :meck.new(UI.Queue, [:passthrough])
+      safe_meck_new(UI.Queue, [:passthrough])
 
       :meck.expect(UI.Queue, :interact, 2, fn _srv, _fun ->
         {:error, {:foo, "bar"}}
       end)
 
-      on_exit(fn ->
-        try do
-          :meck.unload(UI.Queue)
-        rescue
-          _ -> :ok
-        end
-      end)
+      on_exit(fn -> safe_meck_unload(UI.Queue) end)
 
       assert_raise RuntimeError, "foo: \"bar\"", fn ->
         UI.Output.Production.interact(fn -> :unused end)

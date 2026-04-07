@@ -4,12 +4,12 @@ defmodule AI.Agent.Coordinator.GlueToolsTest do
   setup do
     set_log_level(:none)
 
-    :meck.new(UI, [:passthrough])
+    safe_meck_new(UI, [:passthrough])
     :meck.new(GitCli, [:passthrough])
 
     on_exit(fn ->
       try do
-        :meck.unload(UI)
+        safe_meck_unload(UI)
       rescue
         _ -> :ok
       end

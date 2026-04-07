@@ -41,8 +41,8 @@ defmodule AI.CompletionOutputReplayTest do
     }
 
     # Mock UI to capture report calls so we can assert tool UI was rendered
-    :meck.new(UI, [:no_link, :passthrough, :non_strict])
-    on_exit(fn -> :meck.unload(UI) end)
+    safe_meck_new(UI, [:no_link, :passthrough, :non_strict])
+    on_exit(fn -> safe_meck_unload(UI) end)
 
     # Capture any UI.report_from/2 or /3 calls
     parent = self()
@@ -104,8 +104,8 @@ defmodule AI.CompletionOutputReplayTest do
       replay_conversation: true
     }
 
-    :meck.new(UI, [:no_link, :passthrough, :non_strict])
-    on_exit(fn -> :meck.unload(UI) end)
+    safe_meck_new(UI, [:no_link, :passthrough, :non_strict])
+    on_exit(fn -> safe_meck_unload(UI) end)
 
     parent = self()
 
@@ -164,8 +164,8 @@ defmodule AI.CompletionOutputReplayTest do
       replay_conversation: true
     }
 
-    :meck.new(UI, [:no_link, :passthrough, :non_strict])
-    on_exit(fn -> :meck.unload(UI) end)
+    safe_meck_new(UI, [:no_link, :passthrough, :non_strict])
+    on_exit(fn -> safe_meck_unload(UI) end)
 
     parent = self()
 
@@ -214,8 +214,8 @@ defmodule AI.CompletionOutputReplayTest do
       replay_conversation: true
     }
 
-    :meck.new(UI, [:no_link, :passthrough, :non_strict])
-    on_exit(fn -> :meck.unload(UI) end)
+    safe_meck_new(UI, [:no_link, :passthrough, :non_strict])
+    on_exit(fn -> safe_meck_unload(UI) end)
 
     parent = self()
 

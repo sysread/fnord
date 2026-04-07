@@ -22,11 +22,11 @@ defmodule Services.Approvals.Shell.PersistentApprovalTest do
         {"bar", "bar"}
       ]
 
-      :ok = :meck.new(UI, [:passthrough])
+      :ok = safe_meck_new(UI, [:passthrough])
 
       on_exit(fn ->
         try do
-          :meck.unload(UI)
+          safe_meck_unload(UI)
         catch
           _, _ -> :ok
         end
@@ -55,11 +55,11 @@ defmodule Services.Approvals.Shell.PersistentApprovalTest do
         {"git not-preapproved", "git not-preapproved --all"}
       ]
 
-      :ok = :meck.new(UI, [:passthrough])
+      :ok = safe_meck_new(UI, [:passthrough])
 
       on_exit(fn ->
         try do
-          :meck.unload(UI)
+          safe_meck_unload(UI)
         catch
           _, _ -> :ok
         end

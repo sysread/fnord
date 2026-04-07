@@ -164,19 +164,4 @@ defmodule Cmd.Ask.WorktreeTest do
 
     assert Settings.get_project_root_override() == dir
   end
-
-  defp safe_meck_new(module, opts) do
-    safe_meck_unload(module)
-    :meck.new(module, opts)
-  end
-
-  defp safe_meck_unload(module) do
-    try do
-      :meck.unload(module)
-    catch
-      _, _ -> :ok
-    end
-
-    :ok
-  end
 end

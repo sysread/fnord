@@ -5,7 +5,7 @@ defmodule AI.Tools.UIToolsTest do
     set_log_level(:none)
 
     try do
-      :meck.new(UI, [:passthrough])
+      safe_meck_new(UI, [:passthrough])
     rescue
       _ -> :ok
     end
@@ -19,7 +19,7 @@ defmodule AI.Tools.UIToolsTest do
       Services.Globals.put_env(:fnord, :ui_output, original)
 
       try do
-        :meck.unload(UI)
+        safe_meck_unload(UI)
       rescue
         _ -> :ok
       end

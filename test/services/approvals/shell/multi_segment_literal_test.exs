@@ -3,12 +3,12 @@ defmodule Services.Approvals.Shell.MultiSegmentLiteralTest do
 
   setup do
     Settings.new() |> Settings.update(:approvals, fn _ -> %{} end)
-    :ok = :meck.new(UI, [:passthrough])
+    :ok = safe_meck_new(UI, [:passthrough])
     :meck.expect(UI, :is_tty?, fn -> false end)
 
     on_exit(fn ->
       try do
-        :meck.unload(UI)
+        safe_meck_unload(UI)
       catch
         _, _ -> :ok
       end

@@ -58,7 +58,7 @@ defmodule Services.Approvals.Shell.PrefixWorkflowsTest do
 
     # Mock UI for interactive testing
     # We enable tty mode and set up default UI responses that can be overridden per test
-    :meck.new(UI, [:passthrough])
+    safe_meck_new(UI, [:passthrough])
     :meck.expect(UI, :is_tty?, fn -> true end)
 
     :meck.expect(UI, :choose, fn
@@ -70,7 +70,7 @@ defmodule Services.Approvals.Shell.PrefixWorkflowsTest do
 
     on_exit(fn ->
       try do
-        :meck.unload(UI)
+        safe_meck_unload(UI)
       rescue
         _ -> :ok
       end

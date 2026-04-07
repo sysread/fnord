@@ -12,7 +12,7 @@ defmodule AI.Completion.OutputTest do
 
       mocked? =
         try do
-          :meck.new(UI, [:passthrough])
+          safe_meck_new(UI, [:passthrough])
           true
         rescue
           _ -> false
@@ -26,7 +26,7 @@ defmodule AI.Completion.OutputTest do
       on_exit(fn ->
         if mocked? do
           try do
-            :meck.unload(UI)
+            safe_meck_unload(UI)
           catch
             :error, {:not_mocked, UI} -> :ok
           end

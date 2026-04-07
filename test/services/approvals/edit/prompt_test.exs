@@ -9,13 +9,13 @@ defmodule Services.Approvals.Edit.PromptTest do
   @auto_deny "(auto-deny)"
 
   setup do
-    :meck.new(UI, [:passthrough])
+    safe_meck_new(UI, [:passthrough])
     :meck.expect(UI, :is_tty?, fn -> true end)
     :meck.expect(UI, :quiet?, fn -> false end)
 
     on_exit(fn ->
       try do
-        :meck.unload(UI)
+        safe_meck_unload(UI)
       rescue
         _ -> :ok
       end
