@@ -110,6 +110,42 @@ defmodule Cmd.WorktreesTest do
       assert :ok == Cmd.Worktrees.run(%{conversation: "conv-1"}, [:delete], [])
     end
 
+    test "does not delete the branch when worktree removal fails" do
+      conv = %Store.Project.Conversation{
+        id: "conv-1",
+        project_home: "/tmp",
+        store_path: "/tmp/conv-1.json"
+      }
+
+      meta = %{worktree: %{path: "/tmp/wt", branch: "fnord-conv-1", base_branch: "main"}}
+
+      :meck.expect(Store.Project.Conversation, :new, fn "conv-1" -> conv end)
+
+      :meck.expect(Store.Project.Conversation, :read, fn ^conv ->
+        {:ok, %{metadata: meta, messages: [], memory: [], tasks: %{}}}
+      end)
+
+      :meck.expect(Store.Project.Conversation, :write, fn ^conv, _data -> {:ok, conv} end)
+      :meck.expect(GitCli.Worktree, :project_root, fn -> {:ok, "/repo"} end)
+
+      :meck.expect(GitCli.Worktree, :diff_against_base, fn "/repo", "fnord-conv-1", "main" ->
+        {:ok, ""}
+      end)
+
+      :meck.expect(GitCli.Worktree, :delete, fn "/repo", "/tmp/wt" -> {:error, :git_failed} end)
+      :meck.expect(GitCli.Worktree, :has_uncommitted_changes?, fn "/tmp/wt" -> true end)
+
+      :meck.expect(GitCli.Worktree, :force_delete, fn "/repo", "/tmp/wt" ->
+        {:error, :git_failed}
+      end)
+
+      :meck.expect(GitCli.Worktree, :delete_branch, fn _, _ ->
+        flunk("branch deletion should not be attempted when worktree deletion fails")
+      end)
+
+      assert :ok == Cmd.Worktrees.run(%{conversation: "conv-1"}, [:delete], [])
+    end
+
     test "merges a worktree by conversation id via interactive review" do
       conv = %Store.Project.Conversation{
         id: "conv-1",

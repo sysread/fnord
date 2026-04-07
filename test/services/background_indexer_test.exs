@@ -120,9 +120,17 @@ defmodule Services.BackgroundIndexer.RelativePathTest do
     project = mock_project("bg_indexer_relpath")
     abs_path = mock_source_file(project, "lib/foo/bar.ex", "IO.puts(:ok)\n")
     entry = Entry.new_from_file_path(project, abs_path)
+    previous_ui_output = Services.Globals.get_env(:fnord, :ui_output)
 
     {:ok, _} = Agent.start_link(fn -> [] end, name: UI.Output.Collector)
     Services.Globals.put_env(:fnord, :ui_output, UI.Output.Collector)
+
+    on_exit(fn ->
+      case previous_ui_output do
+        nil -> Services.Globals.delete_env(:fnord, :ui_output)
+        value -> Services.Globals.put_env(:fnord, :ui_output, value)
+      end
+    end)
 
     {:ok, pid} = BackgroundIndexer.start_link(files: [entry])
     ref = Process.monitor(pid)

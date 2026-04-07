@@ -739,8 +739,6 @@ defmodule Cmd.Ask do
     UI.Tee.write(["\n", line, "\n\n"])
   end
 
-  defp print_worktree_status(_), do: :ok
-
   defp copied_to_clipboard?(copied_value, conversation_id)
        when is_binary(conversation_id) do
     IO.iodata_to_binary(copied_value) == conversation_id

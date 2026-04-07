@@ -2,6 +2,7 @@ defmodule Cmd.SkillsGenerateTest do
   use Fnord.TestCase, async: false
 
   setup do
+    previous_ui_output = Services.Globals.get_env(:fnord, :ui_output)
     Services.Globals.put_env(:fnord, :ui_output, UI.Output.Mock)
     Services.Globals.put_env(:fnord, :test_no_halt, true)
     stub(UI.Output.Mock, :confirm, fn _msg, _default -> true end)
@@ -11,6 +12,11 @@ defmodule Cmd.SkillsGenerateTest do
     on_exit(fn ->
       :meck.unload(AI.CompletionAPI)
       Services.Globals.delete_env(:fnord, :test_no_halt)
+
+      case previous_ui_output do
+        nil -> Services.Globals.delete_env(:fnord, :ui_output)
+        value -> Services.Globals.put_env(:fnord, :ui_output, value)
+      end
     end)
 
     :ok

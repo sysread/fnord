@@ -3,7 +3,16 @@ defmodule AI.Tools.SaveSkillTest do
 
   setup do
     # Default to "yes" for confirmations in non-tty tests.
+    previous_ui_output = Services.Globals.get_env(:fnord, :ui_output)
     Services.Globals.put_env(:fnord, :ui_output, UI.Output.Mock)
+
+    on_exit(fn ->
+      case previous_ui_output do
+        nil -> Services.Globals.delete_env(:fnord, :ui_output)
+        value -> Services.Globals.put_env(:fnord, :ui_output, value)
+      end
+    end)
+
     stub(UI.Output.Mock, :confirm, fn _msg, _default -> true end)
     :ok
   end

@@ -29,6 +29,37 @@ defmodule GitCli.WorktreeTest do
                  "conv-1"
                ])
     end
+
+    test "fnord_managed? recognizes normalized conversation paths under the default root" do
+      path =
+        Path.join([
+          Settings.get_user_home(),
+          ".fnord",
+          "projects",
+          "demo",
+          "worktrees",
+          "conv-1"
+        ]) <> "/"
+
+      assert GitCli.Worktree.fnord_managed?("demo", path)
+    end
+
+    test "fnord_managed? treats the default root itself as managed" do
+      assert GitCli.Worktree.fnord_managed?("demo", GitCli.Worktree.default_root("demo"))
+    end
+
+    test "fnord_managed? rejects sibling paths with a similar prefix" do
+      refute GitCli.Worktree.fnord_managed?(
+               "demo",
+               Path.join([
+                 Settings.get_user_home(),
+                 ".fnord",
+                 "projects",
+                 "demo-worktrees",
+                 "conv-1"
+               ])
+             )
+    end
   end
 
   describe "worktree lifecycle helpers" do

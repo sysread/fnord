@@ -145,14 +145,18 @@ defmodule GitCli.Worktree do
 
   @spec fnord_managed?(String.t(), String.t()) :: boolean()
   @doc """
-  Returns true when the given worktree path lives under the default
-  fnord-managed worktree root for the project. Worktrees at this location are
-  always created by fnord with an `fnord-` prefixed branch, so the path check
-  alone is sufficient to identify internally managed worktrees.
+  Returns true when the given worktree path resolves to the default
+  fnord-managed worktree root for the project or to a path beneath it.
+  Worktrees at this location are always created by fnord with an `fnord-`
+  prefixed branch, so a normalized path check is sufficient to identify
+  internally managed worktrees.
   """
   def fnord_managed?(project, path)
       when is_binary(project) and is_binary(path) do
-    String.starts_with?(path, default_root(project) <> "/")
+    default_root = Path.expand(default_root(project)) |> String.trim_trailing("/")
+    candidate = Path.expand(path) |> String.trim_trailing("/")
+
+    candidate == default_root or String.starts_with?(candidate, default_root <> "/")
   end
 
   @spec commit_all(String.t(), String.t()) :: {:ok, :ok} | {:error, atom()}

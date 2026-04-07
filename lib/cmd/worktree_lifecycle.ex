@@ -33,7 +33,9 @@ defmodule Cmd.WorktreeLifecycle do
   @spec delete_worktree(String.t(), String.t()) :: {:ok, :ok} | {:error, atom()}
   @doc """
   Attempts a clean worktree removal. If the worktree has uncommitted changes,
-  warns the user and asks for confirmation before force-deleting.
+  warns the user and asks for confirmation before force-deleting. This helper
+  only removes the worktree itself; callers should only clean up the branch
+  after worktree removal succeeds.
   """
   def delete_worktree(root, path) do
     case GitCli.Worktree.delete(root, path) do
@@ -92,6 +94,8 @@ defmodule Cmd.WorktreeLifecycle do
   @doc """
   Checks whether a conversation has an associated worktree on disk and offers
   to delete it. Used during conversation deletion to avoid orphaned worktrees.
+  When the user confirms cleanup, the local branch is only deleted after the
+  worktree itself is removed successfully.
   """
   def cleanup_worktree_for_conversation(conversation) do
     with {:ok, data} <- safe_read_conversation(conversation),
@@ -128,15 +132,18 @@ defmodule Cmd.WorktreeLifecycle do
   defp prompt_worktree_deletion(root, meta) do
     if UI.confirm("Delete worktree and local branch?") do
       case GitCli.Worktree.force_delete(root, meta.path) do
-        {:ok, :ok} -> UI.info("Deleted worktree", meta.path)
-        {:error, reason} -> UI.warn("Failed to delete worktree: #{reason}")
-      end
+        {:ok, :ok} ->
+          UI.info("Deleted worktree", meta.path)
 
-      if is_binary(meta.branch) do
-        case GitCli.Worktree.delete_branch(root, meta.branch) do
-          {:ok, :ok} -> UI.info("Deleted branch", meta.branch)
-          {:error, reason} -> UI.warn("Failed to delete branch: #{reason}")
-        end
+          if is_binary(meta.branch) do
+            case GitCli.Worktree.delete_branch(root, meta.branch) do
+              {:ok, :ok} -> UI.info("Deleted branch", meta.branch)
+              {:error, reason} -> UI.warn("Failed to delete branch: #{reason}")
+            end
+          end
+
+        {:error, reason} ->
+          UI.warn("Failed to delete worktree: #{reason}")
       end
     end
 
