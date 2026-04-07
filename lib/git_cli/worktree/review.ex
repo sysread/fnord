@@ -137,7 +137,7 @@ defmodule GitCli.Worktree.Review do
   # Returns :ok when there are no rules, no matches, or no changes.
   defp run_validation(root, label) do
     with {:ok, project} <- Store.get_project() do
-      UI.info(label, "running validation in #{AI.Tools.display_path(root)}")
+      UI.info(label, "running validation in #{root}")
       result = Validation.Rules.run(project.name, root)
 
       case result do
