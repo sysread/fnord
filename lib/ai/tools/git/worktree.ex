@@ -13,15 +13,11 @@ defmodule AI.Tools.Git.Worktree do
   def read_args(args), do: {:ok, args}
 
   @impl AI.Tools
-  def ui_note_on_request(%{"action" => action}) do
-    {"Managing git worktree", action}
-  end
-
   def ui_note_on_request(_), do: nil
 
   @impl AI.Tools
-  def ui_note_on_result(%{"action" => action}, _result) do
-    {"Managed git worktree", action}
+  def ui_note_on_result(%{"action" => action, "branch" => branch}, _result) do
+    {"Worktree", "#{branch} -> #{action}"}
   end
 
   def ui_note_on_result(_, _), do: nil
