@@ -1,19 +1,16 @@
 defmodule UI.Output.Production.NotificationTest do
   use Fnord.TestCase, async: false
 
+  # CRITICAL: register on_exit BEFORE test logic, not after. If a test
+  # assertion fails between :meck.new and on_exit, the cleanup never registers
+  # and the mock leaks to subsequent tests. The Logger leak in particular
+  # silently breaks capture_log across the whole suite (Cmd.Config.*Test
+  # failures), because mocked Logger does not deliver to ExUnit's log capture.
   describe "confirm/2 behavior (non-blocking)" do
     test "returns true when default true (TTY: input 'Y\n' or non-TTY: default)" do
-      # Stub IO.gets so that if TTY branch runs, it does not block
-      :meck.new(IO, [:passthrough])
+      on_exit(fn -> safe_meck_unload(IO) end)
+      :ok = safe_meck_new(IO, [:passthrough])
       :meck.expect(IO, :gets, 1, fn "" -> "Y\n" end)
-
-      on_exit(fn ->
-        try do
-          :meck.unload(IO)
-        rescue
-          _ -> :ok
-        end
-      end)
 
       {_stdout, _stderr} =
         capture_all(fn ->
@@ -22,16 +19,9 @@ defmodule UI.Output.Production.NotificationTest do
     end
 
     test "returns false when default false (TTY: input 'n\n' or non-TTY: default)" do
-      :meck.new(IO, [:passthrough])
+      on_exit(fn -> safe_meck_unload(IO) end)
+      :ok = safe_meck_new(IO, [:passthrough])
       :meck.expect(IO, :gets, 1, fn "" -> "n\n" end)
-
-      on_exit(fn ->
-        try do
-          :meck.unload(IO)
-        rescue
-          _ -> :ok
-        end
-      end)
 
       {_stdout, _stderr} =
         capture_all(fn ->
@@ -58,7 +48,8 @@ defmodule UI.Output.Production.NotificationTest do
       on_exit(fn -> Services.Globals.put_env(:fnord, :quiet, orig) end)
       Settings.set_quiet(false)
 
-      :meck.new(Owl.Box, [:passthrough])
+      on_exit(fn -> safe_meck_unload(Owl.Box) end)
+      :ok = safe_meck_new(Owl.Box, [:passthrough])
 
       :meck.expect(Owl.Box, :new, 2, fn contents, _opts ->
         "BOX:" <> contents
@@ -67,19 +58,12 @@ defmodule UI.Output.Production.NotificationTest do
       expect(UI.Output.Mock, :box, fn "hello", [] -> :ok end)
       UI.box("hello", [])
 
-      on_exit(fn ->
-        try do
-          :meck.unload(Owl.Box)
-        rescue
-          _ -> :ok
-        end
-      end)
-
       verify!()
     end
 
     test "flush calls Logger.flush" do
-      :meck.new(Logger, [:passthrough])
+      on_exit(fn -> safe_meck_unload(Logger) end)
+      :ok = safe_meck_new(Logger, [:passthrough])
 
       :meck.expect(Logger, :flush, 0, fn ->
         send(self(), :logger_flushed)
@@ -88,14 +72,6 @@ defmodule UI.Output.Production.NotificationTest do
 
       UI.Output.Production.flush()
       assert_receive :logger_flushed
-
-      on_exit(fn ->
-        try do
-          :meck.unload(Logger)
-        rescue
-          _ -> :ok
-        end
-      end)
     end
   end
 end

@@ -133,6 +133,13 @@ defmodule Fnord.TestCase do
       end
 
       setup do
+        # Defensive cleanup: any prior test that mocked UI via :meck and
+        # crashed before unloading would leak the mock to this test, breaking
+        # any UI.error / UI.info / etc. paths and producing empty capture_log
+        # results for downstream tests. Force-unload before each test so the
+        # leaker can't poison the rest of the suite.
+        Fnord.TestCase.safe_meck_unload(UI)
+
         Mox.stub_with(UI.Output.Mock, UI.Output.TestStub)
         Services.Globals.put_env(:fnord, :ui_output, UI.Output.Mock)
       end

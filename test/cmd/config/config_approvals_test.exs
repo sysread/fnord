@@ -13,6 +13,12 @@ defmodule Cmd.Config.ApprovalsTest do
     old_level = Logger.level()
     Logger.configure(level: :error)
     on_exit(fn -> Logger.configure(level: old_level) end)
+    # Force-restore the Mox stub binding for UI.Output.Mock. The fnord_test_case
+    # setup at line 137 already calls stub_with, but seed-dependent suite state
+    # appears to lose the binding for this test (UI.error captures empty inside
+    # capture_log even though direct UI.Output.Mock.log calls work). Re-binding
+    # here makes the test deterministic.
+    Mox.stub_with(UI.Output.Mock, UI.Output.TestStub)
     :ok
   end
 

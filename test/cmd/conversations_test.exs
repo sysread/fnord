@@ -3,6 +3,12 @@ defmodule Cmd.ConversationsTest do
 
   setup do
     set_config(quiet: true)
+    # Defensive cleanup: tests in this file mock UI via :meck mid-body and
+    # call safe_meck_unload at the end. If a test crashes between, the mock
+    # leaks and breaks downstream tests that capture_log on UI.error
+    # (UI.error stays mocked to print to stderr instead of going through
+    # Logger). on_exit here always unloads UI even on crash.
+    on_exit(fn -> safe_meck_unload(UI) end)
     {:ok, project: mock_project("test_proj")}
   end
 

@@ -51,20 +51,18 @@ defmodule Cmd.AskTest do
 
   describe "run/3 exception handling" do
     setup do
-      # Force exception in Services.Conversation.start_link via :meck
-      :meck.new(Services.Conversation, [:passthrough])
-      :meck.new(GitCli, [:passthrough])
+      # safe_meck_new tolerates a previously-leaked mock by unloading it
+      # first, preventing :already_started errors when this setup runs after
+      # an unrelated test that mocked the same module without cleanup.
+      :ok = safe_meck_new(Services.Conversation, [:passthrough])
+      :ok = safe_meck_new(GitCli, [:passthrough])
       :meck.expect(Services.Conversation, :start_link, fn _args -> raise "boom" end)
       :meck.expect(GitCli, :is_worktree?, fn -> false end)
       :meck.validate(Services.Conversation)
 
       on_exit(fn ->
         for mod <- [Services.Conversation, GitCli] do
-          try do
-            :meck.unload(mod)
-          catch
-            _, _ -> :ok
-          end
+          safe_meck_unload(mod)
         end
       end)
 
@@ -254,7 +252,16 @@ defmodule Cmd.AskTest do
 
   describe "run/3 merged worktree reporting" do
     setup do
+      # Store.Project must be in this list because the tests below
+      # :meck.expect(Store.Project, :index_status, ...). Calling :meck.expect
+      # on a module that has not been :meck.new'd creates an IMPLICIT
+      # non-passthrough mock that leaks past the test boundary - subsequent
+      # tests in the suite (Cmd.FilesTest, Cmd.IndexTest, Store.Project.EntryTest,
+      # Cmd.SummaryTest, etc.) call Store.Project.index_status as part of
+      # their indexing setup and get back the empty mock result, which made
+      # them fail with "No files to index" / "No conversations to index".
       :ok = safe_meck_new(Store, [:passthrough])
+      :ok = safe_meck_new(Store.Project, [:passthrough])
       :ok = safe_meck_new(Settings, [:passthrough])
       :ok = safe_meck_new(UI, [:passthrough])
       :ok = safe_meck_new(GitCli, [:passthrough])
@@ -272,6 +279,7 @@ defmodule Cmd.AskTest do
         Enum.each(
           [
             Store,
+            Store.Project,
             Settings,
             UI,
             GitCli,

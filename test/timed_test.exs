@@ -3,6 +3,12 @@ defmodule TimedTest do
   import ExUnit.CaptureLog
 
   setup do
+    # CRITICAL: register the restore on_exit BEFORE changing the level, so the
+    # restore fires even if the test crashes between configure and the next
+    # statement. Without on_exit cleanup at all, this setup permanently
+    # changes the global Logger level for the rest of the suite.
+    orig = Logger.level()
+    on_exit(fn -> Logger.configure(level: orig) end)
     Logger.configure(level: :info)
     :ok
   end
