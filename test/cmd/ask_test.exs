@@ -190,7 +190,12 @@ defmodule Cmd.AskTest do
       :meck.expect(Clipboard, :copy, fn _ -> :ok end)
       :meck.expect(Notifier, :notify, fn _, _ -> :ok end)
 
-      assert :ok == Cmd.Ask.run(%{question: "hello", save: true}, [], [])
+      {_stdout, stderr} =
+        capture_all(fn ->
+          assert :ok == Cmd.Ask.run(%{question: "hello", save: true}, [], [])
+        end)
+
+      assert stderr =~ "(no file changes during this session)"
       assert :meck.called(UI, :error, ["Failed to save output: disk_full"])
     end
 
@@ -235,7 +240,12 @@ defmodule Cmd.AskTest do
       :meck.expect(Clipboard, :copy, fn _ -> {:error, :unavailable} end)
       :meck.expect(Notifier, :notify, fn _, _ -> :ok end)
 
-      assert :ok == Cmd.Ask.run(%{question: "hello"}, [], [])
+      {_stdout, stderr} =
+        capture_all(fn ->
+          assert :ok == Cmd.Ask.run(%{question: "hello"}, [], [])
+        end)
+
+      assert stderr =~ "(no file changes during this session)"
       assert_receive {:ui_say, output}
       assert output =~ "Conversation saved with ID conv-1"
       refute output =~ "copied to clipboard"

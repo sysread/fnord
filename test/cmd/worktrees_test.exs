@@ -143,7 +143,12 @@ defmodule Cmd.WorktreesTest do
         flunk("branch deletion should not be attempted when worktree deletion fails")
       end)
 
-      assert :ok == Cmd.Worktrees.run(%{conversation: "conv-1"}, [:delete], [])
+      {stdout, _stderr} =
+        capture_all(fn ->
+          assert :ok == Cmd.Worktrees.run(%{conversation: "conv-1"}, [:delete], [])
+        end)
+
+      assert stdout =~ "Force delete anyway?"
     end
 
     test "merges a worktree by conversation id via interactive review" do
