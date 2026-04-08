@@ -185,11 +185,13 @@ defmodule AI.Completion.Output do
   end
 
   @doc """
-  Replays the entire conversation, similarly to `replay_conversation/1`, but
-  prints the final message to STDOUT, identically to the original interaction.
-  This is intended to be used when replaying the entire conversation to
-  replicate the original interaction, rather than for the sake of continuing
-  the conversation to refine output.
+  Replays the entire conversation, similarly to `replay_conversation/1`, while
+  rendering the final assistant response to STDOUT in the same shape the user
+  would receive from the CLI.
+
+  Piped output stays plain for copy/paste safety. Interactive terminal output
+  adds the same kind of framed emphasis used by other prominent terminal
+  sections so the replay ends with a clear handoff from the agent to the user.
   """
   def replay_conversation_as_output(state) do
     # Retrieve messages and convert to an atom-keyed map, extracting the final
@@ -231,19 +233,7 @@ defmodule AI.Completion.Output do
     # coordinate the two streams.
     Process.sleep(100)
 
-    # Print the final assistant response to STDOUT.
-    #
-    # We only apply the external FNORD_FORMATTER when STDOUT is a TTY. When the
-    # output is piped (e.g. `fnord replay ... | pbcopy`), formatting is suppressed
-    # so that the resulting text is clean and copy/paste safe.
-    output = "\n#{response.content}\n"
-
-    output =
-      case UI.stdout_tty?() do
-        true -> UI.format(output)
-        false -> output
-      end
-
+    output = format_final_response_output(response.content, agent_name, UI.stdout_tty?())
     IO.write(:stdio, output)
 
     state
@@ -271,6 +261,49 @@ defmodule AI.Completion.Output do
       _ ->
         :ok
     end
+  end
+
+  # Formats the final assistant response for the terminal. Piped output stays
+  # plain so saved or redirected text remains clean, while interactive terminal
+  # output gets a framed banner naming the agent before the response body.
+  defp format_final_response_output(content, agent_name, true) do
+    content
+    |> final_response_with_banner(agent_name)
+    |> UI.format()
+  end
+
+  defp format_final_response_output(content, _agent_name, false) do
+    "\n#{content}\n"
+  end
+
+  # Wraps the final assistant response in the same visual framing used by other
+  # prominent terminal sections so the end of the replay reads like a deliberate
+  # handoff from the agent to the user.
+  defp final_response_with_banner(content, agent_name) do
+    [
+      "\n",
+      response_banner_separator(),
+      "\n",
+      response_banner_title(agent_name),
+      "\n",
+      response_banner_separator(),
+      "\n\n",
+      content,
+      "\n"
+    ]
+    |> IO.iodata_to_binary()
+  end
+
+  # Builds the separator line used around the final response banner.
+  defp response_banner_separator do
+    IO.ANSI.format([:cyan, String.duplicate("─", 60), :reset], true)
+  end
+
+  # Builds the banner title for the final response using the responding agent's
+  # name.
+  defp response_banner_title(agent_name) do
+    title = " ◆ #{agent_name}'s Response ◆ "
+    IO.ANSI.format([:cyan_background, :black, :bright, title, :reset], true)
   end
 
   defp build_tool_call_args(messages) do

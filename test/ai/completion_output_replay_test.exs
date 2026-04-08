@@ -184,12 +184,20 @@ defmodule AI.CompletionOutputReplayTest do
       :ok
     end)
 
+    :meck.expect(UI, :stdout_tty?, fn -> true end)
+
+    :meck.expect(UI, :format, fn msg -> msg end)
+
     output =
       capture_io(:stdio, fn ->
         AI.Completion.Output.replay_conversation_as_output(state)
       end)
 
-    assert output == "\nFinal assistant response\n"
+    assert output =~ "◆ Dev Agent's Response ◆"
+    assert output =~ "Final assistant response"
+    assert output =~ "────────────────────────────────────────────────────────────"
+
+    assert output =~ ~r/◆ Dev Agent's Response ◆.*Final assistant response/s
 
     receive do
       {:ui_step_msg, "Dev Agent", _step, _msg} -> :ok
