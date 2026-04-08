@@ -7,7 +7,7 @@ defmodule GitCli.Worktree.Review do
   Includes pre-merge and post-merge validation gates that run the project's
   configured validation rules against the worktree (before merge) and the
   main checkout (after merge). Post-merge validation failure triggers an
-  automatic revert.
+  automatic revert, while merge command failures are returned to the caller.
   """
 
   @type worktree_info :: %{
@@ -19,8 +19,8 @@ defmodule GitCli.Worktree.Review do
   @type review_result ::
           :ok
           | {:cleaned_up, String.t() | nil, :interactive | :auto}
-          | {:validation_failed, :pre_merge, String.t()}
-          | {:validation_failed, :post_merge, String.t()}
+          | {:validation_failed, :pre_merge | :post_merge, String.t()}
+          | {:merge_failed, String.t()}
 
   @spec interactive_review(String.t(), worktree_info()) :: review_result()
   @doc """
@@ -69,11 +69,15 @@ defmodule GitCli.Worktree.Review do
 
       {:validation_failed, :post_merge, _summary} = failure ->
         throw(failure)
+
+      {:merge_failed, _reason} = failure ->
+        throw(failure)
     end
   catch
     :throw, :skip -> :ok
     :throw, {:cleaned_up, sha, mode} -> {:cleaned_up, sha, mode}
     :throw, {:validation_failed, _, _} = failure -> failure
+    :throw, {:merge_failed, _reason} = failure -> failure
   end
 
   @spec auto_merge(String.t(), worktree_info()) :: review_result()
@@ -100,13 +104,18 @@ defmodule GitCli.Worktree.Review do
 
       {:validation_failed, :post_merge, _summary} = failure ->
         throw(failure)
+
+      {:merge_failed, _reason} = failure ->
+        throw(failure)
     end
   catch
     :throw, {:validation_failed, _, _} = failure -> failure
+    :throw, {:merge_failed, _reason} = failure -> failure
   end
 
   # Merges the worktree branch into root, then runs post-merge validation.
-  # If post-merge validation fails, reverts the merge.
+  # If the merge command fails, returns the failure to the caller. If
+  # post-merge validation fails, reverts the merge.
   defp do_merge_with_post_validation(root, path, branch, target) do
     case GitCli.Worktree.merge(root, path) do
       {:ok, _} ->
@@ -130,7 +139,7 @@ defmodule GitCli.Worktree.Review do
 
       {:error, reason} ->
         UI.error("Merge failed: #{reason}")
-        {:ok, nil}
+        {:merge_failed, reason}
     end
   end
 

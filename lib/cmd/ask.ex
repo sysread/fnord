@@ -1185,6 +1185,10 @@ defmodule Cmd.Ask do
             maybe_auto_commit(path, true, conversation_pid)
             maybe_worktree_review(path, true, conversation_pid, auto_merge?, attempt + 1)
 
+          {:merge_failed, _reason} ->
+            show_worktree_hints(path, conversation_pid)
+            :unmerged
+
           :ok ->
             show_worktree_hints(path, conversation_pid)
             :unmerged

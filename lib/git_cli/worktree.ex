@@ -12,7 +12,7 @@ defmodule GitCli.Worktree do
           path: String.t(),
           branch: String.t() | nil,
           base_branch: String.t() | nil,
-          merge_status: :merged | :ahead | :diverged | :unknown,
+          merge_status: :ahead | :diverged | :unknown,
           size: non_neg_integer(),
           exists?: boolean()
         }
@@ -558,11 +558,14 @@ defmodule GitCli.Worktree do
   end
 
   @spec merge_status(String.t(), String.t(), String.t() | nil, String.t() | nil) ::
-          :merged | :ahead | :diverged | :unknown
+          :ahead | :diverged | :unknown
   @doc """
   Returns the merge status of a worktree branch relative to its base branch.
-  Returns `:diverged` when the base has commits the worktree branch lacks
-  (indicating a rebase is needed).
+
+  Returns `:ahead` when the worktree branch contains the base branch and
+  `:unknown` when the worktree path or any branch metadata is unavailable.
+  Any other git result is reported as `:diverged` so callers can treat the
+  branch as needing manual attention before merge.
   """
   def merge_status(path, root, branch, base_branch) do
     cond do

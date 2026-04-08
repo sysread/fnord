@@ -102,10 +102,12 @@ Pruning by age requires interactive confirmation and cannot be undone.
 Replay a saved conversation to stdout.
 
 ```bash
-fnord replay -c <uuid>
+fnord replay --conversation <uuid>
 ```
 
 - `--conversation / -c UUID` - conversation id to replay (required)
+
+`fnord ask --follow <uuid> --replay` offers the same replay behavior from the ask workflow.
 
 ## summary
 
@@ -180,4 +182,15 @@ fnord prime
 
 ## worktrees
 
-See [Worktrees](worktrees.md).
+Manage fnord-managed git worktrees for conversations.
+
+```bash
+fnord worktrees list
+fnord worktrees create --conversation <uuid>
+fnord worktrees create --conversation <uuid> --branch feature-name
+fnord worktrees delete --conversation <uuid>
+fnord worktrees view --conversation <uuid>
+fnord worktrees merge --conversation <uuid>
+```
+
+See [Worktrees](worktrees.md) for lifecycle details and how these commands interact with `fnord ask --edit`.

@@ -11,7 +11,7 @@ All edits happen on an isolated branch — your working tree is never modified d
 For non-git projects, edits are applied directly to the source files.
 
 At the end of the session, you decide what to do with the changes: inspect the diff, merge into your current branch, or leave them in the worktree for later.
-With `--yes`, the worktree changes are auto-merged and cleaned up at the end.
+With `--yes`, fnord-managed worktrees skip the interactive review and attempt the same merge-and-cleanup flow automatically.
 
 The worktree is associated with the conversation and persisted in conversation metadata, so resuming the conversation (`--follow`) reuses the same worktree.
 
@@ -84,7 +84,7 @@ After the coordinator finishes in a fnord-managed worktree, the user is prompted
 2. **Merge**: merge the branch into whatever is checked out in the actual project root
 3. **Clean up**: delete the worktree directory and local branch
 
-With `--yes`, the post-session review is skipped and changes are auto-merged with cleanup.
+With `--yes`, the post-session review is skipped and fnord attempts the same merge-and-cleanup flow automatically.
 
 ## Forking conversations with worktrees
 
@@ -130,7 +130,7 @@ Removes a conversation's worktree. Checks for uncommitted and unmerged changes b
 
 If the worktree has uncommitted changes, prompts for confirmation before force-deleting.
 If the worktree branch has unmerged commits, warns and prompts before proceeding.
-On deletion, worktree metadata is stripped from the conversation and a system message is injected so the AI knows the worktree is gone on follow-up.
+On deletion, worktree metadata is stripped from the conversation so follow-up runs no longer treat the conversation as bound to the removed worktree.
 
 ### merge
 
