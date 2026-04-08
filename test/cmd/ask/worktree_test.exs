@@ -10,8 +10,13 @@ defmodule Cmd.Ask.WorktreeTest do
     safe_meck_new(Services.Conversation, [:no_link, :passthrough, :non_strict])
     on_exit(fn -> safe_meck_unload(Services.Conversation) end)
 
-    safe_meck_new(GitCli, [:no_link, :passthrough, :non_strict])
-    on_exit(fn -> safe_meck_unload(GitCli) end)
+    # GitCli is intentionally NOT mocked here. Tests in this module only
+    # set expectations on GitCli.Worktree (a separate module), so wrapping
+    # the bare GitCli module via :meck.new is dead code AND it races with
+    # GitCli.Test running concurrently on another worker - meck wraps the
+    # module globally, so a passthrough call from the other test process
+    # routes through this test's meck server and can return wrong results
+    # depending on timing. Mock only what is actually used.
 
     safe_meck_new(UI, [:no_link, :passthrough, :non_strict])
     on_exit(fn -> safe_meck_unload(UI) end)

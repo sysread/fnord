@@ -80,6 +80,13 @@ defmodule AI.Tools.File.EditTest do
       beta
       """)
 
+    # Explicit meck lifecycle: calling :meck.expect on a module that has not
+    # been :meck.new'd creates an implicit mock that NEVER gets unloaded,
+    # leaking GitCli.is_git_repo? -> false to every subsequent test in the
+    # suite. on_exit registered before the expectation so cleanup runs even
+    # if the test crashes mid-body.
+    on_exit(fn -> safe_meck_unload(GitCli) end)
+    :ok = safe_meck_new(GitCli, [:passthrough])
     :meck.expect(GitCli, :is_git_repo?, fn -> false end)
 
     assert {:ok, result} =

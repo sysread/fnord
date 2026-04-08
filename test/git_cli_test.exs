@@ -1,15 +1,21 @@
 defmodule GitCli.Test do
   use Fnord.TestCase, async: false
 
-  # Helper to change working directory for a block and restore afterward
+  # Helper to scope GitCli's "current directory" to `dir` for a block. Uses
+  # Settings.set_project_root_override (which GitCli.effective_git_dir/0
+  # consults first) instead of File.cd!. File.cd! would change the global
+  # BEAM cwd, racing with any concurrent test that reads File.cwd!() and
+  # producing seed-dependent CI failures under max_cases > 1. The override
+  # is process-tree scoped via Services.Globals, so it does not leak across
+  # test processes.
   defp cd(dir, fun) do
-    original = File.cwd!()
-    File.cd!(dir)
+    previous = Settings.get_project_root_override()
+    Settings.set_project_root_override(dir)
 
     try do
       fun.()
     after
-      File.cd!(original)
+      Settings.set_project_root_override(previous)
     end
   end
 
@@ -84,7 +90,12 @@ defmodule GitCli.Test do
       cd(project.source_root, fn ->
         git_config_user!(project)
         git_empty_commit!(project)
-        sha = System.cmd("git", ["rev-parse", "--short", "HEAD"]) |> elem(0) |> String.trim()
+
+        sha =
+          System.cmd("git", ["rev-parse", "--short", "HEAD"], cd: project.source_root)
+          |> elem(0)
+          |> String.trim()
+
         git_checkout_detached!(project, sha)
 
         assert GitCli.is_worktree?()
@@ -113,9 +124,9 @@ defmodule GitCli.Test do
     test "in git repo returns the multi-line info with root", %{project: project} do
       cd(project.source_root, fn ->
         # Ensure HEAD exists by making an initial empty commit
-        System.cmd("git", ["config", "user.email", "test@example.com"])
-        System.cmd("git", ["config", "user.name", "Test User"])
-        System.cmd("git", ["commit", "--allow-empty", "-m", "initial"])
+        System.cmd("git", ["config", "user.email", "test@example.com"], cd: project.source_root)
+        System.cmd("git", ["config", "user.name", "Test User"], cd: project.source_root)
+        System.cmd("git", ["commit", "--allow-empty", "-m", "initial"], cd: project.source_root)
 
         # Capture the actual git root from the module under test
         root = GitCli.worktree_root()
@@ -191,7 +202,12 @@ defmodule GitCli.Test do
       cd(project.source_root, fn ->
         git_config_user!(project)
         git_empty_commit!(project)
-        sha = System.cmd("git", ["rev-parse", "--short", "HEAD"]) |> elem(0) |> String.trim()
+
+        sha =
+          System.cmd("git", ["rev-parse", "--short", "HEAD"], cd: project.source_root)
+          |> elem(0)
+          |> String.trim()
+
         git_checkout_detached!(project, sha)
         assert GitCli.current_branch() == "@#{sha}"
       end)
