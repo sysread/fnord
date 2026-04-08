@@ -290,37 +290,51 @@ defmodule AI.CompletionTest do
 
   describe "tools_used/1" do
     test "returns empty map if no messages" do
-      assert %{} = AI.Completion.tools_used(%AI.Completion{messages: []})
+      assert %{} =
+               AI.Completion.tools_used(%AI.Completion{
+                 messages: [],
+                 initial_message_count: 0
+               })
     end
 
-    test "returns tool call counts for a single message with multiple tools" do
-      # Only counts tool calls after the user message
-      messages = [
-        AI.Util.user_msg("start"),
-        %{
-          tool_calls: [
-            %{function: %{name: "foo"}},
-            %{function: %{name: "bar"}},
-            %{function: %{name: "foo"}}
+    test "counts tools appended after the initial message snapshot" do
+      initial = [AI.Util.user_msg("start")]
+
+      messages =
+        initial ++
+          [
+            %{
+              tool_calls: [
+                %{function: %{name: "foo"}},
+                %{function: %{name: "bar"}},
+                %{function: %{name: "foo"}}
+              ]
+            }
           ]
-        }
-      ]
 
       assert %{"foo" => 2, "bar" => 1} =
-               AI.Completion.tools_used(%AI.Completion{messages: messages})
+               AI.Completion.tools_used(%AI.Completion{
+                 messages: messages,
+                 initial_message_count: length(initial)
+               })
     end
 
     test "returns tool call counts across multiple messages" do
-      # Only counts tool calls after the user message
-      messages = [
-        AI.Util.user_msg("hello"),
-        %{tool_calls: [%{function: %{name: "foo"}}]},
-        %{},
-        %{tool_calls: [%{function: %{name: "foo"}}, %{function: %{name: "bar"}}]}
-      ]
+      initial = [AI.Util.user_msg("hello")]
+
+      messages =
+        initial ++
+          [
+            %{tool_calls: [%{function: %{name: "foo"}}]},
+            %{},
+            %{tool_calls: [%{function: %{name: "foo"}}, %{function: %{name: "bar"}}]}
+          ]
 
       assert %{"foo" => 2, "bar" => 1} =
-               AI.Completion.tools_used(%AI.Completion{messages: messages})
+               AI.Completion.tools_used(%AI.Completion{
+                 messages: messages,
+                 initial_message_count: length(initial)
+               })
     end
 
     test "ignores messages with no tool_calls key or non-matching entries" do
@@ -330,24 +344,62 @@ defmodule AI.CompletionTest do
         %{tool_calls: []}
       ]
 
-      assert %{} = AI.Completion.tools_used(%AI.Completion{messages: messages})
+      assert %{} =
+               AI.Completion.tools_used(%AI.Completion{
+                 messages: messages,
+                 initial_message_count: 0
+               })
     end
 
-    test "only counts tool_calls after the most recent user message" do
-      # Tool calls before the last user message should be ignored
-      messages = [
+    test "ignores tool calls present before the initial snapshot" do
+      # Tool calls that already existed in the input messages must not be
+      # counted - they belong to a prior completion round.
+      initial = [
         %{tool_calls: [%{function: %{name: "before"}}]},
-        AI.Util.user_msg("continue"),
-        %{
-          tool_calls: [
-            %{function: %{name: "after1"}},
-            %{function: %{name: "after2"}}
-          ]
-        }
+        AI.Util.user_msg("continue")
       ]
 
+      messages =
+        initial ++
+          [
+            %{
+              tool_calls: [
+                %{function: %{name: "after1"}},
+                %{function: %{name: "after2"}}
+              ]
+            }
+          ]
+
       assert %{"after1" => 1, "after2" => 1} ==
-               AI.Completion.tools_used(%AI.Completion{messages: messages})
+               AI.Completion.tools_used(%AI.Completion{
+                 messages: messages,
+                 initial_message_count: length(initial)
+               })
+    end
+
+    test "still counts tools when an interrupt user message arrives mid-round" do
+      # Regression: a user interjection injected mid-completion via
+      # maybe_apply_interrupts/1 used to become the new "last user message"
+      # under the old heuristic, hiding any tool calls that fired earlier in
+      # the same round and silently flipping editing_tools_used off. The
+      # initial_message_count snapshot is stable across mid-round user message
+      # injection.
+      initial = [AI.Util.user_msg("implement the banner")]
+
+      messages =
+        initial ++
+          [
+            %{tool_calls: [%{function: %{name: "file_edit_tool"}}]},
+            %{tool_calls: [%{function: %{name: "file_edit_tool"}}]},
+            AI.Util.user_msg("[User Interjection] also fix the test failures"),
+            %{tool_calls: [%{function: %{name: "notify_tool"}}]}
+          ]
+
+      assert %{"file_edit_tool" => 2, "notify_tool" => 1} ==
+               AI.Completion.tools_used(%AI.Completion{
+                 messages: messages,
+                 initial_message_count: length(initial)
+               })
     end
   end
 

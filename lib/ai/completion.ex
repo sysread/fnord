@@ -37,7 +37,13 @@ defmodule AI.Completion do
     :response,
     :compact?,
     :is_compacting?,
-    :conversation_pid
+    :conversation_pid,
+    # Snapshot of length(messages) at the start of this completion round.
+    # tools_used/1 uses this as a stable round delimiter so mid-loop interrupt
+    # injection (which appends user messages into state.messages between LLM
+    # iterations) does not hide tool calls that fired earlier in the same
+    # round. See tools_used/1 for the rationale.
+    :initial_message_count
   ]
 
   @type t :: %__MODULE__{
@@ -57,7 +63,8 @@ defmodule AI.Completion do
           tool_call_requests: list(),
           response: String.t() | nil,
           compact?: bool,
-          is_compacting?: bool
+          is_compacting?: bool,
+          initial_message_count: non_neg_integer()
         }
 
   @type response ::
@@ -117,6 +124,7 @@ defmodule AI.Completion do
 
       archive? = Keyword.get(opts, :archive_notes, false)
       messages = set_name(messages, name)
+      initial_message_count = length(messages)
 
       # Back-compat: historically this option key was `:conversation` even
       # though the value was a PID. Prefer the explicit `:conversation_pid`
@@ -144,7 +152,8 @@ defmodule AI.Completion do
           tool_call_requests: [],
           response: nil,
           compact?: compact?,
-          is_compacting?: false
+          is_compacting?: false,
+          initial_message_count: initial_message_count
         }
 
       {:ok, state}
@@ -171,39 +180,36 @@ defmodule AI.Completion do
   end
 
   @doc """
-  Returns a map of tool names to the number of times each tool was called in
-  the most recent round of the conversation, starting from the most recent user
-  message.
+  Returns a map of tool names to the number of times each tool was called
+  during this completion round - that is, in messages that were appended after
+  AI.Completion.new/1 captured the starting message length.
+
+  This delimiter is stable in the presence of mid-loop interrupt injection. An
+  earlier implementation used "tools after the last user message" as the round
+  boundary, which broke whenever a user interjection arrived mid-round: the
+  injected user message became the new "last user", hiding any tool calls that
+  had already executed earlier in the same round. That bug silently dropped
+  the editing_tools_used flag and skipped end-of-session worktree merges.
+
+  Falls back to scanning all messages when initial_message_count is missing
+  (older state structs that predate this field).
   """
   @spec tools_used(t) :: %{binary => non_neg_integer()}
-  def tools_used(%{messages: messages}) do
-    # Find the index of the most recent user message in the conversation
-    last_user_index =
-      messages
-      |> Enum.with_index()
-      |> Enum.reduce(nil, fn
-        {%{role: "user"}, idx}, _ -> idx
-        _, acc -> acc
-      end)
+  def tools_used(%{messages: messages} = state) do
+    drop_count = Map.get(state, :initial_message_count) || 0
 
-    # If no user message exists, return an empty map
-    if last_user_index == nil do
-      %{}
-    else
-      # Count tool calls only in messages after the last user message
-      messages
-      |> Enum.drop(last_user_index + 1)
-      |> Enum.reduce(%{}, fn
-        %{tool_calls: tool_calls}, acc ->
-          tool_calls
-          |> Enum.reduce(acc, fn %{function: %{name: func}}, acc ->
-            Map.update(acc, func, 1, &(&1 + 1))
-          end)
+    messages
+    |> Enum.drop(drop_count)
+    |> Enum.reduce(%{}, fn
+      %{tool_calls: tool_calls}, acc ->
+        tool_calls
+        |> Enum.reduce(acc, fn %{function: %{name: func}}, acc ->
+          Map.update(acc, func, 1, &(&1 + 1))
+        end)
 
-        _, acc ->
-          acc
-      end)
-    end
+      _, acc ->
+        acc
+    end)
   end
 
   # -----------------------------------------------------------------------------
