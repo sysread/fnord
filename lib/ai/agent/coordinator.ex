@@ -765,12 +765,7 @@ defmodule AI.Agent.Coordinator do
           |> Services.Conversation.append_msg(conversation_pid)
 
         _ ->
-          """
-          This conversation does not yet have a worktree.
-          Before making any file changes, use the git_worktree_tool with action "create" to create a worktree.
-          You may optionally provide a short descriptive branch name. The project and conversation are derived automatically.
-          All subsequent edits must target the created worktree.
-          """
+          no_worktree_msg(state)
           |> AI.Util.system_msg()
           |> Services.Conversation.append_msg(conversation_pid)
       end
@@ -780,6 +775,46 @@ defmodule AI.Agent.Coordinator do
   end
 
   defp worktree_context_msg(state), do: state
+
+  # The "no worktree" message has two flavors. For a fresh conversation, the
+  # message is a simple instruction to create one before editing. For a
+  # follow-up or fork resume, the LLM may have created and used a worktree in
+  # an earlier session that has since been merged or deleted (either by the
+  # ask flow itself or out-of-band via `fnord worktrees merge` / `delete`).
+  # The conversation history will still reference those edits, so we tell the
+  # LLM to verify the disposition rather than assume the prior changes are
+  # still pending.
+  defp no_worktree_msg(%{followup?: true}) do
+    """
+    This conversation does not currently have a worktree.
+
+    If earlier turns in this conversation already created and edited a worktree,
+    that worktree may have since been merged into the base branch or deleted -
+    either by the end-of-session merge flow or by an out-of-band
+    `fnord worktrees merge` / `fnord worktrees delete`. Do NOT assume those
+    prior edits are still pending in a reachable worktree.
+
+    Before building on prior changes, verify their actual disposition. In a
+    git repository, inspect recent history on the base branch (e.g. `git log`
+    on the relevant files or paths) to confirm whether the work landed. If
+    the project is not under version control, inspect the files directly.
+
+    If you need to make new file changes, use the git_worktree_tool with
+    action "create" to create a fresh worktree first. You may optionally
+    provide a short descriptive branch name. The project and conversation are
+    derived automatically. All subsequent edits must target the created
+    worktree.
+    """
+  end
+
+  defp no_worktree_msg(_state) do
+    """
+    This conversation does not yet have a worktree.
+    Before making any file changes, use the git_worktree_tool with action "create" to create a worktree.
+    You may optionally provide a short descriptive branch name. The project and conversation are derived automatically.
+    All subsequent edits must target the created worktree.
+    """
+  end
 
   # If the worktree branch has diverged from its base (i.e., the base branch
   # has moved forward since the worktree was created), instruct the
