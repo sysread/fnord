@@ -231,6 +231,12 @@ defmodule Cmd.Ask do
         worktree_status =
           maybe_worktree_review(effective_worktree_path, edited?, pid, auto_merge?)
 
+        final_worktree_path = final_worktree_path(effective_worktree_path, worktree_status)
+
+        if is_nil(final_worktree_path) do
+          Settings.set_project_root_override(nil)
+        end
+
         maybe_save_output(opts, conversation_id, response)
 
         copied_to_clipboard? =
@@ -243,7 +249,7 @@ defmodule Cmd.Ask do
           usage,
           context,
           conversation_id,
-          effective_worktree_path,
+          final_worktree_path,
           copied_to_clipboard?,
           worktree_status
         )
@@ -707,7 +713,7 @@ defmodule Cmd.Ask do
     UI.flush()
   end
 
-  defp print_worktree_status({:merged, sha}) when is_binary(sha) do
+  defp print_worktree_status({:merged, sha, :interactive}) when is_binary(sha) do
     line =
       IO.ANSI.format(
         [:green, :bright, "✓ Worktree changes merged successfully (#{sha})", :reset],
@@ -718,10 +724,42 @@ defmodule Cmd.Ask do
     UI.Tee.write(["\n", line, "\n\n"])
   end
 
-  defp print_worktree_status({:merged, _}) do
+  defp print_worktree_status({:merged, _sha, :interactive}) do
     line =
       IO.ANSI.format(
         [:green, :bright, "✓ Worktree changes merged successfully", :reset],
+        true
+      )
+
+    IO.puts(:stderr, "\n#{line}\n")
+    UI.Tee.write(["\n", line, "\n\n"])
+  end
+
+  defp print_worktree_status({:merged, sha, :auto}) when is_binary(sha) do
+    line =
+      IO.ANSI.format(
+        [
+          :green,
+          :bright,
+          "✓ Worktree changes auto-merged because --yes was specified (#{sha})",
+          :reset
+        ],
+        true
+      )
+
+    IO.puts(:stderr, "\n#{line}\n")
+    UI.Tee.write(["\n", line, "\n\n"])
+  end
+
+  defp print_worktree_status({:merged, _sha, :auto}) do
+    line =
+      IO.ANSI.format(
+        [
+          :green,
+          :bright,
+          "✓ Worktree changes auto-merged because --yes was specified",
+          :reset
+        ],
         true
       )
 
@@ -887,6 +925,10 @@ defmodule Cmd.Ask do
   @spec worktree_path(worktree_meta) :: String.t()
   defp worktree_path(%{path: path}) when is_binary(path), do: path
 
+  @spec final_worktree_path(String.t() | nil, worktree_status()) :: String.t() | nil
+  defp final_worktree_path(_path, {:merged, _sha, _mode}), do: nil
+  defp final_worktree_path(path, _status), do: path
+
   defp format_worktree_summary(nil), do: ""
   defp format_worktree_summary(path), do: "\n- Worktree path: #{path}"
 
@@ -1015,7 +1057,10 @@ defmodule Cmd.Ask do
   # the coordinator to fix the issues in the worktree.
   @max_merge_attempts 3
 
-  @type worktree_status :: :no_changes | {:merged, String.t() | nil} | :unmerged
+  @type worktree_status ::
+          :no_changes
+          | :unmerged
+          | {:merged, String.t() | nil, :interactive | :auto}
 
   @spec maybe_worktree_review(String.t() | nil, boolean, pid, boolean, non_neg_integer) ::
           worktree_status()
@@ -1051,9 +1096,9 @@ defmodule Cmd.Ask do
         conv_id = Services.Conversation.get_id(conversation_pid)
 
         case result do
-          {:cleaned_up, sha} ->
+          {:cleaned_up, sha, mode} ->
             Cmd.WorktreeLifecycle.clear_worktree_from_conversation(conv_id)
-            {:merged, sha}
+            {:merged, sha, mode}
 
           {:validation_failed, phase, summary} ->
             UI.warn("Validation failed (#{phase}, attempt #{attempt}/#{@max_merge_attempts})")

@@ -251,4 +251,209 @@ defmodule Cmd.AskTest do
       refute output =~ "copied to clipboard"
     end
   end
+
+  describe "run/3 merged worktree reporting" do
+    setup do
+      :ok = safe_meck_new(Store, [:passthrough])
+      :ok = safe_meck_new(Settings, [:passthrough])
+      :ok = safe_meck_new(UI, [:passthrough])
+      :ok = safe_meck_new(GitCli, [:passthrough])
+      :ok = safe_meck_new(GitCli.Worktree, [:passthrough])
+      :ok = safe_meck_new(GitCli.Worktree.Review, [:passthrough])
+      :ok = safe_meck_new(Services.Conversation, [:passthrough])
+      :ok = safe_meck_new(Services.Task, [:passthrough])
+      :ok = safe_meck_new(Memory, [:passthrough])
+      :ok = safe_meck_new(Clipboard, [:passthrough])
+      :ok = safe_meck_new(Notifier, [:passthrough])
+
+      on_exit(fn ->
+        Settings.set_project_root_override(nil)
+
+        Enum.each(
+          [
+            Store,
+            Settings,
+            UI,
+            GitCli,
+            GitCli.Worktree,
+            GitCli.Worktree.Review,
+            Services.Conversation,
+            Services.Task,
+            Memory,
+            Clipboard,
+            Notifier
+          ],
+          fn mod ->
+            try do
+              :meck.unload(mod)
+            catch
+              _, _ -> :ok
+            end
+          end
+        )
+      end)
+
+      :ok
+    end
+
+    test "clears the final worktree summary after interactive merge cleanup" do
+      {:ok, worktree_dir} = tmpdir()
+      Settings.set_project_root_override(worktree_dir)
+      parent = self()
+      project = Store.Project.new("demo", "/tmp/demo")
+      settings = Settings.new()
+
+      :meck.expect(Settings, :get_project_data, fn ^settings, "demo" ->
+        %{"root" => "/tmp/demo"}
+      end)
+
+      :meck.expect(Store, :get_project, fn -> {:ok, project} end)
+      :meck.expect(Store.Project, :index_status, fn _ -> %{new: [], stale: [], deleted: []} end)
+      :meck.expect(UI, :quiet?, fn -> true end)
+      :meck.expect(UI, :debug, fn _, _ -> :ok end)
+      :meck.expect(UI, :error, fn _ -> :ok end)
+      :meck.expect(UI, :report_step, fn _, _ -> :ok end)
+      :meck.expect(UI, :flush, fn -> :ok end)
+      :meck.expect(UI, :warn, fn _ -> :ok end)
+      :meck.expect(UI, :spin, fn _label, fun -> fun.() end)
+
+      :meck.expect(UI, :say, fn message ->
+        send(parent, {:ui_say, message})
+        :ok
+      end)
+
+      :meck.expect(GitCli, :is_worktree?, fn -> false end)
+      :meck.expect(GitCli.Worktree, :fnord_managed?, fn "demo", ^worktree_dir -> true end)
+      :meck.expect(GitCli.Worktree, :has_uncommitted_changes?, fn ^worktree_dir -> true end)
+
+      :meck.expect(GitCli.Worktree.Review, :interactive_review, fn "/tmp/demo", meta ->
+        assert meta.path == worktree_dir
+        assert meta.branch == "feat"
+        assert meta.base_branch == "main"
+        {:cleaned_up, "abc123", :interactive}
+      end)
+
+      :meck.expect(Services.Conversation, :start_link, fn _ -> {:ok, self()} end)
+      :meck.expect(Services.Conversation, :get_id, fn _ -> "conv-1" end)
+
+      :meck.expect(Services.Conversation, :get_conversation_meta, fn _ ->
+        %{worktree: %{path: worktree_dir, branch: "feat", base_branch: "main"}}
+      end)
+
+      :meck.expect(Services.Conversation, :upsert_conversation_meta, fn _, %{worktree: nil} ->
+        :ok
+      end)
+
+      :meck.expect(Services.Conversation, :get_response, fn _, _ ->
+        {:ok, %{usage: 1, context: 2, last_response: "hello", editing_tools_used: true}}
+      end)
+
+      :meck.expect(Services.Conversation, :save, fn _ ->
+        {:ok, %{id: "conv-1", store_path: "/tmp/conv-1.json"}}
+      end)
+
+      :meck.expect(Services.Task, :start_link, fn opts ->
+        assert Keyword.get(opts, :conversation_pid) == self()
+        {:ok, self()}
+      end)
+
+      :meck.expect(Memory, :init, fn -> :ok end)
+      :meck.expect(Memory, :list, fn _ -> {:ok, []} end)
+      :meck.expect(Memory, :search_stats, fn -> nil end)
+      :meck.expect(Clipboard, :copy, fn _ -> :ok end)
+      :meck.expect(Notifier, :notify, fn _, _ -> :ok end)
+
+      {_stdout, stderr} =
+        capture_all(fn ->
+          assert :ok == Cmd.Ask.run(%{question: "hello", edit: true}, [], [])
+        end)
+
+      assert stderr =~ "Worktree changes merged successfully"
+      assert stderr =~ "abc123"
+      assert Settings.get_project_root_override() == nil
+
+      assert_receive {:ui_say, output}
+      refute output =~ "Worktree path:"
+    end
+
+    test "notes that --yes triggered auto-merge and clears the worktree summary" do
+      {:ok, worktree_dir} = tmpdir()
+      Settings.set_project_root_override(worktree_dir)
+      parent = self()
+      project = Store.Project.new("demo", "/tmp/demo")
+      settings = Settings.new()
+
+      :meck.expect(Settings, :get_project_data, fn ^settings, "demo" ->
+        %{"root" => "/tmp/demo"}
+      end)
+
+      :meck.expect(Store, :get_project, fn -> {:ok, project} end)
+      :meck.expect(Store.Project, :index_status, fn _ -> %{new: [], stale: [], deleted: []} end)
+      :meck.expect(UI, :quiet?, fn -> true end)
+      :meck.expect(UI, :debug, fn _, _ -> :ok end)
+      :meck.expect(UI, :error, fn _ -> :ok end)
+      :meck.expect(UI, :report_step, fn _, _ -> :ok end)
+      :meck.expect(UI, :flush, fn -> :ok end)
+      :meck.expect(UI, :warn, fn _ -> :ok end)
+      :meck.expect(UI, :spin, fn _label, fun -> fun.() end)
+
+      :meck.expect(UI, :say, fn message ->
+        send(parent, {:ui_say, message})
+        :ok
+      end)
+
+      :meck.expect(GitCli, :is_worktree?, fn -> false end)
+      :meck.expect(GitCli.Worktree, :fnord_managed?, fn "demo", ^worktree_dir -> true end)
+      :meck.expect(GitCli.Worktree, :has_uncommitted_changes?, fn ^worktree_dir -> true end)
+
+      :meck.expect(GitCli.Worktree.Review, :auto_merge, fn "/tmp/demo", meta ->
+        assert meta.path == worktree_dir
+        assert meta.branch == "feat"
+        assert meta.base_branch == "main"
+        {:cleaned_up, "def456", :auto}
+      end)
+
+      :meck.expect(Services.Conversation, :start_link, fn _ -> {:ok, self()} end)
+      :meck.expect(Services.Conversation, :get_id, fn _ -> "conv-1" end)
+
+      :meck.expect(Services.Conversation, :get_conversation_meta, fn _ ->
+        %{worktree: %{path: worktree_dir, branch: "feat", base_branch: "main"}}
+      end)
+
+      :meck.expect(Services.Conversation, :upsert_conversation_meta, fn _, %{worktree: nil} ->
+        :ok
+      end)
+
+      :meck.expect(Services.Conversation, :get_response, fn _, _ ->
+        {:ok, %{usage: 1, context: 2, last_response: "hello", editing_tools_used: true}}
+      end)
+
+      :meck.expect(Services.Conversation, :save, fn _ ->
+        {:ok, %{id: "conv-1", store_path: "/tmp/conv-1.json"}}
+      end)
+
+      :meck.expect(Services.Task, :start_link, fn opts ->
+        assert Keyword.get(opts, :conversation_pid) == self()
+        {:ok, self()}
+      end)
+
+      :meck.expect(Memory, :init, fn -> :ok end)
+      :meck.expect(Memory, :list, fn _ -> {:ok, []} end)
+      :meck.expect(Memory, :search_stats, fn -> nil end)
+      :meck.expect(Clipboard, :copy, fn _ -> :ok end)
+      :meck.expect(Notifier, :notify, fn _, _ -> :ok end)
+
+      {_stdout, stderr} =
+        capture_all(fn ->
+          assert :ok == Cmd.Ask.run(%{question: "hello", edit: true, yes: true}, [], [])
+        end)
+
+      assert stderr =~ "auto-merged because --yes was specified"
+      assert stderr =~ "def456"
+      assert Settings.get_project_root_override() == nil
+
+      assert_receive {:ui_say, output}
+      refute output =~ "Worktree path:"
+    end
+  end
 end

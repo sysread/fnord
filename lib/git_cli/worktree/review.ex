@@ -18,7 +18,7 @@ defmodule GitCli.Worktree.Review do
 
   @type review_result ::
           :ok
-          | {:cleaned_up, String.t() | nil}
+          | {:cleaned_up, String.t() | nil, :interactive | :auto}
           | {:validation_failed, :pre_merge, String.t()}
           | {:validation_failed, :post_merge, String.t()}
 
@@ -62,7 +62,7 @@ defmodule GitCli.Worktree.Review do
     case do_merge_with_post_validation(root, path, branch, target) do
       {:ok, sha} ->
         if maybe_cleanup(root, path, branch) do
-          throw({:cleaned_up, sha})
+          throw({:cleaned_up, sha, :interactive})
         end
 
         :ok
@@ -72,7 +72,7 @@ defmodule GitCli.Worktree.Review do
     end
   catch
     :throw, :skip -> :ok
-    :throw, {:cleaned_up, sha} -> {:cleaned_up, sha}
+    :throw, {:cleaned_up, sha, mode} -> {:cleaned_up, sha, mode}
     :throw, {:validation_failed, _, _} = failure -> failure
   end
 
@@ -96,7 +96,7 @@ defmodule GitCli.Worktree.Review do
     case do_merge_with_post_validation(root, path, branch, target) do
       {:ok, sha} ->
         cleanup(root, path, branch)
-        {:cleaned_up, sha}
+        {:cleaned_up, sha, :auto}
 
       {:validation_failed, :post_merge, _summary} = failure ->
         throw(failure)
