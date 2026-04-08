@@ -1,6 +1,16 @@
 defmodule GitCli.WorktreeTest do
   use Fnord.TestCase, async: false
 
+  defp git!(repo, args) do
+    {out, status} = System.cmd("git", args, cd: repo, stderr_to_stdout: true)
+
+    if status != 0 do
+      raise "git #{Enum.join(args, " ")} failed in #{repo}: #{out}"
+    end
+
+    out
+  end
+
   defp cd(dir, fun) do
     original = File.cwd!()
     File.cd!(dir)
@@ -236,6 +246,84 @@ defmodule GitCli.WorktreeTest do
 
       assert GitCli.Worktree.recursive_size(missing) == 0
       assert GitCli.Worktree.recursive_size(present) > 0
+    end
+
+    test "duplicate clones uncommitted state onto an independent branch", %{project: project} do
+      repo = project.source_root
+
+      git!(repo, ["config", "user.email", "test@example.com"])
+      git!(repo, ["config", "user.name", "Test"])
+      File.write!(Path.join(repo, "base.txt"), "base\n")
+      git!(repo, ["add", "."])
+      git!(repo, ["commit", "-m", "initial"])
+
+      # Source branch carries 2 commits beyond main, plus uncommitted state.
+      git!(repo, ["checkout", "-b", "fnord-source"])
+      File.write!(Path.join(repo, "feature.txt"), "v1\n")
+      git!(repo, ["add", "."])
+      git!(repo, ["commit", "-m", "feature v1"])
+      File.write!(Path.join(repo, "feature.txt"), "v2\n")
+      git!(repo, ["add", "."])
+      git!(repo, ["commit", "-m", "feature v2"])
+      git!(repo, ["checkout", "main"])
+
+      # Create the source worktree on the source branch via real git.
+      {:ok, source_root} = tmpdir()
+      source_path = Path.join(source_root, "source-wt")
+      git!(repo, ["worktree", "add", source_path, "fnord-source"])
+
+      # Dirty the source worktree: modify, delete, and add untracked files.
+      File.write!(Path.join(source_path, "feature.txt"), "v3-dirty\n")
+      File.rm!(Path.join(source_path, "base.txt"))
+      File.mkdir_p!(Path.join(source_path, "nested"))
+      File.write!(Path.join(source_path, "nested/new.txt"), "fresh\n")
+
+      source_meta = %{
+        path: source_path,
+        branch: "fnord-source",
+        base_branch: "main"
+      }
+
+      cd(repo, fn ->
+        assert {:ok, entry} =
+                 GitCli.Worktree.duplicate(project.name, source_meta, "fork-1")
+
+        assert entry.branch == "fnord-fork-1"
+        assert entry.base_branch == "main"
+        assert File.dir?(entry.path)
+
+        # Both source feature commits are present on the new branch.
+        {log, 0} =
+          System.cmd("git", ["log", "--format=%s", "fnord-fork-1"], cd: repo)
+
+        assert log =~ "feature v2"
+        assert log =~ "feature v1"
+        assert log =~ "initial"
+
+        # The new branch is NOT the same ref as the source branch (independent).
+        {fork_sha, 0} = System.cmd("git", ["rev-parse", "fnord-fork-1"], cd: repo)
+        {source_sha, 0} = System.cmd("git", ["rev-parse", "fnord-source"], cd: repo)
+        assert String.trim(fork_sha) == String.trim(source_sha)
+
+        # Dirty state was overlaid into the destination worktree.
+        assert File.read!(Path.join(entry.path, "feature.txt")) == "v3-dirty\n"
+        refute File.exists?(Path.join(entry.path, "base.txt"))
+        assert File.read!(Path.join(entry.path, "nested/new.txt")) == "fresh\n"
+
+        # Source worktree is untouched (commits and dirty state preserved).
+        assert File.read!(Path.join(source_path, "feature.txt")) == "v3-dirty\n"
+        refute File.exists?(Path.join(source_path, "base.txt"))
+        assert File.read!(Path.join(source_path, "nested/new.txt")) == "fresh\n"
+      end)
+    end
+
+    test "duplicate refuses when the source worktree is missing", %{project: project} do
+      assert {:error, :source_missing} =
+               GitCli.Worktree.duplicate(
+                 project.name,
+                 %{path: "/nonexistent/path", branch: "x", base_branch: "main"},
+                 "fork-2"
+               )
     end
 
     test "normalize_worktree_meta handles atom and string keyed maps" do

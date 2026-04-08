@@ -573,24 +573,29 @@ defmodule Cmd.Ask do
   defp maybe_fork_conversation(opts), do: {:ok, opts}
 
   @reuse_worktree "Reuse existing worktree"
+  @duplicate_worktree "Duplicate worktree (independent branch from same start point)"
   @new_worktree "Create new worktree"
   @no_worktree "No worktree"
 
   # When a forked conversation inherits worktree metadata from its source,
-  # prompt the user about whether to reuse the original worktree, create a
-  # new one, or proceed without a worktree. Stripping metadata before the
-  # conversation server starts means the coordinator naturally sees the
-  # correct state via worktree_context_msg/1.
+  # prompt the user about whether to reuse the original worktree, duplicate it
+  # into an independent branch, create a new empty worktree, or proceed without
+  # a worktree. Mutating metadata (or leaving it intact) before the conversation
+  # server starts means the coordinator naturally sees the correct state via
+  # worktree_context_msg/1.
   defp maybe_handle_forked_worktree(new_conv) do
     with {:ok, data} <- Store.Project.Conversation.read(new_conv),
          meta when is_map(meta) <- extract_forked_worktree_meta(data.metadata),
          true <- UI.is_tty?() do
       case UI.choose(
              "Source conversation has a worktree at #{meta.path}. What would you like to do?",
-             [@reuse_worktree, @new_worktree, @no_worktree]
+             [@reuse_worktree, @duplicate_worktree, @new_worktree, @no_worktree]
            ) do
         @reuse_worktree ->
           :ok
+
+        @duplicate_worktree ->
+          duplicate_forked_worktree(new_conv, data, meta)
 
         choice when choice in [@new_worktree, @no_worktree] ->
           strip_worktree_metadata(new_conv, data)
@@ -600,6 +605,38 @@ defmodule Cmd.Ask do
       end
     else
       _ -> :ok
+    end
+  end
+
+  # Duplicates the source worktree onto a new branch bound to the forked
+  # conversation. On success, swaps the inherited source metadata for the new
+  # worktree's metadata. On failure, warns the user and strips metadata so the
+  # coordinator's bootstrap can offer to create a fresh worktree on the next
+  # session - this avoids silently falling back to "reuse" (which would have
+  # the forked conversation racing the source against the same files).
+  defp duplicate_forked_worktree(new_conv, data, source_meta) do
+    with {:ok, project} <- Store.get_project(),
+         {:ok, entry} <-
+           GitCli.Worktree.duplicate(project.name, source_meta, new_conv.id) do
+      new_meta = %{
+        path: entry.path,
+        branch: entry.branch,
+        base_branch: entry.base_branch
+      }
+
+      updated_metadata =
+        data.metadata
+        |> Map.delete("worktree")
+        |> Map.put(:worktree, new_meta)
+
+      Store.Project.Conversation.write(new_conv, %{data | metadata: updated_metadata})
+
+      UI.info("Duplicated worktree", "#{entry.path} (branch #{entry.branch})")
+      :ok
+    else
+      {:error, reason} ->
+        UI.warn("Failed to duplicate worktree: #{inspect(reason)}")
+        strip_worktree_metadata(new_conv, data)
     end
   end
 

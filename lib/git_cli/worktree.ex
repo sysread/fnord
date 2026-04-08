@@ -72,6 +72,157 @@ defmodule GitCli.Worktree do
     end
   end
 
+  @spec duplicate(String.t(), worktree_meta(), String.t()) ::
+          {:ok, worktree_entry()} | {:error, atom()}
+  @doc """
+  Creates an independent copy of an existing worktree for a forked
+  conversation. The new worktree:
+
+    * lives at the default conversation path for `new_conversation_id`
+    * is on a fresh branch named `fnord-<new_conversation_id>` that points at
+      the source branch's HEAD (so all source commits are inherited along with
+      the same merge-base relative to the original base branch)
+    * inherits the source's `base_branch` so future merges still target the
+      original base (typically `main`), not the source's fnord-* branch
+    * carries the source's uncommitted state (modified, deleted, and untracked
+      files) replicated via direct file ops, leaving the source worktree
+      untouched
+
+  On any failure the new worktree and branch are torn down before returning so
+  the caller can fall back cleanly.
+  """
+  def duplicate(project, source_meta, new_conversation_id)
+      when is_binary(project) and is_map(source_meta) and is_binary(new_conversation_id) do
+    source_path = meta_path(source_meta)
+    source_branch = meta_branch(source_meta)
+    source_base_branch = meta_base_branch(source_meta)
+
+    cond do
+      not is_binary(source_path) or not File.dir?(source_path) ->
+        {:error, :source_missing}
+
+      not is_binary(source_branch) ->
+        {:error, :source_branch_missing}
+
+      true ->
+        new_branch = "fnord-#{new_conversation_id}"
+
+        with {:ok, root} <- project_root(),
+             {:ok, base_branch} <-
+               resolve_duplicate_base_branch(root, source_base_branch),
+             {:ok, new_path} <- ensure_conversation_path(project, new_conversation_id),
+             {:ok, _out} <-
+               git_worktree_add_branch(root, new_path, new_branch, source_branch),
+             :ok <- overlay_dirty_state(source_path, new_path) do
+          {:ok, normalize_worktree_entry(new_path, new_branch, base_branch, root)}
+        else
+          {:error, reason} ->
+            cleanup_failed_duplicate(new_conversation_id, project, new_branch)
+            {:error, reason}
+        end
+    end
+  end
+
+  # Prefer the source's recorded base branch so the duplicate keeps merging
+  # into the same target. Fall back to the repo default only when the source
+  # didn't carry one, which is the legacy-metadata case.
+  defp resolve_duplicate_base_branch(_root, base) when is_binary(base), do: {:ok, base}
+  defp resolve_duplicate_base_branch(root, _), do: resolve_default_base_branch(root)
+
+  # Replays the source worktree's uncommitted state into the freshly created
+  # destination worktree without touching the source. Three name lists drive
+  # three file ops, in order: modified tracked files are copied (covering both
+  # staged and unstaged edits, including binaries), deletions are propagated so
+  # the destination doesn't silently resurrect removed files, and untracked
+  # files (excluding .gitignore'd noise) are copied last.
+  defp overlay_dirty_state(source_path, dest_path) do
+    with {:ok, modified} <- list_modified_tracked(source_path),
+         {:ok, deleted} <- list_deleted_tracked(source_path),
+         {:ok, untracked} <- list_untracked(source_path),
+         :ok <- copy_files(source_path, dest_path, modified),
+         :ok <- delete_files(dest_path, deleted),
+         :ok <- copy_files(source_path, dest_path, untracked) do
+      :ok
+    end
+  end
+
+  defp list_modified_tracked(path) do
+    case git_cmd(path, ["diff", "--name-only", "--diff-filter=ACMRT", "HEAD"]) do
+      {:ok, out} -> {:ok, parse_name_list(out)}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp list_deleted_tracked(path) do
+    case git_cmd(path, ["ls-files", "--deleted"]) do
+      {:ok, out} -> {:ok, parse_name_list(out)}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp list_untracked(path) do
+    case git_cmd(path, ["ls-files", "--others", "--exclude-standard"]) do
+      {:ok, out} -> {:ok, parse_name_list(out)}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp parse_name_list(out) do
+    out
+    |> String.split("\n", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp copy_files(_source_root, _dest_root, []), do: :ok
+
+  defp copy_files(source_root, dest_root, [rel | rest]) do
+    src = Path.join(source_root, rel)
+    dst = Path.join(dest_root, rel)
+
+    with :ok <- File.mkdir_p(Path.dirname(dst)),
+         {:ok, _} <- File.copy(src, dst) do
+      copy_files(source_root, dest_root, rest)
+    else
+      _ -> {:error, :copy_failed}
+    end
+  end
+
+  defp delete_files(_dest_root, []), do: :ok
+
+  defp delete_files(dest_root, [rel | rest]) do
+    dst = Path.join(dest_root, rel)
+
+    case File.rm(dst) do
+      :ok -> delete_files(dest_root, rest)
+      # Tolerate already-absent destinations: the source recorded a deletion
+      # against a file that the destination branch never had, so the desired
+      # end state (file gone) already holds.
+      {:error, :enoent} -> delete_files(dest_root, rest)
+      {:error, _} -> {:error, :delete_failed}
+    end
+  end
+
+  # Best-effort rollback after a failed duplicate. Ignores errors because the
+  # caller is already returning the original failure reason and partial state
+  # left behind here is preferable to masking the real cause.
+  defp cleanup_failed_duplicate(new_conversation_id, project, new_branch) do
+    new_path = conversation_path(project, new_conversation_id)
+
+    case project_root() do
+      {:ok, root} ->
+        if File.exists?(new_path) do
+          _ = git_cmd(root, ["worktree", "remove", "--force", new_path])
+        end
+
+        _ = git_cmd(root, ["branch", "-D", new_branch])
+        :ok
+
+      _ ->
+        :ok
+    end
+  end
+
   @spec delete(String.t(), String.t()) :: {:ok, any()} | {:error, atom()}
   @doc """
   Removes a worktree at the given path from the repository.
