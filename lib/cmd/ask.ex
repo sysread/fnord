@@ -203,7 +203,7 @@ defmodule Cmd.Ask do
              ),
            :ok <- Memory.init(),
            {:ok, worktree_path} <- prepare_conversation_worktree(opts, pid),
-           {:ok, usage, context, response, edited?} <- get_response(opts, pid),
+           {:ok, usage, context, response, _edited?} <- get_response(opts, pid),
            {:ok, conversation_id} <- save_conversation(pid) do
         end_time = System.monotonic_time(:second)
 
@@ -212,24 +212,35 @@ defmodule Cmd.Ask do
         # prepare_conversation_worktree returned nil.
         effective_worktree_path = Settings.get_project_root_override() || worktree_path
 
-        UI.debug(
-          "worktree",
-          "post-ask: path=#{inspect(effective_worktree_path)} edited=#{edited?}"
-        )
-
-        maybe_auto_commit(effective_worktree_path, edited?, pid)
+        # Auto-commit any uncommitted state in the worktree first, so the
+        # subsequent has_changes_to_merge? check sees a complete picture
+        # (uncommitted -> committed -> branch ahead of base).
+        edit_mode? = opts[:edit] == true
+        maybe_auto_commit(effective_worktree_path, edit_mode?, pid)
 
         # Discard empty worktrees (no edits made). The coordinator may have
         # speculatively created one even though no file changes were needed.
         # A fresh worktree can be created on the next --follow.
         effective_worktree_path = maybe_discard_empty_worktree(effective_worktree_path, pid)
 
+        # Source-of-truth gate for the merge flow: edit mode is on AND the
+        # worktree actually has work to merge (uncommitted changes or commits
+        # ahead of base). This replaces the prior editing_tools_used heuristic,
+        # which was a proxy that missed cmd_tool heredocs, frob writes, and
+        # any tool the heuristic didn't enumerate.
+        needs_merge? = edit_mode? and worktree_has_changes_to_merge?(effective_worktree_path, pid)
+
+        UI.debug(
+          "worktree",
+          "post-ask: path=#{inspect(effective_worktree_path)} needs_merge=#{needs_merge?}"
+        )
+
         # Run worktree review (merge prompt) BEFORE printing the final
         # response so the diff + prompts don't push the response off screen.
         auto_merge? = opts[:yes] == true or (is_integer(opts[:yes]) and opts[:yes] > 0)
 
         worktree_status =
-          maybe_worktree_review(effective_worktree_path, edited?, pid, auto_merge?)
+          maybe_worktree_review(effective_worktree_path, needs_merge?, pid, auto_merge?)
 
         final_worktree_path = final_worktree_path(effective_worktree_path, worktree_status)
 
@@ -1019,11 +1030,14 @@ defmodule Cmd.Ask do
   # Worktree auto-commit and review
   # ----------------------------------------------------------------------------
 
-  # Automatically commits all changes in a fnord-managed worktree after the
-  # coordinator finishes editing. Bypasses the approval system entirely since
-  # this is infrastructure, not a tool call.
+  # Automatically commits any uncommitted changes in a fnord-managed worktree
+  # after the coordinator finishes a session. Only fires when edit mode is on
+  # and a worktree exists; otherwise no-op. Always attempts the commit when
+  # gated through - GitCli.Worktree.commit_all returns :nothing_to_commit
+  # cleanly when there is nothing to do, so we no longer need an external
+  # "did the agent edit?" flag to gate the call.
   @spec maybe_auto_commit(String.t() | nil, boolean, pid) :: :ok
-  defp maybe_auto_commit(nil, _edited?, _conversation_pid), do: :ok
+  defp maybe_auto_commit(nil, _edit_mode?, _conversation_pid), do: :ok
   defp maybe_auto_commit(_path, false, _conversation_pid), do: :ok
 
   defp maybe_auto_commit(path, true, _conversation_pid) do
@@ -1041,6 +1055,31 @@ defmodule Cmd.Ask do
     end
 
     :ok
+  end
+
+  # Source-of-truth check for "is there work in this worktree to merge?"
+  # Combines uncommitted-changes and branch-ahead-of-base into one query
+  # using GitCli.Worktree.has_changes_to_merge?/4. Returns false for non-git
+  # projects, missing worktrees, or worktrees whose metadata cannot be
+  # resolved into project_root + branch + base_branch.
+  @spec worktree_has_changes_to_merge?(String.t() | nil, pid) :: boolean()
+  defp worktree_has_changes_to_merge?(nil, _conversation_pid), do: false
+
+  defp worktree_has_changes_to_merge?(path, conversation_pid) do
+    with {:ok, project} <- Store.get_project(),
+         true <- GitCli.Worktree.fnord_managed?(project.name, path),
+         meta when is_map(meta) <-
+           worktree_meta(Services.Conversation.get_conversation_meta(conversation_pid)),
+         repo_root = original_project_root(project.name) do
+      GitCli.Worktree.has_changes_to_merge?(
+        repo_root,
+        path,
+        Map.get(meta, :branch),
+        Map.get(meta, :base_branch)
+      )
+    else
+      _ -> false
+    end
   end
 
   # If the worktree exists but has no commits beyond its base and no
@@ -1088,10 +1127,13 @@ defmodule Cmd.Ask do
     end
   end
 
-  # Offers an interactive review/merge/cleanup flow when the coordinator made
-  # edits in a fnord-managed worktree and the user's cwd is outside it.
-  # On validation failure, retries up to @max_merge_attempts times by invoking
-  # the coordinator to fix the issues in the worktree.
+  # Offers an interactive review/merge/cleanup flow when there is real work to
+  # merge in a fnord-managed worktree and the user's cwd is outside it. The
+  # `needs_merge?` flag is computed in run/3 from git state via
+  # GitCli.Worktree.has_changes_to_merge?/4 - it is the source of truth and
+  # has replaced the prior editing_tools_used proxy. On validation failure,
+  # retries up to @max_merge_attempts times by invoking the coordinator to fix
+  # the issues in the worktree.
   @max_merge_attempts 3
 
   @type worktree_status ::
@@ -1101,8 +1143,8 @@ defmodule Cmd.Ask do
 
   @spec maybe_worktree_review(String.t() | nil, boolean, pid, boolean, non_neg_integer) ::
           worktree_status()
-  defp maybe_worktree_review(path, edited?, pid, auto_merge?, attempt \\ 1)
-  defp maybe_worktree_review(nil, _edited?, _pid, _auto?, _attempt), do: :no_changes
+  defp maybe_worktree_review(path, needs_merge?, pid, auto_merge?, attempt \\ 1)
+  defp maybe_worktree_review(nil, _needs_merge?, _pid, _auto?, _attempt), do: :no_changes
   defp maybe_worktree_review(_path, false, _pid, _auto?, _attempt), do: :no_changes
 
   defp maybe_worktree_review(path, true, conversation_pid, _auto?, attempt)

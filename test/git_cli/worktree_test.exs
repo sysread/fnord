@@ -317,6 +317,45 @@ defmodule GitCli.WorktreeTest do
       end)
     end
 
+    test "has_changes_to_merge? answers from git state", %{project: project} do
+      repo = project.source_root
+
+      git!(repo, ["config", "user.email", "test@example.com"])
+      git!(repo, ["config", "user.name", "Test"])
+      File.write!(Path.join(repo, "base.txt"), "base\n")
+      git!(repo, ["add", "."])
+      git!(repo, ["commit", "-m", "initial"])
+
+      # A worktree on a fresh branch from main with no changes - nothing to merge.
+      {:ok, wt_root} = tmpdir()
+      clean_path = Path.join(wt_root, "clean-wt")
+      git!(repo, ["worktree", "add", clean_path, "-b", "fnord-clean", "main"])
+
+      refute GitCli.Worktree.has_changes_to_merge?(repo, clean_path, "fnord-clean", "main")
+
+      # Same worktree with an uncommitted change - has work to merge.
+      File.write!(Path.join(clean_path, "scratch.txt"), "wip\n")
+      assert GitCli.Worktree.has_changes_to_merge?(repo, clean_path, "fnord-clean", "main")
+
+      # Commit it - now branch is ahead of base, still has work to merge.
+      git!(clean_path, ["add", "."])
+      git!(clean_path, ["commit", "-m", "wip commit"])
+      assert GitCli.Worktree.has_changes_to_merge?(repo, clean_path, "fnord-clean", "main")
+
+      # Missing worktree directory returns false (nothing to merge from a
+      # non-existent path).
+      refute GitCli.Worktree.has_changes_to_merge?(
+               repo,
+               "/nonexistent/path",
+               "fnord-clean",
+               "main"
+             )
+
+      # Nil branch / base_branch -> falls back to false rather than raising.
+      refute GitCli.Worktree.has_changes_to_merge?(repo, clean_path, nil, "main")
+      refute GitCli.Worktree.has_changes_to_merge?(repo, clean_path, "fnord-clean", nil)
+    end
+
     test "duplicate refuses when the source worktree is missing", %{project: project} do
       assert {:error, :source_missing} =
                GitCli.Worktree.duplicate(

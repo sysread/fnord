@@ -326,6 +326,13 @@ defmodule Cmd.AskTest do
       :meck.expect(GitCli.Worktree, :fnord_managed?, fn "demo", ^worktree_dir -> true end)
       :meck.expect(GitCli.Worktree, :has_uncommitted_changes?, fn ^worktree_dir -> true end)
 
+      :meck.expect(GitCli.Worktree, :has_changes_to_merge?, fn "/tmp/demo",
+                                                               ^worktree_dir,
+                                                               "feat",
+                                                               "main" ->
+        true
+      end)
+
       :meck.expect(GitCli.Worktree.Review, :interactive_review, fn "/tmp/demo", meta ->
         assert meta.path == worktree_dir
         assert meta.branch == "feat"
@@ -405,6 +412,13 @@ defmodule Cmd.AskTest do
       :meck.expect(GitCli, :is_worktree?, fn -> false end)
       :meck.expect(GitCli.Worktree, :fnord_managed?, fn "demo", ^worktree_dir -> true end)
       :meck.expect(GitCli.Worktree, :has_uncommitted_changes?, fn ^worktree_dir -> true end)
+
+      :meck.expect(GitCli.Worktree, :has_changes_to_merge?, fn "/tmp/demo",
+                                                               ^worktree_dir,
+                                                               "feat",
+                                                               "main" ->
+        true
+      end)
 
       :meck.expect(GitCli.Worktree.Review, :auto_merge, fn "/tmp/demo", meta ->
         assert meta.path == worktree_dir

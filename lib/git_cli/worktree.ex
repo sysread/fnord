@@ -276,6 +276,47 @@ defmodule GitCli.Worktree do
     end
   end
 
+  @spec has_changes_to_merge?(String.t(), String.t(), String.t() | nil, String.t() | nil) ::
+          boolean()
+  @doc """
+  Returns true when the worktree at `path` either has uncommitted changes OR
+  has commits on `branch` that are not yet on `base_branch`. This is the
+  filesystem/git source of truth for "is there work in this worktree that
+  would be lost if we discarded it without merging?"
+
+  Used by Cmd.Ask to gate the end-of-session merge flow without relying on
+  agent-side tool tracking, which can miss edits made via cmd_tool, frobs,
+  MCP servers, or any code path the heuristic does not enumerate.
+  """
+  def has_changes_to_merge?(root, path, branch, base_branch)
+      when is_binary(root) and is_binary(path) do
+    cond do
+      not File.dir?(path) ->
+        false
+
+      has_uncommitted_changes?(path) ->
+        true
+
+      is_binary(branch) and is_binary(base_branch) ->
+        branch_ahead_of_base?(root, branch, base_branch)
+
+      true ->
+        false
+    end
+  end
+
+  def has_changes_to_merge?(_root, _path, _branch, _base_branch), do: false
+
+  # Returns true when `branch` has commits that `base_branch` does not. Uses
+  # the same fork-point logic as diff_from_fork_point/3 so the answer matches
+  # what the merge flow would actually try to land.
+  defp branch_ahead_of_base?(root, branch, base_branch) do
+    case diff_from_fork_point(root, branch, base_branch) do
+      {:ok, diff} -> byte_size(diff) > 0
+      _ -> false
+    end
+  end
+
   @spec force_delete(String.t(), String.t()) :: {:ok, :ok} | {:error, atom()}
   @doc """
   Removes a worktree even when it contains uncommitted changes.
