@@ -59,8 +59,12 @@ defmodule Cmd.WorktreeLifecycle do
 
   @spec clear_worktree_from_conversation(String.t()) :: :ok
   @doc """
-  Removes worktree metadata from a conversation and appends a system message
-  so the LLM knows the worktree is gone if the conversation is continued.
+  Removes worktree metadata from a conversation. On the next session,
+  AI.Agent.Coordinator.worktree_context_msg/1 inspects live metadata during
+  bootstrap and injects a fresh "no worktree, create one" system message, so
+  no trailing message needs to be appended here. Mutating data.messages also
+  breaks `fnord replay`, which assumes the last message is the assistant's
+  final reply.
   """
   def clear_worktree_from_conversation(conv_id) do
     conv = Store.Project.Conversation.new(conv_id)
@@ -71,20 +75,7 @@ defmodule Cmd.WorktreeLifecycle do
         |> Map.delete(:worktree)
         |> Map.delete("worktree")
 
-      worktree_deleted_msg =
-        AI.Util.system_msg("""
-        The worktree previously associated with this conversation has been deleted.
-        You will need to verify whether your changes were merged before building on
-        top of them. Keep this in mind when responding to the user.
-        """)
-
-      updated_messages = data.messages ++ [worktree_deleted_msg]
-
-      Store.Project.Conversation.write(conv, %{
-        data
-        | metadata: updated_metadata,
-          messages: updated_messages
-      })
+      Store.Project.Conversation.write(conv, %{data | metadata: updated_metadata})
     end
 
     :ok

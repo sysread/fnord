@@ -119,7 +119,13 @@ defmodule AI.Tools.Git.Worktree do
   # to signal incomplete work.
   def call(%{"action" => "commit", "message" => message} = args) do
     wip? = Map.get(args, "wip", false)
-    commit_message = if wip?, do: "WIP: #{message}", else: message
+    # Strip any leading "WIP:" the LLM included in its message so the wip
+    # prefix is applied exactly once. The tool description tells the LLM to
+    # describe incomplete work, which naturally produces messages that start
+    # with "WIP:", and prefixing again yields "WIP: WIP: ..." on the merged
+    # commit subject.
+    clean = String.replace(message, ~r/^\s*WIP:\s*/i, "")
+    commit_message = if wip?, do: "WIP: #{clean}", else: clean
 
     with {:ok, path} <- active_worktree_path(),
          {:ok, project} <- project_name(),
