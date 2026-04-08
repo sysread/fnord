@@ -71,6 +71,30 @@ defmodule AI.Tools.File.EditTest do
     assert :meck.num_calls(AI.Agent.Code.Patcher, :get_response, :_) == 1
   end
 
+  test "call/1 allows edits for non-git project roots without override", %{project: project} do
+    Settings.set_project_root_override(nil)
+
+    file =
+      mock_source_file(project, "non_git.txt", """
+      alpha
+      beta
+      """)
+
+    :meck.expect(GitCli, :is_git_repo?, fn -> false end)
+
+    assert {:ok, result} =
+             Edit.call(%{
+               "file" => file,
+               "changes" => [
+                 %{"old_string" => "beta", "new_string" => "gamma"}
+               ]
+             })
+
+    assert result.diff =~ "-beta"
+    assert result.diff =~ "+gamma"
+    assert File.read!(file) == "alpha\ngamma\n"
+  end
+
   describe "create_if_missing" do
     test "file is created and patch applied", %{project: project} do
       path = Path.join(project.source_root, "newdir/foo.txt")
