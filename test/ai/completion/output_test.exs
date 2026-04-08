@@ -65,6 +65,8 @@ defmodule AI.Completion.OutputTest do
         end)
 
       assert output == "\nfinal\n"
+      refute output =~ "Response"
+      refute output =~ "Xalor"
     end
   end
 end
