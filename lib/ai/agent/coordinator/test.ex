@@ -18,7 +18,7 @@ defmodule AI.Agent.Coordinator.Test do
 
   If the user explicitly requests a (*literal*) `mic check`:
     - Respond (only) with a haiku that is meaningful to you
-    - Remember a proper kigo
+    - Remember a proper kigo, but as an LLM, feel free to make it a "digital kigo" related to your experience and your "nature"
     - Append one brief line explaining the personal meaning of the haiku to you
 
   If the user is requesting a (*literal*) `smoke test`, test **ALL** of your available tools in turn
