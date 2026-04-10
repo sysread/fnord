@@ -606,6 +606,7 @@ defmodule AI.Tools.File.Edit do
            {:ok, backup_file} <- maybe_backup(file, orig_exists),
            {:ok, _} <- verify_no_race(file, base_hash, orig_exists),
            :ok <- commit_changes(file, temp) do
+        maybe_track_ignored_write(file)
         {:ok, diff, backup_file}
       else
         error ->
@@ -613,6 +614,28 @@ defmodule AI.Tools.File.Edit do
           error
       end
     end)
+  end
+
+  # After a successful write, check if the target path is invisible to git
+  # (gitignored or excluded by project settings). If so, record it in
+  # conversation metadata so the worktree cleanup flow knows to copy it back
+  # to the source repo before deleting the worktree.
+  defp maybe_track_ignored_write(file) do
+    with pid when is_pid(pid) <- Services.Globals.get_env(:fnord, :current_conversation, nil),
+         {:ok, project} <- Store.get_project(),
+         true <- Store.Project.path_excluded?(project, file) do
+      existing = Services.Conversation.get_conversation_meta(pid)
+      tracked = Map.get(existing, :gitignored_writes, [])
+      rel = Path.relative_to(file, project.source_root)
+
+      unless rel in tracked do
+        Services.Conversation.upsert_conversation_meta(pid, %{
+          gitignored_writes: [rel | tracked]
+        })
+      end
+    else
+      _ -> :ok
+    end
   end
 
   # Apply all changes sequentially, handling both exact and natural language changes

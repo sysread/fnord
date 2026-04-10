@@ -217,6 +217,10 @@ defmodule Cmd.Worktrees do
   def run(%{conversation: conv_id}, [:merge], _unknown) do
     with {:ok, meta} <- resolve_worktree_meta(conv_id),
          {:ok, root} <- GitCli.Worktree.project_root() do
+      # Copy gitignored/excluded files before the review flow may delete the
+      # worktree. Same eager-copy strategy as Cmd.Ask.
+      copy_ignored_writes_for_conversation(conv_id, meta.path, root)
+
       case GitCli.Worktree.Review.interactive_review(root, meta) do
         {:cleaned_up, _sha, _mode} ->
           Cmd.WorktreeLifecycle.clear_worktree_from_conversation(conv_id)
@@ -241,6 +245,36 @@ defmodule Cmd.Worktrees do
 
   def run(_opts, _subcommands, _unknown) do
     UI.error("Unknown subcommand. Use 'fnord worktrees --help' for help.")
+  end
+
+  # Reads the gitignored_writes accumulator from a conversation's persisted
+  # metadata and copies those files (plus any found by the safety-net scan)
+  # from the worktree to the source repo. No-op when there's nothing to copy.
+  defp copy_ignored_writes_for_conversation(conv_id, worktree_path, source_root) do
+    conv = Store.Project.Conversation.new(conv_id)
+
+    conv_meta =
+      case Store.Project.Conversation.read(conv) do
+        {:ok, data} -> data.metadata
+        _ -> %{}
+      end
+
+    tracked = Map.get(conv_meta, :gitignored_writes, [])
+    scanned = GitCli.Worktree.find_new_ignored_files(source_root, worktree_path)
+
+    files =
+      (tracked ++ scanned)
+      |> Enum.uniq()
+      |> Enum.filter(&File.exists?(Path.join(worktree_path, &1)))
+
+    if files != [] do
+      results = GitCli.Worktree.copy_ignored_files(source_root, worktree_path, files)
+
+      Enum.each(results, fn
+        {:ok, rel} -> UI.info("Copied ignored file", rel)
+        {:error, rel, reason} -> UI.warn("Failed to copy #{rel}: #{reason}")
+      end)
+    end
   end
 
   # Resolves worktree metadata from a conversation id by first consulting the

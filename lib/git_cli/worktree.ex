@@ -276,6 +276,19 @@ defmodule GitCli.Worktree do
     end
   end
 
+  @spec path_ignored?(String.t(), String.t()) :: boolean()
+  @doc """
+  Returns true when the file at `path` is ignored by git in the given `root`
+  directory (via .gitignore or other exclusion mechanisms). Uses
+  `git check-ignore -q` which returns exit 0 for ignored paths, 1 otherwise.
+  """
+  def path_ignored?(root, path) when is_binary(root) and is_binary(path) do
+    case System.cmd("git", ["check-ignore", "-q", path], cd: root, stderr_to_stdout: true) do
+      {_, 0} -> true
+      _ -> false
+    end
+  end
+
   @spec has_changes_to_merge?(String.t(), String.t(), String.t() | nil, String.t() | nil) ::
           boolean()
   @doc """
@@ -306,6 +319,82 @@ defmodule GitCli.Worktree do
   end
 
   def has_changes_to_merge?(_root, _path, _branch, _base_branch), do: false
+
+  @spec find_new_ignored_files(String.t(), String.t()) :: [String.t()]
+  @doc """
+  Finds files in the worktree that are gitignored but don't exist at the same
+  relative path in the source repo. Scoped to gitignored directories that exist
+  in both locations, filtering out build artifacts that only exist in the
+  worktree (e.g. _build/, deps/).
+  """
+  def find_new_ignored_files(source_root, worktree_path)
+      when is_binary(source_root) and is_binary(worktree_path) do
+    if not File.dir?(worktree_path) or not File.dir?(source_root) do
+      []
+    else
+      # Get gitignored files in the worktree
+      worktree_ignored = list_ignored_files(worktree_path)
+
+      # Filter to files whose parent directory also exists in the source repo,
+      # and whose corresponding file does NOT exist in the source repo (or differs)
+      worktree_ignored
+      |> Enum.filter(fn abs_path ->
+        rel = Path.relative_to(abs_path, worktree_path)
+        source_dir = Path.join(source_root, Path.dirname(rel))
+        source_file = Path.join(source_root, rel)
+
+        # Parent dir must exist in source (filters out _build/, deps/, etc.)
+        File.dir?(source_dir) and
+          # File must not exist in source, or must differ
+          (not File.exists?(source_file) or files_differ?(abs_path, source_file))
+      end)
+      |> Enum.map(&Path.relative_to(&1, worktree_path))
+    end
+  end
+
+  defp list_ignored_files(root) do
+    case System.cmd("git", ["ls-files", "--others", "--ignored", "--exclude-standard"],
+           cd: root,
+           stderr_to_stdout: true
+         ) do
+      {out, 0} ->
+        out
+        |> String.split("\n", trim: true)
+        |> Enum.map(&Path.absname(&1, root))
+        |> Enum.filter(&File.regular?/1)
+
+      _ ->
+        []
+    end
+  end
+
+  defp files_differ?(a, b) do
+    case {File.read(a), File.read(b)} do
+      {{:ok, ca}, {:ok, cb}} -> ca != cb
+      _ -> true
+    end
+  end
+
+  @spec copy_ignored_files(String.t(), String.t(), [String.t()]) ::
+          [{:ok, String.t()} | {:error, String.t(), term}]
+  @doc """
+  Copies a list of relative paths from the worktree to the source repo,
+  creating parent directories as needed. Returns a list of results for each
+  path attempted.
+  """
+  def copy_ignored_files(source_root, worktree_path, rel_paths)
+      when is_binary(source_root) and is_binary(worktree_path) and is_list(rel_paths) do
+    Enum.map(rel_paths, fn rel ->
+      src = Path.join(worktree_path, rel)
+      dest = Path.join(source_root, rel)
+      File.mkdir_p!(Path.dirname(dest))
+
+      case File.cp(src, dest) do
+        :ok -> {:ok, rel}
+        {:error, reason} -> {:error, rel, reason}
+      end
+    end)
+  end
 
   # Returns true when `branch` has commits that `base_branch` does not. Uses
   # the same fork-point logic as diff_from_fork_point/3 so the answer matches

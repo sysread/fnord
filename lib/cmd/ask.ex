@@ -1068,17 +1068,56 @@ defmodule Cmd.Ask do
   defp worktree_has_changes_to_merge?(path, conversation_pid) do
     with {:ok, project} <- Store.get_project(),
          true <- GitCli.Worktree.fnord_managed?(project.name, path),
-         meta when is_map(meta) <-
-           worktree_meta(Services.Conversation.get_conversation_meta(conversation_pid)),
+         conv_meta = Services.Conversation.get_conversation_meta(conversation_pid),
+         meta when is_map(meta) <- worktree_meta(conv_meta),
          repo_root = original_project_root(project.name) do
-      GitCli.Worktree.has_changes_to_merge?(
-        repo_root,
-        path,
-        Map.get(meta, :branch),
-        Map.get(meta, :base_branch)
-      )
+      git_changes =
+        GitCli.Worktree.has_changes_to_merge?(
+          repo_root,
+          path,
+          Map.get(meta, :branch),
+          Map.get(meta, :base_branch)
+        )
+
+      git_changes or has_ignored_writes?(path, conv_meta, repo_root)
     else
       _ -> false
+    end
+  end
+
+  # Checks for gitignored/excluded files that need to be copied back to the
+  # source repo. Combines the tracked accumulator with a safety-net scan for
+  # files written through non-tracked channels (cmd_tool, frobs, MCP servers).
+  defp has_ignored_writes?(worktree_path, conv_meta, source_root) do
+    ignored_files_to_copy(worktree_path, conv_meta, source_root) != []
+  end
+
+  # Returns the deduplicated list of relative paths to copy. Merges the
+  # accumulator (tracked writes) with the safety-net scan (untracked writes),
+  # filtering to files that still exist on disk.
+  defp ignored_files_to_copy(worktree_path, conv_meta, source_root) do
+    tracked = Map.get(conv_meta, :gitignored_writes, [])
+    scanned = GitCli.Worktree.find_new_ignored_files(source_root, worktree_path)
+
+    (tracked ++ scanned)
+    |> Enum.uniq()
+    |> Enum.filter(fn rel ->
+      File.exists?(Path.join(worktree_path, rel))
+    end)
+  end
+
+  # Copies gitignored/excluded files from the worktree back to the source repo.
+  # Called before the review flow may delete the worktree.
+  defp copy_ignored_writes(worktree_path, conv_meta, source_root) do
+    files = ignored_files_to_copy(worktree_path, conv_meta, source_root)
+
+    if files != [] do
+      results = GitCli.Worktree.copy_ignored_files(source_root, worktree_path, files)
+
+      Enum.each(results, fn
+        {:ok, rel} -> UI.info("Copied ignored file", rel)
+        {:error, rel, reason} -> UI.warn("Failed to copy #{rel}: #{reason}")
+      end)
     end
   end
 
@@ -1093,12 +1132,14 @@ defmodule Cmd.Ask do
     with {:ok, project} <- Store.get_project(),
          true <- GitCli.Worktree.fnord_managed?(project.name, path),
          false <- GitCli.Worktree.has_uncommitted_changes?(path),
-         meta when is_map(meta) <-
-           worktree_meta(Services.Conversation.get_conversation_meta(conversation_pid)),
+         conv_meta = Services.Conversation.get_conversation_meta(conversation_pid),
+         meta when is_map(meta) <- worktree_meta(conv_meta),
          repo_root = original_project_root(project.name),
          {:ok, diff} <-
            GitCli.Worktree.diff_from_fork_point(repo_root, meta.branch, meta.base_branch),
-         true <- byte_size(diff) == 0 do
+         true <- byte_size(diff) == 0,
+         # Don't discard if there are gitignored files to preserve
+         false <- has_ignored_writes?(path, conv_meta, repo_root) do
       UI.info("Discarding empty worktree", path)
 
       case GitCli.Worktree.delete(repo_root, path) do
@@ -1160,10 +1201,17 @@ defmodule Cmd.Ask do
     with true <- cwd != path,
          {:ok, project} <- Store.get_project(),
          true <- GitCli.Worktree.fnord_managed?(project.name, path) do
-      meta = worktree_meta(Services.Conversation.get_conversation_meta(conversation_pid))
+      conv_meta = Services.Conversation.get_conversation_meta(conversation_pid)
+      meta = worktree_meta(conv_meta)
 
       if meta do
         repo_root = original_project_root(project.name)
+
+        # Copy gitignored/excluded files back to the source repo before the
+        # review flow potentially deletes the worktree. Safe to do eagerly:
+        # if the merge fails and the worktree survives, the copies in the
+        # source repo are harmless (they're gitignored there too).
+        copy_ignored_writes(path, conv_meta, repo_root)
 
         result =
           if auto_merge? do
@@ -1176,6 +1224,7 @@ defmodule Cmd.Ask do
 
         case result do
           {:cleaned_up, sha, mode} ->
+            # clear_worktree_from_conversation also clears :gitignored_writes
             Cmd.WorktreeLifecycle.clear_worktree_from_conversation(conv_id)
             {:merged, sha, mode}
 

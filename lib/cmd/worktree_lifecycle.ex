@@ -74,6 +74,8 @@ defmodule Cmd.WorktreeLifecycle do
         data.metadata
         |> Map.delete(:worktree)
         |> Map.delete("worktree")
+        |> Map.delete(:gitignored_writes)
+        |> Map.delete("gitignored_writes")
 
       Store.Project.Conversation.write(conv, %{data | metadata: updated_metadata})
     end

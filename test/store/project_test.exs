@@ -310,4 +310,32 @@ defmodule Store.ProjectTest do
       assert {:error, :not_found} = Project.project_prompt(project)
     end
   end
+
+  describe "path_excluded?/2" do
+    test "returns true for gitignored files", %{project: project} do
+      git_ignore(project, ["scratch/"])
+      File.mkdir_p!(Path.join(project.source_root, "scratch"))
+      file = Path.join(project.source_root, "scratch/notes.md")
+      File.write!(file, "notes")
+
+      # Clear the cache so exclusions are recomputed
+      project = %{project | exclude_cache: nil}
+      assert Project.path_excluded?(project, file)
+    end
+
+    test "returns false for tracked files", %{project: project} do
+      file = mock_source_file(project, "lib/app.ex", "defmodule App, do: nil")
+      project = %{project | exclude_cache: nil}
+      refute Project.path_excluded?(project, file)
+    end
+
+    test "returns true for user-excluded paths", %{project: project} do
+      dir = Path.join(project.source_root, "vendor")
+      File.mkdir_p!(dir)
+      file = mock_source_file(project, "vendor/lib.ex", "code")
+
+      project = %{project | exclude: ["vendor"], exclude_cache: nil}
+      assert Project.path_excluded?(project, file)
+    end
+  end
 end

@@ -279,6 +279,16 @@ defmodule Store.Project do
     |> Stream.map(&Store.Project.Entry.new_from_entry_path(project, &1))
   end
 
+  @spec path_excluded?(t, String.t()) :: boolean()
+  @doc """
+  Returns true if the given absolute path is excluded by the project's
+  exclusion policy (user-defined patterns or gitignore).
+  """
+  def path_excluded?(project, abs_path) when is_binary(abs_path) do
+    {_project, excluded} = excluded_paths(project)
+    Map.has_key?(excluded, abs_path)
+  end
+
   @doc """
   Returns no source files when source_root is nil to avoid crashing.
   """
