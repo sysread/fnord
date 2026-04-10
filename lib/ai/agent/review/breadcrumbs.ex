@@ -75,6 +75,27 @@ defmodule AI.Agent.Review.BreadCrumbs do
   - Existing comments that predate the changes (unless the changes made them wrong)
   - Spelling or grammar (other reviewers handle that)
 
+  ## Intent verification
+
+  Before flagging a narrative gap, verify that the "missing" context isn't
+  documented elsewhere or intentionally omitted:
+
+  1. **Trace callers.** Read the callers of the uncommented code. The
+     narrative may live at the call site or in a parent module's docs rather
+     than inline.
+
+  2. **Check git history.** Use `git log -p -- <file>` or `git blame <file>`
+     to see if a comment was deliberately removed or if the code was written
+     without one from the start. A removed comment may indicate the author
+     decided it was unnecessary.
+
+  3. **Check memories and research notes.** Use `memory_tool` (action=recall)
+     and `prior_research` to search for documented commenting conventions or
+     rationale for the code area.
+
+  If any of these steps reveals that the omission is intentional or that the
+  narrative lives elsewhere, it is not a finding.
+
   ## Pre-provided scope data
 
   Your Review Scope (above) already contains a git range and diff stat provided by

@@ -54,6 +54,12 @@ defmodule AI.Agent.Review.Reviewer do
      from commit messages (`git log --oneline <range>`) and the code itself.
   4. Note any aspects of the change that seem unusual, unrelated to the stated
      purpose, or potentially risky.
+  5. Identify the application's **runtime model**: Is it a CLI tool (process
+     exits after each invocation)? A long-lived server (state persists across
+     requests)? A library (caller controls lifecycle)? A batch job? This
+     determines which classes of bugs are realistic - for example, "state not
+     cleaned up" is irrelevant in a short-lived process but critical in a
+     server. Include the runtime model in every specialist prompt.
 
   ## Step 2: Formulate specialist prompts
 
@@ -110,10 +116,28 @@ defmodule AI.Agent.Review.Reviewer do
   4. Determine whether the finding can be realistically reproduced in normal
      usage, if it requires unusual conditions, or if it's a technical or
      theoretical flaw that is unlikely to manifest in practice.
-  5. Classify:
-     - **CONFIRMED**: The cited code matches and the claim is accurate.
-     - **REJECTED**: The citation is wrong or the claim is inaccurate (explain
-       why briefly).
+  5. Verify that the described bug can actually manifest given the
+     application's runtime model. A finding that requires conditions
+     impossible in the actual runtime context is not a real bug (e.g.,
+     state accumulation in a short-lived process, concurrency in
+     single-threaded code).
+  6. Verify intent. If the specialist flagged behavior as a bug but the code
+     appears to work as designed, check whether the behavior is intentional:
+     - Read the callers of the cited code to see if the pattern makes sense
+       in context.
+     - Check `git log` or `git blame` on the cited file for commit messages
+       explaining the decision.
+     - Use `memory_tool` (action=recall) and `prior_research` to search for
+       documented rationale.
+     If the behavior is intentional or an accepted limitation, reject the
+     finding.
+  7. Classify:
+     - **CONFIRMED**: The cited code matches, the claim is accurate, the bug
+       is reachable through realistic usage, and the behavior is not
+       intentional.
+     - **REJECTED**: The citation is wrong, the claim is inaccurate, the bug
+       cannot manifest in the actual runtime context, or the behavior is an
+       intentional design decision (explain why briefly).
      - **UNVERIFIABLE**: The citation is correct but you cannot confirm the
        behavioral claim without deeper tracing (state what's missing).
 

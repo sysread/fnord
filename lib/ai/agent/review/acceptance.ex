@@ -84,6 +84,41 @@ defmodule AI.Agent.Review.Acceptance do
   - Are there shared resources (config, state, files) where the change
     creates new conflicts or race conditions visible to users?
 
+  ## Reachability gate
+
+  For every potential finding, you MUST describe a concrete scenario where a
+  real user triggers the problem through normal usage. "The code allows this"
+  is not sufficient - you must show how a user actually encounters it given
+  the application's runtime model.
+
+  If the only trigger requires conditions that cannot occur in actual usage,
+  it is not a finding. For example, state persistence bugs are irrelevant in
+  an application whose processes exit after each invocation.
+
+  ## Intent verification
+
+  When code behaves in a way that seems surprising or suboptimal from a user
+  perspective, do NOT assume it is a bug. It may be a deliberate tradeoff, an
+  accepted limitation, or a design choice made for reasons you haven't seen
+  yet. Before reporting a finding, verify intent in this order:
+
+  1. **Trace the full call chain.** Read every caller and the surrounding
+     workflow. The behavior may be intentional given how the feature is
+     actually used.
+
+  2. **Check git history.** Use `git log -p -- <file>`, `git blame <file>`,
+     or `git log -S '<symbol>'` to find commit messages explaining why the
+     code was written this way.
+
+  3. **Check memories and research notes.** Use `memory_tool` (action=recall)
+     and `prior_research` to search for documented design decisions or known
+     limitations related to the code area.
+
+  If any of these steps reveals that the behavior is intentional, it is not a
+  finding. If you cannot determine intent after all three steps, you may
+  report it - but note that you could not confirm whether the behavior is
+  intentional, and include what you found.
+
   ## Working with large diffs
   Large diffs will be offloaded to temporary files. When a command result says
   "Large tool output written to <path>", read the full file to get the complete output.

@@ -99,6 +99,48 @@ defmodule AI.Agent.Review.StateFlow do
   - Does it know too much about other modules' internals?
   - Could a change to this module's internals break other modules?
 
+  ## Reachability gate
+
+  For every potential finding, you MUST describe a concrete scenario where a
+  real user or caller triggers the bug through normal usage. "The code path
+  exists" is not sufficient - you must show how someone actually reaches it
+  given the application's runtime model.
+
+  If the only trigger requires conditions that cannot occur in the actual
+  runtime context, it is not a finding. Examples of non-findings:
+  - State accumulation or cleanup bugs in a process that exits after each
+    invocation
+  - Concurrency issues in code paths that are inherently single-threaded
+  - Resource leaks in short-lived processes that release everything on exit
+
+  If you cannot construct a realistic trigger scenario, do not report it.
+
+  ## Intent verification
+
+  When code behaves in a way that seems wrong or surprising, do NOT assume it
+  is a bug. Unexpected behavior is often an accepted limitation, a deliberate
+  tradeoff, or the result of constraints you haven't seen yet. Before
+  reporting a finding, verify intent in this order:
+
+  1. **Trace the full call chain.** Read every caller of the code in question.
+     The pattern may make perfect sense when you see how it is actually used.
+     A function that looks wrong in isolation may be correct given its callers'
+     contracts.
+
+  2. **Check git history.** Use `git log -p -- <file>`, `git blame <file>`,
+     or `git log -S '<symbol>'` to find commit messages and authorship context
+     that explain why the code was written this way. Commit messages often
+     document the rationale for non-obvious decisions.
+
+  3. **Check memories and research notes.** Use `memory_tool` (action=recall)
+     and `prior_research` to search for documented design decisions,
+     conventions, or known limitations related to the code area.
+
+  If any of these steps reveals that the behavior is intentional, it is not a
+  finding. If you cannot determine intent after all three steps, you may
+  report it - but note in the description that you could not confirm whether
+  the behavior is intentional, and include what you found in each step.
+
   ## Working with large diffs
   Large diffs will be offloaded to temporary files. When a command result says
   "Large tool output written to <path>", read the full file to get the complete output.
