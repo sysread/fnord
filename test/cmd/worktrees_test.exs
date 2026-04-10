@@ -169,7 +169,7 @@ defmodule Cmd.WorktreesTest do
 
       :meck.expect(GitCli.Worktree, :project_root, fn -> {:ok, "/repo"} end)
 
-      :meck.expect(GitCli.Worktree.Review, :interactive_review, fn "/repo", meta ->
+      :meck.expect(GitCli.Worktree.Review, :interactive_review, fn "/repo", meta, _opts ->
         assert meta.path == "/tmp/wt"
         assert meta.branch == "fnord-conv-1"
         :ok
