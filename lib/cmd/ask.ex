@@ -853,8 +853,51 @@ defmodule Cmd.Ask do
     explicit_path = explicit_worktree_path(opts)
     stored_meta = worktree_meta(metadata)
 
-    with {:ok, project} <- Store.get_project() do
-      resolve_conversation_worktree(project, conversation_pid, explicit_path, stored_meta)
+    with {:ok, project} <- Store.get_project(),
+         {:ok, path} <-
+           resolve_conversation_worktree(project, conversation_pid, explicit_path, stored_meta) do
+      maybe_auto_create_worktree(opts, project, conversation_pid, path)
+    end
+  end
+
+  # In edit mode, auto-create the worktree before the coordinator bootstraps.
+  # This ensures the GIT_INFO templated into the coordinator prompt reflects
+  # the worktree branch and root, not the source repo's. Without this,
+  # the LLM sees stale "current branch" info that contradicts the worktree
+  # context message.
+  @spec maybe_auto_create_worktree(map, any, pid, String.t() | nil) ::
+          {:ok, String.t() | nil} | {:error, term}
+  defp maybe_auto_create_worktree(_opts, _project, _pid, path) when is_binary(path) do
+    {:ok, path}
+  end
+
+  defp maybe_auto_create_worktree(opts, project, conversation_pid, nil) do
+    if opts[:edit] == true and GitCli.is_git_repo?() do
+      conversation_id = Services.Conversation.get_id(conversation_pid)
+
+      case GitCli.Worktree.create(project.name, conversation_id, nil) do
+        {:ok, result} ->
+          meta = %{
+            path: result.path,
+            branch: result.branch,
+            base_branch: result.base_branch
+          }
+
+          with :ok <-
+                 Services.Conversation.upsert_conversation_meta(conversation_pid, %{
+                   worktree: meta
+                 }) do
+            Settings.set_project_root_override(result.path)
+            UI.info("Auto-created worktree", result.path)
+            {:ok, result.path}
+          end
+
+        {:error, reason} ->
+          UI.warn("Failed to auto-create worktree: #{inspect(reason)}")
+          {:ok, nil}
+      end
+    else
+      {:ok, nil}
     end
   end
 
