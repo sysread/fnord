@@ -766,12 +766,36 @@ defmodule AI.Agent.Coordinator do
         %{worktree: %{path: path, branch: branch} = wt} when is_binary(path) ->
           base_branch = Map.get(wt, :base_branch)
           divergence_note = worktree_divergence_note(path, branch, base_branch)
+          base_label = base_branch || "the base branch"
 
           """
-          This conversation has an active worktree:
+          This conversation is working in an isolated git worktree:
           - Path: #{path}
           - Branch: #{branch || "unknown"}
-          All file edits MUST target this worktree. Do NOT create a second worktree for this conversation.#{divergence_note}
+          - Branched from: #{base_label}
+
+          ## What this means
+
+          Your branch `#{branch || "unknown"}` was created as a copy of `#{base_label}` at the moment the worktree was set up. Changes you make and commit go onto `#{branch || "unknown"}`, NOT onto `#{base_label}`.
+
+          `#{base_label}` will NOT show your work until the merge step that runs automatically after you finalize your response. From the perspective of `#{base_label}`'s history, none of your work exists yet - that is normal and expected.
+
+          ## How to verify your own progress
+
+          To check what you have already done in this worktree, inspect:
+          - The worktree filesystem at `#{path}` - this is the live state, including uncommitted changes
+          - `git log #{branch || "<branch>"}` - commits on this branch (your work plus everything inherited from `#{base_label}`)
+          - `git diff $(git merge-base #{base_label} #{branch || "<branch>"})..#{branch || "<branch>"}` - everything you have added since branching
+
+          Do NOT use `git log #{base_label}` to check your own work. It will not show it. The absence of your changes from `#{base_label}` is not evidence that the work was lost - it is the expected state until merge.
+
+          Files you wrote in earlier turns of this same conversation are still in `#{path}` (committed or uncommitted) unless something explicitly deleted them. Trust the worktree filesystem as the live state.
+
+          ## Rules
+
+          - All file edits MUST target this worktree.
+          - Do NOT create a second worktree for this conversation.
+          - The merge into `#{base_label}` happens automatically after you finalize your response - you do not need to perform it manually, and you should not wait for it before finishing your work.#{divergence_note}
           """
           |> AI.Util.system_msg()
           |> Services.Conversation.append_msg(conversation_pid)
@@ -839,7 +863,7 @@ defmodule AI.Agent.Coordinator do
       {:ok, root} ->
         case GitCli.Worktree.merge_status(path, root, branch, base_branch) do
           :diverged ->
-            "\n\nWARNING: this worktree's base branch (#{base_branch}) has advanced since the worktree was created. Rebase onto #{base_branch} before making further changes to avoid merge conflicts at the end of the session."
+            "\n\nWARNING: `#{base_branch}` has advanced since this worktree was created. Rebase `#{branch}` onto `#{base_branch}` before making further changes to avoid merge conflicts when the auto-merge runs after you finalize your response."
 
           _ ->
             ""
