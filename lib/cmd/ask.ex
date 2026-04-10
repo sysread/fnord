@@ -1107,7 +1107,10 @@ defmodule Cmd.Ask do
   end
 
   # Copies gitignored/excluded files from the worktree back to the source repo.
-  # Called before the review flow may delete the worktree.
+  # Returns the list of successfully copied relative paths (for display in the
+  # review section). Logs warnings for failures immediately since they won't
+  # appear in the review section.
+  @spec copy_ignored_writes(String.t(), map(), String.t()) :: [String.t()]
   defp copy_ignored_writes(worktree_path, conv_meta, source_root) do
     files = ignored_files_to_copy(worktree_path, conv_meta, source_root)
 
@@ -1115,9 +1118,13 @@ defmodule Cmd.Ask do
       results = GitCli.Worktree.copy_ignored_files(source_root, worktree_path, files)
 
       Enum.each(results, fn
-        {:ok, rel} -> UI.info("Copied ignored file", rel)
+        {:ok, _rel} -> :ok
         {:error, rel, reason} -> UI.warn("Failed to copy #{rel}: #{reason}")
       end)
+
+      for {:ok, rel} <- results, do: rel
+    else
+      []
     end
   end
 
@@ -1211,13 +1218,14 @@ defmodule Cmd.Ask do
         # review flow potentially deletes the worktree. Safe to do eagerly:
         # if the merge fails and the worktree survives, the copies in the
         # source repo are harmless (they're gitignored there too).
-        copy_ignored_writes(path, conv_meta, repo_root)
+        copied_files = copy_ignored_writes(path, conv_meta, repo_root)
+        review_opts = [ignored_files: copied_files]
 
         result =
           if auto_merge? do
-            GitCli.Worktree.Review.auto_merge(repo_root, meta)
+            GitCli.Worktree.Review.auto_merge(repo_root, meta, review_opts)
           else
-            GitCli.Worktree.Review.interactive_review(repo_root, meta)
+            GitCli.Worktree.Review.interactive_review(repo_root, meta, review_opts)
           end
 
         conv_id = Services.Conversation.get_id(conversation_pid)

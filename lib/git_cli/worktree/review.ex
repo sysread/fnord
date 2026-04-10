@@ -22,17 +22,20 @@ defmodule GitCli.Worktree.Review do
           | {:validation_failed, :pre_merge | :post_merge, String.t()}
           | {:merge_failed, String.t()}
 
-  @spec interactive_review(String.t(), worktree_info()) :: review_result()
+  @spec interactive_review(String.t(), worktree_info(), keyword()) :: review_result()
   @doc """
   Walks the user through inspecting the diff, merging, and optionally deleting
   the worktree and its local branch. Runs validation before and after merge.
   """
-  def interactive_review(root, %{path: path, branch: branch, base_branch: base_branch}) do
+  def interactive_review(root, meta, opts \\ [])
+
+  def interactive_review(root, %{path: path, branch: branch, base_branch: base_branch}, opts) do
     unless UI.is_tty?() do
       throw(:skip)
     end
 
     print_header()
+    log_ignored_files(opts)
     target = GitCli.Worktree.current_branch(root) || "HEAD"
 
     unless UI.confirm(wt_prompt("Inspect changes from worktree branch #{branch}?")) do
@@ -80,13 +83,16 @@ defmodule GitCli.Worktree.Review do
     :throw, {:merge_failed, _reason} = failure -> failure
   end
 
-  @spec auto_merge(String.t(), worktree_info()) :: review_result()
+  @spec auto_merge(String.t(), worktree_info(), keyword()) :: review_result()
   @doc """
   Merges worktree changes and cleans up without prompting. Runs validation
   before and after merge. Pre-merge validation failure blocks the merge.
   """
-  def auto_merge(root, %{path: path, branch: branch, base_branch: base_branch}) do
+  def auto_merge(root, meta, opts \\ [])
+
+  def auto_merge(root, %{path: path, branch: branch, base_branch: base_branch}, opts) do
     print_header()
+    log_ignored_files(opts)
     target = GitCli.Worktree.current_branch(root) || "HEAD"
     UI.info("Auto-merge", "#{branch} into #{target}")
     show_diff(root, branch, base_branch)
@@ -173,6 +179,13 @@ defmodule GitCli.Worktree.Review do
       end
     else
       _ -> :ok
+    end
+  end
+
+  defp log_ignored_files(opts) do
+    case Keyword.get(opts, :ignored_files, []) do
+      [] -> :ok
+      files -> Enum.each(files, &UI.info("Copied ignored file", &1))
     end
   end
 

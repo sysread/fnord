@@ -341,7 +341,7 @@ defmodule Cmd.AskTest do
         true
       end)
 
-      :meck.expect(GitCli.Worktree.Review, :interactive_review, fn "/tmp/demo", meta ->
+      :meck.expect(GitCli.Worktree.Review, :interactive_review, fn "/tmp/demo", meta, _opts ->
         assert meta.path == worktree_dir
         assert meta.branch == "feat"
         assert meta.base_branch == "main"
@@ -428,7 +428,7 @@ defmodule Cmd.AskTest do
         true
       end)
 
-      :meck.expect(GitCli.Worktree.Review, :auto_merge, fn "/tmp/demo", meta ->
+      :meck.expect(GitCli.Worktree.Review, :auto_merge, fn "/tmp/demo", meta, _opts ->
         assert meta.path == worktree_dir
         assert meta.branch == "feat"
         assert meta.base_branch == "main"

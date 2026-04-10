@@ -219,9 +219,9 @@ defmodule Cmd.Worktrees do
          {:ok, root} <- GitCli.Worktree.project_root() do
       # Copy gitignored/excluded files before the review flow may delete the
       # worktree. Same eager-copy strategy as Cmd.Ask.
-      copy_ignored_writes_for_conversation(conv_id, meta.path, root)
+      copied_files = copy_ignored_writes_for_conversation(conv_id, meta.path, root)
 
-      case GitCli.Worktree.Review.interactive_review(root, meta) do
+      case GitCli.Worktree.Review.interactive_review(root, meta, ignored_files: copied_files) do
         {:cleaned_up, _sha, _mode} ->
           Cmd.WorktreeLifecycle.clear_worktree_from_conversation(conv_id)
 
@@ -249,7 +249,9 @@ defmodule Cmd.Worktrees do
 
   # Reads the gitignored_writes accumulator from a conversation's persisted
   # metadata and copies those files (plus any found by the safety-net scan)
-  # from the worktree to the source repo. No-op when there's nothing to copy.
+  # from the worktree to the source repo. Returns the list of successfully
+  # copied relative paths for display in the review section.
+  @spec copy_ignored_writes_for_conversation(String.t(), String.t(), String.t()) :: [String.t()]
   defp copy_ignored_writes_for_conversation(conv_id, worktree_path, source_root) do
     conv = Store.Project.Conversation.new(conv_id)
 
@@ -271,9 +273,13 @@ defmodule Cmd.Worktrees do
       results = GitCli.Worktree.copy_ignored_files(source_root, worktree_path, files)
 
       Enum.each(results, fn
-        {:ok, rel} -> UI.info("Copied ignored file", rel)
+        {:ok, _rel} -> :ok
         {:error, rel, reason} -> UI.warn("Failed to copy #{rel}: #{reason}")
       end)
+
+      for {:ok, rel} <- results, do: rel
+    else
+      []
     end
   end
 
