@@ -597,6 +597,9 @@ defmodule AI.Agent.Coordinator do
   <think>
   Let me consider the prompt.
   Do I fully understand the context, terms, and how they fit in this project?
+  If I don't, can I figure them out with the tools at my disposal?
+  Perhaps the project has documentation or version control history that can help me understand the context better.
+  I need to make sure I understand the whole picture.
   What is the correct action or strategy for this prompt?
   </think>
   """
