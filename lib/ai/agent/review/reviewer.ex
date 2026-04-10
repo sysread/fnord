@@ -389,6 +389,11 @@ defmodule AI.Agent.Review.Reviewer do
     state
   end
 
+  # Formulation uses a json_schema response_format, so the API guarantees
+  # schema conformance. A parse failure here indicates an API-level problem
+  # (refusal, network fault) rather than a malformed response. Halting is
+  # intentional: all specialist delegates pattern-match on :specialist_prompts,
+  # so continuing without valid prompts would crash downstream.
   @impl AI.Agent.Composite
   def on_step_complete(%{name: :formulate}, state) do
     case SafeJson.decode_lenient(state.response, keys: :atoms!) do
@@ -413,6 +418,9 @@ defmodule AI.Agent.Review.Reviewer do
   @impl AI.Agent.Composite
   def get_next_steps(_step, _state), do: []
 
+  # Halt on any step failure. Retry is not useful here: formulation failures
+  # indicate API-level problems, and specialist/incorporation failures mean
+  # the conversation state is already inconsistent.
   @impl AI.Agent.Composite
   def on_error(_step, _error, state) do
     {:halt, state}

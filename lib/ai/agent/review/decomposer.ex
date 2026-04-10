@@ -327,6 +327,10 @@ defmodule AI.Agent.Review.Decomposer do
     state
   end
 
+  # Both :estimate and :partition use json_schema response_format, so parse
+  # failures indicate API-level problems, not schema drift. Halting is
+  # intentional: get_next_steps pattern-matches on :estimate/:partition state,
+  # so continuing without valid parsed data would crash downstream.
   @impl AI.Agent.Composite
   def on_step_complete(%{name: :estimate}, state) do
     case SafeJson.decode_lenient(state.response, keys: :atoms!) do
@@ -439,6 +443,9 @@ defmodule AI.Agent.Review.Decomposer do
 
   def get_next_steps(_step, _state), do: []
 
+  # Halt on any step failure. Parse failures from structured output indicate
+  # API-level problems where retry won't help; reviewer delegation failures
+  # mean the sub-agent's conversation is already in a bad state.
   @impl AI.Agent.Composite
   def on_error(_step, _error, state) do
     {:halt, state}
