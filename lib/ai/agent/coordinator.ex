@@ -305,11 +305,16 @@ defmodule AI.Agent.Coordinator do
       true ->
         UI.begin_step("Committing worktree changes")
 
-        state
-        |> commit_worktree_msg()
-        |> AI.Agent.Coordinator.Glue.get_completion()
-        |> commit_worktree_loop()
-        |> perform_step()
+        case state |> commit_worktree_msg() |> AI.Agent.Coordinator.Glue.get_completion() do
+          {:error, _reason} ->
+            UI.warn("Worktree commit skipped due to completion failure")
+            perform_step(state)
+
+          updated ->
+            updated
+            |> commit_worktree_loop()
+            |> perform_step()
+        end
     end
   end
 
@@ -363,10 +368,14 @@ defmodule AI.Agent.Coordinator do
   @commit_worktree_max_attempts 3
   defp commit_worktree_loop(state, attempt \\ 1) do
     if worktree_needs_commit?() and attempt < @commit_worktree_max_attempts do
-      state
-      |> commit_worktree_nag_msg()
-      |> AI.Agent.Coordinator.Glue.get_completion()
-      |> commit_worktree_loop(attempt + 1)
+      case state |> commit_worktree_nag_msg() |> AI.Agent.Coordinator.Glue.get_completion() do
+        {:error, _reason} ->
+          UI.warn("Worktree commit nag skipped due to completion failure")
+          state
+
+        updated ->
+          commit_worktree_loop(updated, attempt + 1)
+      end
     else
       state
     end
