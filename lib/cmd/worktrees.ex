@@ -261,12 +261,9 @@ defmodule Cmd.Worktrees do
         _ -> %{}
       end
 
-    tracked = Map.get(conv_meta, :gitignored_writes, [])
-    scanned = GitCli.Worktree.find_new_ignored_files(source_root, worktree_path)
-
     files =
-      (tracked ++ scanned)
-      |> Enum.uniq()
+      conv_meta
+      |> Map.get(:gitignored_writes, [])
       |> Enum.filter(&File.exists?(Path.join(worktree_path, &1)))
 
     if files != [] do

@@ -320,61 +320,6 @@ defmodule GitCli.Worktree do
 
   def has_changes_to_merge?(_root, _path, _branch, _base_branch), do: false
 
-  @spec find_new_ignored_files(String.t(), String.t()) :: [String.t()]
-  @doc """
-  Finds files in the worktree that are gitignored but don't exist at the same
-  relative path in the source repo. Scoped to gitignored directories that exist
-  in both locations, filtering out build artifacts that only exist in the
-  worktree (e.g. _build/, deps/).
-  """
-  def find_new_ignored_files(source_root, worktree_path)
-      when is_binary(source_root) and is_binary(worktree_path) do
-    if not File.dir?(worktree_path) or not File.dir?(source_root) do
-      []
-    else
-      # Get gitignored files in the worktree
-      worktree_ignored = list_ignored_files(worktree_path)
-
-      # Filter to files whose parent directory also exists in the source repo,
-      # and whose corresponding file does NOT exist in the source repo (or differs)
-      worktree_ignored
-      |> Enum.filter(fn abs_path ->
-        rel = Path.relative_to(abs_path, worktree_path)
-        source_dir = Path.join(source_root, Path.dirname(rel))
-        source_file = Path.join(source_root, rel)
-
-        # Parent dir must exist in source (filters out _build/, deps/, etc.)
-        File.dir?(source_dir) and
-          # File must not exist in source, or must differ
-          (not File.exists?(source_file) or files_differ?(abs_path, source_file))
-      end)
-      |> Enum.map(&Path.relative_to(&1, worktree_path))
-    end
-  end
-
-  defp list_ignored_files(root) do
-    case System.cmd("git", ["ls-files", "--others", "--ignored", "--exclude-standard"],
-           cd: root,
-           stderr_to_stdout: true
-         ) do
-      {out, 0} ->
-        out
-        |> String.split("\n", trim: true)
-        |> Enum.map(&Path.absname(&1, root))
-        |> Enum.filter(&File.regular?/1)
-
-      _ ->
-        []
-    end
-  end
-
-  defp files_differ?(a, b) do
-    case {File.read(a), File.read(b)} do
-      {{:ok, ca}, {:ok, cb}} -> ca != cb
-      _ -> true
-    end
-  end
-
   @spec copy_ignored_files(String.t(), String.t(), [String.t()]) ::
           [{:ok, String.t()} | {:error, String.t(), term}]
   @doc """

@@ -1079,31 +1079,25 @@ defmodule Cmd.Ask do
           Map.get(meta, :base_branch)
         )
 
-      git_changes or has_ignored_writes?(path, conv_meta, repo_root)
+      git_changes or has_ignored_writes?(path, conv_meta)
     else
       _ -> false
     end
   end
 
-  # Checks for gitignored/excluded files that need to be copied back to the
-  # source repo. Combines the tracked accumulator with a safety-net scan for
-  # files written through non-tracked channels (cmd_tool, frobs, MCP servers).
-  defp has_ignored_writes?(worktree_path, conv_meta, source_root) do
-    ignored_files_to_copy(worktree_path, conv_meta, source_root) != []
+  # Checks for tracked gitignored/excluded files that still exist on disk.
+  defp has_ignored_writes?(worktree_path, conv_meta) do
+    ignored_files_to_copy(worktree_path, conv_meta) != []
   end
 
-  # Returns the deduplicated list of relative paths to copy. Merges the
-  # accumulator (tracked writes) with the safety-net scan (untracked writes),
-  # filtering to files that still exist on disk.
-  defp ignored_files_to_copy(worktree_path, conv_meta, source_root) do
-    tracked = Map.get(conv_meta, :gitignored_writes, [])
-    scanned = GitCli.Worktree.find_new_ignored_files(source_root, worktree_path)
-
-    (tracked ++ scanned)
-    |> Enum.uniq()
-    |> Enum.filter(fn rel ->
-      File.exists?(Path.join(worktree_path, rel))
-    end)
+  # Returns the list of tracked gitignored paths that still exist on disk.
+  # Only includes files explicitly recorded by the write-time tracking in
+  # file_edit_tool - no broad scan of gitignored dirs, which would pick up
+  # build artifacts like _build/.
+  defp ignored_files_to_copy(worktree_path, conv_meta) do
+    conv_meta
+    |> Map.get(:gitignored_writes, [])
+    |> Enum.filter(&File.exists?(Path.join(worktree_path, &1)))
   end
 
   # Copies gitignored/excluded files from the worktree back to the source repo.
@@ -1112,7 +1106,7 @@ defmodule Cmd.Ask do
   # appear in the review section.
   @spec copy_ignored_writes(String.t(), map(), String.t()) :: [String.t()]
   defp copy_ignored_writes(worktree_path, conv_meta, source_root) do
-    files = ignored_files_to_copy(worktree_path, conv_meta, source_root)
+    files = ignored_files_to_copy(worktree_path, conv_meta)
 
     if files != [] do
       results = GitCli.Worktree.copy_ignored_files(source_root, worktree_path, files)
@@ -1146,7 +1140,7 @@ defmodule Cmd.Ask do
            GitCli.Worktree.diff_from_fork_point(repo_root, meta.branch, meta.base_branch),
          true <- byte_size(diff) == 0,
          # Don't discard if there are gitignored files to preserve
-         false <- has_ignored_writes?(path, conv_meta, repo_root) do
+         false <- has_ignored_writes?(path, conv_meta) do
       UI.info("Discarding empty worktree", path)
 
       case GitCli.Worktree.delete(repo_root, path) do

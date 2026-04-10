@@ -44,77 +44,6 @@ defmodule GitCli.Worktree.IgnoredFilesTest do
     end
   end
 
-  describe "find_new_ignored_files/2" do
-    setup :setup_repo
-
-    test "detects new files in gitignored dirs", %{repo: repo} do
-      # Create a worktree-like directory structure
-      {:ok, worktree} = tmpdir()
-      clone_dir_structure(repo, worktree)
-
-      # Add a file to scratch/ in the worktree that doesn't exist in source
-      File.mkdir_p!(Path.join(worktree, "scratch"))
-      File.write!(Path.join(worktree, "scratch/plan.md"), "a plan")
-
-      # Set up git in the worktree with the same gitignore
-      System.cmd("git", ["init", "--quiet"], cd: worktree)
-      File.cp!(Path.join(repo, ".gitignore"), Path.join(worktree, ".gitignore"))
-
-      result = GitCli.Worktree.find_new_ignored_files(repo, worktree)
-      assert "scratch/plan.md" in result
-    end
-
-    test "ignores files that exist in both source and worktree with same content", %{repo: repo} do
-      # Add a file to scratch/ in both
-      File.write!(Path.join(repo, "scratch/existing.md"), "same content")
-
-      {:ok, worktree} = tmpdir()
-      clone_dir_structure(repo, worktree)
-      File.mkdir_p!(Path.join(worktree, "scratch"))
-      File.write!(Path.join(worktree, "scratch/existing.md"), "same content")
-
-      System.cmd("git", ["init", "--quiet"], cd: worktree)
-      File.cp!(Path.join(repo, ".gitignore"), Path.join(worktree, ".gitignore"))
-
-      result = GitCli.Worktree.find_new_ignored_files(repo, worktree)
-      refute "scratch/existing.md" in result
-    end
-
-    test "detects files that differ between source and worktree", %{repo: repo} do
-      File.write!(Path.join(repo, "scratch/notes.md"), "old content")
-
-      {:ok, worktree} = tmpdir()
-      clone_dir_structure(repo, worktree)
-      File.mkdir_p!(Path.join(worktree, "scratch"))
-      File.write!(Path.join(worktree, "scratch/notes.md"), "new content")
-
-      System.cmd("git", ["init", "--quiet"], cd: worktree)
-      File.cp!(Path.join(repo, ".gitignore"), Path.join(worktree, ".gitignore"))
-
-      result = GitCli.Worktree.find_new_ignored_files(repo, worktree)
-      assert "scratch/notes.md" in result
-    end
-
-    test "excludes files in dirs that only exist in worktree (build artifacts)", %{repo: repo} do
-      {:ok, worktree} = tmpdir()
-      clone_dir_structure(repo, worktree)
-
-      # Simulate _build/ - exists only in worktree, not in source
-      File.mkdir_p!(Path.join(worktree, "_build/dev"))
-      File.write!(Path.join(worktree, "_build/dev/some_artifact"), "compiled")
-
-      System.cmd("git", ["init", "--quiet"], cd: worktree)
-      # Add _build/ to gitignore
-      File.write!(
-        Path.join(worktree, ".gitignore"),
-        File.read!(Path.join(repo, ".gitignore")) <> "\n_build/"
-      )
-
-      result = GitCli.Worktree.find_new_ignored_files(repo, worktree)
-      refute Enum.any?(result, &String.starts_with?(&1, "_build/"))
-    end
-  end
-
   describe "copy_ignored_files/3" do
     setup :setup_repo
 
@@ -150,22 +79,4 @@ defmodule GitCli.Worktree.IgnoredFilesTest do
     end
   end
 
-  # Copies the directory structure (but not .git/) from source to dest
-  defp clone_dir_structure(source, dest) do
-    source
-    |> Path.join("**/*")
-    |> Path.wildcard(match_dot: false)
-    |> Enum.reject(&String.contains?(&1, ".git"))
-    |> Enum.each(fn path ->
-      rel = Path.relative_to(path, source)
-      target = Path.join(dest, rel)
-
-      if File.dir?(path) do
-        File.mkdir_p!(target)
-      else
-        File.mkdir_p!(Path.dirname(target))
-        File.cp!(path, target)
-      end
-    end)
-  end
 end
