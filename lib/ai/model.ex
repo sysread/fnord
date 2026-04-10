@@ -75,7 +75,9 @@ defmodule AI.Model do
   # OpenAI Models
   # ----------------------------------------------------------------------------
   def gpt5(reasoning \\ :medium), do: new("gpt-5.4", 1_050_000, reasoning)
+  # does not support reasoning_effort through the chat completions api
   def gpt5_mini(), do: new("gpt-5.4-mini", 400_000, :none)
+  # does not support reasoning_effort through the chat completions api
   def gpt5_nano(), do: new("gpt-5.4-nano", 400_000, :none)
   def gpt41(), do: new("gpt-4.1", 1_000_000, :none)
   def gpt41_mini(), do: new("gpt-4.1-mini", 1_000_000, :none)
