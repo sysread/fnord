@@ -842,14 +842,37 @@ defmodule AI.Tools do
   # knows the file doesn't exist on its branch.
   @spec try_source_fallback(binary) :: source_fallback | {:error, :enoent}
   defp try_source_fallback(file) do
+    with {:ok, source_path} <- resolve_source_fallback_path(file),
+         {:ok, contents} <-
+           Services.FileCache.get_or_fetch(source_path, fn -> File.read(source_path) end) do
+      {:source_fallback, source_path, contents}
+    else
+      _ -> {:error, :enoent}
+    end
+  end
+
+  @spec resolve_source_fallback_path(binary) :: {:ok, String.t()} | {:error, :enoent}
+  @doc """
+  Resolves a file path to its absolute location in the original source repo
+  IF the file:
+
+    1. Is missing from the current project root (worktree), AND
+    2. Exists at the same relative path under `original_source_root`, AND
+    3. Is gitignored at that root.
+
+  Returns `{:ok, abs_path}` when all three are true, or `{:error, :enoent}`
+  otherwise. Useful for tools that want to surface the existence of a
+  gitignored source file without actually reading its contents (e.g.
+  file_notes_tool, which has no meaningful notes for unindexed files but
+  still wants to tell the LLM "yes it exists, use file_contents_tool").
+  """
+  def resolve_source_fallback_path(file) do
     with {:ok, project} <- get_project(),
          original_root when is_binary(original_root) <- Store.Project.original_source_root(),
          true <- original_root != project.source_root,
          {:ok, source_path} <- Util.find_file_within_root(file, original_root),
-         true <- GitCli.Worktree.path_ignored?(original_root, source_path),
-         {:ok, contents} <-
-           Services.FileCache.get_or_fetch(source_path, fn -> File.read(source_path) end) do
-      {:source_fallback, source_path, contents}
+         true <- GitCli.Worktree.path_ignored?(original_root, source_path) do
+      {:ok, source_path}
     else
       _ -> {:error, :enoent}
     end

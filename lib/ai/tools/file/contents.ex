@@ -58,6 +58,16 @@ defmodule AI.Tools.File.Contents do
         section of code, use the file_info_tool to preserve your context
         window.
 
+        This tool reads files by path regardless of index status. It works
+        for indexed source files AND for files that are not in the index -
+        including gitignored paths like `scratch/` notes. In a worktree
+        session, if the file isn't present in the worktree but exists as a
+        gitignored file in the original source repo, this tool will fall
+        back to reading it from there (and annotate the result with a note
+        explaining where it came from). If file_notes_tool, file_search_tool,
+        or file_list_tool can't find a path you know exists, reach for this
+        tool - it will read it directly.
+
         Note that this tool ONLY shows the current version of the file on the
         currently checked-out branch. If you need to see the contents of the
         file on a different branch (or for files that only exist on that
@@ -71,8 +81,10 @@ defmodule AI.Tools.File.Contents do
             file: %{
               type: "string",
               description: """
-              The file whose contents you wish to review. It must be the
-              complete path provided by the file_search_tool or file_list_tool.
+              The file whose contents you wish to review. Typically the
+              complete path provided by the file_search_tool or file_list_tool,
+              but any valid path within the project will work - including
+              unindexed and gitignored paths.
               """
             },
             line_numbers: %{

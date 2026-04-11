@@ -37,6 +37,12 @@ defmodule AI.Tools.File.Notes do
 
         Use this before using the file_contents_tool to avoid pulling in
         unnecessary content into your context window.
+
+        Scope: this tool only works on *indexed* source files. Gitignored
+        paths (e.g. `scratch/` notes) are not indexed and have no summary or
+        outline, but the tool will still confirm that such a file exists in
+        the source repo if you're in a worktree session, and it will point
+        you at file_contents_tool for actually reading the contents.
         """,
         parameters: %{
           additionalProperties: false,
@@ -72,11 +78,57 @@ defmodule AI.Tools.File.Notes do
         {:error, "This project has not yet been indexed by the user."}
 
       {:error, :enoent} ->
-        {:error, "File path not found. Please verify the correct path."}
+        handle_enoent(args)
 
       :error ->
         {:error, "Missing required parameter: file."}
     end
+  end
+
+  # When the file isn't under the current project root, try the source-fallback
+  # path. If it resolves (gitignored file present in the original source repo
+  # but not in the worktree), return a stub notes response that acknowledges
+  # existence and points the LLM at file_contents_tool for content. Otherwise
+  # fall back to a friendlier error that mentions file_contents_tool as the
+  # canonical way to read unindexed paths.
+  defp handle_enoent(args) do
+    file = Map.get(args, "file", "")
+
+    case AI.Tools.resolve_source_fallback_path(file) do
+      {:ok, source_path} ->
+        {:ok, format_gitignored_notes(source_path)}
+
+      _ ->
+        {:error,
+         """
+         File path not found in the current project root: #{file}
+
+         If this is a path you know exists but is not indexed (e.g. a
+         gitignored file under `scratch/` or similar), use file_contents_tool
+         instead - it reads files by path regardless of index status, and in
+         a worktree session it will fall back to the original source repo
+         for gitignored files.
+         """}
+    end
+  end
+
+  defp format_gitignored_notes(source_path) do
+    """
+    # File
+    `#{source_path}`
+
+    # Summary
+    (not indexed - this file is gitignored and lives in the source repo,
+    not the current worktree)
+
+    # Outline
+    (not indexed)
+
+    # Reading the contents
+    Use `file_contents_tool` with the same path you used here. In a worktree
+    session it will automatically read this gitignored file from the source
+    repo via source-fallback.
+    """
   end
 
   # Returns indexed data if available, otherwise a placeholder indicating the
