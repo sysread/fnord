@@ -701,6 +701,7 @@ defmodule AI.Tools do
   @type project_not_found :: {:error, :project_not_found} | {:error, :project_not_set}
   @type entry_not_found :: {:error, :enoent}
   @type something_not_found :: project_not_found | entry_not_found
+  @type source_fallback :: {:source_fallback, String.t(), binary}
 
   @doc """
   Retrieves an argument from the parsed arguments map. Empty strings or `nil`
@@ -784,6 +785,27 @@ defmodule AI.Tools do
 
   @spec get_file_contents(binary) :: {:ok, binary} | something_not_found
   def get_file_contents(file) do
+    case get_file_contents_with_origin(file) do
+      {:ok, contents} -> {:ok, contents}
+      {:source_fallback, _path, contents} -> {:ok, contents}
+      err -> err
+    end
+  end
+
+  @spec get_file_contents_with_origin(binary) ::
+          {:ok, binary} | source_fallback | something_not_found
+  @doc """
+  Like `get_file_contents/1`, but distinguishes between contents read from
+  the current project root and contents read via the source-fallback path
+  (when the file is gitignored and only present in the original source repo,
+  not the active worktree).
+
+  Use this variant when the caller needs to surface the origin to the user
+  or to the LLM (e.g. file_contents_tool annotates the response with a note
+  explaining where the content came from). Most callers should use
+  `get_file_contents/1` instead.
+  """
+  def get_file_contents_with_origin(file) do
     if temp_file?(file) do
       # Tool output offloaded to a temp file (via maybe_offload_tool_output or
       # spill_tool_output_if_needed). These live outside the project root but
@@ -799,11 +821,37 @@ defmodule AI.Tools do
            {:ok, contents} <- Services.FileCache.get_or_fetch(path, fn -> File.read(path) end) do
         {:ok, contents}
       else
-        {:error, :enoent} -> {:error, :enoent}
+        {:error, :enoent} -> try_source_fallback(file)
         {:error, :project_not_found} = err -> err
         {:error, :project_not_set} = err -> err
         _ -> {:error, :enoent}
       end
+    end
+  end
+
+  # When the file is missing from the current view (typically because we're in
+  # a worktree session and the file is gitignored, so it lives in the source
+  # repo but was never propagated to the worktree), try reading it from the
+  # original source root instead. Only kicks in for paths that:
+  #
+  # - resolve to a file inside the original source root, AND
+  # - are gitignored at that root
+  #
+  # The gitignore gate keeps tracked source files from being silently read
+  # outside the worktree boundary - those should error normally so the LLM
+  # knows the file doesn't exist on its branch.
+  @spec try_source_fallback(binary) :: source_fallback | {:error, :enoent}
+  defp try_source_fallback(file) do
+    with {:ok, project} <- get_project(),
+         original_root when is_binary(original_root) <- Store.Project.original_source_root(),
+         true <- original_root != project.source_root,
+         {:ok, source_path} <- Util.find_file_within_root(file, original_root),
+         true <- GitCli.Worktree.path_ignored?(original_root, source_path),
+         {:ok, contents} <-
+           Services.FileCache.get_or_fetch(source_path, fn -> File.read(source_path) end) do
+      {:source_fallback, source_path, contents}
+    else
+      _ -> {:error, :enoent}
     end
   end
 

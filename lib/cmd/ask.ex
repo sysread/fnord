@@ -192,6 +192,7 @@ defmodule Cmd.Ask do
     try do
       with {:ok, opts} <- validate(opts),
            :ok <- set_auto_policy(opts),
+           :ok <- cache_original_source_root(),
            :ok <- set_worktree(opts),
            {:ok, opts} <- maybe_fork_conversation(opts),
            {:ok, pid} <- Services.Conversation.start_link(opts[:follow]),
@@ -487,6 +488,29 @@ defmodule Cmd.Ask do
   defp stop_conversation_indexer(pid) do
     if is_pid(pid) && Process.alive?(pid) do
       Services.ConversationIndexer.stop(pid)
+    end
+  end
+
+  # ----------------------------------------------------------------------------
+  # Original source root caching
+  # ----------------------------------------------------------------------------
+  # Caches the project's source root (as configured in settings.json) into
+  # Services.Globals. Tools that need to access files outside the worktree
+  # (e.g. file_contents_tool's source-fallback for gitignored files) read it
+  # via Store.Project.original_source_root/0.
+  #
+  # Reads settings directly rather than going through Store.get_project/0 so
+  # that any worktree override already installed by an external caller (e.g.
+  # a test fixture, or `--worktree`) does not poison the cached value.
+  @spec cache_original_source_root() :: :ok
+  defp cache_original_source_root do
+    with {:ok, project} <- Store.get_project(),
+         data when is_map(data) <- Settings.get_project_data(Settings.new(), project.name),
+         root when is_binary(root) <- Map.get(data, "root") do
+      Services.Globals.put_env(:fnord, :original_project_root, Path.expand(root))
+      :ok
+    else
+      _ -> :ok
     end
   end
 
@@ -1113,7 +1137,7 @@ defmodule Cmd.Ask do
          true <- GitCli.Worktree.fnord_managed?(project.name, path),
          conv_meta = Services.Conversation.get_conversation_meta(conversation_pid),
          meta when is_map(meta) <- worktree_meta(conv_meta),
-         repo_root = original_project_root(project.name) do
+         repo_root = Store.Project.original_source_root() do
       git_changes =
         GitCli.Worktree.has_changes_to_merge?(
           repo_root,
@@ -1178,7 +1202,7 @@ defmodule Cmd.Ask do
          false <- GitCli.Worktree.has_uncommitted_changes?(path),
          conv_meta = Services.Conversation.get_conversation_meta(conversation_pid),
          meta when is_map(meta) <- worktree_meta(conv_meta),
-         repo_root = original_project_root(project.name),
+         repo_root = Store.Project.original_source_root(),
          {:ok, diff} <-
            GitCli.Worktree.diff_from_fork_point(repo_root, meta.branch, meta.base_branch),
          true <- byte_size(diff) == 0,
@@ -1249,7 +1273,7 @@ defmodule Cmd.Ask do
       meta = worktree_meta(conv_meta)
 
       if meta do
-        repo_root = original_project_root(project.name)
+        repo_root = Store.Project.original_source_root()
 
         # Copy gitignored/excluded files back to the source repo before the
         # review flow potentially deletes the worktree. Safe to do eagerly:
@@ -1335,18 +1359,6 @@ defmodule Cmd.Ask do
       replay: false,
       yes: true
     )
-  end
-
-  # Returns the project's actual source root from settings, bypassing any
-  # session-level worktree override. Needed for merge/diff operations that must
-  # target the real repository, not the worktree.
-  @spec original_project_root(String.t()) :: String.t()
-  defp original_project_root(project_name) do
-    settings = Settings.new()
-
-    Settings.get_project_data(settings, project_name)
-    |> Map.get("root", File.cwd!())
-    |> Path.expand()
   end
 
   # Persists the final assistant response when `--save` is enabled.

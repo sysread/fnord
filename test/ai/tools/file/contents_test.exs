@@ -57,7 +57,7 @@ defmodule AI.Tools.File.ContentsTest do
   describe "call/1 - successful read with numbering" do
     setup do
       :meck.new(AI.Tools)
-      :meck.expect(AI.Tools, :get_file_contents, fn "file.txt" -> {:ok, "one\ntwo\nthree"} end)
+      :meck.expect(AI.Tools, :get_file_contents_with_origin, fn "file.txt" -> {:ok, "one\ntwo\nthree"} end)
       :meck.new(Services.BackupFile)
       :meck.expect(Services.BackupFile, :describe_backup, fn _ -> nil end)
 
@@ -91,7 +91,7 @@ defmodule AI.Tools.File.ContentsTest do
   describe "call/1 - no numbering with slice" do
     setup do
       :meck.new(AI.Tools)
-      :meck.expect(AI.Tools, :get_file_contents, fn "file.txt" -> {:ok, "a\nb\nc\nd"} end)
+      :meck.expect(AI.Tools, :get_file_contents_with_origin, fn "file.txt" -> {:ok, "a\nb\nc\nd"} end)
       :meck.new(Services.BackupFile)
       :meck.expect(Services.BackupFile, :describe_backup, fn _ -> nil end)
 
@@ -129,7 +129,7 @@ defmodule AI.Tools.File.ContentsTest do
   describe "call/1 - default no numbering" do
     setup do
       :meck.new(AI.Tools)
-      :meck.expect(AI.Tools, :get_file_contents, fn "plain" -> {:ok, "x\ny"} end)
+      :meck.expect(AI.Tools, :get_file_contents_with_origin, fn "plain" -> {:ok, "x\ny"} end)
       :meck.new(Services.BackupFile)
       :meck.expect(Services.BackupFile, :describe_backup, fn _ -> nil end)
 
@@ -160,7 +160,7 @@ defmodule AI.Tools.File.ContentsTest do
   describe "call/1 - slicing to end without end_line" do
     setup do
       :meck.new(AI.Tools)
-      :meck.expect(AI.Tools, :get_file_contents, fn "toend" -> {:ok, "a\nb\nc"} end)
+      :meck.expect(AI.Tools, :get_file_contents_with_origin, fn "toend" -> {:ok, "a\nb\nc"} end)
       :meck.new(Services.BackupFile)
       :meck.expect(Services.BackupFile, :describe_backup, fn _ -> nil end)
 
@@ -191,7 +191,7 @@ defmodule AI.Tools.File.ContentsTest do
   describe "call/1 - start > end returns full content" do
     setup do
       :meck.new(AI.Tools)
-      :meck.expect(AI.Tools, :get_file_contents, fn "rng" -> {:ok, "a\nb\nc"} end)
+      :meck.expect(AI.Tools, :get_file_contents_with_origin, fn "rng" -> {:ok, "a\nb\nc"} end)
       :meck.new(Services.BackupFile)
       :meck.expect(Services.BackupFile, :describe_backup, fn _ -> nil end)
 
@@ -224,7 +224,7 @@ defmodule AI.Tools.File.ContentsTest do
   describe "call/1 - includes backup description" do
     setup do
       :meck.new(AI.Tools)
-      :meck.expect(AI.Tools, :get_file_contents, fn "b.txt" -> {:ok, "ln1"} end)
+      :meck.expect(AI.Tools, :get_file_contents_with_origin, fn "b.txt" -> {:ok, "ln1"} end)
       :meck.new(Services.BackupFile)
       :meck.expect(Services.BackupFile, :describe_backup, fn "b.txt" -> "bak" end)
 
@@ -254,7 +254,7 @@ defmodule AI.Tools.File.ContentsTest do
   describe "call/1 - file not found" do
     setup do
       :meck.new(AI.Tools)
-      :meck.expect(AI.Tools, :get_file_contents, fn "nof" -> {:error, :enoent} end)
+      :meck.expect(AI.Tools, :get_file_contents_with_origin, fn "nof" -> {:error, :enoent} end)
 
       on_exit(fn ->
         try do
@@ -274,10 +274,58 @@ defmodule AI.Tools.File.ContentsTest do
     end
   end
 
+  describe "call/1 - source-fallback for gitignored files" do
+    setup do
+      :meck.new(AI.Tools)
+
+      :meck.expect(AI.Tools, :get_file_contents_with_origin, fn "scratch/plan.md" ->
+        {:source_fallback, "/source/scratch/plan.md", "the plan"}
+      end)
+
+      :meck.new(Services.BackupFile)
+      :meck.expect(Services.BackupFile, :describe_backup, fn _ -> nil end)
+
+      on_exit(fn ->
+        try do
+          :meck.unload(AI.Tools)
+        catch
+          _, _ -> :ok
+        end
+
+        try do
+          :meck.unload(Services.BackupFile)
+        catch
+          _, _ -> :ok
+        end
+      end)
+
+      :ok
+    end
+
+    test "wraps content with source-fallback note explaining where it came from" do
+      {:ok, out} =
+        AI.Tools.File.Contents.call(%{"file" => "scratch/plan.md", "line_numbers" => false})
+
+      assert out =~ "gitignored"
+      assert out =~ "not present in"
+      assert out =~ "/source/scratch/plan.md"
+      assert out =~ "the plan"
+    end
+
+    test "note instructs LLM to write back via worktree path for accumulator preservation" do
+      {:ok, out} =
+        AI.Tools.File.Contents.call(%{"file" => "scratch/plan.md", "line_numbers" => false})
+
+      assert out =~ "WITHIN the worktree"
+      assert out =~ "scratch/plan.md"
+      assert out =~ "tracked and copied back"
+    end
+  end
+
   describe "call/1 - other errors" do
     setup do
       :meck.new(AI.Tools)
-      :meck.expect(AI.Tools, :get_file_contents, fn "err" -> {:error, :eacces} end)
+      :meck.expect(AI.Tools, :get_file_contents_with_origin, fn "err" -> {:error, :eacces} end)
 
       on_exit(fn ->
         try do

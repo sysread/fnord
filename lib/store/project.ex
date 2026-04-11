@@ -289,6 +289,23 @@ defmodule Store.Project do
     Map.has_key?(excluded, abs_path)
   end
 
+  @spec original_source_root() :: String.t() | nil
+  @doc """
+  Returns the project's source root as configured in settings, ignoring any
+  in-memory override (e.g. from a worktree session). Used by tools that need
+  to access files outside the worktree's view, such as gitignored files that
+  exist in source but were not propagated to the worktree.
+
+  Cached in Services.Globals at session start by Cmd.Ask. Returns nil when
+  no session has cached the value (e.g. in tests that bypass Cmd.Ask).
+  """
+  def original_source_root do
+    case Services.Globals.get_env(:fnord, :original_project_root, nil) do
+      root when is_binary(root) -> root
+      _ -> nil
+    end
+  end
+
   @doc """
   Returns no source files when source_root is nil to avoid crashing.
   """

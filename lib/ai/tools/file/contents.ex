@@ -116,15 +116,25 @@ defmodule AI.Tools.File.Contents do
     start_line = Map.get(args, "start_line", 1)
     end_line = Map.get(args, "end_line", nil)
 
-    with {:ok, content} <- AI.Tools.get_file_contents(file) do
-      output =
-        content
-        |> maybe_number_lines(line_numbers)
-        |> maybe_splice_lines(start_line, end_line)
-        |> wrap_content(file)
+    case AI.Tools.get_file_contents_with_origin(file) do
+      {:ok, content} ->
+        output =
+          content
+          |> maybe_number_lines(line_numbers)
+          |> maybe_splice_lines(start_line, end_line)
+          |> wrap_content(file)
 
-      {:ok, output}
-    else
+        {:ok, output}
+
+      {:source_fallback, source_path, content} ->
+        output =
+          content
+          |> maybe_number_lines(line_numbers)
+          |> maybe_splice_lines(start_line, end_line)
+          |> wrap_content_with_source_fallback(file, source_path)
+
+        {:ok, output}
+
       {:error, :enoent} ->
         {:error,
          """
@@ -150,6 +160,28 @@ defmodule AI.Tools.File.Contents do
     [file_contents_tool] Contents of #{file}:
     Note: Lines are prefixed with `<line_number>:<content_hash>` for identification.
     #{backup_note}```
+    #{text}
+    ```
+    """
+  end
+
+  # Wraps the content with a banner explaining that the file came from the
+  # source repo via the gitignore source-fallback path, not the worktree.
+  # The note tells the LLM how to write back through the worktree so the
+  # accumulator preserves the change on merge.
+  defp wrap_content_with_source_fallback(text, file, source_path) do
+    """
+    [file_contents_tool] NOTE: this file is gitignored and is not present in
+    the current worktree. It has been read from the source repo at:
+      #{source_path}
+
+    If you want to modify this file, write to its path WITHIN the worktree
+    (e.g. `#{file}`). The change will be tracked and copied back to the
+    source repo when the worktree is merged after you finalize your response.
+
+    Contents of #{file}:
+    Note: Lines are prefixed with `<line_number>:<content_hash>` for identification.
+    ```
     #{text}
     ```
     """
