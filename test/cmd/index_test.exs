@@ -93,6 +93,49 @@ defmodule Cmd.IndexTest do
 
       assert Enum.any?(embeddings_list, fn {id, _emb, _meta} -> id == conversation.id end)
     end
+
+    test "invokes commit indexing only in git projects", %{project: project} do
+      file = mock_source_file(project, "file1.txt", "file1")
+      {:ok, idx} = Cmd.Index.new(%{project: project.name, yes: true, quiet: true})
+
+      :meck.new(Cmd.Index, [:non_strict, :passthrough])
+      :meck.expect(GitCli, :ignored_files, fn _ -> %{} end)
+
+      :meck.expect(Cmd.Index, :index_project, fn _idx ->
+        %{new: [%{file: file}], stale: [], deleted: []}
+      end)
+
+      :meck.expect(GitCli, :is_git_repo?, fn -> true end)
+
+      on_exit(fn ->
+        :meck.unload(GitCli)
+      end)
+
+      assert %{new: [%{file: ^file}], stale: [], deleted: []} = Cmd.Index.perform_task({:ok, idx})
+      assert :meck.called(GitCli, :is_git_repo?, [])
+    end
+
+    test "skips commit indexing in non-git projects" do
+      project = mock_project("non_git_commit_index")
+      file = mock_source_file(project, "file1.txt", "file1")
+      {:ok, idx} = Cmd.Index.new(%{project: project.name, yes: true, quiet: true})
+
+      :meck.new(Cmd.Index, [:non_strict, :passthrough])
+      :meck.expect(GitCli, :ignored_files, fn _ -> %{} end)
+
+      :meck.expect(Cmd.Index, :index_project, fn _idx ->
+        %{new: [%{file: file}], stale: [], deleted: []}
+      end)
+
+      :meck.expect(GitCli, :is_git_repo?, fn -> false end)
+
+      on_exit(fn ->
+        :meck.unload(GitCli)
+      end)
+
+      assert %{new: [%{file: ^file}], stale: [], deleted: []} = Cmd.Index.perform_task({:ok, idx})
+      assert :meck.called(GitCli, :is_git_repo?, [])
+    end
   end
 
   describe "new" do

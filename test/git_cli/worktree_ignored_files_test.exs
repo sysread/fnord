@@ -78,5 +78,4 @@ defmodule GitCli.Worktree.IgnoredFilesTest do
       assert [{:error, "scratch/missing.md", _reason}] = results
     end
   end
-
 end

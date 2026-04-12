@@ -478,4 +478,103 @@ defmodule Cmd.AskTest do
       refute output =~ "Worktree path:"
     end
   end
+
+  describe "commit indexer startup" do
+    setup do
+      :ok = safe_meck_new(Services.CommitIndexer, [:passthrough])
+      :ok = safe_meck_new(GitCli, [:passthrough])
+      :ok = safe_meck_new(Services.Conversation, [:passthrough])
+      :ok = safe_meck_new(Services.Task, [:passthrough])
+      :ok = safe_meck_new(Memory, [:passthrough])
+      :ok = safe_meck_new(Clipboard, [:passthrough])
+      :ok = safe_meck_new(Notifier, [:passthrough])
+      :ok = safe_meck_new(UI, [:passthrough])
+      :ok = safe_meck_new(Store, [:passthrough])
+
+      :meck.expect(UI, :quiet?, fn -> true end)
+      :meck.expect(UI, :error, fn _ -> :ok end)
+      :meck.expect(UI, :debug, fn _, _ -> :ok end)
+      :meck.expect(UI, :report_step, fn _, _ -> :ok end)
+      :meck.expect(UI, :say, fn _ -> :ok end)
+      :meck.expect(UI, :flush, fn -> :ok end)
+      :meck.expect(UI, :warn, fn _ -> :ok end)
+      :meck.expect(UI, :spin, fn _label, fun -> fun.() end)
+      :meck.expect(Services.Conversation, :start_link, fn _ -> {:ok, self()} end)
+      :meck.expect(Services.Conversation, :get_id, fn _ -> "conv-1" end)
+      :meck.expect(Services.Conversation, :get_conversation_meta, fn _ -> %{} end)
+
+      :meck.expect(Services.Conversation, :get_response, fn _, _ ->
+        {:ok, %{usage: 1, context: 2, last_response: "hello"}}
+      end)
+
+      :meck.expect(Services.Conversation, :save, fn _ ->
+        {:ok, %{id: "conv-1", store_path: "/tmp/conv-1.json"}}
+      end)
+
+      :meck.expect(Services.Task, :start_link, fn opts ->
+        assert Keyword.get(opts, :conversation_pid) == self()
+        {:ok, self()}
+      end)
+
+      :meck.expect(Memory, :init, fn -> :ok end)
+      :meck.expect(Memory, :list, fn _ -> {:ok, []} end)
+      :meck.expect(Memory, :search_stats, fn -> nil end)
+      :meck.expect(Clipboard, :copy, fn _ -> :ok end)
+      :meck.expect(Notifier, :notify, fn _, _ -> :ok end)
+      project = mock_project("ask_commit_indexer")
+      :meck.expect(Store, :get_project, fn -> {:ok, project} end)
+
+      on_exit(fn ->
+        Enum.each(
+          [
+            Services.CommitIndexer,
+            GitCli,
+            Services.Conversation,
+            Services.Task,
+            Memory,
+            Clipboard,
+            Notifier,
+            UI,
+            Store
+          ],
+          fn mod ->
+            try do
+              :meck.unload(mod)
+            catch
+              _, _ -> :ok
+            end
+          end
+        )
+      end)
+
+      :ok
+    end
+
+    test "starts the commit indexer in git repositories" do
+      parent = self()
+      project = Store.get_project() |> elem(1)
+
+      :meck.expect(GitCli, :is_git_repo?, fn -> true end)
+      :meck.expect(Services.CommitIndexer, :start_link, fn _opts -> {:ok, parent} end)
+
+      :meck.expect(Services.CommitIndexer, :stop, fn pid ->
+        assert pid == parent
+        send(parent, :commit_indexer_stopped)
+        :ok
+      end)
+
+      :meck.expect(Store, :get_project, fn -> {:ok, project} end)
+
+      assert :ok == Cmd.Ask.run(%{question: "hello"}, [], [])
+      assert :meck.called(Services.CommitIndexer, :start_link, [])
+    end
+
+    test "skips the commit indexer outside git repositories" do
+      :meck.expect(GitCli, :is_git_repo?, fn -> false end)
+      :meck.expect(Services.CommitIndexer, :start_link, fn _opts -> flunk("should not start") end)
+
+      assert :ok == Cmd.Ask.run(%{question: "hello"}, [], [])
+      refute :meck.called(Services.CommitIndexer, :start_link, [[]])
+    end
+  end
 end

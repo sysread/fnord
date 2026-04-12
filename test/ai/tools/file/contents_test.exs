@@ -57,7 +57,11 @@ defmodule AI.Tools.File.ContentsTest do
   describe "call/1 - successful read with numbering" do
     setup do
       :meck.new(AI.Tools)
-      :meck.expect(AI.Tools, :get_file_contents_with_origin, fn "file.txt" -> {:ok, "one\ntwo\nthree"} end)
+
+      :meck.expect(AI.Tools, :get_file_contents_with_origin, fn "file.txt" ->
+        {:ok, "one\ntwo\nthree"}
+      end)
+
       :meck.new(Services.BackupFile)
       :meck.expect(Services.BackupFile, :describe_backup, fn _ -> nil end)
 
@@ -91,7 +95,11 @@ defmodule AI.Tools.File.ContentsTest do
   describe "call/1 - no numbering with slice" do
     setup do
       :meck.new(AI.Tools)
-      :meck.expect(AI.Tools, :get_file_contents_with_origin, fn "file.txt" -> {:ok, "a\nb\nc\nd"} end)
+
+      :meck.expect(AI.Tools, :get_file_contents_with_origin, fn "file.txt" ->
+        {:ok, "a\nb\nc\nd"}
+      end)
+
       :meck.new(Services.BackupFile)
       :meck.expect(Services.BackupFile, :describe_backup, fn _ -> nil end)
 

@@ -342,15 +342,18 @@ defmodule Cmd.Index do
     # Ensure legacy entries are migrated to relative-path scheme before indexing
     Store.Project.Entry.MigrateAbsToRelPathKeys.ensure_relative_entry_ids(idx.project)
 
+    project = maybe_reindex(idx)
+
     status =
-      idx
-      |> maybe_reindex()
+      project
       |> scan_project()
       |> delete_entries()
       |> index_entries()
 
-    # Index conversations after file entries
-    index_conversations(idx.project)
+    :ok = index_commits(project)
+
+    # Index conversations after file and commit entries
+    index_conversations(project)
 
     status
   end
@@ -375,6 +378,7 @@ defmodule Cmd.Index do
   defp maybe_reindex(%{project: project} = idx) do
     if reindex?(idx) do
       Store.Project.delete(project)
+      delete_commit_index(project)
       UI.report_step("Burned all of the old data to the ground to force a full reindex!")
     end
 
@@ -411,44 +415,48 @@ defmodule Cmd.Index do
 
   @spec index_conversations(Store.Project.t()) :: :ok
   defp index_conversations(project) do
-    %{new: new, stale: stale, deleted: deleted} =
-      Store.Project.ConversationIndex.index_status(project)
+    if GitCli.is_git_repo?() do
+      %{new: new, stale: stale, deleted: deleted} =
+        Store.Project.ConversationIndex.index_status(project)
 
-    UI.spin("Deleting missing conversations from index", fn ->
-      Enum.each(deleted, &Store.Project.ConversationIndex.delete(project, &1))
-      {"Deleted #{Enum.count(deleted)} conversation(s) from the index", :ok}
-    end)
-
-    conversations = new ++ stale
-    count = Enum.count(conversations)
-
-    if count == 0 do
-      UI.warn("No conversations to index")
-      :ok
-    else
-      UI.spin("Indexing #{count} conversation(s)", fn ->
-        # Split conversations into chunks and process each chunk
-        # concurrently. Util.async_stream defaults to
-        # System.schedulers_online() for concurrency.
-        partitions_count = 4
-        chunk_size = div(count + partitions_count - 1, partitions_count)
-        partitions = Enum.chunk_every(conversations, chunk_size)
-
-        tasks =
-          partitions
-          |> Enum.map(fn part ->
-            Services.Globals.Spawn.async(fn ->
-              part
-              |> Util.async_stream(fn convo -> process_conversation(project, convo) end)
-              |> Enum.to_list()
-            end)
-          end)
-
-        # Wait for all partitions to finish
-        Enum.each(tasks, fn t -> Task.await(t, :infinity) end)
-
-        {"All conversation indexing tasks complete", :ok}
+      UI.spin("Deleting missing conversations from index", fn ->
+        Enum.each(deleted, &Store.Project.ConversationIndex.delete(project, &1))
+        {"Deleted #{Enum.count(deleted)} conversation(s) from the index", :ok}
       end)
+
+      conversations = new ++ stale
+      count = Enum.count(conversations)
+
+      if count == 0 do
+        UI.warn("No conversations to index")
+        :ok
+      else
+        UI.spin("Indexing #{count} conversation(s)", fn ->
+          # Split conversations into chunks and process each chunk
+          # concurrently. Util.async_stream defaults to
+          # System.schedulers_online() for concurrency.
+          partitions_count = 4
+          chunk_size = div(count + partitions_count - 1, partitions_count)
+          partitions = Enum.chunk_every(conversations, chunk_size)
+
+          tasks =
+            partitions
+            |> Enum.map(fn part ->
+              Services.Globals.Spawn.async(fn ->
+                part
+                |> Util.async_stream(fn convo -> process_conversation(project, convo) end)
+                |> Enum.to_list()
+              end)
+            end)
+
+          # Wait for all partitions to finish
+          Enum.each(tasks, fn t -> Task.await(t, :infinity) end)
+
+          {"All conversation indexing tasks complete", :ok}
+        end)
+      end
+    else
+      :ok
     end
   end
 
@@ -509,5 +517,55 @@ defmodule Cmd.Index do
     if UI.confirm(@prime_prompt, false) do
       Cmd.Prime.run(idx.opts, [], [])
     end
+  end
+
+  defp delete_commit_index(project) do
+    project
+    |> Store.Project.CommitIndex.root()
+    |> File.rm_rf!()
+  end
+
+  defp index_commits(project) do
+    case GitCli.is_git_repo?() do
+      false ->
+        :ok
+
+      true ->
+        case Store.Project.CommitIndex.index_status(project) do
+          %{deleted: deleted, new: new, stale: stale}
+          when deleted == [] and new == [] and stale == [] ->
+            :ok
+
+          %{deleted: deleted, new: new, stale: stale} = status ->
+            deleted_count = Enum.count(deleted)
+
+            if deleted_count > 0 do
+              UI.spin("Deleting missing commits from index", fn ->
+                Enum.each(deleted, &Store.Project.CommitIndex.delete(project, &1))
+                {"Deleted #{deleted_count} commit(s) from the index", :ok}
+              end)
+            end
+
+            commits_to_index = new ++ stale
+            count = Enum.count(commits_to_index)
+
+            if count > 0 do
+              UI.spin("Indexing #{count} commit(s)", fn ->
+                commits_to_index
+                |> Enum.each(&index_commit(project, &1))
+
+                {"All commit indexing tasks complete", :ok}
+              end)
+            end
+
+            status
+        end
+    end
+  end
+
+  defp index_commit(project, commit) do
+    %{metadata: metadata} = Store.Project.CommitIndex.build_metadata(commit)
+    :ok = Store.Project.CommitIndex.write_embeddings(project, commit.sha, [0.0], metadata)
+    :ok
   end
 end

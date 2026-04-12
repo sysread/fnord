@@ -184,6 +184,7 @@ defmodule Cmd.Ask do
     # indexer self-scans for unprocessed session memories rather than relying
     # on the conversation indexer to feed it work.
     file_indexer_pid = start_file_indexer()
+    commit_indexer_pid = start_commit_indexer()
     conversation_indexer_pid = start_conversation_indexer()
     start_memory_indexer()
 
@@ -308,6 +309,7 @@ defmodule Cmd.Ask do
       # stop background indexers if still running; memory indexer is left to
       # run until the BEAM exits so it can complete light/deep sleep passes
       stop_file_indexer(file_indexer_pid)
+      stop_commit_indexer(commit_indexer_pid)
       stop_conversation_indexer(conversation_indexer_pid)
 
       Services.BackupFile.offer_cleanup()
@@ -456,6 +458,17 @@ defmodule Cmd.Ask do
     end
   end
 
+  defp start_commit_indexer() do
+    if GitCli.is_git_repo?() do
+      case Services.CommitIndexer.start_link() do
+        {:ok, pid} -> pid
+        _ -> nil
+      end
+    else
+      nil
+    end
+  end
+
   defp start_conversation_indexer() do
     case Services.ConversationIndexer.start_link() do
       {:ok, pid} -> pid
@@ -482,6 +495,12 @@ defmodule Cmd.Ask do
   defp stop_file_indexer(pid) do
     if is_pid(pid) && Process.alive?(pid) do
       Services.BackgroundIndexer.stop(pid)
+    end
+  end
+
+  defp stop_commit_indexer(pid) do
+    if is_pid(pid) && Process.alive?(pid) do
+      Services.CommitIndexer.stop(pid)
     end
   end
 
