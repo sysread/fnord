@@ -550,7 +550,8 @@ defmodule Cmd.Index do
             if count > 0 do
               UI.spin("Indexing #{count} commit(s)", fn ->
                 commits_to_index
-                |> Enum.each(&index_commit(project, &1))
+                |> UI.async_stream(&index_commit(project, &1), "Indexing")
+                |> Enum.to_list()
 
                 {"All commit indexing tasks complete", :ok}
               end)

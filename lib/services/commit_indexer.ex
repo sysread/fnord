@@ -131,6 +131,14 @@ defmodule Services.CommitIndexer do
 
       with {:ok, embeddings} <- impl.get_embeddings(document),
            :ok <- CommitIndex.write_embeddings(project, commit.sha, embeddings, metadata) do
+        # Emit a concise background log line mirroring file bg indexer UX
+        subject = Map.get(commit, :subject) || Map.get(commit, "subject") || ""
+
+        UI.end_step_background(
+          "Indexed",
+          "<commit> #{String.slice(commit.sha, 0, 12)} #{subject}"
+        )
+
         :ok
       end
     rescue
