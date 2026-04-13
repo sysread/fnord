@@ -20,7 +20,7 @@ See [Ask Options](ask-options.md) for the full list of flags and options.
 
 Index (or re-index) a project's files for semantic search and AI context.
 
-Commit indexing: when a project is a git repository, fnord indexes commits as part of the same run. Foreground indexing computes real embeddings for commits and displays a progress bar; the background commit indexer continues processing and emits a concise per-commit log line. Commits are enumerated by walking from HEAD. Commit index data is stored under `$HOME/.fnord/projects/<project>/commits`.
+Commit indexing: when a project is a git repository, fnord indexes commits as part of the same run. Foreground indexing computes real embeddings for commits and displays a progress bar; the background commit indexer continues processing and emits a concise per-commit log line. Commits are enumerated by walking from HEAD. Commit index data is stored under `$HOME/.fnord/projects/<project>/commits`. Note that this index is _not_ exposed via the `search` command, but is available to the coordinator LLM as an internal tool during `fnord ask` sessions.
 
 ```bash
 fnord index
@@ -46,8 +46,6 @@ After indexing, fnord offers to prime the knowledge base if no research notes ex
 ## search
 
 Perform a semantic search across indexed files.
-
-Commit search: available to the assistant as an internal tool during `fnord ask`; there is no standalone CLI for commit search. When appropriate, the agent may use a semantic commit search tool to answer questions about repository history.
 
 ```bash
 fnord search -q "authentication middleware"

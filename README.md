@@ -1,4 +1,4 @@
-# Fnord
+# `fnord`
 
 [![Tests | Dialyzer](https://github.com/sysread/fnord/actions/workflows/run-tests.yml/badge.svg)](https://github.com/sysread/fnord/actions/workflows/run-tests.yml)
 
@@ -41,7 +41,7 @@ If you've ever pasted multiple files into ChatGPT or worked with it iteratively 
 
 ## Installation
 
-Fnord is written in [Elixir](https://elixir-lang.org/) and is distributed as an `escript`.
+`fnord` is written in [Elixir](https://elixir-lang.org/) and is distributed as an `escript`.
 
 - **Install [elixir](https://elixir-lang.org/)**
 
@@ -68,7 +68,7 @@ mix escript.install github sysread/fnord
 
 - **Set your OpenAI API key**
 
-Fnord reads the key from either `FNORD_OPENAI_API_KEY` or `OPENAI_API_KEY`.
+`fnord` reads the key from either `FNORD_OPENAI_API_KEY` or `OPENAI_API_KEY`.
 Create or view your keys [here](https://platform.openai.com/api-keys).
 
 - **Optional: Install `ripgrep`**
@@ -105,18 +105,11 @@ If you cancel partway-through (for example, with `Ctrl-C`), you can resume index
 
 **Once indexed, `fnord` will automatically reindex while the `ask` command is running if it detects changes to the code base.**
 
-You can also manually re-index your project at any time to pick up changes.
-This is done by running the same command again.
+You can also manually re-index your project at any time to pick up changes. This is done by running the same command again.
 
-`fnord` stores its index under `$HOME/.fnord/projects/<project>`.
+`fnord` stores its file index under `$HOME/.fnord/projects/<project>`.
 
-#### Commit indexing
-
-Fnord can also build a commit index for semantic search over your repository history.
-It uses real embeddings in the foreground while showing a progress bar for the indexing UX.
-Commit indexing work continues in the background, and the commit indexer writes logs as it processes commits.
-Commits are enumerated starting from `HEAD` and walking back through history.
-The commit index is stored under `$HOME/.fnord/projects/<project>/commits`.
+`fnord` also builds a commit index for semantic search over your repository history. Commits are enumerated starting from `HEAD` and walking back through history. The commit index is stored under `$HOME/.fnord/projects/<project>/commits`. This is _not_ currently exposed via `fnord search`.
 
 Note that semantic search requires an existing index. You can still perform text searches via the shell tool (e.g., ripgrep) if installed and approved, but indexing is recommended for full capabilities.
 
@@ -187,7 +180,7 @@ For rich, accurate results, index your project first.
 
 ### Generate answers on-demand
 
-Fnord uses LLM-powered agents and tool calls to research your question, including semantic search and git tools (read only).
+`fnord` uses LLM-powered agents and tool calls to research your question, including semantic search and git tools (read only).
 
 ```bash
 fnord ask --project blarg --question "Where is the unit test for some_function?"
@@ -214,7 +207,7 @@ For advanced options (e.g., unindexed projects, replaying conversations), see [d
 
 #### Create and manage your fnord doc library
 
-Fnord builds a persistent document library of your saved responses and learned notes for easy reference as you work.
+`fnord` builds a persistent document library of your saved responses and learned notes for easy reference as you work.
 
 - Saved outputs (via `--save`) are stored in `~/fnord/outputs/<project_id>/`.
 - View and explore learned notes with `fnord notes`.
@@ -222,7 +215,7 @@ Fnord builds a persistent document library of your saved responses and learned n
 
 ### Learning over time
 
-Fnord learns about your project while researching your questions. It saves facts and inferences it makes, building a searchable knowledge base that improves over time. As the knowledge base grows, fnord can answer increasingly complex questions with less research.
+`fnord` learns about your project while researching your questions. It saves facts and inferences it makes, building a searchable knowledge base that improves over time. As the knowledge base grows, fnord can answer increasingly complex questions with less research.
 
 You can prime this learning process with:
 
@@ -293,7 +286,7 @@ fnord config mcp login <name>
 
 #### OAuth Authentication
 
-Fnord supports OAuth2 for MCP servers, including automatic discovery and registration when the server supports it:
+`fnord` supports OAuth2 for MCP servers, including automatic discovery and registration when the server supports it:
 
 ```bash
 fnord config mcp add myserver --transport http --url https://example.com --oauth
@@ -304,7 +297,7 @@ For advanced OAuth options, troubleshooting, and security details, see [docs/oau
 
 ## Writing code
 
-Fnord can (optionally) automate code changes in your project using the `ask` command with the `--edit` flag.
+`fnord` can (optionally) automate code changes in your project using the `ask` command with the `--edit` flag.
 
 - Use `--edit` with extreme caution.
 - AI-driven code modification is unsafe, may corrupt or break files, and must always be manually reviewed.
