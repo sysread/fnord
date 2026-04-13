@@ -2,9 +2,6 @@ defmodule Fnord do
   @moduledoc """
   Fnord is a code search tool that uses OpenAI's embeddings API to index and
   search code files.
-
-  Log output goes to /dev/tty when available, falling back to stderr.
-  Tests enforce stderr via an override.
   """
 
   @desc "fnord - an AI code archaeologist"
@@ -147,7 +144,30 @@ defmodule Fnord do
   end
 
   def configure_logger do
-    LoggerSetup.configure()
+    {:ok, handler_config} = :logger.get_handler_config(:default)
+    updated_config = Map.update!(handler_config, :config, &Map.put(&1, :type, :standard_error))
+
+    :ok = :logger.remove_handler(:default)
+    :ok = :logger.add_handler(:default, :logger_std_h, updated_config)
+
+    :ok =
+      :logger.update_formatter_config(
+        :default,
+        :template,
+        ["[", :level, "] ", :message, "\n"]
+      )
+
+    logger_level =
+      case Util.Env.get_env("LOGGER_LEVEL", "info") do
+        level when level in ~w[emergency alert critical error warning notice info debug] ->
+          String.to_existing_atom(level)
+
+        invalid ->
+          IO.warn("Invalid LOGGER_LEVEL '#{invalid}', defaulting to :info")
+          :info
+      end
+
+    :ok = :logger.set_primary_config(:level, logger_level)
   end
 
   defp to_module_name(subcommand) do

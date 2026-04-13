@@ -157,7 +157,7 @@ fnord replay --project myproject --conversation <ID> | glow
 
 ### Viewing Research Steps
 
-By default, fnord shows high-level research progress on the terminal (TTY) when attached, falling back to STDERR when no TTY is available.
+By default, fnord shows high-level research progress on STDERR.
 
 **See more detail:**
 
@@ -175,7 +175,7 @@ This shows:
 **Output separation:**
 
 - STDOUT: Final answer (pipeable to other tools)
-- TTY (or STDERR when no TTY): Research progress and debugging
+- STDERR: Research progress and debugging
 
 **Example:**
 
@@ -193,7 +193,7 @@ To see the full, untruncated arguments the LLM passed to the tool, set `FNORD_DE
 FNORD_DEBUG_TOOL_CALLS=1 LOGGER_LEVEL=debug fnord ask -p myproject -q "your question"
 ```
 
-This dumps the raw JSON args directly to the terminal when attached (TTY) or to STDERR otherwise, bypassing the logger so nothing gets truncated.
+This dumps the raw JSON args directly to STDERR, bypassing the logger so nothing gets truncated.
 Useful when the LLM sends malformed or unexpectedly large arguments.
 
 To trace automatic validation decisions and execution, set `FNORD_DEBUG_VALIDATION`:
