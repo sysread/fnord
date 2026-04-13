@@ -524,12 +524,14 @@ defmodule Cmd.Index do
   defp index_commits(project) do
     case GitCli.is_git_repo?() do
       false ->
+        UI.warn("Skipping commit indexing (not a git repository)")
         :ok
 
       true ->
         case Store.Project.CommitIndex.index_status(project) do
           %{deleted: deleted, new: new, stale: stale} = status
           when deleted == [] and new == [] and stale == [] ->
+            UI.warn("No commits to index")
             {:ok, status}
 
           %{deleted: deleted, new: new, stale: stale} = status ->
@@ -552,6 +554,8 @@ defmodule Cmd.Index do
 
                 {"All commit indexing tasks complete", :ok}
               end)
+            else
+              UI.warn("No commits to index")
             end
 
             {:ok, status}

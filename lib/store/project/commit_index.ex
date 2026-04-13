@@ -226,100 +226,129 @@ defmodule Store.Project.CommitIndex do
     end
   end
 
+  @spec get_commit_meta(String.t(), String.t()) :: {:ok, map()} | {:error, term()}
+  defp get_commit_meta(root, sha) do
+    case System.cmd(
+           "git",
+           [
+             "show",
+             "--quiet",
+             "--format=%H\x1f%P\x1f%an\x1f%at\x1f%s\x1f%b",
+             sha
+           ],
+           cd: root,
+           stderr_to_stdout: true
+         ) do
+      {out, 0} ->
+        case String.trim(out) do
+          "" ->
+            {:error, :empty_commit_output}
+
+          line ->
+            case String.split(line, "\x1f") do
+              [commit_sha, parents, author, committed_at, subject, body] ->
+                {:ok,
+                 %{
+                   sha: commit_sha,
+                   parent_shas: String.split(parents, " ", trim: true),
+                   author: author,
+                   committed_at: committed_at,
+                   subject: subject,
+                   body: body
+                 }}
+
+              _ ->
+                {:error, :invalid_commit_metadata}
+            end
+        end
+
+      {error, status} ->
+        {:error, {status, error}}
+    end
+  end
+
+  @spec get_commit_changes(String.t(), String.t()) ::
+          {:ok, {[String.t()], [map()]}} | {:error, term()}
+  defp get_commit_changes(root, sha) do
+    case System.cmd(
+           "git",
+           ["show", "--numstat", "--format=", sha],
+           cd: root,
+           stderr_to_stdout: true
+         ) do
+      {out, 0} ->
+        {files, stats} =
+          out
+          |> String.split("\n", trim: true)
+          |> Enum.reduce({[], []}, fn line, {files, stats} ->
+            cond do
+              line == "" ->
+                {files, stats}
+
+              String.contains?(line, "\t") ->
+                case String.split(line, "\t") do
+                  [adds, dels, path] ->
+                    {additions, deletions} = parse_numstat_counts(adds, dels)
+
+                    {[path | files],
+                     [%{file: path, additions: additions, deletions: deletions} | stats]}
+
+                  _ ->
+                    {files, stats}
+                end
+
+              true ->
+                {files, stats}
+            end
+          end)
+
+        {:ok, {Enum.reverse(Enum.uniq(files)), Enum.reverse(stats)}}
+
+      {error, status} ->
+        {:error, {status, error}}
+    end
+  end
+
   @spec git_commits(String.t()) :: [map()]
   defp git_commits(root) do
-    with {log_output, 0} <-
-           System.cmd(
-             "git",
-             [
-               "log",
-               "--first-parent",
-               "--date=iso-strict",
-               "--name-status",
-               "--numstat",
-               "--format=%H%x1f%P%x1f%an%x1f%ad%x1f%s%x1f%b%x1e",
-               "HEAD"
-             ],
+    # Use HEAD to enumerate the reachable commit history. This is robust across
+    # repos without a configured remote HEAD or when detached.
+    ref = "HEAD"
+
+    shas =
+      case System.cmd("git", ["rev-list", "--first-parent", ref],
              cd: root,
              stderr_to_stdout: true
            ) do
-      parse_commits(log_output)
-    else
-      _ -> []
-    end
-  end
+        {out, 0} -> String.split(String.trim(out), "\n", trim: true)
+        _ -> []
+      end
 
-  @spec parse_commits(String.t()) :: [map()]
-  defp parse_commits(output) do
-    output
-    |> String.split("\x1e", trim: true)
-    |> Enum.flat_map(&parse_commit_chunk/1)
-  end
-
-  @spec parse_commit_chunk(String.t()) :: [map()]
-  defp parse_commit_chunk(chunk) do
-    case String.split(chunk, "\n", trim: true) do
-      [header | change_lines] ->
-        case String.split(header, "\x1f") do
-          [sha, parents, author, committed_at, subject, body] ->
-            {changed_files, diffstat} = parse_commit_changes(change_lines)
-
-            [
-              %{
-                sha: sha,
-                parent_shas: String.split(parents, " ", trim: true),
-                author: author,
-                committed_at: committed_at,
-                subject: subject,
-                body: body,
-                changed_files: changed_files,
-                diffstat: diffstat,
-                embedding_model: nil,
-                last_indexed_ts: 0
-              }
-            ]
-
-          _ ->
-            []
-        end
-
-      _ ->
-        []
-    end
-  end
-
-  @spec parse_commit_changes([String.t()]) :: {[String.t()], [map()]}
-  defp parse_commit_changes(lines) do
-    lines
-    |> Enum.reduce({[], []}, fn line, {files, stats} ->
-      cond do
-        line == "" ->
-          {files, stats}
-
-        String.starts_with?(line, " ") ->
-          {files, stats}
-
-        String.contains?(line, "\t") ->
-          case String.split(line, "\t") do
-            [adds, dels, path] ->
-              {additions, deletions} = parse_numstat_counts(adds, dels)
-
-              {[path | files],
-               [%{file: path, additions: additions, deletions: deletions} | stats]}
-
-            _ ->
-              {files, stats}
-          end
-
-        true ->
-          case String.split(line, "\t", parts: 2) do
-            [status, path] -> {[path | files], [%{file: path, status: status} | stats]}
-            [path] -> {[path | files], stats}
-            _ -> {files, stats}
-          end
+    shas
+    |> Util.async_stream(fn sha ->
+      with {:ok, meta} <- get_commit_meta(root, sha),
+           {:ok, {changed_files, diffstat}} <- get_commit_changes(root, sha) do
+        %{
+          sha: meta.sha,
+          parent_shas: meta.parent_shas,
+          author: meta.author,
+          committed_at: meta.committed_at,
+          subject: meta.subject,
+          body: meta.body,
+          changed_files: changed_files,
+          diffstat: diffstat,
+          embedding_model: nil,
+          last_indexed_ts: 0
+        }
+      else
+        _ -> nil
       end
     end)
-    |> then(fn {files, stats} -> {Enum.reverse(Enum.uniq(files)), Enum.reverse(stats)} end)
+    |> Enum.reduce([], fn
+      {:ok, nil}, acc -> acc
+      {:ok, commit}, acc -> [commit | acc]
+    end)
+    |> Enum.reverse()
   end
 
   @spec parse_numstat_counts(String.t(), String.t()) :: {non_neg_integer(), non_neg_integer()}
