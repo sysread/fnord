@@ -48,6 +48,9 @@ Conventions
 - Do not use type guards unless *required* for functionality; they add complexity and can confuse `dialyzer`
 - When refactoring, always consider whether the organization of the code must change to reflect ownership of concerns
   - If you centralize a concern, does the location of the code reflect that ownership?
+- dialyzer warnings should be treated as errors, even if they say "legacy" (elixir is in the process of incorporating many dialyzer identifications into the compiler; ones noted "legacy" are actually just in the process of being ported)
+- you can perform an independent review of your changes using `claude -p "<review request prompt>" --allowedTools "Read,Grep,Glob"`
+  - this is useful because it is a different LLM with a fresh context window
 
 # Comments
 - Comments should describe the current behavior; they should NEVER describe or identify a change that is currently being made
