@@ -24,9 +24,9 @@ defmodule Store.Project.CommitDocument do
           subject: String.t(),
           body: String.t(),
           author: String.t(),
-          committed_at: String.t(),
+          committed_at: String.t() | DateTime.t() | non_neg_integer(),
           changed_files: [String.t()],
-          diffstat: String.t(),
+          diffstat: String.t() | [map()],
           embedding_model: String.t() | nil,
           last_indexed_ts: non_neg_integer()
         }
@@ -38,6 +38,22 @@ defmodule Store.Project.CommitDocument do
     @document_version
   end
 
+  @doc """
+  Builds the bounded canonical commit document used for embeddings.
+
+  The shape stays deliberately small so commit histories can be hashed and
+  reindexed deterministically without embedding unbounded patch text.
+  """
+  @spec build(%{
+          sha: binary(),
+          parent_shas: [binary()],
+          subject: binary(),
+          body: binary(),
+          author: binary(),
+          committed_at: binary() | non_neg_integer() | DateTime.t(),
+          changed_files: [binary()],
+          diffstat: binary() | [map()]
+        }) :: {binary(), binary()}
   def build(commit) do
     document =
       [
@@ -59,6 +75,11 @@ defmodule Store.Project.CommitDocument do
     {document, doc_hash(document)}
   end
 
+  @doc """
+  Hashes the canonical commit document so callers can compare stable semantic
+  content rather than raw commit metadata.
+  """
+  @spec doc_hash(binary()) :: binary()
   def doc_hash(document) when is_binary(document) do
     :crypto.hash(:sha256, document)
     |> Base.encode16(case: :lower)
@@ -84,7 +105,7 @@ defmodule Store.Project.CommitDocument do
       file = Map.get(stat, :file) || Map.get(stat, "file") || ""
       additions = Map.get(stat, :additions) || Map.get(stat, "additions") || 0
       deletions = Map.get(stat, :deletions) || Map.get(stat, "deletions") || 0
-      "#{file} | #{additions} +#{deletions} -"
+      "#{file} | +#{additions} -#{deletions}"
     end)
   end
 

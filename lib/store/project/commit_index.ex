@@ -10,9 +10,9 @@ defmodule Store.Project.CommitIndex do
   alias Store.Project
   alias Store.Project.CommitDocument
 
-  @type metadata :: %{
-          optional(String.t()) => any
-        }
+  @type metadata :: %{optional(String.t()) => any}
+
+  @type commit_metadata :: %{optional(String.t()) => any}
 
   @type commit_record :: %{
           sha: String.t(),
@@ -168,6 +168,16 @@ defmodule Store.Project.CommitIndex do
   @doc """
   Builds the canonical commit document and metadata payload used for indexing.
   """
+  @spec build_metadata(%{
+          sha: binary(),
+          parent_shas: [binary()],
+          subject: binary(),
+          body: binary(),
+          author: binary(),
+          committed_at: binary() | non_neg_integer() | DateTime.t(),
+          changed_files: [binary()],
+          diffstat: binary() | [map()]
+        }) :: %{document: binary(), metadata: metadata()}
   def build_metadata(commit) do
     {document, doc_hash} = CommitDocument.build(commit)
 

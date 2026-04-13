@@ -350,9 +350,9 @@ defmodule Cmd.Index do
       |> delete_entries()
       |> index_entries()
 
-    :ok = index_commits(project)
+    _commit_status = index_commits(project)
 
-    # Index conversations after file and commit entries
+    # Conversation indexing remains project-wide; git status only gates commit work.
     index_conversations(project)
 
     status
@@ -532,9 +532,9 @@ defmodule Cmd.Index do
 
       true ->
         case Store.Project.CommitIndex.index_status(project) do
-          %{deleted: deleted, new: new, stale: stale}
+          %{deleted: deleted, new: new, stale: stale} = status
           when deleted == [] and new == [] and stale == [] ->
-            :ok
+            {:ok, status}
 
           %{deleted: deleted, new: new, stale: stale} = status ->
             deleted_count = Enum.count(deleted)
@@ -558,13 +558,17 @@ defmodule Cmd.Index do
               end)
             end
 
-            status
+            {:ok, status}
         end
     end
   end
 
   defp index_commit(project, commit) do
     %{metadata: metadata} = Store.Project.CommitIndex.build_metadata(commit)
+
+    # The foreground pass persists the canonical document immediately so the
+    # project has an indexed record before the background worker is available.
+    # The background commit indexer later refreshes the embedding vector itself.
     :ok = Store.Project.CommitIndex.write_embeddings(project, commit.sha, [0.0], metadata)
     :ok
   end

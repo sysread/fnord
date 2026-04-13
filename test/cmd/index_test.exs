@@ -61,7 +61,6 @@ defmodule Cmd.IndexTest do
     end
 
     test "indexes conversations as part of run/3", %{project: project} do
-      # Create a conversation for the project
       conversation = Store.Project.Conversation.new("conv1", project)
       messages = [AI.Util.system_msg("Hello")]
 
@@ -72,21 +71,17 @@ defmodule Cmd.IndexTest do
           memories: []
         })
 
-      # Stub the indexer implementation
+      # Conversation indexing runs regardless of git status; only commit work is gated.
       Services.Globals.put_env(:fnord, :indexer, StubIndexer)
 
-      # Run the indexing process
       Cmd.Index.run(%{project: project.name, yes: true, quiet: true}, [], [])
 
-      # Re-fetch project to check status
       {:ok, project} = Store.get_project(project.name)
 
-      # Assert conversation index status
       status = Store.Project.ConversationIndex.index_status(project)
       assert status.new == []
       assert status.stale == []
 
-      # Assert embeddings have been indexed
       embeddings_list =
         Store.Project.ConversationIndex.all_embeddings(project)
         |> Enum.into([])
@@ -100,11 +95,6 @@ defmodule Cmd.IndexTest do
 
       :meck.new(Cmd.Index, [:non_strict, :passthrough])
       :meck.expect(GitCli, :ignored_files, fn _ -> %{} end)
-
-      :meck.expect(Cmd.Index, :index_project, fn _idx ->
-        %{new: [%{file: file}], stale: [], deleted: []}
-      end)
-
       :meck.expect(GitCli, :is_git_repo?, fn -> true end)
 
       on_exit(fn ->
@@ -122,11 +112,6 @@ defmodule Cmd.IndexTest do
 
       :meck.new(Cmd.Index, [:non_strict, :passthrough])
       :meck.expect(GitCli, :ignored_files, fn _ -> %{} end)
-
-      :meck.expect(Cmd.Index, :index_project, fn _idx ->
-        %{new: [%{file: file}], stale: [], deleted: []}
-      end)
-
       :meck.expect(GitCli, :is_git_repo?, fn -> false end)
 
       on_exit(fn ->
