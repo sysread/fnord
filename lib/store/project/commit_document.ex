@@ -24,19 +24,6 @@ defmodule Store.Project.CommitDocument do
           subject: String.t(),
           body: String.t(),
           author: String.t(),
-          committed_at: String.t() | DateTime.t() | non_neg_integer(),
-          changed_files: [String.t()],
-          diffstat: String.t() | [map()],
-          embedding_model: String.t() | nil,
-          last_indexed_ts: non_neg_integer()
-        }
-
-  @type canonical_commit :: %{
-          sha: String.t(),
-          parent_shas: [String.t()],
-          subject: String.t(),
-          body: String.t(),
-          author: String.t(),
           committed_at: String.t(),
           changed_files: [String.t()],
           diffstat: String.t(),
@@ -51,7 +38,6 @@ defmodule Store.Project.CommitDocument do
     @document_version
   end
 
-  @spec build(commit) :: {String.t(), String.t()}
   def build(commit) do
     document =
       [
@@ -73,16 +59,8 @@ defmodule Store.Project.CommitDocument do
     {document, doc_hash(document)}
   end
 
-  @spec doc_hash(String.t()) :: String.t()
   def doc_hash(document) when is_binary(document) do
     :crypto.hash(:sha256, document)
-    |> Base.encode16(case: :lower)
-  end
-
-  def doc_hash(document) do
-    document
-    |> inspect()
-    |> :crypto.hash(:sha256)
     |> Base.encode16(case: :lower)
   end
 

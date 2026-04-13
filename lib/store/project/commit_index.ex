@@ -27,11 +27,9 @@ defmodule Store.Project.CommitIndex do
           last_indexed_ts: non_neg_integer()
         }
 
-  @type commit :: commit_record()
-
   @type commit_status :: %{
-          new: [commit()],
-          stale: [commit()],
+          new: [commit_record()],
+          stale: [commit_record()],
           deleted: [String.t()]
         }
 
@@ -170,18 +168,6 @@ defmodule Store.Project.CommitIndex do
   @doc """
   Builds the canonical commit document and metadata payload used for indexing.
   """
-  @spec build_metadata(%{
-          sha: String.t(),
-          parent_shas: [String.t()],
-          subject: String.t(),
-          body: String.t(),
-          author: String.t(),
-          committed_at: String.t() | DateTime.t() | non_neg_integer(),
-          changed_files: [String.t()],
-          diffstat: String.t() | [map()],
-          embedding_model: String.t() | nil,
-          last_indexed_ts: non_neg_integer()
-        }) :: %{document: String.t(), metadata: metadata()}
   def build_metadata(commit) do
     {document, doc_hash} = CommitDocument.build(commit)
 
@@ -203,21 +189,6 @@ defmodule Store.Project.CommitIndex do
     %{document: document, metadata: metadata}
   end
 
-  @spec stale_commit?(
-          %{
-            sha: String.t(),
-            parent_shas: [String.t()],
-            subject: String.t(),
-            body: String.t(),
-            author: String.t(),
-            committed_at: String.t() | DateTime.t() | non_neg_integer(),
-            changed_files: [String.t()],
-            diffstat: String.t() | [map()],
-            embedding_model: String.t() | nil,
-            last_indexed_ts: non_neg_integer()
-          },
-          metadata()
-        ) :: boolean()
   defp stale_commit?(commit, metadata) do
     %{metadata: current_metadata} = build_metadata(commit)
 
@@ -226,20 +197,7 @@ defmodule Store.Project.CommitIndex do
       metadata["doc_hash"] != current_metadata["doc_hash"]
   end
 
-  @spec list_source_commits(Project.t()) :: [
-          %{
-            sha: String.t(),
-            parent_shas: [String.t()],
-            subject: String.t(),
-            body: String.t(),
-            author: String.t(),
-            committed_at: String.t() | DateTime.t() | non_neg_integer(),
-            changed_files: [String.t()],
-            diffstat: String.t() | [map()],
-            embedding_model: String.t() | nil,
-            last_indexed_ts: non_neg_integer()
-          }
-        ]
+  @spec list_source_commits(Project.t()) :: [map()]
   defp list_source_commits(%Project{} = project) do
     case git_root(project) do
       nil -> []
@@ -257,20 +215,7 @@ defmodule Store.Project.CommitIndex do
     end
   end
 
-  @spec git_commits(String.t()) :: [
-          %{
-            sha: String.t(),
-            parent_shas: [String.t()],
-            subject: String.t(),
-            body: String.t(),
-            author: String.t(),
-            committed_at: String.t() | DateTime.t() | non_neg_integer(),
-            changed_files: [String.t()],
-            diffstat: String.t() | [map()],
-            embedding_model: String.t() | nil,
-            last_indexed_ts: non_neg_integer()
-          }
-        ]
+  @spec git_commits(String.t()) :: [map()]
   defp git_commits(root) do
     with {log_output, 0} <-
            System.cmd(
@@ -293,40 +238,14 @@ defmodule Store.Project.CommitIndex do
     end
   end
 
-  @spec parse_commits(String.t()) :: [
-          %{
-            sha: String.t(),
-            parent_shas: [String.t()],
-            subject: String.t(),
-            body: String.t(),
-            author: String.t(),
-            committed_at: String.t() | DateTime.t() | non_neg_integer(),
-            changed_files: [String.t()],
-            diffstat: String.t() | [map()],
-            embedding_model: String.t() | nil,
-            last_indexed_ts: non_neg_integer()
-          }
-        ]
+  @spec parse_commits(String.t()) :: [map()]
   defp parse_commits(output) do
     output
     |> String.split("\x1e", trim: true)
     |> Enum.flat_map(&parse_commit_chunk/1)
   end
 
-  @spec parse_commit_chunk(String.t()) :: [
-          %{
-            sha: String.t(),
-            parent_shas: [String.t()],
-            subject: String.t(),
-            body: String.t(),
-            author: String.t(),
-            committed_at: String.t() | DateTime.t() | non_neg_integer(),
-            changed_files: [String.t()],
-            diffstat: String.t() | [map()],
-            embedding_model: String.t() | nil,
-            last_indexed_ts: non_neg_integer()
-          }
-        ]
+  @spec parse_commit_chunk(String.t()) :: [map()]
   defp parse_commit_chunk(chunk) do
     case String.split(chunk, "\n", trim: true) do
       [header | change_lines] ->
