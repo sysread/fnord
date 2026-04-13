@@ -59,8 +59,8 @@ defmodule AI.Model do
     end
   end
 
-  def smart(), do: gpt5_mini()
-  def smarter(), do: gpt5(:none)
+  def smart(), do: gpt5(:low)
+  def smarter(), do: gpt54(:low)
   def balanced(), do: gpt5_mini()
   def fast(), do: gpt5_nano()
   def coding(), do: balanced()
@@ -74,11 +74,15 @@ defmodule AI.Model do
   # ----------------------------------------------------------------------------
   # OpenAI Models
   # ----------------------------------------------------------------------------
-  def gpt5(reasoning \\ :medium), do: new("gpt-5.4", 1_050_000, reasoning)
+  def gpt54(reasoning \\ :medium), do: new("gpt-5.4", 1_050_000, reasoning)
+  def gpt5(reasoning \\ :medium), do: new("gpt-5-2025-08-07", 400_000, reasoning)
+
   # does not support reasoning_effort through the chat completions api
   def gpt5_mini(), do: new("gpt-5.4-mini", 400_000, :none)
+
   # does not support reasoning_effort through the chat completions api
   def gpt5_nano(), do: new("gpt-5.4-nano", 400_000, :none)
+
   def gpt41(), do: new("gpt-4.1", 1_000_000, :none)
   def gpt41_mini(), do: new("gpt-4.1-mini", 1_000_000, :none)
   def gpt41_nano(), do: new("gpt-4.1-nano", 1_000_000, :none)
