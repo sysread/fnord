@@ -103,10 +103,10 @@ defmodule AI.Agent.Coordinator do
         |> Store.Project.Conversation.exists?()
 
       model =
-        if Map.get(opts, :smart, false) do
-          @smarter_model
-        else
-          @default_model
+        cond do
+          Map.get(opts, :smart, false) -> @smarter_model
+          System.get_env("FNORD_SMART_MODEL") in ["true", "1"] -> @smarter_model
+          true -> @default_model
         end
         |> AI.Model.with_reasoning(Map.get(opts, :reasoning))
         |> AI.Model.with_verbosity(Map.get(opts, :verbosity))
