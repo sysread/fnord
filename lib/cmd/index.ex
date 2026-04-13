@@ -522,7 +522,7 @@ defmodule Cmd.Index do
   end
 
   defp index_commits(project) do
-    case GitCli.is_git_repo?() do
+    case GitCli.is_git_repo_at?(project.source_root) do
       false ->
         UI.warn("Skipping commit indexing (not a git repository)")
         :ok

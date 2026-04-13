@@ -374,8 +374,8 @@ defmodule Fnord.TestCase do
   """
   def git_config_user!(project) do
     repo = project.source_root
-    System.cmd("git", ["config", "user.name", "Test User"], cd: repo)
-    System.cmd("git", ["config", "user.email", "test@example.com"], cd: repo)
+    System.cmd("git", ["config", "user.name", "Fnord Prefect"], cd: repo)
+    System.cmd("git", ["config", "user.email", "fnord@example.com"], cd: repo)
     :ok
   end
 

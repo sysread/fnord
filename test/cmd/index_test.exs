@@ -95,14 +95,14 @@ defmodule Cmd.IndexTest do
 
       :meck.new(Cmd.Index, [:non_strict, :passthrough])
       :meck.expect(GitCli, :ignored_files, fn _ -> %{} end)
-      :meck.expect(GitCli, :is_git_repo?, fn -> true end)
+      :meck.expect(GitCli, :is_git_repo_at?, fn _ -> true end)
 
       on_exit(fn ->
         :meck.unload(GitCli)
       end)
 
       assert %{new: [%{file: ^file}], stale: [], deleted: []} = Cmd.Index.perform_task({:ok, idx})
-      assert :meck.called(GitCli, :is_git_repo?, [])
+      assert :meck.called(GitCli, :is_git_repo_at?, :_)
     end
 
     test "skips commit indexing in non-git projects" do
@@ -112,17 +112,18 @@ defmodule Cmd.IndexTest do
 
       :meck.new(Cmd.Index, [:non_strict, :passthrough])
       :meck.expect(GitCli, :ignored_files, fn _ -> %{} end)
-      :meck.expect(GitCli, :is_git_repo?, fn -> false end)
+      :meck.expect(GitCli, :is_git_repo_at?, fn _ -> false end)
 
       on_exit(fn ->
         :meck.unload(GitCli)
       end)
 
       assert %{new: [%{file: ^file}], stale: [], deleted: []} = Cmd.Index.perform_task({:ok, idx})
-      assert :meck.called(GitCli, :is_git_repo?, [])
+      assert :meck.called(GitCli, :is_git_repo_at?, :_)
     end
 
     test "indexes commits as part of the foreground run path", %{project: project} do
+      git_config_user!(project)
       File.write!(Path.join(project.source_root, "tracked.txt"), "one")
       System.cmd("git", ["add", "."], cd: project.source_root)
       System.cmd("git", ["commit", "-m", "first", "--quiet"], cd: project.source_root)
