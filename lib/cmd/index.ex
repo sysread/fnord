@@ -415,48 +415,44 @@ defmodule Cmd.Index do
 
   @spec index_conversations(Store.Project.t()) :: :ok
   defp index_conversations(project) do
-    if GitCli.is_git_repo?() do
-      %{new: new, stale: stale, deleted: deleted} =
-        Store.Project.ConversationIndex.index_status(project)
+    %{new: new, stale: stale, deleted: deleted} =
+      Store.Project.ConversationIndex.index_status(project)
 
-      UI.spin("Deleting missing conversations from index", fn ->
-        Enum.each(deleted, &Store.Project.ConversationIndex.delete(project, &1))
-        {"Deleted #{Enum.count(deleted)} conversation(s) from the index", :ok}
-      end)
+    UI.spin("Deleting missing conversations from index", fn ->
+      Enum.each(deleted, &Store.Project.ConversationIndex.delete(project, &1))
+      {"Deleted #{Enum.count(deleted)} conversation(s) from the index", :ok}
+    end)
 
-      conversations = new ++ stale
-      count = Enum.count(conversations)
+    conversations = new ++ stale
+    count = Enum.count(conversations)
 
-      if count == 0 do
-        UI.warn("No conversations to index")
-        :ok
-      else
-        UI.spin("Indexing #{count} conversation(s)", fn ->
-          # Split conversations into chunks and process each chunk
-          # concurrently. Util.async_stream defaults to
-          # System.schedulers_online() for concurrency.
-          partitions_count = 4
-          chunk_size = div(count + partitions_count - 1, partitions_count)
-          partitions = Enum.chunk_every(conversations, chunk_size)
-
-          tasks =
-            partitions
-            |> Enum.map(fn part ->
-              Services.Globals.Spawn.async(fn ->
-                part
-                |> Util.async_stream(fn convo -> process_conversation(project, convo) end)
-                |> Enum.to_list()
-              end)
-            end)
-
-          # Wait for all partitions to finish
-          Enum.each(tasks, fn t -> Task.await(t, :infinity) end)
-
-          {"All conversation indexing tasks complete", :ok}
-        end)
-      end
-    else
+    if count == 0 do
+      UI.warn("No conversations to index")
       :ok
+    else
+      UI.spin("Indexing #{count} conversation(s)", fn ->
+        # Split conversations into chunks and process each chunk
+        # concurrently. Util.async_stream defaults to
+        # System.schedulers_online() for concurrency.
+        partitions_count = 4
+        chunk_size = div(count + partitions_count - 1, partitions_count)
+        partitions = Enum.chunk_every(conversations, chunk_size)
+
+        tasks =
+          partitions
+          |> Enum.map(fn part ->
+            Services.Globals.Spawn.async(fn ->
+              part
+              |> Util.async_stream(fn convo -> process_conversation(project, convo) end)
+              |> Enum.to_list()
+            end)
+          end)
+
+        # Wait for all partitions to finish
+        Enum.each(tasks, fn t -> Task.await(t, :infinity) end)
+
+        {"All conversation indexing tasks complete", :ok}
+      end)
     end
   end
 
