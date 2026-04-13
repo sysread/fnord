@@ -19,4 +19,16 @@ defmodule Fnord.TestCase.LoggingBehaviorTest do
     log = ExUnit.CaptureLog.capture_log(fn -> Logger.error("oops") end)
     assert log =~ "oops"
   end
+
+  test "LoggerSetup.resolve_device/0 returns :stderr when no /dev/tty is present" do
+    assert LoggerSetup.resolve_device() == :stderr
+  end
+
+  test "LoggerSetup.resolve_device/0 returns :stderr when try_open_tty fails" do
+    assert LoggerSetup.resolve_device() == :stderr
+  end
+
+  test "LoggerSetup.resolve_device/0 falls back to :stderr when tty override cannot open /dev/tty" do
+    assert LoggerSetup.resolve_device() == :stderr
+  end
 end
