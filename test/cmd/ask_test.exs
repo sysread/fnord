@@ -565,7 +565,11 @@ defmodule Cmd.AskTest do
 
       :meck.expect(Store, :get_project, fn -> {:ok, project} end)
 
-      assert :ok == Cmd.Ask.run(%{question: "hello"}, [], [])
+      {_stdout, _stderr} =
+        capture_all(fn ->
+          assert :ok == Cmd.Ask.run(%{question: "hello"}, [], [])
+        end)
+
       assert :meck.called(Services.CommitIndexer, :start_link, [])
     end
 
@@ -573,7 +577,11 @@ defmodule Cmd.AskTest do
       :meck.expect(GitCli, :is_git_repo?, fn -> false end)
       :meck.expect(Services.CommitIndexer, :start_link, fn _opts -> flunk("should not start") end)
 
-      assert :ok == Cmd.Ask.run(%{question: "hello"}, [], [])
+      {_stdout, _stderr} =
+        capture_all(fn ->
+          assert :ok == Cmd.Ask.run(%{question: "hello"}, [], [])
+        end)
+
       refute :meck.called(Services.CommitIndexer, :start_link, [[]])
     end
   end
