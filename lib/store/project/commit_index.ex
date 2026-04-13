@@ -225,8 +225,16 @@ defmodule Store.Project.CommitIndex do
     end
   end
 
+  # Resolve the repository's default branch and prefer it for commit discovery.
+  # Falls back to HEAD if the default branch cannot be determined.
   @spec git_commits(String.t()) :: [map()]
   defp git_commits(root) do
+    ref =
+      case default_branch(root) do
+        {:ok, branch_or_ref} -> branch_or_ref
+        :error -> "HEAD"
+      end
+
     with {log_output, 0} <-
            System.cmd(
              "git",
@@ -237,7 +245,7 @@ defmodule Store.Project.CommitIndex do
                "--name-status",
                "--numstat",
                "--format=%H%x1f%P%x1f%an%x1f%ad%x1f%s%x1f%b%x1e",
-               "HEAD"
+               ref
              ],
              cd: root,
              stderr_to_stdout: true
@@ -245,6 +253,105 @@ defmodule Store.Project.CommitIndex do
       parse_commits(log_output)
     else
       _ -> []
+    end
+  end
+
+  @spec default_branch(String.t()) :: {:ok, String.t()} | :error
+  defp default_branch(root) do
+    case origin_head_ref(root) do
+      {:ok, origin_ref} ->
+        {:ok, origin_ref}
+
+      :error ->
+        case remote_show_origin_head(root) do
+          {:ok, branch} ->
+            cond do
+              remote_branch_exists?(root, branch) -> {:ok, "origin/" <> branch}
+              local_branch_exists?(root, branch) -> {:ok, branch}
+              true -> fallback_branch(root)
+            end
+
+          :error ->
+            fallback_branch(root)
+        end
+    end
+  end
+
+  @spec origin_head_ref(String.t()) :: {:ok, String.t()} | :error
+  defp origin_head_ref(root) do
+    case System.cmd("git", ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
+           cd: root,
+           stderr_to_stdout: true
+         ) do
+      {out, 0} ->
+        ref = String.trim(out)
+
+        if String.starts_with?(ref, "origin/") do
+          {:ok, ref}
+        else
+          :error
+        end
+
+      _ ->
+        :error
+    end
+  end
+
+  @spec remote_show_origin_head(String.t()) :: {:ok, String.t()} | :error
+  defp remote_show_origin_head(root) do
+    case System.cmd("git", ["remote", "show", "origin"], cd: root, stderr_to_stdout: true) do
+      {out, 0} ->
+        branch =
+          out
+          |> String.split("\n")
+          |> Enum.find_value(fn line ->
+            case String.trim(line) do
+              "HEAD branch: " <> b when byte_size(b) > 0 -> String.trim(b)
+              _ -> nil
+            end
+          end)
+
+        if is_binary(branch) and branch != "" do
+          {:ok, branch}
+        else
+          :error
+        end
+
+      _ ->
+        :error
+    end
+  end
+
+  @spec fallback_branch(String.t()) :: {:ok, String.t()} | :error
+  defp fallback_branch(root) do
+    cond do
+      remote_branch_exists?(root, "main") -> {:ok, "origin/main"}
+      local_branch_exists?(root, "main") -> {:ok, "main"}
+      remote_branch_exists?(root, "master") -> {:ok, "origin/master"}
+      local_branch_exists?(root, "master") -> {:ok, "master"}
+      true -> :error
+    end
+  end
+
+  @spec local_branch_exists?(String.t(), String.t()) :: boolean
+  defp local_branch_exists?(root, branch) do
+    case System.cmd("git", ["show-ref", "--verify", "--quiet", "refs/heads/" <> branch],
+           cd: root,
+           stderr_to_stdout: true
+         ) do
+      {_out, 0} -> true
+      _ -> false
+    end
+  end
+
+  @spec remote_branch_exists?(String.t(), String.t()) :: boolean
+  defp remote_branch_exists?(root, branch) do
+    case System.cmd("git", ["show-ref", "--verify", "--quiet", "refs/remotes/origin/" <> branch],
+           cd: root,
+           stderr_to_stdout: true
+         ) do
+      {_out, 0} -> true
+      _ -> false
     end
   end
 
