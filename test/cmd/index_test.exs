@@ -150,8 +150,9 @@ defmodule Cmd.IndexTest do
       assert embeddings_list != []
 
       assert Enum.any?(embeddings_list, fn {id, emb, meta} ->
-               id == head_sha and emb == [0.0] and meta["sha"] == head_sha and
-                 Map.has_key?(meta, "doc_hash") and Map.has_key?(meta, "index_format_version")
+               id == head_sha and is_list(emb) and emb != [] and Enum.any?(emb, &(&1 != 0.0)) and
+                 meta["sha"] == head_sha and Map.has_key?(meta, "doc_hash") and
+                 Map.has_key?(meta, "index_format_version")
              end)
 
       status = Store.Project.CommitIndex.index_status(project)

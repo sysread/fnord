@@ -563,13 +563,27 @@ defmodule Cmd.Index do
     end
   end
 
+  @spec index_commit(Store.Project.t(), map()) :: :ok
   defp index_commit(project, commit) do
-    %{metadata: metadata} = Store.Project.CommitIndex.build_metadata(commit)
+    %{document: document, metadata: metadata} = Store.Project.CommitIndex.build_metadata(commit)
 
-    # The foreground pass persists the canonical document immediately so the
-    # project has an indexed record before the background worker is available.
-    # The background commit indexer later refreshes the embedding vector itself.
-    :ok = Store.Project.CommitIndex.write_embeddings(project, commit.sha, [0.0], metadata)
-    :ok
+    # Foreground commit indexing computes real embeddings for the canonical
+    # commit document so `fnord index` produces usable vectors without relying
+    # on a subsequent ask-session background refresh.
+    case Indexer.impl().get_embeddings(document) do
+      {:ok, embeddings} ->
+        :ok =
+          Store.Project.CommitIndex.write_embeddings(project, commit.sha, embeddings, metadata)
+
+        :ok
+
+      {:error, reason} ->
+        UI.warn(
+          "Error embedding commit #{commit.sha}",
+          inspect(reason, pretty: true, limit: :infinity)
+        )
+
+        :ok
+    end
   end
 end
