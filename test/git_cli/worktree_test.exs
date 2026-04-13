@@ -356,6 +356,103 @@ defmodule GitCli.WorktreeTest do
       refute GitCli.Worktree.has_changes_to_merge?(repo, clean_path, "fnord-clean", nil)
     end
 
+    test "merge fast-forwards when possible", %{project: project} do
+      repo = project.source_root
+
+      git!(repo, ["config", "user.email", "test@example.com"])
+      git!(repo, ["config", "user.name", "Test"])
+      File.write!(Path.join(repo, "base.txt"), "base\n")
+      git!(repo, ["add", "."])
+      git!(repo, ["commit", "-m", "initial"])
+
+      # Create a worktree, commit something, merge back.
+      {:ok, wt_root} = tmpdir()
+      wt_path = Path.join(wt_root, "ff-wt")
+      git!(repo, ["worktree", "add", wt_path, "-b", "fnord-ff", "main"])
+      File.write!(Path.join(wt_path, "feature.txt"), "new\n")
+      git!(wt_path, ["add", "."])
+      git!(wt_path, ["commit", "-m", "add feature"])
+
+      # Main hasn't moved, so this should fast-forward (no merge commit).
+      assert {:ok, :ok} = GitCli.Worktree.merge(repo, wt_path)
+
+      # The log should show a linear history with no merge commits.
+      log = git!(repo, ["log", "--oneline", "--merges"])
+      assert log == ""
+    end
+
+    test "merge rebases when main has diverged", %{project: project} do
+      repo = project.source_root
+
+      git!(repo, ["config", "user.email", "test@example.com"])
+      git!(repo, ["config", "user.name", "Test"])
+      File.write!(Path.join(repo, "base.txt"), "base\n")
+      git!(repo, ["add", "."])
+      git!(repo, ["commit", "-m", "initial"])
+
+      # Create a worktree and commit to it.
+      {:ok, wt_root} = tmpdir()
+      wt_path = Path.join(wt_root, "rebase-wt")
+      git!(repo, ["worktree", "add", wt_path, "-b", "fnord-rebase", "main"])
+      File.write!(Path.join(wt_path, "feature.txt"), "new\n")
+      git!(wt_path, ["add", "."])
+      git!(wt_path, ["commit", "-m", "add feature"])
+
+      # Advance main with a non-conflicting change.
+      File.write!(Path.join(repo, "other.txt"), "other\n")
+      git!(repo, ["add", "."])
+      git!(repo, ["commit", "-m", "advance main"])
+
+      # Merge should rebase then ff - still no merge commit.
+      assert {:ok, :ok} = GitCli.Worktree.merge(repo, wt_path)
+
+      log = git!(repo, ["log", "--oneline", "--merges"])
+      assert log == ""
+
+      # Both changes present.
+      assert File.exists?(Path.join(repo, "feature.txt"))
+      assert File.exists?(Path.join(repo, "other.txt"))
+    end
+
+    test "merge falls back to regular merge on rebase conflict", %{project: project} do
+      repo = project.source_root
+
+      git!(repo, ["config", "user.email", "test@example.com"])
+      git!(repo, ["config", "user.name", "Test"])
+      File.write!(Path.join(repo, "shared.txt"), "original\n")
+      git!(repo, ["add", "."])
+      git!(repo, ["commit", "-m", "initial"])
+
+      # Create a worktree and modify the same file.
+      {:ok, wt_root} = tmpdir()
+      wt_path = Path.join(wt_root, "conflict-wt")
+      git!(repo, ["worktree", "add", wt_path, "-b", "fnord-conflict", "main"])
+      File.write!(Path.join(wt_path, "shared.txt"), "from worktree\n")
+      git!(wt_path, ["add", "."])
+      git!(wt_path, ["commit", "-m", "worktree edit"])
+
+      # Advance main with a conflicting change to the same file.
+      File.write!(Path.join(repo, "shared.txt"), "from main\n")
+      git!(repo, ["add", "."])
+      git!(repo, ["commit", "-m", "main edit"])
+
+      # Rebase will conflict, so merge falls back to a regular merge.
+      # The regular merge also conflicts, so we expect :merge_failed.
+      assert {:error, :merge_failed} = GitCli.Worktree.merge(repo, wt_path)
+
+      # The worktree should not be left in a rebase-in-progress state.
+      # Worktree rebase state lives under the main repo's .git/worktrees/ dir.
+      git_dir =
+        wt_path
+        |> Path.join(".git")
+        |> File.read!()
+        |> String.trim()
+        |> String.trim_leading("gitdir: ")
+
+      refute File.exists?(Path.join(git_dir, "rebase-merge"))
+      refute File.exists?(Path.join(git_dir, "rebase-apply"))
+    end
+
     test "duplicate refuses when the source worktree is missing", %{project: project} do
       assert {:error, :source_missing} =
                GitCli.Worktree.duplicate(

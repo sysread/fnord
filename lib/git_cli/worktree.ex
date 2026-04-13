@@ -236,16 +236,37 @@ defmodule GitCli.Worktree do
   @spec merge(String.t(), String.t()) :: {:ok, any()} | {:error, atom()}
   @doc """
   Merges the checked-out worktree branch into the repository root current
-  branch.
+  branch. Rebases the branch onto the target first, then fast-forward merges
+  for a linear history. Falls back to a regular merge if the rebase fails.
   """
   def merge(root, path) when is_binary(root) and is_binary(path) do
-    with {:ok, branch} <- git_worktree_branch(root, path),
-         {:ok, _out} <- git_cmd(root, ["merge", branch]) do
-      {:ok, :ok}
+    with {:ok, branch} <- git_worktree_branch(root, path) do
+      rebase_and_ff_merge(root, path, branch)
     else
       {:error, :worktree_not_found} -> {:error, :worktree_not_found}
       {:error, :not_a_repo} -> {:error, :not_a_repo}
-      _ -> {:error, :merge_failed}
+    end
+  end
+
+  # Rebase the worktree branch onto the current root branch, then ff-merge.
+  # If the rebase conflicts, abort it and fall back to a regular merge.
+  defp rebase_and_ff_merge(root, path, branch) do
+    target = current_branch(root) || "HEAD"
+
+    case git_cmd(path, ["rebase", target]) do
+      {:ok, _} ->
+        case git_cmd(root, ["merge", "--ff-only", branch]) do
+          {:ok, _out} -> {:ok, :ok}
+          _ -> {:error, :merge_failed}
+        end
+
+      _ ->
+        git_cmd(path, ["rebase", "--abort"])
+
+        case git_cmd(root, ["merge", branch]) do
+          {:ok, _out} -> {:ok, :ok}
+          _ -> {:error, :merge_failed}
+        end
     end
   end
 
@@ -447,13 +468,25 @@ defmodule GitCli.Worktree do
     end
   end
 
-  @spec revert_head(String.t()) :: {:ok, :ok} | {:error, atom()}
+  @spec head_sha_full(String.t()) :: String.t() | nil
   @doc """
-  Reverts the most recent commit in the repository root. Used to undo a merge
-  that failed post-merge validation.
+  Returns the full (unabbreviated) SHA of HEAD, suitable for use as a reset
+  target.
   """
-  def revert_head(root) when is_binary(root) do
-    with {:ok, _} <- git_cmd(root, ["revert", "--no-edit", "HEAD"]) do
+  def head_sha_full(root) when is_binary(root) do
+    case git_cmd(root, ["rev-parse", "HEAD"]) do
+      {:ok, out} -> String.trim(out)
+      _ -> nil
+    end
+  end
+
+  @spec reset_hard(String.t(), String.t()) :: {:ok, :ok} | {:error, atom()}
+  @doc """
+  Hard-resets the repository at `root` to the given `target` ref. Used to
+  revert a fast-forward merge that may have advanced HEAD by multiple commits.
+  """
+  def reset_hard(root, target) when is_binary(root) and is_binary(target) do
+    with {:ok, _} <- git_cmd(root, ["reset", "--hard", target]) do
       {:ok, :ok}
     end
   end

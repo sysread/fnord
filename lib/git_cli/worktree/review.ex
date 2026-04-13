@@ -121,8 +121,12 @@ defmodule GitCli.Worktree.Review do
 
   # Merges the worktree branch into root, then runs post-merge validation.
   # If the merge command fails, returns the failure to the caller. If
-  # post-merge validation fails, reverts the merge.
+  # post-merge validation fails, resets HEAD to the pre-merge state. A hard
+  # reset is necessary because ff merges can advance HEAD by multiple commits,
+  # and `git revert HEAD` would only undo the last one.
   defp do_merge_with_post_validation(root, path, branch, target) do
+    pre_merge_sha = GitCli.Worktree.head_sha_full(root)
+
     case GitCli.Worktree.merge(root, path) do
       {:ok, _} ->
         sha = GitCli.Worktree.head_sha(root)
@@ -135,9 +139,9 @@ defmodule GitCli.Worktree.Review do
           {:failed, summary} ->
             UI.error("Post-merge validation failed; reverting merge")
 
-            case GitCli.Worktree.revert_head(root) do
-              {:ok, :ok} -> UI.info("Reverted merge commit")
-              {:error, reason} -> UI.warn("Revert failed: #{reason}")
+            case GitCli.Worktree.reset_hard(root, pre_merge_sha) do
+              {:ok, :ok} -> UI.info("Reset to pre-merge state")
+              {:error, reason} -> UI.warn("Reset failed: #{reason}")
             end
 
             {:validation_failed, :post_merge, summary}
