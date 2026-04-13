@@ -121,6 +121,42 @@ defmodule Cmd.IndexTest do
       assert %{new: [%{file: ^file}], stale: [], deleted: []} = Cmd.Index.perform_task({:ok, idx})
       assert :meck.called(GitCli, :is_git_repo?, [])
     end
+
+    test "indexes commits as part of the foreground run path", %{project: project} do
+      File.write!(Path.join(project.source_root, "tracked.txt"), "one")
+      System.cmd("git", ["add", "."], cd: project.source_root)
+      System.cmd("git", ["commit", "-m", "first", "--quiet"], cd: project.source_root)
+
+      Services.Globals.put_env(:fnord, :indexer, StubIndexer)
+
+      assert {:ok, idx} = Cmd.Index.new(%{project: project.name, yes: true, quiet: true})
+      result = Cmd.Index.perform_task({:ok, idx})
+      assert is_map(result)
+      assert Map.has_key?(result, :new)
+      assert Map.has_key?(result, :stale)
+      assert Map.has_key?(result, :deleted)
+
+      {:ok, project} = Store.get_project(project.name)
+
+      head_sha =
+        System.cmd("git", ["rev-parse", "HEAD"], cd: project.source_root)
+        |> elem(0)
+        |> String.trim()
+
+      embeddings_list =
+        Store.Project.CommitIndex.all_embeddings(project)
+        |> Enum.into([])
+
+      assert embeddings_list != []
+
+      assert Enum.any?(embeddings_list, fn {id, emb, meta} ->
+               id == head_sha and emb == [0.0] and meta["sha"] == head_sha and
+                 Map.has_key?(meta, "doc_hash") and Map.has_key?(meta, "index_format_version")
+             end)
+
+      status = Store.Project.CommitIndex.index_status(project)
+      assert status.new == []
+    end
   end
 
   describe "new" do
