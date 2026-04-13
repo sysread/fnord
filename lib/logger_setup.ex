@@ -35,13 +35,8 @@ defmodule LoggerSetup do
         :ok = :logger.add_handler(:default, :logger_std_h, updated_config)
 
       {:tty, dev} ->
-        # Add our custom TTY handler, with the same formatter/template
-        # We pass the formatter config as-is; the handler will format with it.
-        hcfg = %{
-          formatter:
-            {Keyword.fetch!(updated_config.config, :formatter),
-             Keyword.fetch!(updated_config.config, :formatter_config)}
-        }
+        # Add our custom TTY handler, preserving the formatter from the default handler
+        hcfg = %{formatter: updated_config.formatter}
 
         # Stash device in process dictionary for the handler to retrieve
         Process.put({__MODULE__, :tty_dev}, dev)
@@ -91,9 +86,13 @@ defmodule LoggerSetup do
   """
   @spec device_override() :: :stderr | :tty | nil
   def device_override do
-    case Services.Globals.get_env(:fnord, :logger_device_override) do
-      v when v in [:stderr, :tty] -> v
-      _ -> nil
+    # Globals may not be started yet when configure/0 runs during app boot.
+    # No table means no override is possible — fall through to nil.
+    if :ets.whereis(:globals_roots) != :undefined do
+      case Services.Globals.get_env(:fnord, :logger_device_override) do
+        v when v in [:stderr, :tty] -> v
+        _ -> nil
+      end
     end
   end
 
