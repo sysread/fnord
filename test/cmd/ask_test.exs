@@ -555,7 +555,7 @@ defmodule Cmd.AskTest do
       project = Store.get_project() |> elem(1)
 
       :meck.expect(GitCli, :is_git_repo?, fn -> true end)
-      :meck.expect(Services.CommitIndexer, :start_link, fn _opts -> {:ok, parent} end)
+      :meck.expect(Services.CommitIndexer, :start_link, fn -> {:ok, parent} end)
 
       :meck.expect(Services.CommitIndexer, :stop, fn pid ->
         assert pid == parent
