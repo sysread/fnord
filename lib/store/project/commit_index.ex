@@ -316,7 +316,7 @@ defmodule Store.Project.CommitIndex do
     ref = "HEAD"
 
     shas =
-      case System.cmd("git", ["rev-list", "--first-parent", ref],
+      case System.cmd("git", ["rev-list", ref],
              cd: root,
              stderr_to_stdout: true
            ) do
