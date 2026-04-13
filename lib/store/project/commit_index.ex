@@ -219,9 +219,10 @@ defmodule Store.Project.CommitIndex do
   defp git_root(%Project{source_root: nil}), do: nil
 
   defp git_root(%Project{} = project) do
-    case GitCli.is_git_repo?() do
-      true -> project.source_root
-      false -> nil
+    if GitCli.is_git_repo_at?(project.source_root) do
+      project.source_root
+    else
+      nil
     end
   end
 

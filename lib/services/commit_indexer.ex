@@ -73,7 +73,7 @@ defmodule Services.CommitIndexer do
   @impl true
   def handle_continue(:process_next, %{task: nil, project: project} = state)
       when not is_nil(project) do
-    if GitCli.is_git_repo?() do
+    if GitCli.is_git_repo_at?(Store.Project.original_source_root()) do
       case next_stale_commit(project, state.seen) do
         nil ->
           {:stop, :normal, state}

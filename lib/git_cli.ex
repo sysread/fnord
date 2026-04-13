@@ -17,6 +17,19 @@ defmodule GitCli do
     end
   end
 
+  @spec is_git_repo_at?(String.t() | nil) :: boolean()
+  def is_git_repo_at?(nil), do: false
+
+  def is_git_repo_at?(path) when is_binary(path) do
+    case System.cmd("git", ["rev-parse", "--is-inside-work-tree"],
+           cd: path,
+           stderr_to_stdout: true
+         ) do
+      {"true\n", 0} -> true
+      _ -> false
+    end
+  end
+
   def repo_root() do
     git = System.find_executable("git")
 
