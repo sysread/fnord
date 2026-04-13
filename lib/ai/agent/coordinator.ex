@@ -343,7 +343,6 @@ defmodule AI.Agent.Coordinator do
         |> Map.put(:steps, [])
         |> reminder_msg()
         |> AI.Agent.Coordinator.Tasks.list_msg()
-        |> skills_promotion_nudge_msg()
         |> finalize_msg()
         |> template_msg()
         |> AI.Agent.Coordinator.Glue.get_completion()
@@ -446,17 +445,6 @@ defmodule AI.Agent.Coordinator do
   @spec reminder_msg(t) :: t
   defp reminder_msg(%{conversation_pid: conversation_pid, question: question} = state) do
     "Remember the user's question: #{question}"
-    |> AI.Util.system_msg()
-    |> Services.Conversation.append_msg(conversation_pid)
-
-    state
-  end
-
-  @spec skills_promotion_nudge_msg(t) :: t
-  defp skills_promotion_nudge_msg(%{conversation_pid: conversation_pid} = state) do
-    """
-    If you repeated a capability during this session and there isn’t a suitable enabled skill, consider proposing a Skill via `save_skill` (with user confirmation). If you chose not to, briefly note the reason (e.g., one-off, not stable enough yet, better merged into existing skill X).
-    """
     |> AI.Util.system_msg()
     |> Services.Conversation.append_msg(conversation_pid)
 
@@ -575,30 +563,7 @@ defmodule AI.Agent.Coordinator do
   - When a `run_skill` tool is available and a skill matches the task at hand, prefer
     delegating to it. Skills are purpose-built agents with specialized prompts; they
     produce better results than ad-hoc research and protect your context window.
-
-  Skill promotion and reuse:
-  - If an enabled skill matches the task, use `run_skill`.
-  - If you perform the same capability more than once in a session, or you judge it likely to recur across sessions, propose promoting it to a Skill:
-    - Draft a skill spec and call `save_skill` only after user confirmation.
-    - Required fields:
-      - name (kebab-or-snake case; unique in scope)
-      - description (brief)
-      - model (preset: smart/balanced/fast/web/large_context…)
-      - tools (array):
-        - must include "basic"
-        - include "skills" if it will call other skills
-        - include "rw" only if write-capable tools are required
-      - system_prompt (base system prompt)
-      - response_format (optional map)
-    - Scope:
-      - default to "project"
-      - use "global" only if broadly reusable across projects
-    - Before saving, check enabled skills (via the `run_skill` spec/list) to avoid near-duplicates; prefer reusing or refining an existing skill.
-    - Respect gating and approvals:
-      - do not attempt to save without explicit confirmation (the tool will ask)
-      - do not run rw-tagged skills unless `--edit` is enabled
-  - After saving, prefer `run_skill` for subsequent invocations of that capability in this session; state in your response that you reused the saved skill and why.
-  - If you decide not to promote a repeated capability, include a one-sentence justification.
+  - Before planning ad-hoc workflows, quickly review the enabled skills list (via the `run_skill` tool spec) and use a matching skill if available.
 
   **DO NOT FINALIZE YOUR RESPONSE UNTIL INSTRUCTED.**
   """
