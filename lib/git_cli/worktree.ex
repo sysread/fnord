@@ -480,6 +480,19 @@ defmodule GitCli.Worktree do
     end
   end
 
+  @spec log_oneline(String.t(), String.t(), String.t()) :: [String.t()]
+  @doc """
+  Returns a list of one-line commit summaries in the range `from..to`,
+  newest first. Each entry is a short-sha + subject line.
+  """
+  def log_oneline(root, from, to) when is_binary(root) and is_binary(from) and is_binary(to) do
+    case git_cmd(root, ["log", "--oneline", "#{from}..#{to}"]) do
+      {:ok, ""} -> []
+      {:ok, out} -> String.split(out, "\n", trim: true)
+      _ -> []
+    end
+  end
+
   @spec reset_hard(String.t(), String.t()) :: {:ok, :ok} | {:error, atom()}
   @doc """
   Hard-resets the repository at `root` to the given `target` ref. Used to

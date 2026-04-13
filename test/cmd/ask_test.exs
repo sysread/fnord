@@ -345,7 +345,11 @@ defmodule Cmd.AskTest do
         assert meta.path == worktree_dir
         assert meta.branch == "feat"
         assert meta.base_branch == "main"
-        {:cleaned_up, "abc123", :interactive}
+        {:cleaned_up, {"aaa000", "abc123"}, :interactive}
+      end)
+
+      :meck.expect(GitCli.Worktree, :log_oneline, fn _root, "aaa000", "abc123" ->
+        ["abc123 add feature file"]
       end)
 
       :meck.expect(Services.Conversation, :start_link, fn _ -> {:ok, self()} end)
@@ -384,7 +388,7 @@ defmodule Cmd.AskTest do
         end)
 
       assert stderr =~ "Worktree changes merged successfully"
-      assert stderr =~ "abc123"
+      assert stderr =~ "abc123 add feature file"
       assert Settings.get_project_root_override() == nil
 
       assert_receive {:ui_say, output}
@@ -432,7 +436,11 @@ defmodule Cmd.AskTest do
         assert meta.path == worktree_dir
         assert meta.branch == "feat"
         assert meta.base_branch == "main"
-        {:cleaned_up, "def456", :auto}
+        {:cleaned_up, {"bbb000", "def456"}, :auto}
+      end)
+
+      :meck.expect(GitCli.Worktree, :log_oneline, fn _root, "bbb000", "def456" ->
+        ["def456 auto feature"]
       end)
 
       :meck.expect(Services.Conversation, :start_link, fn _ -> {:ok, self()} end)
@@ -471,7 +479,7 @@ defmodule Cmd.AskTest do
         end)
 
       assert stderr =~ "auto-merged because --yes was specified"
-      assert stderr =~ "def456"
+      assert stderr =~ "def456 auto feature"
       assert Settings.get_project_root_override() == nil
 
       assert_receive {:ui_say, output}

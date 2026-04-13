@@ -799,66 +799,29 @@ defmodule Cmd.Ask do
     - Memory:  #{count_memories(:session)} session; #{count_memories(:project)} project; #{count_memories(:global)} global#{format_search_stats()}
     """)
 
-    print_worktree_status(worktree_status)
+    print_worktree_status(worktree_status, project.source_root)
 
     UI.flush()
   end
 
-  defp print_worktree_status({:merged, sha, :interactive}) when is_binary(sha) do
-    line =
-      IO.ANSI.format(
-        [:green, :bright, "✓ Worktree changes merged successfully (#{sha})", :reset],
-        true
-      )
+  defp print_worktree_status({:merged, range, mode}, root) do
+    label =
+      case mode do
+        :interactive -> "Worktree changes merged successfully"
+        :auto -> "Worktree changes auto-merged because --yes was specified"
+      end
 
-    IO.puts(:stderr, "\n#{line}\n")
-    UI.Tee.write(["\n", line, "\n\n"])
+    header =
+      IO.ANSI.format([:green, :bright, "✓ #{label}", :reset], true)
+
+    commits = merged_commit_lines(range, root)
+
+    output = ["\n", header, "\n", commits, "\n"]
+    IO.write(:stderr, output)
+    UI.Tee.write(output)
   end
 
-  defp print_worktree_status({:merged, _sha, :interactive}) do
-    line =
-      IO.ANSI.format(
-        [:green, :bright, "✓ Worktree changes merged successfully", :reset],
-        true
-      )
-
-    IO.puts(:stderr, "\n#{line}\n")
-    UI.Tee.write(["\n", line, "\n\n"])
-  end
-
-  defp print_worktree_status({:merged, sha, :auto}) when is_binary(sha) do
-    line =
-      IO.ANSI.format(
-        [
-          :green,
-          :bright,
-          "✓ Worktree changes auto-merged because --yes was specified (#{sha})",
-          :reset
-        ],
-        true
-      )
-
-    IO.puts(:stderr, "\n#{line}\n")
-    UI.Tee.write(["\n", line, "\n\n"])
-  end
-
-  defp print_worktree_status({:merged, _sha, :auto}) do
-    line =
-      IO.ANSI.format(
-        [
-          :green,
-          :bright,
-          "✓ Worktree changes auto-merged because --yes was specified",
-          :reset
-        ],
-        true
-      )
-
-    IO.puts(:stderr, "\n#{line}\n")
-    UI.Tee.write(["\n", line, "\n\n"])
-  end
-
-  defp print_worktree_status(:unmerged) do
+  defp print_worktree_status(:unmerged, _root) do
     line =
       IO.ANSI.format(
         [:yellow, :bright, "⚠ Worktree changes were not merged", :reset],
@@ -869,7 +832,7 @@ defmodule Cmd.Ask do
     UI.Tee.write(["\n", line, "\n\n"])
   end
 
-  defp print_worktree_status(:no_changes) do
+  defp print_worktree_status(:no_changes, _root) do
     line =
       IO.ANSI.format(
         [:light_black, :italic, "(no file changes during this session)", :reset],
@@ -879,6 +842,17 @@ defmodule Cmd.Ask do
     IO.puts(:stderr, "\n#{line}\n")
     UI.Tee.write(["\n", line, "\n\n"])
   end
+
+  # Formats the list of commits included in a worktree merge as indented
+  # one-line summaries.
+  defp merged_commit_lines({from, to}, root) when is_binary(from) and is_binary(to) do
+    case GitCli.Worktree.log_oneline(root, from, to) do
+      [] -> ""
+      lines -> Enum.map_join(lines, "\n", &"  #{&1}") <> "\n"
+    end
+  end
+
+  defp merged_commit_lines(_, _), do: ""
 
   defp copied_to_clipboard?(copied_value, conversation_id)
        when is_binary(conversation_id) do
@@ -1267,7 +1241,7 @@ defmodule Cmd.Ask do
   @type worktree_status ::
           :no_changes
           | :unmerged
-          | {:merged, String.t() | nil, :interactive | :auto}
+          | {:merged, GitCli.Worktree.Review.merge_range(), :interactive | :auto}
 
   @spec maybe_worktree_review(String.t() | nil, boolean, pid, boolean, non_neg_integer) ::
           worktree_status()

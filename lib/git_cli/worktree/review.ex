@@ -16,9 +16,11 @@ defmodule GitCli.Worktree.Review do
           base_branch: String.t()
         }
 
+  @type merge_range :: {String.t(), String.t()} | nil
+
   @type review_result ::
           :ok
-          | {:cleaned_up, String.t() | nil, :interactive | :auto}
+          | {:cleaned_up, merge_range(), :interactive | :auto}
           | {:validation_failed, :pre_merge | :post_merge, String.t()}
           | {:merge_failed, String.t()}
 
@@ -129,12 +131,12 @@ defmodule GitCli.Worktree.Review do
 
     case GitCli.Worktree.merge(root, path) do
       {:ok, _} ->
-        sha = GitCli.Worktree.head_sha(root)
+        post_merge_sha = GitCli.Worktree.head_sha_full(root)
         UI.info("Merged", "#{branch} into #{target}")
 
         case run_validation(root, "Post-merge") do
           :ok ->
-            {:ok, sha}
+            {:ok, {pre_merge_sha, post_merge_sha}}
 
           {:failed, summary} ->
             UI.error("Post-merge validation failed; reverting merge")
