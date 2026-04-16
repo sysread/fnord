@@ -96,7 +96,25 @@ defmodule Store.Project.Entry do
       !exists_in_store?(entry) -> true
       is_incomplete?(entry) -> true
       !hash_is_current?(entry) -> true
+      !embedding_dim_is_current?(entry) -> true
       true -> false
+    end
+  end
+
+  # An entry whose stored embedding vector was produced by a different
+  # model (e.g. pre-migration OpenAI 3072-dim data that the cross-format
+  # hash upgrade marked as "fresh") is still stale from the embedding
+  # layer's perspective: cosine_similarity would crash against the new
+  # query vectors. Catch this per-entry so a single mis-dim file no
+  # longer tricks Migration's sampling into either (a) wiping a
+  # mostly-healthy index, or (b) leaving stale dims in place.
+  defp embedding_dim_is_current?(entry) do
+    case Store.Project.Entry.Embeddings.read(entry.embeddings) do
+      {:ok, list} when is_list(list) ->
+        length(list) == AI.Embeddings.dimensions()
+
+      _ ->
+        false
     end
   end
 

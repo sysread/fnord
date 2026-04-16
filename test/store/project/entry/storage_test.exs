@@ -55,8 +55,10 @@ defmodule Store.Project.Entry.StorageTest do
       path = mock_source_file(project, "d.txt", "yyy")
       entry = Entry.new_from_file_path(project, path)
 
-      # Save creates and writes all data
-      :ok = Storage.save(entry, "sum", [1.0])
+      # Save creates and writes all data. Embedding must match the
+      # current model's dimension so is_stale? doesn't trip the dim
+      # check added to guard against cross-model stale vectors.
+      :ok = Storage.save(entry, "sum", List.duplicate(0.0, AI.Embeddings.dimensions()))
 
       refute Storage.is_incomplete?(entry)
       refute Storage.is_stale?(entry)

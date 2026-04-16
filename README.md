@@ -36,7 +36,7 @@ If you've ever pasted multiple files into ChatGPT or worked with it iteratively 
 - Improves its research capabilities with each interaction
 - Layered approvals for shell/file operations
 - User integrations
-- Skills (reusable agent presets): see [docs/skills.md](docs/skills.md)
+- Skills (reusable agent presets): see [docs/user/skills.md](docs/user/skills.md)
 - MCP server support
 
 ## Installation
@@ -145,7 +145,7 @@ fnord config validation clear --project blarg
 
 ### Approval patterns
 
-For safety, fnord requires approval for shell commands and file operations. You'll be prompted to approve operations as fnord works. To streamline your workflow, you can pre-approve specific commands using regex patterns. See [docs/approval-patterns.md](docs/approval-patterns.md) for details.
+For safety, fnord requires approval for shell commands and file operations. You'll be prompted to approve operations as fnord works. To streamline your workflow, you can pre-approve specific commands using regex patterns. See [docs/user/approval-patterns.md](docs/user/approval-patterns.md) for details.
 
 ### Search your code base
 
@@ -203,7 +203,7 @@ Use `--TEE <file>` (or `-T <file>`) to overwrite/truncate without prompting.
 fnord ask --project blarg -S --question "Explain foo's behavior"
 ```
 
-For advanced options (e.g., unindexed projects, replaying conversations), see [docs/asking-questions.md](docs/asking-questions.md).
+For advanced options (e.g., unindexed projects, replaying conversations), see [docs/user/asking-questions.md](docs/user/asking-questions.md).
 
 #### Create and manage your fnord doc library
 
@@ -211,7 +211,7 @@ For advanced options (e.g., unindexed projects, replaying conversations), see [d
 
 - Saved outputs (via `--save`) are stored in `~/fnord/outputs/<project_id>/`.
 - View and explore learned notes with `fnord notes`.
-- Browse your docs with a markdown viewer (e.g., `glow`). For more, see [docs/asking-questions.md](docs/asking-questions.md) and [docs/learning-system.md](docs/learning-system.md).
+- Browse your docs with a markdown viewer (e.g., `glow`). For more, see [docs/user/asking-questions.md](docs/user/asking-questions.md) and [docs/user/learning-system.md](docs/user/learning-system.md).
 
 ### Learning over time
 
@@ -223,7 +223,7 @@ You can prime this learning process with:
 fnord prime --project blarg
 ```
 
-For managing and viewing learned knowledge, see [docs/learning-system.md](docs/learning-system.md).
+For managing and viewing learned knowledge, see [docs/user/learning-system.md](docs/user/learning-system.md).
 
 ### Upgrades
 
@@ -264,7 +264,7 @@ fnord frobs check --name my_frob
 fnord frobs list
 ```
 
-Frobs are stored in `~/fnord/tools/`. For implementation details, see [docs/frobs-guide.md](docs/frobs-guide.md).
+Frobs are stored in `~/fnord/tools/`. For implementation details, see [docs/user/frobs-guide.md](docs/user/frobs-guide.md).
 
 ### MCP support
 
@@ -282,7 +282,7 @@ fnord config mcp add <name> --transport http --url https://api.example.com --oau
 fnord config mcp login <name>
 ```
 
-**Advanced Configuration:** For complete command reference, custom transport options, and manual configuration, see [docs/mcp-advanced.md](docs/mcp-advanced.md).
+**Advanced Configuration:** For complete command reference, custom transport options, and manual configuration, see [docs/user/mcp-advanced.md](docs/user/mcp-advanced.md).
 
 #### OAuth Authentication
 
@@ -293,7 +293,7 @@ fnord config mcp add myserver --transport http --url https://example.com --oauth
 fnord config mcp login myserver
 ```
 
-For advanced OAuth options, troubleshooting, and security details, see [docs/oauth-advanced.md](docs/oauth-advanced.md).
+For advanced OAuth options, troubleshooting, and security details, see [docs/user/oauth-advanced.md](docs/user/oauth-advanced.md).
 
 ## Writing code
 

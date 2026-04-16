@@ -56,6 +56,10 @@ defmodule Store.Project.ConversationIndexTest do
   end
 
   describe "stale?/2" do
+    # Helper: build a dim-correct placeholder vector so the stale? dim
+    # check doesn't fire on tests that are exercising other criteria.
+    defp fresh_vector, do: List.duplicate(0.0, AI.Embeddings.dimensions())
+
     test "true when the conversation has no index entry", %{project: project} do
       convo = Conversation.new("unindexed", project)
       File.mkdir_p!(Path.dirname(convo.store_path))
@@ -82,7 +86,7 @@ defmodule Store.Project.ConversationIndexTest do
         end
 
       :ok =
-        ConversationIndex.write_embeddings(project, convo.id, [0.0], %{
+        ConversationIndex.write_embeddings(project, convo.id, fresh_vector(), %{
           "last_indexed_ts" => source_ts
         })
 
@@ -101,9 +105,40 @@ defmodule Store.Project.ConversationIndexTest do
         })
 
       :ok =
-        ConversationIndex.write_embeddings(project, convo.id, [0.0], %{
+        ConversationIndex.write_embeddings(project, convo.id, fresh_vector(), %{
           # 1970 - guaranteed older than any recent conversation timestamp.
           "last_indexed_ts" => 0
+        })
+
+      assert ConversationIndex.stale?(project, convo)
+    end
+
+    # Regression: a conversation with a fresh last_indexed_ts but an
+    # embedding from a different model must still be marked stale. The
+    # previous check trusted the timestamp alone, leaving pre-migration
+    # vectors in place as an invisible landmine.
+    test "true when the stored embedding has the wrong dimension",
+         %{project: project} do
+      convo = Conversation.new("wrong_dim", project)
+
+      {:ok, _} =
+        Conversation.write(convo, %{
+          messages: [AI.Util.system_msg("hi")],
+          metadata: %{},
+          memories: []
+        })
+
+      source_ts =
+        Conversation.timestamp(convo)
+        |> case do
+          %DateTime{} = dt -> DateTime.to_unix(dt)
+          ts when is_integer(ts) -> ts
+        end
+
+      # Fresh timestamp, but the vector has the wrong length.
+      :ok =
+        ConversationIndex.write_embeddings(project, convo.id, [0.1, 0.2, 0.3], %{
+          "last_indexed_ts" => source_ts
         })
 
       assert ConversationIndex.stale?(project, convo)

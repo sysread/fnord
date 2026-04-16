@@ -432,6 +432,7 @@ defmodule Memory do
   end
 
   defp stale_embedding?(nil, _expected_dim), do: true
+
   defp stale_embedding?(embeddings, expected_dim) when is_list(embeddings) do
     length(embeddings) != expected_dim
   end

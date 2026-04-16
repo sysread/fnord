@@ -6,7 +6,11 @@ defmodule Cmd.IndexTest do
 
     # Stub the conversation summarizer so it doesn't hit the real LLM
     :meck.new(AI.Agent.ConversationSummary, [:no_link, :passthrough])
-    :meck.expect(AI.Agent.ConversationSummary, :get_response, fn _opts -> {:ok, "test summary"} end)
+
+    :meck.expect(AI.Agent.ConversationSummary, :get_response, fn _opts ->
+      {:ok, "test summary"}
+    end)
+
     on_exit(fn -> :meck.unload(AI.Agent.ConversationSummary) end)
   end
 
@@ -215,6 +219,7 @@ defmodule Cmd.IndexTest do
 
       # The text file got an entry; the binary file did not.
       {:ok, project} = Store.get_project("coop_binary")
+
       files =
         project
         |> Store.Project.stored_files()

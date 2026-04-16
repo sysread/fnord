@@ -245,7 +245,11 @@ defmodule Store.Project.EntryTest do
 
       Store.Project.Entry.Metadata.write(entry.metadata, %{})
       Store.Project.Entry.Summary.write(entry.summary, "summary text")
-      Store.Project.Entry.Embeddings.write(entry.embeddings, [[1, 2, 3]])
+
+      Store.Project.Entry.Embeddings.write(
+        entry.embeddings,
+        List.duplicate(0.0, AI.Embeddings.dimensions())
+      )
 
       refute Store.Project.Entry.is_stale?(entry)
     end
@@ -276,12 +280,36 @@ defmodule Store.Project.EntryTest do
 
       Store.Project.Entry.Metadata.write(entry.metadata, %{})
       Store.Project.Entry.Summary.write(entry.summary, "summary text")
-      Store.Project.Entry.Embeddings.write(entry.embeddings, [[1, 2, 3]])
+
+      Store.Project.Entry.Embeddings.write(
+        entry.embeddings,
+        List.duplicate(0.0, AI.Embeddings.dimensions())
+      )
 
       # Update the source file
       File.write!(entry.file, @alt_text)
 
       refute Store.Project.Entry.hash_is_current?(entry)
+      assert Store.Project.Entry.is_stale?(entry)
+    end
+
+    # Regression: cross-format hash upgrade ("content unchanged, just
+    # restamp the hash") must not mark an entry fresh when its stored
+    # embedding was produced by a different model. Previously this bug
+    # left pre-migration OpenAI 3072-dim vectors in place while the
+    # metadata advertised them as current, so Migration's sampling was
+    # the only thing standing between the user and a crash at query
+    # time.
+    test "true when the stored embedding has the wrong dimension", ctx do
+      path = mock_source_file(ctx.project, "a.txt", @text)
+      entry = Store.Project.Entry.new_from_file_path(ctx.project, path)
+      Store.Project.Entry.create(entry)
+
+      Store.Project.Entry.Metadata.write(entry.metadata, %{rel_path: entry.rel_path})
+      Store.Project.Entry.Summary.write(entry.summary, "summary text")
+      # 3-element vector vs the current model's 384.
+      Store.Project.Entry.Embeddings.write(entry.embeddings, [0.1, 0.2, 0.3])
+
       assert Store.Project.Entry.is_stale?(entry)
     end
   end
@@ -383,7 +411,7 @@ defmodule Store.Project.EntryTest do
       rel_paths = [
         "src/main.ex",
         "test/support/helpers.ex",
-        "docs/README.md",
+        "docs/user/README.md",
         "files with spaces/and & symbols.txt"
       ]
 

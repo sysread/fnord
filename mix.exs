@@ -35,25 +35,25 @@ defmodule Fnord.MixProject do
       main: "readme",
       extras: [
         "README.md",
-        "docs/approval-patterns.md",
-        "docs/asking-questions.md",
-        "docs/learning-system.md",
-        "docs/frobs-guide.md",
-        "docs/frobs-http-get.md",
-        "docs/mcp-advanced.md",
-        "docs/oauth-advanced.md",
-        "docs/skills.md"
+        "docs/user/approval-patterns.md",
+        "docs/user/asking-questions.md",
+        "docs/user/learning-system.md",
+        "docs/user/frobs-guide.md",
+        "docs/user/frobs-http-get.md",
+        "docs/user/mcp-advanced.md",
+        "docs/user/oauth-advanced.md",
+        "docs/user/skills.md"
       ],
       groups_for_extras: [
         Guides: [
-          "docs/approval-patterns.md",
-          "docs/asking-questions.md",
-          "docs/learning-system.md",
-          "docs/frobs-guide.md",
-          "docs/frobs-http-get.md",
-          "docs/mcp-advanced.md",
-          "docs/oauth-advanced.md",
-          "docs/skills.md"
+          "docs/user/approval-patterns.md",
+          "docs/user/asking-questions.md",
+          "docs/user/learning-system.md",
+          "docs/user/frobs-guide.md",
+          "docs/user/frobs-http-get.md",
+          "docs/user/mcp-advanced.md",
+          "docs/user/oauth-advanced.md",
+          "docs/user/skills.md"
         ]
       ],
       source_url: "https://github.com/sysread/fnord",

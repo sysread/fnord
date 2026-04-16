@@ -44,8 +44,7 @@ defmodule Cmd.Index do
             value_name: "N",
             long: "--workers",
             short: "-w",
-            help:
-              "Number of concurrent embedding workers (default: max(cpu_count - 2, 8))",
+            help: "Number of concurrent embedding workers (default: max(cpu_count - 2, 8))",
             parser: :integer,
             required: false
           ]
@@ -616,7 +615,8 @@ defmodule Cmd.Index do
     end)
   end
 
-  @spec index_entries(Store.Project.index_status()) :: :ok | {:partial, non_neg_integer, non_neg_integer}
+  @spec index_entries(Store.Project.index_status()) ::
+          :ok | {:partial, non_neg_integer, non_neg_integer}
   defp index_entries(%{new: new, stale: stale}) do
     files_to_index = new ++ stale
     count = Enum.count(files_to_index)
@@ -633,7 +633,8 @@ defmodule Cmd.Index do
     end
   end
 
-  @spec index_conversations(Store.Project.t()) :: :ok | {:partial, non_neg_integer, non_neg_integer}
+  @spec index_conversations(Store.Project.t()) ::
+          :ok | {:partial, non_neg_integer, non_neg_integer}
   defp index_conversations(project) do
     %{new: new, stale: stale, deleted: deleted} =
       Store.Project.ConversationIndex.index_status(project)
@@ -842,7 +843,8 @@ defmodule Cmd.Index do
     # commit document so `fnord index` produces usable vectors without relying
     # on a subsequent ask-session background refresh.
     with {:ok, embeddings} <- Indexer.impl().get_embeddings(document),
-         :ok <- Store.Project.CommitIndex.write_embeddings(project, commit.sha, embeddings, metadata) do
+         :ok <-
+           Store.Project.CommitIndex.write_embeddings(project, commit.sha, embeddings, metadata) do
       if Services.Globals.get_env(:fnord, :quiet) do
         UI.info("✓ <commit> #{String.slice(commit.sha, 0, 12)} #{commit.subject}")
       end

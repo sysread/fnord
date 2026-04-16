@@ -320,7 +320,9 @@ defmodule AI.Embeddings.Pool do
 
       {:ok, %{"id" => id, "error" => error}} ->
         case Map.pop(state.pending, id) do
-          {nil, _pending} -> state
+          {nil, _pending} ->
+            state
+
           {from, pending} ->
             GenServer.reply(from, {:error, error})
             %{state | pending: pending}
@@ -331,7 +333,10 @@ defmodule AI.Embeddings.Pool do
         state
 
       {:error, _} ->
-        UI.warn("[Embeddings.Pool] unparseable output from embed process: #{String.slice(line, 0, 120)}")
+        UI.warn(
+          "[Embeddings.Pool] unparseable output from embed process: #{String.slice(line, 0, 120)}"
+        )
+
         state
     end
   end

@@ -7,9 +7,12 @@ defmodule AI.Tools.SelfHelp.Docs do
 
   @behaviour AI.Tools
 
-  # Build canonical URL lists from docs/ at compile time so adding a .md file
-  # automatically expands the search scope without editing this module.
-  @doc_paths Path.wildcard("docs/*.md") |> Enum.sort()
+  # Build canonical URL lists from docs/user/ at compile time so adding a
+  # new user-facing guide automatically expands the search scope without
+  # editing this module. Dev docs under docs/dev/ are intentionally out
+  # of scope: they're architecture notes for contributors/LLMs working
+  # on fnord itself, not answers to end-user questions.
+  @doc_paths Path.wildcard("docs/user/*.md") |> Enum.sort()
   for path <- @doc_paths, do: @external_resource(path)
 
   @hexdocs_urls [
@@ -43,9 +46,9 @@ defmodule AI.Tools.SelfHelp.Docs do
 
   GitHub's web UI URLs sometimes fail to load. When fetching content from GitHub,
   convert to raw URLs. For example:
-    https://github.com/sysread/fnord/blob/main/docs/README.md
+    https://github.com/sysread/fnord/blob/main/docs/user/README.md
   becomes:
-    https://raw.githubusercontent.com/sysread/fnord/refs/heads/main/docs/README.md
+    https://raw.githubusercontent.com/sysread/fnord/refs/heads/main/docs/user/README.md
 
   Provide a direct, concise answer based on the documentation content.
   Include inline citations (page titles or URLs) when referencing specific information.

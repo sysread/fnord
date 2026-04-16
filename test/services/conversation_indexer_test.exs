@@ -29,7 +29,11 @@ defmodule Services.Conversation.IndexerTest do
 
     # Stub the conversation summarizer so it doesn't hit the real LLM
     :meck.new(AI.Agent.ConversationSummary, [:no_link, :passthrough])
-    :meck.expect(AI.Agent.ConversationSummary, :get_response, fn _opts -> {:ok, "test summary"} end)
+
+    :meck.expect(AI.Agent.ConversationSummary, :get_response, fn _opts ->
+      {:ok, "test summary"}
+    end)
+
     on_exit(fn -> :meck.unload(AI.Agent.ConversationSummary) end)
 
     {:ok, project: mock_project("conv_indexer_test")}

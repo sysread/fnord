@@ -111,8 +111,13 @@ defmodule Store.Project.ConversationIndex do
 
   @doc """
   Returns true when the given conversation still needs indexing in this
-  project - either there's no index entry on disk, or the entry's
-  `last_indexed_ts` is older than the conversation's `timestamp`.
+  project. Stale when any of:
+
+    * No index entry on disk.
+    * The entry's `last_indexed_ts` is older than the conversation's
+      `timestamp`.
+    * The stored embedding was produced by a different model (vector
+      dimension doesn't match the current embedder).
 
   Used by foreground indexers to re-check freshness inside a
   per-conversation lock: if a parallel indexer already refreshed the
@@ -126,10 +131,11 @@ defmodule Store.Project.ConversationIndex do
         ts when is_integer(ts) -> ts
       end
 
-    case read_metadata(project, convo.id) do
-      {:ok, %{"last_indexed_ts" => indexed_ts}}
-      when is_integer(indexed_ts) ->
-        indexed_ts < source_ts
+    case read_embeddings(project, convo.id) do
+      {:ok, %{embeddings: embeddings, metadata: %{"last_indexed_ts" => indexed_ts}}}
+      when is_integer(indexed_ts) and is_list(embeddings) ->
+        indexed_ts < source_ts or
+          length(embeddings) != AI.Embeddings.dimensions()
 
       _ ->
         true
