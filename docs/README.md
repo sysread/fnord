@@ -28,6 +28,10 @@ New to fnord? Start with the [main README](../README.md).
 
 - [Worktrees](worktrees.md) - Git worktree isolation for edit-mode conversations
 
+### Migration and Indexing
+
+- [Index and embeddings](index-embeddings-migration.md) - Refresh index after upgrading; file and commit embeddings
+
 ### MCP Servers
 
 - [Advanced MCP Configuration](mcp-advanced.md) - Custom transport options, Hermes integration, manual settings
