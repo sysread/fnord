@@ -57,7 +57,11 @@ defmodule AI.Agent.Perception do
   """
 
   defmodule Result do
-    @moduledoc false
+    @moduledoc """
+    Structured perception of the current turn, as parsed from the Perception
+    agent's response. Produced by `AI.Agent.Perception.get_response/1` and
+    consumed by `AI.Agent.Intuition` and `AI.Samskara.Firing`.
+    """
     defstruct [
       :observation,
       :classification,

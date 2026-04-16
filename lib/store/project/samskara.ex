@@ -98,7 +98,7 @@ defmodule Store.Project.Samskara do
   def mark_consolidated(project, source_ids, impression_id) when is_list(source_ids) do
     Enum.each(source_ids, fn id ->
       case get(project, id) do
-        {:ok, record} ->
+        {:ok, %Record{} = record} ->
           updated = %Record{record | consolidated_into: impression_id, superseded: true}
           write(project, updated)
 
