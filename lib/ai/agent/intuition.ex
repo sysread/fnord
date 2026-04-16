@@ -3,44 +3,6 @@ defmodule AI.Agent.Intuition do
 
   @model AI.Model.fast()
 
-  @perception """
-  You are an AI agent in a larger system of AI agents that form an aggregate
-  mind that responds to the user. You are the Subconsciousness. Your task is to
-  read a transcript of a conversation between the user and the Coordinating
-  Agent (the "conscious" agent that interacts directly with the user) to
-  provide an objective *perception* of the situation for the subconscious to
-  react to.
-
-  Identify significant aspects of the situation to react to:
-  - Broad context or goals
-  - Active concerns or questions
-  - The user's motives or reactions
-  - The user's emotional state or tone
-  - What is being requested of you
-  - The length of the conversation (implying the user may be correcting your misteps)
-  - The topics and decision-making context that lead to the most recent user prompt (if any)
-
-  Classify the user's prompt into one of these categories:
-  - **interface**: the user is asking about fnord itself - its CLI, commands, flags, configuration, features, or behavior
-  - **codebase**: the user is asking about the project code, architecture, bugs, or implementation
-  - **correction**: the user is correcting a previous response or pointing out a mistake
-  - **continuation**: the user is continuing or refining an ongoing task
-  - **meta**: the user is asking about the agent's capabilities, process, or reasoning
-  - **ambiguous**: the prompt could reasonably be about fnord's interface or the project codebase
-
-  Interpret the situation holistically, but be realistic and do not overreach.
-  You are the *objective observer* of the situation.
-  The subconsciousness relies on you to provide a clear and accurate perception of the situation.
-  Do your best to focus on the reality of the situation, without applying judgement or interpretation.
-  You are the *φαντασία*, not the *ὑπόληψις*.
-
-  You are NOT responding to the user.
-  Your output will be presented to the various subconscious drives to generate instinctive reactions.
-
-  Begin your response with "Classification: <category>" on its own line.
-  Then respond briefly, presenting a holistic, first-person interpretation of events (e.g., "The user is asking us to...", "The user has changed their mind about...", "The user is concerned with...", etc.)
-  """
-
   @synthesis """
   You are an AI agent in a larger system of AI agents.
   You are the Subconsciousness.
@@ -219,7 +181,7 @@ defmodule AI.Agent.Intuition do
   def get_response(opts) do
     opts
     |> new()
-    |> get_perception()
+    |> ensure_perception()
     |> get_drive_reactions()
     |> get_subconscious_union()
   end
@@ -232,6 +194,7 @@ defmodule AI.Agent.Intuition do
     :msgs,
     :error,
     :perception,
+    :samskaras,
     :reactions
   ]
 
@@ -239,50 +202,44 @@ defmodule AI.Agent.Intuition do
           agent: AI.Agent.t(),
           msgs: list(AI.Util.msg()),
           error: nil | term,
-          perception: nil | binary,
+          perception: nil | AI.Agent.Perception.Result.t(),
+          samskaras: list(Store.Project.Samskara.Record.t()),
           reactions: nil | list(binary)
         }
 
   @spec new(map) :: t
   defp new(%{agent: agent} = opts) do
     with {:ok, msgs} <- get_arg(opts, :msgs) do
-      %__MODULE__{agent: agent, msgs: msgs}
+      %__MODULE__{
+        agent: agent,
+        msgs: msgs,
+        perception: Map.get(opts, :perception),
+        samskaras: Map.get(opts, :samskaras, [])
+      }
     else
-      {:error, reason} -> %__MODULE__{agent: agent, error: reason}
+      {:error, reason} -> %__MODULE__{agent: agent, error: reason, samskaras: []}
     end
   end
 
-  @spec get_perception(t) :: t
-  defp get_perception(%{error: nil} = state) do
-    transcript =
-      state.msgs
-      |> Enum.filter(fn
-        %{role: "user"} -> true
-        %{role: "assistant", content: c} when is_binary(c) -> true
-        _ -> false
-      end)
-      |> Enum.map(fn %{role: role, content: content} ->
-        "#{role} said: #{content}"
-      end)
-      |> Enum.join("\n\n")
+  @spec ensure_perception(t) :: t
+  defp ensure_perception(%{error: nil, perception: %AI.Agent.Perception.Result{}} = state) do
+    state
+  end
 
-    AI.Accumulator.get_response(
-      model: @model,
-      prompt: @perception,
-      input: transcript,
-      question: "Respond with your subconscious perception."
-    )
+  defp ensure_perception(%{error: nil, perception: nil} = state) do
+    AI.Agent.Perception
+    |> AI.Agent.new(named?: false)
+    |> AI.Agent.get_response(%{msgs: state.msgs})
     |> case do
-      {:ok, %{response: response}} ->
-        log(:perception, response)
-        %{state | perception: response}
+      {:ok, %AI.Agent.Perception.Result{} = perception} ->
+        %{state | perception: perception}
 
       {:error, reason} ->
         %{state | error: reason}
     end
   end
 
-  defp get_perception(state), do: state
+  defp ensure_perception(state), do: state
 
   @spec get_drive_reactions(t) :: t
   defp get_drive_reactions(%{error: nil} = state) do
@@ -300,9 +257,18 @@ defmodule AI.Agent.Intuition do
 
   @spec get_drive_reaction(t, binary) :: {:ok, binary} | {:error, binary}
   defp get_drive_reaction(%{error: nil} = state, drive) do
+    user_content =
+      [
+        "# My perception of the discussion:",
+        perception_text(state.perception),
+        samskara_section(state.samskaras)
+      ]
+      |> Enum.reject(&(&1 in [nil, ""]))
+      |> Enum.join("\n\n")
+
     messages = [
       AI.Util.system_msg("#{@drive_base_prompt}\n#{@drives[drive]}"),
-      AI.Util.user_msg("# My perception of the discussion:\n#{state.perception}")
+      AI.Util.user_msg(user_content)
     ]
 
     AI.Agent.get_completion(state.agent,
@@ -321,9 +287,18 @@ defmodule AI.Agent.Intuition do
 
   @spec get_subconscious_union(t) :: {:ok, binary} | t
   defp get_subconscious_union(%{error: nil} = state) do
+    perception_block =
+      [
+        "# Perception",
+        perception_text(state.perception),
+        samskara_section(state.samskaras)
+      ]
+      |> Enum.reject(&(&1 in [nil, ""]))
+      |> Enum.join("\n\n")
+
     messages = [
       AI.Util.system_msg(@synthesis),
-      AI.Util.user_msg("# Perception\n#{state.perception}"),
+      AI.Util.user_msg(perception_block),
       AI.Util.assistant_msg(Enum.join(state.reactions, "\n"))
     ]
 
@@ -342,8 +317,32 @@ defmodule AI.Agent.Intuition do
 
   defp get_subconscious_union(%{error: msg}), do: {:error, msg}
 
-  defp log(:perception, msg) do
-    UI.report_step("Perception", UI.italicize(msg))
+  @spec perception_text(nil | AI.Agent.Perception.Result.t() | binary) :: binary
+  defp perception_text(nil), do: ""
+  defp perception_text(%AI.Agent.Perception.Result{raw: raw}) when is_binary(raw) and raw != "", do: raw
+  defp perception_text(%AI.Agent.Perception.Result{observation: obs}) when is_binary(obs), do: obs
+  defp perception_text(text) when is_binary(text), do: text
+  defp perception_text(_), do: ""
+
+  @spec samskara_section(list(Store.Project.Samskara.Record.t())) :: binary
+  defp samskara_section([]), do: ""
+
+  defp samskara_section(records) when is_list(records) do
+    bullets =
+      records
+      |> Enum.map(fn r ->
+        "- [#{r.reaction}] #{r.gist}"
+      end)
+      |> Enum.join("\n")
+
+    """
+    # Relevant past impressions (samskaras)
+    These are prior reactions from the user, retrieved by similarity. Let them
+    temper (not override) your instincts.
+
+    #{bullets}
+    """
+    |> String.trim_trailing()
   end
 
   defp log(label, msg) do

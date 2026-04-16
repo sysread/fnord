@@ -45,6 +45,13 @@ defmodule Services do
     Services.Approvals.start_link()
     Services.Approvals.Gate.start_link([])
 
+    # Samskara reactor observes user turns and mints samskaras asynchronously.
+    # Guarded with a pid check so repeat starts during tests are harmless.
+    case Process.whereis(Services.SamskaraReactor) do
+      nil -> Services.SamskaraReactor.start_link()
+      _ -> :ok
+    end
+
     # MCP is started lazily on-demand when a completion needs MCP-backed tools.
     # It is started from AI.Tools.basic_tools, which is always called for any
     # agent that has access to tools, making it a logical place to start MCP

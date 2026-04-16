@@ -2,7 +2,7 @@ name: Run tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, samskara]
   pull_request:
 
 concurrency:

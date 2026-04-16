@@ -12,9 +12,14 @@ defmodule AI.Agent.Coordinator.Intuition do
 
     msgs = Services.Conversation.get_messages(state.conversation_pid)
 
+    args =
+      %{msgs: msgs}
+      |> put_if(:perception, state.perception)
+      |> Map.put(:samskaras, state.samskaras || [])
+
     AI.Agent.Intuition
     |> AI.Agent.new(named?: false)
-    |> AI.Agent.get_response(%{msgs: msgs})
+    |> AI.Agent.get_response(args)
     |> case do
       {:ok, intuition} ->
         UI.report_step("Intuition", UI.italicize(intuition))
@@ -34,4 +39,7 @@ defmodule AI.Agent.Coordinator.Intuition do
         state
     end
   end
+
+  defp put_if(map, _key, nil), do: map
+  defp put_if(map, key, value), do: Map.put(map, key, value)
 end
