@@ -80,10 +80,6 @@ defmodule AI.Agent.Perception do
             raw: binary
           }
 
-    @doc """
-    Single string suitable for embedding. Concatenates observation + entities +
-    actions + files so cosine search has enough signal to match firing queries.
-    """
     @spec embed_text(t) :: binary
     def embed_text(%__MODULE__{} = r) do
       [
