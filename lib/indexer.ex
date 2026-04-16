@@ -23,7 +23,6 @@ defmodule Indexer do
   # -----------------------------------------------------------------------------
   @callback get_embeddings(file_content) :: embeddings | error
   @callback get_summary(file_path, file_content) :: completion | error
-  @callback get_outline(file_path, file_content) :: completion | error
 
   # -----------------------------------------------------------------------------
   # Behaviour Implementation
@@ -42,13 +41,6 @@ defmodule Indexer do
     |> AI.Agent.get_response(%{file: file, content: content})
   end
 
-  @impl Indexer
-  def get_outline(file, content) do
-    AI.Agent.CodeMapper
-    |> AI.Agent.new(named?: false)
-    |> AI.Agent.get_response(%{file: file, content: content})
-  end
-
   # -----------------------------------------------------------------------------
   # API Functions
   # -----------------------------------------------------------------------------
@@ -61,9 +53,9 @@ defmodule Indexer do
   end
 
   @doc """
-  Indexes a single entry: reads the source, generates summary and outline in
-  parallel, computes embeddings, and persists everything. Returns the entry
-  struct on success so callers can immediately read its data.
+  Indexes a single entry: reads the source, generates the summary, computes
+  embeddings, and persists everything. Returns the entry struct on success so
+  callers can immediately read its data.
 
   This is the canonical single-file indexing pipeline, used by `Cmd.Index`
   for bulk indexing.
@@ -74,41 +66,33 @@ defmodule Indexer do
     indexer = impl()
 
     with {:ok, contents} <- Store.Project.Entry.read_source_file(entry),
-         {:ok, summary, outline} <- get_derivatives(indexer, entry.file, contents),
-         {:ok, embeddings} <- get_file_embeddings(indexer, entry.file, summary, outline, contents),
-         :ok <- Store.Project.Entry.save(entry, summary, outline, embeddings) do
+         :ok <- guard_text(contents),
+         {:ok, summary} <- indexer.get_summary(entry.file, contents),
+         {:ok, embeddings} <- get_file_embeddings(indexer, entry.file, summary),
+         :ok <- Store.Project.Entry.save(entry, summary, embeddings) do
       {:ok, entry}
     end
   end
 
-  # Generate summary and outline concurrently using the configured indexer impl.
-  defp get_derivatives(indexer, file, contents) do
-    summary_task = Services.Globals.Spawn.async(fn -> indexer.get_summary(file, contents) end)
-    outline_task = Services.Globals.Spawn.async(fn -> indexer.get_outline(file, contents) end)
-
-    with {:ok, summary} <- Task.await(summary_task, :infinity),
-         {:ok, outline} <- Task.await(outline_task, :infinity) do
-      {:ok, summary, outline}
-    end
+  # Downstream text-splitting (AI.Splitter / String.split_at) assumes a
+  # valid UTF-8 binary. Tracked binaries (images, compiled assets, anything
+  # the user has in .gitattributes or just hasn't excluded) would crash the
+  # grapheme walker. Bail out here with a structured error so the caller
+  # can classify the entry as skipped rather than a failure.
+  defp guard_text(content) do
+    if String.valid?(content), do: :ok, else: {:error, :binary_file}
   end
 
-  # Build the embedding input from the file's derivatives and content, matching
-  # the format used by Cmd.Index.get_embeddings/4.
-  defp get_file_embeddings(indexer, file, summary, outline, contents) do
+  # Build the embedding input from the file summary. The local embedding model
+  # (all-MiniLM-L12-v2) has a 256-token window optimized for natural language,
+  # so we embed the LLM-generated prose summary rather than raw code.
+  defp get_file_embeddings(indexer, file, summary) do
     to_embed = """
     # File
     `#{file}`
 
     ## Summary
     #{summary}
-
-    ## Outline
-    #{outline}
-
-    ## Contents
-    ```
-    #{contents}
-    ```
     """
 
     indexer.get_embeddings(to_embed)

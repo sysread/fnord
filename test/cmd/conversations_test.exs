@@ -276,18 +276,15 @@ defmodule Cmd.ConversationsTest do
     # Write embeddings with dummy vectors
     ts = DateTime.utc_now() |> DateTime.to_unix()
 
-    Store.Project.ConversationIndex.write_embeddings(
-      project,
-      conv1.id,
-      [%{embedding: [0.1, 0.2]}],
-      %{"last_indexed_ts" => ts}
-    )
+    # 384-dim vectors to match StubIndexer's output dimensions
+    stub_vec = List.duplicate(0.1, 384)
+    alt_vec = List.duplicate(0.05, 384)
 
-    Store.Project.ConversationIndex.write_embeddings(project, conv1.id, [1.0, 2.0, 3.0], %{
+    Store.Project.ConversationIndex.write_embeddings(project, conv1.id, stub_vec, %{
       "last_indexed_ts" => ts
     })
 
-    Store.Project.ConversationIndex.write_embeddings(project, conv2.id, [3.0, 2.0, 1.0], %{
+    Store.Project.ConversationIndex.write_embeddings(project, conv2.id, alt_vec, %{
       "last_indexed_ts" => ts
     })
 

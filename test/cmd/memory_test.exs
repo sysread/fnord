@@ -1,6 +1,20 @@
 defmodule Cmd.MemoryTest do
   use Fnord.TestCase, async: false
 
+  # The stub indexer returns List.duplicate(0.1, 384) for query embeddings.
+  # These helpers produce 384-dim vectors with known cosine similarity to that.
+  defp stub_vec(), do: List.duplicate(0.1, 384)
+
+  # Cosine similarity ~0.7 with the stub vector
+  defp partial_match_vec() do
+    matching = List.duplicate(0.1, 192)
+    orthogonal = List.duplicate(0.0, 192)
+    matching ++ orthogonal
+  end
+
+  # Cosine similarity < 0 with the stub vector (negative direction)
+  defp weak_vec(), do: List.duplicate(-0.1, 384)
+
   setup do
     # Ensure global memory storage exists
     :ok = Memory.Global.init()
@@ -16,7 +30,7 @@ defmodule Cmd.MemoryTest do
         slug: Memory.title_to_slug("Global Test"),
         content: "some content",
         topics: ["topic"],
-        embeddings: [0.1, 0.2, 0.3]
+        embeddings: stub_vec()
       }
 
       assert :ok = Memory.Global.save(mem)
@@ -38,7 +52,7 @@ defmodule Cmd.MemoryTest do
         slug: Memory.title_to_slug("Only Global"),
         content: "global content",
         topics: [],
-        embeddings: [0.1, 0.2, 0.3]
+        embeddings: stub_vec()
       }
 
       assert :ok = Memory.Global.save(mem)
@@ -58,12 +72,11 @@ defmodule Cmd.MemoryTest do
         slug: Memory.title_to_slug("Scored"),
         content: "queryable content",
         topics: [],
-        embeddings: [1.0, 2.0, 3.0]
+        embeddings: stub_vec()
       }
 
       assert :ok = Memory.Global.save(mem)
 
-      # StubIndexer.get_embeddings/1 returns [1,2,3] in tests
       {stdout, _stderr} =
         capture_all(fn -> Cmd.Memory.run(%{global: true, query: "anything"}, [], []) end)
 
@@ -79,7 +92,7 @@ defmodule Cmd.MemoryTest do
         slug: Memory.title_to_slug("Strongest Match"),
         content: "strongest content",
         topics: [],
-        embeddings: [1.0, 2.0, 3.0]
+        embeddings: stub_vec()
       }
 
       still_good = %Memory{
@@ -88,7 +101,7 @@ defmodule Cmd.MemoryTest do
         slug: Memory.title_to_slug("Still Good Match"),
         content: "still good content",
         topics: [],
-        embeddings: [0.35, 0.65, 1.0]
+        embeddings: partial_match_vec()
       }
 
       too_weak = %Memory{
@@ -97,7 +110,7 @@ defmodule Cmd.MemoryTest do
         slug: Memory.title_to_slug("Too Weak Match"),
         content: "too weak content",
         topics: [],
-        embeddings: [-3.0, 1.0, 0.0]
+        embeddings: weak_vec()
       }
 
       assert :ok = Memory.Global.save(strongest)
@@ -122,7 +135,7 @@ defmodule Cmd.MemoryTest do
         slug: Memory.title_to_slug("Project Listed"),
         content: "project content",
         topics: ["project"],
-        embeddings: [0.4, 0.5, 0.6]
+        embeddings: stub_vec()
       }
 
       assert :ok = Memory.Project.init()

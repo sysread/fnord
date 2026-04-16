@@ -26,6 +26,6 @@ defmodule Store.Project.Entry.Storage do
   def read(entry), do: Entry.read(entry)
 
   @impl true
-  def save(entry, summary, outline, embeddings),
-    do: Entry.save(entry, summary, outline, embeddings)
+  def save(entry, summary, embeddings),
+    do: Entry.save(entry, summary, embeddings)
 end

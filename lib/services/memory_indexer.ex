@@ -84,9 +84,14 @@ defmodule Services.MemoryIndexer do
   end
 
   # Scan for the next conversation with unprocessed memories and spawn a
-  # background task to process it. When the queue empties, transition to deep
-  # sleep (once per process lifetime). If already busy or nothing found, no-op.
+  # background task to process it. Before scanning, opportunistically
+  # re-embed a small batch of long-term memories whose embeddings were
+  # cleared by the embedding-model migration. When the queue empties,
+  # transition to deep sleep (once per process lifetime). If already busy
+  # or nothing found, no-op.
   def handle_continue(:scan, %{task: nil, sup: sup} = state) do
+    backfill_a_few_stale_memories()
+
     case find_next_conversation(state.skip_ids) do
       {nil, skip_ids} ->
         debug("queue empty - transitioning to deep sleep")
@@ -326,7 +331,12 @@ defmodule Services.MemoryIndexer do
   end
 
   defp all_pairs_above_threshold(memories) do
-    for a <- memories, b <- memories, a.title < b.title do
+    for a <- memories,
+        b <- memories,
+        a.title < b.title,
+        is_list(a.embeddings),
+        is_list(b.embeddings),
+        length(a.embeddings) == length(b.embeddings) do
       score = AI.Util.cosine_similarity(a.embeddings, b.embeddings)
       {score, a, b}
     end
@@ -550,18 +560,38 @@ defmodule Services.MemoryIndexer do
     status_updates = Map.get(decoded, "status_updates", %{})
     processed = Enum.uniq(payload_titles ++ agent_processed)
 
-    FileLock.with_lock(conversation.store_path, fn ->
-      with {:ok, fresh} <- Store.Project.Conversation.read(conversation) do
-        handled = collect_handled_titles(actions)
+    # Preserves the {:ok, callback_result} shape from FileLock.with_lock
+    # so callers pattern-matching the double-wrapped success keep working.
+    # Lock contention and callback exceptions return a flat {:error, _}
+    # and leave the conversation state untouched, so the next scan pass
+    # retries rather than silently marking the conversation processed.
+    case FileLock.with_lock(conversation.store_path, fn ->
+           with {:ok, fresh} <- Store.Project.Conversation.read(conversation) do
+             handled = collect_handled_titles(actions)
 
-        fresh
-        |> Map.put(
-          :memory,
-          mark_processed(fresh.memory, handled, processed, status_updates)
+             fresh
+             |> Map.put(
+               :memory,
+               mark_processed(fresh.memory, handled, processed, status_updates)
+             )
+             |> then(&Store.Project.Conversation.write(conversation, &1))
+           end
+         end) do
+      {:ok, _} = ok ->
+        ok
+
+      {:error, :lock_failed} ->
+        debug("lock contention for #{conversation.id}; will retry next pass")
+        {:error, :lock_failed}
+
+      {:callback_error, exception} ->
+        UI.debug(
+          "memory_indexer",
+          "apply_actions_and_mark raised: #{Exception.message(exception)}"
         )
-        |> then(&Store.Project.Conversation.write(conversation, &1))
-      end
-    end)
+
+        {:error, :callback_error}
+    end
   end
 
   defp collect_handled_titles(actions) do
@@ -887,18 +917,49 @@ defmodule Services.MemoryIndexer do
 
   @spec live_lock_owner?(String.t()) :: boolean()
   defp live_lock_owner?(lock_dir) do
-    case lock_owner_pid(lock_dir) do
-      {:ok, pid} -> Process.alive?(pid)
-      :error -> false
+    # The BEAM pid in a lock file is only meaningful inside the BEAM that
+    # wrote it. If a different fnord process (same host, different BEAM)
+    # wrote the lock and has since exited, the local `:erlang.list_to_pid`
+    # could reconstruct a local PID that happens to be alive for an
+    # unrelated process - a false positive. Guard with an os_pid check:
+    # only consult Process.alive? when the owner file was written by
+    # *this* OS process.
+    case read_lock_owner(lock_dir) do
+      {:ok, owner} ->
+        owner_os_pid = owner_line(owner, "os_pid: ")
+
+        cond do
+          is_nil(owner_os_pid) ->
+            false
+
+          owner_os_pid != System.pid() ->
+            # Different BEAM wrote this lock. We can't verify liveness
+            # from here; fall through to stale-age handling.
+            false
+
+          true ->
+            case parse_lock_owner_pid(owner) do
+              {:ok, pid} -> Process.alive?(pid)
+              :error -> false
+            end
+        end
+
+      :error ->
+        false
     end
   end
 
-  @spec lock_owner_pid(String.t()) :: {:ok, pid()} | :error
-  defp lock_owner_pid(lock_dir) do
-    case read_lock_owner(lock_dir) do
-      {:ok, owner} -> parse_lock_owner_pid(owner)
-      :error -> :error
-    end
+  @spec owner_line(String.t(), String.t()) :: String.t() | nil
+  defp owner_line(owner, prefix) do
+    owner
+    |> String.split("\n", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.find_value(fn line ->
+      case String.split(line, prefix, parts: 2) do
+        ["", value] -> value
+        _ -> nil
+      end
+    end)
   end
 
   @spec read_lock_owner(String.t()) :: {:ok, String.t()} | :error
@@ -933,27 +994,37 @@ defmodule Services.MemoryIndexer do
     end
   end
 
+  # FileLock writes "beam_pid: #PID<...>" and "os_pid: N". We prefer beam_pid
+  # for a same-VM liveness check; legacy "pid: ..." is also accepted so locks
+  # written by older fnord builds can still be classified.
   @spec owner_pid_line(String.t()) :: {:ok, String.t()} | :error
   defp owner_pid_line(owner) do
-    owner
-    |> String.split("\n", trim: true)
-    |> Enum.find_value(:error, fn line ->
-      case String.trim(line) do
+    lines = owner |> String.split("\n", trim: true) |> Enum.map(&String.trim/1)
+
+    Enum.find_value(lines, :error, fn line ->
+      case line do
+        "beam_pid: " <> pid_text -> {:ok, pid_text}
         "pid: " <> pid_text -> {:ok, pid_text}
         _ -> false
       end
     end)
   end
 
+  # Accept either the raw erlang term form (<0.123.0>) or the inspected form
+  # (#PID<0.123.0>); strip the wrapper before handing to :erlang.list_to_pid.
   @spec parse_pid_line(String.t()) :: {:ok, pid()} | :error
   defp parse_pid_line(pid_line) do
     pid_line
+    |> strip_pid_wrapper()
     |> String.to_charlist()
     |> :erlang.list_to_pid()
     |> normalize_lock_owner_pid()
   catch
     :error, _ -> :error
   end
+
+  defp strip_pid_wrapper("#PID" <> rest), do: rest
+  defp strip_pid_wrapper(other), do: other
 
   @spec normalize_lock_owner_pid(pid()) :: {:ok, pid()}
   defp normalize_lock_owner_pid(pid) when is_pid(pid), do: {:ok, pid}
@@ -1005,6 +1076,19 @@ defmodule Services.MemoryIndexer do
   defp debug(msg) do
     if Util.Env.looks_truthy?("FNORD_DEBUG_MEMORY") do
       UI.debug("memory_indexer", msg)
+    end
+  end
+
+  # Cap per scan so a large pile of stale memories doesn't starve session-memory
+  # processing or pin the embedding pool.
+  @memory_backfill_batch 5
+  defp backfill_a_few_stale_memories do
+    case Memory.backfill_stale_embeddings(limit: @memory_backfill_batch) do
+      {:ok, %{processed: n}} when n > 0 ->
+        debug("backfilled #{n} stale memory embedding(s)")
+
+      _ ->
+        :ok
     end
   end
 end

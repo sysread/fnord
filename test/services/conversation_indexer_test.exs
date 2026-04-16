@@ -16,19 +16,21 @@ defmodule Services.Conversation.IndexerTest do
     def processed?(id), do: Agent.get(__MODULE__, &MapSet.member?(&1, id))
 
     @impl Indexer
-    def get_embeddings(_content), do: {:ok, []}
+    def get_embeddings(_content), do: {:ok, List.duplicate(0.1, 384)}
 
     @impl Indexer
     def get_summary(_file, _content), do: {:ok, "summary"}
-
-    @impl Indexer
-    def get_outline(_file, _content), do: {:ok, "outline"}
   end
 
   setup do
     Services.Globals.put_env(:fnord, :indexer, StubIndexer)
     {:ok, _} = StubIndexer.start_link([])
     StubIndexer.reset()
+
+    # Stub the conversation summarizer so it doesn't hit the real LLM
+    :meck.new(AI.Agent.ConversationSummary, [:no_link, :passthrough])
+    :meck.expect(AI.Agent.ConversationSummary, :get_response, fn _opts -> {:ok, "test summary"} end)
+    on_exit(fn -> :meck.unload(AI.Agent.ConversationSummary) end)
 
     {:ok, project: mock_project("conv_indexer_test")}
   end
@@ -73,8 +75,8 @@ defmodule Services.Conversation.IndexerTest do
     {:ok, _} =
       Store.Project.Conversation.write(convo2, %{messages: messages, metadata: %{}, memories: []})
 
-    Services.BgIndexingControl.pause(AI.Embeddings.model_name())
-    on_exit(fn -> Services.BgIndexingControl.clear_pause(AI.Embeddings.model_name()) end)
+    Services.BgIndexingControl.pause("embeddings")
+    on_exit(fn -> Services.BgIndexingControl.clear_pause("embeddings") end)
 
     {:ok, pid} =
       Services.ConversationIndexer.start_link(project: project, conversations: [convo1, convo2])

@@ -57,6 +57,9 @@ defmodule Cmd.Conversations do
 
   @impl Cmd
   def run(%{query: query} = opts, _subcommands, _unknown) when is_binary(query) do
+    AI.Embeddings.Pool.ensure_started()
+    AI.Embeddings.Migration.maybe_migrate(:read_only)
+
     with {:ok, project} <- Store.get_project() do
       search(opts, project)
     else

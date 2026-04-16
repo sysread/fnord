@@ -147,15 +147,25 @@ defmodule Memory do
 
     with {:ok, needle} <- get_needle(query),
          {:ok, memories} <- list_for_scopes(scopes) do
+      needle_dim = length(needle)
+
       memories
       |> Util.async_stream(fn {scope, title} ->
         case read(scope, title) do
           {:ok, %{embeddings: nil}} ->
             {:error, :stale_memory}
 
-          {:ok, %{embeddings: embeddings} = memory} ->
-            score = AI.Util.cosine_similarity(needle, embeddings)
-            {memory, score}
+          {:ok, %{embeddings: embeddings} = memory} when is_list(embeddings) ->
+            # Memories whose embedding dimensions don't match the current model
+            # are stale (e.g. produced by a prior embedding model). Skip them
+            # rather than crashing cosine_similarity; the indexer will
+            # re-embed them on a future pass.
+            if length(embeddings) == needle_dim do
+              score = AI.Util.cosine_similarity(needle, embeddings)
+              {memory, score}
+            else
+              {:error, :dimension_mismatch}
+            end
 
           {:error, reason} ->
             UI.debug(
@@ -389,10 +399,129 @@ defmodule Memory do
   def forget(%{scope: :session, title: title}), do: Memory.Session.forget(title)
 
   @doc """
+  Lists {scope, title} pairs for project/global memories whose persisted
+  embedding is stale under the current model: either missing (nil) or of
+  the wrong dimension. Session memories are intentionally excluded.
+  """
+  @spec list_stale_long_term_memories() :: [{scope, binary}]
+  def list_stale_long_term_memories do
+    expected_dim = AI.Embeddings.dimensions()
+
+    [:project, :global]
+    |> Enum.flat_map(fn scope ->
+      case list(scope) do
+        {:ok, titles} ->
+          Enum.flat_map(titles, fn title ->
+            case read(scope, title) do
+              {:ok, %Memory{} = mem} ->
+                if stale_embedding?(mem.embeddings, expected_dim) do
+                  [{scope, title}]
+                else
+                  []
+                end
+
+              _ ->
+                []
+            end
+          end)
+
+        _ ->
+          []
+      end
+    end)
+  end
+
+  defp stale_embedding?(nil, _expected_dim), do: true
+  defp stale_embedding?(embeddings, expected_dim) when is_list(embeddings) do
+    length(embeddings) != expected_dim
+  end
+
+  @doc """
+  Returns true when the memory at `{scope, title}` has a stored vector
+  that can't be used with the current model - either the embedding is
+  missing or its dimension doesn't match. Missing memories return false
+  (nothing to reindex).
+  """
+  @spec stale?(scope, binary) :: boolean
+  def stale?(scope, title) when scope in [:global, :project] and is_binary(title) do
+    case read(scope, title) do
+      {:ok, %Memory{embeddings: embeddings}} ->
+        stale_embedding?(embeddings, AI.Embeddings.dimensions())
+
+      _ ->
+        false
+    end
+  end
+
+  @doc """
+  Returns the lock path for a single long-term memory. Foreground indexers
+  and background backfill acquire this lock before reading + regenerating
+  embeddings so two sessions don't both pay the embed cost for the same
+  memory. Keyed by the canonical slug so collision-suffixed siblings still
+  serialize against each other.
+  """
+  @spec lock_path(scope, binary) :: {:ok, String.t()} | {:error, term}
+  def lock_path(scope, title) when scope in [:global, :project] and is_binary(title) do
+    slug = title_to_slug(title)
+
+    with {:ok, dir} <- memory_storage_path(scope) do
+      {:ok, Path.join(dir, "#{slug}.embedding")}
+    end
+  end
+
+  defp memory_storage_path(:global), do: {:ok, Memory.Global.storage_path()}
+  defp memory_storage_path(:project), do: Memory.Project.storage_path()
+
+  @doc """
+  Regenerates the embedding for a single stale memory identified by
+  {scope, title}. Returns `:ok` on success, `{:error, reason}` on failure
+  (missing memory, embedding call failed, write failed). Intended for
+  callers that want to drive a per-item progress UI.
+  """
+  @spec reindex_memory(scope, binary) :: :ok | {:error, term}
+  def reindex_memory(scope, title) do
+    with {:ok, %Memory{} = mem} <- read(scope, title),
+         {:ok, _saved} <- save(mem) do
+      :ok
+    end
+  end
+
+  @doc """
+  Regenerates embeddings for all stale long-term memories. Intended for
+  background services that want to drain the queue opportunistically;
+  foreground callers (`Cmd.Index`) should iterate `list_stale_long_term_memories/0`
+  directly so they can emit per-item progress.
+
+  Options:
+    * `:limit` - cap the number of memories processed in this call.
+      `:infinity` (default) processes every stale memory found.
+
+  Returns `{:ok, %{processed: n, errors: k}}`.
+  """
+  @spec backfill_stale_embeddings(keyword) ::
+          {:ok, %{processed: non_neg_integer, errors: non_neg_integer}}
+  def backfill_stale_embeddings(opts \\ []) do
+    limit = Keyword.get(opts, :limit, :infinity)
+
+    stale = list_stale_long_term_memories()
+    stale = if limit == :infinity, do: stale, else: Enum.take(stale, limit)
+
+    {processed, errors} =
+      Enum.reduce(stale, {0, 0}, fn {scope, title}, {ok, err} ->
+        case reindex_memory(scope, title) do
+          :ok -> {ok + 1, err}
+          {:error, _} -> {ok, err + 1}
+        end
+      end)
+
+    {:ok, %{processed: processed, errors: errors}}
+  end
+
+  @doc """
   Set the index_status of an existing memory and persist it.
 
-  This updates the memory's status and saves it with skip_embeddings: true
-  to avoid regenerating embeddings during status-only transitions.
+  Saves with `skip_embeddings: true`: status transitions don't change the
+  text, so regenerating the vector would be wasted work.
   """
   @spec set_status(scope, binary, atom) :: {:ok, t} | {:error, term}
   def set_status(scope, title, status)

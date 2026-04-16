@@ -19,7 +19,6 @@ defmodule Store.Project.EntryTest do
 
       refute is_nil(entry.metadata)
       refute is_nil(entry.summary)
-      refute is_nil(entry.outline)
       refute is_nil(entry.embeddings)
     end
   end
@@ -74,7 +73,6 @@ defmodule Store.Project.EntryTest do
 
       Store.Project.Entry.Metadata.write(entry.metadata, %{})
       Store.Project.Entry.Summary.write(entry.summary, "summary text")
-      Store.Project.Entry.Outline.write(entry.outline, "- outline\n  - sub-outline")
       Store.Project.Entry.Embeddings.write(entry.embeddings, [[1, 2, 3]])
 
       refute Store.Project.Entry.is_incomplete?(entry)
@@ -86,7 +84,6 @@ defmodule Store.Project.EntryTest do
       Store.Project.Entry.create(entry)
 
       Store.Project.Entry.Summary.write(entry.summary, "summary text")
-      Store.Project.Entry.Outline.write(entry.outline, "- outline\n  - sub-outline")
       Store.Project.Entry.Embeddings.write(entry.embeddings, [[1, 2, 3]])
 
       assert Store.Project.Entry.is_incomplete?(entry)
@@ -98,19 +95,6 @@ defmodule Store.Project.EntryTest do
       Store.Project.Entry.create(entry)
 
       Store.Project.Entry.Metadata.write(entry.metadata, %{})
-      Store.Project.Entry.Outline.write(entry.outline, "- outline\n  - sub-outline")
-      Store.Project.Entry.Embeddings.write(entry.embeddings, [[1, 2, 3]])
-
-      assert Store.Project.Entry.is_incomplete?(entry)
-    end
-
-    test "true when missing outline", ctx do
-      path = mock_source_file(ctx.project, "a.txt", @text)
-      entry = Store.Project.Entry.new_from_file_path(ctx.project, path)
-      Store.Project.Entry.create(entry)
-
-      Store.Project.Entry.Metadata.write(entry.metadata, %{})
-      Store.Project.Entry.Summary.write(entry.summary, "summary text")
       Store.Project.Entry.Embeddings.write(entry.embeddings, [[1, 2, 3]])
 
       assert Store.Project.Entry.is_incomplete?(entry)
@@ -123,7 +107,6 @@ defmodule Store.Project.EntryTest do
 
       Store.Project.Entry.Metadata.write(entry.metadata, %{})
       Store.Project.Entry.Summary.write(entry.summary, "summary text")
-      Store.Project.Entry.Outline.write(entry.outline, "- outline\n  - sub-outline")
 
       assert Store.Project.Entry.is_incomplete?(entry)
     end
@@ -152,6 +135,106 @@ defmodule Store.Project.EntryTest do
 
       refute Store.Project.Entry.hash_is_current?(entry)
     end
+
+    # Simulates the post-upgrade state: a fnord from before the Source
+    # abstraction stored sha256 of the working-tree content. The current
+    # source mode (fs here, since mock_project isn't a git repo) also
+    # hashes with sha256 - so the stored value and current value match
+    # byte-for-byte. This is the trivial "upgrade is a no-op" case.
+    test "legacy sha256 metadata matches sha256 hash in fs mode", ctx do
+      path = mock_source_file(ctx.project, "a.txt", @text)
+      entry = Store.Project.Entry.new_from_file_path(ctx.project, path)
+      Store.Project.Entry.create(entry)
+
+      # Pre-write metadata with the sha256 hash the way old fnord would.
+      legacy_hash =
+        :crypto.hash(:sha256, @text) |> Base.encode16(case: :lower)
+
+      Store.Project.Entry.Metadata.write(entry.metadata, %{
+        rel_path: entry.rel_path,
+        hash: legacy_hash
+      })
+
+      assert Store.Project.Entry.hash_is_current?(entry)
+    end
+
+    # The cross-format upgrade path: stored hash has legacy-sha256 length
+    # (64 hex) but current source hash is a different string (e.g.
+    # different format entirely). If the underlying content still hashes
+    # to the stored sha256, hash_is_current? treats the entry as fresh
+    # AND re-stamps metadata with the current-format hash so the next
+    # scan takes the fast path.
+    test "cross-format: same content re-stamps metadata to current hash", ctx do
+      path = mock_source_file(ctx.project, "a.txt", @text)
+      entry = Store.Project.Entry.new_from_file_path(ctx.project, path)
+      Store.Project.Entry.create(entry)
+
+      legacy_sha256 =
+        :crypto.hash(:sha256, @text) |> Base.encode16(case: :lower)
+
+      # Write metadata with the legacy hash. In fs mode the current hash
+      # would also be sha256, so we simulate a cross-format by tampering
+      # with the source so that sha256 still matches (content unchanged)
+      # while the "current" mode happens to be identical - the important
+      # assertion is that the metadata *is* re-stamped with whatever the
+      # current Source.hash returns.
+      Store.Project.Entry.Metadata.write(entry.metadata, %{
+        rel_path: entry.rel_path,
+        hash: legacy_sha256
+      })
+
+      {:ok, current} = Store.Project.Source.hash(ctx.project, entry.rel_path)
+      assert Store.Project.Entry.hash_is_current?(entry)
+
+      # Metadata should now hold whatever Source.hash returned. In fs mode
+      # that's the same sha256, but the write-through path was exercised.
+      {:ok, meta} = Store.Project.Entry.read_metadata(entry)
+      assert meta["hash"] == current
+    end
+
+    # Proves the "unchanged content across branches" upgrade path. This
+    # is the scenario the branch promises: an existing index with legacy
+    # sha256 hashes does NOT force a full reindex when the project flips
+    # into git mode; identical content re-stamps to blob SHA and skips.
+    test "cross-format in git mode: legacy sha256 + unchanged content upgrades to blob SHA",
+         %{} = _ctx do
+      # Create a git project with a committed file.
+      project = mock_git_project("entry_xfmt")
+      repo = project.source_root
+      File.write!(Path.join(repo, "a.txt"), @text)
+      git_config_user!(project)
+      System.cmd("git", ["add", "."], cd: repo, stderr_to_stdout: true)
+      System.cmd("git", ["commit", "-m", "init", "--quiet"], cd: repo, stderr_to_stdout: true)
+
+      # Build an entry pointing at the file path.
+      path = Path.join(repo, "a.txt")
+      entry = Store.Project.Entry.new_from_file_path(project, path)
+      Store.Project.Entry.create(entry)
+
+      # Pre-write metadata with the legacy sha256 hash, as pre-upgrade
+      # fnord would have.
+      legacy_sha256 =
+        :crypto.hash(:sha256, @text) |> Base.encode16(case: :lower)
+
+      Store.Project.Entry.Metadata.write(entry.metadata, %{
+        rel_path: entry.rel_path,
+        hash: legacy_sha256
+      })
+
+      # In git mode, Source.hash returns the blob SHA (40 hex chars),
+      # which is distinct from sha256 (64 hex). hash_is_current? must
+      # still return true by recomputing sha256 of the current content
+      # and comparing against the stored value, then re-stamping the
+      # metadata to the blob SHA.
+      {:ok, blob_sha} = Store.Project.Source.hash(project, "a.txt")
+      assert byte_size(blob_sha) == 40
+      refute blob_sha == legacy_sha256
+
+      assert Store.Project.Entry.hash_is_current?(entry)
+
+      {:ok, meta} = Store.Project.Entry.read_metadata(entry)
+      assert meta["hash"] == blob_sha
+    end
   end
 
   describe "is_stale?/1" do
@@ -162,7 +245,6 @@ defmodule Store.Project.EntryTest do
 
       Store.Project.Entry.Metadata.write(entry.metadata, %{})
       Store.Project.Entry.Summary.write(entry.summary, "summary text")
-      Store.Project.Entry.Outline.write(entry.outline, "- outline\n  - sub-outline")
       Store.Project.Entry.Embeddings.write(entry.embeddings, [[1, 2, 3]])
 
       refute Store.Project.Entry.is_stale?(entry)
@@ -182,7 +264,6 @@ defmodule Store.Project.EntryTest do
 
       Store.Project.Entry.Metadata.write(entry.metadata, %{})
       Store.Project.Entry.Summary.write(entry.summary, "summary text")
-      Store.Project.Entry.Outline.write(entry.outline, "- outline\n  - sub-outline")
       # Missing entry.embeddings
 
       assert Store.Project.Entry.is_stale?(entry)
@@ -195,7 +276,6 @@ defmodule Store.Project.EntryTest do
 
       Store.Project.Entry.Metadata.write(entry.metadata, %{})
       Store.Project.Entry.Summary.write(entry.summary, "summary text")
-      Store.Project.Entry.Outline.write(entry.outline, "- outline\n  - sub-outline")
       Store.Project.Entry.Embeddings.write(entry.embeddings, [[1, 2, 3]])
 
       # Update the source file
@@ -214,7 +294,7 @@ defmodule Store.Project.EntryTest do
     end
   end
 
-  describe "save/4 <=> read/1" do
+  describe "save/3 <=> read/1" do
     test "basics", ctx do
       path = mock_source_file(ctx.project, "a.txt", @text)
       entry = Store.Project.Entry.new_from_file_path(ctx.project, path)
@@ -223,7 +303,6 @@ defmodule Store.Project.EntryTest do
       Store.Project.Entry.save(
         entry,
         "summary text",
-        "- outline\n  - sub-outline",
         [1, 2, 3]
       )
 
@@ -233,7 +312,6 @@ defmodule Store.Project.EntryTest do
               %{
                 "file" => ^file,
                 "summary" => "summary text",
-                "outline" => "- outline\n  - sub-outline",
                 "embeddings" => [1, 2, 3],
                 "timestamp" => _,
                 "hash" => _
@@ -252,7 +330,6 @@ defmodule Store.Project.EntryTest do
       Store.Project.Entry.save(
         entry,
         "summary text",
-        "outline",
         [1, 2, 3]
       )
 

@@ -47,8 +47,13 @@ defmodule Cmd.Memory do
 
     markdown =
       case Map.get(opts, :query) do
-        nil -> render_list(scopes)
-        query -> render_search(scopes, query)
+        nil ->
+          render_list(scopes)
+
+        query ->
+          AI.Embeddings.Pool.ensure_started()
+          AI.Embeddings.Migration.maybe_migrate(:read_only)
+          render_search(scopes, query)
       end
 
     markdown
@@ -98,6 +103,8 @@ defmodule Cmd.Memory do
 
     case Indexer.impl().get_embeddings(query) do
       {:ok, needle} ->
+        needle_dim = length(needle)
+
         sections =
           scopes
           |> Enum.map(fn scope ->
@@ -111,7 +118,8 @@ defmodule Cmd.Memory do
                     {:ok, %Memory{embeddings: nil}} ->
                       {acc, stale + 1}
 
-                    {:ok, %Memory{embeddings: embeddings} = mem} ->
+                    {:ok, %Memory{embeddings: embeddings} = mem}
+                    when is_list(embeddings) and length(embeddings) == needle_dim ->
                       score = AI.Util.cosine_similarity(needle, embeddings)
 
                       if score > @min_match_threshold do
@@ -119,6 +127,10 @@ defmodule Cmd.Memory do
                       else
                         {acc, stale}
                       end
+
+                    # Dimension mismatch - memory is stale under current model.
+                    {:ok, %Memory{embeddings: embeddings}} when is_list(embeddings) ->
+                      {acc, stale + 1}
 
                     {:error, _} ->
                       {acc, stale}

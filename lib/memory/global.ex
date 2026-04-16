@@ -43,6 +43,14 @@ defmodule Memory.Global do
   @spec list_memories() :: {:ok, [Memory.t()]} | {:error, term()}
   def list_memories(), do: Memory.FileStore.list_memories(store())
 
+  @doc """
+  Returns the global memory storage directory. Exposed so callers can
+  build per-memory lock paths without importing the internal `store/0`
+  helper.
+  """
+  @spec storage_path() :: String.t()
+  def storage_path, do: Path.join(Store.store_home(), "memory")
+
   # ----------------------------------------------------------------------------
   # Internals
   # ----------------------------------------------------------------------------

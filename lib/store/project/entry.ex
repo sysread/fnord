@@ -7,7 +7,6 @@ defmodule Store.Project.Entry do
     :store_path,
     :metadata,
     :summary,
-    :outline,
     :embeddings
   ]
 
@@ -27,7 +26,6 @@ defmodule Store.Project.Entry do
     store_path = Path.join(store_base, key)
     metadata = Store.Project.Entry.Metadata.new(store_path, abs_path)
     summary = Store.Project.Entry.Summary.new(store_path, abs_path)
-    outline = Store.Project.Entry.Outline.new(store_path, abs_path)
     embeddings = Store.Project.Entry.Embeddings.new(store_path, abs_path)
 
     %__MODULE__{
@@ -38,7 +36,6 @@ defmodule Store.Project.Entry do
       store_path: store_path,
       metadata: metadata,
       summary: summary,
-      outline: outline,
       embeddings: embeddings
     }
   end
@@ -88,7 +85,6 @@ defmodule Store.Project.Entry do
     cond do
       !has_metadata?(entry) -> true
       !has_summary?(entry) -> true
-      !has_outline?(entry) -> true
       !has_embeddings?(entry) -> true
       true -> false
     end
@@ -108,27 +104,25 @@ defmodule Store.Project.Entry do
   def read(entry) do
     with {:ok, metadata} <- read_metadata(entry),
          {:ok, summary} <- read_summary(entry),
-         {:ok, outline} <- read_outline(entry),
          {:ok, embeddings} <- read_embeddings(entry) do
       info =
         metadata
         |> Map.put("file", entry.file)
         |> Map.put("summary", summary)
-        |> Map.put("outline", outline)
         |> Map.put("embeddings", embeddings)
 
       {:ok, info}
     end
   end
 
-  @spec save(t(), String.t(), String.t(), [float]) :: :ok | {:error, any()}
-  def save(entry, summary, outline, embeddings) do
+  @spec save(t(), String.t(), [float]) :: :ok | {:error, any()}
+  def save(entry, summary, embeddings) do
     delete(entry)
     create(entry)
 
-    with :ok <- save_metadata(entry),
+    with {:ok, hash} <- Store.Project.Source.hash(entry.project, entry.rel_path),
+         :ok <- save_metadata(entry, hash),
          :ok <- save_summary(entry, summary),
-         :ok <- save_outline(entry, outline),
          :ok <- save_embeddings(entry, embeddings) do
       :ok
     end
@@ -136,15 +130,52 @@ defmodule Store.Project.Entry do
 
   @spec hash_is_current?(t()) :: boolean()
   def hash_is_current?(entry) do
-    with {:ok, hash} <- get_last_hash(entry) do
-      hash == file_sha256(entry.file)
+    with {:ok, stored} <- get_last_hash(entry),
+         {:ok, current} <- Store.Project.Source.hash(entry.project, entry.rel_path) do
+      cond do
+        stored == current ->
+          true
+
+        # Cross-format match: stored hash was produced by an older fnord
+        # (sha256 of working-tree content) while the current source mode
+        # produces a different hash (git blob SHA). If the actual content
+        # is unchanged, we re-stamp the metadata to the current format in
+        # place rather than blowing a full LLM summarize + embed pass on
+        # a file that hasn't changed at all.
+        content_unchanged?(entry, stored) ->
+          save_metadata(entry, current)
+          true
+
+        true ->
+          false
+      end
     else
       _ -> false
     end
   end
 
-  @spec read_source_file(t()) :: {:ok, String.t()} | {:error, any()}
-  def read_source_file(entry), do: File.read(entry.file)
+  # Stored is sha256 (64 hex) only if it came from the pre-Source/fs-mode
+  # era. Compare the current source content's sha256 to the stored value;
+  # equal means "same content, different hash format".
+  defp content_unchanged?(entry, stored) when is_binary(stored) do
+    case byte_size(stored) do
+      64 ->
+        case Store.Project.Source.read(entry.project, entry.rel_path) do
+          {:ok, content} -> sha256(content) == stored
+          _ -> false
+        end
+
+      _ ->
+        false
+    end
+  end
+
+  defp content_unchanged?(_entry, _stored), do: false
+
+  @spec read_source_file(t()) :: {:ok, binary} | {:error, any()}
+  def read_source_file(entry) do
+    Store.Project.Source.read(entry.project, entry.rel_path)
+  end
 
   # -----------------------------------------------------------------------------
   # metadata.json
@@ -153,8 +184,21 @@ defmodule Store.Project.Entry do
   def has_metadata?(entry), do: Store.Project.Entry.Metadata.exists?(entry.metadata)
   def read_metadata(entry), do: Store.Project.Entry.Metadata.read(entry.metadata)
 
+  def save_metadata(entry, hash) when is_binary(hash) do
+    Store.Project.Entry.Metadata.write(entry.metadata, %{
+      rel_path: entry.rel_path,
+      hash: hash
+    })
+  end
+
+  # Back-compat for callers that still hash the working tree directly.
+  # Used only by tests / tooling that reach into the entry directly
+  # rather than going through the Source-aware `save/3` pipeline.
   def save_metadata(entry) do
-    Store.Project.Entry.Metadata.write(entry.metadata, %{rel_path: entry.rel_path})
+    case Store.Project.Source.hash(entry.project, entry.rel_path) do
+      {:ok, hash} -> save_metadata(entry, hash)
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   # -----------------------------------------------------------------------------
@@ -164,14 +208,6 @@ defmodule Store.Project.Entry do
   def has_summary?(entry), do: Store.Project.Entry.Summary.exists?(entry.summary)
   def read_summary(entry), do: Store.Project.Entry.Summary.read(entry.summary)
   def save_summary(entry, data), do: Store.Project.Entry.Summary.write(entry.summary, data)
-
-  # -----------------------------------------------------------------------------
-  # outline
-  # -----------------------------------------------------------------------------
-  def outline_file_path(entry), do: Store.Project.Entry.Outline.store_path(entry.outline)
-  def has_outline?(entry), do: Store.Project.Entry.Outline.exists?(entry.outline)
-  def read_outline(entry), do: Store.Project.Entry.Outline.read(entry.outline)
-  def save_outline(entry, data), do: Store.Project.Entry.Outline.write(entry.outline, data)
 
   # -----------------------------------------------------------------------------
   # embeddings
@@ -193,13 +229,6 @@ defmodule Store.Project.Entry do
   defp get_last_hash(entry) do
     with {:ok, metadata} <- read_metadata(entry) do
       Map.fetch(metadata, "hash")
-    end
-  end
-
-  defp file_sha256(file_path) do
-    case File.read(file_path) do
-      {:ok, content} -> sha256(content)
-      {:error, reason} -> {:error, reason}
     end
   end
 

@@ -110,6 +110,33 @@ defmodule Store.Project.ConversationIndex do
   end
 
   @doc """
+  Returns true when the given conversation still needs indexing in this
+  project - either there's no index entry on disk, or the entry's
+  `last_indexed_ts` is older than the conversation's `timestamp`.
+
+  Used by foreground indexers to re-check freshness inside a
+  per-conversation lock: if a parallel indexer already refreshed the
+  entry, skip instead of re-running the summarizer + embedder.
+  """
+  @spec stale?(Project.t(), Conversation.t()) :: boolean
+  def stale?(%Project{} = project, %Conversation{} = convo) do
+    source_ts =
+      case Conversation.timestamp(convo) do
+        %DateTime{} = dt -> DateTime.to_unix(dt)
+        ts when is_integer(ts) -> ts
+      end
+
+    case read_metadata(project, convo.id) do
+      {:ok, %{"last_indexed_ts" => indexed_ts}}
+      when is_integer(indexed_ts) ->
+        indexed_ts < source_ts
+
+      _ ->
+        true
+    end
+  end
+
+  @doc """
   Writes embeddings and metadata for a conversation.
 
   The embeddings are stored in `embeddings.json` and the metadata in

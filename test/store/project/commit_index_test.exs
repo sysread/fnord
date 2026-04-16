@@ -86,6 +86,62 @@ defmodule Store.Project.CommitIndexTest do
            end)
   end
 
+  describe "stale?/2" do
+    # Build a commit_record with defaults suitable for build_metadata, so the
+    # test can toggle specific fields to drive the stale check without having
+    # to construct a full git history.
+    defp stub_commit(overrides \\ %{}) do
+      defaults = %{
+        sha: "abc123",
+        parent_shas: [],
+        subject: "subject",
+        body: "body",
+        author: "author",
+        committed_at: 1,
+        changed_files: [],
+        diffstat: "",
+        embedding_model: "test-model",
+        last_indexed_ts: 1
+      }
+
+      Map.merge(defaults, overrides)
+    end
+
+    test "true when the sha has no stored metadata", %{project: project} do
+      assert CommitIndex.stale?(project, stub_commit())
+    end
+
+    test "false when stored metadata matches the current build_metadata",
+         %{project: project} do
+      commit = stub_commit()
+      %{metadata: metadata} = CommitIndex.build_metadata(commit)
+
+      assert :ok = CommitIndex.write_embeddings(project, commit.sha, [0.0], metadata)
+
+      refute CommitIndex.stale?(project, commit)
+    end
+
+    test "true when the embedding_model has changed", %{project: project} do
+      commit = stub_commit()
+      %{metadata: metadata} = CommitIndex.build_metadata(commit)
+      stored = Map.put(metadata, "embedding_model", "old-model")
+
+      assert :ok = CommitIndex.write_embeddings(project, commit.sha, [0.0], stored)
+
+      assert CommitIndex.stale?(project, commit)
+    end
+
+    test "true when the doc_hash has changed", %{project: project} do
+      commit = stub_commit()
+      %{metadata: metadata} = CommitIndex.build_metadata(commit)
+      stored = Map.put(metadata, "doc_hash", "stale-hash")
+
+      assert :ok = CommitIndex.write_embeddings(project, commit.sha, [0.0], stored)
+
+      assert CommitIndex.stale?(project, commit)
+    end
+  end
+
   test "delete/2 removes index directory", %{project: project} do
     sha = "todelete"
 

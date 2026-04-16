@@ -378,8 +378,15 @@ defmodule AI.Tools.LongTermMemory do
     end
   end
 
-  defp ensure_embeddings_and_score(%{embeddings: emb} = mem, needle) do
-    {mem, AI.Util.cosine_similarity(needle, emb)}
+  defp ensure_embeddings_and_score(%{embeddings: emb} = mem, needle)
+       when is_list(emb) do
+    if length(emb) == length(needle) do
+      {mem, AI.Util.cosine_similarity(needle, emb)}
+    else
+      # Dimension mismatch - memory was embedded under a different model; it's
+      # stale. Re-embed from content so we can still score it this session.
+      ensure_embeddings_and_score(%{mem | embeddings: nil}, needle)
+    end
   end
 
   # Collect all session memories from conversation files, paired with their

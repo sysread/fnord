@@ -207,6 +207,23 @@ defmodule Store.Project.CommitIndex do
       metadata["doc_hash"] != current_metadata["doc_hash"]
   end
 
+  @doc """
+  Returns true when the given commit still needs indexing in this project -
+  either the index entry is missing, or its metadata indicates a model /
+  format / doc-hash mismatch with the current commit payload.
+
+  Used by foreground indexers to re-check freshness inside a per-commit
+  lock: if a parallel indexer already wrote the entry, there's no reason
+  to pay the embed cost a second time.
+  """
+  @spec stale?(Project.t(), commit_record()) :: boolean
+  def stale?(%Project{} = project, commit) do
+    case read_metadata(project, commit.sha) do
+      {:ok, metadata} -> stale_commit?(commit, metadata)
+      {:error, _} -> true
+    end
+  end
+
   @spec list_source_commits(Project.t()) :: [map()]
   defp list_source_commits(%Project{} = project) do
     case git_root(project) do
@@ -337,7 +354,7 @@ defmodule Store.Project.CommitIndex do
           body: meta.body,
           changed_files: changed_files,
           diffstat: diffstat,
-          embedding_model: nil,
+          embedding_model: AI.Embeddings.model_name(),
           last_indexed_ts: 0
         }
       else

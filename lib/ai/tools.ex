@@ -176,7 +176,6 @@ defmodule AI.Tools do
     "file_notes_tool" => AI.Tools.File.Notes,
     "file_reindex_tool" => AI.Tools.File.Reindex,
     "file_search_tool" => AI.Tools.File.Search,
-    "file_spelunker_tool" => AI.Tools.File.Spelunker,
     "list_projects_tool" => AI.Tools.ListProjects,
     "notify_tool" => AI.Tools.Notify,
     "prior_research" => AI.Tools.Notes,

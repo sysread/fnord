@@ -35,8 +35,7 @@ defmodule Store.Project.FilesDirMigrationTest do
       entry_id = "456"
       legacy_dir = Path.join(root, entry_id)
       File.mkdir_p!(legacy_dir)
-      # legacy provides outline and embeddings
-      File.write!(Path.join(legacy_dir, "outline"), "legacy_outline")
+      # legacy provides embeddings
       File.write!(Path.join(legacy_dir, "embeddings.json"), "legacy_embeddings")
       File.write!(Path.join(legacy_dir, "metadata.json"), "{\"a\":1}")
       File.write!(Path.join(legacy_dir, "summary"), "legacy_summary")
@@ -57,7 +56,6 @@ defmodule Store.Project.FilesDirMigrationTest do
       assert File.read!(Path.join(target_dir, "metadata.json")) == "{\"b\":2}"
       assert File.read!(Path.join(target_dir, "summary")) == "orig_summary"
       # Missing files merged
-      assert File.read!(Path.join(target_dir, "outline")) == "legacy_outline"
       assert File.read!(Path.join(target_dir, "embeddings.json")) == "legacy_embeddings"
     end
 
@@ -131,8 +129,7 @@ defmodule Store.Project.FilesDirMigrationTest do
       entry_id = "456"
       legacy_dir = Path.join(root, entry_id)
       File.mkdir_p!(legacy_dir)
-      # legacy provides outline and embeddings
-      File.write!(Path.join(legacy_dir, "outline"), "legacy_outline")
+      # legacy provides embeddings
       File.write!(Path.join(legacy_dir, "embeddings.json"), "legacy_embeddings")
       File.write!(Path.join(legacy_dir, "metadata.json"), "{\"a\":1}")
       File.write!(Path.join(legacy_dir, "summary"), "legacy_summary")
@@ -157,7 +154,6 @@ defmodule Store.Project.FilesDirMigrationTest do
       assert File.read!(Path.join(target_dir, "metadata.json")) == "{\"b\":2}"
       assert File.read!(Path.join(target_dir, "summary")) == "orig_summary"
       # Missing files merged
-      assert File.read!(Path.join(target_dir, "outline")) == "legacy_outline"
       assert File.read!(Path.join(target_dir, "embeddings.json")) == "legacy_embeddings"
     end
 

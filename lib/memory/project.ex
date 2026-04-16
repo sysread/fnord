@@ -91,6 +91,18 @@ defmodule Memory.Project do
     end
   end
 
+  @doc """
+  Returns the project-scoped memory storage directory, or `{:error, ...}`
+  when no project is selected. Exposed so callers can build per-memory
+  lock paths without importing the internal `store/1` helper.
+  """
+  @spec storage_path() :: {:ok, String.t()} | {:error, term()}
+  def storage_path do
+    with {:ok, project} <- get_project() do
+      {:ok, Path.join(project.store_path, "memory")}
+    end
+  end
+
   # ----------------------------------------------------------------------------
   # Internals
   # ----------------------------------------------------------------------------

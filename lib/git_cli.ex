@@ -2,8 +2,18 @@
 
 defmodule GitCli do
   @moduledoc """
-  Wrapper for direct git CLI calls. Provides helper functions for repo checks,
-  formatted info messages, and listing ignored files in a given root.
+  Wrapper for direct git CLI calls.
+
+  Covers repo classification (`is_git_repo?/0`, `worktree_root/0`),
+  branch reporting (`current_branch/0`, `default_branch/1`), tree
+  enumeration for indexing (`ls_tree/2`, `show_blob/3`), gitignore
+  resolution (`ignored_files/1`), and formatted user-facing messages
+  (`git_info/0`).
+
+  Note: `default_branch/1` resolves the project's *indexing* branch
+  with a strict fallback chain (origin/HEAD → main → master → nil).
+  For the looser worktree-root resolution that falls back to the
+  current branch, see `GitCli.Worktree.default_base_branch/1`.
   """
 
   @spec is_git_repo?() :: boolean()
@@ -184,6 +194,105 @@ defmodule GitCli do
 
       _ ->
         %{}
+    end
+  end
+
+  @doc """
+  Returns the repository's default branch for indexing purposes:
+
+    1. `origin/HEAD` - the remote's declared default (usually main).
+    2. Local `main` or `master`, in that order.
+    3. `nil` - do not silently fall back to the current branch, since
+       that would make `fnord index` on a feature branch index the
+       feature branch rather than the project's canonical source.
+
+  Callers fall back to filesystem-mode indexing when this returns nil,
+  so the user still gets their working tree indexed; they just won't
+  get default-branch semantics.
+  """
+  @spec default_branch(String.t() | nil) :: String.t() | nil
+  def default_branch(nil), do: nil
+
+  def default_branch(root) when is_binary(root) do
+    cond do
+      not is_git_repo_at?(root) -> nil
+      branch = remote_head(root) -> branch
+      branch_exists?(root, "main") -> "main"
+      branch_exists?(root, "master") -> "master"
+      true -> nil
+    end
+  end
+
+  defp remote_head(root) do
+    case System.cmd("git", ["symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"],
+           cd: root,
+           stderr_to_stdout: true
+         ) do
+      {out, 0} ->
+        case out |> String.trim() |> String.replace_prefix("refs/remotes/origin/", "") do
+          "" -> nil
+          branch -> branch
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp branch_exists?(root, branch) do
+    case System.cmd("git", ["rev-parse", "--verify", "--quiet", "refs/heads/#{branch}"],
+           cd: root,
+           stderr_to_stdout: true
+         ) do
+      {_, 0} -> true
+      _ -> false
+    end
+  end
+
+  @doc """
+  Lists every blob in `branch`'s tree as `{blob_sha, rel_path}` pairs.
+  The blob sha is git's content-addressed hash and is stable across
+  clones and checkouts, so it's usable as a freshness key for the
+  indexer.
+  """
+  @spec ls_tree(String.t(), String.t()) :: {:ok, [{String.t(), String.t()}]} | {:error, term}
+  def ls_tree(root, branch) when is_binary(root) and is_binary(branch) do
+    case System.cmd(
+           "git",
+           ["ls-tree", "-r", "--full-tree", "--format=%(objectname)\t%(path)", branch],
+           cd: root,
+           stderr_to_stdout: true
+         ) do
+      {out, 0} ->
+        entries =
+          out
+          |> String.split("\n", trim: true)
+          |> Enum.flat_map(fn line ->
+            case String.split(line, "\t", parts: 2) do
+              [sha, path] when byte_size(sha) > 0 and byte_size(path) > 0 -> [{sha, path}]
+              _ -> []
+            end
+          end)
+
+        {:ok, entries}
+
+      {err, _} ->
+        {:error, String.trim(err)}
+    end
+  end
+
+  @doc """
+  Returns the content of `rel_path` as it exists on `branch`, or an
+  error tuple if git rejects the request (missing file, invalid branch,
+  etc.). Content is returned as a binary; binaries that aren't valid
+  UTF-8 are still returned — callers decide how to handle them.
+  """
+  @spec show_blob(String.t(), String.t(), String.t()) :: {:ok, binary} | {:error, term}
+  def show_blob(root, branch, rel_path)
+      when is_binary(root) and is_binary(branch) and is_binary(rel_path) do
+    case System.cmd("git", ["show", "#{branch}:#{rel_path}"], cd: root, stderr_to_stdout: false) do
+      {out, 0} -> {:ok, out}
+      {err, _} -> {:error, String.trim(err)}
     end
   end
 end

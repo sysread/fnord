@@ -82,8 +82,9 @@ defmodule Fnord.TestCase do
       end
 
       setup do
-        # Ensure no OpenAI API key is set in the environment. This prevents
-        # test from accidentally reaching out onto the network.
+        # Clear OpenAI API keys so completion-path tests that forget to mock
+        # can't silently reach the live API. Embeddings are local now, so this
+        # only guards completions.
         Util.Env.put_env("OPENAI_API_KEY", "")
         Util.Env.put_env("FNORD_OPENAI_API_KEY", "")
         :ok

@@ -56,9 +56,26 @@ defmodule AI.Agent.Review.Decomposer do
   @estimate_prompt """
   Read the diff for the specified scope and produce a complexity estimate.
 
+  ## Range resolution - READ FIRST
+
+  If the user message contains a `## Git context` section with a pre-resolved
+  range (MERGE_BASE..HEAD with actual SHAs), USE IT AS-IS. It was computed
+  deterministically by the host and is authoritative for "review this branch"
+  style requests.
+
+  Do NOT diff against the base branch directly (e.g. `main..HEAD` or
+  `main...HEAD`) - the base may have advanced since this branch forked, which
+  would pull unrelated commits into the review. Always use the resolved
+  merge-base SHA from the supplied git context.
+
+  Only override the supplied range when the user's scope explicitly specifies
+  a different one (e.g. "the last 3 commits" -> `HEAD~3..HEAD`, "just commit
+  abc123" -> `abc123^..abc123`). In that case, state why you overrode it.
+
   ## Process
 
-  1. Run `git diff --stat` on the specified range to see the shape of the change.
+  1. Use the supplied `git diff --stat` output if present in the git context.
+     Otherwise run `git diff --stat <range>` against the resolved range.
   2. Read the diffs for each changed file to understand what was modified.
   3. Infer design intent from commit messages (`git log --oneline <range>`) and
      the code itself.
@@ -89,9 +106,10 @@ defmodule AI.Agent.Review.Decomposer do
 
   ## Output
 
-  Produce a JSON object with your estimate. Include the exact git range you used
-  (e.g., "main...skills") and the full `git diff --stat` output so downstream
-  reviewers don't have to re-fetch them.
+  Produce a JSON object with your estimate. Include the exact git range you
+  used (two-dot form with resolved SHAs, e.g. "a1b2c3d..HEAD" - NOT
+  "main..HEAD" or "main...HEAD") and the full `git diff --stat` output so
+  downstream reviewers don't have to re-fetch them.
   """
 
   @partition_prompt """
@@ -230,7 +248,7 @@ defmodule AI.Agent.Review.Decomposer do
           git_range: %{
             type: "string",
             description:
-              "The exact git range used for diffing (e.g., 'main...skills', 'HEAD~3..HEAD')"
+              "The resolved git range, two-dot form with resolved SHAs (e.g. 'a1b2c3d..HEAD' or 'HEAD~3..HEAD'). Do NOT use symbolic base-branch names like 'main..HEAD' or three-dot 'main...HEAD' - the base may have advanced since fork."
           },
           diff_stat: %{
             type: "string",
@@ -288,6 +306,18 @@ defmodule AI.Agent.Review.Decomposer do
   def init(%{agent: agent, scope: scope}) do
     tools = AI.Tools.basic_tools()
 
+    # Resolve the review range deterministically from git state before the LLM
+    # gets a chance to guess. Without this, a vague scope like "review this
+    # branch" lets the LLM pick the wrong branch or diff against a symbolic
+    # base (main..HEAD), which pulls in unrelated commits whenever main has
+    # advanced since the branch forked. A nil result means we're not in a git
+    # repo or the preflight failed; the LLM falls back to its own exploration.
+    git_context_msg =
+      case resolve_git_context() do
+        {:ok, ctx} -> [AI.Util.user_msg(format_git_context(ctx))]
+        _ -> []
+      end
+
     state = %Composite{
       agent: agent,
       model: @model,
@@ -295,11 +325,11 @@ defmodule AI.Agent.Review.Decomposer do
       request: scope,
       response: nil,
       error: nil,
-      messages: [
-        AI.Util.system_msg(AI.Util.project_context()),
-        AI.Util.system_msg(@system_prompt),
-        AI.Util.user_msg(scope)
-      ],
+      messages:
+        [
+          AI.Util.system_msg(AI.Util.project_context()),
+          AI.Util.system_msg(@system_prompt)
+        ] ++ git_context_msg ++ [AI.Util.user_msg(scope)],
       internal: %{},
       steps: [
         Composite.completion(:estimate, @estimate_prompt,
@@ -511,5 +541,97 @@ defmodule AI.Agent.Review.Decomposer do
     |> String.replace("REVIEW_UNITS_SUMMARY", units_summary)
     |> String.replace("EXCLUDE_PATHS", exclude_paths)
     |> String.replace("ORIGINAL_SCOPE", original_scope)
+  end
+
+  # ---------------------------------------------------------------------------
+  # Git context preflight
+  #
+  # The LLM would otherwise guess the review range from the caller's scope
+  # string ("review this branch"). Guessing produces two failure modes:
+  #   1. Wrong branch: the LLM picks whatever branch name it finds in history.
+  #   2. Drifting base: `main..HEAD` includes commits merged to main after the
+  #      branch forked, so the review covers unrelated code.
+  # We resolve current branch, base branch, and merge-base up front. The
+  # two-dot range MERGE_BASE..HEAD is stable against base-branch advancement.
+  # ---------------------------------------------------------------------------
+
+  defp resolve_git_context do
+    with {:ok, root} <- GitCli.Worktree.project_root(),
+         branch when is_binary(branch) <- GitCli.Worktree.current_branch(root),
+         {:ok, base} <- pick_base_branch(root, branch),
+         {:ok, merge_base} <- git(root, ["merge-base", "HEAD", base]),
+         range = "#{merge_base}..HEAD",
+         {:ok, diff_stat} <- git(root, ["diff", "--stat", range]),
+         {:ok, log} <- git(root, ["log", "--oneline", range]) do
+      {:ok,
+       %{
+         branch: branch,
+         base: base,
+         merge_base: merge_base,
+         range: range,
+         diff_stat: String.trim(diff_stat),
+         log: String.trim(log)
+       }}
+    else
+      _ -> :error
+    end
+  end
+
+  # Pick main or master as the base. If the current branch IS the base, skip
+  # the preflight - "review this branch" against itself is meaningless and the
+  # LLM will need to ask the user for a real range.
+  defp pick_base_branch(root, branch) do
+    cond do
+      branch in ["main", "master"] ->
+        :error
+
+      match?({:ok, _}, git(root, ["show-ref", "--verify", "--quiet", "refs/heads/main"])) ->
+        {:ok, "main"}
+
+      match?({:ok, _}, git(root, ["show-ref", "--verify", "--quiet", "refs/heads/master"])) ->
+        {:ok, "master"}
+
+      true ->
+        :error
+    end
+  end
+
+  defp git(root, args) do
+    case System.cmd("git", args, cd: root, stderr_to_stdout: true) do
+      {out, 0} -> {:ok, String.trim(out)}
+      _ -> :error
+    end
+  end
+
+  defp format_git_context(ctx) do
+    """
+    ## Git context (authoritative - use this range)
+
+    - Current branch: `#{ctx.branch}`
+    - Base branch: `#{ctx.base}`
+    - Merge-base: `#{ctx.merge_base}`
+    - Review range: `#{ctx.range}`
+
+    This range is the two-dot form with a resolved SHA for the merge-base, so
+    it is stable even if `#{ctx.base}` advances during or after the review.
+    Use this range for all git commands unless the user's scope explicitly
+    specifies a different one.
+
+    Do NOT diff against `#{ctx.base}` directly (`#{ctx.base}..HEAD` or
+    `#{ctx.base}...HEAD`) - that would include commits merged to `#{ctx.base}`
+    after this branch forked.
+
+    ### git diff --stat #{ctx.range}
+
+    ```
+    #{ctx.diff_stat}
+    ```
+
+    ### git log --oneline #{ctx.range}
+
+    ```
+    #{ctx.log}
+    ```
+    """
   end
 end

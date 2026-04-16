@@ -31,20 +31,34 @@ defmodule Cmd.Summary do
 
     with {:ok, project} <- Store.get_project(),
          {:ok, entry} <- get_file(project, file_path),
-         {:ok, summary} <- Store.Project.Entry.read_summary(entry),
-         {:ok, outline} <- Store.Project.Entry.read_outline(entry) do
-      UI.puts("# File: `#{file_path}`")
-      UI.puts("- Store location: `#{entry.store_path}`")
+         {:ok, summary} <- Store.Project.Entry.read_summary(entry) do
+      # Build the full markdown output and run it through UI.format, which
+      # pipes through FNORD_FORMATTER if set. UI.format is a no-op on non-TTY
+      # stdout or under :quiet, preserving pipe/redirect behavior.
+      output =
+        """
+        # File: `#{file_path}`
+        - Store location: `#{entry.store_path}`
 
-      UI.puts("----------")
-      UI.puts("# Summary")
-      UI.puts(summary)
+        ----------
 
-      UI.puts("----------")
-      UI.puts("# Outline")
-      UI.puts("```")
-      UI.puts(outline)
-      UI.puts("```")
+        # Summary
+        #{summary}
+        """
+
+      UI.puts(UI.format(output))
+    else
+      {:error, :project_not_set} = err ->
+        UI.error("No project selected; use --project or run in a project directory.")
+        err
+
+      {:error, :entry_not_found} = err ->
+        UI.error("File not indexed: #{file_path}")
+        err
+
+      {:error, _reason} = err ->
+        UI.error("Failed to read summary", inspect(err))
+        err
     end
   end
 

@@ -55,6 +55,61 @@ defmodule Store.Project.ConversationIndexTest do
     assert {convo2.id, [2.0], %{"last_indexed_ts" => 2}} in all
   end
 
+  describe "stale?/2" do
+    test "true when the conversation has no index entry", %{project: project} do
+      convo = Conversation.new("unindexed", project)
+      File.mkdir_p!(Path.dirname(convo.store_path))
+
+      assert ConversationIndex.stale?(project, convo)
+    end
+
+    test "false when last_indexed_ts is at or after the source timestamp",
+         %{project: project} do
+      convo = Conversation.new("fresh", project)
+
+      {:ok, _} =
+        Conversation.write(convo, %{
+          messages: [AI.Util.system_msg("hi")],
+          metadata: %{},
+          memories: []
+        })
+
+      source_ts =
+        Conversation.timestamp(convo)
+        |> case do
+          %DateTime{} = dt -> DateTime.to_unix(dt)
+          ts when is_integer(ts) -> ts
+        end
+
+      :ok =
+        ConversationIndex.write_embeddings(project, convo.id, [0.0], %{
+          "last_indexed_ts" => source_ts
+        })
+
+      refute ConversationIndex.stale?(project, convo)
+    end
+
+    test "true when last_indexed_ts is older than the source timestamp",
+         %{project: project} do
+      convo = Conversation.new("stale", project)
+
+      {:ok, _} =
+        Conversation.write(convo, %{
+          messages: [AI.Util.system_msg("hi")],
+          metadata: %{},
+          memories: []
+        })
+
+      :ok =
+        ConversationIndex.write_embeddings(project, convo.id, [0.0], %{
+          # 1970 - guaranteed older than any recent conversation timestamp.
+          "last_indexed_ts" => 0
+        })
+
+      assert ConversationIndex.stale?(project, convo)
+    end
+  end
+
   test "delete/2 removes index directory", %{project: project} do
     convo = Conversation.new("todelete", project)
 

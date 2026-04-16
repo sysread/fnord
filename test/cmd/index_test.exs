@@ -3,6 +3,11 @@ defmodule Cmd.IndexTest do
 
   setup do
     set_config(workers: 1)
+
+    # Stub the conversation summarizer so it doesn't hit the real LLM
+    :meck.new(AI.Agent.ConversationSummary, [:no_link, :passthrough])
+    :meck.expect(AI.Agent.ConversationSummary, :get_response, fn _opts -> {:ok, "test summary"} end)
+    on_exit(fn -> :meck.unload(AI.Agent.ConversationSummary) end)
   end
 
   describe "run" do
@@ -101,7 +106,13 @@ defmodule Cmd.IndexTest do
         :meck.unload(GitCli)
       end)
 
-      assert %{new: [%{file: ^file}], stale: [], deleted: []} = Cmd.Index.perform_task({:ok, idx})
+      assert :ok = Cmd.Index.perform_task({:ok, idx})
+      {:ok, project} = Store.get_project(project.name)
+      entries = Store.Project.index_status(project)
+      assert [] = entries.new
+      assert [] = entries.stale
+      entry = Store.Project.Entry.new_from_file_path(project, file)
+      assert Store.Project.Entry.exists_in_store?(entry)
       assert :meck.called(GitCli, :is_git_repo_at?, :_)
     end
 
@@ -118,7 +129,13 @@ defmodule Cmd.IndexTest do
         :meck.unload(GitCli)
       end)
 
-      assert %{new: [%{file: ^file}], stale: [], deleted: []} = Cmd.Index.perform_task({:ok, idx})
+      assert :ok = Cmd.Index.perform_task({:ok, idx})
+      {:ok, project} = Store.get_project(project.name)
+      entries = Store.Project.index_status(project)
+      assert [] = entries.new
+      assert [] = entries.stale
+      entry = Store.Project.Entry.new_from_file_path(project, file)
+      assert Store.Project.Entry.exists_in_store?(entry)
       assert :meck.called(GitCli, :is_git_repo_at?, :_)
     end
 
@@ -131,11 +148,7 @@ defmodule Cmd.IndexTest do
       Services.Globals.put_env(:fnord, :indexer, StubIndexer)
 
       assert {:ok, idx} = Cmd.Index.new(%{project: project.name, yes: true, quiet: true})
-      result = Cmd.Index.perform_task({:ok, idx})
-      assert is_map(result)
-      assert Map.has_key?(result, :new)
-      assert Map.has_key?(result, :stale)
-      assert Map.has_key?(result, :deleted)
+      assert :ok = Cmd.Index.perform_task({:ok, idx})
 
       {:ok, project} = Store.get_project(project.name)
 
@@ -158,6 +171,58 @@ defmodule Cmd.IndexTest do
 
       status = Store.Project.CommitIndex.index_status(project)
       assert status.new == []
+    end
+  end
+
+  describe "cooperative indexing" do
+    setup do
+      Services.Globals.put_env(:fnord, :indexer, StubIndexer)
+      :ok
+    end
+
+    test "second run classifies all entries as fresh (no new/stale)" do
+      project = mock_project("coop_fresh")
+      mock_source_file(project, "a.txt", "hello")
+      mock_source_file(project, "b.txt", "world")
+
+      {:ok, idx} = Cmd.Index.new(%{project: project.name, yes: true, quiet: true})
+      assert :ok = Cmd.Index.perform_task({:ok, idx})
+
+      # Scan the project again: hash_is_current? should be true for every
+      # entry, so nothing shows up in the stale or new buckets. This is
+      # the observable proxy for "the worker didn't need to re-run the
+      # indexer on the second pass" - index_status short-circuits before
+      # any per-item work.
+      {:ok, project} = Store.get_project("coop_fresh")
+      status = Store.Project.index_status(project)
+
+      assert status.stale == []
+      assert status.new == []
+    end
+
+    test "binary files don't crash and aren't persisted as entries" do
+      project = mock_project("coop_binary")
+      binary_path = Path.join(project.source_root, "blob.bin")
+
+      # A deliberately non-UTF-8 byte sequence. Passing this through
+      # AI.Splitter / String.split_at would crash the grapheme walker
+      # before the branch's guard_text was added.
+      File.write!(binary_path, <<0xFF, 0xFE, 0xFD, 0x00, 0xA0>>)
+      mock_source_file(project, "text.txt", "normal file")
+
+      {:ok, idx} = Cmd.Index.new(%{project: project.name, yes: true, quiet: true})
+      assert :ok = Cmd.Index.perform_task({:ok, idx})
+
+      # The text file got an entry; the binary file did not.
+      {:ok, project} = Store.get_project("coop_binary")
+      files =
+        project
+        |> Store.Project.stored_files()
+        |> Enum.map(& &1.rel_path)
+        |> Enum.sort()
+
+      assert "text.txt" in files
+      refute "blob.bin" in files
     end
   end
 

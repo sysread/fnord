@@ -30,12 +30,6 @@ defmodule Services.BackgroundIndexerTest do
       Agent.update(__MODULE__, &MapSet.put(&1, file))
       {:ok, "summary"}
     end
-
-    @impl Indexer
-    def get_outline(file, _content) do
-      Agent.update(__MODULE__, &MapSet.put(&1, file))
-      {:ok, "outline"}
-    end
   end
 
   setup do
@@ -67,8 +61,8 @@ defmodule Services.BackgroundIndexerTest do
 
   test "does not process files when required model is paused", %{entries: entries} do
     # Pause the required model to simulate unavailability
-    Services.BgIndexingControl.pause(AI.Embeddings.model_name())
-    on_exit(fn -> Services.BgIndexingControl.clear_pause(AI.Embeddings.model_name()) end)
+    Services.BgIndexingControl.pause("embeddings")
+    on_exit(fn -> Services.BgIndexingControl.clear_pause("embeddings") end)
 
     # Start indexer and expect it to stop immediately without processing files
     {:ok, pid} = BackgroundIndexer.start_link(files: entries)

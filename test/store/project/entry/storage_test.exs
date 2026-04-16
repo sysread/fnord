@@ -28,17 +28,15 @@ defmodule Store.Project.Entry.StorageTest do
 
       # Dummy data
       summary = "this is a summary"
-      outline = "- first item\n- second item"
       embeddings = [0.1, 0.2, 0.3]
 
       # Save via Storage
-      :ok = Storage.save(entry, summary, outline, embeddings)
+      :ok = Storage.save(entry, summary, embeddings)
 
       # Read via Storage
       assert {:ok, info} = Storage.read(entry)
       assert info["file"] == entry.file
       assert info["summary"] == summary
-      assert info["outline"] == outline
       assert info["embeddings"] == embeddings
     end
   end
@@ -58,7 +56,7 @@ defmodule Store.Project.Entry.StorageTest do
       entry = Entry.new_from_file_path(project, path)
 
       # Save creates and writes all data
-      :ok = Storage.save(entry, "sum", "outline", [1.0])
+      :ok = Storage.save(entry, "sum", [1.0])
 
       refute Storage.is_incomplete?(entry)
       refute Storage.is_stale?(entry)

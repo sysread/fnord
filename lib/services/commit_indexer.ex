@@ -114,7 +114,7 @@ defmodule Services.CommitIndexer do
   end
 
   defp start_commit_task(commit, state) do
-    if Services.BgIndexingControl.paused?(AI.Embeddings.model_name()) do
+    if Services.BgIndexingControl.paused?("embeddings") do
       {:stop, :normal, state}
     else
       {:ok, task_pid} = Task.start_link(fn -> safe_process(commit, state.impl, state.project) end)

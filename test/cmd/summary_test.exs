@@ -5,7 +5,7 @@ defmodule Cmd.SummaryTest do
   setup do: {:ok, project: mock_project("summary_proj")}
 
   describe "run/3" do
-    test "prints summary and outline for a stored file", %{project: project} do
+    test "prints summary for a stored file", %{project: project} do
       # Create a source file and index it
       File.mkdir_p!(Path.join(project.source_root, "lib"))
       file_path = mock_source_file(project, "lib/foo.ex", "defmodule Foo do end\n")
@@ -18,9 +18,7 @@ defmodule Cmd.SummaryTest do
       assert stdout =~ "# File: `#{Path.absname(file_path)}`"
       assert stdout =~ "# Summary"
       assert stdout =~ "summary"
-      assert stdout =~ "# Outline"
-      assert stdout =~ "```"
-      assert stdout =~ "outline"
+      refute stdout =~ "# Outline"
     end
 
     test "returns error tuple when file is not in store (entry_not_found)", %{project: project} do

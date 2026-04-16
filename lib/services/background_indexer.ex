@@ -3,7 +3,7 @@ defmodule Services.BackgroundIndexer do
   ## Overview
 
   The BackgroundIndexer is a silent, cancellable GenServer that indexes project files
-  one at a time. It generates per-file derivatives (summary, outline, embeddings)
+  one at a time. It generates per-file derivatives (summary, embeddings)
   and saves them to the project store.
 
   This module is intentionally designed to be both:
@@ -29,7 +29,7 @@ defmodule Services.BackgroundIndexer do
 
   ## Why one-at-a-time?
 
-  - Prevents overwhelming APIs (summaries, outlines, embeddings)
+  - Prevents overwhelming APIs (summaries, embeddings)
   - Simplifies cancellation and error isolation
   - Ensures the background indexer does not keep running long after `ask` completes
   """
@@ -132,8 +132,7 @@ defmodule Services.BackgroundIndexer do
 
   @impl true
   def handle_continue(:process_next, %{task: nil, files_queue: [entry | rest]} = state) do
-    if Services.BgIndexingControl.paused?(AI.Model.fast().model) or
-         Services.BgIndexingControl.paused?(AI.Embeddings.model_name()) do
+    if Services.BgIndexingControl.paused?("embeddings") do
       {:stop, :normal, state}
     else
       # Start per-file work in a linked Task so the GenServer stays responsive
@@ -157,8 +156,11 @@ defmodule Services.BackgroundIndexer do
         {:stop, :normal, state}
 
       entry ->
-        if Services.BgIndexingControl.paused?(AI.Model.fast().model) or
-             Services.BgIndexingControl.paused?(AI.Embeddings.model_name()) do
+        # "embeddings" is the single pause key for both indexing paths; the
+        # pre-seeded-queue branch above checks only this, and the old
+        # model-specific pause (AI.Model.fast().model) conflated the
+        # summarizer LLM with local embedding work.
+        if Services.BgIndexingControl.paused?("embeddings") do
           {:stop, :normal, state}
         else
           {:ok, task_pid} =
@@ -216,30 +218,31 @@ defmodule Services.BackgroundIndexer do
   #
   # Steps:
   #   1) Read the source file (falls back to empty string on read errors)
-  #   2) Generate summary and outline
-  #   3) Create an embedding input from [summary, outline, content]
-  #   4) Generate embeddings and persist to store
+  #   2) Generate summary
+  #   3) Generate embeddings of the summary and persist to store
   #
   # Resilience:
-  #   - Wrapped in try/rescue to isolate per-file failures
-  #   - Logs end-of-step via UI without blocking main flow
+  #   - Uses `<-` in `with` so structured errors land in the else branch
+  #   - try/rescue narrows the blast radius to a single entry on unexpected
+  #     exceptions
   # ----------------------------------------------------------------------------
   defp safe_process(entry, impl, _project) do
+    content =
+      case Store.Project.Entry.read_source_file(entry) do
+        {:ok, c} -> c
+        _ -> ""
+      end
+
+    path = entry.file
+
+    # Use <- (not =) so a {:error, _} from get_summary / get_embeddings / save
+    # lands in the else branch instead of raising MatchError. Keep rescue as a
+    # narrow safety net for genuinely unexpected exceptions, and log at error
+    # level so real failures aren't silently swallowed.
     try do
-      content =
-        case Store.Project.Entry.read_source_file(entry) do
-          {:ok, c} -> c
-          _ -> ""
-        end
-
-      path = entry.file
-
-      with {:ok, summary} = impl.get_summary(path, content),
-           {:ok, outline} = impl.get_outline(path, content),
-           embed_str = [summary, outline, content] |> Enum.join("\n\n"),
-           {:ok, embeddings} = impl.get_embeddings(embed_str) do
-        Store.Project.Entry.save(entry, summary, outline, embeddings)
-
+      with {:ok, summary} <- impl.get_summary(path, content),
+           {:ok, embeddings} <- impl.get_embeddings(summary),
+           :ok <- Store.Project.Entry.save(entry, summary, embeddings) do
         detail =
           if entry.project do
             Store.Project.relative_path(entry.file, entry.project)
@@ -248,9 +251,23 @@ defmodule Services.BackgroundIndexer do
           end
 
         UI.end_step_background("Indexed", "<file> " <> detail)
+      else
+        {:error, reason} ->
+          UI.error(
+            "[BackgroundIndexer] Failed to index #{entry.file}",
+            inspect(reason, pretty: true, limit: :infinity)
+          )
+
+          :error
       end
     rescue
-      _ -> :ok
+      e ->
+        UI.error(
+          "[BackgroundIndexer] Unexpected exception indexing #{entry.file}",
+          Exception.format(:error, e, __STACKTRACE__)
+        )
+
+        :error
     end
   end
 

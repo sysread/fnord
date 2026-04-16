@@ -37,14 +37,23 @@ defmodule Search.Commits do
   def get_results(%__MODULE__{} = search) do
     with {:ok, project} <- Store.get_project(),
          {:ok, needle} <- Indexer.impl().get_embeddings(search.query) do
+      q_len = length(needle)
+
       results =
         project
         |> Store.Project.CommitIndex.all_embeddings()
         |> Util.async_stream(fn {sha, embeddings, metadata} ->
-          score = AI.Util.cosine_similarity(needle, embeddings)
-          {sha, score, metadata}
+          # Stale-dimension commits (pre-migration) would crash
+          # cosine_similarity; skip them.
+          if is_list(embeddings) and length(embeddings) == q_len do
+            score = AI.Util.cosine_similarity(needle, embeddings)
+            {sha, score, metadata}
+          else
+            nil
+          end
         end)
         |> Enum.reduce([], fn
+          {:ok, nil}, acc -> acc
           {:ok, item}, acc -> [item | acc]
           _, acc -> acc
         end)

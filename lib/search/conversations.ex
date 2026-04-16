@@ -18,15 +18,24 @@ defmodule Search.Conversations do
     limit = Keyword.get(opts, :limit, @default_limit)
 
     with {:ok, query_vec} <- Indexer.impl().get_embeddings(query) do
+      q_len = length(query_vec)
+
       project
       |> ConversationIndex.all_embeddings()
       |> Util.async_stream(fn {id, emb_vec, _meta} ->
-        score = AI.Util.cosine_similarity(query_vec, emb_vec)
-        build_result(project, id, score)
+        # Stale-dimension entries (old model, not yet reindexed) would crash
+        # cosine_similarity; skip them instead.
+        if is_list(emb_vec) and length(emb_vec) == q_len do
+          score = AI.Util.cosine_similarity(query_vec, emb_vec)
+          build_result(project, id, score)
+        else
+          nil
+        end
       end)
       |> Enum.reduce([], fn
         {:ok, nil}, acc -> acc
         {:ok, result}, acc -> [result | acc]
+        _, acc -> acc
       end)
       |> Enum.sort_by(fn %{score: sc} -> sc end, :desc)
       |> Enum.take(limit)

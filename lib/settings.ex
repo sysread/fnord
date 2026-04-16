@@ -427,9 +427,54 @@ defmodule Settings do
       %Settings{path: path, data: data}
     end)
     |> case do
-      {:ok, settings} -> settings
-      {:error, reason} -> raise "Failed to update settings: #{inspect(reason)}"
+      {:ok, settings} ->
+        settings
+
+      {:error, :lock_failed} ->
+        UI.fatal(lock_failed_message(path))
+
+      # The callback here only returns %Settings{} or raises; re-raise so
+      # the stack trace surfaces the real cause instead of being swallowed.
+      {:callback_error, exception} ->
+        reraise exception, []
     end
+  end
+
+  # Build a user-facing message for lock contention on the settings file.
+  # FileLock times out after 30s and returns :lock_failed; by that point the
+  # lock is either held by a live fnord process (concurrent invocation) or
+  # orphaned by a crash that left the lock dir behind. Give the user enough
+  # info to tell the difference and recover without a stack trace.
+  defp lock_failed_message(path) do
+    base =
+      """
+      Could not acquire lock on #{path}.
+
+      Another fnord process appears to hold the lock, or a previous one
+      crashed without cleaning up.
+      """
+
+    owner =
+      case FileLock.read_owner_info(path) do
+        %{} = info when map_size(info) > 0 ->
+          lines =
+            info
+            |> Enum.map_join("\n", fn {k, v} -> "  #{k}: #{v}" end)
+
+          "\nLock holder:\n#{lines}\n"
+
+        _ ->
+          ""
+      end
+
+    recovery =
+      """
+
+      If no fnord process is currently running, the lock is safe to remove:
+        rm -rf #{path}.lock
+      """
+
+    base <> owner <> recovery
   end
 
   defp slurp(%Settings{} = settings) do

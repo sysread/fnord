@@ -32,7 +32,8 @@ defmodule AI.Agent.FileSummary do
   - Create an enumerated list of distinct questions that can be answered by the content of the file.
 
   Only use information from the file itself to ensure accurate summaries without false positives from external sources.
-  Keep your response as brief as possible without omitting any relevant information.
+  Keep your response concise - aim for 300 words or fewer. The summary will be embedded
+  by a model with a short context window, so brevity matters more than exhaustiveness.
   """
 
   # -----------------------------------------------------------------------------

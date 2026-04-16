@@ -123,11 +123,11 @@ defmodule Store.ProjectTest do
     test "classifies deleted, new, and stale entries", %{project: project} do
       a = mock_source_file(project, "a.txt", "foo")
       entry_a = Store.Project.Entry.new_from_file_path(project, a)
-      Store.Project.Entry.save(entry_a, "", "", [])
+      Store.Project.Entry.save(entry_a, "", [])
 
       c = mock_source_file(project, "c.txt", "baz")
       entry_c = Store.Project.Entry.new_from_file_path(project, c)
-      Store.Project.Entry.save(entry_c, "", "", [])
+      Store.Project.Entry.save(entry_c, "", [])
 
       b = mock_source_file(project, "b.txt", "bar")
 

@@ -13,5 +13,5 @@ defmodule Store.Project.Entry.StorageBehaviour do
   @callback is_incomplete?(Entry.t()) :: boolean()
   @callback is_stale?(Entry.t()) :: boolean()
   @callback read(Entry.t()) :: {:ok, map()} | {:error, any()}
-  @callback save(Entry.t(), String.t(), String.t(), [float()]) :: :ok | {:error, any()}
+  @callback save(Entry.t(), String.t(), [float()]) :: :ok | {:error, any()}
 end

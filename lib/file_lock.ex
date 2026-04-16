@@ -73,6 +73,11 @@ defmodule FileLock do
   @spec acquire_lock(path :: binary) :: :ok | {:error, term}
   def acquire_lock(path) do
     lock_dir = path <> ".lock"
+    # Ensure the parent directory exists so callers can lock against paths
+    # whose target hasn't been created yet (e.g. a new index entry directory
+    # that the worker is about to create inside the lock). Ignore errors -
+    # the subsequent mkdir on the lock dir will surface any real issue.
+    _ = File.mkdir_p(Path.dirname(lock_dir))
     do_acquire_lock(lock_dir, path, System.monotonic_time(:millisecond), 0)
   end
 
@@ -248,10 +253,13 @@ defmodule FileLock do
   defp write_owner_info(lock_dir) do
     owner_file = Path.join(lock_dir, "owner")
 
+    # OS pid is the useful identifier here - BEAM pids are ephemeral to a
+    # given VM and meaningless to a human looking at a stale lock.
     owner_info =
       [
-        "pid: #{inspect(self())}",
-        "at:  #{DateTime.utc_now() |> DateTime.to_iso8601()}"
+        "os_pid: #{System.pid()}",
+        "beam_pid: #{inspect(self())}",
+        "at: #{DateTime.utc_now() |> DateTime.to_iso8601()}"
       ]
       |> Enum.join("\n")
 
@@ -259,6 +267,35 @@ defmodule FileLock do
       :ok -> :ok
       {:error, :enoent} -> {:retry}
       {:error, reason} -> {:error, {:write_failed, owner_file, reason}}
+    end
+  end
+
+  @doc """
+  Returns a map describing the current holder of the lock at `path`, or `nil`
+  if no lock exists. Useful when reporting lock contention to the user.
+
+  Keys: "os_pid", "beam_pid", "at" - exactly the fields written by
+  `write_owner_info/1`, parsed as a flat string map. May be empty if the
+  owner file is missing or malformed (e.g. the directory exists but the
+  owner file was never written, or was written in an older format).
+  """
+  @spec read_owner_info(path :: binary) :: map | nil
+  def read_owner_info(path) do
+    owner_file = Path.join(path <> ".lock", "owner")
+
+    case File.read(owner_file) do
+      {:ok, content} ->
+        content
+        |> String.split("\n", trim: true)
+        |> Enum.reduce(%{}, fn line, acc ->
+          case String.split(line, ":", parts: 2) do
+            [k, v] -> Map.put(acc, String.trim(k), String.trim(v))
+            _ -> acc
+          end
+        end)
+
+      {:error, _} ->
+        nil
     end
   end
 end

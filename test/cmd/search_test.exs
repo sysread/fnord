@@ -9,7 +9,7 @@ defmodule Cmd.SearchTest do
   test "search returns files ranked by similarity to query", %{project: project} do
     MockIndexer
     |> Mox.stub(:get_embeddings, fn text ->
-      base = List.duplicate(0.0, 3072)
+      base = List.duplicate(0.0, 384)
 
       embedding =
         cond do
@@ -23,7 +23,7 @@ defmodule Cmd.SearchTest do
             base |> List.replace_at(2, 1.0)
 
           true ->
-            List.duplicate(0.0, 3072)
+            List.duplicate(0.0, 384)
         end
 
       {:ok, embedding}
@@ -100,7 +100,7 @@ defmodule Cmd.SearchTest do
       )
 
       # Stub indexer to return zero-vector embeddings
-      MockIndexer |> Mox.stub(:get_embeddings, fn _text -> {:ok, List.duplicate(0.0, 3072)} end)
+      MockIndexer |> Mox.stub(:get_embeddings, fn _text -> {:ok, List.duplicate(0.0, 384)} end)
       # Define search options
       search_opts = %{
         project: project.name,

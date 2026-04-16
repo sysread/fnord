@@ -43,6 +43,9 @@ defmodule Cmd.Search do
 
   @impl Cmd
   def run(opts, _subcommands, _unknown) do
+    AI.Embeddings.Pool.ensure_started()
+    AI.Embeddings.Migration.maybe_migrate(:read_only)
+
     with {:ok, results} <- opts |> Search.Files.new() |> Search.Files.get_results() do
       results
       |> Enum.each(fn {entry, score, data} ->

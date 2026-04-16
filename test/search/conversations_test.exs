@@ -17,12 +17,15 @@ defmodule Search.ConversationsTest do
     {:ok, _} = Conversation.write(convo1, %{messages: messages})
     {:ok, _} = Conversation.write(convo2, %{messages: messages})
 
-    # Set embeddings with 3-element vectors to match StubIndexer
-    ConversationIndex.write_embeddings(project, convo1.id, [1.0, 2.0, 3.0], %{
+    # 384-dim vectors to match StubIndexer's output dimensions
+    stub_vec = List.duplicate(0.1, 384)
+    alt_vec = List.duplicate(0.05, 384)
+
+    ConversationIndex.write_embeddings(project, convo1.id, stub_vec, %{
       "last_indexed_ts" => 1
     })
 
-    ConversationIndex.write_embeddings(project, convo2.id, [3.0, 2.0, 1.0], %{
+    ConversationIndex.write_embeddings(project, convo2.id, alt_vec, %{
       "last_indexed_ts" => 1
     })
 

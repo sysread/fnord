@@ -80,7 +80,7 @@ defmodule Services.ConversationIndexer do
 
   @impl true
   def handle_continue(:process_next, %{task: nil, convo_queue: [convo | rest]} = state) do
-    if Services.BgIndexingControl.paused?(AI.Embeddings.model_name()) do
+    if Services.BgIndexingControl.paused?("embeddings") do
       {:stop, :normal, state}
     else
       {:ok, task_pid} = Task.start_link(fn -> safe_process(convo, state.impl, state.project) end)
@@ -100,7 +100,7 @@ defmodule Services.ConversationIndexer do
         {:stop, :normal, state}
 
       convo ->
-        if Services.BgIndexingControl.paused?(AI.Embeddings.model_name()) do
+        if Services.BgIndexingControl.paused?("embeddings") do
           {:stop, :normal, state}
         else
           {:ok, task_pid} =
@@ -156,15 +156,17 @@ defmodule Services.ConversationIndexer do
     try do
       case Store.Project.Conversation.read(convo) do
         {:ok, %{timestamp: ts, messages: messages, metadata: metadata}} ->
-          json = SafeJson.encode!(%{"messages" => messages})
+          transcript = format_transcript(messages)
 
-          with {:ok, embeddings} <- impl.get_embeddings(json) do
+          with {:ok, summary} <- summarize(transcript),
+               {:ok, embeddings} <- impl.get_embeddings(summary) do
             meta =
               metadata
               |> Map.merge(%{
                 "conversation_id" => convo.id,
                 "last_indexed_ts" => DateTime.to_unix(ts),
-                "message_count" => length(messages)
+                "message_count" => length(messages),
+                "summary" => summary
               })
 
             case project do
@@ -183,9 +185,23 @@ defmodule Services.ConversationIndexer do
               _ ->
                 :ok
             end
+          else
+            # summarize/get_embeddings failed. Log the shape so a user running
+            # with debug output can see *why* a conversation is stuck at
+            # :stale. Silent :ok used to hide API outages and protocol errors.
+            {:error, reason} ->
+              UI.debug(
+                "conversation_indexer",
+                "#{convo.id} failed: #{inspect(reason, limit: :infinity)}"
+              )
+
+              :ok
           end
 
-        _ ->
+        # Read failed (missing/corrupt file). Leave the conversation alone so
+        # the next scan sees it again; there's nothing to do in this pass.
+        {:error, reason} ->
+          UI.debug("conversation_indexer", "read failed for #{convo.id}: #{inspect(reason)}")
           :ok
       end
     rescue
@@ -193,6 +209,42 @@ defmodule Services.ConversationIndexer do
         UI.debug("conversation_indexer", "Processing failed: #{Exception.message(e)}")
         :ok
     end
+  end
+
+  # Build a human-readable transcript from the raw message list for the
+  # summarizer. Only user and assistant messages carry meaningful content.
+  defp format_transcript(messages) do
+    messages
+    |> Enum.filter(fn msg ->
+      Map.get(msg, "role") in ["user", "assistant"]
+    end)
+    |> Enum.map(fn msg ->
+      role = Map.get(msg, "role", "unknown")
+      content = extract_text_content(Map.get(msg, "content", ""))
+      "#{role}: #{content}"
+    end)
+    |> Enum.join("\n\n")
+  end
+
+  # Content can be a plain string or a list of typed content blocks
+  # (the shared multi-part format used across Claude/OpenAI-compatible APIs).
+  defp extract_text_content(content) when is_binary(content), do: content
+
+  defp extract_text_content(content) when is_list(content) do
+    content
+    |> Enum.filter(fn
+      %{"type" => "text"} -> true
+      _ -> false
+    end)
+    |> Enum.map_join("\n", &Map.get(&1, "text", ""))
+  end
+
+  defp extract_text_content(_), do: ""
+
+  defp summarize(transcript) do
+    AI.Agent.ConversationSummary
+    |> AI.Agent.new(named?: false)
+    |> AI.Agent.get_response(%{transcript: transcript})
   end
 
   @spec next_stale_conversation(state) :: Store.Project.Conversation.t() | nil

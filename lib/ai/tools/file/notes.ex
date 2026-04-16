@@ -28,21 +28,20 @@ defmodule AI.Tools.File.Notes do
       function: %{
         name: "file_notes_tool",
         description: """
-        Returns a summary and outline of the specified file if it has been
-        indexed, or indicates that the file exists but has not been indexed
-        yet. This is often MUCH more useful than the raw file contents,
-        especially if the file may be large and you need only a high-level
-        understanding of the file's purpose, behaviour, and linkage to
-        other files.
+        Returns the indexed summary of the specified file, or indicates that
+        the file exists but has not been indexed yet. This is often MUCH more
+        useful than the raw file contents, especially if the file may be large
+        and you need only a high-level understanding of the file's purpose,
+        behaviour, and linkage to other files.
 
         Use this before using the file_contents_tool to avoid pulling in
         unnecessary content into your context window.
 
         Scope: this tool only works on *indexed* source files. Gitignored
-        paths (e.g. `scratch/` notes) are not indexed and have no summary or
-        outline, but the tool will still confirm that such a file exists in
-        the source repo if you're in a worktree session, and it will point
-        you at file_contents_tool for actually reading the contents.
+        paths (e.g. `scratch/` notes) are not indexed, but the tool will still
+        confirm that such a file exists in the source repo if you're in a
+        worktree session, and it will point you at file_contents_tool for
+        actually reading the contents.
         """,
         parameters: %{
           additionalProperties: false,
@@ -70,9 +69,8 @@ defmodule AI.Tools.File.Notes do
       # indexed data on disk - we return what we have either way.
       entry = Store.Project.Entry.new_from_file_path(project, resolved)
       summary = read_or_shim(fn -> Store.Project.Entry.read_summary(entry) end)
-      outline = read_or_shim(fn -> Store.Project.Entry.read_outline(entry) end)
 
-      {:ok, format_notes(resolved, summary, outline)}
+      {:ok, format_notes(resolved, summary)}
     else
       {:error, :project_not_set} ->
         {:error, "This project has not yet been indexed by the user."}
@@ -121,9 +119,6 @@ defmodule AI.Tools.File.Notes do
     (not indexed - this file is gitignored and lives in the source repo,
     not the current worktree)
 
-    # Outline
-    (not indexed)
-
     # Reading the contents
     Use `file_contents_tool` with the same path you used here. In a worktree
     session it will automatically read this gitignored file from the source
@@ -140,16 +135,13 @@ defmodule AI.Tools.File.Notes do
     end
   end
 
-  defp format_notes(file, summary, outline) do
+  defp format_notes(file, summary) do
     """
     # File
     `#{file}`
 
     # Summary
     #{summary}
-
-    # Outline
-    #{outline}
     """
   end
 end

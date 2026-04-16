@@ -314,6 +314,34 @@ defmodule Store.Project do
   @spec source_files(t) :: {t, Enumerable.t()}
 
   def source_files(project) do
+    case Store.Project.Source.mode(project) do
+      :git -> source_files_git(project)
+      :fs -> source_files_fs(project)
+    end
+  end
+
+  # Git mode: enumerate the default branch's tree. Tracked files are by
+  # definition not gitignored, so we skip that merge entirely. User
+  # excludes (`project.exclude`) still apply. Binary-vs-text filtering
+  # is skipped - users who track binary artifacts should list them in
+  # `exclude`, and checking every blob would require a `git show` round
+  # trip per file just to classify.
+  defp source_files_git(project) do
+    {project, user_excluded} = user_excluded_paths(project)
+
+    files =
+      project
+      |> Store.Project.Source.list()
+      |> Stream.filter(fn %{abs_path: abs} -> not Map.has_key?(user_excluded, abs) end)
+      |> Stream.filter(fn %{rel_path: rel} -> not is_hidden_rel?(rel) end)
+      |> Stream.map(fn %{abs_path: abs} ->
+        Store.Project.Entry.new_from_file_path(project, abs)
+      end)
+
+    {project, files}
+  end
+
+  defp source_files_fs(project) do
     {project, excluded_paths} = excluded_paths(project)
 
     files =
@@ -331,16 +359,30 @@ defmodule Store.Project do
   def delete_missing_files(project) do
     {project, excluded_paths} = excluded_paths(project)
 
+    # "Missing" means two different things depending on source mode:
+    #   :git - the file isn't in the default branch's tree (even if it
+    #          still exists in the working tree - we index what's on
+    #          the default branch, so WIP-only files aren't "real" for
+    #          the index).
+    #   :fs  - the file isn't in the working tree.
+    # Excluded-by-user entries are dropped in either mode.
+    missing? = &missing_source?(&1, project, excluded_paths)
+
     entries =
       project
       |> stored_files()
-      |> Stream.filter(&(Map.has_key?(excluded_paths, &1.file) || !File.exists?(&1.file)))
+      |> Stream.filter(missing?)
       |> Stream.map(fn entry ->
         Store.Project.Entry.delete(entry)
         entry
       end)
 
     {project, entries}
+  end
+
+  defp missing_source?(entry, project, excluded_paths) do
+    Map.has_key?(excluded_paths, entry.file) or
+      not Store.Project.Source.exists?(project, entry.rel_path)
   end
 
   @doc """
@@ -374,9 +416,11 @@ defmodule Store.Project do
         Store.Project.Entry.exists_in_store?(entry) and Store.Project.Entry.is_stale?(entry)
       end)
 
+    # In git mode, "deleted" means "not in the default branch's tree".
+    # Source.exists? handles the mode routing for us.
     deleted =
       stored
-      |> Enum.filter(fn entry -> not File.exists?(entry.file) end)
+      |> Enum.filter(fn entry -> not Store.Project.Source.exists?(project, entry.rel_path) end)
 
     %{
       new: new,
@@ -443,29 +487,7 @@ defmodule Store.Project do
 
   # Computes excluded file paths, caching the result
   defp excluded_paths(%{exclude_cache: nil} = project) do
-    user_excluded =
-      if is_nil(project.exclude) do
-        %{}
-      else
-        project.exclude
-        |> Enum.flat_map(fn exclude ->
-          case find_path_in_source_root(project, exclude) do
-            # If it's a directory, exclude all files in that directory
-            {:ok, :dir, path} -> Path.wildcard(Path.join(path, "**/*"), match_dot: true)
-            # If it's a single file, exclude just that file
-            {:ok, :file, path} -> [path]
-            # Otherwise, treat it as a glob
-            _ -> Path.wildcard(exclude, match_dot: true)
-          end
-        end)
-        # Filter out directories and non-existent files
-        |> Enum.filter(&File.regular?/1)
-        # Convert everything to absolute paths
-        |> Enum.map(&Path.absname/1)
-        # Convert to a Map for faster lookups
-        |> Map.new(&{&1, true})
-      end
-
+    {project, user_excluded} = user_excluded_paths(project)
     excluded = Map.merge(user_excluded, git_ignored(project.source_root))
 
     {%{project | exclude_cache: excluded}, excluded}
@@ -473,6 +495,43 @@ defmodule Store.Project do
 
   defp excluded_paths(%{exclude_cache: excluded} = project) do
     {project, excluded}
+  end
+
+  # Just the user-level `project.exclude` patterns resolved to absolute
+  # paths. Used by git-mode enumeration where gitignore is irrelevant
+  # (tracked files aren't ignored, by definition).
+  defp user_excluded_paths(project) do
+    user_excluded =
+      if is_nil(project.exclude) do
+        %{}
+      else
+        project.exclude
+        |> Enum.flat_map(fn exclude ->
+          case find_path_in_source_root(project, exclude) do
+            {:ok, :dir, path} -> Path.wildcard(Path.join(path, "**/*"), match_dot: true)
+            {:ok, :file, path} -> [path]
+            _ -> Path.wildcard(exclude, match_dot: true)
+          end
+        end)
+        |> Enum.filter(&File.regular?/1)
+        |> Enum.map(&Path.absname/1)
+        |> Map.new(&{&1, true})
+      end
+
+    {project, user_excluded}
+  end
+
+  # Hidden-path heuristic for git-mode listings. Mirrors is_hidden?/1 but
+  # operates on relative paths: a tracked file under .github/ is fine,
+  # but tracked dotfiles (.envrc, etc.) and anything under a dot-dir
+  # (like a .hidden-cache/) are skipped.
+  defp is_hidden_rel?(rel_path) do
+    cond do
+      String.starts_with?(rel_path, ".github/") -> false
+      String.starts_with?(rel_path, ".") -> true
+      String.contains?(rel_path, "/.") -> true
+      true -> false
+    end
   end
 
   defp relative_to!(path, cwd) do

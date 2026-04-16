@@ -43,7 +43,7 @@ defmodule Store.Project.FilesDirMigration do
           if not File.exists?(target_path) do
             File.rename!(legacy_path, target_path)
           else
-            for filename <- ["metadata.json", "summary", "outline", "embeddings.json"] do
+            for filename <- ["metadata.json", "summary", "embeddings.json"] do
               src = Path.join(legacy_path, filename)
               dest = Path.join(target_path, filename)
 
@@ -62,8 +62,22 @@ defmodule Store.Project.FilesDirMigration do
       []
     )
     |> case do
-      {:ok, :ok} -> :ok
-      {:error, :lock_failed} -> :ok
+      {:ok, :ok} ->
+        :ok
+
+      {:error, :lock_failed} ->
+        :ok
+
+      # Surface the underlying exception instead of crashing the caller
+      # with a CaseClauseError. The outer scheme rescue in `index_project`
+      # would otherwise report this as a generic "an error occurred".
+      {:callback_error, exception} ->
+        UI.error(
+          "[files_dir_migration] migration failed",
+          Exception.message(exception)
+        )
+
+        :ok
     end
   end
 end

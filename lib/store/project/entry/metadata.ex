@@ -31,16 +31,19 @@ defmodule Store.Project.Entry.Metadata do
 
   @impl Store.Project.EntryFile
   def write(file, data \\ %{}) do
-    rel_path =
-      case data do
-        %{} -> Map.get(data, :rel_path) || Map.get(data, "rel_path")
-        _ -> nil
-      end
+    data = if is_map(data), do: data, else: %{}
+    rel_path = Map.get(data, :rel_path) || Map.get(data, "rel_path")
+    # Callers that know the content hash upfront (git mode passes the blob
+    # SHA straight through from ls-tree) should set `hash:` in `data`.
+    # Otherwise we fall back to hashing the working-tree file so this
+    # function remains usable from test / tooling call sites that bypass
+    # the Source-aware save pipeline.
+    hash = Map.get(data, :hash) || Map.get(data, "hash") || mkhash(file.source_file)
 
     %{
       file: rel_path || file.source_file,
       timestamp: DateTime.utc_now(),
-      hash: mkhash(file.source_file)
+      hash: hash
     }
     |> SafeJson.encode()
     |> case do

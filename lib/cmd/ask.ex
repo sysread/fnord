@@ -178,6 +178,11 @@ defmodule Cmd.Ask do
       UI.warning_banner("...AND MAY THE ON-CALL HAVE MERCY ON YOUR SOUL.")
     end
 
+    # Start the local embedding model pool. Must happen before indexers since
+    # they depend on AI.Embeddings.Pool for embedding generation.
+    AI.Embeddings.Pool.ensure_started()
+    AI.Embeddings.Migration.maybe_migrate(:ask)
+
     # Start silent background indexers. This must happen BEFORE any project
     # root override is applied, so that the indexers use the correct root.
     # MemoryIndexer and ConversationIndexer are independent: the memory

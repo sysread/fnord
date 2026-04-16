@@ -168,6 +168,90 @@ defmodule MemoryTest do
       assert {:ok, _} = Memory.read(:global, title2)
     end
 
+    test "stale?/2 is false for a memory that doesn't exist" do
+      refute Memory.stale?(:global, "No Such Memory")
+    end
+
+    test "stale?/2 is true when the stored embedding is nil" do
+      mem = %Memory{
+        scope: :global,
+        title: "Stale Nil",
+        slug: Memory.title_to_slug("Stale Nil"),
+        content: "c",
+        topics: [],
+        embeddings: nil,
+        inserted_at: nil,
+        updated_at: nil
+      }
+
+      assert {:ok, _} = Memory.save(mem, skip_embeddings: true)
+      assert Memory.stale?(:global, "Stale Nil")
+    end
+
+    test "stale?/2 is true when the stored embedding has the wrong dimension" do
+      mem = %Memory{
+        scope: :global,
+        title: "Wrong Dim",
+        slug: Memory.title_to_slug("Wrong Dim"),
+        content: "c",
+        topics: [],
+        # 3 floats vs the current model's 384-dim vector.
+        embeddings: [0.1, 0.2, 0.3],
+        inserted_at: nil,
+        updated_at: nil
+      }
+
+      assert {:ok, _} = Memory.save(mem, skip_embeddings: true)
+      assert Memory.stale?(:global, "Wrong Dim")
+    end
+
+    test "stale?/2 is false when the stored embedding has the right dimension" do
+      mem = %Memory{
+        scope: :global,
+        title: "Right Dim",
+        slug: Memory.title_to_slug("Right Dim"),
+        content: "c",
+        topics: [],
+        embeddings: List.duplicate(0.0, AI.Embeddings.dimensions()),
+        inserted_at: nil,
+        updated_at: nil
+      }
+
+      assert {:ok, _} = Memory.save(mem, skip_embeddings: true)
+      refute Memory.stale?(:global, "Right Dim")
+    end
+  end
+
+  describe "lock_path/2" do
+    test "global: returns a path under the global memory dir keyed by slug" do
+      assert {:ok, path} = Memory.lock_path(:global, "Some Title")
+
+      expected_dir = Path.join(Store.store_home(), "memory")
+      assert String.starts_with?(path, expected_dir)
+      # The lock key embeds the slug, not the raw title.
+      slug = Memory.title_to_slug("Some Title")
+      assert String.ends_with?(path, "#{slug}.embedding")
+    end
+
+    test "project: returns a path under the project memory dir keyed by slug" do
+      project = mock_project("mem_lock_project")
+
+      assert {:ok, path} = Memory.lock_path(:project, "Project Title")
+
+      expected_dir = Path.join(project.store_path, "memory")
+      assert String.starts_with?(path, expected_dir)
+      slug = Memory.title_to_slug("Project Title")
+      assert String.ends_with?(path, "#{slug}.embedding")
+    end
+
+    test "project: returns an error when no project is selected" do
+      Services.Globals.put_env(:fnord, :project, nil)
+
+      assert {:error, _} = Memory.lock_path(:project, "Anything")
+    end
+  end
+
+  describe "Memory.is_stale?/1 (instance-level)" do
     test "is_stale?/1 is true when embeddings are nil" do
       mem = %Memory{
         scope: :global,
