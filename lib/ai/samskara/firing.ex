@@ -73,17 +73,10 @@ defmodule AI.Samskara.Firing do
   @spec embed(binary) :: {:ok, [float]} | {:error, term}
   def embed(text) when is_binary(text) do
     case AI.Embeddings.get(text) do
-      {:ok, vec} when is_list(vec) -> {:ok, flatten(vec)}
+      {:ok, vec} when is_list(vec) -> {:ok, vec}
       {:error, _} = err -> err
     end
   end
-
-  # AI.Embeddings.get/1 currently returns a merged single vector as a plain
-  # list(float). Older/alternate shapes may return list(list(float)); accept
-  # both by flattening a one-level nested list.
-  defp flatten([first | _] = vec) when is_number(first), do: vec
-  defp flatten([first | _]) when is_list(first), do: first
-  defp flatten(_), do: []
 
   defp log_firings(_query, []), do: :ok
 

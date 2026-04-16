@@ -317,12 +317,11 @@ defmodule AI.Agent.Intuition do
 
   defp get_subconscious_union(%{error: msg}), do: {:error, msg}
 
-  @spec perception_text(nil | AI.Agent.Perception.Result.t() | binary) :: binary
+  @spec perception_text(nil | AI.Agent.Perception.Result.t()) :: binary
   defp perception_text(nil), do: ""
   defp perception_text(%AI.Agent.Perception.Result{raw: raw}) when is_binary(raw) and raw != "", do: raw
   defp perception_text(%AI.Agent.Perception.Result{observation: obs}) when is_binary(obs), do: obs
-  defp perception_text(text) when is_binary(text), do: text
-  defp perception_text(_), do: ""
+  defp perception_text(%AI.Agent.Perception.Result{}), do: ""
 
   @spec samskara_section(list(Store.Project.Samskara.Record.t())) :: binary
   defp samskara_section([]), do: ""

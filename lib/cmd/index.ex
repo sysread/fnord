@@ -409,10 +409,6 @@ defmodule Cmd.Index do
 
         {:ok, :noop} ->
           {"No samskaras to consolidate", :ok}
-
-        {:error, reason} ->
-          UI.warn("samskara consolidation failed", inspect(reason))
-          {"Samskara consolidation skipped", :ok}
       end
     end)
 
