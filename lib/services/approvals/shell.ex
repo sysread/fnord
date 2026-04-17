@@ -26,6 +26,79 @@ defmodule Services.Approvals.Shell do
   """
 
   # ----------------------------------------------------------------------------
+  # Conversation-scoped persistence (session approvals)
+  # ----------------------------------------------------------------------------
+  defp current_conversation_pid() do
+    Services.Globals.get_env(:fnord, :current_conversation, nil)
+  end
+
+  defp load_session_approvals_from_meta() do
+    case current_conversation_pid() do
+      pid when is_pid(pid) ->
+        meta = Services.Conversation.get_conversation_meta(pid)
+
+        meta
+        |> Map.get(:session_shell_approvals, [])
+        |> normalize_meta_approvals()
+
+      _ ->
+        []
+    end
+  end
+
+  defp normalize_meta_approvals(list) when is_list(list) do
+    Enum.flat_map(list, fn item ->
+      cond do
+        is_map(item) ->
+          kind = Map.get(item, :kind) || Map.get(item, "kind")
+          value = Map.get(item, :value) || Map.get(item, "value")
+
+          case kind do
+            "prefix" -> [{:prefix, value}]
+            :prefix -> [{:prefix, value}]
+            "full" -> [{:full, value}]
+            :full -> [{:full, value}]
+            _ -> []
+          end
+
+        true ->
+          []
+      end
+    end)
+    |> Enum.filter(fn
+      {:prefix, v} when is_binary(v) -> true
+      {:full, v} when is_binary(v) -> true
+      _ -> false
+    end)
+  end
+
+  defp persist_session_approval(kind, value) when kind in [:prefix, :full] and is_binary(value) do
+    case current_conversation_pid() do
+      pid when is_pid(pid) ->
+        meta = Services.Conversation.get_conversation_meta(pid)
+        existing = Map.get(meta, :session_shell_approvals, [])
+        normalized = normalize_meta_approvals(existing)
+        # ensure uniqueness when appending
+        new_list =
+          normalized
+          |> Enum.concat([{kind, value}])
+          |> Enum.uniq()
+          |> Enum.map(fn
+            {:prefix, v} -> %{kind: :prefix, value: v}
+            {:full, v} -> %{kind: :full, value: v}
+          end)
+
+        :ok =
+          Services.Conversation.upsert_conversation_meta(pid, %{session_shell_approvals: new_list})
+
+        :ok
+
+      _ ->
+        :ok
+    end
+  end
+
+  # ----------------------------------------------------------------------------
   # Behaviour implementation
   # ----------------------------------------------------------------------------
   @behaviour Services.Approvals.Workflow
@@ -34,6 +107,10 @@ defmodule Services.Approvals.Shell do
   @spec confirm(state, args) :: decision
   def confirm(state, {op, commands, purpose}) when is_list(commands) do
     with :ok <- validate_commands(commands) do
+      # Merge any conversation-persisted session approvals into this state
+      persisted = load_session_approvals_from_meta()
+      state = %{state | session: (Map.get(state, :session, []) ++ persisted) |> Enum.uniq()}
+
       # Build list of {prefix, full_command} pairs
       stages =
         Enum.map(commands, fn cmd ->
@@ -410,6 +487,7 @@ defmodule Services.Approvals.Shell do
 
   defp approve_scope(@session, %{session: session} = state, prefix) do
     prefixes = session |> Enum.concat([{:prefix, prefix}]) |> Enum.uniq()
+    :ok = persist_session_approval(:prefix, prefix)
     {:approved, %{state | session: prefixes}}
   end
 
@@ -424,6 +502,7 @@ defmodule Services.Approvals.Shell do
   end
 
   defp approve_regex_scope(@session, %{session: session} = state, inner, _prefix) do
+    :ok = persist_session_approval(:full, inner)
     prefixes = session |> Enum.concat([{:full, inner}]) |> Enum.uniq()
     {:approved, %{state | session: prefixes}}
   end
