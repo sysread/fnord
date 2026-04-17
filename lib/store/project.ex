@@ -5,6 +5,7 @@ defmodule Store.Project do
     :source_root,
     :exclude,
     :conversation_dir,
+    :samskara_dir,
     :exclude_cache
   ]
 
@@ -18,6 +19,7 @@ defmodule Store.Project do
 
   @conversation_dir "conversations"
   @files_dir "files"
+  @samskara_dir "samskaras"
 
   @spec new(String.t(), String.t()) :: t
   def new(project_name, store_path) do
@@ -37,7 +39,8 @@ defmodule Store.Project do
       store_path: store_path,
       source_root: root,
       exclude: exclude,
-      conversation_dir: Path.join(store_path, @conversation_dir)
+      conversation_dir: Path.join(store_path, @conversation_dir),
+      samskara_dir: Path.join(store_path, @samskara_dir)
     }
   end
 
@@ -93,6 +96,8 @@ defmodule Store.Project do
     project.conversation_dir |> File.mkdir_p!()
     # Create files directory for future file entries
     project |> files_root() |> File.mkdir_p!()
+    # Create samskara directory for minted impressions
+    project.samskara_dir |> File.mkdir_p!()
     # Initialize notes
     Path.join(project.store_path, "notes.md") |> File.touch!()
     project

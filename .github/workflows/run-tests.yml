@@ -2,7 +2,7 @@ name: Run tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, samskara]
   pull_request:
 
 concurrency:
@@ -68,6 +68,12 @@ jobs:
         MIX_ENV=dev mix docs |& tee "$tmpfile"
         # Fail if any warnings or errors are present in the output
         if grep -Eiq '\b(warning|error)\b' "$tmpfile"; then
+          echo "::group::Offending lines from mix docs output"
+          grep -nEi -C 2 '\b(warning|error)\b' "$tmpfile" || true
+          echo "::endgroup::"
+          grep -nEi '\b(warning|error)\b' "$tmpfile" | while IFS=: read -r lineno rest; do
+            echo "::error title=docs warning (line ${lineno})::${rest}"
+          done
           echo "::error::Documentation build emitted warnings or errors. Treating as failure."
           exit 1
         fi

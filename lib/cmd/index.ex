@@ -392,10 +392,26 @@ defmodule Cmd.Index do
       status,
       index_commits(project),
       index_conversations(project),
-      index_memories()
+      index_memories(),
+      consolidate_samskaras(project)
     ]
 
     aggregate_phase_results(phase_results)
+  end
+
+  @spec consolidate_samskaras(Store.Project.t()) :: :ok
+  defp consolidate_samskaras(project) do
+    UI.spin("Consolidating samskaras", fn ->
+      case AI.Agent.SamskaraConsolidator.run(project) do
+        {:ok, %{consolidated: c, impressions: i}} ->
+          {"Consolidated #{c} samskara(s) into #{i} impression(s)", :ok}
+
+        {:ok, :noop} ->
+          {"No samskaras to consolidate", :ok}
+      end
+    end)
+
+    :ok
   end
 
   # Guards against fat-finger --workers values. Upper bound is 4x the

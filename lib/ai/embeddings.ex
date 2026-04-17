@@ -40,4 +40,30 @@ defmodule AI.Embeddings do
       AI.Embeddings.Pool.embed(input)
     end
   end
+
+  @doc """
+  Cosine similarity between two equal-length vectors. Returns 0.0 when either
+  vector is zero-magnitude or the inputs differ in length.
+  """
+  @spec cosine_similarity(embedding(), embedding()) :: float()
+  def cosine_similarity(a, b) when is_list(a) and is_list(b) do
+    cond do
+      a == [] or b == [] -> 0.0
+      length(a) != length(b) -> 0.0
+      true -> do_cosine(a, b)
+    end
+  end
+
+  defp do_cosine(a, b) do
+    {dot, mag_a, mag_b} =
+      Enum.zip_reduce(a, b, {0.0, 0.0, 0.0}, fn x, y, {d, ma, mb} ->
+        {d + x * y, ma + x * x, mb + y * y}
+      end)
+
+    if mag_a == 0.0 or mag_b == 0.0 do
+      0.0
+    else
+      dot / (:math.sqrt(mag_a) * :math.sqrt(mag_b))
+    end
+  end
 end

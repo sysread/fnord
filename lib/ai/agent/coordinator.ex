@@ -25,6 +25,8 @@ defmodule AI.Agent.Coordinator do
     :usage,
     :context,
     :intuition,
+    :perception,
+    :samskaras,
     :editing_tools_used,
     :last_validation_fingerprint,
     :interrupts
@@ -50,6 +52,8 @@ defmodule AI.Agent.Coordinator do
           usage: non_neg_integer,
           context: non_neg_integer,
           intuition: binary | nil,
+          perception: AI.Agent.Perception.Result.t() | nil,
+          samskaras: [Store.Project.Samskara.Record.t()],
           editing_tools_used: boolean,
           last_validation_fingerprint: String.t() | nil,
 
@@ -137,6 +141,8 @@ defmodule AI.Agent.Coordinator do
         usage: 0,
         context: model.context,
         intuition: nil,
+        perception: nil,
+        samskaras: [],
         editing_tools_used: false,
         last_validation_fingerprint: nil,
         interrupts: AI.Agent.Coordinator.Interrupts.new()
@@ -176,6 +182,8 @@ defmodule AI.Agent.Coordinator do
     |> initial_msg()
     |> AI.Agent.Coordinator.Memory.identity_msg()
     |> user_msg()
+    |> AI.Agent.Coordinator.Samskara.prepare()
+    |> AI.Agent.Coordinator.Samskara.preamble_msg()
     |> AI.Agent.Coordinator.Intuition.automatic_thoughts_msg()
     |> with_memories()
     |> project_prompt_msg()

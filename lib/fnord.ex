@@ -85,6 +85,7 @@ defmodule Fnord do
       Cmd.Projects,
       Cmd.Memory,
       Cmd.Replay,
+      Cmd.Samskara,
       Cmd.Search,
       Cmd.Skills,
       Cmd.Summary,

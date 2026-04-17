@@ -26,4 +26,32 @@ defmodule AI.EmbeddingsTest do
       assert AI.Embeddings.dimensions() == 384
     end
   end
+
+  describe "cosine_similarity/2" do
+    test "identical vectors return 1.0" do
+      v = [1.0, 2.0, 3.0]
+      assert_in_delta AI.Embeddings.cosine_similarity(v, v), 1.0, 1.0e-9
+    end
+
+    test "orthogonal vectors return 0.0" do
+      assert AI.Embeddings.cosine_similarity([1.0, 0.0], [0.0, 1.0]) == 0.0
+    end
+
+    test "opposing vectors return -1.0" do
+      assert_in_delta AI.Embeddings.cosine_similarity([1.0, 2.0], [-1.0, -2.0]), -1.0, 1.0e-9
+    end
+
+    test "empty vectors return 0.0" do
+      assert AI.Embeddings.cosine_similarity([], [1.0]) == 0.0
+      assert AI.Embeddings.cosine_similarity([1.0], []) == 0.0
+    end
+
+    test "mismatched lengths return 0.0" do
+      assert AI.Embeddings.cosine_similarity([1.0, 2.0], [1.0]) == 0.0
+    end
+
+    test "zero-magnitude vector returns 0.0" do
+      assert AI.Embeddings.cosine_similarity([0.0, 0.0], [1.0, 1.0]) == 0.0
+    end
+  end
 end
