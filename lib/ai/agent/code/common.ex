@@ -173,7 +173,7 @@ defmodule AI.Agent.Code.Common do
         - Concrete bug: provide the exact path (caller -> callee), show which preconditions are satisfied, and why a failing state can occur now.
         - Potential issue: if reachability depends on changes or bypassing a guard, label as potential and specify exactly what would have to change.
       - Cite minimal evidence: file paths, symbols, relevant snippets, and the shortest proof chain.
-    - ALWAYS check for READMEs, CONTRIBUTING files, AGENTS.md, CLAUDE.md, etc., to identify conventions and expectations for the area(s) of the code you are working on.
+    - At the start of your work, if you have not already done so in this session, check for READMEs, CONTRIBUTING files, AGENTS.md, CLAUDE.md, etc., to identify conventions and expectations for the area(s) of the code you are working on. Do NOT re-read these files during verification or re-orientation passes; once per session is enough. If a file is missing, accept that once and do not retry.
     - Testability and environment rules:
       - Never add test-only branches or functions in production code.
       - Prefer testable structure and DI: extract production helpers or adapters and test through public APIs and injected boundaries (UI, Services, adapters).

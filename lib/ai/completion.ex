@@ -43,7 +43,15 @@ defmodule AI.Completion do
     # injection (which appends user messages into state.messages between LLM
     # iterations) does not hide tool calls that fired earlier in the same
     # round. See tools_used/1 for the rationale.
-    :initial_message_count
+    :initial_message_count,
+    # Tool-round counter + cap. One round == one `{:ok, :tool, _}` response
+    # from the model. When the counter hits the cap, the next send_request
+    # drops the tool surface and injects a system nudge telling the model
+    # to produce its final answer. Prevents runaway verify-loops in
+    # sub-agents that keep deciding to "check one more thing" without
+    # emitting a final response. See maybe_nudge_wrap_up/1.
+    :tool_round_count,
+    :tool_round_cap
   ]
 
   @type t :: %__MODULE__{
@@ -64,7 +72,9 @@ defmodule AI.Completion do
           response: String.t() | nil,
           compact?: bool,
           is_compacting?: bool,
-          initial_message_count: non_neg_integer()
+          initial_message_count: non_neg_integer(),
+          tool_round_count: non_neg_integer(),
+          tool_round_cap: pos_integer()
         }
 
   @type response ::
@@ -74,6 +84,13 @@ defmodule AI.Completion do
           | {:error, :context_length_exceeded, non_neg_integer}
 
   @tool_output_preview 1024
+
+  # Cap on tool-call rounds per get/1 invocation. One round is one
+  # `{:ok, :tool, _}` response that triggers a recursive `send_request`.
+  # Default is conservative enough to catch verify-thrashing (observed at
+  # 300+ rounds in a runaway coder session) while leaving headroom for
+  # legitimately multi-file changes. Override via FNORD_TOOL_ROUND_CAP.
+  @default_tool_round_cap 75
 
   @spec get(Keyword.t()) :: response
   def get(opts) do
@@ -153,7 +170,9 @@ defmodule AI.Completion do
           response: nil,
           compact?: compact?,
           is_compacting?: false,
-          initial_message_count: initial_message_count
+          initial_message_count: initial_message_count,
+          tool_round_count: 0,
+          tool_round_cap: resolve_tool_round_cap()
         }
 
       {:ok, state}
@@ -270,8 +289,10 @@ defmodule AI.Completion do
     state
     |> Map.put(:is_compacting?, false)
     |> Map.put(:tool_call_requests, tool_calls)
+    |> Map.update(:tool_round_count, 1, &(&1 + 1))
     |> handle_tool_calls()
     |> maybe_apply_interrupts()
+    |> maybe_nudge_wrap_up()
     |> send_request()
   end
 
@@ -708,5 +729,44 @@ defmodule AI.Completion do
       _ ->
         nil
     end)
+  end
+
+  # Guard against runaway tool loops. Once the model has made
+  # `tool_round_cap` rounds of tool calls in a single `get/1`, drop the
+  # tool surface (so the model MUST emit text on the next call) and
+  # inject a system nudge explaining what just happened.
+  @spec maybe_nudge_wrap_up(t) :: t
+  defp maybe_nudge_wrap_up(%__MODULE__{tool_round_count: n, tool_round_cap: cap} = state)
+       when n == cap do
+    nudge = """
+    You have made #{n} rounds of tool calls in this turn. That is the
+    configured cap. Stop calling tools and produce your final response
+    now, based on what you have already gathered. If you were verifying,
+    re-checking, or re-reading conventions, rely on prior reads in this
+    session. Further tool calls will not be executed (the tool surface
+    has been withdrawn for the next model call).
+    """
+
+    %{
+      state
+      | messages: state.messages ++ [AI.Util.system_msg(nudge)],
+        specs: nil,
+        toolbox: nil
+    }
+  end
+
+  defp maybe_nudge_wrap_up(state), do: state
+
+  defp resolve_tool_round_cap do
+    case Util.Env.get_env("FNORD_TOOL_ROUND_CAP") do
+      nil ->
+        @default_tool_round_cap
+
+      raw ->
+        case Integer.parse(raw) do
+          {n, ""} when n > 0 -> n
+          _ -> @default_tool_round_cap
+        end
+    end
   end
 end

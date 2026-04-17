@@ -638,4 +638,91 @@ defmodule AI.CompletionTest do
       assert List.last(state.messages).content == "done"
     end
   end
+
+  describe "tool-round cap" do
+    # Repro of the verify-thrashing pathology: a stuck model keeps asking
+    # for tool calls without ever emitting a final response. After
+    # `tool_round_cap` rounds, Completion should drop the tool surface,
+    # inject a system nudge, and let the model finalize on the next call.
+    test "stuck tool-call loop terminates after cap with nudge injected" do
+      System.put_env("FNORD_TOOL_ROUND_CAP", "3")
+      on_exit(fn -> System.delete_env("FNORD_TOOL_ROUND_CAP") end)
+
+      # Track how many times the API has been called. Returns :tool for
+      # as long as specs is a list (before the cap drops it), and :msg
+      # once specs has been withdrawn.
+      {:ok, counter} = Agent.start_link(fn -> 0 end)
+
+      on_exit(fn ->
+        if Process.alive?(counter), do: Agent.stop(counter)
+      end)
+
+      :meck.expect(AI.CompletionAPI, :get, fn _model,
+                                              _msgs,
+                                              specs,
+                                              _res_fmt,
+                                              _web_srch?,
+                                              _verbosity ->
+        count = Agent.get_and_update(counter, fn c -> {c + 1, c + 1} end)
+
+        if is_nil(specs) do
+          {:ok, :msg, "final response after cap (round #{count})", 0}
+        else
+          tool_call = %{id: count, function: %{name: "test_tool", arguments: "{}"}}
+          {:ok, :tool, [tool_call]}
+        end
+      end)
+
+      user_msg = %{role: "user", content: "go"}
+
+      assert {:ok, state} =
+               AI.Completion.get(
+                 model: AI.Model.new("dummy", 0),
+                 messages: [user_msg],
+                 toolbox: %{"test_tool" => __MODULE__.TestTool}
+               )
+
+      # The nudge was injected after the cap was reached.
+      assert Enum.any?(state.messages, fn msg ->
+               content = Map.get(msg, :content) || ""
+               content =~ "rounds of tool calls" and content =~ "cap"
+             end)
+
+      # Tool surface was withdrawn.
+      assert state.specs == nil
+      assert state.toolbox == nil
+
+      # Final response came from the model's :msg reply after the cap.
+      assert state.response =~ "final response after cap"
+      assert state.tool_round_count == 3
+    end
+
+    test "env var FNORD_TOOL_ROUND_CAP overrides the default" do
+      System.put_env("FNORD_TOOL_ROUND_CAP", "42")
+      on_exit(fn -> System.delete_env("FNORD_TOOL_ROUND_CAP") end)
+
+      assert {:ok, state} =
+               AI.Completion.new(
+                 model: "m",
+                 messages: [%{role: "user", content: "yo"}]
+               )
+
+      assert state.tool_round_cap == 42
+    end
+
+    test "invalid FNORD_TOOL_ROUND_CAP falls back to the default" do
+      System.put_env("FNORD_TOOL_ROUND_CAP", "not-a-number")
+      on_exit(fn -> System.delete_env("FNORD_TOOL_ROUND_CAP") end)
+
+      assert {:ok, state} =
+               AI.Completion.new(
+                 model: "m",
+                 messages: [%{role: "user", content: "yo"}]
+               )
+
+      # Non-integer falls back to the compiled-in default; assert it is at
+      # least positive without pinning the constant value.
+      assert state.tool_round_cap >= 1
+    end
+  end
 end
