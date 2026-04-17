@@ -17,12 +17,13 @@ defmodule ExternalConfigs.Agent do
   1. `ExternalConfigs.Loader.load_claude_agents/1` discovers `.md` files
      under the global and project agents dirs, calls `from_file/2` per
      entry, and caches the resulting list.
-  2. `ExternalConfigs.Catalog.partition_agents/1` filters out agents
-     whose `tools` list implies edit capability when fnord isn't in
-     edit mode, then feeds the rest to the skills catalog prompt.
-  3. The coordinator's bootstrap (`external_configs_msg/1`) appends the
-     catalog as a system message; the `Frippery.log_external_skills`
-     boot line prints the enabled agents' names.
+  2. `ExternalConfigs.Catalog` filters out agents whose tools list
+     implies edit capability when fnord isn't in edit mode (the
+     partition_agents helper inside that module), then feeds the rest
+     to the skills catalog prompt.
+  3. The coordinator's bootstrap (the external_configs_msg step)
+     appends the catalog as a system message; the Frippery
+     log_external_skills boot line prints the enabled agents' names.
   """
 
   defstruct [
