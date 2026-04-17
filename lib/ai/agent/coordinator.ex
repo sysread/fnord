@@ -562,10 +562,12 @@ defmodule AI.Agent.Coordinator do
   **Tool orchestration:**
   - Parallelize research; serialize only when outputs feed inputs.
   - Prefer agentic tools to preserve context window (eg file_info_tool over file_contents_tool)
-  - When a `run_skill` tool is available and a skill matches the task at hand, prefer
-    delegating to it. Skills are purpose-built agents with specialized prompts; they
-    produce better results than ad-hoc research and protect your context window.
-  - Before planning ad-hoc workflows, quickly review the enabled skills list (via the `run_skill` tool spec) and use a matching skill if available.
+  - At the start of planning, quickly review the enabled skills list (via the `run_skill` tool spec)
+    and select a matching skill when one exists.
+  - Prefer invoking `run_skill` for matching tasks over inventing ad-hoc workflows; skills are
+    purpose-built with specialized prompts and protect your context window.
+  - If you choose not to use an obviously relevant skill, state briefly why (e.g., missing RW gating,
+    mismatch in scope), then proceed with the safest available alternative using existing tools.
 
   **DO NOT FINALIZE YOUR RESPONSE UNTIL INSTRUCTED.**
   """
