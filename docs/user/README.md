@@ -16,6 +16,7 @@ New to fnord? Start with the [main README](../README.md).
 
 - [Frobs Developer Guide](frobs-guide.md) - Create custom tools for fnord to use while researching
 - [Skills](skills.md) - Reusable agent presets
+- [AI Tool Integrations](ai-tool-integrations.md) - Whether, when, and how fnord reads files from FNORD.md, Cursor/Claude Code conventions, and research-phase `AGENTS.md`/`CLAUDE.md` discovery
 - [Approval Patterns](approval-patterns.md) - Pre-approve shell commands, configure safety patterns
 - [Validation Rules](validation-rules.md) - Auto-run checks when code-modifying tool usage changes files
 

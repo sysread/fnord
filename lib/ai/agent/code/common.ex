@@ -43,6 +43,12 @@ defmodule AI.Agent.Code.Common do
   """
   @spec new(AI.Agent.t(), AI.Model.t(), AI.Tools.toolbox(), binary, binary) :: t
   def new(agent, model, toolbox, system_prompt, user_prompt) do
+    # Inherit the external-configs catalog from the parent session so
+    # code sub-agents (planner/implementor/validator) see the same
+    # skills, rules, and always-apply bodies the coordinator did. Without
+    # this, sub-agents build fresh message lists that bypass
+    # Services.Conversation (where the Injector writes), leaving the
+    # sub-agent LLM rule-blind.
     %__MODULE__{
       agent: agent,
       model: model,
@@ -51,11 +57,13 @@ defmodule AI.Agent.Code.Common do
       internal: %{},
       response: nil,
       error: nil,
-      messages: [
-        AI.Util.system_msg(AI.Util.project_context()),
-        AI.Util.system_msg(system_prompt),
-        AI.Util.user_msg(user_prompt)
-      ]
+      messages:
+        [
+          AI.Util.system_msg(AI.Util.project_context()),
+          AI.Util.system_msg(system_prompt)
+        ] ++
+          ExternalConfigs.Catalog.system_messages() ++
+          [AI.Util.user_msg(user_prompt)]
     }
   end
 

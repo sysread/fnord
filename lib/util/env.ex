@@ -42,6 +42,11 @@ defmodule Util.Env do
     looks_truthy?("FNORD_DEBUG_MCP")
   end
 
+  @spec cursor_rules_debug_enabled?() :: boolean
+  def cursor_rules_debug_enabled? do
+    looks_truthy?("FNORD_DEBUG_CURSOR_RULES")
+  end
+
   @spec get_env(binary, any) :: any
   def get_env(var, default \\ nil) do
     case System.get_env(var) do

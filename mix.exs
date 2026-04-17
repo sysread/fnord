@@ -31,31 +31,22 @@ defmodule Fnord.MixProject do
   end
 
   defp docs do
+    # Glob so adding a new guide under docs/user/ auto-publishes it to
+    # hexdocs. The self-help tool (`AI.Tools.SelfHelp.Docs`) already globs
+    # the same directory at compile time for its URL list, so both stay
+    # in sync without hand-editing two lists. The root README.md at the
+    # top is separate from docs/user/README.md to avoid a
+    # `readme.html` filename collision in the published output.
+    user_guides =
+      "docs/user/*.md"
+      |> Path.wildcard()
+      |> Enum.reject(&(&1 == "docs/user/README.md"))
+      |> Enum.sort()
+
     [
       main: "readme",
-      extras: [
-        "README.md",
-        "docs/user/approval-patterns.md",
-        "docs/user/asking-questions.md",
-        "docs/user/learning-system.md",
-        "docs/user/frobs-guide.md",
-        "docs/user/frobs-http-get.md",
-        "docs/user/mcp-advanced.md",
-        "docs/user/oauth-advanced.md",
-        "docs/user/skills.md"
-      ],
-      groups_for_extras: [
-        Guides: [
-          "docs/user/approval-patterns.md",
-          "docs/user/asking-questions.md",
-          "docs/user/learning-system.md",
-          "docs/user/frobs-guide.md",
-          "docs/user/frobs-http-get.md",
-          "docs/user/mcp-advanced.md",
-          "docs/user/oauth-advanced.md",
-          "docs/user/skills.md"
-        ]
-      ],
+      extras: ["README.md" | user_guides],
+      groups_for_extras: [Guides: user_guides],
       source_url: "https://github.com/sysread/fnord",
       homepage_url: "https://hex.pm/packages/fnord",
       format: :html
@@ -102,6 +93,7 @@ defmodule Fnord.MixProject do
       {:stemmer, "~> 1.2"},
       {:toml, "~> 0.7"},
       {:uniq, "~> 0.1"},
+      {:yaml_elixir, "~> 2.9"},
       # OAuth2 browser-based flow (loopback server)
       {:plug_cowboy, "~> 2.7"}
     ]

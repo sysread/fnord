@@ -95,6 +95,16 @@ defmodule AI.Agent.Coordinator.Test do
           []
       end
 
+    # Test mode skips the normal bootstrap chain, so the external-configs
+    # catalog (skills, rules, agents) would otherwise be invisible to the
+    # model. Inject it explicitly so "testing: what skills do you have?"
+    # sees the same surface a real session would. Known limitation:
+    # `ExternalConfigs.Injector` (glob-on-read for cursor rules) doesn't
+    # fire here because test mode bypasses `Services.Conversation`, so
+    # auto-attached rules won't be injected mid-test. Test mode is a
+    # manual dev harness; that's tolerable.
+    external_configs_msgs = ExternalConfigs.Catalog.system_messages()
+
     state.agent
     |> AI.Agent.get_completion(
       log_msgs: true,
@@ -105,6 +115,7 @@ defmodule AI.Agent.Coordinator.Test do
         Enum.concat([
           [test_prompt_msg],
           project_prompt_msgs,
+          external_configs_msgs,
           [AI.Util.user_msg(state.question)]
         ])
     )

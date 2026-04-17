@@ -121,15 +121,18 @@ defmodule UI do
 
       output_module().log(:info, formatted)
     else
+      # Pad inside the colored block on both sides so the background
+      # color fully covers the Tibetan ornaments. The glyphs have
+      # inconsistent cell-width reporting, and without the buffer the
+      # background paint bleeds off the edge of ༺ / ༻.
       msg =
         [
           label_codes,
           :bright,
-          "༺  ",
+          "༺   ",
           name,
-          " ༻ ",
+          " ༻   ",
           :reset,
-          " ",
           :italic,
           detail_codes,
           msg,

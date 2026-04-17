@@ -607,6 +607,7 @@ defmodule AI.Tools.File.Edit do
            {:ok, _} <- verify_no_race(file, base_hash, orig_exists),
            :ok <- commit_changes(file, temp) do
         maybe_track_ignored_write(file)
+        ExternalConfigs.Injector.maybe_inject_for_path(file)
         {:ok, diff, backup_file}
       else
         error ->

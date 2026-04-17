@@ -143,6 +143,51 @@ defmodule Cmd.Config do
               ]
             ]
           ],
+          external_configs: [
+            name: "external-configs",
+            about:
+              "Manage optional per-project support for Cursor rules / Cursor skills / Claude Code skills / Claude Code subagents",
+            subcommands: [
+              list: [
+                name: "list",
+                about: "Show the per-source enable/disable flags for the project",
+                options: [
+                  project: Cmd.project_arg()
+                ]
+              ],
+              enable: [
+                name: "enable",
+                about:
+                  "Enable a source for the project (one of: cursor:rules, cursor:skills, claude:skills, claude:agents)",
+                args: [
+                  source: [
+                    value_name: "SOURCE",
+                    help:
+                      "Source to enable: cursor:rules | cursor:skills | claude:skills | claude:agents",
+                    required: true
+                  ]
+                ],
+                options: [
+                  project: Cmd.project_arg()
+                ]
+              ],
+              disable: [
+                name: "disable",
+                about: "Disable a source for the project",
+                args: [
+                  source: [
+                    value_name: "SOURCE",
+                    help:
+                      "Source to disable: cursor:rules | cursor:skills | claude:skills | claude:agents",
+                    required: true
+                  ]
+                ],
+                options: [
+                  project: Cmd.project_arg()
+                ]
+              ]
+            ]
+          ],
           mcp: [
             name: "mcp",
             about: "Manage MCP server configuration",
@@ -474,6 +519,15 @@ defmodule Cmd.Config do
 
   def run(opts, [:validation, :clear], args),
     do: Cmd.Config.Validation.run(opts, [:validation, :clear], args)
+
+  def run(opts, [:external_configs, :list], args),
+    do: Cmd.Config.ExternalConfigs.run(opts, [:external_configs, :list], args)
+
+  def run(opts, [:external_configs, :enable], args),
+    do: Cmd.Config.ExternalConfigs.run(opts, [:external_configs, :enable], args)
+
+  def run(opts, [:external_configs, :disable], args),
+    do: Cmd.Config.ExternalConfigs.run(opts, [:external_configs, :disable], args)
 
   def run(opts, [:mcp, :list], args), do: Cmd.Config.MCP.run(opts, [:mcp, :list], args)
   def run(opts, [:mcp, :add], args), do: Cmd.Config.MCP.run(opts, [:mcp, :add], args)

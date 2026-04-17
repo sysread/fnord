@@ -149,6 +149,7 @@ defmodule AI.Agent.Coordinator do
     AI.Agent.Coordinator.Frippery.log_available_frobs()
     AI.Agent.Coordinator.Frippery.log_available_mcp_tools()
     AI.Agent.Coordinator.Frippery.log_available_skills()
+    AI.Agent.Coordinator.Frippery.hint_disabled_external_configs()
 
     if AI.Agent.Coordinator.Test.is_testing?(state) do
       state
@@ -178,6 +179,7 @@ defmodule AI.Agent.Coordinator do
     |> AI.Agent.Coordinator.Intuition.automatic_thoughts_msg()
     |> with_memories()
     |> project_prompt_msg()
+    |> external_configs_msg()
     |> worktree_context_msg()
     |> AI.Agent.Coordinator.Tasks.research_msg()
     |> AI.Agent.Coordinator.Tasks.list_msg()
@@ -888,6 +890,21 @@ defmodule AI.Agent.Coordinator do
       |> AI.Util.system_msg()
       |> Services.Conversation.append_msg(conversation_pid)
     end
+
+    state
+  end
+
+  # Each catalog entry is its own system message so Services.Conversation's
+  # persistence filter strips them cleanly; they get re-injected on every
+  # bootstrap rather than living in the saved conversation.
+  @spec external_configs_msg(t) :: t
+  defp external_configs_msg(%{conversation_pid: conversation_pid} = state) do
+    ExternalConfigs.Catalog.build_messages()
+    |> Enum.each(fn msg ->
+      msg
+      |> AI.Util.system_msg()
+      |> Services.Conversation.append_msg(conversation_pid)
+    end)
 
     state
   end

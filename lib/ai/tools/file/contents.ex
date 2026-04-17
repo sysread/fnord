@@ -130,6 +130,8 @@ defmodule AI.Tools.File.Contents do
 
     case AI.Tools.get_file_contents_with_origin(file) do
       {:ok, content} ->
+        ExternalConfigs.Injector.maybe_inject_for_path(file)
+
         output =
           content
           |> maybe_number_lines(line_numbers)
@@ -139,6 +141,8 @@ defmodule AI.Tools.File.Contents do
         {:ok, output}
 
       {:source_fallback, source_path, content} ->
+        ExternalConfigs.Injector.maybe_inject_for_path(file)
+
         output =
           content
           |> maybe_number_lines(line_numbers)

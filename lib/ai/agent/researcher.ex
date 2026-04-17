@@ -68,14 +68,20 @@ defmodule AI.Agent.Researcher do
         end
 
       try do
+        # Inherit the external-configs catalog from the parent session;
+        # research sub-agents build fresh message lists that don't route
+        # through Services.Conversation, so without this they never see
+        # cursor rules / external skills that the coordinator sees.
         AI.Agent.get_completion(agent,
           model: @model,
           toolbox: tools,
-          messages: [
-            AI.Util.system_msg(AI.Util.project_context()),
-            AI.Util.system_msg(system_prompt),
-            AI.Util.user_msg(prompt)
-          ]
+          messages:
+            [
+              AI.Util.system_msg(AI.Util.project_context()),
+              AI.Util.system_msg(system_prompt)
+            ] ++
+              ExternalConfigs.Catalog.system_messages() ++
+              [AI.Util.user_msg(prompt)]
         )
         |> case do
           {:ok, %{response: response}} -> {:ok, response}

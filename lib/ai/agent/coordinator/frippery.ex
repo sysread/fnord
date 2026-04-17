@@ -67,6 +67,87 @@ defmodule AI.Agent.Coordinator.Frippery do
       _ ->
         UI.info("Skills", "none")
     end
+
+    log_external_skills()
+  end
+
+  # Emits a separate `Cursor skills:` / `Claude skills:` line for each
+  # external-configs source that is enabled AND has loaded skills.
+  # Silent when a source is disabled; the discoverability nudge in
+  # hint_disabled_external_configs/0 covers the disabled-but-present
+  # case with a louder UI.warn.
+  defp log_external_skills() do
+    case Store.get_project() do
+      {:ok, project} ->
+        log_source(project, :cursor_skills, "Cursor skills")
+        log_source(project, :claude_skills, "Claude skills")
+        log_source(project, :claude_agents, "Claude agents")
+
+      _ ->
+        :ok
+    end
+  end
+
+  # Silent when the source is disabled OR enabled-but-empty. This diverges
+  # from `log_available_frobs` / `log_available_skills` which emit "none" on
+  # empty; for external sources silence is the intended UX because noise
+  # from disabled feature-flags adds up fast when a user has all three.
+  # Discoverability of enabled-but-empty is low-cost (run the loader or
+  # check the fs); discoverability of disabled-with-files is what matters,
+  # and `hint_disabled_external_configs/0` handles that louder.
+  defp log_source(project, source, label) do
+    if Settings.ExternalConfigs.enabled?(project.name, source) do
+      loaded =
+        case source do
+          :cursor_skills -> ExternalConfigs.Loader.load_cursor_skills(project)
+          :claude_skills -> ExternalConfigs.Loader.load_claude_skills(project)
+          :claude_agents -> ExternalConfigs.Loader.load_claude_agents(project)
+        end
+
+      case loaded do
+        [] -> :ok
+        items -> UI.info(label, Enum.map_join(items, " | ", & &1.name))
+      end
+    end
+  end
+
+  # Nudges the user when Cursor rules / Cursor skills / Claude Code skills
+  # / Claude Code subagents exist on disk but the matching source is
+  # disabled for this project. Keeps the feature discoverable without
+  # auto-enabling anything. Keys must stay in sync with
+  # `Settings.ExternalConfigs.sources/0`; the compile would still succeed
+  # with a mismatch, but `Map.fetch!/2` at call time would crash for any
+  # source missing from this map.
+  @hints %{
+    cursor_rules: "Cursor rules detected (`.cursor/rules/*.mdc` or `.cursorrules`)",
+    cursor_skills: "Cursor skills detected (`.cursor/skills/*/SKILL.md`)",
+    claude_skills: "Claude Code skills detected (`.claude/skills/*/SKILL.md`)",
+    claude_agents: "Claude Code subagents detected (`.claude/agents/*.md`)"
+  }
+
+  def hint_disabled_external_configs do
+    with {:ok, project} <- Store.get_project() do
+      Enum.each(Settings.ExternalConfigs.sources(), fn source ->
+        if not Settings.ExternalConfigs.enabled?(project.name, source) and
+             ExternalConfigs.Loader.has_any_on_disk?(project, source) do
+          command =
+            "fnord config external-configs enable " <>
+              "#{Settings.ExternalConfigs.source_to_string(source)} --project #{project.name}"
+
+          prefix =
+            "#{Map.fetch!(@hints, source)} but not enabled for project `#{project.name}`. " <>
+              "Enable with: "
+
+          # UI.warn wraps the whole msg in :yellow; the inner :green escape
+          # switches color to green for the command and the trailing :reset
+          # closes it. Command is last in the string so there's no yellow
+          # tail to restore.
+          UI.warn(IO.ANSI.format([prefix, :green, command, :reset], UI.colorize?()))
+        end
+      end)
+    else
+      _ -> :ok
+    end
   end
 
   def log_available_mcp_tools do
