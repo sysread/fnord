@@ -117,6 +117,8 @@ defmodule Cmd.Worktrees do
           sort_columns: fn a, b -> column_order(a) <= column_order(b) end
         )
         |> UI.puts()
+
+        print_merge_hints()
       end
 
       :ok
@@ -345,6 +347,17 @@ defmodule Cmd.Worktrees do
   defp format_merge_status(:ahead), do: "ahead"
   defp format_merge_status(:diverged), do: "diverged"
   defp format_merge_status(_), do: "unknown"
+
+  # Appends the merge-command template below the table so the user has the
+  # invocation in front of them without having to remember the flag shape.
+  # The conversation id placeholder stays generic - the ids are already
+  # visible in the Conversation column of the table above.
+  defp print_merge_hints() do
+    UI.puts("")
+    UI.puts("To merge a worktree:")
+    UI.puts("  fnord worktrees merge -c <conversation-id>")
+    UI.puts("")
+  end
 
   defp format_size(bytes) when bytes >= 1_048_576, do: "#{Float.round(bytes / 1_048_576, 1)} MB"
   defp format_size(bytes) when bytes >= 1_024, do: "#{Float.round(bytes / 1_024, 1)} KB"

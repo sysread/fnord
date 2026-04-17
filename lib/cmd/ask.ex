@@ -1264,8 +1264,22 @@ defmodule Cmd.Ask do
   defp maybe_worktree_review(path, true, conversation_pid, auto_merge?, attempt) do
     cwd = File.cwd!()
 
-    with true <- cwd != path,
-         {:ok, project} <- Store.get_project(),
+    # Preempt the review flow when the shell is cwd'd inside the worktree.
+    # Both the interactive dialog and --yes auto-merge finish by deleting the
+    # worktree, which would yank the cwd out from under the user's shell.
+    # Instead, print instructions for finishing the merge after they cd out,
+    # and leave the worktree intact.
+    if cwd_inside_worktree?(cwd, path) do
+      show_cwd_inside_worktree_hints(path, conversation_pid)
+      :unmerged
+    else
+      do_worktree_review(path, conversation_pid, auto_merge?, attempt)
+    end
+  end
+
+  @spec do_worktree_review(String.t(), pid, boolean, non_neg_integer) :: worktree_status()
+  defp do_worktree_review(path, conversation_pid, auto_merge?, attempt) do
+    with {:ok, project} <- Store.get_project(),
          true <- GitCli.Worktree.fnord_managed?(project.name, path) do
       conv_meta = Services.Conversation.get_conversation_meta(conversation_pid)
       meta = worktree_meta(conv_meta)
@@ -1326,6 +1340,39 @@ defmodule Cmd.Ask do
     - Continue working: `fnord ask -f #{conv_id} -ey -q "..."`
     - Review the diff:  `fnord worktrees view -c #{conv_id}`
     - Merge later:      `fnord worktrees merge -c #{conv_id}`
+    - Discard:          `fnord worktrees delete -c #{conv_id}`
+    """)
+  end
+
+  # True when the shell's cwd is the worktree directory or any descendant of it.
+  # Path.expand on both sides normalizes trailing slashes and relative segments
+  # so symlink-free setups compare cleanly.
+  @spec cwd_inside_worktree?(String.t(), String.t()) :: boolean()
+  defp cwd_inside_worktree?(cwd, path) do
+    expanded_path = Path.expand(path)
+    expanded_cwd = Path.expand(cwd)
+
+    expanded_cwd == expanded_path or
+      String.starts_with?(expanded_cwd, expanded_path <> "/")
+  end
+
+  # Emitted in place of the merge dialog when the user's shell is inside the
+  # worktree that would be merged (and deleted) at session end. Surfaces the
+  # same set of follow-up commands as show_worktree_hints but leads with the
+  # reason the automatic flow was skipped, so the user isn't left wondering
+  # why nothing merged.
+  defp show_cwd_inside_worktree_hints(path, conversation_pid) do
+    conv_id = Services.Conversation.get_id(conversation_pid)
+
+    UI.say("""
+
+    Your CWD is the fnord-managed worktree for this conversation (#{path}).
+    Ergo, the merge step was skipped: merging would delete the worktree out
+    from under this shell. When you are ready, cd somewhere else and run
+    one of:
+    - Continue working: `fnord ask -f #{conv_id} -ey -q "..."`
+    - Review the diff:  `fnord worktrees view -c #{conv_id}`
+    - Merge:            `fnord worktrees merge -c #{conv_id}`
     - Discard:          `fnord worktrees delete -c #{conv_id}`
     """)
   end
