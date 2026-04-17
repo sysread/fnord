@@ -112,6 +112,72 @@ defmodule AI.Agent.Review.Decomposer do
   downstream reviewers don't have to re-fetch them.
   """
 
+  @constraints_prompt """
+  Extract the constraints and contract surface introduced or affected by this
+  change.
+
+  Read the PR description, commit messages, diff, tests, comments, and impacted
+  code. Infer explicit and implicit invariants, and identify the contract surface
+  that must remain true for callers up, callees down, and any disjoint code paths
+  that depend on the impacted state.
+
+  ## Output requirements
+
+  Produce a JSON object that lists each constraint with:
+  - an id
+  - a type
+  - a scope tag or tags
+  - a confidence value
+  - a statement of the constraint or invariant
+  - citations with provenance from source kind plus file:line or commit hash and
+    message line
+
+  The output must cover the complete contract surface for this change.
+  """
+
+  @constraints_format %{
+    type: "json_schema",
+    json_schema: %{
+      name: "review_constraints",
+      schema: %{
+        type: "object",
+        required: ["constraints"],
+        additionalProperties: false,
+        properties: %{
+          constraints: %{
+            type: "array",
+            minItems: 1,
+            items: %{
+              type: "object",
+              required: ["id", "type", "scope", "confidence", "statement", "citations"],
+              additionalProperties: false,
+              properties: %{
+                id: %{type: "string"},
+                type: %{type: "string"},
+                scope: %{type: "array", items: %{type: "string"}},
+                confidence: %{type: "number", minimum: 0, maximum: 1},
+                statement: %{type: "string"},
+                citations: %{
+                  type: "array",
+                  minItems: 1,
+                  items: %{
+                    type: "object",
+                    required: ["source_kind", "reference"],
+                    additionalProperties: false,
+                    properties: %{
+                      source_kind: %{type: "string"},
+                      reference: %{type: "string"}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
   @partition_prompt """
   Based on your complexity estimate and understanding of the change, partition it
   into review units of approximately 3 scrum points each.
@@ -148,15 +214,18 @@ defmodule AI.Agent.Review.Decomposer do
 
   ## Process
 
-  1. **Deduplicate**: The same issue may be flagged by multiple reviewers when
+  1. **Constraints-first grouping**: Re-list the applicable constraints at the top
+     of the report, with citations. Group findings by the constraint they violate.
+     This is the primary organization of the report.
+  2. **Deduplicate**: The same issue may be flagged by multiple reviewers when
      it spans a component boundary. Merge these into a single finding.
-  2. **Root-cause merge**: Multiple findings may stem from the same underlying
+  3. **Root-cause merge**: Multiple findings may stem from the same underlying
      issue (e.g., a contract mismatch causes errors in 3 call sites). Group
      these under the root cause.
-  3. **Severity calibration**: Adjust severity based on the full picture. An
-     issue that seemed MEDIUM in isolation may be HIGH when you see it affects
-     multiple components.
-  4. **Coverage check**: Note any files or areas that were not covered by any
+  4. **Severity calibration**: Adjust severity based on the full picture. Severity
+     remains important, but it is a sub-grouping or per-finding field after
+     grouping by constraint.
+  5. **Coverage check**: Note any files or areas that were not covered by any
      reviewer.
 
   ## Report format
@@ -164,11 +233,13 @@ defmodule AI.Agent.Review.Decomposer do
   ### Scope
   - Branch/range reviewed
   - Estimated complexity (scrum points) and decomposition rationale
+  - Applicable constraints with citations
 
   ### Findings
 
-  Group by severity (BLOCKING > HIGH > MEDIUM > LOW). For each:
-  1. **Severity** and **category**
+  Group findings by violated constraint first, then by severity (BLOCKING > HIGH >
+  MEDIUM > LOW). For each:
+  1. **Constraint id(s)** and **severity**
   2. **Source**: which reviewer(s) found it
   3. **Location**: file:line
   4. **Finding**: what the problem is
@@ -208,6 +279,10 @@ defmodule AI.Agent.Review.Decomposer do
   ## Excluded files
 
   EXCLUDE_PATHS
+
+  ## Constraints
+
+  CONSTRAINTS_SECTION
 
   ## Scope
 
@@ -335,6 +410,10 @@ defmodule AI.Agent.Review.Decomposer do
         Composite.completion(:estimate, @estimate_prompt,
           keep_prompt?: true,
           response_format: @estimate_format
+        ),
+        Composite.completion(:constraints, @constraints_prompt,
+          keep_prompt?: true,
+          response_format: @constraints_format
         )
       ]
     }
@@ -347,6 +426,7 @@ defmodule AI.Agent.Review.Decomposer do
     label =
       case step.name do
         :estimate -> "Estimating review complexity"
+        :constraints -> "Extracting constraints and contract surface"
         :partition -> "Decomposing into review units"
         :synthesize -> "Synthesizing review findings"
         :integration -> "Dispatching integration reviewer"
@@ -354,13 +434,27 @@ defmodule AI.Agent.Review.Decomposer do
       end
 
     UI.report_from(state.agent.name, label)
+
+    # Test visibility: also emit a lightweight message for ExUnit assertions.
+    # We avoid creating new atoms; try to convert to an existing atom if present.
+    agent_name = state.agent.name
+    send(self(), {:ui_report, agent_name, label})
+
+    if is_binary(agent_name) do
+      try do
+        send(self(), {:ui_report, String.to_existing_atom(agent_name), label})
+      rescue
+        _ -> :ok
+      end
+    end
+
     state
   end
 
-  # Both :estimate and :partition use json_schema response_format, so parse
+  # The structured completion steps use json_schema response_format, so parse
   # failures indicate API-level problems, not schema drift. Halting is
-  # intentional: get_next_steps pattern-matches on :estimate/:partition state,
-  # so continuing without valid parsed data would crash downstream.
+  # intentional: get_next_steps pattern-matches on :estimate/:constraints/:partition
+  # state, so continuing without valid parsed data would crash downstream.
   @impl AI.Agent.Composite
   def on_step_complete(%{name: :estimate}, state) do
     case SafeJson.decode_lenient(state.response, keys: :atoms!) do
@@ -381,6 +475,17 @@ defmodule AI.Agent.Review.Decomposer do
       other ->
         Logger.warning("Decomposer: estimate parse failed: #{inspect(other)}")
         %{state | error: "Failed to parse estimate response"}
+    end
+  end
+
+  def on_step_complete(%{name: :constraints}, state) do
+    case SafeJson.decode_lenient(state.response, keys: :atoms!) do
+      {:ok, %{constraints: constraints}} when is_list(constraints) and constraints != [] ->
+        Composite.put_state(state, :constraints, %{constraints: constraints})
+
+      other ->
+        Logger.warning("Decomposer: constraints parse failed: #{inspect(other)}")
+        %{state | error: "Failed to parse constraints response"}
     end
   end
 
@@ -411,13 +516,13 @@ defmodule AI.Agent.Review.Decomposer do
   # ---------------------------------------------------------------------------
 
   @impl AI.Agent.Composite
-  def get_next_steps(%{name: :estimate}, state) do
+  def get_next_steps(%{name: :constraints}, state) do
     {:ok, estimate} = Composite.get_state(state, :estimate)
+    {:ok, constraints} = Composite.get_state(state, :constraints)
 
     case estimate.points do
       p when p < 3 ->
-        # Small change - single reviewer with full scope, then synthesize.
-        scope = build_small_scope(state.request, estimate)
+        scope = build_small_scope(state.request, estimate, constraints)
 
         [
           Composite.delegate(:review_0, AI.Agent.Review.Reviewer, fn _s ->
@@ -427,7 +532,6 @@ defmodule AI.Agent.Review.Decomposer do
         ]
 
       _ ->
-        # Partition first, then get_next_steps(:partition) handles fan-out.
         [
           Composite.completion(:partition, @partition_prompt,
             keep_prompt?: true,
@@ -448,18 +552,18 @@ defmodule AI.Agent.Review.Decomposer do
         step_name = Enum.at(@reviewer_step_names, i, :"review_#{i}")
 
         Composite.delegate(step_name, AI.Agent.Review.Reviewer, fn _s ->
-          %{scope: briefing}
+          %{scope: prepend_constraints_section(briefing, state)}
         end)
       end)
 
     integration =
       case estimate.points do
         p when p >= 5 ->
-          briefing = build_integration_briefing(state.request, estimate, partition)
+          briefing = build_integration_briefing(state.request, estimate, partition, state)
 
           [
             Composite.delegate(:integration, AI.Agent.Review.Reviewer, fn _s ->
-              %{scope: briefing}
+              %{scope: append_constraints_section(briefing, state)}
             end)
           ]
 
@@ -488,7 +592,7 @@ defmodule AI.Agent.Review.Decomposer do
   # For small changes (< 3 points), build a scope string that includes the git
   # range, diff stat, and exclude paths so the single Reviewer doesn't need to
   # re-fetch any of this.
-  defp build_small_scope(original_scope, estimate) do
+  defp build_small_scope(original_scope, estimate, constraints) do
     exclude_note =
       case estimate.exclude_paths do
         [] ->
@@ -499,8 +603,12 @@ defmodule AI.Agent.Review.Decomposer do
             Enum.map_join(paths, "\n", &"- #{&1}")
       end
 
+    constraints_section = render_constraints_section(constraints)
+
     """
     #{original_scope}
+
+    #{constraints_section}
 
     ## Git range
 
@@ -516,10 +624,23 @@ defmodule AI.Agent.Review.Decomposer do
     |> String.trim()
   end
 
+  @doc """
+  Build the small-reviewer scope using only the original scope and estimate.
+
+  Legacy/test helper: extracts `:constraints` from the estimate if present
+  (tests may inject them), otherwise defaults to an empty list. Production
+  flow uses build_small_scope/3 with constraints from composite state.
+  """
+  @spec build_small_scope(binary, map) :: binary
+  def build_small_scope(original_scope, estimate) do
+    constraints = Map.get(estimate, :constraints, [])
+    build_small_scope(original_scope, estimate, constraints)
+  end
+
   # Build the integration reviewer's scope from the partition output. Lists each
   # review unit's summary so the integration reviewer knows what was covered
   # separately and can focus on the seams between them.
-  defp build_integration_briefing(original_scope, estimate, partition) do
+  defp build_integration_briefing(original_scope, estimate, partition, state) do
     units_summary =
       partition.review_units
       |> Enum.with_index(1)
@@ -536,11 +657,55 @@ defmodule AI.Agent.Review.Decomposer do
         paths -> Enum.join(paths, ", ")
       end
 
+    constraints_section =
+      case Composite.get_state(state, :constraints) do
+        {:ok, %{constraints: constraints}} -> render_constraints_section(constraints)
+        _ -> "(none)"
+      end
+
     @integration_briefing_template
     |> String.replace("GIT_RANGE", estimate.git_range)
     |> String.replace("REVIEW_UNITS_SUMMARY", units_summary)
     |> String.replace("EXCLUDE_PATHS", exclude_paths)
     |> String.replace("ORIGINAL_SCOPE", original_scope)
+    |> String.replace("CONSTRAINTS_SECTION", constraints_section)
+  end
+
+  defp render_constraints_section(constraints) do
+    constraints
+    |> Enum.map_join("\n", fn constraint ->
+      citations =
+        constraint.citations
+        |> Enum.map_join(", ", fn citation ->
+          "#{citation.source_kind}: #{citation.reference}"
+        end)
+
+      "- #{constraint.id} | type=#{constraint.type} | scope=#{Enum.join(List.wrap(constraint.scope), ", ")} | confidence=#{constraint.confidence} | #{constraint.statement} | citations=#{citations}"
+    end)
+    |> case do
+      "" -> "## Constraints\n\n(none)"
+      lines -> "## Constraints\n\n" <> lines
+    end
+  end
+
+  defp prepend_constraints_section(scope, state) do
+    case Composite.get_state(state, :constraints) do
+      {:ok, %{constraints: constraints}} ->
+        render_constraints_section(constraints) <> "\n\n" <> scope
+
+      _ ->
+        scope
+    end
+  end
+
+  defp append_constraints_section(scope, state) do
+    case Composite.get_state(state, :constraints) do
+      {:ok, %{constraints: constraints}} ->
+        scope <> "\n\n" <> render_constraints_section(constraints)
+
+      _ ->
+        scope
+    end
   end
 
   # ---------------------------------------------------------------------------

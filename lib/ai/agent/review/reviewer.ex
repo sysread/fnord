@@ -94,12 +94,21 @@ defmodule AI.Agent.Review.Reviewer do
   - Calls out anything unusual (e.g., "3 of these changes appear to be bugfixes
     not mentioned in the design - review these separately")
 
+  ## Constraints
+
+  Your scope may begin with a "## Constraints" section listing contract/invariant constraints extracted from the change. Use them to filter out false positives and explicitly include which constraints a finding would violate.
+
   Produce a JSON object with the specialist prompts and your scope summary.
   """
 
   @aggregation_prompt """
   You have received reports from five specialist reviewers. Your job now is to
   verify their citations and produce a single, coherent report.
+
+  ## Constraints usage
+
+  Group the final report output by constraints. Wherever applicable, reference the violated constraint ids in each confirmed finding. Use constraints to eliminate false positives that are disallowed by the stated contracts. In other words: group final report output by constraints.
+
 
   ## Verification process
 
@@ -425,4 +434,9 @@ defmodule AI.Agent.Review.Reviewer do
   def on_error(_step, _error, state) do
     {:halt, state}
   end
+
+  @doc "Return internal prompts (test helper)."
+  @spec __send__(:formulation_prompt | :aggregation_prompt) :: String.t()
+  def __send__(:formulation_prompt), do: @formulation_prompt
+  def __send__(:aggregation_prompt), do: @aggregation_prompt
 end
