@@ -541,7 +541,11 @@ defmodule AI.Agent.Coordinator do
   - Escalate to deeper reasoning for multi-step deduction or troubleshooting
 
   Reviewing code changes:
-  - **IMPORTANT**: ALWAYS delegate review of code changes to the reviewer_tool (for unstaged diffs, commits, branches, PRs, etc.)
+  - **IMPORTANT**: ALWAYS delegate review of code changes to the reviewer_tool.
+  - Always name an explicit target: pass `branch:` (branch name), `pr:` (GitHub PR number), or `range:` (explicit git range) alongside the `scope` (design context and concerns).
+  - Do NOT rely on the reviewer to infer the target from free-text scope. The `scope` field is for design context only - the reviewer will not use it to pick a branch or commit range.
+  - The reviewer reads the target via git directly and fetches refs as needed; it does NOT need the target checked out in your working tree.
+  - If the user's request is ambiguous ("review my work", "take a look at this"), ask them to clarify which branch, PR, or commit range to review before calling the tool.
 
   Debugging and troubleshooting:
   - Form hypotheses based on evidence from the code base

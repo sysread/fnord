@@ -5,9 +5,32 @@ defmodule AI.Agent.Review.DecomposerTest do
   alias AI.Agent.Composite
 
   test "init seeds the estimate step only" do
-    {:ok, state} = Decomposer.init(%{agent: %{name: :review}, scope: "review this change"})
+    # `preflight: :skip` bypasses the git preflight; this test is about
+    # step seeding, not about range resolution.
+    {:ok, state} =
+      Decomposer.init(%{
+        agent: %{name: :review},
+        scope: "review this change",
+        preflight: :skip
+      })
 
     assert [%{name: :estimate}, %{name: :constraints}] = state.steps
+  end
+
+  test "init hard-fails with actionable error when on main/master with no target" do
+    # Without an explicit target (branch/pr/range) and when the current
+    # checkout IS the default base, the preflight must return an error so
+    # the user is told to name a target instead of silently reviewing
+    # "nothing on main."
+    project = mock_git_project("review-hardfail-project")
+    git_config_user!(project)
+    git_empty_commit!(project)
+
+    assert {:error, msg} =
+             Decomposer.init(%{agent: %{name: :review}, scope: "review"})
+
+    assert msg =~ "you are on"
+    assert msg =~ "Pass `branch:`"
   end
 
   test "on_step_start labels the new constraints step" do
@@ -60,5 +83,33 @@ defmodule AI.Agent.Review.DecomposerTest do
     assert function_exported?(Decomposer, :on_step_start, 2)
     assert function_exported?(Decomposer, :on_step_complete, 2)
     assert function_exported?(Decomposer, :get_next_steps, 2)
+  end
+
+  test "init with explicit range resolves end-to-end" do
+    # Set up a project with two commits so HEAD~1..HEAD has a concrete
+    # range to review. Exercises the happy path through resolve_target ->
+    # resolve_range -> git.
+    project = mock_git_project("review-range-project")
+    git_config_user!(project)
+    git_empty_commit!(project)
+    git_empty_commit!(project)
+
+    assert {:ok, state} =
+             Decomposer.init(%{
+               agent: %{name: :review},
+               scope: "review",
+               range: "HEAD~1..HEAD"
+             })
+
+    context_msg =
+      Enum.find(state.messages, fn msg ->
+        String.contains?(msg.content || "", "## Git context")
+      end)
+
+    assert context_msg, "expected a git-context message from the preflight"
+    assert context_msg.content =~ "Resolved range:"
+    assert context_msg.content =~ "explicit range"
+    assert context_msg.content =~ "git diff --stat"
+    assert context_msg.content =~ "git log --oneline"
   end
 end

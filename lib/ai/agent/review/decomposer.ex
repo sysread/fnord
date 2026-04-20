@@ -378,47 +378,64 @@ defmodule AI.Agent.Review.Decomposer do
   # ---------------------------------------------------------------------------
 
   @impl AI.Agent.Composite
-  def init(%{agent: agent, scope: scope}) do
+  def init(%{agent: agent, scope: scope} = args) do
     tools = AI.Tools.basic_tools()
 
-    # Resolve the review range deterministically from git state before the LLM
-    # gets a chance to guess. Without this, a vague scope like "review this
-    # branch" lets the LLM pick the wrong branch or diff against a symbolic
-    # base (main..HEAD), which pulls in unrelated commits whenever main has
-    # advanced since the branch forked. A nil result means we're not in a git
-    # repo or the preflight failed; the LLM falls back to its own exploration.
-    git_context_msg =
-      case resolve_git_context() do
-        {:ok, ctx} -> [AI.Util.user_msg(format_git_context(ctx))]
-        _ -> []
+    # Resolve the review range deterministically from structured caller input
+    # (branch / pr / range / base) with a fall-through to the current
+    # checkout. Errors here are hard failures - we return {:error, message}
+    # so the tool surfaces an actionable message to the user instead of
+    # letting the LLM drift into guesswork (the old silent-fallback was the
+    # root cause of "changes not on main" complaints when reviewing from
+    # main or against an unfetched branch).
+    #
+    # Tests pass `preflight: :skip` to bypass the git preflight when the
+    # test only cares about downstream state (step seeding, response
+    # parsing, etc.). Production callers never pass this key.
+    preflight_result =
+      case Map.get(args, :preflight) do
+        :skip -> :skip
+        _ -> resolve_target(args)
       end
 
-    state = %Composite{
-      agent: agent,
-      model: @model,
-      toolbox: tools,
-      request: scope,
-      response: nil,
-      error: nil,
-      messages:
-        [
-          AI.Util.system_msg(AI.Util.project_context()),
-          AI.Util.system_msg(@system_prompt)
-        ] ++ git_context_msg ++ [AI.Util.user_msg(scope)],
-      internal: %{},
-      steps: [
-        Composite.completion(:estimate, @estimate_prompt,
-          keep_prompt?: true,
-          response_format: @estimate_format
-        ),
-        Composite.completion(:constraints, @constraints_prompt,
-          keep_prompt?: true,
-          response_format: @constraints_format
-        )
-      ]
-    }
+    case preflight_result do
+      {:error, _reason} = err ->
+        err
 
-    {:ok, state}
+      _ ->
+        git_context_msg =
+          case preflight_result do
+            {:ok, ctx} -> [AI.Util.user_msg(format_git_context(ctx))]
+            :skip -> []
+          end
+
+        state = %Composite{
+          agent: agent,
+          model: @model,
+          toolbox: tools,
+          request: scope,
+          response: nil,
+          error: nil,
+          messages:
+            [
+              AI.Util.system_msg(AI.Util.project_context()),
+              AI.Util.system_msg(@system_prompt)
+            ] ++ git_context_msg ++ [AI.Util.user_msg(scope)],
+          internal: %{},
+          steps: [
+            Composite.completion(:estimate, @estimate_prompt,
+              keep_prompt?: true,
+              response_format: @estimate_format
+            ),
+            Composite.completion(:constraints, @constraints_prompt,
+              keep_prompt?: true,
+              response_format: @constraints_format
+            )
+          ]
+        }
+
+        {:ok, state}
+    end
   end
 
   @impl AI.Agent.Composite
@@ -711,53 +728,275 @@ defmodule AI.Agent.Review.Decomposer do
   # ---------------------------------------------------------------------------
   # Git context preflight
   #
-  # The LLM would otherwise guess the review range from the caller's scope
-  # string ("review this branch"). Guessing produces two failure modes:
-  #   1. Wrong branch: the LLM picks whatever branch name it finds in history.
-  #   2. Drifting base: `main..HEAD` includes commits merged to main after the
-  #      branch forked, so the review covers unrelated code.
-  # We resolve current branch, base branch, and merge-base up front. The
-  # two-dot range MERGE_BASE..HEAD is stable against base-branch advancement.
+  # Resolves an authoritative review range from explicit caller input (branch,
+  # PR number, commit range) and falls back to the current checkout only when
+  # no target was supplied. Fetches any refs not locally reachable so
+  # reviewers can evaluate branches and PRs that were never checked out.
+  #
+  # Guessing from scope text produced two failure modes we explicitly avoid:
+  #   1. Wrong branch:  LLM picks any branch name it finds in history.
+  #   2. Drifting base: `main..HEAD` includes commits merged to main after
+  #                     the branch forked, so the review pulls in unrelated
+  #                     commits whenever the base advances.
+  # The resolved range is a two-dot form anchored on a concrete merge-base
+  # SHA (or the two explicit endpoints for `range:`), which is stable even
+  # if the base branch advances after the preflight runs.
   # ---------------------------------------------------------------------------
 
-  defp resolve_git_context do
-    with {:ok, root} <- GitCli.Worktree.project_root(),
-         branch when is_binary(branch) <- GitCli.Worktree.current_branch(root),
-         {:ok, base} <- pick_base_branch(root, branch),
-         {:ok, merge_base} <- git(root, ["merge-base", "HEAD", base]),
-         range = "#{merge_base}..HEAD",
-         {:ok, diff_stat} <- git(root, ["diff", "--stat", range]),
-         {:ok, log} <- git(root, ["log", "--oneline", range]) do
+  defp resolve_target(args) do
+    # Anchor all git/gh operations on the *selected project's* source root,
+    # not on the process CWD. Using CWD breaks the `-p <project>` flow where
+    # fnord is invoked from a different repo than the one being reviewed
+    # (e.g. reviewing a thog PR while sitting in the fnord source tree).
+    # Store.get_project/0 already honors Settings.set_project_root_override,
+    # so this also covers the -W / worktree path.
+    with {:ok, project} <- Store.get_project(),
+         root when is_binary(root) <- project.source_root,
+         true <- File.dir?(root) do
+      dispatch_target(root, args)
+    else
+      _ ->
+        {:error,
+         "reviewer_tool: could not resolve project source root; " <>
+           "ensure the project is registered and its root exists on disk"}
+    end
+  end
+
+  defp dispatch_target(root, %{pr: pr} = args) when is_integer(pr),
+    do: resolve_pr(root, pr, Map.get(args, :base))
+
+  defp dispatch_target(root, %{range: range}) when is_binary(range),
+    do: resolve_range(root, range)
+
+  defp dispatch_target(root, %{branch: branch} = args) when is_binary(branch),
+    do: resolve_branch(root, branch, Map.get(args, :base))
+
+  defp dispatch_target(root, args),
+    do: resolve_current_checkout(root, Map.get(args, :base))
+
+  # ----- Branch target -------------------------------------------------------
+
+  defp resolve_branch(root, branch, base_override) do
+    with {:ok, head_sha} <- ensure_ref_available(root, branch),
+         {:ok, base_name} <- pick_base(root, base_override, skip: branch),
+         {:ok, base_sha} <- ensure_ref_available(root, base_name),
+         {:ok, merge_base} <- git(root, ["merge-base", head_sha, base_sha]),
+         {:ok, diff_stat} <- git(root, ["diff", "--stat", "#{merge_base}..#{head_sha}"]),
+         {:ok, log} <- git(root, ["log", "--oneline", "#{merge_base}..#{head_sha}"]) do
       {:ok,
        %{
+         source: :branch,
          branch: branch,
-         base: base,
+         base: base_name,
          merge_base: merge_base,
-         range: range,
+         head_sha: head_sha,
+         range: "#{merge_base}..#{head_sha}",
          diff_stat: String.trim(diff_stat),
          log: String.trim(log)
        }}
     else
-      _ -> :error
+      {:error, _} = err -> err
+      _ -> {:error, "reviewer_tool: failed to resolve branch '#{branch}'"}
     end
   end
 
-  # Pick main or master as the base. If the current branch IS the base, skip
-  # the preflight - "review this branch" against itself is meaningless and the
-  # LLM will need to ask the user for a real range.
-  defp pick_base_branch(root, branch) do
+  # ----- PR target -----------------------------------------------------------
+
+  defp resolve_pr(root, pr, base_override) do
+    with :ok <- require_gh(),
+         {:ok, pr_info} <- gh_pr_view(root, pr),
+         base_name = base_override || pr_info.base_name,
+         {:ok, _} <- ensure_ref_available(root, pr_info.head_name),
+         {:ok, base_sha} <- ensure_ref_available(root, base_name),
+         head_sha = pr_info.head_sha,
+         {:ok, merge_base} <- git(root, ["merge-base", head_sha, base_sha]),
+         {:ok, diff_stat} <- git(root, ["diff", "--stat", "#{merge_base}..#{head_sha}"]),
+         {:ok, log} <- git(root, ["log", "--oneline", "#{merge_base}..#{head_sha}"]) do
+      {:ok,
+       %{
+         source: :pr,
+         pr: pr,
+         pr_state: pr_info.state,
+         branch: pr_info.head_name,
+         base: base_name,
+         merge_base: merge_base,
+         head_sha: head_sha,
+         range: "#{merge_base}..#{head_sha}",
+         diff_stat: String.trim(diff_stat),
+         log: String.trim(log)
+       }}
+    else
+      {:error, _} = err -> err
+      _ -> {:error, "reviewer_tool: failed to resolve PR ##{pr}"}
+    end
+  end
+
+  defp require_gh do
+    case System.cmd("gh", ["--version"], stderr_to_stdout: true) do
+      {_, 0} -> :ok
+      _ -> {:error, "reviewer_tool: `pr` review requires the `gh` CLI to be installed and authenticated"}
+    end
+  rescue
+    ErlangError ->
+      {:error, "reviewer_tool: `pr` review requires the `gh` CLI to be installed and authenticated"}
+  end
+
+  defp gh_pr_view(root, pr) do
+    args = [
+      "pr",
+      "view",
+      Integer.to_string(pr),
+      "--json",
+      "baseRefName,baseRefOid,headRefName,headRefOid,state"
+    ]
+
+    case System.cmd("gh", args, cd: root, stderr_to_stdout: true) do
+      {out, 0} ->
+        case SafeJson.decode_lenient(out, keys: :atoms!) do
+          {:ok,
+           %{
+             baseRefName: base_name,
+             baseRefOid: base_sha,
+             headRefName: head_name,
+             headRefOid: head_sha,
+             state: state
+           }} ->
+            {:ok,
+             %{
+               base_name: base_name,
+               base_sha: base_sha,
+               head_name: head_name,
+               head_sha: head_sha,
+               state: state
+             }}
+
+          _ ->
+            {:error, "reviewer_tool: could not parse `gh pr view` output for PR ##{pr}"}
+        end
+
+      {err, _} ->
+        {:error, "reviewer_tool: `gh pr view #{pr}` failed: #{String.trim(err)}"}
+    end
+  end
+
+  # ----- Explicit range target -----------------------------------------------
+
+  defp resolve_range(root, range) do
+    with {:ok, a, b, separator} <- split_range(range),
+         {:ok, a_sha} <- ensure_ref_available(root, a),
+         {:ok, b_sha} <- ensure_ref_available(root, b),
+         resolved_range = "#{a_sha}#{separator}#{b_sha}",
+         {:ok, diff_stat} <- git(root, ["diff", "--stat", resolved_range]),
+         {:ok, log} <- git(root, ["log", "--oneline", resolved_range]) do
+      {:ok,
+       %{
+         source: :range,
+         range: resolved_range,
+         user_range: range,
+         head_sha: b_sha,
+         base_sha: a_sha,
+         diff_stat: String.trim(diff_stat),
+         log: String.trim(log)
+       }}
+    else
+      {:error, _} = err -> err
+      _ -> {:error, "reviewer_tool: failed to resolve range '#{range}'"}
+    end
+  end
+
+  # Accept either `A..B` (two-dot) or `A...B` (three-dot). We preserve the
+  # separator in the resolved range so the semantic stays what the caller
+  # asked for.
+  defp split_range(range) do
     cond do
-      branch in ["main", "master"] ->
-        :error
+      String.contains?(range, "...") ->
+        case String.split(range, "...", parts: 2) do
+          [a, b] when a != "" and b != "" -> {:ok, a, b, "..."}
+          _ -> {:error, "reviewer_tool: could not parse range '#{range}'"}
+        end
 
-      match?({:ok, _}, git(root, ["show-ref", "--verify", "--quiet", "refs/heads/main"])) ->
-        {:ok, "main"}
-
-      match?({:ok, _}, git(root, ["show-ref", "--verify", "--quiet", "refs/heads/master"])) ->
-        {:ok, "master"}
+      String.contains?(range, "..") ->
+        case String.split(range, "..", parts: 2) do
+          [a, b] when a != "" and b != "" -> {:ok, a, b, ".."}
+          _ -> {:error, "reviewer_tool: could not parse range '#{range}'"}
+        end
 
       true ->
-        :error
+        {:error, "reviewer_tool: range must be in `A..B` or `A...B` form, got '#{range}'"}
+    end
+  end
+
+  # ----- Current checkout fallback -------------------------------------------
+
+  defp resolve_current_checkout(root, base_override) do
+    case GitCli.Worktree.current_branch(root) do
+      branch when is_binary(branch) ->
+        case pick_base(root, base_override, skip: branch) do
+          {:ok, base_name} ->
+            case resolve_branch(root, branch, base_name) do
+              {:ok, ctx} -> {:ok, Map.put(ctx, :source, :current_checkout)}
+              other -> other
+            end
+
+          {:error, :no_target} ->
+            {:error,
+             "reviewer_tool: you are on `#{branch}` with no target specified. " <>
+               "Pass `branch:`, `pr:`, or `range:` to name what to review."}
+
+          {:error, _} = err ->
+            err
+        end
+
+      _ ->
+        {:error, "reviewer_tool: could not determine current branch"}
+    end
+  end
+
+  # ----- Base selection ------------------------------------------------------
+
+  # Resolve the base branch, honoring the caller's explicit override and
+  # otherwise falling back to the repo's default branch. `:skip` names the
+  # branch we are reviewing - when that matches the resolved base (e.g.
+  # user is on `main` with no override), we return `:no_target` so the
+  # caller can surface the hard-fail message.
+  defp pick_base(root, nil, skip: skip) do
+    case GitCli.default_branch(root) do
+      nil -> {:error, "reviewer_tool: could not determine a default base branch"}
+      ^skip -> {:error, :no_target}
+      default -> {:ok, default}
+    end
+  end
+
+  defp pick_base(_root, override, skip: skip) when is_binary(override) do
+    if override == skip do
+      {:error, :no_target}
+    else
+      {:ok, override}
+    end
+  end
+
+  # ----- Shared helpers ------------------------------------------------------
+
+  # Make a ref available locally and return its SHA. Tries `git rev-parse`
+  # first; on miss, fetches the ref from `origin` and retries. This is what
+  # makes branch/PR/range review safe when the target has never been
+  # checked out in the working tree.
+  defp ensure_ref_available(root, ref) do
+    case git(root, ["rev-parse", "--verify", "--quiet", ref <> "^{commit}"]) do
+      {:ok, sha} ->
+        {:ok, sha}
+
+      _ ->
+        case git(root, ["fetch", "origin", ref]) do
+          {:ok, _} ->
+            case git(root, ["rev-parse", "--verify", "--quiet", "FETCH_HEAD^{commit}"]) do
+              {:ok, sha} -> {:ok, sha}
+              _ -> {:error, "reviewer_tool: ref '#{ref}' not found locally or on origin"}
+            end
+
+          _ ->
+            {:error, "reviewer_tool: ref '#{ref}' not found locally or on origin"}
+        end
     end
   end
 
@@ -768,23 +1007,20 @@ defmodule AI.Agent.Review.Decomposer do
     end
   end
 
+  # ---------------------------------------------------------------------------
+  # Rendering
+  # ---------------------------------------------------------------------------
+
   defp format_git_context(ctx) do
+    heading = format_context_heading(ctx)
+    body = format_context_body(ctx)
+
     """
     ## Git context (authoritative - use this range)
 
-    - Current branch: `#{ctx.branch}`
-    - Base branch: `#{ctx.base}`
-    - Merge-base: `#{ctx.merge_base}`
-    - Review range: `#{ctx.range}`
+    #{heading}
 
-    This range is the two-dot form with a resolved SHA for the merge-base, so
-    it is stable even if `#{ctx.base}` advances during or after the review.
-    Use this range for all git commands unless the user's scope explicitly
-    specifies a different one.
-
-    Do NOT diff against `#{ctx.base}` directly (`#{ctx.base}..HEAD` or
-    `#{ctx.base}...HEAD`) - that would include commits merged to `#{ctx.base}`
-    after this branch forked.
+    #{body}
 
     ### git diff --stat #{ctx.range}
 
@@ -797,6 +1033,71 @@ defmodule AI.Agent.Review.Decomposer do
     ```
     #{ctx.log}
     ```
+    """
+  end
+
+  defp format_context_heading(%{source: :branch} = ctx) do
+    """
+    - Target: branch `#{ctx.branch}` (user-specified)
+    - Base branch: `#{ctx.base}`
+    - Merge-base: `#{ctx.merge_base}`
+    - Head SHA: `#{ctx.head_sha}`
+    - Review range: `#{ctx.range}`
+    """
+  end
+
+  defp format_context_heading(%{source: :pr} = ctx) do
+    state_note =
+      case ctx.pr_state do
+        "OPEN" -> ""
+        other -> "\n- Note: PR state is `#{other}`; review proceeds against the PR's recorded head."
+      end
+
+    """
+    - Target: PR ##{ctx.pr} (user-specified)
+    - Head branch: `#{ctx.branch}` @ `#{ctx.head_sha}`
+    - Base branch: `#{ctx.base}`
+    - Merge-base: `#{ctx.merge_base}`
+    - Review range: `#{ctx.range}`#{state_note}
+    """
+  end
+
+  defp format_context_heading(%{source: :range} = ctx) do
+    """
+    - Target: explicit range `#{ctx.user_range}` (user-specified)
+    - Resolved range: `#{ctx.range}`
+    - From: `#{ctx.base_sha}`
+    - To: `#{ctx.head_sha}`
+    """
+  end
+
+  defp format_context_heading(%{source: :current_checkout} = ctx) do
+    """
+    - Target: current checkout `#{ctx.branch}` (inferred; no explicit target given)
+    - Base branch: `#{ctx.base}`
+    - Merge-base: `#{ctx.merge_base}`
+    - Head SHA: `#{ctx.head_sha}`
+    - Review range: `#{ctx.range}`
+    """
+  end
+
+  defp format_context_body(%{source: source} = ctx) when source in [:branch, :pr, :current_checkout] do
+    """
+    This range is the two-dot form with a resolved SHA for the merge-base, so
+    it is stable even if `#{ctx.base}` advances during or after the review.
+    Use this range for all git commands unless the user's scope explicitly
+    specifies a different one.
+
+    Do NOT diff against `#{ctx.base}` directly (`#{ctx.base}..HEAD` or
+    `#{ctx.base}...HEAD`) - that would include commits merged to `#{ctx.base}`
+    after this branch forked.
+    """
+  end
+
+  defp format_context_body(%{source: :range}) do
+    """
+    Use the resolved range for all git commands. Both endpoints are pinned
+    to concrete SHAs so the range is stable regardless of branch movement.
     """
   end
 end

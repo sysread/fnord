@@ -58,7 +58,7 @@ defmodule AI.Agent.Coordinator.Coding do
 
   ## POST-CODING CHECKLIST:
   1. Manually inspect that the changes were actually applied to the files
-  2. Use the reviewer_tool to review the changes made
+  2. Use the reviewer_tool to review the changes. Pass `branch:` (the branch you committed to) or `range:` (for commit-scoped review) alongside a `scope` describing the design intent. Do not rely on the reviewer to guess the target.
   3. Address all legitimate issues identified by the reviewer_tool
     - pre-existing bugs: report these to the user as unrelated to your changes in your response
     - simple fixes: fix immediately yourself using the file_edit_tool
