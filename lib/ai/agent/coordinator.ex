@@ -250,17 +250,26 @@ defmodule AI.Agent.Coordinator do
   # notify_tool updates.
   # ----------------------------------------------------------------------------
   defp perform_step(%{steps: [:coding | steps]} = state) do
-    UI.begin_step("Draining coding tasks")
+    state = Map.put(state, :steps, steps)
 
-    state
-    |> Map.put(:steps, steps)
-    |> AI.Agent.Coordinator.Tasks.research_msg()
-    |> reminder_msg()
-    |> AI.Agent.Coordinator.Tasks.list_msg()
-    |> AI.Agent.Coordinator.Coding.milestone_msg()
-    |> AI.Agent.Coordinator.Coding.execute_phase()
-    |> AI.Agent.Coordinator.Glue.get_completion()
-    |> perform_step()
+    # Gate the drainage loop reactively. Applies to both fresh and follow-up
+    # sessions: if the coordinator's first response didn't touch edit tools,
+    # didn't leave any in-progress task lists, and didn't produce uncommitted
+    # worktree changes, there is nothing to drain and we skip the phase
+    # entirely - no banner, no prompt injection, no extra completion.
+    if coding_work_pending?(state) do
+      UI.begin_step("Draining coding tasks")
+
+      state
+      |> AI.Agent.Coordinator.Tasks.research_msg()
+      |> reminder_msg()
+      |> AI.Agent.Coordinator.Tasks.list_msg()
+      |> AI.Agent.Coordinator.Coding.milestone_msg()
+      |> AI.Agent.Coordinator.Glue.get_completion()
+      |> perform_step()
+    else
+      perform_step(state)
+    end
   end
 
   # ----------------------------------------------------------------------------
@@ -345,6 +354,7 @@ defmodule AI.Agent.Coordinator do
         |> Map.put(:steps, [])
         |> reminder_msg()
         |> AI.Agent.Coordinator.Tasks.list_msg()
+        |> unused_edit_tools_nudge_msg()
         |> finalize_msg()
         |> template_msg()
         |> AI.Agent.Coordinator.Glue.get_completion()
@@ -396,6 +406,17 @@ defmodule AI.Agent.Coordinator do
           _ -> false
         end
     end
+  end
+
+  # Any signal that coding work is actually in flight. The :coding step uses
+  # this to decide whether to run the milestone/drainage loop at all. It is
+  # intentionally independent of fresh-vs-follow-up - coding is either
+  # happening (tools used, tasks open, worktree dirty) or it isn't.
+  @spec coding_work_pending?(t) :: boolean
+  defp coding_work_pending?(state) do
+    state.editing_tools_used or
+      AI.Agent.Coordinator.Tasks.pending_lists(state) != [] or
+      worktree_needs_commit?()
   end
 
   @spec commit_worktree_msg(t) :: t
@@ -452,6 +473,29 @@ defmodule AI.Agent.Coordinator do
 
     state
   end
+
+  # Fires when the user enabled edit mode but no coding activity occurred this
+  # session - no edit tools touched, no open task lists, no dirty worktree. In
+  # that case, nudge the LLM to double-check whether the prompt actually asked
+  # for changes. No-op when edit mode is off or when coding work is in flight
+  # (the drainage loop handles those cases).
+  @spec unused_edit_tools_nudge_msg(t) :: t
+  defp unused_edit_tools_nudge_msg(%{conversation_pid: conversation_pid, edit?: true} = state) do
+    if coding_work_pending?(state) do
+      state
+    else
+      """
+      NOTE: The user explicitly enabled your coding tools, but you didn't use them on this session.
+      Sometimes users enable edit mode preemptively, but **double-check whether they asked for any changes** - if so, make them now before finalizing.
+      """
+      |> AI.Util.system_msg()
+      |> Services.Conversation.append_msg(conversation_pid)
+
+      state
+    end
+  end
+
+  defp unused_edit_tools_nudge_msg(state), do: state
 
   @common """
   You are an AI assistant that coordinates research into the user's code base to answer their questions.
@@ -572,7 +616,39 @@ defmodule AI.Agent.Coordinator do
   **DO NOT FINALIZE YOUR RESPONSE UNTIL INSTRUCTED.**
   """
 
+  # Follow-up mode system prompt. On -f/-F, the conversation's earlier turns
+  # already carry the prescriptive workflow context; re-injecting @initial or
+  # Coding.@prompt primes the model to re-plan from scratch. Instead, give it
+  # @common (identity, tools, reasoning, CLI help, project/git info) plus a
+  # short continuation note telling it to respond to the follow-up directly.
+  @followup_system """
+  #{@common}
+
+  ## Continuation mode
+  You are continuing an existing conversation. The earlier turns carry the full context from your prior research and work.
+  - Do NOT re-plan or re-research what has already been established. Trust the prior turns.
+  - Answer the user's new message directly, using the tools and context you already have.
+  - Before acting on prior findings, confirm they are still factual - files can move and code can change between turns.
+  - Use tools only for work the current reply actually requires (new research, new edits, or verifying that prior results have not drifted).
+  - If the follow-up asks for new code changes, prior discipline still applies (task lists, worktree rules, reviewer_tool), but do not rebuild a full STORY/EPIC workflow for a small follow-up edit.
+
+  **DO NOT FINALIZE YOUR RESPONSE UNTIL INSTRUCTED.**
+  """
+
   @spec initial_msg(t) :: t
+  # Follow-up sessions (-f/-F) get the slim @followup_system prompt regardless
+  # of edit mode. This clause must be listed first so pattern matching selects
+  # it before the edit-mode / read-mode fresh clauses below.
+  defp initial_msg(%{followup?: true, conversation_pid: conversation_pid, project: project} = state) do
+    @followup_system
+    |> String.replace("$$PROJECT$$", project)
+    |> String.replace("$$GIT_INFO$$", GitCli.git_info())
+    |> AI.Util.system_msg()
+    |> Services.Conversation.append_msg(conversation_pid)
+
+    state
+  end
+
   defp initial_msg(%{conversation_pid: conversation_pid, project: project, edit?: false} = state) do
     @initial
     |> String.replace("$$PROJECT$$", project)

@@ -137,18 +137,4 @@ defmodule AI.Agent.Coordinator.Coding do
 
     state
   end
-
-  @spec execute_phase(t) :: t
-  def execute_phase(%{edit?: true, editing_tools_used: false} = state) do
-    """
-    WARNING: The user explicitly enabled your coding tools, but you didn't use them yet.
-    Sometimes users enable edit mode preemptively, but **double-check whether they asked for any changes.**
-    """
-    |> AI.Util.system_msg()
-    |> Services.Conversation.append_msg(state.conversation_pid)
-
-    state
-  end
-
-  def execute_phase(state), do: state
 end
