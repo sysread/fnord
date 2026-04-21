@@ -956,7 +956,12 @@ defmodule Cmd.Ask do
           _ -> nil
         end
 
-      meta = %{path: path, branch: "fnord-#{conv_id}", base_branch: base}
+      # A user who created the worktree out-of-band (e.g. via a manual
+      # `git worktree add -b feat <conv-path>`) won't be on fnord-<conv_id>.
+      # Honor whatever branch HEAD actually points at so the metadata matches
+      # reality; fall back to the synthesized name only if we can't read HEAD.
+      branch = GitCli.Worktree.current_branch(path) || "fnord-#{conv_id}"
+      meta = %{path: path, branch: branch, base_branch: base}
 
       with :ok <-
              Services.Conversation.upsert_conversation_meta(conversation_pid, %{worktree: meta}) do

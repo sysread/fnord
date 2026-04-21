@@ -28,7 +28,7 @@ Subdirectory constants:
 - `@index_dir "conversations/index"` -- `lib/store/project/conversation_index.ex:30`
 
 The store path for a project is `~/.fnord/projects/<name>`, built by
-`Store.get_project/0` (`lib/store.ex:31`). The `@projects_dir "projects"`
+`Store.get_project/0` (`lib/store.ex:44`). The `@projects_dir "projects"`
 constant is at `lib/store.ex:2`.
 
 ## File entries
@@ -47,12 +47,12 @@ picks one of two prefixes:
 
 |Prefix|Encoding|When used|
 |--------|----------|-----------|
-|`r1-`|base64url of the relative path (no padding)|`byte_size(encoded) <= 240`|
+|`r1-`|base64url of the relative path (no padding)|`byte_size("r1-" <> encoded) <= 240`|
 |`h1-`|sha256 hex digest of the relative path|path too long for reversible encoding|
 
-The `r1-` scheme is reversible via `rel_path_from_id/1`
-(`lib/store/project/entry.ex:272`). The `h1-` scheme is a one-way hash;
-the original path is recovered from `metadata.json` instead.
+The threshold applies to the prefixed id (`"r1-" <> encoded`), not the raw encoded path - see `@max_id_len` and `byte_size(reversible_id)` in `lib/store/project/entry.ex`.
+The `r1-` scheme is reversible via `rel_path_from_id/1`.
+The `h1-` scheme is a one-way hash; the original path is recovered from `metadata.json` instead.
 
 ## Source mode: git vs filesystem
 

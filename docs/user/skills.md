@@ -3,10 +3,11 @@
 ## Quick start
 
 ```bash
-# Create a new project skill
-fnord skills new --project myproject --skill example_skill
+# Create a new project skill - opens $EDITOR on a TOML template;
+# the name comes from the `name` field you fill in, not a CLI flag.
+fnord skills new --project myproject
 
-# Enable the skill
+# Enable a skill for the project
 fnord skills enable --project myproject --skill example_skill
 
 # List all skills

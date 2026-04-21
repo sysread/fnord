@@ -105,6 +105,7 @@ defmodule Cmd.Worktrees do
           %{
             "Conversation" => Path.basename(entry.path),
             "Branch" => entry.branch || "-",
+            "Base" => Map.get(entry, :base_branch) || "-",
             "Status" => format_merge_status(entry.merge_status),
             "Dirty" =>
               if(GitCli.Worktree.has_uncommitted_changes?(entry.path), do: "yes", else: "-"),
@@ -366,10 +367,11 @@ defmodule Cmd.Worktrees do
   @column_order %{
     "Conversation" => 0,
     "Branch" => 1,
-    "Status" => 2,
-    "Dirty" => 3,
-    "Size" => 4,
-    "Path" => 5
+    "Base" => 2,
+    "Status" => 3,
+    "Dirty" => 4,
+    "Size" => 5,
+    "Path" => 6
   }
   defp column_order(col), do: Map.get(@column_order, col, 99)
 

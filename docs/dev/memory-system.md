@@ -13,7 +13,7 @@ indexer.
 |`:project`|`~/.fnord/projects/<name>/memory/`|Permanent, per-project|
 |`:session`|Conversation metadata `"memory"` key|Conversation lifetime; promoted by `MemoryIndexer`|
 
-All three scopes implement the `Memory` behaviour (`lib/memory.ex:37`).
+All three scopes implement the `Memory` behaviour (`lib/memory.ex:42`).
 
 ## Memory struct
 

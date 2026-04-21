@@ -24,7 +24,7 @@ redundant LLM calls.
 ## 3. Git projects index the default branch, not the working tree
 
 A user on a feature branch still sees `main` indexed.
-`Store.Project.Source.mode/1` (`lib/store/project/source.ex:38`) decides
+`Store.Project.Source.mode/1` (`lib/store/project/source.ex:36`) decides
 per-project. Default branch resolution (`GitCli.default_branch/1`,
 `lib/git_cli.ex:216`) does NOT fall back to the current branch. The chain
 is `origin/HEAD` -> `main` -> `master` -> `nil`. When nil, the project
@@ -33,7 +33,7 @@ drops to `:fs` mode (working tree enumeration), not current-branch indexing.
 ## 4. Embedding dimension check on is_stale?
 
 `Entry.is_stale?/1` (`lib/store/project/entry.ex:94`) reads the stored
-embedding vector and checks `length == AI.Embeddings.dimensions()` (line 113).
+embedding vector and checks `length == AI.Embeddings.dimensions()` (`lib/ai/embeddings.ex:18`).
 The cross-format hash upgrade (`hash_is_current?/1`, line 150) can mark a
 file fresh when its content hasn't changed, but the entry is still stale if
 the embedding was produced by a different model with a different vector

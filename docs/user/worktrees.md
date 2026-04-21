@@ -104,6 +104,7 @@ The `fnord worktrees` command provides direct management:
 fnord worktrees list
 fnord worktrees create --conversation <uuid>
 fnord worktrees create --conversation <uuid> --branch feature-name
+fnord worktrees view --conversation <uuid>
 fnord worktrees delete --conversation <uuid>
 fnord worktrees merge --conversation <uuid>
 ```
@@ -121,6 +122,14 @@ Creates a new conversation-scoped worktree.
 
 - `--conversation / -c UUID` - conversation id (required)
 - `--branch / -b NAME` - branch name (optional, auto-generated if omitted)
+
+### view
+
+Prints a colorized diff of a conversation's worktree against its fork point.
+
+- `--conversation / -c UUID` - conversation id (required)
+
+Useful for reviewing changes before running `merge` or `delete`, without leaving the shell.
 
 ### delete
 

@@ -103,8 +103,17 @@ defmodule AI.Tools.WebSearch do
       ]
     )
     |> case do
-      {:ok, %{response: response}} -> {:ok, response}
-      {:error, reason} -> {:error, reason}
+      {:ok, %{response: response}} ->
+        {:ok, response}
+
+      # AI.Completion.get/1 reports context-window overflow as a three-tuple
+      # with the usage count attached. Collapse it to a typed :error so the
+      # tool caller contract stays single-shaped.
+      {:error, :context_length_exceeded, _usage} ->
+        {:error, "web search exceeded the context window"}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 end
