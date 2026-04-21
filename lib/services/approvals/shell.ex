@@ -34,19 +34,33 @@ defmodule Services.Approvals.Shell do
 
   defp load_session_approvals_from_meta() do
     case current_conversation_pid() do
-      pid when is_pid(pid) ->
-        meta = Services.Conversation.get_conversation_meta(pid)
-
-        approvals =
-          meta
-          |> Map.get(:session_shell_approvals, [])
-          |> normalize_meta_approvals()
-
-        maybe_announce_persisted_approvals(approvals)
-        approvals
-
-      _ ->
+      nil ->
         []
+
+      pid when is_pid(pid) ->
+        # Conversation lookup is a GenServer.call; a dead pid or mid-call
+        # crash exits the caller. Degrade to an empty approval list but
+        # log the failure so an upstream regression doesn't masquerade
+        # as "the user hadn't approved anything."
+        try do
+          meta = Services.Conversation.get_conversation_meta(pid)
+
+          approvals =
+            meta
+            |> Map.get(:session_shell_approvals, [])
+            |> normalize_meta_approvals()
+
+          maybe_announce_persisted_approvals(approvals)
+          approvals
+        catch
+          :exit, reason ->
+            UI.warn(
+              "[Approvals.Shell] conversation lookup failed (#{inspect(reason)}); " <>
+                "no persisted approvals loaded"
+            )
+
+            []
+        end
     end
   end
 

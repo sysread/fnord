@@ -196,11 +196,22 @@ defmodule AI.Completion.Output do
   def replay_conversation_as_output(state) do
     # Retrieve messages and convert to an atom-keyed map, extracting the final
     # message, which is the final response from the assistant.
-    {messages, [response]} =
-      state.messages
-      |> Util.string_keys_to_atoms()
-      |> Enum.split(-1)
+    all = Util.string_keys_to_atoms(state.messages)
 
+    case Enum.split(all, -1) do
+      {messages, [response]} ->
+        do_replay(state, messages, response)
+
+      # An empty or malformed saved conversation (e.g. truncated write, manual
+      # edit) has nothing to replay. Surface the empty case rather than
+      # crashing with MatchError on the split.
+      _ ->
+        UI.warn("[replay] conversation has no messages to replay")
+        state
+    end
+  end
+
+  defp do_replay(state, messages, response) do
     agent_name = state.name || extract_agent_name(messages)
 
     state = Map.put(state, :name, agent_name)

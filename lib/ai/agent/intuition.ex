@@ -274,8 +274,14 @@ defmodule AI.Agent.Intuition do
     )
     |> case do
       {:ok, %{response: response}} ->
-        log(:perception, response)
-        %{state | perception: response}
+        # The perception prompt tells the model to begin with
+        # "Classification: <category>", but that contract is prompt-only.
+        # When the model skips it, the synthesis step has nothing to
+        # anchor its first-person classification acknowledgment on.
+        # Normalize here so downstream stages see a deterministic shape.
+        normalized = ensure_classification_prefix(response)
+        log(:perception, normalized)
+        %{state | perception: normalized}
 
       {:error, reason} ->
         %{state | error: reason}
@@ -283,6 +289,21 @@ defmodule AI.Agent.Intuition do
   end
 
   defp get_perception(state), do: state
+
+  # Matches a leading "Classification: <word>" line regardless of trailing
+  # whitespace or punctuation. When absent, prepend a synthesized ambiguous
+  # classification so the synthesis step's "acknowledge the classification"
+  # instruction has something to read. `ambiguous` was chosen because it
+  # matches the existing taxonomy and carries no behavioral branch in the
+  # Coordinator - a missing classification shouldn't route to interface/self-
+  # help routing by default.
+  defp ensure_classification_prefix(response) when is_binary(response) do
+    if Regex.match?(~r/\A\s*Classification:\s*\S+/i, response) do
+      response
+    else
+      "Classification: ambiguous\n\n" <> response
+    end
+  end
 
   @spec get_drive_reactions(t) :: t
   defp get_drive_reactions(%{error: nil} = state) do
