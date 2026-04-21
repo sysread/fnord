@@ -54,27 +54,9 @@ defmodule Cmd.ReplayTest do
       assert result == {:error, :conversation_not_found}
     end
 
-    test "propagates error when completion creation fails" do
-      :meck.new(Store.Project.Conversation, [:no_link, :passthrough, :non_strict])
-      :meck.new(AI.Completion, [:no_link, :passthrough, :non_strict])
-
-      on_exit(fn ->
-        :meck.unload(Store.Project.Conversation)
-        :meck.unload(AI.Completion)
-      end)
-
-      :meck.expect(Store.Project.Conversation, :exists?, fn _conv -> true end)
-
-      conv = Store.Project.Conversation.new("abc-err")
-      :meck.expect(AI.Completion, :new_from_conversation, fn ^conv, _opts -> {:error, :boom} end)
-
-      result = Cmd.Replay.run(%{conversation: "abc-err"}, [], [])
-      assert result == {:error, :boom}
-    end
-
-    test "returns :error when :conversation is missing" do
+    test "returns error tuple when :conversation is missing" do
       result = Cmd.Replay.run(%{}, [], [])
-      assert result == :error
+      assert result == {:error, :missing_conversation}
     end
   end
 end

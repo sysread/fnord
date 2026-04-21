@@ -30,6 +30,31 @@ defmodule Cmd.Replay do
          {:ok, conversation} <- get_conversation(conversation_id),
          {:ok, completion} <- get_completion(conversation) do
       AI.Completion.Output.replay_conversation_as_output(completion)
+    else
+      # Surface the failure to the user. Cmd.perform_command doesn't print
+      # :error returns, so a silent exit was the old behavior when an id
+      # pointed at a conversation that doesn't exist in the selected
+      # project's store.
+      :error ->
+        UI.error("Replay", "--conversation/-c is required")
+        {:error, :missing_conversation}
+
+      {:error, :conversation_not_found} ->
+        conversation_id = Map.get(opts, :conversation)
+
+        project =
+          case Settings.get_selected_project() do
+            {:ok, name} -> name
+            _ -> "<unset>"
+          end
+
+        UI.error(
+          "Replay",
+          "Conversation #{inspect(conversation_id)} not found in project #{project}. " <>
+            "List recent conversations with `fnord conversations -p #{project}`."
+        )
+
+        {:error, :conversation_not_found}
     end
   end
 
