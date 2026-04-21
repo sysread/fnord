@@ -200,5 +200,26 @@ defmodule ExternalConfigs.CatalogTest do
       assert catalog =~ "coder"
       refute catalog =~ "require edit mode"
     end
+
+    # Regression: when EVERY Claude agent requires edit mode (and there are no
+    # other skills/rules), the catch-all skills_catalog_message/5 clause
+    # previously swallowed the entire section with `nil`, hiding the
+    # "N agents require edit mode" note meant to surface exactly this case.
+    test "emits hidden-only note when all agents require edit mode" do
+      project = mock_project("demo")
+      Settings.ExternalConfigs.set("demo", :claude_agents, true)
+      Settings.set_edit_mode(false)
+      on_exit(fn -> Settings.set_edit_mode(false) end)
+
+      write_agent!(project, "coder", "Bash, Read, Write, Edit")
+      write_agent!(project, "refactorer", "Read, Edit")
+
+      messages = Catalog.build_messages(project)
+      note = Enum.find(messages, &String.contains?(&1, "require edit mode"))
+
+      assert note
+      assert note =~ "2 additional Claude Code agents require edit mode"
+      refute note =~ "You have these skills"
+    end
   end
 end

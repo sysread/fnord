@@ -7,15 +7,15 @@ fnord is an **Elixir escript CLI**. Every invocation boots a fresh BEAM, dispatc
 Entry point: `lib/fnord.ex:22` (`main/1`). Sequence:
 
 1. Configure logger.
-2. `Fnord.start_all/0` — core services (`Services.Globals`, `UI.Queue`, registries). These must exist before CLI parsing because CLI hooks write into them.
+2. `Services.start_all/0` — core services (`Services.Globals`, `UI.Queue`, registries). These must exist before CLI parsing because CLI hooks write into them.
 3. Load Frob modules (user-defined custom tools, `~/fnord/tools/`).
 4. Parse CLI args via Optimus.
 5. HTTP pool configuration. Each subsystem gets its own pool to prevent one's work starving another:
-   - `:ai` (12 connections) — coordinator + tool calls.
-   - `:ai_indexer` (6) — background file/commit/conversation indexing.
-   - `:ai_memory` (6) — memory indexer.
-   - `:ai_notes` (6) — notes consolidation.
-6. `start_config_dependent_services/1` — things that need the parsed config (Approvals, MCP servers).
+   - `:ai_api` — coordinator + tool calls.
+   - `:ai_indexer` — background file/commit/conversation indexing.
+   - `:ai_memory` — memory indexer.
+   - `:ai_notes` — notes consolidation.
+6. `Services.start_config_dependent_services/1` — things that need the parsed config (Approvals, MCP servers).
 7. Project resolution (lazy — see below).
 8. Dispatch to the subcommand module via `Cmd.perform_command/4` (`lib/cmd.ex:8`).
 9. Version check, shutdown.
@@ -37,7 +37,7 @@ Registered in `lib/fnord.ex` (`Cmd.Ask`, `Cmd.Index`, `Cmd.Search`, `Cmd.Memory`
 `requires_project?/0` is declarative metadata, not enforcement. Project resolution happens in `set_globals/1` **after** CLI parsing. Order:
 
 1. `--project <name>` on the command line.
-2. `Store.ResolveProject.resolve/0` (current-directory detection, `fnord.md` walk-up, etc.).
+2. `Store.ResolveProject.resolve/1` (current-directory detection, `fnord.md` walk-up, etc.).
 3. If the command requires a project and none resolved, error out.
 
 This is why most commands can run without an explicit `--project` flag when invoked from inside a project tree — but also why tools that take a project argument need to be ready for nil.

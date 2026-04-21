@@ -39,24 +39,36 @@ defmodule Search.Commits do
          {:ok, needle} <- Indexer.impl().get_embeddings(search.query) do
       q_len = length(needle)
 
-      results =
+      {scored, dropped} =
         project
         |> Store.Project.CommitIndex.all_embeddings()
         |> Util.async_stream(fn {sha, embeddings, metadata} ->
-          # Stale-dimension commits (pre-migration) would crash
-          # cosine_similarity; skip them.
+          # Stale-dimension commits (pre-migration, corrupted, or
+          # mid-migration residue) would crash cosine_similarity;
+          # return an explicit :dim_mismatch so the caller can count
+          # how many we skipped and surface it in the log.
           if is_list(embeddings) and length(embeddings) == q_len do
             score = AI.Util.cosine_similarity(needle, embeddings)
-            {sha, score, metadata}
+            {:scored, {sha, score, metadata}}
           else
-            nil
+            {:dim_mismatch, sha}
           end
         end)
-        |> Enum.reduce([], fn
-          {:ok, nil}, acc -> acc
-          {:ok, item}, acc -> [item | acc]
+        |> Enum.reduce({[], 0}, fn
+          {:ok, {:scored, item}}, {items, drops} -> {[item | items], drops}
+          {:ok, {:dim_mismatch, _sha}}, {items, drops} -> {items, drops + 1}
           _, acc -> acc
         end)
+
+      if dropped > 0 do
+        UI.warn(
+          "[commit search] skipped #{dropped} indexed commit#{if dropped == 1, do: "", else: "s"}" <>
+            " with stale embedding dimensions; run `fnord index` to rebuild."
+        )
+      end
+
+      results =
+        scored
         |> Enum.sort(fn {_, a, _}, {_, b, _} -> a >= b end)
         |> Enum.take(search.limit)
 

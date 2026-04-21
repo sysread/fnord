@@ -182,11 +182,9 @@ defmodule Fnord.TestCase do
         orig = Logger.level()
         # suppress debug/info but allow warnings and errors
         Logger.configure(level: :warning)
-        Services.Globals.put_env(:fnord, :logger_device_override, :stderr)
 
         on_exit(fn ->
           Logger.configure(level: orig)
-          Services.Globals.put_env(:fnord, :logger_device_override, nil)
         end)
 
         :ok

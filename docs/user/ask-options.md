@@ -98,6 +98,32 @@ Like `--tee`, but truncates an existing file without prompting.
 
 Suppress normal UI output.
 
+## Environment variables
+
+### `FNORD_SMART_MODEL`
+
+When set to `true` or `1`, fnord uses the smart model on every invocation -
+equivalent to passing `--smart`/`-s` to every `ask`.
+Handy when you always want the heavier model and do not want to remember the flag.
+CLI `--smart` still wins when both are in play.
+
+### `FNORD_TOOL_ROUND_CAP`
+
+Caps the number of tool-call rounds per coordinator completion.
+Defaults to `75`.
+When the cap is hit, fnord withdraws the tool surface (no further tool calls are executed),
+injects a nudge telling the model to produce its final response, and lets the conversation finish.
+Lower the cap to force earlier wrap-up; raise it when a repo legitimately needs more exploration.
+Accepts any positive integer; malformed values fall back to the default.
+
+### `FNORD_DEBUG_TOOL_CALLS`
+
+See [Debugging Tool Call Errors](asking-questions.md#debugging-tool-call-errors).
+
+### `FNORD_DEBUG_VALIDATION`
+
+Traces automatic validation decisions. See the same section in the asking-questions guide.
+
 ## What the output footer shows
 
 After each response, fnord prints:

@@ -342,21 +342,46 @@ defmodule Services.Approvals.Shell do
   # crashed the Approvals GenServer via Regex.compile!. Drop bad patterns
   # with a single-shot warn so the session continues and the user sees
   # something in the log they can act on.
+  #
+  # Compiled regexes are cached in :persistent_term keyed on the raw
+  # pattern string. Every `confirm/2` call hits full_cmd_preapproved?/2
+  # (potentially many times per tool call), so recompiling regex objects
+  # on every check became meaningful overhead once persisted session
+  # approvals started accumulating. Persistent_term is safe here because
+  # (a) pattern bodies never mutate - invalidation is a non-concern, and
+  # (b) the cache size is bounded by the distinct regex strings a user
+  # has approved, which is small.
   defp compile_full_patterns(patterns) do
-    Enum.flat_map(patterns, fn pattern ->
-      case Regex.compile(pattern, "u") do
-        {:ok, re} ->
-          [re]
+    Enum.flat_map(patterns, &cached_compile/1)
+  end
 
-        {:error, reason} ->
-          UI.warn(
-            "[Approvals.Shell] dropping invalid persisted regex #{inspect(pattern)}: " <>
-              inspect(reason)
-          )
+  defp cached_compile(pattern) do
+    key = {__MODULE__, :regex, pattern}
 
-          []
-      end
-    end)
+    case :persistent_term.get(key, :miss) do
+      :miss ->
+        case Regex.compile(pattern, "u") do
+          {:ok, re} ->
+            :persistent_term.put(key, {:ok, re})
+            [re]
+
+          {:error, reason} ->
+            :persistent_term.put(key, {:error, reason})
+
+            UI.warn(
+              "[Approvals.Shell] dropping invalid persisted regex #{inspect(pattern)}: " <>
+                inspect(reason)
+            )
+
+            []
+        end
+
+      {:ok, re} ->
+        [re]
+
+      {:error, _reason} ->
+        []
+    end
   end
 
   defp full_literal_prefix_approved?(state, full) do

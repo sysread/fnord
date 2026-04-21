@@ -93,7 +93,15 @@ defmodule ExternalConfigs.Catalog do
   # ----------------------------------------------------------------------------
   # Skills catalog
   # ----------------------------------------------------------------------------
-  defp skills_catalog_message([], [], [], [], _hidden), do: nil
+  # All four item lists empty: emit the hidden-agents-only note when there
+  # are edit-requiring agents we filtered out in research mode; otherwise
+  # suppress the whole section. Without the hidden_agents check here,
+  # maybe_hidden_agents_only_note/1 (written for exactly this scenario)
+  # was unreachable - the catch-all skills_catalog_message/5 clause
+  # swallowed the case before the case-statement inside the body could
+  # dispatch to it.
+  defp skills_catalog_message([], [], [], [], 0), do: nil
+  defp skills_catalog_message([], [], [], [], hidden), do: maybe_hidden_agents_only_note(hidden)
 
   defp skills_catalog_message(fnord, cursor, claude, agents, hidden_agents) do
     sections =

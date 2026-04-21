@@ -945,7 +945,17 @@ defmodule Cmd.Ask do
 
     if File.dir?(path) do
       UI.info("Adopting orphaned worktree", path)
-      base = GitCli.Worktree.default_base_branch(GitCli.repo_root())
+      # default_base_branch/1 is guarded on is_binary(root). GitCli.repo_root/0
+      # returns nil when cwd is not inside any git repo (e.g. `ask` run from
+      # a non-repo cwd with an explicit --project flag). Use the cached
+      # original source root instead so adoption stays anchored to the
+      # project, not the shell's cwd.
+      base =
+        case Store.Project.original_source_root() do
+          root when is_binary(root) -> GitCli.Worktree.default_base_branch(root)
+          _ -> nil
+        end
+
       meta = %{path: path, branch: "fnord-#{conv_id}", base_branch: base}
 
       with :ok <-

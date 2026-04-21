@@ -45,7 +45,12 @@ defmodule Store.Project.Source do
 
   @doc """
   Returns the default branch name when the project is in `:git` mode,
-  nil otherwise. Cached indirectly via `GitCli.default_branch/1`.
+  nil otherwise. `GitCli.default_branch/1` is NOT cached today - it forks
+  2-4 git subprocesses per call (`symbolic-ref`, then `rev-parse` probes
+  for main/master). Callers under async_stream should memoize if the
+  overhead matters; `cached_ls_tree/2` in this module uses the returned
+  branch as part of its cache key but does not cache the branch lookup
+  itself.
   """
   @spec default_branch(Project.t()) :: String.t() | nil
   def default_branch(%Project{source_root: nil}), do: nil

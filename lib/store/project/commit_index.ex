@@ -348,22 +348,46 @@ defmodule Store.Project.CommitIndex do
 
     shas
     |> Util.async_stream(fn sha ->
-      with {:ok, meta} <- get_commit_meta(root, sha),
-           {:ok, {changed_files, diffstat}} <- get_commit_changes(root, sha) do
-        %{
-          sha: meta.sha,
-          parent_shas: meta.parent_shas,
-          author: meta.author,
-          committed_at: meta.committed_at,
-          subject: meta.subject,
-          body: meta.body,
-          changed_files: changed_files,
-          diffstat: diffstat,
-          embedding_model: AI.Embeddings.model_name(),
-          last_indexed_ts: 0
-        }
-      else
-        _ -> nil
+      case get_commit_meta(root, sha) do
+        {:ok, meta} ->
+          with {:ok, {changed_files, diffstat}} <- get_commit_changes(root, sha) do
+            %{
+              sha: meta.sha,
+              parent_shas: meta.parent_shas,
+              author: meta.author,
+              committed_at: meta.committed_at,
+              subject: meta.subject,
+              body: meta.body,
+              changed_files: changed_files,
+              diffstat: diffstat,
+              embedding_model: AI.Embeddings.model_name(),
+              last_indexed_ts: 0
+            }
+          else
+            {:error, reason} ->
+              # Changed-file enumeration failed for a commit whose metadata
+              # parsed. Drop it but leave a trace - the SHA not appearing in
+              # the index later would otherwise be inscrutable.
+              UI.warn(
+                "[commit index] failed to read numstat for #{String.slice(sha, 0, 12)}: " <>
+                  inspect(reason)
+              )
+
+              nil
+          end
+
+        {:error, reason} ->
+          # Metadata parse failed. The most common cause is a literal
+          # \x1f byte in a subject or body, which collides with our field
+          # separator; less common causes include refs we cannot fetch.
+          # Either way, "commit vanishes from the index with no log line"
+          # is the wrong failure mode - surface the drop.
+          UI.warn(
+            "[commit index] dropping #{String.slice(sha, 0, 12)}: " <>
+              inspect(reason)
+          )
+
+          nil
       end
     end)
     |> Enum.reduce([], fn

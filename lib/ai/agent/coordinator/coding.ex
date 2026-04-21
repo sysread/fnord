@@ -37,10 +37,12 @@ defmodule AI.Agent.Coordinator.Coding do
   ## EPICS
   Use for complex/open-ended changes.
 
-  Skills first:
+  ### Skills first
   - Before planning milestones, quickly review enabled skills via the `run_skill` tool spec.
   - Prefer invoking a matching skill (e.g., code review, PR text, git archaeology) over bespoke steps.
   - If declining an obviously relevant skill, state briefly why (permissions, scope mismatch) and proceed using existing tools.
+
+  ### Workflow
   - REFUSE if there are unstaged changes present that you were not aware of
     - It's ok to work on top of your own changes from earlier milestones
   - Research affected features and components to map out dependencies and interactions
