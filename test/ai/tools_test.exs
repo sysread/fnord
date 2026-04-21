@@ -116,6 +116,16 @@ defmodule AI.ToolsTest do
     test "succeeds when tool is registered" do
       assert {:ok, MockTool} = AI.Tools.tool_module("mock_tool", @tools)
     end
+
+    # Regression: the tool-round cap guard in AI.Completion sets state.toolbox
+    # to an empty map (NOT nil) precisely because nil triggers the default
+    # basic+MCP fallback. An empty-map sentinel has to route through the
+    # unknown_tool path or the cap is soft, not hard.
+    test "empty map is a hard 'no tools' sentinel, not a fallback to defaults" do
+      # basic_tools() contains entries; verify we don't pick them up from %{}.
+      assert {:error, :unknown_tool, "file_info_tool"} =
+               AI.Tools.tool_module("file_info_tool", %{})
+    end
   end
 
   describe "tool_spec/2" do

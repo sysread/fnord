@@ -688,9 +688,11 @@ defmodule AI.CompletionTest do
                content =~ "rounds of tool calls" and content =~ "cap"
              end)
 
-      # Tool surface was withdrawn.
+      # Tool surface was withdrawn. Toolbox is an empty-map sentinel (not
+      # nil) so any straggling tool call routes to :unknown_tool instead of
+      # the default basic+MCP fallback in AI.Tools.tool_module/2.
       assert state.specs == nil
-      assert state.toolbox == nil
+      assert state.toolbox == %{}
 
       # Final response came from the model's :msg reply after the cap.
       assert state.response =~ "final response after cap"

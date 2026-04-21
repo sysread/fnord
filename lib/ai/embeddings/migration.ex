@@ -216,6 +216,13 @@ defmodule AI.Embeddings.Migration do
     clear_memory_embeddings_in_dir(Path.join(Settings.fnord_home(), "memory"))
   end
 
+  # Memory files are rewritten in place with embeddings set to nil. A
+  # non-atomic File.write/2 that gets interrupted mid-stream leaves a
+  # truncated file on disk. Since detect_stale_embeddings samples only
+  # one non-nil embedding, a corrupt file plus an otherwise-fully-migrated
+  # on-disk state would skip re-migration AND leave the memory
+  # unreadable by the Memory module. Write atomically via tmp + rename so
+  # the on-disk state is always either the pre-wipe or post-wipe JSON.
   defp clear_memory_embeddings_in_dir(dir) do
     dir
     |> Path.join("*.json")
@@ -228,8 +235,21 @@ defmodule AI.Embeddings.Migration do
               updated = Map.put(memory, "embeddings", nil)
 
               case SafeJson.encode(updated) do
-                {:ok, json} -> File.write(path, json)
-                _ -> :ok
+                {:ok, json} ->
+                  try do
+                    Settings.write_atomic!(path, json)
+                  rescue
+                    e ->
+                      UI.warn(
+                        "[Embeddings Migration] Failed to clear embeddings in #{path}: " <>
+                          Exception.message(e)
+                      )
+
+                      :ok
+                  end
+
+                _ ->
+                  :ok
               end
 
             _ ->

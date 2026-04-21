@@ -58,7 +58,10 @@ defmodule AI.Agent.Coordinator.Glue do
         UI.error("Failed to save conversation state", inspect(reason))
     end
 
-    # Invoke completion once, ensuring conversation state is included
+    # Invoke completion once, ensuring conversation state is included.
+    # `verbosity` is forwarded explicitly: AI.Completion.new/1 reads it as
+    # a standalone opt (not from model.verbosity), so the -V/--frippery
+    # user flag would otherwise be a no-op on the Coordinator path.
     AI.Agent.get_completion(state.agent,
       log_msgs: true,
       log_tool_calls: true,
@@ -67,6 +70,7 @@ defmodule AI.Agent.Coordinator.Glue do
       replay_conversation: replay,
       conversation_pid: state.conversation_pid,
       model: state.model,
+      verbosity: state.model.verbosity,
       toolbox: AI.Agent.Coordinator.Glue.get_tools(state),
       messages: msgs
     )

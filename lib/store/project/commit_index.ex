@@ -226,9 +226,18 @@ defmodule Store.Project.CommitIndex do
 
   @spec list_source_commits(Project.t()) :: [map()]
   defp list_source_commits(%Project{} = project) do
+    # Commit enumeration is anchored to the same ref as file enumeration
+    # (Store.Project.Source.default_branch/1), so files and commits describe
+    # the same tree. When default branch resolution fails - detached HEAD,
+    # no configured remote HEAD - fall back to HEAD so commit indexing still
+    # makes progress rather than silently returning an empty list.
     case git_root(project) do
-      nil -> []
-      root -> git_commits(root)
+      nil ->
+        []
+
+      root ->
+        ref = Store.Project.Source.default_branch(project) || "HEAD"
+        git_commits(root, ref)
     end
   end
 
@@ -326,12 +335,8 @@ defmodule Store.Project.CommitIndex do
     end
   end
 
-  @spec git_commits(String.t()) :: [map()]
-  defp git_commits(root) do
-    # Use HEAD to enumerate the reachable commit history. This is robust across
-    # repos without a configured remote HEAD or when detached.
-    ref = "HEAD"
-
+  @spec git_commits(String.t(), String.t()) :: [map()]
+  defp git_commits(root, ref) do
     shas =
       case System.cmd("git", ["rev-list", ref],
              cd: root,

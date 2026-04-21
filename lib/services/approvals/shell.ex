@@ -37,13 +37,53 @@ defmodule Services.Approvals.Shell do
       pid when is_pid(pid) ->
         meta = Services.Conversation.get_conversation_meta(pid)
 
-        meta
-        |> Map.get(:session_shell_approvals, [])
-        |> normalize_meta_approvals()
+        approvals =
+          meta
+          |> Map.get(:session_shell_approvals, [])
+          |> normalize_meta_approvals()
+
+        maybe_announce_persisted_approvals(approvals)
+        approvals
 
       _ ->
         []
     end
+  end
+
+  # Persisted conversation metadata is a user-writable on-disk blob. Anyone
+  # with write access to the conversation JSON could plant an arbitrary
+  # prefix or :full regex and have it merged into auto-approved commands
+  # on the next `ask -c <id>` run. We cannot prevent that at the store
+  # layer, but we can make inherited approvals visible so the user can
+  # audit them. Emit the list once per invocation - keyed on the current
+  # Approvals GenServer pid so a restart (e.g. for edit-mode toggle) does
+  # not re-announce the same list mid-session.
+  defp maybe_announce_persisted_approvals([]), do: :ok
+
+  defp maybe_announce_persisted_approvals(approvals) do
+    key = {__MODULE__, :announced, self()}
+
+    case Process.get(key) do
+      nil ->
+        Process.put(key, true)
+
+        lines =
+          Enum.map(approvals, fn
+            {:prefix, v} -> "  - prefix: #{v}"
+            {:full, v} -> "  - full regex: #{v}"
+          end)
+
+        UI.info(
+          "Shell approvals",
+          "Inherited from conversation metadata (will auto-approve):\n" <>
+            Enum.join(lines, "\n")
+        )
+
+      _ ->
+        :ok
+    end
+
+    :ok
   end
 
   defp normalize_meta_approvals(list) when is_list(list) do
@@ -292,8 +332,31 @@ defmodule Services.Approvals.Shell do
     Settings.Approvals.approved?(Settings.new(), "shell_full", full) or
       @full_cmd
       |> Enum.concat(session_approvals(state, :full))
-      |> Enum.map(fn re -> Regex.compile!(re, "u") end)
+      |> compile_full_patterns()
       |> Enum.any?(&Regex.match?(&1, full))
+  end
+
+  # Persisted :full approvals originate from user conversation metadata,
+  # which is a plain on-disk JSON blob with no schema enforcement. A
+  # malformed or corrupted regex - planted or otherwise - previously
+  # crashed the Approvals GenServer via Regex.compile!. Drop bad patterns
+  # with a single-shot warn so the session continues and the user sees
+  # something in the log they can act on.
+  defp compile_full_patterns(patterns) do
+    Enum.flat_map(patterns, fn pattern ->
+      case Regex.compile(pattern, "u") do
+        {:ok, re} ->
+          [re]
+
+        {:error, reason} ->
+          UI.warn(
+            "[Approvals.Shell] dropping invalid persisted regex #{inspect(pattern)}: " <>
+              inspect(reason)
+          )
+
+          []
+      end
+    end)
   end
 
   defp full_literal_prefix_approved?(state, full) do

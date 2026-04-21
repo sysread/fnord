@@ -734,10 +734,17 @@ defmodule AI.Completion do
   # Guard against runaway tool loops. Once the model has made
   # `tool_round_cap` rounds of tool calls in a single `get/1`, drop the
   # tool surface (so the model MUST emit text on the next call) and
-  # inject a system nudge explaining what just happened.
+  # inject a system nudge explaining what just happened. An empty map
+  # (NOT nil) is used as the post-cap toolbox so any tool call that
+  # still arrives - replayed message, interrupt injection, anomalous
+  # model behavior - routes through AI.Tools.tool_module/2's explicit-
+  # empty branch and returns `:unknown_tool` instead of falling back to
+  # the default basic+MCP toolbox. The nudge's claim that further tool
+  # calls will not be executed is thereby enforced in code, not just
+  # advertised in the prompt.
   @spec maybe_nudge_wrap_up(t) :: t
   defp maybe_nudge_wrap_up(%__MODULE__{tool_round_count: n, tool_round_cap: cap} = state)
-       when n == cap do
+       when n >= cap do
     nudge = """
     You have made #{n} rounds of tool calls in this turn. That is the
     configured cap. Stop calling tools and produce your final response
@@ -751,7 +758,7 @@ defmodule AI.Completion do
       state
       | messages: state.messages ++ [AI.Util.system_msg(nudge)],
         specs: nil,
-        toolbox: nil
+        toolbox: %{}
     }
   end
 

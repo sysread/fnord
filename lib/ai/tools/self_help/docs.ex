@@ -12,7 +12,15 @@ defmodule AI.Tools.SelfHelp.Docs do
   # editing this module. Dev docs under docs/dev/ are intentionally out
   # of scope: they're architecture notes for contributors/LLMs working
   # on fnord itself, not answers to end-user questions.
-  @doc_paths Path.wildcard("docs/user/*.md") |> Enum.sort()
+  #
+  # docs/user/README.md is NOT in hexdocs extras (see mix.exs - it's
+  # excluded to avoid a `readme.html` filename collision with the top-level
+  # README.md), so a URL for it would 404. The root README is already
+  # represented as the hardcoded `readme.html` entry below; drop the
+  # docs/user/README.md duplicate from the glob before building URLs.
+  @doc_paths Path.wildcard("docs/user/*.md")
+             |> Enum.reject(&(&1 == "docs/user/README.md"))
+             |> Enum.sort()
   for path <- @doc_paths, do: @external_resource(path)
 
   @hexdocs_urls [
@@ -116,8 +124,17 @@ defmodule AI.Tools.SelfHelp.Docs do
       ]
     )
     |> case do
-      {:ok, %{response: response}} -> {:ok, response}
-      {:error, reason} -> {:error, reason}
+      {:ok, %{response: response}} ->
+        {:ok, response}
+
+      # Completion exposes the usage count alongside :context_length_exceeded;
+      # collapsing it to an :error with a descriptive reason keeps the tool
+      # caller contract single-shaped without dropping signal for logs.
+      {:error, :context_length_exceeded, _usage} ->
+        {:error, "documentation research exceeded the context window"}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 end

@@ -201,6 +201,37 @@ defmodule Store.Project.CommitIndexTest do
     assert deleted_sha in status.deleted
   end
 
+  # Regression: commit enumeration used to hard-code `git rev-list HEAD`,
+  # which returned feature-branch commits when the working tree was on a
+  # non-default branch. Files are indexed against the default branch, so
+  # this produced a silent divergence (commits indexed on one branch,
+  # files on another). Enumeration now follows Source.default_branch/1.
+  test "index_status/1 enumerates the default branch, not HEAD", %{project: project} do
+    git_init!(project)
+    git_config_user!(project)
+
+    File.write!(Path.join(project.source_root, "tracked.txt"), "base")
+    System.cmd("git", ["add", "."], cd: project.source_root)
+    System.cmd("git", ["commit", "-m", "base commit", "--quiet"], cd: project.source_root)
+
+    # Create and check out a feature branch; add a commit that exists ONLY
+    # on the feature branch. Enumeration must skip it because the default
+    # branch (main/master) does not reach it.
+    System.cmd("git", ["checkout", "-b", "feat", "--quiet"], cd: project.source_root)
+    File.write!(Path.join(project.source_root, "feat.txt"), "feature-only")
+    System.cmd("git", ["add", "."], cd: project.source_root)
+    System.cmd("git", ["commit", "-m", "feature commit", "--quiet"], cd: project.source_root)
+
+    subjects =
+      project
+      |> CommitIndex.index_status()
+      |> Map.fetch!(:new)
+      |> Enum.map(& &1.subject)
+
+    assert "base commit" in subjects
+    refute "feature commit" in subjects
+  end
+
   test "index_status/1 treats metadata changes as stale", %{project: project} do
     git_init!(project)
     git_config_user!(project)

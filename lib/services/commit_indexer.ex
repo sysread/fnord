@@ -18,7 +18,7 @@ defmodule Services.CommitIndexer do
           task: pid() | nil,
           mon_ref: reference() | nil,
           impl: module(),
-          seen: map()
+          candidates: [map()]
         }
 
   @spec start_link(keyword()) :: GenServer.on_start()
@@ -54,12 +54,19 @@ defmodule Services.CommitIndexer do
           end
       end
 
+    # Resolve the candidate list up front. index_status/1 enumerates the
+    # project's full commit history (one `git show` per commit) and is too
+    # expensive to re-run on every cycle. Budget the work to
+    # @max_commits_per_session now and pop one entry per cycle until the
+    # list is empty.
+    candidates = resolve_candidates(project)
+
     state = %{
       project: project,
       task: nil,
       mon_ref: nil,
       impl: Indexer.impl(),
-      seen: %{}
+      candidates: candidates
     }
 
     {:ok, state, {:continue, :process_next}}
@@ -71,18 +78,23 @@ defmodule Services.CommitIndexer do
   end
 
   @impl true
+  def handle_continue(:process_next, %{task: nil, candidates: []} = state) do
+    {:stop, :normal, state}
+  end
+
+  @impl true
   def handle_continue(:process_next, %{task: nil, project: project} = state)
       when not is_nil(project) do
     if GitCli.is_git_repo_at?(Store.Project.original_source_root()) do
-      case next_stale_commit(project, state.seen) do
-        nil ->
-          {:stop, :normal, state}
-
-        commit ->
-          case start_commit_task(commit, state) do
+      case state.candidates do
+        [commit | rest] ->
+          case start_commit_task(commit, %{state | candidates: rest}) do
             {:noreply, new_state} -> {:noreply, new_state}
             other -> other
           end
+
+        [] ->
+          {:stop, :normal, state}
       end
     else
       {:stop, :normal, state}
@@ -120,8 +132,7 @@ defmodule Services.CommitIndexer do
       {:ok, task_pid} = Task.start_link(fn -> safe_process(commit, state.impl, state.project) end)
       mon_ref = Process.monitor(task_pid)
 
-      {:noreply,
-       %{state | task: task_pid, mon_ref: mon_ref, seen: Map.put(state.seen, commit.sha, true)}}
+      {:noreply, %{state | task: task_pid, mon_ref: mon_ref}}
     end
   end
 
@@ -146,17 +157,16 @@ defmodule Services.CommitIndexer do
     end
   end
 
-  defp next_stale_commit(project, seen) do
-    if map_size(seen) >= @max_commits_per_session do
-      nil
+  defp resolve_candidates(nil), do: []
+
+  defp resolve_candidates(%Store.Project{} = project) do
+    unless GitCli.is_git_repo_at?(Store.Project.original_source_root()) do
+      []
     else
-      project
-      |> CommitIndex.index_status()
-      |> Map.take([:new, :stale])
-      |> Map.values()
-      |> List.flatten()
-      |> Enum.reject(fn commit -> Map.has_key?(seen, commit.sha) end)
-      |> List.first()
+      status = CommitIndex.index_status(project)
+
+      (status.new ++ status.stale)
+      |> Enum.take(@max_commits_per_session)
     end
   end
 end

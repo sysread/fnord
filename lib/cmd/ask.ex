@@ -1200,6 +1200,11 @@ defmodule Cmd.Ask do
          false <- GitCli.Worktree.has_uncommitted_changes?(path),
          conv_meta = Services.Conversation.get_conversation_meta(conversation_pid),
          meta when is_map(meta) <- worktree_meta(conv_meta),
+         # A path-only worktree record (e.g. from `--worktree <path>` without a
+         # fork) carries nil branch/base_branch. Without those we cannot
+         # compute a diff from the fork point, so we cannot know if the
+         # worktree is empty - treat as non-empty and preserve the path.
+         true <- is_binary(meta.branch) and is_binary(meta.base_branch),
          repo_root = Store.Project.original_source_root(),
          {:ok, diff} <-
            GitCli.Worktree.diff_from_fork_point(repo_root, meta.branch, meta.base_branch),
@@ -1311,9 +1316,20 @@ defmodule Cmd.Ask do
 
           {:validation_failed, phase, summary} ->
             UI.warn("Validation failed (#{phase}, attempt #{attempt}/#{@max_merge_attempts})")
-            run_validation_fix(conversation_pid, path, summary)
-            maybe_auto_commit(path, true, conversation_pid)
-            maybe_worktree_review(path, true, conversation_pid, auto_merge?, attempt + 1)
+
+            # In interactive mode, a pre_merge failure only propagates here when
+            # the user answered "no" to the "Merge anyway despite validation
+            # failure?" prompt. Respect that decline: do not kick off an
+            # unsolicited auto-approved fix cycle. The worktree is left intact
+            # so the user can inspect/fix it at their own pace.
+            if phase == :pre_merge and not auto_merge? do
+              show_worktree_hints(path, conversation_pid)
+              :unmerged
+            else
+              run_validation_fix(conversation_pid, path, summary, auto_merge?)
+              maybe_auto_commit(path, true, conversation_pid)
+              maybe_worktree_review(path, true, conversation_pid, auto_merge?, attempt + 1)
+            end
 
           {:merge_failed, _reason} ->
             show_worktree_hints(path, conversation_pid)
@@ -1379,8 +1395,11 @@ defmodule Cmd.Ask do
 
   # Invokes the coordinator for one completion cycle to fix validation failures.
   # Injects the failure context as a system message, then runs get_response
-  # with the fix instructions as the question.
-  defp run_validation_fix(conversation_pid, worktree_path, validation_output) do
+  # with the fix instructions as the question. The `auto_approve?` argument is
+  # threaded from the session's own --yes/--cowboy flag so the fix cycle does
+  # not silently elevate approval policy: interactive sessions keep prompting,
+  # auto-merge sessions keep auto-approving.
+  defp run_validation_fix(conversation_pid, worktree_path, validation_output, auto_approve?) do
     UI.begin_step("Fixing validation failures")
 
     """
@@ -1402,7 +1421,7 @@ defmodule Cmd.Ask do
       edit: true,
       question: "Fix the validation failures shown above and commit the fixes.",
       replay: false,
-      yes: true
+      yes: auto_approve?
     )
   end
 

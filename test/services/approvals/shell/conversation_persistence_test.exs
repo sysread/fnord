@@ -56,4 +56,57 @@ defmodule Services.Approvals.Shell.ConversationPersistenceTest do
     # No choose/prompt expectations here: if they fire, Mox will complain
     assert {:approved, _state2} = Shell.confirm(%{session: []}, {"|", [cmd], "follow-up"})
   end
+
+  # Regression: persisted :full regex approvals are user-writable on disk.
+  # Regex.compile! on an invalid pattern used to crash the Approvals
+  # GenServer. The reloader now drops invalid regexes with a warn and
+  # continues, so a bad stored pattern degrades to prompting instead of
+  # taking down the approval flow.
+  test "invalid persisted :full regex does not crash approvals", ctx do
+    pid = ctx.conversation.conversation_pid
+
+    Services.Conversation.upsert_conversation_meta(pid, %{
+      session_shell_approvals: [%{kind: :full, value: "[unclosed"}]
+    })
+
+    Services.Globals.put_env(:fnord, :current_conversation, pid)
+
+    cmd = %{"command" => "tool-unseen", "args" => []}
+
+    expect(UI.Output.Mock, :choose, fn _msg, _opts -> "Deny" end)
+
+    # Must not raise - we expect the :full pattern to be skipped and the
+    # unknown command to prompt as usual; the user denies.
+    assert {:denied, _reason, _state} =
+             Shell.confirm(%{session: []}, {"|", [cmd], "bad-regex reload"})
+  end
+
+  # H1 mitigation: inherited persisted approvals are announced to the user
+  # once per invocation so a planted or corrupted entry is visible rather
+  # than silently auto-approving matching commands.
+  test "inherited approvals are announced once per session", ctx do
+    pid = ctx.conversation.conversation_pid
+
+    Services.Conversation.upsert_conversation_meta(pid, %{
+      session_shell_approvals: [%{kind: :prefix, value: "inherited-cmd"}]
+    })
+
+    Services.Globals.put_env(:fnord, :current_conversation, pid)
+
+    cmd = %{"command" => "inherited-cmd", "args" => []}
+
+    announcements = :counters.new(1, [:atomics])
+
+    :meck.expect(UI, :info, fn label, _body ->
+      if label == "Shell approvals", do: :counters.add(announcements, 1, 1)
+      :ok
+    end)
+
+    # Two approval calls in the same process (same Approvals GenServer pid).
+    assert {:approved, _} = Shell.confirm(%{session: []}, {"|", [cmd], "first"})
+    assert {:approved, _} = Shell.confirm(%{session: []}, {"|", [cmd], "second"})
+
+    # Announced exactly once across the two calls.
+    assert :counters.get(announcements, 1) == 1
+  end
 end

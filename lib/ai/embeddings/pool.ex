@@ -35,7 +35,7 @@ defmodule AI.Embeddings.Pool do
       Retrying is usually fine.
     * `{:error, :port_died}` - the port died while a call was in flight.
     * `{:error, :timeout}` - embedding did not complete within the
-      5-minute call timeout.
+      30-minute call timeout (sized to cover first-invocation cold boot).
     * `{:error, :shutting_down}` - the pool is terminating; the caller's
       request will not be processed.
     * `{:error, binary}` - structured error surfaced by embed.exs itself
@@ -45,7 +45,7 @@ defmodule AI.Embeddings.Pool do
   ## Back-pressure
 
   The pool does not cap pending requests. Each embed call becomes a
-  `GenServer.call` with a 5-minute timeout and gets queued in the
+  `GenServer.call` with a 30-minute timeout and gets queued in the
   `pending` map until embed.exs produces a matching response. In-flight
   concurrency on the embed.exs side is bounded by `:workers` (default
   `max(System.schedulers_online() - 2, 8)` - scales to the host, with an
@@ -62,7 +62,20 @@ defmodule AI.Embeddings.Pool do
   @min_workers 8
 
   # How long a caller will wait for an embedding result before timing out.
-  @call_timeout :timer.minutes(5)
+  #
+  # The window has to cover first-invocation cold boot: after spawn_port/1
+  # returns, the embed.exs process still has to run `Mix.install` (Bumblebee,
+  # EXLA, Jason), compile the EXLA NIF, download the HuggingFace model
+  # weights (~130MB), and JIT the inference graph before the first
+  # embedding can be computed. On a cold laptop with a slow network that
+  # sequence routinely runs 10-15 minutes. A post-install/upgrade user who
+  # hit a 5-minute cap saw `{:error, :timeout}` before the model finished
+  # downloading.
+  #
+  # Legitimate hangs are still caught quickly by the port monitor
+  # (`handle_port_death/3`), so this bound only governs "request accepted,
+  # no response yet" - in practice, only the first call of a cold process.
+  @call_timeout :timer.minutes(30)
 
   # After the port dies, wait briefly before restarting to avoid tight loops
   # on persistent failures (missing elixir, broken EXLA, etc.).
