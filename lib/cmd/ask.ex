@@ -210,7 +210,7 @@ defmodule Cmd.Ask do
              ),
            :ok <- Memory.init(),
            {:ok, worktree_path} <- prepare_conversation_worktree(opts, pid),
-           {:ok, usage, context, response, _edited?} <- get_response(opts, pid),
+           {:ok, usage, context, response} <- get_response(opts, pid),
            {:ok, conversation_id} <- save_conversation(pid) do
         end_time = System.monotonic_time(:second)
 
@@ -729,14 +729,14 @@ defmodule Cmd.Ask do
   # Agent response
   # ----------------------------------------------------------------------------
   @spec get_response(map, pid) ::
-          {:ok, non_neg_integer, non_neg_integer, binary, boolean}
+          {:ok, non_neg_integer, non_neg_integer, binary}
           | {:error, any}
   defp get_response(opts, conversation_server) do
     opts
     |> get_agent_response(conversation_server)
     |> case do
-      {:ok, %{usage: usage, context: context, last_response: res} = state} ->
-        {:ok, usage, context, res, Map.get(state, :editing_tools_used, false)}
+      {:ok, %{usage: usage, context: context, last_response: res}} ->
+        {:ok, usage, context, res}
 
       {:error, reason} ->
         {:error, reason}
@@ -1015,14 +1015,9 @@ defmodule Cmd.Ask do
            GitCli.Worktree.normalize_worktree_meta(stored_meta)
          ) do
       {:ok, meta} ->
-        case Services.Conversation.upsert_conversation_meta(conversation_pid, %{worktree: meta}) do
-          :ok ->
-            Settings.set_project_root_override(meta.path)
-            {:ok, meta.path}
-
-          other ->
-            other
-        end
+        :ok = Services.Conversation.upsert_conversation_meta(conversation_pid, %{worktree: meta})
+        Settings.set_project_root_override(meta.path)
+        {:ok, meta.path}
 
       other ->
         other

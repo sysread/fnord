@@ -156,8 +156,11 @@ defmodule GitCli.WorktreeTest do
         {:ok, %{path: worktree_path, branch: "feature", base_branch: "main"}}
       end)
 
+      # Simulate the one realistic bind-failure mode: a GenServer.call that
+      # exits because the conversation process is dead. upsert_conversation_meta
+      # is speced :ok - an error-tuple return is unreachable in practice.
       :meck.expect(Services.Conversation, :upsert_conversation_meta, fn ^current_pid, _meta ->
-        {:error, :not_found}
+        exit(:noproc)
       end)
 
       :meck.expect(GitCli, :repo_root, fn -> project.source_root end)
@@ -169,7 +172,7 @@ defmodule GitCli.WorktreeTest do
         {:ok, :ok}
       end)
 
-      assert {:error, :not_found} =
+      assert {:error, {:conversation_bind_failed, {:exit, :noproc}}} =
                AI.Tools.Git.Worktree.call(%{"action" => "create"})
 
       assert_received :rollback_delete_called

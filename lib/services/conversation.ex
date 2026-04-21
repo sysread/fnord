@@ -31,7 +31,7 @@ defmodule Services.Conversation do
     GenServer.cast(pid, {:load, conversation_id})
   end
 
-  @spec merge_conversation_meta(pid, map) :: :ok | {:error, :not_found}
+  @spec merge_conversation_meta(pid, map) :: :ok
   def merge_conversation_meta(pid, meta) when is_map(meta) do
     GenServer.call(pid, {:merge_conversation_meta, meta})
   end
@@ -87,17 +87,9 @@ defmodule Services.Conversation do
   end
 
   @doc """
-  Get the conversation metadata.
-  """
-  @spec get_metadata(pid) :: map
-  def get_metadata(pid) do
-    get_conversation_meta(pid)
-  end
-
-  @doc """
   Merge the provided map into the conversation metadata.
   """
-  @spec upsert_conversation_meta(pid, map) :: :ok | {:error, :not_found}
+  @spec upsert_conversation_meta(pid, map) :: :ok
   def upsert_conversation_meta(pid, meta) when is_map(meta) do
     GenServer.call(pid, {:merge_conversation_meta, meta})
   end
@@ -255,11 +247,6 @@ defmodule Services.Conversation do
 
   @impl true
   def handle_call(:get_conversation_meta, _from, state) do
-    {:reply, state.metadata, state}
-  end
-
-  @impl true
-  def handle_call(:get_metadata, _from, state) do
     {:reply, state.metadata, state}
   end
 

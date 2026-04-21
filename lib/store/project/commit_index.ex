@@ -12,8 +12,6 @@ defmodule Store.Project.CommitIndex do
 
   @type metadata :: %{optional(String.t()) => any}
 
-  @type commit_metadata :: %{optional(String.t()) => any}
-
   @type commit_record :: %{
           sha: String.t(),
           parent_shas: [String.t()],

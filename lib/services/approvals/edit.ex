@@ -40,6 +40,10 @@ defmodule Services.Approvals.Edit do
               1 -> "Auto-approved? You got it!"
               2 -> "Auto-approved? Correct-a-mundo!"
               3 -> "Auto-approved. Ayyyyy! Sit on it!"
+              # A future caller that forgets to clamp get_yes_count shouldn't
+              # crash the approval flow at pattern match. Fall back to the
+              # plain auto-approve message rather than raising.
+              _ -> "Auto-approved (either --yes passed or approved for session)"
             end
 
           UI.info("Edit #{display}", msg)

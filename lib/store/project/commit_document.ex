@@ -18,19 +18,6 @@ defmodule Store.Project.CommitDocument do
           diffstat: String.t() | [map()]
         }
 
-  @type commit_record :: %{
-          sha: String.t(),
-          parent_shas: [String.t()],
-          subject: String.t(),
-          body: String.t(),
-          author: String.t(),
-          committed_at: String.t() | DateTime.t() | non_neg_integer(),
-          changed_files: [String.t()],
-          diffstat: String.t() | [map()],
-          embedding_model: String.t() | nil,
-          last_indexed_ts: non_neg_integer()
-        }
-
   @document_version 1
 
   @spec version() :: non_neg_integer()

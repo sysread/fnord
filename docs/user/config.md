@@ -52,6 +52,24 @@ fnord config validation remove 1
 fnord config validation clear
 ```
 
+## External configs (Cursor and Claude Code)
+
+See [AI Tool Integrations](ai-tool-integrations.md) and [Skills](skills.md) for the full guide.
+
+Toggle per-project discovery of Cursor rules, Cursor skills, Claude Code skills, and Claude Code subagents.
+All four sources default to disabled; enabling any source opts the selected project into discovery of the matching files from both the user's home directory and the project source root.
+
+```bash
+fnord config external-configs list
+fnord config external-configs enable --source cursor:rules
+fnord config external-configs enable --source cursor:skills
+fnord config external-configs enable --source claude:skills
+fnord config external-configs enable --source claude:agents
+fnord config external-configs disable --source cursor:rules
+```
+
+Sources: `cursor:rules`, `cursor:skills`, `claude:skills`, `claude:agents`.
+
 ## MCP servers
 
 See [Advanced MCP Configuration](mcp-advanced.md) for the full guide.

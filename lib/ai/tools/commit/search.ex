@@ -72,11 +72,10 @@ defmodule AI.Tools.Commit.Search do
   end
 
   @impl AI.Tools
-  def call(args) do
-    with {:ok, query} <- Map.fetch(args, "query"),
-         limit <- Map.get(args, "limit", @max_search_results),
-         start_time = DateTime.utc_now(),
-         {:ok, matches} <- do_search(query, limit),
+  def call(%{"query" => query, "limit" => limit}) do
+    start_time = DateTime.utc_now()
+
+    with {:ok, matches} <- do_search(query, limit),
          took_ms = DateTime.diff(DateTime.utc_now(), start_time, :millisecond),
          {:ok, index_state_msg} <- index_state() do
       {:ok, build_response(matches, took_ms, index_state_msg)}

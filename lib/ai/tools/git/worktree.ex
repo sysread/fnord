@@ -172,15 +172,13 @@ defmodule AI.Tools.Git.Worktree do
   # is surfaced to the caller.
   @spec finalize_created_worktree(pid(), map()) :: {:ok, map()} | {:error, term()}
   defp finalize_created_worktree(conversation_pid, result) do
+    # bind_worktree_to_conversation/2 always returns :ok on success; the only
+    # realistic failure mode is a dead or unresponsive conversation server,
+    # which surfaces as a GenServer.call exit. Catch those to roll back the
+    # half-created worktree and surface a typed error to the tool caller.
     try do
-      case bind_worktree_to_conversation(conversation_pid, result) do
-        :ok ->
-          {:ok, result}
-
-        {:error, reason} ->
-          rollback_created_worktree(result)
-          {:error, reason}
-      end
+      :ok = bind_worktree_to_conversation(conversation_pid, result)
+      {:ok, result}
     catch
       :exit, reason ->
         rollback_created_worktree(result)
@@ -211,7 +209,7 @@ defmodule AI.Tools.Git.Worktree do
     end
   end
 
-  @spec bind_worktree_to_conversation(pid, map) :: :ok | {:error, :not_found}
+  @spec bind_worktree_to_conversation(pid, map) :: :ok
   defp bind_worktree_to_conversation(pid, result) do
     meta =
       GitCli.Worktree.normalize_worktree_meta(%{

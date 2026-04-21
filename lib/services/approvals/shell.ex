@@ -86,6 +86,10 @@ defmodule Services.Approvals.Shell do
     :ok
   end
 
+  # `kind` may be an atom (in-memory, same invocation - we write atoms in
+  # persist_session_approval/2) or a string (after JSON roundtrip - Jason
+  # encodes atom values as strings, and Store.Project.Conversation.read/1
+  # atomizes only keys, leaving values as strings). Accept both shapes.
   defp normalize_meta_approvals(list) when is_list(list) do
     Enum.flat_map(list, fn item ->
       cond do
@@ -575,7 +579,7 @@ defmodule Services.Approvals.Shell do
 
   defp approve_scope(@session, %{session: session} = state, prefix) do
     prefixes = session |> Enum.concat([{:prefix, prefix}]) |> Enum.uniq()
-    :ok = persist_session_approval(:prefix, prefix)
+    persist_session_approval(:prefix, prefix)
     {:approved, %{state | session: prefixes}}
   end
 
@@ -590,7 +594,7 @@ defmodule Services.Approvals.Shell do
   end
 
   defp approve_regex_scope(@session, %{session: session} = state, inner, _prefix) do
-    :ok = persist_session_approval(:full, inner)
+    persist_session_approval(:full, inner)
     prefixes = session |> Enum.concat([{:full, inner}]) |> Enum.uniq()
     {:approved, %{state | session: prefixes}}
   end

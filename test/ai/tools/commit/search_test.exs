@@ -89,7 +89,7 @@ defmodule AI.Tools.Commit.SearchTest do
       %{new: [1], stale: [1, 2], deleted: []}
     end)
 
-    {:ok, msg} = AI.Tools.Commit.Search.call(%{"query" => "anything"})
+    {:ok, msg} = AI.Tools.Commit.Search.call(%{"query" => "anything", "limit" => 25})
 
     assert msg =~ "[commit_search_tool]"
     assert msg =~ "# abc123 (cosine similarity: 0.42)"
@@ -112,7 +112,7 @@ defmodule AI.Tools.Commit.SearchTest do
     on_exit(fn -> safe_meck_unload(Search.Commits) end)
 
     :meck.expect(Search.Commits, :get_results, fn _ -> {:error, :boom} end)
-    assert AI.Tools.Commit.Search.call(%{"query" => "q"}) == {:error, :boom}
+    assert AI.Tools.Commit.Search.call(%{"query" => "q", "limit" => 25}) == {:error, :boom}
   end
 
   test "call/1 propagates index_state errors" do
@@ -126,6 +126,6 @@ defmodule AI.Tools.Commit.SearchTest do
 
     :meck.expect(Search.Commits, :get_results, fn _ -> {:ok, []} end)
     :meck.expect(Store, :get_project, fn -> {:error, :proj_missing} end)
-    assert AI.Tools.Commit.Search.call(%{"query" => "q"}) == {:error, :proj_missing}
+    assert AI.Tools.Commit.Search.call(%{"query" => "q", "limit" => 25}) == {:error, :proj_missing}
   end
 end
