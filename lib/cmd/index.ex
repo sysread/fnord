@@ -583,7 +583,13 @@ defmodule Cmd.Index do
   @spec scan_project(Store.Project.t()) :: Store.Project.index_status()
   defp scan_project(project) do
     UI.spin("Scanning the project directory", fn ->
-      status = Store.Project.index_status(project)
+      on_progress = fn
+        {:total, 0} -> :ok
+        {:total, total} -> UI.progress_bar_start(:scan, "Scanning files", total)
+        :tick -> UI.progress_bar_update(:scan)
+      end
+
+      status = Store.Project.index_status(project, on_progress: on_progress)
 
       msg = """
       Scan Results:

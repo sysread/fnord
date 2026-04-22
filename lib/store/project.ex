@@ -398,7 +398,12 @@ defmodule Store.Project do
     * `:new`      - entries for unindexed files that exist in the source
   """
   @spec index_status(t) :: index_status
-  def index_status(project) do
+  def index_status(project), do: index_status(project, [])
+
+  @spec index_status(t, keyword) :: index_status
+  def index_status(project, opts) do
+    on_progress = Keyword.get(opts, :on_progress, fn _ -> :ok end)
+
     {project, source_stream} = source_files(project)
 
     source =
@@ -410,21 +415,37 @@ defmodule Store.Project do
       |> stored_files()
       |> Enum.to_list()
 
-    new =
-      source
-      |> Enum.filter(fn entry -> not Store.Project.Entry.exists_in_store?(entry) end)
+    on_progress.({:total, length(source) + length(stored)})
 
-    stale =
-      source
-      |> Enum.filter(fn entry ->
-        Store.Project.Entry.exists_in_store?(entry) and Store.Project.Entry.is_stale?(entry)
+    # Classify source entries in a single pass so on_progress ticks exactly
+    # once per source file. Set membership matches the prior two-filter form
+    # (callers compare by count or MapSet, not list order).
+    {new, stale} =
+      Enum.reduce(source, {[], []}, fn entry, {new_acc, stale_acc} ->
+        acc =
+          cond do
+            not Store.Project.Entry.exists_in_store?(entry) ->
+              {[entry | new_acc], stale_acc}
+
+            Store.Project.Entry.is_stale?(entry) ->
+              {new_acc, [entry | stale_acc]}
+
+            true ->
+              {new_acc, stale_acc}
+          end
+
+        on_progress.(:tick)
+        acc
       end)
 
     # In git mode, "deleted" means "not in the default branch's tree".
     # Source.exists? handles the mode routing for us.
     deleted =
-      stored
-      |> Enum.filter(fn entry -> not Store.Project.Source.exists?(project, entry.rel_path) end)
+      Enum.filter(stored, fn entry ->
+        result = not Store.Project.Source.exists?(project, entry.rel_path)
+        on_progress.(:tick)
+        result
+      end)
 
     %{
       new: new,
