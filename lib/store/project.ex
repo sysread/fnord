@@ -417,34 +417,56 @@ defmodule Store.Project do
 
     on_progress.({:total, length(source) + length(stored)})
 
-    # Classify source entries in a single pass so on_progress ticks exactly
-    # once per source file. Set membership matches the prior two-filter form
-    # (callers compare by count or MapSet, not list order).
+    # Classify source entries in parallel. Per-entry cost is dominated by
+    # File.read + JSON decode of metadata.json, which is cheap CPU-wise
+    # but single-threaded disk I/O; fanning out across schedulers
+    # collapses wall-clock on the scan. Results are consumed unordered -
+    # ticks arrive in completion order and the caller's progress bar
+    # treats them as fungible.
     {new, stale} =
-      Enum.reduce(source, {[], []}, fn entry, {new_acc, stale_acc} ->
-        acc =
-          cond do
-            not Store.Project.Entry.exists_in_store?(entry) ->
-              {[entry | new_acc], stale_acc}
+      source
+      |> Util.async_stream(&classify_source_entry/1, ordered: false)
+      |> Enum.reduce({[], []}, fn
+        {:ok, {:new, entry}}, {new_acc, stale_acc} ->
+          on_progress.(:tick)
+          {[entry | new_acc], stale_acc}
 
-            Store.Project.Entry.is_stale?(entry) ->
-              {new_acc, [entry | stale_acc]}
+        {:ok, {:stale, entry}}, {new_acc, stale_acc} ->
+          on_progress.(:tick)
+          {new_acc, [entry | stale_acc]}
 
-            true ->
-              {new_acc, stale_acc}
-          end
+        {:ok, {:fresh, _entry}}, acc ->
+          on_progress.(:tick)
+          acc
 
-        on_progress.(:tick)
-        acc
+        _, acc ->
+          on_progress.(:tick)
+          acc
       end)
 
     # In git mode, "deleted" means "not in the default branch's tree".
-    # Source.exists? handles the mode routing for us.
+    # Parallel for the same reason: Source.exists? is O(1) against the
+    # cached path map but each stored entry still costs a metadata tree
+    # walk through stored_files/1 upstream, and running the check
+    # concurrently keeps the deletion pass from serializing behind disk.
     deleted =
-      Enum.filter(stored, fn entry ->
-        result = not Store.Project.Source.exists?(project, entry.rel_path)
-        on_progress.(:tick)
-        result
+      stored
+      |> Util.async_stream(
+        fn entry -> {not Store.Project.Source.exists?(project, entry.rel_path), entry} end,
+        ordered: false
+      )
+      |> Enum.reduce([], fn
+        {:ok, {true, entry}}, acc ->
+          on_progress.(:tick)
+          [entry | acc]
+
+        {:ok, {false, _entry}}, acc ->
+          on_progress.(:tick)
+          acc
+
+        _, acc ->
+          on_progress.(:tick)
+          acc
       end)
 
     %{
@@ -452,6 +474,17 @@ defmodule Store.Project do
       stale: stale,
       deleted: deleted
     }
+  end
+
+  # Extracted so async_stream's lambda stays a module reference rather
+  # than capturing `project` from the enclosing scope - the entry
+  # already carries its project and each branch only needs the entry.
+  defp classify_source_entry(entry) do
+    cond do
+      not Store.Project.Entry.exists_in_store?(entry) -> {:new, entry}
+      Store.Project.Entry.is_stale?(entry) -> {:stale, entry}
+      true -> {:fresh, entry}
+    end
   end
 
   # -----------------------------------------------------------------------------
