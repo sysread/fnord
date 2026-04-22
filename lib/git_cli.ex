@@ -214,6 +214,28 @@ defmodule GitCli do
   def default_branch(nil), do: nil
 
   def default_branch(root) when is_binary(root) do
+    key = {__MODULE__, :default_branch, root}
+
+    case :persistent_term.get(key, :miss) do
+      :miss ->
+        result = resolve_default_branch(root)
+        :persistent_term.put(key, result)
+        result
+
+      cached ->
+        cached
+    end
+  end
+
+  # Forks 2-4 git subprocesses (is_git_repo_at? + symbolic-ref, then
+  # rev-parse probes for main/master). Called per file under the index
+  # scan's async_stream via Source.hash and Source.exists?, so without
+  # the persistent_term wrapper above this is O(N) fork/exec round
+  # trips per pass - minutes of scan time on a thousand-file repo.
+  # Cached for the BEAM's lifetime: the branch tip doesn't advance
+  # during a single fnord invocation and the mode decision must stay
+  # stable across a scan.
+  defp resolve_default_branch(root) do
     cond do
       not is_git_repo_at?(root) -> nil
       branch = remote_head(root) -> branch
