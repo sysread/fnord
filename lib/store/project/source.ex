@@ -91,13 +91,13 @@ defmodule Store.Project.Source do
     end
   end
 
-  # ls-tree is invoked from three hot paths (list, hash, exists?), all of
-  # which run under indexing's async_stream - that's O(N) subprocess forks
-  # on a large project if we don't memoize. Cached for the BEAM's lifetime:
-  # a single fnord invocation is short-lived and the branch tip won't
-  # advance during an index run. Both successes and failures are cached -
-  # a transient git failure shouldn't turn into O(N) retries inside the
-  # worker fan-out.
+  # ls-tree is invoked from `list/1` (enumeration) and, indirectly, from
+  # `hash/2` and `exists?/2`. All three run under indexing's async_stream
+  # - that's O(N) subprocess forks on a large project if we don't
+  # memoize. Cached for the BEAM's lifetime: a single fnord invocation
+  # is short-lived and the branch tip won't advance during an index
+  # run. Both successes and failures are cached - a transient git
+  # failure shouldn't turn into O(N) retries inside the worker fan-out.
   defp cached_ls_tree(root, branch) do
     key = cache_key(root, branch)
 
@@ -113,6 +113,36 @@ defmodule Store.Project.Source do
   end
 
   defp cache_key(root, branch), do: {__MODULE__, :ls_tree, root, branch}
+
+  # Point-lookup view of the ls-tree output, cached separately from the
+  # list so `hash/2` and `exists?/2` do O(1) Map operations instead of
+  # an Enum.find over every tracked blob. index_status calls those two
+  # per file under async_stream, so without this the scan is O(N^2) in
+  # tree size. Cache both successes and failures - a failed lookup once
+  # should not retry N times under fan-out.
+  defp cached_path_map(root, branch) do
+    key = path_map_key(root, branch)
+
+    case :persistent_term.get(key, :miss) do
+      :miss ->
+        result =
+          case cached_ls_tree(root, branch) do
+            {:ok, entries} ->
+              {:ok, Map.new(entries, fn {sha, rel_path} -> {rel_path, sha} end)}
+
+            {:error, _} = err ->
+              err
+          end
+
+        :persistent_term.put(key, result)
+        result
+
+      cached ->
+        cached
+    end
+  end
+
+  defp path_map_key(root, branch), do: {__MODULE__, :path_map, root, branch}
 
   defp list_fs(project) do
     # fs listing intentionally doesn't pre-compute hashes. Working-tree
@@ -178,11 +208,11 @@ defmodule Store.Project.Source do
     case mode(project) do
       :git ->
         # Cheapest path: ask git for the blob SHA on the default branch.
-        case cached_ls_tree(project.source_root, default_branch(project)) do
-          {:ok, entries} ->
-            case Enum.find(entries, fn {_sha, path} -> path == rel_path end) do
-              {sha, _} -> {:ok, sha}
-              nil -> {:error, :not_in_tree}
+        case cached_path_map(project.source_root, default_branch(project)) do
+          {:ok, map} ->
+            case Map.fetch(map, rel_path) do
+              {:ok, sha} -> {:ok, sha}
+              :error -> {:error, :not_in_tree}
             end
 
           {:error, reason} ->
@@ -213,8 +243,8 @@ defmodule Store.Project.Source do
   def exists?(project, rel_path) do
     case mode(project) do
       :git ->
-        case cached_ls_tree(project.source_root, default_branch(project)) do
-          {:ok, entries} -> Enum.any?(entries, fn {_sha, path} -> path == rel_path end)
+        case cached_path_map(project.source_root, default_branch(project)) do
+          {:ok, map} -> Map.has_key?(map, rel_path)
           _ -> false
         end
 

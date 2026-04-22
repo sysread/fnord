@@ -93,11 +93,28 @@ defmodule Store.Project.Entry do
   @spec is_stale?(t()) :: boolean()
   def is_stale?(entry) do
     cond do
-      !exists_in_store?(entry) -> true
-      is_incomplete?(entry) -> true
-      !hash_is_current?(entry) -> true
-      !embedding_dim_is_current?(entry) -> true
-      true -> false
+      !exists_in_store?(entry) ->
+        true
+
+      !has_summary?(entry) ->
+        true
+
+      !has_embeddings?(entry) ->
+        true
+
+      true ->
+        # Read metadata.json once and thread it through the remaining
+        # checks. Each per-file scan pays a single disk+decode cost
+        # instead of one read for the hash and another (indirectly, via
+        # the embeddings file) for the dim.
+        case read_metadata(entry) do
+          {:ok, metadata} ->
+            not hash_is_current?(entry, metadata) or
+              not embedding_dim_is_current?(entry, metadata)
+
+          _ ->
+            true
+        end
     end
   end
 
@@ -105,16 +122,44 @@ defmodule Store.Project.Entry do
   # model (e.g. pre-migration OpenAI 3072-dim data that the cross-format
   # hash upgrade marked as "fresh") is still stale from the embedding
   # layer's perspective: cosine_similarity would crash against the new
-  # query vectors. Catch this per-entry so a single mis-dim file no
-  # longer tricks Migration's sampling into either (a) wiping a
-  # mostly-healthy index, or (b) leaving stale dims in place.
-  defp embedding_dim_is_current?(entry) do
-    case Store.Project.Entry.Embeddings.read(entry.embeddings) do
-      {:ok, list} when is_list(list) ->
-        length(list) == AI.Embeddings.dimensions()
+  # query vectors. The dim is recorded in metadata at save time so this
+  # check is O(1) disk; older stores that predate that field fall back
+  # to reading the embeddings file once and backfilling so the next
+  # scan takes the fast path.
+  @spec embedding_dim_is_current?(t(), map()) :: boolean()
+  defp embedding_dim_is_current?(entry, metadata) do
+    current = AI.Embeddings.dimensions()
+
+    case Map.get(metadata, "embedding_dim") do
+      dim when is_integer(dim) ->
+        dim == current
 
       _ ->
-        false
+        case Store.Project.Entry.Embeddings.read(entry.embeddings) do
+          {:ok, list} when is_list(list) ->
+            actual = length(list)
+
+            if actual == current do
+              backfill_embedding_dim(entry, metadata, actual)
+              true
+            else
+              false
+            end
+
+          _ ->
+            false
+        end
+    end
+  end
+
+  # Re-stamps metadata with the discovered dim so subsequent scans
+  # answer embedding_dim_is_current? from metadata alone. No-op when
+  # metadata is missing the hash (we don't invent one) - the next
+  # successful save/3 will record both fields together.
+  defp backfill_embedding_dim(entry, metadata, dim) do
+    case Map.get(metadata, "hash") do
+      hash when is_binary(hash) -> save_metadata(entry, hash, embedding_dim: dim)
+      _ -> :ok
     end
   end
 
@@ -139,16 +184,33 @@ defmodule Store.Project.Entry do
     create(entry)
 
     with {:ok, hash} <- Store.Project.Source.hash(entry.project, entry.rel_path),
-         :ok <- save_metadata(entry, hash),
+         :ok <- save_metadata(entry, hash, embedding_dim: embedding_length(embeddings)),
          :ok <- save_summary(entry, summary),
          :ok <- save_embeddings(entry, embeddings) do
       :ok
     end
   end
 
+  # Width of a single embedding vector. Indexer.get_embeddings returns a
+  # flat list of floats today, but accept the legacy nested shape too so
+  # this helper stays robust if a caller ever hands us the pre-collapse
+  # per-chunk layout.
+  defp embedding_length([]), do: 0
+  defp embedding_length([first | _]) when is_list(first), do: length(first)
+  defp embedding_length(list) when is_list(list), do: length(list)
+  defp embedding_length(_), do: 0
+
   @spec hash_is_current?(t()) :: boolean()
   def hash_is_current?(entry) do
-    with {:ok, stored} <- get_last_hash(entry),
+    case read_metadata(entry) do
+      {:ok, metadata} -> hash_is_current?(entry, metadata)
+      _ -> false
+    end
+  end
+
+  @spec hash_is_current?(t(), map()) :: boolean()
+  def hash_is_current?(entry, metadata) do
+    with {:ok, stored} <- Map.fetch(metadata, "hash"),
          {:ok, current} <- Store.Project.Source.hash(entry.project, entry.rel_path) do
       cond do
         stored == current ->
@@ -161,7 +223,7 @@ defmodule Store.Project.Entry do
         # place rather than blowing a full LLM summarize + embed pass on
         # a file that hasn't changed at all.
         content_unchanged?(entry, stored) ->
-          save_metadata(entry, current)
+          restamp_metadata_hash(entry, metadata, current)
           true
 
         true ->
@@ -170,6 +232,20 @@ defmodule Store.Project.Entry do
     else
       _ -> false
     end
+  end
+
+  # The cross-format hash upgrade rewrites metadata with the
+  # current-format hash. Preserves embedding_dim if the older metadata
+  # had it - otherwise the next scan would have to reopen the
+  # embeddings file to rediscover the dim we just threw away.
+  defp restamp_metadata_hash(entry, metadata, current) do
+    opts =
+      case Map.get(metadata, "embedding_dim") do
+        dim when is_integer(dim) -> [embedding_dim: dim]
+        _ -> []
+      end
+
+    save_metadata(entry, current, opts)
   end
 
   # Stored is sha256 (64 hex) only if it came from the pre-Source/fs-mode
@@ -202,11 +278,17 @@ defmodule Store.Project.Entry do
   def has_metadata?(entry), do: Store.Project.Entry.Metadata.exists?(entry.metadata)
   def read_metadata(entry), do: Store.Project.Entry.Metadata.read(entry.metadata)
 
-  def save_metadata(entry, hash) when is_binary(hash) do
-    Store.Project.Entry.Metadata.write(entry.metadata, %{
-      rel_path: entry.rel_path,
-      hash: hash
-    })
+  @spec save_metadata(t(), binary, keyword) :: :ok | {:error, any()}
+  def save_metadata(entry, hash, opts \\ []) when is_binary(hash) do
+    base = %{rel_path: entry.rel_path, hash: hash}
+
+    attrs =
+      case Keyword.get(opts, :embedding_dim) do
+        dim when is_integer(dim) -> Map.put(base, :embedding_dim, dim)
+        _ -> base
+      end
+
+    Store.Project.Entry.Metadata.write(entry.metadata, attrs)
   end
 
   # Back-compat for callers that still hash the working tree directly.
@@ -244,12 +326,6 @@ defmodule Store.Project.Entry do
   # -----------------------------------------------------------------------------
   # Private functions
   # -----------------------------------------------------------------------------
-  defp get_last_hash(entry) do
-    with {:ok, metadata} <- read_metadata(entry) do
-      Map.fetch(metadata, "hash")
-    end
-  end
-
   defp sha256(content) do
     :crypto.hash(:sha256, content)
     |> Base.encode16(case: :lower)

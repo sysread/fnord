@@ -39,12 +39,26 @@ defmodule Store.Project.Entry.Metadata do
     # function remains usable from test / tooling call sites that bypass
     # the Source-aware save pipeline.
     hash = Map.get(data, :hash) || Map.get(data, "hash") || mkhash(file.source_file)
+    # `embedding_dim` is recorded here so `is_stale?` can answer the
+    # "does the stored vector match the current model?" question without
+    # opening the embeddings file on every scan. Written only when the
+    # caller has a dim to persist - older stores upgrade lazily on their
+    # first post-upgrade scan (see Entry.embedding_dim_is_current?/2).
+    embedding_dim = Map.get(data, :embedding_dim) || Map.get(data, "embedding_dim")
 
-    %{
+    base = %{
       file: rel_path || file.source_file,
       timestamp: DateTime.utc_now(),
       hash: hash
     }
+
+    payload =
+      case embedding_dim do
+        dim when is_integer(dim) -> Map.put(base, :embedding_dim, dim)
+        _ -> base
+      end
+
+    payload
     |> SafeJson.encode()
     |> case do
       {:ok, json} -> File.write(file.store_path, json)
