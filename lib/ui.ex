@@ -428,10 +428,17 @@ defmodule UI do
     end
   end
 
+  # Non-blocking tick. Increments the counter and lets Owl's LiveScreen
+  # pick up the change on its own 60ms render cycle. Previously this
+  # function also called Owl.LiveScreen.await_render/0 after each inc,
+  # which blocked the caller until the next render tick - effectively
+  # serializing the entire loop on Owl's refresh clock and erasing the
+  # concurrency of any async_stream reducer that called it per item.
+  # If you genuinely need to flush the screen (e.g. before exiting),
+  # call Owl.LiveScreen.await_render/0 once at that point, not per tick.
   def progress_bar_update(name) do
     if !quiet?() do
       Owl.ProgressBar.inc(id: name)
-      Owl.LiveScreen.await_render()
     end
   end
 
