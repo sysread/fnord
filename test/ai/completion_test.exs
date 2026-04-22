@@ -653,8 +653,13 @@ defmodule AI.CompletionTest do
       # once specs has been withdrawn.
       {:ok, counter} = Agent.start_link(fn -> 0 end)
 
+      # on_exit runs in a separate process; by then the Agent may already
+      # be shutting down via its link to the test pid. Agent.stop waits
+      # for a :normal exit and errors on any other reason, which racily
+      # reports a clean test as a CI failure. Fire-and-forget kill is
+      # race-safe: the Agent is unreferenced after the test body anyway.
       on_exit(fn ->
-        if Process.alive?(counter), do: Agent.stop(counter)
+        if Process.alive?(counter), do: Process.exit(counter, :shutdown)
       end)
 
       :meck.expect(AI.CompletionAPI, :get, fn _model,
