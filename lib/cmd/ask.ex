@@ -319,7 +319,14 @@ defmodule Cmd.Ask do
 
       Services.BackupFile.offer_cleanup()
 
+      # Flush in-session facts (ingested via user-msg and tool-call casts) to
+      # disk as a `# NEW NOTES (unconsolidated)` section before we release the
+      # session. Consolidation on the next session turns these into the main
+      # notes body. Without this flush, new facts live only in the GenServer's
+      # in-memory state and vanish when the BEAM exits, leaving projects that
+      # have never had a notes.md stuck in a permanent "prime me" loop.
       UI.spin(build_notes_spinner_label(), fn ->
+        Services.Notes.save()
         Services.Notes.join()
         {"Notes finalized", :ok}
       end)

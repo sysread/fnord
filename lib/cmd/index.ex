@@ -3,7 +3,8 @@ defmodule Cmd.Index do
     :opts,
     :indexer,
     :project,
-    :has_notes?
+    :has_notes?,
+    :first_index?
   ]
 
   @type t :: %__MODULE__{}
@@ -224,7 +225,12 @@ defmodule Cmd.Index do
         %__MODULE__{
           opts: opts,
           indexer: Indexer.impl(),
-          project: project
+          project: project,
+          # Capture "has this project ever been indexed" *before* we run the
+          # indexing pipeline, which is about to populate it. Used to gate the
+          # prime prompt so we only offer priming on a truly fresh project,
+          # not on every reindex.
+          first_index?: Enum.empty?(Store.Project.stored_files(project))
         }
         |> maybe_set_has_notes()
         |> then(&{:ok, &1})
@@ -773,6 +779,10 @@ defmodule Cmd.Index do
 
   defp maybe_prime_notes(%{opts: %{quiet: true}} = idx), do: idx
   defp maybe_prime_notes(%{has_notes?: true} = idx), do: idx
+  # Only offer priming on a project's first-ever index. On subsequent
+  # reindexes, staying silent respects any prior "no" the user may have
+  # given without persisting a separate decline marker.
+  defp maybe_prime_notes(%{first_index?: false} = idx), do: idx
 
   defp maybe_prime_notes(idx) do
     if UI.confirm(@prime_prompt, false) do

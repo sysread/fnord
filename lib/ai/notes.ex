@@ -234,6 +234,13 @@ defmodule AI.Notes do
   end
 
   @spec commit(t) :: {:ok, t} | {:error, any}
+  def commit(%{new_facts: []} = state) do
+    # Nothing to persist. Avoid rewriting notes.md (and avoid appending an
+    # empty `# NEW NOTES (unconsolidated)` section) when no facts have
+    # accumulated since the last commit.
+    {:ok, state}
+  end
+
   def commit(state) do
     # Get the most recent copy of the notes, just in case another session was
     # running in parallel and modified them on disk.

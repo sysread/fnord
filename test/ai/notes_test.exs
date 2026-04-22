@@ -72,6 +72,39 @@ defmodule AI.NotesTest do
       end)
     end
 
+    test "commit with empty new_facts does not touch notes.md", %{proj: proj} do
+      notes_path = Path.join(proj.store_path, "notes.md")
+      state = Notes.new()
+
+      # notes.md absent: commit must not create it
+      refute File.exists?(notes_path)
+      assert {:ok, ^state} = Notes.commit(state)
+      refute File.exists?(notes_path)
+
+      # notes.md present with a stable mtime: commit must not rewrite it
+      File.write!(notes_path, "existing notes body")
+      pre = File.stat!(notes_path).mtime
+
+      assert {:ok, ^state} = Notes.commit(state)
+
+      post = File.stat!(notes_path).mtime
+      assert pre == post
+      assert File.read!(notes_path) == "existing notes body"
+    end
+
+    test "commit with accumulated facts writes an unconsolidated section", %{proj: proj} do
+      notes_path = Path.join(proj.store_path, "notes.md")
+      state = %{Notes.new() | new_facts: ["- fact alpha\n- fact beta"]}
+
+      assert {:ok, new_state} = Notes.commit(state)
+      assert new_state.new_facts == []
+
+      contents = File.read!(notes_path)
+      assert String.contains?(contents, "# NEW NOTES (unconsolidated)")
+      assert String.contains?(contents, "- fact alpha")
+      assert String.contains?(contents, "- fact beta")
+    end
+
     test "notify_tool memos remain untagged" do
       # Arrange: make completion return N/A so only memos are added
       :meck.expect(AI.Completion, :get, fn _opts ->

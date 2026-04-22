@@ -272,6 +272,41 @@ defmodule Cmd.IndexTest do
 
       refute raises_error
     end
+
+    test "first_index? reflects presence of previously indexed files" do
+      project = mock_git_project("first_index_project")
+
+      assert {:ok, idx} = Cmd.Index.new(%{project: project.name, quiet: true, yes: true})
+      assert idx.first_index? == true
+
+      # Simulate a prior index by creating a real file and a matching entry
+      # with valid metadata. stored_files/1 scans files_root(project) for
+      # "*/metadata.json" and new_from_entry_path/2 requires a "file" field.
+      file_path = mock_source_file(project, "prior.txt", "prior content")
+      entry_dir = Path.join(Store.Project.files_root(project), "stub_entry")
+      File.mkdir_p!(entry_dir)
+
+      File.write!(
+        Path.join(entry_dir, "metadata.json"),
+        SafeJson.encode!(%{"file" => Path.relative_to(file_path, project.source_root)})
+      )
+
+      assert {:ok, idx2} = Cmd.Index.new(%{project: project.name, quiet: true, yes: true})
+      assert idx2.first_index? == false
+    end
+
+    test "has_notes? reflects presence of notes.md" do
+      project = mock_git_project("notes_detection_project")
+
+      assert {:ok, idx} = Cmd.Index.new(%{project: project.name, quiet: true, yes: true})
+      assert idx.has_notes? == false
+
+      File.mkdir_p!(project.store_path)
+      File.write!(Path.join(project.store_path, "notes.md"), "prior research")
+
+      assert {:ok, idx2} = Cmd.Index.new(%{project: project.name, quiet: true, yes: true})
+      assert idx2.has_notes? == true
+    end
   end
 
   describe "root persistence" do
