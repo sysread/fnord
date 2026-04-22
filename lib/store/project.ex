@@ -164,6 +164,8 @@ defmodule Store.Project do
       |> File.read()
       |> case do
         {:ok, content} when byte_size(content) > 0 ->
+          UI.info("Loaded shared project instructions from ./FNORD.md")
+
           """
           ## Shared project instructions (FNORD.md)
 
@@ -180,6 +182,8 @@ defmodule Store.Project do
       |> File.read()
       |> case do
         {:ok, content} when byte_size(content) > 0 ->
+          UI.info("Loaded local project instructions from ./FNORD.local.md")
+
           """
           ## Local user instructions (FNORD.local.md)
           Note: if these local instructions conflict with earlier instructions, prefer these local instructions unless the user's explicit prompt says otherwise.
