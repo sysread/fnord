@@ -80,6 +80,13 @@ defmodule AI.Agent.Review.DecomposerTest do
   end
 
   test "decomposer responds to constraints step in the pipeline callbacks" do
+    # function_exported?/3 returns false for unloaded modules, not just
+    # missing ones. Without the ensure_loaded this test passes only when
+    # a prior test in the run happens to have referenced Decomposer -
+    # seed-dependent and CI-flaky. Force-load so the check asserts what
+    # it reads like it asserts.
+    {:module, _} = Code.ensure_loaded(Decomposer)
+
     assert function_exported?(Decomposer, :on_step_start, 2)
     assert function_exported?(Decomposer, :on_step_complete, 2)
     assert function_exported?(Decomposer, :get_next_steps, 2)
