@@ -85,6 +85,40 @@ defmodule AI.Agent.Review.DecomposerTest do
     assert function_exported?(Decomposer, :get_next_steps, 2)
   end
 
+  # Regression: get_next_steps/2 used to bind the raw constraints state
+  # value (a %{constraints: [...]} wrapper map) straight into build_small_scope,
+  # so render_constraints_section iterated the wrapper as key-value pairs
+  # and blew up with BadMapError at `constraint.citations`. The small-scope
+  # branch fans out to a reviewer + synthesis step; we assert the pipeline
+  # returns cleanly with both steps present.
+  test "get_next_steps for :constraints renders constraints without crashing" do
+    state =
+      %Composite{agent: %{name: :review}, request: "review scope", internal: %{}}
+      |> Composite.put_state(:estimate, %{
+        points: 2,
+        git_range: "abc123..HEAD",
+        diff_stat: " lib/foo.ex | 2 ++",
+        exclude_paths: [],
+        exclude_reasoning: ""
+      })
+      |> Composite.put_state(:constraints, %{
+        constraints: [
+          %{
+            id: "C1",
+            type: "contract",
+            scope: "lib/foo.ex",
+            confidence: 0.8,
+            statement: "callers must keep passing a map",
+            citations: [%{source_kind: "pr_description", reference: "desc:2"}]
+          }
+        ]
+      })
+
+    steps = Decomposer.get_next_steps(%{name: :constraints}, state)
+
+    assert [%{name: :review_0}, %{name: :synthesize}] = steps
+  end
+
   test "init with explicit range resolves end-to-end" do
     # Set up a project with two commits so HEAD~1..HEAD has a concrete
     # range to review. Exercises the happy path through resolve_target ->

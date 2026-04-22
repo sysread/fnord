@@ -535,7 +535,7 @@ defmodule AI.Agent.Review.Decomposer do
   @impl AI.Agent.Composite
   def get_next_steps(%{name: :constraints}, state) do
     {:ok, estimate} = Composite.get_state(state, :estimate)
-    {:ok, constraints} = Composite.get_state(state, :constraints)
+    {:ok, %{constraints: constraints}} = Composite.get_state(state, :constraints)
 
     case estimate.points do
       p when p < 3 ->
