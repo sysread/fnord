@@ -91,11 +91,13 @@ defmodule Cmd.Worktrees do
   def run(_opts, [:list], _unknown) do
     with {:ok, project} <- Store.get_project(),
          {:ok, root} <- GitCli.Worktree.project_root(),
-         {:ok, entries} <- GitCli.Worktree.list(root) do
+         {:ok, entries} <- GitCli.Worktree.list_raw(root) do
       managed =
-        Enum.filter(entries, fn entry ->
+        entries
+        |> Enum.filter(fn entry ->
           GitCli.Worktree.fnord_managed?(project.name, entry.path)
         end)
+        |> Enum.map(&GitCli.Worktree.enrich(root, &1))
 
       if managed == [] do
         UI.info("No fnord-managed worktrees found")
@@ -318,7 +320,7 @@ defmodule Cmd.Worktrees do
   defp resolve_worktree_meta_from_disk(conv_id) do
     with {:ok, project} <- Store.get_project(),
          {:ok, root} <- GitCli.Worktree.project_root(),
-         {:ok, entries} <- GitCli.Worktree.list(root) do
+         {:ok, entries} <- GitCli.Worktree.list_raw(root) do
       case Enum.find(entries, fn entry ->
              GitCli.Worktree.fnord_managed?(project.name, entry.path) and
                Path.basename(entry.path) == conv_id and

@@ -25,7 +25,7 @@ defmodule Cmd.WorktreesTest do
 
       wt_root = GitCli.Worktree.default_root("demo")
 
-      :meck.expect(GitCli.Worktree, :list, fn "/repo" ->
+      :meck.expect(GitCli.Worktree, :list_raw, fn "/repo" ->
         {:ok,
          [
            %{
@@ -43,6 +43,7 @@ defmodule Cmd.WorktreesTest do
          ]}
       end)
 
+      :meck.expect(GitCli.Worktree, :enrich, fn _root, entry -> entry end)
       :meck.expect(GitCli.Worktree, :has_uncommitted_changes?, fn _path -> false end)
 
       output =
@@ -62,7 +63,7 @@ defmodule Cmd.WorktreesTest do
       :meck.expect(Store, :get_project, fn -> {:ok, project} end)
       :meck.expect(GitCli.Worktree, :project_root, fn -> {:ok, "/repo"} end)
 
-      :meck.expect(GitCli.Worktree, :list, fn "/repo" ->
+      :meck.expect(GitCli.Worktree, :list_raw, fn "/repo" ->
         {:ok,
          [
            %{path: "/repo", branch: "main", merge_status: :unknown, size: 0}
@@ -248,7 +249,7 @@ defmodule Cmd.WorktreesTest do
       :meck.expect(Store.Project.Conversation, :read, fn ^conv -> {:ok, %{metadata: %{}}} end)
       :meck.expect(GitCli.Worktree, :project_root, fn -> {:ok, "/repo"} end)
 
-      :meck.expect(GitCli.Worktree, :list, fn "/repo" ->
+      :meck.expect(GitCli.Worktree, :list_raw, fn "/repo" ->
         {:ok,
          [
            %{

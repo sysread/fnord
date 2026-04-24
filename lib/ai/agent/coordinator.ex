@@ -643,7 +643,9 @@ defmodule AI.Agent.Coordinator do
   # Follow-up sessions (-f/-F) get the slim @followup_system prompt regardless
   # of edit mode. This clause must be listed first so pattern matching selects
   # it before the edit-mode / read-mode fresh clauses below.
-  defp initial_msg(%{followup?: true, conversation_pid: conversation_pid, project: project} = state) do
+  defp initial_msg(
+         %{followup?: true, conversation_pid: conversation_pid, project: project} = state
+       ) do
     @followup_system
     |> String.replace("$$PROJECT$$", project)
     |> String.replace("$$GIT_INFO$$", GitCli.git_info())

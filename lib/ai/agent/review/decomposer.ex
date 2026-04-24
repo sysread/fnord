@@ -833,12 +833,17 @@ defmodule AI.Agent.Review.Decomposer do
 
   defp require_gh do
     case System.cmd("gh", ["--version"], stderr_to_stdout: true) do
-      {_, 0} -> :ok
-      _ -> {:error, "reviewer_tool: `pr` review requires the `gh` CLI to be installed and authenticated"}
+      {_, 0} ->
+        :ok
+
+      _ ->
+        {:error,
+         "reviewer_tool: `pr` review requires the `gh` CLI to be installed and authenticated"}
     end
   rescue
     ErlangError ->
-      {:error, "reviewer_tool: `pr` review requires the `gh` CLI to be installed and authenticated"}
+      {:error,
+       "reviewer_tool: `pr` review requires the `gh` CLI to be installed and authenticated"}
   end
 
   defp gh_pr_view(root, pr) do
@@ -1049,8 +1054,11 @@ defmodule AI.Agent.Review.Decomposer do
   defp format_context_heading(%{source: :pr} = ctx) do
     state_note =
       case ctx.pr_state do
-        "OPEN" -> ""
-        other -> "\n- Note: PR state is `#{other}`; review proceeds against the PR's recorded head."
+        "OPEN" ->
+          ""
+
+        other ->
+          "\n- Note: PR state is `#{other}`; review proceeds against the PR's recorded head."
       end
 
     """
@@ -1081,7 +1089,8 @@ defmodule AI.Agent.Review.Decomposer do
     """
   end
 
-  defp format_context_body(%{source: source} = ctx) when source in [:branch, :pr, :current_checkout] do
+  defp format_context_body(%{source: source} = ctx)
+       when source in [:branch, :pr, :current_checkout] do
     """
     This range is the two-dot form with a resolved SHA for the merge-base, so
     it is stable even if `#{ctx.base}` advances during or after the review.

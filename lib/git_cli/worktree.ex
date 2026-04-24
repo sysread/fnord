@@ -55,6 +55,28 @@ defmodule GitCli.Worktree do
     end
   end
 
+  @spec list_raw(String.t() | nil) :: {:ok, [map()]} | {:error, atom()}
+  @doc """
+  Lists Git worktrees for a repository root without enrichment. Returns the
+  parsed records as maps containing at least :path and optionally :branch and
+  :base_branch. Callers that only need to filter/select should prefer this to
+  avoid per-worktree git calls and filesystem walks.
+  """
+  def list_raw(nil), do: {:error, :not_a_repo}
+
+  def list_raw(root) when is_binary(root) do
+    git_worktree_list(root)
+  end
+
+  @spec enrich(String.t(), map()) :: map()
+  @doc """
+  Enriches a raw worktree record with merge status, size, and existence
+  information.
+  """
+  def enrich(root, entry) when is_binary(root) and is_map(entry) do
+    enrich_worktree(root, entry)
+  end
+
   @spec create(String.t(), String.t(), String.t() | nil) ::
           {:ok, worktree_entry()} | {:error, atom()}
   @doc """

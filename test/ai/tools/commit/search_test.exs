@@ -126,6 +126,8 @@ defmodule AI.Tools.Commit.SearchTest do
 
     :meck.expect(Search.Commits, :get_results, fn _ -> {:ok, []} end)
     :meck.expect(Store, :get_project, fn -> {:error, :proj_missing} end)
-    assert AI.Tools.Commit.Search.call(%{"query" => "q", "limit" => 25}) == {:error, :proj_missing}
+
+    assert AI.Tools.Commit.Search.call(%{"query" => "q", "limit" => 25}) ==
+             {:error, :proj_missing}
   end
 end

@@ -22,7 +22,11 @@ defmodule AI.Agent.Coordinator.GlueCompletionTest do
     end)
 
     :meck.expect(Services.Conversation, :get_messages, fn _pid -> [] end)
-    :meck.expect(Services.Conversation, :save, fn pid -> {:ok, %{id: "conv-test-#{inspect(pid)}"}} end)
+
+    :meck.expect(Services.Conversation, :save, fn pid ->
+      {:ok, %{id: "conv-test-#{inspect(pid)}"}}
+    end)
+
     :meck.expect(Services.Conversation, :replace_msgs, fn _msgs, _pid -> :ok end)
     :meck.expect(Services.Conversation, :append_msg, fn _msg, _pid -> :ok end)
     :meck.expect(Services.Conversation.Interrupts, :pending?, fn _pid -> false end)
