@@ -92,12 +92,23 @@ defmodule Cmd.Worktrees do
     with {:ok, project} <- Store.get_project(),
          {:ok, root} <- GitCli.Worktree.project_root(),
          {:ok, entries} <- GitCli.Worktree.list_raw(root) do
+      UI.info("Found #{length(entries)} worktrees")
+
       managed =
         entries
         |> Enum.filter(fn entry ->
           GitCli.Worktree.fnord_managed?(project.name, entry.path)
         end)
-        |> Enum.map(&GitCli.Worktree.enrich(root, &1))
+
+      UI.info("Found #{length(managed)} fnord-managed worktrees")
+
+      managed =
+        managed
+        |> Enum.map(fn entry ->
+          UI.info("Found #{entry.path}:")
+          UI.info("  - Verifying worktree state")
+          GitCli.Worktree.enrich(root, entry)
+        end)
 
       if managed == [] do
         UI.info("No fnord-managed worktrees found")
