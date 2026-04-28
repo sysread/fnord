@@ -16,7 +16,12 @@ defmodule AI.EndpointCatchAllTest do
 
   defmodule DummyEndpoint do
     @behaviour AI.Endpoint
+
+    @impl AI.Endpoint
     def endpoint_path, do: "http://example.com/endpoint"
+
+    @impl AI.Endpoint
+    def endpoint_error_classify(_status, _body, _headers, _transport_reason), do: :ok
   end
 
   test "passthrough transport_error tuple" do

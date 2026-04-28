@@ -12,6 +12,33 @@ defmodule AI.EndpointTest do
 
     @impl AI.Endpoint
     def endpoint_path, do: "http://example"
+
+    @impl AI.Endpoint
+    def endpoint_error_classify(status, body, _headers, transport_reason) do
+      case {status, body, transport_reason} do
+        {429, b, _} when is_binary(b) ->
+          case SafeJson.decode(b) do
+            {:ok, %{"error" => %{"code" => code}}}
+            when code in ["rate_limit_exceeded", "rate_limit"] ->
+              wait =
+                case Regex.run(~r/try\s+again\s+in\s+(\d+)ms/i, b) do
+                  [_, ms] -> max(1, String.to_integer(ms))
+                  _ -> nil
+                end
+
+              {:retry, :throttled, wait}
+
+            _ ->
+              :ok
+          end
+
+        {s, _b, _} when is_integer(s) and s >= 500 and s < 600 ->
+          {:retry, :server_error, nil}
+
+        _ ->
+          :ok
+      end
+    end
   end
 
   defp json_headers, do: [{"Content-Type", "application/json"}]
