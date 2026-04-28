@@ -76,7 +76,6 @@ defmodule AI.Model do
   # ----------------------------------------------------------------------------
   def gpt55(reasoning \\ :medium), do: new("gpt-5.5", 1_050_000, reasoning)
   def gpt54(reasoning \\ :medium), do: new("gpt-5.4", 1_050_000, reasoning)
-  def gpt55(reasoning \\ :medium), do: new("gpt-5.5", 1_050_000, reasoning)
   def gpt5(reasoning \\ :medium), do: new("gpt-5-2025-08-07", 400_000, reasoning)
 
   # does not support reasoning_effort through the chat completions api
