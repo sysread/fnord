@@ -991,10 +991,18 @@ defmodule Cmd.Ask do
     end
   end
 
-  defp resolve_conversation_worktree(_project, _conversation_pid, path, stored_meta)
+  defp resolve_conversation_worktree(project, conversation_pid, path, stored_meta)
        when is_binary(path) and is_map(stored_meta) do
-    Settings.set_project_root_override(stored_meta.path)
-    {:error, {:conversation_worktree_exists, worktree_path(stored_meta)}}
+    stored_path = worktree_path(stored_meta)
+
+    if Path.expand(path) == Path.expand(stored_path) do
+      # Re-specifying the same worktree that's already stored (e.g. `-W .` on
+      # continuation). Not a conflict - just reuse.
+      recreate_or_reuse_worktree(project, conversation_pid, stored_path, stored_meta)
+    else
+      Settings.set_project_root_override(stored_path)
+      {:error, {:conversation_worktree_exists, stored_path}}
+    end
   end
 
   defp resolve_conversation_worktree(project, conversation_pid, nil, stored_meta)
