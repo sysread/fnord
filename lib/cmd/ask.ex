@@ -628,7 +628,7 @@ defmodule Cmd.Ask do
     if Store.Project.Conversation.exists?(fork_conv) do
       with {:ok, new_conv} <- Store.Project.Conversation.fork(fork_conv) do
         UI.info("Conversation #{fork_id} forked as #{new_conv.id}")
-        maybe_handle_forked_worktree(new_conv)
+        maybe_handle_forked_worktree(new_conv, opts)
         {:ok, Map.put(opts, :follow, new_conv.id)}
       end
     else
@@ -649,9 +649,14 @@ defmodule Cmd.Ask do
   # a worktree. Mutating metadata (or leaving it intact) before the conversation
   # server starts means the coordinator naturally sees the correct state via
   # worktree_context_msg/1.
-  defp maybe_handle_forked_worktree(new_conv) do
+  defp maybe_handle_forked_worktree(new_conv, opts) do
+    explicit_path = explicit_worktree_path(opts)
+
     with {:ok, data} <- Store.Project.Conversation.read(new_conv),
          meta when is_map(meta) <- extract_forked_worktree_meta(data.metadata),
+         # Skip the prompt when -W is explicit: resolve_conversation_worktree
+         # handles the path matching/reuse downstream.
+         false <- is_binary(explicit_path),
          true <- UI.is_tty?() do
       case UI.choose(
              "Source conversation has a worktree at #{meta.path}. What would you like to do?",
