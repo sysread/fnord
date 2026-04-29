@@ -18,7 +18,7 @@ defmodule AI.Model.OpenAI do
   def smart(), do: gpt5(:low)
 
   @spec smarter() :: AI.Model.t()
-  def smarter(), do: gpt54(:low)
+  def smarter(), do: gpt55(:low)
 
   @spec balanced() :: AI.Model.t()
   def balanced(), do: gpt5_mini()
@@ -33,6 +33,9 @@ defmodule AI.Model.OpenAI do
   def large_context(:smart), do: gpt41()
   def large_context(:balanced), do: gpt41_mini()
   def large_context(:fast), do: gpt41_nano()
+
+  @spec gpt55(atom) :: AI.Model.t()
+  def gpt55(reasoning \\ :medium), do: AI.Model.new("gpt-5.5", 1_050_000, reasoning)
 
   @spec gpt54(atom) :: AI.Model.t()
   def gpt54(reasoning \\ :medium), do: AI.Model.new("gpt-5.4", 1_050_000, reasoning)
