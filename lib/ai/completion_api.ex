@@ -1,6 +1,6 @@
 defmodule AI.CompletionAPI do
   @behaviour AI.Endpoint
-  @base_url "https://api.openai.com"
+  # OpenAI-specific base URL is defined in AI.Endpoint.OpenAI.
 
   @type model :: AI.Model.t()
   @type msgs :: [map()]
@@ -22,7 +22,28 @@ defmodule AI.CompletionAPI do
           | {:error, :context_length_exceeded, non_neg_integer}
 
   @impl AI.Endpoint
-  def endpoint_path, do: "#{@base_url}/v1/chat/completions"
+  def endpoint_path, do: AI.Endpoint.OpenAI.endpoint_path()
+
+  @doc """
+  Provider-specific error classifier is delegated to AI.Endpoint.OpenAI.
+  """
+  @impl AI.Endpoint
+  def endpoint_error_classify(status, body, headers, transport_reason) do
+    AI.Endpoint.OpenAI.endpoint_error_classify(status, body, headers, transport_reason)
+  end
+
+  def _legacy_classifier_case_tuple(status, body, transport_reason) do
+    {status, body, transport_reason}
+  end
+
+  # Legacy classifier body removed; kept stubs above for dialyzer stability.
+  # ----------------------------------------------------------------------
+  # """
+  # @impl AI.Endpoint
+  # def endpoint_error_classify(status, body, _headers, transport_reason) do
+  #   ...
+  # end
+  # """
 
   @spec get(model, msgs, tools, response_format, web_search?, verbosity) :: response
   def get(

@@ -59,33 +59,58 @@ defmodule AI.Model do
     end
   end
 
-  def smart(), do: gpt5(:low)
-  def smarter(), do: gpt55(:low)
-  def balanced(), do: gpt5_mini()
-  def fast(), do: gpt5_nano()
+  @doc """
+  Return a provider-agnostic "smart" profile.
+  Delegates to the configured provider implementation.
+  """
+  @spec smart() :: t()
+  def smart(), do: apply(provider_model_mod(), :smart, [])
+
+  @doc """
+  Return a provider-agnostic "smarter" profile.
+  Delegates to the configured provider implementation.
+  """
+  @spec smarter() :: t()
+  def smarter(), do: apply(provider_model_mod(), :smarter, [])
+
+  @doc """
+  Return a provider-agnostic "balanced" profile.
+  Delegates to the configured provider implementation.
+  """
+  @spec balanced() :: t()
+  def balanced(), do: apply(provider_model_mod(), :balanced, [])
+
+  @doc """
+  Return a provider-agnostic "fast" profile.
+  Delegates to the configured provider implementation.
+  """
+  @spec fast() :: t()
+  def fast(), do: apply(provider_model_mod(), :fast, [])
+
+  @doc """
+  Shortcut for coding; currently equals balanced().
+  """
+  @spec coding() :: t()
   def coding(), do: balanced()
-  def web_search(), do: gpt_4o_mini_search_preview()
 
+  @doc """
+  Provider-agnostic web_search profile.
+  Delegates to provider implementation.
+  """
+  @spec web_search() :: t()
+  def web_search(), do: apply(provider_model_mod(), :web_search, [])
+
+  @doc """
+  Provider-agnostic large_context; default tier :smart.
+  Delegates to provider implementation.
+  """
+  @spec large_context() :: t()
   def large_context(), do: large_context(:smart)
-  def large_context(:smart), do: gpt41()
-  def large_context(:balanced), do: gpt41_mini()
-  def large_context(:fast), do: gpt41_nano()
 
-  # ----------------------------------------------------------------------------
-  # OpenAI Models
-  # ----------------------------------------------------------------------------
-  def gpt55(reasoning \\ :medium), do: new("gpt-5.5", 1_050_000, reasoning)
-  def gpt54(reasoning \\ :medium), do: new("gpt-5.4", 1_050_000, reasoning)
-  def gpt5(reasoning \\ :medium), do: new("gpt-5-2025-08-07", 400_000, reasoning)
+  @spec large_context(:smart | :balanced | :fast) :: t()
+  def large_context(tier), do: apply(provider_model_mod(), :large_context, [tier])
 
-  # does not support reasoning_effort through the chat completions api
-  def gpt5_mini(), do: new("gpt-5.4-mini", 400_000, :none)
-
-  # does not support reasoning_effort through the chat completions api
-  def gpt5_nano(), do: new("gpt-5.4-nano", 400_000, :none)
-
-  def gpt41(), do: new("gpt-4.1", 1_000_000, :none)
-  def gpt41_mini(), do: new("gpt-4.1-mini", 1_000_000, :none)
-  def gpt41_nano(), do: new("gpt-4.1-nano", 1_000_000, :none)
-  def gpt_4o_mini_search_preview(), do: new("gpt-4o-mini-search-preview", 128_000, :none)
+  # Provider resolution for model profiles
+  @spec provider_model_mod() :: module
+  defp provider_model_mod(), do: AI.Provider.module_for(:model)
 end
