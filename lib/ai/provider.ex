@@ -16,23 +16,13 @@ defmodule AI.Provider do
     # Prefer a runtime env override to avoid early Settings.new/0 during compile.
     case safe_get_env(:ai_provider) do
       {:ok, nil} ->
-        settings = Settings.new()
-        Settings.get(settings, "ai_provider", "openai")
+        "openai"
 
       {:ok, key} ->
         key
 
       :no_globals ->
         "openai"
-    end
-  end
-
-  defp read_provider_from_settings() do
-    try do
-      settings = Settings.new()
-      Settings.get(settings, "ai_provider", "openai")
-    rescue
-      _ -> "openai"
     end
   end
 
