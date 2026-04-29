@@ -40,9 +40,11 @@ defmodule AI.Model.OpenAI do
   @spec gpt5(atom) :: AI.Model.t()
   def gpt5(reasoning \\ :medium), do: AI.Model.new("gpt-5-2025-08-07", 400_000, reasoning)
 
+  # does not support reasoning_effort through the chat completions api
   @spec gpt5_mini() :: AI.Model.t()
   def gpt5_mini(), do: AI.Model.new("gpt-5.4-mini", 400_000, :none)
 
+  # does not support reasoning_effort through the chat completions api
   @spec gpt5_nano() :: AI.Model.t()
   def gpt5_nano(), do: AI.Model.new("gpt-5.4-nano", 400_000, :none)
 
