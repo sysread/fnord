@@ -643,12 +643,16 @@ defmodule Cmd.Ask do
   @new_worktree "Create new worktree"
   @no_worktree "No worktree"
 
-  # When a forked conversation inherits worktree metadata from its source,
-  # prompt the user about whether to reuse the original worktree, duplicate it
-  # into an independent branch, create a new empty worktree, or proceed without
-  # a worktree. Mutating metadata (or leaving it intact) before the conversation
-  # server starts means the coordinator naturally sees the correct state via
-  # worktree_context_msg/1.
+  # When a forked conversation inherits worktree metadata from its source, we
+  # may prompt (TTY only) for how to proceed with the inherited worktree:
+  # - Reuse existing worktree: keep metadata as-is
+  # - Duplicate worktree: create an independent branch + path, replace metadata
+  # - Create new worktree / No worktree: strip metadata entirely so bootstrap can
+  #   offer a fresh worktree on next session
+  #
+  # This mutation (or deliberate removal) of metadata occurs before the
+  # conversation server starts so the coordinator naturally observes the correct
+  # state in worktree_context_msg/1 without needing out-of-band fixes.
   defp maybe_handle_forked_worktree(new_conv) do
     with {:ok, data} <- Store.Project.Conversation.read(new_conv),
          meta when is_map(meta) <- extract_forked_worktree_meta(data.metadata),
@@ -675,11 +679,11 @@ defmodule Cmd.Ask do
   end
 
   # Duplicates the source worktree onto a new branch bound to the forked
-  # conversation. On success, swaps the inherited source metadata for the new
-  # worktree's metadata. On failure, warns the user and strips metadata so the
-  # coordinator's bootstrap can offer to create a fresh worktree on the next
-  # session - this avoids silently falling back to "reuse" (which would have
-  # the forked conversation racing the source against the same files).
+  # conversation. On success, replaces inherited metadata with the new
+  # worktree's metadata. If duplication fails, we warn and strip metadata so the
+  # coordinator can offer a fresh worktree on the next session. This explicitly
+  # avoids silently falling back to "reuse" (which could race the source and the
+  # fork against the same files).
   defp duplicate_forked_worktree(new_conv, data, source_meta) do
     with {:ok, project} <- Store.get_project(),
          {:ok, entry} <-
@@ -980,6 +984,8 @@ defmodule Cmd.Ask do
     end
   end
 
+  # Explicit path provided but no stored metadata: adopt the explicit path by
+  # creating minimal worktree metadata and setting the project root override.
   defp resolve_conversation_worktree(_project, conversation_pid, path, nil)
        when is_binary(path) do
     meta = %{path: path, branch: nil, base_branch: nil}
@@ -991,6 +997,9 @@ defmodule Cmd.Ask do
     end
   end
 
+  # Explicit path conflicts with stored metadata: prefer the stored association
+  # by setting the override to the stored path and signal the conflict to the
+  # caller so they can surface appropriate UX.
   defp resolve_conversation_worktree(_project, _conversation_pid, path, stored_meta)
        when is_binary(path) and is_map(stored_meta) do
     Settings.set_project_root_override(stored_meta.path)
