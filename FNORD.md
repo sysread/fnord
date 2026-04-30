@@ -1,4 +1,11 @@
 Conventions
+- Developer docs (`docs/dev/`)
+  - Read the relevant doc(s) in `docs/dev/` before touching any feature or component.
+    The docs cover architectural contracts, non-obvious invariants, and footguns that are not obvious from reading the code alone.
+  - When a change alters behavior documented there, update the doc in the same changeset.
+  - When you discover a non-obvious invariant, failure mode, or gotcha during implementation, add it to `docs/dev/gotchas.md`.
+  - The docs describe the system as it is today; never narrate changes being made.
+  - New subsystems get a doc. Existing docs get new sections as the subsystem evolves.
 - Tests
   - Use `Fnord.TestCase` and helpers (`mock_project`, `tmpdir`).
   - Prefer `async: false` for most tests due to global state and GenServers.
