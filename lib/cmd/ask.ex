@@ -654,12 +654,17 @@ defmodule Cmd.Ask do
   # conversation server starts so the coordinator naturally observes the correct
   # state in worktree_context_msg/1 without needing out-of-band fixes.
   defp maybe_handle_forked_worktree(new_conv, opts) do
-    explicit_path = explicit_worktree_path(opts)
+    # Also covers the auto-detect case: set_worktree/1 runs before fork handling
+    # and sets the override when the user confirms the "you're in a worktree"
+    # prompt, but does not update opts. Falling back to the override here means
+    # both -W and confirmed auto-detect suppress the fork worktree menu.
+    explicit_path = explicit_worktree_path(opts) || Settings.get_project_root_override()
 
     with {:ok, data} <- Store.Project.Conversation.read(new_conv),
          meta when is_map(meta) <- extract_forked_worktree_meta(data.metadata),
-         # Skip the prompt when -W is explicit: resolve_conversation_worktree
-         # handles the path matching/reuse downstream.
+         # Skip the prompt when a worktree path is already decided: either -W
+         # was explicit or the user confirmed the auto-detect prompt above.
+         # resolve_conversation_worktree handles path matching/reuse downstream.
          false <- is_binary(explicit_path),
          true <- UI.is_tty?() do
       case UI.choose(
