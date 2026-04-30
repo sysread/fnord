@@ -119,3 +119,95 @@ Four background indexers run during ask sessions:
 All except `MemoryIndexer` are stopped in the `after` block (line 316).
 The memory indexer is left running until BEAM exit to complete its deep sleep
 pass.
+
+## Prompt phases: fresh vs follow-up
+
+`AI.Agent.Coordinator.initial_msg/1` has three clauses matched top-down:
+
+1. `%{followup?: true}` - injects `@followup_system` (= `@common` + a short "continuation mode" note).
+   Fires for both read-only and edit `-f`/`-F` sessions, regardless of `edit?`.
+2. `%{edit?: false}` - injects `@initial` (heavy prescriptive planning prompt).
+   Fresh read-only sessions only.
+3. `%{edit?: true}` - delegates to `Coding.base_prompt_msg/1`
+   (STORIES/EPICS/POST-CODING-CHECKLIST prompt).
+   Fresh edit sessions only.
+
+The heavy planning prompts are intentionally NOT re-injected on follow-up.
+Prior to this split, every `-f`/`-F` bootstrap re-injected the full prompts,
+priming the LLM to re-plan the entire task from scratch on each follow-up.
+
+When adding a new fresh-only prompt injection, add a matching follow-up variant
+or gate it on `followup?: false` so the slim `-f`/`-F` path stays slim.
+
+## Coordinator test mode
+
+User prompts starting with `testing:` (case-insensitive) bypass the normal
+`bootstrap/1 -> perform_step/1` pipeline entirely.
+`AI.Agent.Coordinator.Test.is_testing?/1` detects the prefix;
+`consider/1` dispatches to `AI.Agent.Coordinator.Test.get_response/1`.
+
+`Test.get_response/1` builds its own short `messages` list directly:
+the test-mode system prompt, `FNORD.md`/`FNORD.local.md` via
+`Store.Project.project_prompt/1`, the external-configs catalog via
+`ExternalConfigs.Catalog.build_messages/0`, and the user question.
+It does NOT use `Services.Conversation`, so anything that relies on
+`Services.Globals.get_env(:fnord, :current_conversation)` - worktree tool
+metadata writes, memory indexer, `ExternalConfigs.Injector` - will quietly no-op.
+
+When adding new bootstrap-time injections that should reach the LLM, mirror them
+into `Test.get_response/1` or they will be invisible to `testing:` prompts.
+
+## Coding step reactivity
+
+The `:coding` step is gated by `coding_work_pending?/1` and is a complete no-op
+when the predicate is false.
+`coding_work_pending?(state)` returns true when any of:
+
+- `state.editing_tools_used` is set (code-modifying tools fired this round)
+- `AI.Agent.Coordinator.Tasks.pending_lists(state) != []` (pending task-list items)
+- `worktree_needs_commit?()` (fnord-managed worktree with uncommitted changes)
+
+A fresh edit-mode session where the LLM only reasoned (no file edits, no task
+lists, nothing to commit) skips the coding phase entirely - no banner, no prompt
+injection, no completion call.
+
+The "you enabled `-e` but didn't use your tools" nudge lives in `:finalize` as
+`unused_edit_tools_nudge_msg/1` in `coordinator.ex`.
+It fires when `edit?: true` AND `not coding_work_pending?(state)`, so it only
+reaches the LLM at the end of a session that genuinely skipped coding.
+
+If you add a new "coding is happening" signal, extend `coding_work_pending?/1`
+so both the step gate and the nudge react correctly.
+
+## Sub-agent message isolation
+
+Sub-agents invoked inside a coordinator session - `TaskPlanner`, `TaskImplementor`,
+`TaskValidator` (via `AI.Agent.Code.Common.new/5`), and `Researcher`
+(via `AI.Agent.Researcher.get_response/1`) - build their own `messages` lists
+and pass them directly to `AI.Agent.get_completion/2`.
+They do NOT read from `Services.Conversation`.
+
+Context appended to the coordinator's conversation via
+`Services.Conversation.append_msg/2` after a sub-agent's message list was
+constructed will NOT be visible to that sub-agent.
+`Services.Globals.get_env(:fnord, :current_conversation)` is still the
+coordinator's pid even when read from inside a sub-agent call; do not use it as
+a proxy for "the conversation this LLM call will see."
+
+Thread context explicitly into sub-agent constructors.
+See `ExternalConfigs.Catalog.build_messages/0` and its three call sites
+(`Common.new/5`, `Researcher.get_response/1`,
+`Coordinator.Test.get_response/1`) for the pattern.
+
+## Prompt vocabulary: "finalize"
+
+System messages that reference the end-of-response event should use "finalize" /
+"after you finalize your response."
+This anchors the LLM in the same vocabulary the coordinator state machine uses
+for the `:finalize` step.
+"Session end" and "end of session" are ambiguous: the LLM may interpret them as
+something already triggered or wait for an external signal before acting.
+
+Example: "the merge into `<base_branch>` happens automatically at session end,
+*after* you finalize your response" - the "after you finalize" clause is what
+tells the LLM the merge is post-response.

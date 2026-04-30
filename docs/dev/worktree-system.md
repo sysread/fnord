@@ -123,3 +123,51 @@ branch and base branch.
 
 Orphaned worktrees (directory exists but metadata was lost, e.g. from SIGTERM
 before conversation save) are adopted automatically (line 942).
+
+## worktree_context_msg is the canonical state injection point
+
+`AI.Agent.Coordinator.worktree_context_msg/1` (`lib/ai/agent/coordinator.ex:745`)
+runs in every coordinator bootstrap and injects exactly one of two system messages:
+"active worktree at `<path>` on `<branch>`" (with divergence note if base moved)
+or "no worktree yet, create one before editing."
+
+Any code that needs to communicate worktree state changes across sessions should
+mutate conversation metadata and let the next bootstrap re-derive the message.
+Do NOT append trailing system messages to `data.messages` to communicate state -
+they break replay (see [gotchas.md](gotchas.md) item 20) and create redundancy
+with the bootstrap injection.
+
+`maybe_handle_forked_worktree` (`lib/cmd/ask.ex:581-583`) documents this
+explicitly: it strips metadata only and relies on `worktree_context_msg` to
+re-inject on the next bootstrap.
+
+## git_info template ordering
+
+`$$GIT_INFO$$` in coordinator prompts (`@common`, `@initial`,
+`Coding.@prompt`) is substituted during bootstrap from `GitCli.git_info()`,
+which reads `Settings.get_project_root_override() || File.cwd!()`.
+If the worktree override is not set before `get_response/2` invokes the bootstrap,
+the prompt embeds the source repo's branch, not the worktree branch.
+
+`prepare_conversation_worktree/2` guarantees this ordering: it sets up the
+worktree (and calls `Settings.set_project_root_override`) before `get_response/2`
+is called.
+`maybe_auto_create_worktree/4` enforces this for fresh edit sessions.
+
+If you add a prompt template that references the current branch, git root, or any
+repo state, ensure it is deferred until after worktree setup, or re-injected as a
+fresh system message after worktree creation.
+
+## External-merge resume context gap
+
+When `Cmd.WorktreeLifecycle.clear_worktree_from_conversation/1` removes worktree
+metadata after a merge or delete, the next bootstrap correctly injects "no
+worktree, create one" - but the LLM cannot distinguish "you never had a worktree"
+from "you had one that was merged/deleted out of band."
+
+The right fix (not yet implemented as of April 2026): stash disposition in metadata
+at cleanup time (`%{action: :merged | :deleted, branch, sha, at}`), have
+`worktree_context_msg/1` inject a one-shot note on the next bootstrap, then clear
+the disposition so it does not bleed into subsequent sessions.
+This completes the "stash in metadata, inject on bootstrap" pattern that
+`maybe_handle_forked_worktree` already uses (`lib/cmd/ask.ex:584-604`).
