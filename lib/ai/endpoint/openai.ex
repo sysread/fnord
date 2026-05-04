@@ -16,7 +16,7 @@ defmodule AI.Endpoint.OpenAI do
 
   @doc """
   Provider-specific error classifier for OpenAI/Cloudflare style responses.
-  See `AI.Endpoint.endpoint_error_classify/4` for contract details.
+  See `c:AI.Endpoint.endpoint_error_classify/4` for contract details.
   """
   @impl AI.Endpoint
   @spec endpoint_error_classify(integer | nil, binary | nil, list | nil, term | nil) ::
