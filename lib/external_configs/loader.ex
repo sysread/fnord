@@ -110,23 +110,24 @@ defmodule ExternalConfigs.Loader do
   end
 
   @doc """
-  Remove cursor skills whose on-disk directory resolves to the same real
-  path as a claude skill, preferring claude over cursor.
+  Remove cursor skills that duplicate a claude skill, preferring claude.
 
-  This handles the common pattern of symlinking `.claude/skills/<name>`
-  (or the whole `.claude/skills/` directory) to the corresponding cursor
-  skills tree. Without deduplication the coordinator would see the same
-  skill body listed twice under different flavors.
+  Two dedup passes run in order:
 
-  Symlinks are resolved via `File.realpath/1`. Cursor entries that cannot
-  be resolved are kept (conservative: don't silently drop on filesystem
-  errors).
+  1. **Inode identity** — cursor skills whose on-disk directory resolves to
+     the same inode as a claude skill are dropped. Handles individual
+     directory symlinks and whole-tree symlinks at any depth. `File.stat/1`
+     follows symlinks; cursor entries that cannot be stat'd are kept
+     (conservative: don't silently drop on filesystem errors).
+
+  2. **Name identity** — cursor skills whose name matches a claude skill are
+     dropped even when stored at a distinct path. A same-name clash across
+     flavors almost always means one is a copy or re-export of the other.
   """
   @spec dedup_cross_flavor([ExternalConfigs.Skill.t()], [ExternalConfigs.Skill.t()]) ::
           [ExternalConfigs.Skill.t()]
   def dedup_cross_flavor(cursor_skills, claude_skills) do
-    # Use inode + device identity rather than path comparison: two directories
-    # are the same file regardless of how many symlink hops separate them.
+    # Phase 1: inode identity — same real directory regardless of symlink depth.
     # File.stat/1 follows symlinks, so both sides resolve to the real inode.
     claude_dir_ids =
       claude_skills
@@ -138,15 +139,21 @@ defmodule ExternalConfigs.Loader do
       end)
       |> MapSet.new()
 
-    Enum.reject(cursor_skills, fn skill ->
-      case File.stat(Path.dirname(skill.path)) do
-        {:ok, %{inode: inode, major_device: dev}} ->
-          MapSet.member?(claude_dir_ids, {dev, inode})
+    inode_deduped =
+      Enum.reject(cursor_skills, fn skill ->
+        case File.stat(Path.dirname(skill.path)) do
+          {:ok, %{inode: inode, major_device: dev}} ->
+            MapSet.member?(claude_dir_ids, {dev, inode})
 
-        _ ->
-          false
-      end
-    end)
+          _ ->
+            false
+        end
+      end)
+
+    # Phase 2: name identity — cursor skill with same name as a claude skill
+    # is a conceptual duplicate even when stored at a distinct path.
+    claude_names = MapSet.new(claude_skills, & &1.name)
+    Enum.reject(inode_deduped, fn skill -> MapSet.member?(claude_names, skill.name) end)
   end
 
   @doc """

@@ -215,6 +215,30 @@ defmodule ExternalConfigs.LoaderTest do
     assert loaded.cursor_skills == []
   end
 
+  test "dedup_cross_flavor/2 drops cursor skill with same name as a claude skill at a distinct path" do
+    project = mock_project("demo")
+    Settings.ExternalConfigs.set("demo", :cursor_skills, true)
+    Settings.ExternalConfigs.set("demo", :claude_skills, true)
+
+    write!(
+      Path.join(project.source_root, ".cursor/skills/shared-name/SKILL.md"),
+      skill_contents(name: "shared-name", description: "cursor version")
+    )
+
+    write!(
+      Path.join(project.source_root, ".claude/skills/shared-name/SKILL.md"),
+      skill_contents(name: "shared-name", description: "claude version")
+    )
+
+    ExternalConfigs.Loader.clear_cache()
+    loaded = Loader.load(project)
+
+    assert [%{name: "shared-name", flavor: :claude, description: "claude version"}] =
+             loaded.claude_skills
+
+    assert loaded.cursor_skills == []
+  end
+
   test "dedup_cross_flavor/2 keeps cursor skills with distinct real paths" do
     project = mock_project("demo")
     Settings.ExternalConfigs.set("demo", :cursor_skills, true)
