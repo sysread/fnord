@@ -301,8 +301,9 @@ defmodule Cmd.Skills do
 
     cursor = ExternalConfigs.Loader.load_cursor_skills(project)
     claude = ExternalConfigs.Loader.load_claude_skills(project)
+    deduped_cursor = ExternalConfigs.Loader.dedup_cross_flavor(cursor, claude)
 
-    Enum.map(cursor ++ claude, &format_external_skill(&1, flags))
+    Enum.map(deduped_cursor ++ claude, &format_external_skill(&1, flags))
   end
 
   defp format_external_skill(%ExternalConfigs.Skill{} = skill, flags) do

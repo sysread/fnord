@@ -28,10 +28,13 @@ defmodule ExternalConfigs.Loader do
   def load(%Store.Project{} = project) do
     flags = Settings.ExternalConfigs.flags(project.name)
 
+    cursor_skills = maybe_load(flags.cursor_skills, fn -> load_cursor_skills(project) end)
+    claude_skills = maybe_load(flags.claude_skills, fn -> load_claude_skills(project) end)
+
     %{
       cursor_rules: maybe_load(flags.cursor_rules, fn -> load_cursor_rules(project) end),
-      cursor_skills: maybe_load(flags.cursor_skills, fn -> load_cursor_skills(project) end),
-      claude_skills: maybe_load(flags.claude_skills, fn -> load_claude_skills(project) end),
+      cursor_skills: dedup_cross_flavor(cursor_skills, claude_skills),
+      claude_skills: claude_skills,
       claude_agents: maybe_load(flags.claude_agents, fn -> load_claude_agents(project) end)
     }
   end
@@ -103,6 +106,46 @@ defmodule ExternalConfigs.Loader do
       global = discover_agents_dir(home_dir(".claude/agents"), :global)
       project_agents = discover_agents_dir(project_dir(source_root, ".claude/agents"), :project)
       merge_by_name(global, project_agents)
+    end)
+  end
+
+  @doc """
+  Remove cursor skills whose on-disk directory resolves to the same real
+  path as a claude skill, preferring claude over cursor.
+
+  This handles the common pattern of symlinking `.claude/skills/<name>`
+  (or the whole `.claude/skills/` directory) to the corresponding cursor
+  skills tree. Without deduplication the coordinator would see the same
+  skill body listed twice under different flavors.
+
+  Symlinks are resolved via `File.realpath/1`. Cursor entries that cannot
+  be resolved are kept (conservative: don't silently drop on filesystem
+  errors).
+  """
+  @spec dedup_cross_flavor([ExternalConfigs.Skill.t()], [ExternalConfigs.Skill.t()]) ::
+          [ExternalConfigs.Skill.t()]
+  def dedup_cross_flavor(cursor_skills, claude_skills) do
+    # Use inode + device identity rather than path comparison: two directories
+    # are the same file regardless of how many symlink hops separate them.
+    # File.stat/1 follows symlinks, so both sides resolve to the real inode.
+    claude_dir_ids =
+      claude_skills
+      |> Enum.flat_map(fn skill ->
+        case File.stat(Path.dirname(skill.path)) do
+          {:ok, %{inode: inode, major_device: dev}} -> [{dev, inode}]
+          _ -> []
+        end
+      end)
+      |> MapSet.new()
+
+    Enum.reject(cursor_skills, fn skill ->
+      case File.stat(Path.dirname(skill.path)) do
+        {:ok, %{inode: inode, major_device: dev}} ->
+          MapSet.member?(claude_dir_ids, {dev, inode})
+
+        _ ->
+          false
+      end
     end)
   end
 

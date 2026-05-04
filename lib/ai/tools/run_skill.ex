@@ -122,7 +122,7 @@ defmodule AI.Tools.RunSkill do
         flags = Settings.ExternalConfigs.flags(project.name)
         cursor = if flags.cursor_skills, do: ExternalConfigs.Loader.load_cursor_skills(project), else: []
         claude = if flags.claude_skills, do: ExternalConfigs.Loader.load_claude_skills(project), else: []
-        cursor ++ claude
+        ExternalConfigs.Loader.dedup_cross_flavor(cursor, claude) ++ claude
 
       _ ->
         []

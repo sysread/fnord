@@ -163,6 +163,80 @@ defmodule ExternalConfigs.LoaderTest do
              loaded.claude_agents
   end
 
+  test "dedup_cross_flavor/2 drops cursor skills whose dir resolves to the same real path as a claude skill" do
+    project = mock_project("demo")
+    Settings.ExternalConfigs.set("demo", :cursor_skills, true)
+    Settings.ExternalConfigs.set("demo", :claude_skills, true)
+
+    # Write the skill under cursor
+    write!(
+      Path.join(project.source_root, ".cursor/skills/shared-skill/SKILL.md"),
+      skill_contents(name: "shared-skill", description: "shared")
+    )
+
+    # Symlink the individual skill directory from .claude/skills into .cursor/skills
+    claude_skills_dir = Path.join(project.source_root, ".claude/skills")
+    File.mkdir_p!(claude_skills_dir)
+
+    :ok =
+      File.ln_s(
+        Path.join(project.source_root, ".cursor/skills/shared-skill"),
+        Path.join(claude_skills_dir, "shared-skill")
+      )
+
+    ExternalConfigs.Loader.clear_cache()
+    loaded = Loader.load(project)
+
+    # Claude flavor is kept; cursor flavor is dropped (same real path)
+    assert [%{name: "shared-skill", flavor: :claude}] = loaded.claude_skills
+    assert loaded.cursor_skills == []
+  end
+
+  test "dedup_cross_flavor/2 drops cursor skills when entire .claude/skills is a symlink to .cursor/skills" do
+    project = mock_project("demo")
+    Settings.ExternalConfigs.set("demo", :cursor_skills, true)
+    Settings.ExternalConfigs.set("demo", :claude_skills, true)
+
+    cursor_skills_dir = Path.join(project.source_root, ".cursor/skills")
+
+    write!(
+      Path.join(cursor_skills_dir, "my-skill/SKILL.md"),
+      skill_contents(name: "my-skill", description: "d")
+    )
+
+    # .claude/ must exist before symlinking .claude/skills into it
+    File.mkdir_p!(Path.join(project.source_root, ".claude"))
+    :ok = File.ln_s(cursor_skills_dir, Path.join(project.source_root, ".claude/skills"))
+
+    ExternalConfigs.Loader.clear_cache()
+    loaded = Loader.load(project)
+
+    assert [%{name: "my-skill", flavor: :claude}] = loaded.claude_skills
+    assert loaded.cursor_skills == []
+  end
+
+  test "dedup_cross_flavor/2 keeps cursor skills with distinct real paths" do
+    project = mock_project("demo")
+    Settings.ExternalConfigs.set("demo", :cursor_skills, true)
+    Settings.ExternalConfigs.set("demo", :claude_skills, true)
+
+    write!(
+      Path.join(project.source_root, ".cursor/skills/cursor-only/SKILL.md"),
+      skill_contents(name: "cursor-only", description: "only in cursor")
+    )
+
+    write!(
+      Path.join(project.source_root, ".claude/skills/claude-only/SKILL.md"),
+      skill_contents(name: "claude-only", description: "only in claude")
+    )
+
+    ExternalConfigs.Loader.clear_cache()
+    loaded = Loader.load(project)
+
+    assert [%{name: "cursor-only", flavor: :cursor}] = loaded.cursor_skills
+    assert [%{name: "claude-only", flavor: :claude}] = loaded.claude_skills
+  end
+
   test "has_any_on_disk?/2 detects claude agents" do
     project = mock_project("demo")
     refute ExternalConfigs.Loader.has_any_on_disk?(project, :claude_agents)
