@@ -50,16 +50,16 @@ project via CLI.
 
 ```bash
 # See what's enabled for the current project
-fnord config external-configs list
+fnord config external list
 
 # Enable Cursor rules
-fnord config external-configs enable cursor:rules
+fnord config external enable cursor:rules
 
 # Enable Claude Code subagents
-fnord config external-configs enable claude:agents
+fnord config external enable claude:agents
 
 # Disable a source
-fnord config external-configs disable cursor:skills
+fnord config external disable cursor:skills
 ```
 
 At `fnord ask` start, if files exist on disk for a disabled source,
@@ -236,7 +236,7 @@ guidance in the convention files and trust the agent to find them.
 
 ## Commands that interact with these
 
-- `fnord config external-configs list|enable|disable SOURCE [--project NAME]`
+- `fnord config external list|enable|disable SOURCE [--project NAME]`
   - Manage the tier-2 opt-in toggles.
 - `fnord ask`
   - Loads tier 1 + enabled tier 2. Research-phase sub-agents may reach

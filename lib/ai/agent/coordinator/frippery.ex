@@ -131,7 +131,7 @@ defmodule AI.Agent.Coordinator.Frippery do
         if not Settings.ExternalConfigs.enabled?(project.name, source) and
              ExternalConfigs.Loader.has_any_on_disk?(project, source) do
           command =
-            "fnord config external-configs enable " <>
+            "fnord config external enable " <>
               "#{Settings.ExternalConfigs.source_to_string(source)} --project #{project.name}"
 
           prefix =

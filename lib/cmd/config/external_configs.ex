@@ -12,7 +12,7 @@ defmodule Cmd.Config.ExternalConfigs do
   """
 
   @doc """
-  Dispatches `fnord config external-configs` subcommands.
+  Dispatches `fnord config external` subcommands.
   """
   @spec run(map(), list(), list()) :: :ok
   def run(opts, command, args)

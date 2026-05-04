@@ -14,7 +14,7 @@ defmodule Cmd.Config.ExternalConfigsTest do
     :ok
   end
 
-  describe "external-configs list" do
+  describe "external list" do
     test "shows defaults (all false) when nothing is set" do
       mock_project("demo")
       Settings.set_project("demo")
@@ -86,7 +86,7 @@ defmodule Cmd.Config.ExternalConfigsTest do
     end
   end
 
-  describe "external-configs enable / disable" do
+  describe "external enable / disable" do
     test "enable flips a source to true and echoes the full flag set" do
       mock_project("demo")
       Settings.set_project("demo")

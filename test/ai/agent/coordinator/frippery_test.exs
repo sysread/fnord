@@ -144,7 +144,7 @@ defmodule AI.Agent.Coordinator.FripperyTest do
         rendered = IO.iodata_to_binary(msg)
         assert level == :warning
         assert rendered =~ "Cursor rules detected"
-        assert rendered =~ "fnord config external-configs enable cursor:rules"
+        assert rendered =~ "fnord config external enable cursor:rules"
         :ok
       end)
 

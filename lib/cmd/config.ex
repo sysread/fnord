@@ -144,7 +144,7 @@ defmodule Cmd.Config do
             ]
           ],
           external_configs: [
-            name: "external-configs",
+            name: "external",
             about:
               "Manage optional per-project support for Cursor rules / Cursor skills / Claude Code skills / Claude Code subagents",
             subcommands: [
