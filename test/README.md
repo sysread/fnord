@@ -65,7 +65,50 @@ Examples:
 - Module names append `Test` to the final component (not `Shell.Test`, but `ShellTest`)
 - Directory structure matches module hierarchy exactly
 - Tests should not output directly to stdout/stderr (except *while* debugging)
-- Tests should not output directly to stdout/stderr (except *while* debugging)
+
+## Suppressing UI output in tests
+
+`Fnord.TestCase` replaces `UI.Output` with `UI.Output.Mock` (backed by `UI.Output.TestStub`).
+`TestStub.puts/1` calls `IO.puts` — intentionally capturable, but it **will leak through to the
+ExUnit progress display** if not suppressed.
+
+`make check` is the signal: leaked output interrupts the dot stream mid-run.
+
+### Pattern A — stub silent (most common)
+
+Use this when the test exercises a `Cmd.*.run/3` path and asserts on the **return value**,
+not the printed output.
+
+```elixir
+setup do
+  stub(UI.Output.Mock, :puts, fn _msg -> :ok end)
+  :ok
+end
+```
+
+### Pattern B — capture_all (when you need the printed text)
+
+Use this when the test needs to assert on what was actually printed.
+`capture_all/1` is provided by `Fnord.TestCase` and captures both stdout and stderr.
+
+```elixir
+{output, _stderr} = capture_all(fn ->
+  Cmd.SomeCmd.run(%{}, [:some, :subcommand], [])
+end)
+
+assert output =~ "expected text"
+```
+
+### Which to use
+
+| Scenario | Pattern |
+| --- | --- |
+| Asserting on `run/3` return value | A — stub silent |
+| Asserting on printed output | B — capture_all |
+| Testing below `run/3` (direct function calls) | Neither needed |
+
+Any test module that calls `Cmd.*.run/3` without one of these patterns will leak output.
+The CI check (`make check`) will catch it.
 
 ## Test Logging Defaults
 

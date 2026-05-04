@@ -261,7 +261,34 @@ string content rather than using `Enum.split(-1)`.
 Fix option B (structural): stash post-session notes in conversation metadata and
 inject via bootstrap rather than appending to `messages`.
 
-## 21. AI.Completion has a tool-round cap
+## 21. UI.Output.TestStub.puts leaks to the ExUnit progress display
+
+`UI.Output.TestStub.puts/1` calls `IO.puts` — it is intentionally capturable via
+`ExUnit.CaptureIO`, but it prints to stdout if not suppressed. Any test that calls
+`Cmd.*.run/3` without suppression will interrupt the dot stream in `make check` output.
+
+Two patterns, depending on what the test needs:
+
+**Stub silent** — when asserting on the return value, not the printed text:
+
+```elixir
+setup do
+  stub(UI.Output.Mock, :puts, fn _msg -> :ok end)
+  :ok
+end
+```
+
+**capture_all** — when asserting on what was printed (`Fnord.TestCase` provides `capture_all/1`):
+
+```elixir
+{output, _stderr} = capture_all(fn -> Cmd.SomeCmd.run(%{}, [:sub], []) end)
+assert output =~ "expected"
+```
+
+`make check` is the detection signal: leaked output appears as raw text between progress dots.
+See `test/README.md` for the full decision table.
+
+## 22. AI.Completion has a tool-round cap
 
 `AI.Completion.get/1` caps tool-call rounds at 75 per invocation.
 When the counter hits the cap, `specs` and `toolbox` are set to nil and a system
