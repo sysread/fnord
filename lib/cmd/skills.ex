@@ -208,8 +208,10 @@ defmodule Cmd.Skills do
       end
 
     with {:ok, skills} <- Skills.list_all() do
-      skills
-      |> Enum.map(&format_skill(&1, current_project))
+      fnord_blocks = Enum.map(skills, &format_skill(&1, current_project))
+      external_blocks = external_skill_blocks(current_project)
+
+      (fnord_blocks ++ external_blocks)
       |> Enum.join("\n\n---\n\n")
       |> then(&{:ok, &1})
     end
@@ -287,6 +289,66 @@ defmodule Cmd.Skills do
       :project -> String.replace_prefix(path, Settings.fnord_home(), "~/.fnord")
     end
   end
+
+  # Load and format claude/cursor external skills for the current project.
+  # Returns [] when no project is selected; the loader requires a project to
+  # resolve the source root and check the external_configs flags.
+  defp external_skill_blocks(nil), do: []
+
+  defp external_skill_blocks(project_name) do
+    {:ok, project} = Store.get_project(project_name)
+    flags = Settings.ExternalConfigs.flags(project_name)
+
+    cursor = ExternalConfigs.Loader.load_cursor_skills(project)
+    claude = ExternalConfigs.Loader.load_claude_skills(project)
+
+    Enum.map(cursor ++ claude, &format_external_skill(&1, flags))
+  end
+
+  defp format_external_skill(%ExternalConfigs.Skill{} = skill, flags) do
+    description = external_skill_description(skill)
+
+    {type_label, source_key} =
+      case skill.flavor do
+        :claude -> {"Claude Code", :claude_skills}
+        :cursor -> {"Cursor", :cursor_skills}
+      end
+
+    enabled_str =
+      if Map.fetch!(flags, source_key) do
+        "yes (via `#{Settings.ExternalConfigs.source_to_string(source_key)}`)"
+      else
+        "no"
+      end
+
+    path = String.replace_prefix(skill.path, Settings.get_user_home(), "$HOME")
+
+    """
+    ### #{skill.name}
+
+    #{description}
+
+    | | |
+    |---|---|
+    | **Type** | #{type_label} skill |
+    | **Enabled** | #{enabled_str} |
+
+    **Defined in:**
+    - `#{path}`\
+    """
+    |> String.trim()
+  end
+
+  defp external_skill_description(%ExternalConfigs.Skill{description: nil, when_to_use: nil}),
+    do: "(no description)"
+
+  defp external_skill_description(%ExternalConfigs.Skill{description: d, when_to_use: nil}), do: d
+
+  defp external_skill_description(%ExternalConfigs.Skill{description: nil, when_to_use: w}),
+    do: w
+
+  defp external_skill_description(%ExternalConfigs.Skill{description: d, when_to_use: w}),
+    do: d <> "\n\n" <> w
 
   # Both `new` and `edit` open a TOML file in the user's editor. After the
   # user saves and exits, the TOML is decoded, validated (structure, model,

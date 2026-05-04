@@ -107,9 +107,9 @@ defmodule ExternalConfigs.Catalog do
     sections =
       [
         {"You have these skills available (invoke via `run_skill`):", fnord},
-        {"You also have these Cursor skills available. Their bodies live at each entry's path; read the SKILL.md with `file_contents_tool` when a task matches the description, and follow its guidance.",
+        {"You also have these Cursor skills available (invoke via `run_skill`):",
          cursor_entries(cursor)},
-        {"You also have these Claude Code skills available. Same mechanism: read the SKILL.md with `file_contents_tool` when a task matches the description, and follow its guidance.",
+        {"You also have these Claude Code skills available (invoke via `run_skill`):",
          claude_entries(claude)},
         {"You also have these Claude Code subagents available. They're role definitions (system prompt + allowed tools) rather than procedures; read the file with `file_contents_tool` when a task matches the description and internalize the role for that turn.",
          agent_entries(agents)}
