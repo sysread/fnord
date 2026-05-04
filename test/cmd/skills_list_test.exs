@@ -1,6 +1,14 @@
 defmodule Cmd.SkillsListTest do
   use Fnord.TestCase, async: false
 
+  setup do
+    # run/3 calls UI.puts with the formatted output; suppress it so it doesn't
+    # bleed through to the test progress display. The return value carries the
+    # raw markdown, which is what we assert on.
+    stub(UI.Output.Mock, :puts, fn _msg -> :ok end)
+    :ok
+  end
+
   defp write!(path, contents) do
     File.mkdir_p!(Path.dirname(path))
     File.write!(path, contents)
