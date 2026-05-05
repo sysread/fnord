@@ -46,6 +46,16 @@ defmodule AI.Model.Venice do
   | fast           | zai-org-glm-4.7     | 198k    | no               | yes        |
   | large_context  | grok-41-fast        | 1M      | no               | yes        |
   | web_search     | qwen3-5-35b-a3b     | 256k    | no               | yes        |
+  | coding         | kimi-k2-6 (= smarter) | 256k  | yes              | yes        |
+
+  ## Profile aliasing
+
+  `coding` and `smarter` both resolve to `kimi-k2-6` because the user's
+  picks point both roles at the same Venice model. This is an explicit
+  Venice-side decision, not a generic property of the provider
+  abstraction. Other providers may pick different models for these two
+  roles. Do NOT add cross-profile aliases (e.g. `coding == balanced`)
+  unless the user has actually picked the same model for both.
 
   ## Citation handling note
 
@@ -87,6 +97,15 @@ defmodule AI.Model.Venice do
 
   @spec web_search() :: AI.Model.t()
   def web_search(), do: qwen3_5_35b_a3b(:medium)
+
+  # Venice ships a coding-tuned profile (instruct-style training
+  # optimized for code generation). The user's pick in
+  # scratch/venice-models.md points coding at kimi-k2-6, the same model
+  # used for `smarter`. The alias is intentional and Venice-specific;
+  # do not assume coding == balanced just because the OpenAI catalog
+  # does that.
+  @spec coding() :: AI.Model.t()
+  def coding(), do: kimi_k2_6(:low)
 
   @spec large_context(:smart | :balanced | :fast) :: AI.Model.t()
   # All three tiers map to grok-41-fast for now; we have a single 1M-

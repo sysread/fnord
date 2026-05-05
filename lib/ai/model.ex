@@ -158,10 +158,19 @@ defmodule AI.Model do
   def fast(), do: apply(provider_model_mod(), :fast, [])
 
   @doc """
-  Shortcut for coding; currently equals balanced().
+  Provider-agnostic coding profile. Delegates to the provider's catalog.
+
+  This is NOT a synonym for `balanced/0`. On Venice, the catalog has a
+  dedicated coding-tuned model (instruct-style training optimized for
+  code generation); the provider module returns it. Aliasing coding
+  to balanced was the OpenAI shape (OpenAI has no coding-tuned variant
+  in fnord's catalog) and bled into Venice incorrectly. If a future
+  provider lacks a coding-specific model, that provider's
+  `AI.Model.<Provider>.coding/0` may legitimately return its balanced
+  pick - the alias decision is a per-provider concern.
   """
   @spec coding() :: t()
-  def coding(), do: balanced()
+  def coding(), do: apply(provider_model_mod(), :coding, [])
 
   @doc """
   Provider-agnostic web_search profile.

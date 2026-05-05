@@ -62,6 +62,13 @@ defmodule AI.Model.OpenAI do
   def large_context(:balanced), do: gpt41_mini()
   def large_context(:fast), do: gpt41_nano()
 
+  # OpenAI does not ship a dedicated coding-tuned model in fnord's
+  # catalog, so coding is an alias for balanced here. Venice has a
+  # genuine coding-tuned model (kimi-k2-6) and overrides this in
+  # AI.Model.Venice.coding/0; do not assume the alias generalizes.
+  @spec coding() :: AI.Model.t()
+  def coding(), do: balanced()
+
   # ----------------------------------------------------------------------------
   # API-specific model definitions
   #
