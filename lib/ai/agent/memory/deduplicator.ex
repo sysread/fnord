@@ -44,6 +44,49 @@ defmodule AI.Agent.Memory.Deduplicator do
   would require omitting something from either memory, do not merge.
   """
 
+  # Response schema. Forces structured JSON output regardless of which
+  # provider/model is in play, so prose preambles ("After analyzing...",
+  # "Apologies, I cannot...") cannot leak into the response and break
+  # the SafeJson.decode in `run/2`. The schema models the union as a
+  # single object with all fields optional and required: ["merge"]; the
+  # downstream `validate_response/1` enforces the conditional shape
+  # (merge: false alone vs merge: true + the rest).
+  @response_format %{
+    type: "json_schema",
+    json_schema: %{
+      name: "deduplicator_decision",
+      description: "Merge decision for two long-term memories.",
+      schema: %{
+        type: "object",
+        required: ["merge"],
+        properties: %{
+          merge: %{
+            type: "boolean",
+            description:
+              "true to synthesize into a single memory, false to keep both as-is."
+          },
+          title: %{
+            type: "string",
+            description:
+              "Title for the synthesized memory. Required when merge is true."
+          },
+          content: %{
+            type: "string",
+            description:
+              "Synthesized memory content. Required when merge is true."
+          },
+          topics: %{
+            type: "array",
+            items: %{type: "string"},
+            description:
+              "Flat array of lowercase topic tags. Required when merge is true."
+          }
+        },
+        additionalProperties: false
+      }
+    }
+  }
+
   @impl AI.Agent
   def get_response(opts) do
     with {:ok, agent} <- Map.fetch(opts, :agent),
@@ -56,7 +99,8 @@ defmodule AI.Agent.Memory.Deduplicator do
         log_msgs: false,
         log_tool_calls: false,
         messages: messages,
-        toolbox: %{}
+        toolbox: %{},
+        response_format: @response_format
       )
       |> case do
         {:ok, %{response: response}} -> {:ok, response}

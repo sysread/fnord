@@ -49,15 +49,17 @@ defmodule AI.Provider.RequestBuilder.VeniceTest do
   end
 
   describe "build_payload/6" do
-    test "minimal payload contains model, messages, and default response_format" do
+    test "minimal payload contains model, messages, default response_format, and strip_thinking" do
       model = Model.new("m", 1024)
       payload = Builder.build_payload(model, [], nil, nil, false, nil)
       assert payload[:model] == "m"
       assert payload[:messages] == []
       assert payload[:response_format] == %{type: "text"}
+      # strip_thinking_response is always on for Venice - prevents <think>
+      # block leakage that breaks downstream JSON parsing.
+      assert payload[:venice_parameters] == %{strip_thinking_response: true}
       refute Map.has_key?(payload, :tools)
       refute Map.has_key?(payload, :reasoning_effort)
-      refute Map.has_key?(payload, :venice_parameters)
     end
 
     test "verbosity is silently dropped (Venice expresses it via text.verbosity, not honored today)" do
@@ -108,9 +110,13 @@ defmodule AI.Provider.RequestBuilder.VeniceTest do
       assert vp[:strip_thinking_response] == true
     end
 
-    test "venice_parameters omitted when web_search? is false" do
+    test "venice_parameters carries strip_thinking_response even when web_search? is false" do
+      # strip_thinking_response is unconditional - <think> blocks leaking
+      # into structured-JSON agents (deduplicator, indexer) is the root
+      # cause it addresses, independent of web search.
       m_cap = Model.new("m", 1024, :none, supports_web_search: true)
-      refute Map.has_key?(Builder.build_payload(m_cap, [], nil, nil, false, nil), :venice_parameters)
+      vp = Builder.build_payload(m_cap, [], nil, nil, false, nil)[:venice_parameters]
+      assert vp == %{strip_thinking_response: true}
     end
 
     test "raises when web_search? is true but the model lacks the capability" do

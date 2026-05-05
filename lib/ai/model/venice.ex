@@ -68,6 +68,8 @@ defmodule AI.Model.Venice do
   `AI.Provider.ResponseParser.Venice` for the implementation.
   """
 
+  @behaviour AI.Model.Provider
+
   @type t :: %AI.Model{
           model: binary,
           context: non_neg_integer,
@@ -83,19 +85,19 @@ defmodule AI.Model.Venice do
   # is a single-line change here.
   # ---------------------------------------------------------------------------
 
-  @spec smart() :: AI.Model.t()
+  @impl AI.Model.Provider
   def smart(), do: glm_5_1(:low)
 
-  @spec smarter() :: AI.Model.t()
+  @impl AI.Model.Provider
   def smarter(), do: kimi_k2_6(:low)
 
-  @spec balanced() :: AI.Model.t()
+  @impl AI.Model.Provider
   def balanced(), do: glm_5(:medium)
 
-  @spec fast() :: AI.Model.t()
+  @impl AI.Model.Provider
   def fast(), do: glm_4_7(:low)
 
-  @spec web_search() :: AI.Model.t()
+  @impl AI.Model.Provider
   def web_search(), do: qwen3_5_35b_a3b(:medium)
 
   # Venice ships a coding-tuned profile (instruct-style training
@@ -104,13 +106,13 @@ defmodule AI.Model.Venice do
   # used for `smarter`. The alias is intentional and Venice-specific;
   # do not assume coding == balanced just because the OpenAI catalog
   # does that.
-  @spec coding() :: AI.Model.t()
+  @impl AI.Model.Provider
   def coding(), do: kimi_k2_6(:low)
 
-  @spec large_context(:smart | :balanced | :fast) :: AI.Model.t()
   # All three tiers map to grok-41-fast for now; we have a single 1M-
   # context model in the catalog. Tiers are kept distinct so future
   # additions can differentiate without changing the call sites.
+  @impl AI.Model.Provider
   def large_context(:smart), do: grok_41_fast(:low)
   def large_context(:balanced), do: grok_41_fast(:medium)
   def large_context(:fast), do: grok_41_fast(:low)

@@ -102,7 +102,8 @@ defmodule AI.Provider.RequestBuilder.Venice do
     %{
       model: model.model,
       messages: msgs,
-      response_format: response_format
+      response_format: response_format,
+      venice_parameters: venice_parameters_for(web_search?)
     }
     |> Map.merge(
       case tools do
@@ -111,7 +112,6 @@ defmodule AI.Provider.RequestBuilder.Venice do
       end
     )
     |> Map.merge(reasoning_effort_field(model))
-    |> Map.merge(venice_parameters_field(web_search?))
   end
 
   # ---------------------------------------------------------------------------
@@ -146,25 +146,32 @@ defmodule AI.Provider.RequestBuilder.Venice do
   # ---------------------------------------------------------------------------
   # venice_parameters object construction.
   #
-  # When `web_search?: true` is requested, we set the trio of flags that
-  # turns on web search, asks for citation markers in the response, and
-  # strips chain-of-thought blocks from the user-visible reply. Other
-  # venice_parameters fields (`character_slug`, `enable_e2ee`, etc.) are
-  # left at their defaults; we surface them only when fnord has a use
-  # for them.
+  # `strip_thinking_response: true` is set on every Venice request,
+  # regardless of web search. Many Venice models (including the ones
+  # fnord configures) emit `<think>...</think>` blocks as part of their
+  # reasoning even when `reasoning_effort` is not requested. Without
+  # stripping, those blocks leak into the assistant message body and
+  # break downstream JSON parsing in agents that expect structured
+  # output (deduplicator, indexer, nomenclater). The field name is
+  # specifically about removing the thinking output from the visible
+  # message, not disabling reasoning - the model still reasons
+  # internally.
   #
-  # When web_search? is false, we omit venice_parameters entirely. Venice
-  # accepts the field's absence; emitting an empty map would be noise.
+  # When `web_search?: true`, we additionally turn on web search and
+  # citation markers. Other venice_parameters fields (`character_slug`,
+  # `enable_e2ee`, etc.) are left at their defaults; surface them only
+  # when fnord has a use for them.
   # ---------------------------------------------------------------------------
-  defp venice_parameters_field(false), do: %{}
+  @spec venice_parameters_for(boolean) :: map
+  defp venice_parameters_for(false) do
+    %{strip_thinking_response: true}
+  end
 
-  defp venice_parameters_field(true) do
+  defp venice_parameters_for(true) do
     %{
-      venice_parameters: %{
-        enable_web_search: "on",
-        enable_web_citations: true,
-        strip_thinking_response: true
-      }
+      strip_thinking_response: true,
+      enable_web_search: "on",
+      enable_web_citations: true
     }
   end
 end

@@ -27,6 +27,8 @@ defmodule AI.Model.OpenAI do
   without producing a 400 - the field is simply omitted.
   """
 
+  @behaviour AI.Model.Provider
+
   @type t :: %AI.Model{
           model: binary,
           context: non_neg_integer,
@@ -42,22 +44,22 @@ defmodule AI.Model.OpenAI do
   # is a single-line change here; callers reach profiles via AI.Model.smart/0
   # etc. and never name a model directly.
   # ----------------------------------------------------------------------------
-  @spec smarter() :: AI.Model.t()
+  @impl AI.Model.Provider
   def smarter(), do: gpt55(:low)
 
-  @spec smart() :: AI.Model.t()
+  @impl AI.Model.Provider
   def smart(), do: gpt54(:low)
 
-  @spec balanced() :: AI.Model.t()
+  @impl AI.Model.Provider
   def balanced(), do: gpt54(:none)
 
-  @spec fast() :: AI.Model.t()
+  @impl AI.Model.Provider
   def fast(), do: gpt54_mini(:none)
 
-  @spec web_search() :: AI.Model.t()
+  @impl AI.Model.Provider
   def web_search(), do: gpt5_web()
 
-  @spec large_context(:smart | :balanced | :fast) :: AI.Model.t()
+  @impl AI.Model.Provider
   def large_context(:smart), do: gpt41()
   def large_context(:balanced), do: gpt41_mini()
   def large_context(:fast), do: gpt41_nano()
@@ -66,7 +68,7 @@ defmodule AI.Model.OpenAI do
   # catalog, so coding is an alias for balanced here. Venice has a
   # genuine coding-tuned model (kimi-k2-6) and overrides this in
   # AI.Model.Venice.coding/0; do not assume the alias generalizes.
-  @spec coding() :: AI.Model.t()
+  @impl AI.Model.Provider
   def coding(), do: balanced()
 
   # ----------------------------------------------------------------------------
