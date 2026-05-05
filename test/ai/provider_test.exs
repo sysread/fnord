@@ -104,11 +104,30 @@ defmodule AI.ProviderTest do
       Services.Globals.put_env(:fnord, :ai_provider, "openai")
       assert AI.Provider.module_for(:model) == AI.Model.OpenAI
     end
+
+    test "all kinds resolve to Venice modules when provider is venice" do
+      Services.Globals.put_env(:fnord, :ai_provider, "venice")
+
+      assert AI.Provider.module_for(:endpoint) == AI.Endpoint.Venice
+      assert AI.Provider.module_for(:model) == AI.Model.Venice
+      assert AI.Provider.module_for(:request_builder) == AI.Provider.RequestBuilder.Venice
+      assert AI.Provider.module_for(:response_parser) == AI.Provider.ResponseParser.Venice
+      assert AI.Provider.module_for(:web_search) == AI.Provider.WebSearch.Venice
+    end
   end
 
   describe "known_providers/0" do
-    test "openai is in the known set" do
+    test "openai and venice are in the known set" do
       assert "openai" in AI.Provider.known_providers()
+      assert "venice" in AI.Provider.known_providers()
+    end
+  end
+
+  describe "venice provider end-to-end resolution" do
+    test "venice flows through the env var path" do
+      Util.Env.put_env("FNORD_AI_PROVIDER", "venice")
+      :ok = AI.Provider.init()
+      assert AI.Provider.current() == "venice"
     end
   end
 end

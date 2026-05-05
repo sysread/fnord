@@ -302,3 +302,49 @@ rather than removing the guard.
 Symptom of a legitimate cap hit: the session produces an abrupt summary response
 mid-task with no tool calls.
 Check `state.tool_round_count` at the failure point before assuming a bug.
+
+## 23. Venice provider gotchas
+
+Items specific to running with `ai_provider: "venice"`.
+
+### 504 Gateway Timeout on long generations
+
+Venice's docs recommend setting `stream: true` for long-running
+requests. fnord does not stream today; the retry harness retries 504s
+exactly the same as 5xx, which usually works because the underlying
+generation does eventually finish. If long-context generations on
+Venice start failing reliably with 504s, streaming is the fix - not a
+classifier change.
+
+### Verbosity is dropped, not remapped
+
+`AI.Provider.RequestBuilder.Venice` ignores the verbosity argument.
+Venice expresses verbosity as `text: {verbosity: ...}` rather than as
+a top-level field, but fnord's verbosity plumbing has a known gap on
+the Coordinator path (the engram memory "Verbosity plumbing" has the
+detail). Pretending to honor a setting we do not respect end-to-end
+would be worse than dropping it. When verbosity gets fixed end-to-end,
+the Venice builder can be updated to remap.
+
+### Citations come back as appended text, not structured
+
+The `AI.Completion.get/1` contract returns
+`{:ok, :msg, binary, usage}`. Venice's structured
+`venice_parameters.web_search_citations` would not fit that without
+extending the contract through 15+ consumers. The Venice response
+parser instead appends a "Sources:" section to the assistant text;
+the inline `^N^` markers Venice puts in the message body line up
+with the appended numbered list.
+
+If a future feature wants to render citations natively (e.g. clickable
+links in a UI), the contract extension is additive - the appended-text
+shape can stay as the default.
+
+### The `web_search?` flag and Venice are joined at the hip
+
+Calling `AI.Completion.get/1` with `web_search?: true` against a
+Venice model triggers the venice_parameters injection. On OpenAI, the
+same flag adds `web_search_options: %{}` (only honored by search-
+preview models, gated by `AI.Model.supports_web_search`). The flag is
+the single abstraction; what the request layer does with it varies by
+provider.

@@ -51,11 +51,10 @@ defmodule AI.Provider do
   @env_var "FNORD_AI_PROVIDER"
 
   @doc """
-  The set of provider keys this build understands. Stage 0 ships with
-  OpenAI only; Stage 3 adds `"venice"`.
+  The set of provider keys this build understands.
   """
   @spec known_providers() :: [provider_key]
-  def known_providers, do: ["openai"]
+  def known_providers, do: ["openai", "venice"]
 
   @doc """
   Resolve and persist the active provider for this invocation.
@@ -119,6 +118,7 @@ defmodule AI.Provider do
   def module_for(:endpoint) do
     case current() do
       "openai" -> AI.Endpoint.OpenAI
+      "venice" -> AI.Endpoint.Venice
       other -> unknown_provider(:endpoint, other)
     end
   end
@@ -126,6 +126,7 @@ defmodule AI.Provider do
   def module_for(:model) do
     case current() do
       "openai" -> AI.Model.OpenAI
+      "venice" -> AI.Model.Venice
       other -> unknown_provider(:model, other)
     end
   end
@@ -133,6 +134,7 @@ defmodule AI.Provider do
   def module_for(:request_builder) do
     case current() do
       "openai" -> AI.Provider.RequestBuilder.OpenAI
+      "venice" -> AI.Provider.RequestBuilder.Venice
       other -> unknown_provider(:request_builder, other)
     end
   end
@@ -140,6 +142,7 @@ defmodule AI.Provider do
   def module_for(:response_parser) do
     case current() do
       "openai" -> AI.Provider.ResponseParser.OpenAI
+      "venice" -> AI.Provider.ResponseParser.Venice
       other -> unknown_provider(:response_parser, other)
     end
   end
@@ -147,6 +150,7 @@ defmodule AI.Provider do
   def module_for(:web_search) do
     case current() do
       "openai" -> AI.Provider.WebSearch.OpenAI
+      "venice" -> AI.Provider.WebSearch.Venice
       other -> unknown_provider(:web_search, other)
     end
   end
