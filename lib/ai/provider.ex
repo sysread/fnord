@@ -22,6 +22,8 @@ defmodule AI.Provider do
   - `:web_search` - performs a web search according to the provider's
     native mechanism (sub-completion on OpenAI; inline `venice_parameters`
     on Venice)
+  - `:health` - performs a "is the env in working order?" check by
+    hitting the provider's models endpoint with the configured API key
 
   ## Resolution priority
 
@@ -113,8 +115,14 @@ defmodule AI.Provider do
   providers are configuration errors that `init/0` already caught - the
   warn-and-fallback here is a defense-in-depth backstop.
   """
-  @spec module_for(:endpoint | :model | :request_builder | :response_parser | :web_search) ::
-          module
+  @spec module_for(
+          :endpoint
+          | :model
+          | :request_builder
+          | :response_parser
+          | :web_search
+          | :health
+        ) :: module
   def module_for(:endpoint) do
     case current() do
       "openai" -> AI.Endpoint.OpenAI
@@ -152,6 +160,14 @@ defmodule AI.Provider do
       "openai" -> AI.Provider.WebSearch.OpenAI
       "venice" -> AI.Provider.WebSearch.Venice
       other -> unknown_provider(:web_search, other)
+    end
+  end
+
+  def module_for(:health) do
+    case current() do
+      "openai" -> AI.Provider.Health.OpenAI
+      "venice" -> AI.Provider.Health.Venice
+      other -> unknown_provider(:health, other)
     end
   end
 
@@ -224,6 +240,7 @@ defmodule AI.Provider do
       :request_builder -> AI.Provider.RequestBuilder.OpenAI
       :response_parser -> AI.Provider.ResponseParser.OpenAI
       :web_search -> AI.Provider.WebSearch.OpenAI
+      :health -> AI.Provider.Health.OpenAI
     end
   end
 end

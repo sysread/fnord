@@ -188,6 +188,47 @@ defmodule Cmd.Config do
               ]
             ]
           ],
+          provider: [
+            name: "provider",
+            about: "Inspect or switch the active AI provider (openai, venice, ...)",
+            subcommands: [
+              list: [
+                name: "list",
+                about:
+                  "Show the active provider, the resolution layers, and env-key presence per provider"
+              ],
+              set: [
+                name: "set",
+                about: "Persist the provider to settings.json's top-level ai_provider key",
+                args: [
+                  provider: [
+                    value_name: "PROVIDER",
+                    help: "Provider key (e.g. openai, venice)",
+                    required: true
+                  ]
+                ],
+                flags: [
+                  check: [
+                    long: "--check",
+                    help: "Run a health check against the new provider after setting",
+                    required: false
+                  ]
+                ]
+              ],
+              check: [
+                name: "check",
+                about:
+                  "Run an on-demand health check (env keys, API key validity) against a provider",
+                args: [
+                  provider: [
+                    value_name: "PROVIDER",
+                    help: "Provider key to check; defaults to the active provider",
+                    required: false
+                  ]
+                ]
+              ]
+            ]
+          ],
           mcp: [
             name: "mcp",
             about: "Manage MCP server configuration",
@@ -528,6 +569,12 @@ defmodule Cmd.Config do
 
   def run(opts, [:external_configs, :disable], args),
     do: Cmd.Config.ExternalConfigs.run(opts, [:external_configs, :disable], args)
+
+  def run(opts, [:provider, :list], args), do: Cmd.Config.Provider.run(opts, [:provider, :list], args)
+  def run(opts, [:provider, :set], args), do: Cmd.Config.Provider.run(opts, [:provider, :set], args)
+
+  def run(opts, [:provider, :check], args),
+    do: Cmd.Config.Provider.run(opts, [:provider, :check], args)
 
   def run(opts, [:mcp, :list], args), do: Cmd.Config.MCP.run(opts, [:mcp, :list], args)
   def run(opts, [:mcp, :add], args), do: Cmd.Config.MCP.run(opts, [:mcp, :add], args)

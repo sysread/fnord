@@ -88,6 +88,42 @@ fnord config mcp status myserver
 
 Use [Advanced MCP Configuration](mcp-advanced.md) for transport-specific flags such as headers, env vars, OAuth options, and timeouts.
 
+## AI provider
+
+fnord supports multiple LLM providers. The default is OpenAI; you can switch to Venice by setting the active provider.
+
+```bash
+fnord config provider list
+fnord config provider set venice
+fnord config provider set venice --check
+fnord config provider check
+fnord config provider check openai
+```
+
+`list` shows the active provider, the resolution layers (CLI flag, env var, settings.json), and which API-key environment variable each provider has set.
+`set <provider>` persists the choice to `~/.fnord/settings.json`'s top-level `ai_provider` key.
+`check` performs a live health check by hitting the provider's `/models` endpoint with the configured API key.
+With `set --check`, the health check runs automatically after persisting.
+
+### Resolution priority
+
+The active provider is resolved with this priority, highest first:
+
+1. Globals override (used internally; future CLI flag will write here).
+2. `FNORD_AI_PROVIDER` environment variable.
+3. `settings.json` top-level `"ai_provider"` key.
+4. Default: `openai`.
+
+### API keys
+
+API keys are read from environment variables.
+The `FNORD_`-prefixed override takes precedence over the canonical name, so you can pin a different key per fnord invocation without disturbing other tools.
+
+| Provider | Override | Canonical |
+| --- | --- | --- |
+| OpenAI | `FNORD_OPENAI_API_KEY` | `OPENAI_API_KEY` |
+| Venice | `FNORD_VENICE_API_KEY` | `VENICE_API_KEY` |
+
 ## Settings structure
 
 Settings are scoped:
