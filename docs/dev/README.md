@@ -20,6 +20,7 @@ Subsystem deep-dives:
 - [memory-system.md](memory-system.md) — session / project / global memories + promotion.
 - [worktree-system.md](worktree-system.md) — git worktree isolation for edit-mode conversations.
 - [tool-system.md](tool-system.md) — the `AI.Tools` behaviour and tool registration.
+- [providers.md](providers.md) — AI provider abstraction (OpenAI, Venice, ...) and how to add a new one.
 
 ## `docs/dev/` vs `fnord notes`
 

@@ -1,6 +1,18 @@
 defmodule AI.CompletionAPI do
+  @moduledoc """
+  Chat-completion request orchestration.
+
+  Today this module owns both orchestration (build payload, post, parse)
+  and OpenAI-specific knowledge (header shape, payload field names,
+  response shape, env-var names for the API key). Stage 1 of the Venice
+  port hoists the provider-specific concerns into per-provider behaviour
+  modules; this Stage 0 implementation is OpenAI-only by construction
+  but routes its `AI.Endpoint` behaviour callbacks (path + error
+  classifier) through `AI.Provider` so the retry harness already pivots
+  on the active provider.
+  """
+
   @behaviour AI.Endpoint
-  # OpenAI-specific base URL is defined in AI.Endpoint.OpenAI.
 
   @type model :: AI.Model.t()
   @type msgs :: [map()]
@@ -21,29 +33,39 @@ defmodule AI.CompletionAPI do
           | {:error, :api_unavailable, any}
           | {:error, :context_length_exceeded, non_neg_integer}
 
+  # ---------------------------------------------------------------------------
+  # AI.Endpoint behaviour callbacks.
+  #
+  # Both callbacks defer to whichever endpoint module the active provider
+  # exposes. The retry harness (`AI.Endpoint.post_json/3`) is the only
+  # caller; it uses these to compute the URL and to classify errors.
+  # ---------------------------------------------------------------------------
+
   @impl AI.Endpoint
-  def endpoint_path, do: AI.Endpoint.OpenAI.endpoint_path()
+  def endpoint_path, do: apply(provider_endpoint(), :endpoint_path, [])
 
   @doc """
-  Provider-specific error classifier is delegated to AI.Endpoint.OpenAI.
+  Delegate provider-specific error classification to the active provider's
+  endpoint module. The behaviour contract is documented in `AI.Endpoint`.
   """
   @impl AI.Endpoint
   def endpoint_error_classify(status, body, headers, transport_reason) do
-    AI.Endpoint.OpenAI.endpoint_error_classify(status, body, headers, transport_reason)
+    apply(provider_endpoint(), :endpoint_error_classify, [
+      status,
+      body,
+      headers,
+      transport_reason
+    ])
   end
 
-  def _legacy_classifier_case_tuple(status, body, transport_reason) do
-    {status, body, transport_reason}
-  end
-
-  # Legacy classifier body removed; kept stubs above for dialyzer stability.
-  # ----------------------------------------------------------------------
-  # """
-  # @impl AI.Endpoint
-  # def endpoint_error_classify(status, body, _headers, transport_reason) do
-  #   ...
-  # end
-  # """
+  # Resolve the active provider's endpoint module. Indirected via
+  # `apply/3` at the call sites above so the compiler does not try to
+  # statically resolve the function on the union of all possible modules
+  # `module_for/1` might return - which today is just `AI.Endpoint.OpenAI`
+  # but logically widens to every endpoint module across providers. The
+  # `apply` form is the same pattern `AI.Model` uses for its profile
+  # factory dispatch.
+  defp provider_endpoint, do: AI.Provider.module_for(:endpoint)
 
   @spec get(model, msgs, tools, response_format, web_search?, verbosity) :: response
   def get(
@@ -68,6 +90,30 @@ defmodule AI.CompletionAPI do
       {"Content-Type", "application/json"}
     ]
 
+    # ----------------------------------------------------------------------
+    # Payload assembly.
+    #
+    # Each `Map.merge/2` below either contributes a provider field or
+    # contributes nothing; this keeps the payload free of `nil`-valued keys
+    # that the API would reject on strict providers.
+    #
+    # Capability flags on `model` gate the optional fields. The flags are
+    # the source of truth for "can the wire format carry this?", so the
+    # request builder consults them rather than pattern-matching on model-
+    # name strings (which change between vendor releases).
+    #
+    # If a caller asks for web_search against a model that cannot perform
+    # it, that is a programming error - the caller picked the wrong profile.
+    # We raise here to surface the bug at the call site rather than letting
+    # the request fly off and produce a confusing API error.
+    # ----------------------------------------------------------------------
+    if web_search? and not Map.get(model, :supports_web_search, false) do
+      raise ArgumentError,
+            "web_search? requested but model #{inspect(model.model)} does not " <>
+              "support web search. Use AI.Model.web_search() or another " <>
+              "web-search-capable profile."
+    end
+
     payload =
       %{
         model: model.model,
@@ -80,14 +126,7 @@ defmodule AI.CompletionAPI do
           tools -> %{tools: tools}
         end
       )
-      |> Map.merge(
-        case model.reasoning do
-          :low -> %{reasoning_effort: "low"}
-          :medium -> %{reasoning_effort: "medium"}
-          :high -> %{reasoning_effort: "high"}
-          _ -> %{}
-        end
-      )
+      |> Map.merge(reasoning_effort_field(model))
       |> Map.merge(
         case verbosity do
           nil -> %{}
@@ -163,6 +202,35 @@ defmodule AI.CompletionAPI do
   # -----------------------------------------------------------------------------
   # Private functions
   # -----------------------------------------------------------------------------
+
+  # Resolve the reasoning_effort field for the request payload.
+  #
+  # Two gates:
+  #   1. The model must declare `supports_reasoning: true`. Without it, no
+  #      reasoning_effort field is emitted regardless of `model.reasoning`.
+  #      This prevents the API from rejecting the request on models that
+  #      don't accept the field (4.1 family, mini/nano variants).
+  #   2. The level itself must map to a wire string. OpenAI accepts
+  #      "low" / "medium" / "high" today. Future levels (`:minimal`,
+  #      `:none`) round to nothing or to a sibling level depending on
+  #      what the model accepts; the safest behavior is to omit the field
+  #      so we leave it unmapped here. When OpenAI ships acceptance for
+  #      `"minimal"`, add the case below.
+  @spec reasoning_effort_field(AI.Model.t()) :: map
+  defp reasoning_effort_field(%{supports_reasoning: false}), do: %{}
+
+  defp reasoning_effort_field(%{reasoning: level}) do
+    case level do
+      :low -> %{reasoning_effort: "low"}
+      :medium -> %{reasoning_effort: "medium"}
+      :high -> %{reasoning_effort: "high"}
+      # Unknown / unmapped level on a reasoning-capable model: omit the
+      # field rather than guess. The model's default reasoning behavior
+      # then applies.
+      _ -> %{}
+    end
+  end
+
   @spec get_api_key!() :: binary
   defp get_api_key!() do
     ["FNORD_OPENAI_API_KEY", "OPENAI_API_KEY"]

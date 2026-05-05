@@ -75,9 +75,14 @@ Escripts are a natural fit for a CLI: single binary, no runtime deps, fast start
 - `lib/ai/` — agents, tools, model clients, the coordinator.
 - `lib/store/` — on-disk store layout.
 
+## AI provider abstraction
+
+The AI Core layer talks to LLMs through a small provider abstraction so the same code paths can target OpenAI, Venice, or any future backend without rewrites. The active provider is selected at startup from a CLI/env/settings priority chain and routed via `AI.Provider.module_for/1` to concrete endpoint and model-catalog modules. See [providers.md](providers.md) for how the abstraction is shaped and how to add a new provider.
+
 ## See also
 
 - [storage-layout.md](storage-layout.md) — on-disk state.
 - [indexing-flow.md](indexing-flow.md) — how `fnord index` works.
 - [ask-coordinator.md](ask-coordinator.md) — how `fnord ask` works.
 - [gotchas.md](gotchas.md) — invariants to know.
+- [providers.md](providers.md) — AI provider abstraction.

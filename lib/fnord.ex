@@ -202,9 +202,22 @@ defmodule Fnord do
       {:fonz, val} ->
         Settings.set_fonz_mode(!!val)
 
+      # The --provider CLI flag, when declared by an individual command's
+      # spec, lands here. We write it into globals so AI.Provider.init/0
+      # picks it up as the highest-priority override below. Commands that
+      # do not declare the flag simply produce no :provider key, leaving
+      # the env-var and settings.json layers in charge.
+      {:provider, value} when is_binary(value) and value != "" ->
+        Services.Globals.put_env(:fnord, :ai_provider, value)
+
       _ ->
         :ok
     end)
+
+    # Resolve the AI provider. Priority: CLI > env > settings.json >
+    # default ("openai"). Unknown providers raise here; better to fail
+    # at startup than to mis-route LLM traffic at runtime.
+    AI.Provider.init()
 
     # --------------------------------------------------------------------------
     # If the user did not specify a project in ARGV, resolve it via ResolveProject.

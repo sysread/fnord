@@ -1,21 +1,46 @@
 defmodule AI.Model.OpenAI do
   @moduledoc """
-  OpenAI model profiles and presets.
+  OpenAI model catalog and named profiles.
 
-  Provides factory functions for common presets and encodes model name,
-  context window, and reasoning level. Intended to be called indirectly via
-  AI.Model wrapper functions.
+  Concrete implementation of the model-catalog half of the provider
+  abstraction. Each public factory below returns a fully-populated
+  `AI.Model.t` with capability flags set to match what the OpenAI API
+  actually accepts for that model.
+
+  ## Capability matrix
+
+  Capabilities are declared per model rather than inferred from name strings
+  because OpenAI changes naming conventions between releases and silent
+  payload drops are worse than loud failures.
+
+  | Family                    | reasoning_effort | web_search_options |
+  | ------------------------- | ---------------- | ------------------ |
+  | gpt-5.5                   | yes              | no                 |
+  | gpt-5.4 family            | no               | no                 |
+  | gpt-4.1 family            | no               | no                 |
+  | gpt-5-search-api          | no               | yes                |
+
+  Models that do not support `reasoning_effort` are constructed with
+  `reasoning: :none` and `supports_reasoning: false`. The request builder
+  uses the capability flag (not the level) to decide whether to emit the
+  field, so callers can ask for `:medium` against a non-reasoning model
+  without producing a 400 - the field is simply omitted.
   """
 
   @type t :: %AI.Model{
           model: binary,
           context: non_neg_integer,
           reasoning: atom,
-          verbosity: atom | nil
+          verbosity: atom | nil,
+          supports_reasoning: boolean,
+          supports_web_search: boolean
         }
 
   # ----------------------------------------------------------------------------
-  # Common presets
+  # Common presets. Each maps a role (smart/balanced/fast/web/large) to a
+  # specific model in the OpenAI catalog. Bumping a profile to a new model
+  # is a single-line change here; callers reach profiles via AI.Model.smart/0
+  # etc. and never name a model directly.
   # ----------------------------------------------------------------------------
   @spec smarter() :: AI.Model.t()
   def smarter(), do: gpt55(:low)
@@ -39,10 +64,22 @@ defmodule AI.Model.OpenAI do
 
   # ----------------------------------------------------------------------------
   # API-specific model definitions
+  #
+  # Each factory declares the model's wire-level identifier, context window,
+  # default reasoning level, and capability flags. The capability flag says
+  # "this model accepts the reasoning_effort field at all"; the level
+  # controls what we send when we do send. Both pieces of information are
+  # needed.
   # ----------------------------------------------------------------------------
   @spec gpt55(atom) :: AI.Model.t()
-  def gpt55(reasoning \\ :medium), do: AI.Model.new("gpt-5.5", 1_050_000, reasoning)
+  def gpt55(reasoning \\ :medium),
+    do: AI.Model.new("gpt-5.5", 1_050_000, reasoning, supports_reasoning: true)
 
+  # The gpt-5.4 family is not driven by reasoning_effort in fnord. The
+  # one-arg signature is preserved so call sites can still pass a level
+  # without breaking, but the value is ignored and the model is pinned
+  # to :none. Capability flag stays false: the request builder will not
+  # emit reasoning_effort.
   @spec gpt54(atom) :: AI.Model.t()
   def gpt54(_), do: AI.Model.new("gpt-5.4", 1_050_000, :none)
 
@@ -52,6 +89,9 @@ defmodule AI.Model.OpenAI do
   @spec gpt54_nano(atom) :: AI.Model.t()
   def gpt54_nano(_), do: AI.Model.new("gpt-5.4-nano", 400_000, :none)
 
+  # The 4.1 family predates `reasoning_effort` entirely; the field is not
+  # part of their request schema. Capabilities default to false in the
+  # AI.Model constructor, so we don't pass them explicitly.
   @spec gpt41() :: AI.Model.t()
   def gpt41(), do: AI.Model.new("gpt-4.1", 1_000_000, :none)
 
@@ -61,11 +101,17 @@ defmodule AI.Model.OpenAI do
   @spec gpt41_nano() :: AI.Model.t()
   def gpt41_nano(), do: AI.Model.new("gpt-4.1-nano", 1_000_000, :none)
 
-  # only model supported by completions api, per:
-  # - https://developers.openai.com/api/docs/guides/tools-web-search#migrating-from-legacy-web-search
+  # The lone web-search-capable OpenAI model in our catalog. Setting
+  # `supports_web_search: true` is what unlocks the `web_search_options: %{}`
+  # field in the request payload; on every other OpenAI model the request
+  # builder drops that field rather than producing an API error.
   #
-  # context window gleaned from here, since this model is not advertised on the models page:
-  # - https://developers.openai.com/api/docs/guides/tools-web-search#limitations
+  # Per https://developers.openai.com/api/docs/guides/tools-web-search this
+  # is the only model the completions API supports for web search since
+  # the gpt-4o-mini-search-preview deprecation. Context window is taken
+  # from the limitations section since the model is not advertised on the
+  # standard models page.
   @spec gpt5_web() :: AI.Model.t()
-  def gpt5_web(), do: AI.Model.new("gpt-5-search-api", 200_000, :none)
+  def gpt5_web(),
+    do: AI.Model.new("gpt-5-search-api", 200_000, :none, supports_web_search: true)
 end

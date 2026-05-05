@@ -385,7 +385,10 @@ defmodule Settings do
   """
   @spec global_config_keys() :: [binary]
   def global_config_keys() do
-    ["approvals", "projects", "version"]
+    # Top-level keys reserved for global settings. These cannot collide
+    # with project names because `is_valid_project_name?/1` rejects them.
+    # Add a key here whenever introducing a new top-level setting.
+    ["ai_provider", "approvals", "projects", "version"]
   end
 
   @doc """
