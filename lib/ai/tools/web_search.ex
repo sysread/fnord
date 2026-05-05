@@ -1,4 +1,19 @@
 defmodule AI.Tools.WebSearch do
+  @moduledoc """
+  Tool wrapper around the active provider's web search implementation.
+
+  Implements the `AI.Tools` behaviour so the model can call
+  `web_search_tool` from inside any conversation. The actual search
+  strategy is delegated to whichever module the active provider's
+  `AI.Provider.WebSearch` implementation points at - sub-completion on
+  OpenAI, inline `venice_parameters` on Venice, or whatever future
+  providers ship.
+
+  Keeping the strategy out of this module means a third provider that
+  implements web search differently (e.g. via an external SERP API) can
+  plug in without touching this file.
+  """
+
   @behaviour AI.Tools
 
   @impl AI.Tools
@@ -59,61 +74,11 @@ defmodule AI.Tools.WebSearch do
   @impl AI.Tools
   def call(args) do
     with {:ok, query} <- AI.Tools.get_arg(args, "query") do
-      perform_search(query)
-    end
-  end
-
-  defp perform_search(query) do
-    AI.Completion.get(
-      model: AI.Model.web_search(),
-      messages: [
-        AI.Util.system_msg("""
-        You are a web search tool that provides concise and relevant information based on user queries.
-        Use the provided query to search the web and return the most pertinent results.
-
-        There are two separate response types, based on the query.
-
-        # Search Query
-        Examples:
-        - "Find go packages for making HTTP requests"
-        - "Search npm for packages related to image processing"
-
-        Response template (without the code fences):
-        ```
-        - [url 1]: [Brief description of the first relevant result]
-        - [url 2]: [Brief description of the second relevant result]
-        - [url 3]: [Brief description of the third relevant result]
-        - ...
-        ```
-
-        Do not include any explanations or additional text outside the response template.
-
-        # Direct Answer Query
-        Examples:
-        - "Identify the API calls that perform user authentication in https://example.com/api-docs"
-        - "How do you structure the tools list in this API? - https://example.com/api-docs"
-
-        Response template (without the code fences):
-        ```
-        [Direct answer to the query based on the information found in the provided URL, with inline citations from the site's content when possible]
-        ```
-
-        """),
-        AI.Util.user_msg("Search the web for the following query: #{query}")
-      ]
-    )
-    |> case do
-      {:ok, %{response: response}} ->
-        {:ok, response}
-
-      # AI.Completion.get/1 reports context-window overflow as a three-tuple
-      # with the usage count attached. Collapse it to a typed :error so the
-      # tool caller contract stays single-shaped.
-      {:error, :context_length_exceeded, _usage} ->
-        {:error, "web search exceeded the context window"}
-
-      {:error, reason} ->
-        {:error, reason}
+      # Dispatch to whichever web-search strategy the active provider
+      # exposes. The strategy may run a separate sub-completion (OpenAI),
+      # a single inline call (Venice), or anything else - this module
+      # is deliberately ignorant.
+      apply(AI.Provider.module_for(:web_search), :search, [query])
     end
   end
 end

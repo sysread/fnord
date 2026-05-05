@@ -16,13 +16,9 @@ defmodule AI.Provider do
   - `:endpoint` - URL + retry-classifier (`AI.Endpoint` behaviour)
   - `:model` - named profile factories (`AI.Model.OpenAI`, etc.)
   - `:request_builder` - turns abstract request args into a provider-
-    specific HTTP payload + headers + API key (Stage 1)
+    specific HTTP payload + headers + API key
   - `:response_parser` - turns raw HTTP success/error bodies into the
     completion-level `{:ok, :msg, ...}` / `{:ok, :tool, ...}` family
-    (Stage 1)
-
-  A future Stage 2 will add:
-
   - `:web_search` - performs a web search according to the provider's
     native mechanism (sub-completion on OpenAI; inline `venice_parameters`
     on Venice)
@@ -118,7 +114,8 @@ defmodule AI.Provider do
   providers are configuration errors that `init/0` already caught - the
   warn-and-fallback here is a defense-in-depth backstop.
   """
-  @spec module_for(:endpoint | :model | :request_builder | :response_parser) :: module
+  @spec module_for(:endpoint | :model | :request_builder | :response_parser | :web_search) ::
+          module
   def module_for(:endpoint) do
     case current() do
       "openai" -> AI.Endpoint.OpenAI
@@ -144,6 +141,13 @@ defmodule AI.Provider do
     case current() do
       "openai" -> AI.Provider.ResponseParser.OpenAI
       other -> unknown_provider(:response_parser, other)
+    end
+  end
+
+  def module_for(:web_search) do
+    case current() do
+      "openai" -> AI.Provider.WebSearch.OpenAI
+      other -> unknown_provider(:web_search, other)
     end
   end
 
@@ -215,6 +219,7 @@ defmodule AI.Provider do
       :model -> AI.Model.OpenAI
       :request_builder -> AI.Provider.RequestBuilder.OpenAI
       :response_parser -> AI.Provider.ResponseParser.OpenAI
+      :web_search -> AI.Provider.WebSearch.OpenAI
     end
   end
 end

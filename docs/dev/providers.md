@@ -14,6 +14,7 @@ The provider abstraction is split across a few modules so each one owns a single
 | Orchestration | `AI.CompletionAPI` | Thin spine: get key + headers + payload from the active provider's request builder, post via `AI.Endpoint`, dispatch the body through the active provider's response parser. Owns no provider-specific logic. |
 | Request builder | `AI.Provider.RequestBuilder.OpenAI` (and future `AI.Provider.RequestBuilder.Venice`) | API key acquisition (env var lookup), header assembly (Authorization scheme), and JSON payload assembly. Honors `AI.Model` capability flags - drops fields the model does not accept; raises on `web_search?` against a non-search model. |
 | Response parser | `AI.Provider.ResponseParser.OpenAI` (and future `AI.Provider.ResponseParser.Venice`) | Turn raw HTTP success/error bodies into the `{:ok, :msg, ...}` / `{:ok, :tool, ...}` / `{:error, ...}` tuples the orchestration loop in `AI.Completion` understands. Owns the special-case `:context_length_exceeded` extraction. |
+| Web search | `AI.Provider.WebSearch.OpenAI` (and future `AI.Provider.WebSearch.Venice`) | Provider-native web search. OpenAI runs a sub-completion against a search-preview model; Venice will set `venice_parameters.enable_web_search` on a single inline call. Single string-in, string-out contract for `AI.Tools.WebSearch`. |
 | Model catalog | `AI.Model.OpenAI` (and future `AI.Model.Venice`) | Named profile factories (`smart/0`, `balanced/0`, `web_search/0`, ...). Each profile is an `AI.Model.t` populated with model identifier, context window, default reasoning level, and capability flags. |
 
 ## `AI.Model` capability flags
@@ -53,7 +54,8 @@ The high-level recipe:
 2. **Model catalog module**: factories for each named profile (`smart/0`, `balanced/0`, ...). Set capability flags accurately for each model. Document the capability matrix in the moduledoc.
 3. **Request builder module**: implement `AI.Provider.RequestBuilder` behaviour - `api_key!/0`, `build_headers/1`, `build_payload/6`. Honor capability flags on the model. Drop fields the API does not accept (rather than emit nil-valued keys that strict providers reject).
 4. **Response parser module**: implement `AI.Provider.ResponseParser` behaviour - `parse_success/1` and `parse_error/2`. Surface the orchestration layer's tagged tuples; preserve `:context_length_exceeded` and `:api_unavailable` special cases.
-5. **Provider key**: add the new key to `AI.Provider.known_providers/0` and add dispatch branches in `AI.Provider.module_for/1` for each behaviour kind.
+5. **Web search module**: implement `AI.Provider.WebSearch` behaviour - `search/1`. The strategy is whatever fits the provider best (sub-completion, inline flag, external service); the contract is a string in, string out.
+6. **Provider key**: add the new key to `AI.Provider.known_providers/0` and add dispatch branches in `AI.Provider.module_for/1` for each behaviour kind.
 
 API key conventions follow the existing OpenAI pattern: a fnord-specific override (`FNORD_<PROVIDER>_API_KEY`) takes precedence over the upstream-canonical name (`<PROVIDER>_API_KEY`).
 
