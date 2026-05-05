@@ -384,3 +384,30 @@ def some_call(), do: AI.Completion.get(model: model(), ...)
 Module attributes that contain *prompts* or other static data are
 fine. The rule is specifically about `AI.Model.*()` (and other
 provider-resolved factory calls).
+
+## 25. Venice `supportsReasoning` vs `supportsReasoningEffort`
+
+Venice's `/api/v1/models` reports two separate reasoning capability
+flags per model:
+
+- `supportsReasoning: true` means the model performs internal reasoning
+  (often emitting `<think>` blocks).
+- `supportsReasoningEffort: true` means the model accepts the
+  `reasoning_effort` field on the wire.
+
+A model can have the first without the second. Sending
+`reasoning_effort: "low"` to a model that only supports the former
+either gets the field silently dropped or trips the model into
+emitting unbounded `<think>` content that overflows the response and
+truncates the JSON payload (manifests as `unexpected end of input`
+errors in fnord's downstream JSON parsers).
+
+`AI.Model.t.supports_reasoning` is the wire-level capability (matches
+`supportsReasoningEffort`). When picking a Venice model for a profile
+factory, verify against `supportsReasoningEffort` specifically, not
+the more permissive `supportsReasoning`.
+
+`venice_parameters.strip_thinking_response: true` (set by the request
+builder when `web_search?: true`) is a partial mitigation but does
+not fully prevent the truncation when reasoning_effort is incorrectly
+emitted.

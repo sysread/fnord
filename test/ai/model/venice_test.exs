@@ -49,7 +49,7 @@ defmodule AI.Model.VeniceTest do
     end
   end
 
-  test "all current profiles support reasoning and web search" do
+  test "all current profiles support web search" do
     profiles = [
       Venice.smarter(),
       Venice.smart(),
@@ -60,8 +60,19 @@ defmodule AI.Model.VeniceTest do
     ]
 
     for m <- profiles do
-      assert m.supports_reasoning, "#{m.model} should support reasoning"
       assert m.supports_web_search, "#{m.model} should support web search"
     end
+  end
+
+  test "only kimi-k2-6 currently supports the reasoning_effort field" do
+    # See AI.Model.Venice moduledoc and /api/v1/models for the source of
+    # truth. supportsReasoningEffort differs from supportsReasoning;
+    # we track the wire-level field acceptance.
+    assert Venice.smarter().supports_reasoning
+    refute Venice.smart().supports_reasoning
+    refute Venice.balanced().supports_reasoning
+    refute Venice.fast().supports_reasoning
+    refute Venice.web_search().supports_reasoning
+    refute Venice.large_context(:smart).supports_reasoning
   end
 end
