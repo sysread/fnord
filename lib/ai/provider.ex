@@ -11,13 +11,18 @@ defmodule AI.Provider do
   - `:model` - the catalog of named profiles (smart/balanced/fast/...)
     returned by `AI.Model` factory functions
 
-  Future stages of the Venice port will register two more behaviours under
-  `module_for/1`:
+  Behaviours routed via `module_for/1`:
 
+  - `:endpoint` - URL + retry-classifier (`AI.Endpoint` behaviour)
+  - `:model` - named profile factories (`AI.Model.OpenAI`, etc.)
   - `:request_builder` - turns abstract request args into a provider-
-    specific HTTP payload + headers
+    specific HTTP payload + headers + API key (Stage 1)
   - `:response_parser` - turns raw HTTP success/error bodies into the
     completion-level `{:ok, :msg, ...}` / `{:ok, :tool, ...}` family
+    (Stage 1)
+
+  A future Stage 2 will add:
+
   - `:web_search` - performs a web search according to the provider's
     native mechanism (sub-completion on OpenAI; inline `venice_parameters`
     on Venice)
@@ -113,7 +118,7 @@ defmodule AI.Provider do
   providers are configuration errors that `init/0` already caught - the
   warn-and-fallback here is a defense-in-depth backstop.
   """
-  @spec module_for(:endpoint | :model) :: module
+  @spec module_for(:endpoint | :model | :request_builder | :response_parser) :: module
   def module_for(:endpoint) do
     case current() do
       "openai" -> AI.Endpoint.OpenAI
@@ -125,6 +130,20 @@ defmodule AI.Provider do
     case current() do
       "openai" -> AI.Model.OpenAI
       other -> unknown_provider(:model, other)
+    end
+  end
+
+  def module_for(:request_builder) do
+    case current() do
+      "openai" -> AI.Provider.RequestBuilder.OpenAI
+      other -> unknown_provider(:request_builder, other)
+    end
+  end
+
+  def module_for(:response_parser) do
+    case current() do
+      "openai" -> AI.Provider.ResponseParser.OpenAI
+      other -> unknown_provider(:response_parser, other)
     end
   end
 
@@ -183,12 +202,19 @@ defmodule AI.Provider do
     end
   end
 
+  # Defense-in-depth fallback when an unknown provider key reaches
+  # `module_for/1` despite `init/0`'s validation. Each kind falls back to
+  # its OpenAI implementation. The warning is the surface signal that
+  # something upstream (a test, a misconfigured globals override) is
+  # bypassing the validation path.
   defp unknown_provider(kind, other) do
     UI.warn("[AI.Provider] Unknown provider '#{other}' for #{kind}, defaulting to OpenAI")
 
     case kind do
       :endpoint -> AI.Endpoint.OpenAI
       :model -> AI.Model.OpenAI
+      :request_builder -> AI.Provider.RequestBuilder.OpenAI
+      :response_parser -> AI.Provider.ResponseParser.OpenAI
     end
   end
 end
