@@ -348,3 +348,39 @@ same flag adds `web_search_options: %{}` (only honored by search-
 preview models, gated by `AI.Model.supports_web_search`). The flag is
 the single abstraction; what the request layer does with it varies by
 provider.
+
+## 24. Never capture `AI.Model.*()` in a module attribute
+
+`@model AI.Model.fast()` and any other module attribute whose value is
+an `AI.Model.*()` call (or a map containing one) is a footgun. Module
+attributes are evaluated **at compile time**, before
+`AI.Provider.init/0` has resolved the active provider from CLI / env
+/ settings. The captured profile is whichever provider's catalog was
+the default at compile time, and it stays that way regardless of the
+user's configured provider at runtime.
+
+Symptom: every LLM request goes out with the wrong provider's model
+slug. The endpoint URL is correct (endpoint resolution is runtime),
+so the request lands on the right provider but with a model the
+provider has never heard of - producing a confusing 404.
+
+Fix: use a private function instead of a module attribute. The
+function runs at call time, after provider resolution, so the
+dispatch through `AI.Provider.module_for(:model)` returns the right
+catalog.
+
+```elixir
+# WRONG - captures OpenAI's gpt-5.4-nano forever
+@model AI.Model.fast()
+
+def some_call(), do: AI.Completion.get(model: @model, ...)
+
+# RIGHT - resolved at call time
+defp model(), do: AI.Model.fast()
+
+def some_call(), do: AI.Completion.get(model: model(), ...)
+```
+
+Module attributes that contain *prompts* or other static data are
+fine. The rule is specifically about `AI.Model.*()` (and other
+provider-resolved factory calls).

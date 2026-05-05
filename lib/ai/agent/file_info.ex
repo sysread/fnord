@@ -1,5 +1,5 @@
 defmodule AI.Agent.FileInfo do
-  @model AI.Model.balanced()
+  defp model(), do: AI.Model.balanced()
 
   @prompt """
   You are an AI agent who is responsible for answering questions about a file's contents.
@@ -95,7 +95,7 @@ defmodule AI.Agent.FileInfo do
         end
 
       AI.Accumulator.get_response(
-        model: @model,
+        model: model(),
         toolbox: tools,
         prompt: @prompt,
         input: content,

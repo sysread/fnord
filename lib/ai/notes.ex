@@ -37,22 +37,17 @@ defmodule AI.Notes do
   # ----------------------------------------------------------------------------
   # Mini Agent defs
   # ----------------------------------------------------------------------------
-  @user %{
-    model: AI.Model.fast(),
-    prompt: """
-    You are a highly empathetic AI assistant that gleans knowledge about the user from the tone and content of their messages.
-    Your role is to attempt to deduce the user's coding preferences, learning style, personality, and other relevant traits based on their interactions.
-    Respond with a formatted markdown list of user traits without any additional text.
-    Additionally, note if you identify that a prior learning about the user was incorrect or is no longer valid.
-    Each item should mention that is is a trait of the user, e.g.: "User is experienced with Elixir"
-    If nothing was identified, respond with "N/A" on a single line.
-    """
-  }
+  @user_prompt """
+  You are a highly empathetic AI assistant that gleans knowledge about the user from the tone and content of their messages.
+  Your role is to attempt to deduce the user's coding preferences, learning style, personality, and other relevant traits based on their interactions.
+  Respond with a formatted markdown list of user traits without any additional text.
+  Additionally, note if you identify that a prior learning about the user was incorrect or is no longer valid.
+  Each item should mention that is is a trait of the user, e.g.: "User is experienced with Elixir"
+  If nothing was identified, respond with "N/A" on a single line.
+  """
 
-  @research %{
-    model: AI.Model.fast(),
-    prompt: """
-    You are a research assistant that extracts facts about the project from tool call results.
+  @research_prompt """
+  You are a research assistant that extracts facts about the project from tool call results.
     Extract **non-transient** facts about the project from the tool call result (e.g. about overall design and architecture, NOT speculative exploration of designs for future changes).
     If the tool call is a notification (notify_tool) and its message includes explicit memory memos (e.g., lines starting with "note to self:" or "remember:"), extract those memos verbatim as new facts. Treat them as high-priority, non-transient notes unless they clearly refer to ephemeral states (e.g., temporary delays, transient errors).
     Normalize prefixes to a single dash list item.
@@ -77,28 +72,22 @@ defmodule AI.Notes do
     **Focus on concrete, verifiable facts that are unlikely to change frequently.**
     Respond with a formatted markdown list of facts without any additional text.
     If nothing was identified, respond with "N/A" on a single line.
-    Just the facts, ma'am!
-    """
-  }
+  Just the facts, ma'am!
+  """
 
-  @ask %{
-    model: AI.Model.fast(),
-    prompt: """
-    You are a research assistant that answers questions about past research done on the project.
+  @ask_prompt """
+  You are a research assistant that answers questions about past research done on the project.
     Your role is to provide concise, accurate answers based on the existing project notes.
     When asked a question, extract all relevant information from the existing notes and organize it effectively based on your understanding of the requestor's needs.
 
     Branch-aware retrieval rules:
     - The current Git branch will be provided in the context.
     - Include code facts tagged with [src:<current_branch>] or untagged; ignore code facts tagged for other branches.
-    - Do not filter or exclude USER facts based on branch tags.
-    """
-  }
+  - Do not filter or exclude USER facts based on branch tags.
+  """
 
-  @consolidate %{
-    model: AI.Model.large_context(:smart),
-    prompt: """
-    You are a research assistant that consolidates and organizes project notes.
+  @consolidate_prompt """
+  You are a research assistant that consolidates and organizes project notes.
     Your role is to incorporate newly extracted facts into existing project notes, ensuring that all information is accurate, up-to-date, and well-organized.
     DO NOT lose ANY prior facts that were not disproven by the new notes.
     Respond with the updated notes in markdown format, without any additional text, wrapping code fences, or explanations.
@@ -210,10 +199,21 @@ defmodule AI.Notes do
       - Prompting patterns that FAIL to produce good results with the `coder_tool` or `file_edit_tool`
     ]
 
-    # NOTES
-    [Organized by topic: subheading per topic, then a list of facts]
-    """
-  }
+  # NOTES
+  [Organized by topic: subheading per topic, then a list of facts]
+  """
+
+  # Agent definitions are functions, not module attributes, so the `model:`
+  # field is evaluated at call time rather than compile time. Module
+  # attributes capture their value before AI.Provider.init/0 has resolved
+  # the active provider, which would silently pin every mini-agent to the
+  # OpenAI default no matter what the user configured.
+  defp user_agent(), do: %{model: AI.Model.fast(), prompt: @user_prompt}
+  defp research_agent(), do: %{model: AI.Model.fast(), prompt: @research_prompt}
+  defp ask_agent(), do: %{model: AI.Model.fast(), prompt: @ask_prompt}
+
+  defp consolidate_agent(),
+    do: %{model: AI.Model.large_context(:smart), prompt: @consolidate_prompt}
 
   # ----------------------------------------------------------------------------
   # Public API
@@ -285,7 +285,7 @@ defmodule AI.Notes do
     The user said:
     > #{msg_text}
     """
-    |> complete(@user)
+    |> complete(user_agent())
     |> case do
       {:ok, response} ->
         response
@@ -344,7 +344,7 @@ defmodule AI.Notes do
           nil
       end
 
-    complete(input, @research)
+    complete(input, research_agent())
     |> case do
       {:ok, response} ->
         # Merge AI facts and any extra_facts
@@ -395,7 +395,7 @@ defmodule AI.Notes do
       -----
       #{fresh}
       """
-      |> accumulate(@consolidate)
+      |> accumulate(consolidate_agent())
       |> case do
         {:ok, response} ->
           response
@@ -441,7 +441,7 @@ defmodule AI.Notes do
       Please answer the following question based on the existing notes and new facts:
       #{question}
       """
-      |> complete(@ask)
+      |> complete(ask_agent())
       |> case do
         {:ok, response} ->
           response

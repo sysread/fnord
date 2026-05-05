@@ -1,7 +1,7 @@
 defmodule AI.Agent.Nomenclater do
   @max_attempts 3
 
-  @model AI.Model.fast()
+  defp model(), do: AI.Model.fast()
 
   @themes [
     ~s/Anything geeky or nerdy/,
@@ -157,7 +157,7 @@ defmodule AI.Agent.Nomenclater do
       # AI.Completion will call the genserver to get a name, and if there is no
       # name available, it will call this agent to generate the next batch.
       named?: false,
-      model: @model,
+      model: model(),
       response_format: @response_format,
       messages: [
         AI.Util.system_msg(prompt),

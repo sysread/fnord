@@ -17,7 +17,7 @@ defmodule AI.Agent.Memory.Indexer do
 
   @behaviour AI.Agent
 
-  @model AI.Model.large_context()
+  defp model(), do: AI.Model.large_context()
 
   @prompt """
   You are speaking to another LLM, not a human. Save tokens: use extremely terse, shorthand speech as long as meaning is clear.
@@ -83,7 +83,7 @@ defmodule AI.Agent.Memory.Indexer do
       # the LLM making direct writes that duplicate the service's actions.
       agent
       |> AI.Agent.get_completion(
-        model: @model,
+        model: model(),
         log_msgs: false,
         log_tool_calls: false,
         messages: messages,

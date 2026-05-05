@@ -10,7 +10,7 @@ defmodule AI.Agent.Review.Acceptance do
   @behaviour AI.Agent
   @behaviour AI.Agent.Composite
 
-  @model AI.Model.smart()
+  defp model(), do: AI.Model.smart()
 
   @prompt """
   You are an acceptance and product review agent. You evaluate code changes from the
@@ -166,7 +166,7 @@ defmodule AI.Agent.Review.Acceptance do
 
     state = %AI.Agent.Composite{
       agent: agent,
-      model: @model,
+      model: model(),
       toolbox: tools,
       request: scope,
       response: nil,

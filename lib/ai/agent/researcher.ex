@@ -1,7 +1,7 @@
 defmodule AI.Agent.Researcher do
   use Agent
 
-  @model AI.Model.balanced()
+  defp model(), do: AI.Model.balanced()
 
   @research_tool_prompt """
   If your research results in more questions, spin off research_tool tool calls
@@ -73,7 +73,7 @@ defmodule AI.Agent.Researcher do
         # through Services.Conversation, so without this they never see
         # cursor rules / external skills that the coordinator sees.
         AI.Agent.get_completion(agent,
-          model: @model,
+          model: model(),
           toolbox: tools,
           messages:
             [

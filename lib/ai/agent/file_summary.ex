@@ -4,7 +4,7 @@ defmodule AI.Agent.FileSummary do
   generate embeddings for the database and summaries for the user.
   """
 
-  @model AI.Model.fast()
+  defp model(), do: AI.Model.fast()
 
   @prompt """
   You are an AI agent that summarizes the content of a file, whether it is code or documentation, thoroughly documenting its internal implementation and public interface.
@@ -46,7 +46,7 @@ defmodule AI.Agent.FileSummary do
     with {:ok, file} <- Map.fetch(opts, :file),
          {:ok, content} <- Map.fetch(opts, :content) do
       AI.Accumulator.get_response(
-        model: @model,
+        model: model(),
         prompt: @prompt,
         input: content,
         question: "Summarize the content of the file: #{file}"

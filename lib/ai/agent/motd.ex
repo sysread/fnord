@@ -1,7 +1,7 @@
 defmodule AI.Agent.MOTD do
   @behaviour AI.Agent
 
-  @model AI.Model.fast()
+  defp model(), do: AI.Model.fast()
 
   @prompt """
   You are the MOTD Agent, an AI agent within a larger application that is comprised of multiple coordinated agents.
@@ -51,7 +51,7 @@ defmodule AI.Agent.MOTD do
       AI.Agent.get_completion(agent,
         log_msgs: false,
         log_tool_calls: false,
-        model: @model,
+        model: model(),
         messages: [
           AI.Util.system_msg(@prompt),
           AI.Util.user_msg(user_prompt)

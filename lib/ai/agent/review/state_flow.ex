@@ -9,7 +9,7 @@ defmodule AI.Agent.Review.StateFlow do
   @behaviour AI.Agent
   @behaviour AI.Agent.Composite
 
-  @model AI.Model.smart()
+  defp model(), do: AI.Model.smart()
 
   @prompt """
   You are a state and data flow review agent. You focus on mid-level architecture:
@@ -184,7 +184,7 @@ defmodule AI.Agent.Review.StateFlow do
 
     state = %AI.Agent.Composite{
       agent: agent,
-      model: @model,
+      model: model(),
       toolbox: tools,
       request: scope,
       response: nil,

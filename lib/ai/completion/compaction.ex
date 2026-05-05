@@ -65,7 +65,7 @@ defmodule AI.Completion.Compaction do
   # Tersification: condenses messages individually. Only those messages up to
   # (but not including) the most recent user message are compacted.
   # ----------------------------------------------------------------------------
-  @tersify_model AI.Model.fast()
+  defp tersify_model(), do: AI.Model.fast()
 
   @tersify_prompt """
   You are an AI agent that compacts messages by restating them as tersely as possible without losing any information.
@@ -132,7 +132,7 @@ defmodule AI.Completion.Compaction do
       is_thought? = has_think_tags?(msg)
 
       AI.Completion.get(
-        model: @tersify_model,
+        model: tersify_model(),
         replay_conversation: false,
         compact?: false,
         messages: [
@@ -173,7 +173,7 @@ defmodule AI.Completion.Compaction do
   # Summarization: takes the entire message transcript and summarizes it into a
   # single message.
   # ----------------------------------------------------------------------------
-  @summarize_model AI.Model.fast()
+  defp summarize_model(), do: AI.Model.fast()
 
   @summarize_prompt """
   You are an AI agent to compacts a conversation between the user and an AI assistant into *proper* meeting minutes.
@@ -203,7 +203,7 @@ defmodule AI.Completion.Compaction do
       result =
         AI.Accumulator.get_response(
           compact?: false,
-          model: @summarize_model,
+          model: summarize_model(),
           prompt: @summarize_prompt,
           question: @summarizer_task,
           input: transcript

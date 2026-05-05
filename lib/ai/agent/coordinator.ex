@@ -72,8 +72,8 @@ defmodule AI.Agent.Coordinator do
   @type error :: {:error, binary | atom | :testing}
   @type state :: t | error
 
-  @default_model AI.Model.smart()
-  @smarter_model AI.Model.smarter()
+  defp default_model(), do: AI.Model.smart()
+  defp smarter_model(), do: AI.Model.smarter()
 
   @behaviour AI.Agent
 
@@ -104,9 +104,9 @@ defmodule AI.Agent.Coordinator do
 
       model =
         cond do
-          Map.get(opts, :smart, false) -> @smarter_model
-          System.get_env("FNORD_SMART_MODEL") in ["true", "1"] -> @smarter_model
-          true -> @default_model
+          Map.get(opts, :smart, false) -> smarter_model()
+          System.get_env("FNORD_SMART_MODEL") in ["true", "1"] -> smarter_model()
+          true -> default_model()
         end
         |> AI.Model.with_reasoning(Map.get(opts, :reasoning))
         |> AI.Model.with_verbosity(Map.get(opts, :verbosity))

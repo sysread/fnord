@@ -7,7 +7,7 @@ defmodule AI.Agent.ConversationSummary do
   input to the embedding model for semantic search over conversations.
   """
 
-  @model AI.Model.fast()
+  defp model(), do: AI.Model.fast()
 
   @prompt """
   You are summarizing a conversation between a user and an AI assistant for semantic search indexing.
@@ -31,7 +31,7 @@ defmodule AI.Agent.ConversationSummary do
     case Map.fetch(opts, :transcript) do
       {:ok, transcript} ->
         AI.Accumulator.get_response(
-          model: @model,
+          model: model(),
           prompt: @prompt,
           input: transcript,
           question: "Summarize this conversation for search indexing."

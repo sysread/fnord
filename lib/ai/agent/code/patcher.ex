@@ -2,7 +2,7 @@ defmodule AI.Agent.Code.Patcher do
   # ----------------------------------------------------------------------------
   # Constants
   # ----------------------------------------------------------------------------
-  @model AI.Model.coding()
+  defp model(), do: AI.Model.coding()
 
   @max_retries 2
 
@@ -208,7 +208,7 @@ defmodule AI.Agent.Code.Patcher do
     messages = build_messages(state, numbered, change)
 
     AI.Agent.get_completion(state.agent,
-      model: @model,
+      model: model(),
       response_format: @response_format,
       log_msgs: false,
       log_tool_calls: true,

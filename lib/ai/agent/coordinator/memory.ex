@@ -74,8 +74,11 @@ defmodule AI.Agent.Coordinator.Memory do
   end
 
   defp build_recall_query(state) do
-    intuition = state |> Map.get(:intuition, "") |> String.trim()
-    question = state |> Map.get(:question, "") |> String.trim()
+    # Coalesce both `key not present` and `key present but nil` to "".
+    # `Map.get/3` only handles the first; an upstream agent that fails
+    # mid-flight can put nil into the state and trip String.trim.
+    intuition = (Map.get(state, :intuition) || "") |> String.trim()
+    question = (Map.get(state, :question) || "") |> String.trim()
     Enum.join([intuition, question], "\n")
   end
 

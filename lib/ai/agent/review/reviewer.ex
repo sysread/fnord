@@ -21,7 +21,7 @@ defmodule AI.Agent.Review.Reviewer do
 
   require Logger
 
-  @model AI.Model.smart()
+  defp model(), do: AI.Model.smart()
 
   # ---------------------------------------------------------------------------
   # Prompts
@@ -337,7 +337,7 @@ defmodule AI.Agent.Review.Reviewer do
 
     state = %AI.Agent.Composite{
       agent: agent,
-      model: @model,
+      model: model(),
       toolbox: tools,
       request: scope,
       response: nil,

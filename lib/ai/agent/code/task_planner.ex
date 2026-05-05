@@ -3,7 +3,7 @@ defmodule AI.Agent.Code.TaskPlanner do
 
   @type t :: Common.t()
 
-  @model AI.Model.coding()
+  defp model(), do: AI.Model.coding()
 
   @prompt """
   Before planning, check for README.md, CLAUDE.md, and AGENTS.md in the project root, as well as in the directory tree from any files being modified, up to the project root.
@@ -34,7 +34,7 @@ defmodule AI.Agent.Code.TaskPlanner do
       |> AI.Tools.with_rw_tools()
 
     agent
-    |> Common.new(@model, tools, @prompt, request)
+    |> Common.new(model(), tools, @prompt, request)
     |> research()
     |> visualize()
     |> plan()

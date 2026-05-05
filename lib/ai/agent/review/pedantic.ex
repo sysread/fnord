@@ -9,7 +9,7 @@ defmodule AI.Agent.Review.Pedantic do
   @behaviour AI.Agent
   @behaviour AI.Agent.Composite
 
-  @model AI.Model.balanced()
+  defp model(), do: AI.Model.balanced()
 
   @prompt """
   You are a pedantic review agent. You focus on mechanical correctness - the things
@@ -118,7 +118,7 @@ defmodule AI.Agent.Review.Pedantic do
 
     state = %AI.Agent.Composite{
       agent: agent,
-      model: @model,
+      model: model(),
       toolbox: tools,
       request: scope,
       response: nil,

@@ -8,7 +8,7 @@ defmodule AI.Agent.Review.NoSlop do
   @behaviour AI.Agent
   @behaviour AI.Agent.Composite
 
-  @model AI.Model.balanced()
+  defp model(), do: AI.Model.balanced()
 
   @prompt """
   You are a slop detection agent. Your sole job is to find AI-generated writing
@@ -107,7 +107,7 @@ defmodule AI.Agent.Review.NoSlop do
 
     state = %AI.Agent.Composite{
       agent: agent,
-      model: @model,
+      model: model(),
       toolbox: tools,
       request: scope,
       response: nil,

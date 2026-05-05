@@ -6,7 +6,7 @@ defmodule AI.Agent.Code.RePatcher do
   # ----------------------------------------------------------------------------
   # Constants
   # ----------------------------------------------------------------------------
-  @model AI.Model.coding()
+  defp model(), do: AI.Model.coding()
 
   @prompt """
   You are the "RePatcher" agent.
@@ -103,7 +103,7 @@ defmodule AI.Agent.Code.RePatcher do
   defp re_patch(agent, patch) do
     agent
     |> AI.Agent.get_completion(
-      model: @model,
+      model: model(),
       log_msgs: false,
       log_tool_calls: true,
       response_format: @response_format,

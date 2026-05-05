@@ -33,7 +33,7 @@ defmodule AI.Agent.Review.Decomposer do
 
   alias AI.Agent.Composite
 
-  @model AI.Model.smart()
+  defp model(), do: AI.Model.smart()
 
   # Pre-registered step name atoms for scoped reviewers. Using a fixed pool
   # avoids dynamic atom creation from LLM-controlled partition counts.
@@ -411,7 +411,7 @@ defmodule AI.Agent.Review.Decomposer do
 
         state = %Composite{
           agent: agent,
-          model: @model,
+          model: model(),
           toolbox: tools,
           request: scope,
           response: nil,

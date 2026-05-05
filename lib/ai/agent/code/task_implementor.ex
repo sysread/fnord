@@ -3,7 +3,7 @@ defmodule AI.Agent.Code.TaskImplementor do
 
   @type t :: Common.t()
 
-  @model AI.Model.coding()
+  defp model(), do: AI.Model.coding()
 
   @prompt """
   Before implementing, check for README.md, CLAUDE.md, and AGENTS.md in the project root and current directory.
@@ -154,7 +154,7 @@ defmodule AI.Agent.Code.TaskImplementor do
     tools = AI.Tools.with_rw_tools()
 
     agent
-    |> Common.new(@model, tools, @prompt, request)
+    |> Common.new(model(), tools, @prompt, request)
     |> Common.put_state(:task_list_id, task_list_id)
     |> Common.put_state(:requirements, requirements)
     |> implement()

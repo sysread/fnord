@@ -1,7 +1,7 @@
 defmodule AI.Agent.ConversationQA do
   @behaviour AI.Agent
 
-  @model AI.Model.large_context()
+  defp model(), do: AI.Model.large_context()
 
   @system_prompt """
   You answer questions about a previous fnord conversation.
@@ -16,7 +16,7 @@ defmodule AI.Agent.ConversationQA do
       messages = build_messages(convo, question)
 
       case AI.Agent.get_completion(agent,
-             model: @model,
+             model: model(),
              messages: messages,
              toolbox: %{}
            ) do

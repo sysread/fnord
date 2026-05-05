@@ -1,7 +1,7 @@
 defmodule AI.Agent.Intuition do
   @behaviour AI.Agent
 
-  @model AI.Model.fast()
+  defp model(), do: AI.Model.fast()
 
   @perception """
   You are an AI agent in a larger system of AI agents that form an aggregate
@@ -267,7 +267,7 @@ defmodule AI.Agent.Intuition do
       |> Enum.join("\n\n")
 
     AI.Accumulator.get_response(
-      model: @model,
+      model: model(),
       prompt: @perception,
       input: transcript,
       question: "Respond with your subconscious perception."
@@ -327,7 +327,7 @@ defmodule AI.Agent.Intuition do
     ]
 
     AI.Agent.get_completion(state.agent,
-      model: @model,
+      model: model(),
       messages: messages
     )
     |> case do
@@ -349,7 +349,7 @@ defmodule AI.Agent.Intuition do
     ]
 
     AI.Agent.get_completion(state.agent,
-      model: @model,
+      model: model(),
       messages: messages
     )
     |> case do
