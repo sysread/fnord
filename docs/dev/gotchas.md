@@ -392,22 +392,26 @@ flags per model:
 
 - `supportsReasoning: true` means the model performs internal reasoning
   (often emitting `<think>` blocks).
-- `supportsReasoningEffort: true` means the model accepts the
-  `reasoning_effort` field on the wire.
+- `supportsReasoningEffort: true` means the *level* is tunable.
+  Models with `false` here still accept the `reasoning_effort` field
+  on the wire - they just use a fixed effort level internally and
+  ignore the supplied value.
 
-A model can have the first without the second. Sending
-`reasoning_effort: "low"` to a model that only supports the former
-either gets the field silently dropped or trips the model into
-emitting unbounded `<think>` content that overflows the response and
-truncates the JSON payload (manifests as `unexpected end of input`
-errors in fnord's downstream JSON parsers).
+This subtlety bit fnord once: an early read of `supportsReasoningEffort`
+as "field acceptance" produced `supports_reasoning: false` flips on
+five Venice profiles, which then dropped a wire field that Venice
+would have happily accepted. The reference Venice client at
+`~/dev/nak/src/lib/venice.ts` sends `reasoning_effort` unconditionally
+whenever the caller opts in - no per-model gating. fnord follows the
+same pattern.
 
-`AI.Model.t.supports_reasoning` is the wire-level capability (matches
-`supportsReasoningEffort`). When picking a Venice model for a profile
-factory, verify against `supportsReasoningEffort` specifically, not
-the more permissive `supportsReasoning`.
+`AI.Model.t.supports_reasoning` therefore tracks `supportsReasoning`
+(does the model reason at all?). When a model genuinely does not
+reason, the request builder omits the field; otherwise it forwards
+whatever level the caller asked for.
 
-`venice_parameters.strip_thinking_response: true` (set by the request
-builder when `web_search?: true`) is a partial mitigation but does
-not fully prevent the truncation when reasoning_effort is incorrectly
-emitted.
+The `<think>` block leakage concern is real but separate from the
+field-acceptance question. Venice's `venice_parameters.strip_thinking_-
+response: true` is set unconditionally by the Venice request builder
+to prevent chain-of-thought prose from breaking JSON parsers in
+structured-output agents (deduplicator, indexer).

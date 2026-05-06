@@ -27,26 +27,28 @@ defmodule AI.Model.Venice do
 
   ## Capability matrix
 
-  Reasoning support here means specifically `supportsReasoningEffort`
-  (the model accepts the `reasoning_effort` field on the wire). Many
-  Venice models advertise `supportsReasoning: true` while still
-  rejecting the effort field; sending the field to those models can
-  produce silently-degraded responses or `<think>` block leakage that
-  overflows the output cap. The capability flag below tracks the wire-
-  level acceptance, not the model's internal reasoning behavior.
+  All configured Venice models reason (`supportsReasoning: true`).
+  Venice's `supportsReasoningEffort` flag distinguishes models with a
+  tunable effort level from those with a fixed one - it is NOT a
+  field-acceptance flag. Venice tolerates the `reasoning_effort` field
+  on every reasoning model: tunable models honor the level, fixed
+  models silently use their built-in setting. The reference web app
+  (~/dev/nak) sends the field unconditionally for this reason.
 
-  Verify with `curl /api/v1/models` against `model_spec.capabilities.
-  supportsReasoningEffort` whenever bumping a profile to a new model.
+  fnord's `supports_reasoning` flag therefore tracks `supportsReasoning`
+  (does the model reason at all?) rather than `supportsReasoningEffort`
+  (is the level tunable?). The request builder emits the field on any
+  reasoning-capable model; Venice handles the rest.
 
-  | Profile        | Model id            | Context | reasoning_effort | web_search |
-  | -------------- | ------------------- | ------- | ---------------- | ---------- |
-  | smarter        | kimi-k2-6           | 256k    | yes              | yes        |
-  | smart          | zai-org-glm-5-1     | 200k    | no               | yes        |
-  | balanced       | zai-org-glm-5       | 256k    | no               | yes        |
-  | fast           | zai-org-glm-4.7     | 198k    | no               | yes        |
-  | large_context  | grok-41-fast        | 1M      | no               | yes        |
-  | web_search     | qwen3-5-35b-a3b     | 256k    | no               | yes        |
-  | coding         | kimi-k2-6 (= smarter) | 256k  | yes              | yes        |
+  | Profile        | Model id              | Context | reasoning | web_search |
+  | -------------- | --------------------- | ------- | --------- | ---------- |
+  | smarter        | kimi-k2-6             | 256k    | yes       | yes        |
+  | smart          | zai-org-glm-5-1       | 200k    | yes       | yes        |
+  | balanced       | zai-org-glm-5         | 256k    | yes       | yes        |
+  | fast           | zai-org-glm-4.7       | 198k    | yes       | yes        |
+  | large_context  | grok-41-fast          | 1M      | yes       | yes        |
+  | web_search     | qwen3-5-35b-a3b       | 256k    | yes       | yes        |
+  | coding         | kimi-k2-6 (= smarter) | 256k    | yes       | yes        |
 
   ## Profile aliasing
 
@@ -126,10 +128,11 @@ defmodule AI.Model.Venice do
   # tomorrow) so each factory states it explicitly.
   # ---------------------------------------------------------------------------
 
-  # kimi-k2-6 is the only profile that currently accepts the wire-level
-  # `reasoning_effort` field. All other configured Venice models advertise
-  # supportsReasoning: true but supportsReasoningEffort: false; their
-  # capability flag is therefore false.
+  # All configured Venice profiles set supports_reasoning: true. Venice
+  # tolerates the reasoning_effort field on every reasoning-capable
+  # model; the supportsReasoningEffort flag in /api/v1/models reports
+  # whether the level is *tunable* on that model, not whether the field
+  # is accepted.
   @spec kimi_k2_6(atom) :: AI.Model.t()
   def kimi_k2_6(reasoning \\ :medium),
     do:
@@ -142,7 +145,7 @@ defmodule AI.Model.Venice do
   def glm_5_1(reasoning \\ :medium),
     do:
       AI.Model.new("zai-org-glm-5-1", 200_000, reasoning,
-        supports_reasoning: false,
+        supports_reasoning: true,
         supports_web_search: true
       )
 
@@ -150,7 +153,7 @@ defmodule AI.Model.Venice do
   def glm_5(reasoning \\ :medium),
     do:
       AI.Model.new("zai-org-glm-5", 256_000, reasoning,
-        supports_reasoning: false,
+        supports_reasoning: true,
         supports_web_search: true
       )
 
@@ -158,7 +161,7 @@ defmodule AI.Model.Venice do
   def glm_4_7(reasoning \\ :medium),
     do:
       AI.Model.new("zai-org-glm-4.7", 198_000, reasoning,
-        supports_reasoning: false,
+        supports_reasoning: true,
         supports_web_search: true
       )
 
@@ -166,7 +169,7 @@ defmodule AI.Model.Venice do
   def grok_41_fast(reasoning \\ :medium),
     do:
       AI.Model.new("grok-41-fast", 1_000_000, reasoning,
-        supports_reasoning: false,
+        supports_reasoning: true,
         supports_web_search: true
       )
 
@@ -174,7 +177,7 @@ defmodule AI.Model.Venice do
   def qwen3_5_35b_a3b(reasoning \\ :medium),
     do:
       AI.Model.new("qwen3-5-35b-a3b", 256_000, reasoning,
-        supports_reasoning: false,
+        supports_reasoning: true,
         supports_web_search: true
       )
 end
