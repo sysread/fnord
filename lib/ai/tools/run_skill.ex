@@ -97,7 +97,12 @@ defmodule AI.Tools.RunSkill do
 
     external_lines =
       enabled_external_skills()
-      |> Enum.map(fn %ExternalConfigs.Skill{name: name, description: d, when_to_use: w, flavor: flavor} ->
+      |> Enum.map(fn %ExternalConfigs.Skill{
+                       name: name,
+                       description: d,
+                       when_to_use: w,
+                       flavor: flavor
+                     } ->
         type = if flavor == :claude, do: "Claude Code", else: "Cursor"
         desc = combine_skill_description(d, w)
         "- #{name} [#{type} skill]: #{desc}"
@@ -120,8 +125,21 @@ defmodule AI.Tools.RunSkill do
     case Store.get_project() do
       {:ok, project} ->
         flags = Settings.ExternalConfigs.flags(project.name)
-        cursor = if flags.cursor_skills, do: ExternalConfigs.Loader.load_cursor_skills(project), else: []
-        claude = if flags.claude_skills, do: ExternalConfigs.Loader.load_claude_skills(project), else: []
+
+        cursor =
+          if flags.cursor_skills do
+            ExternalConfigs.Loader.load_cursor_skills(project)
+          else
+            []
+          end
+
+        claude =
+          if flags.claude_skills do
+            ExternalConfigs.Loader.load_claude_skills(project)
+          else
+            []
+          end
+
         ExternalConfigs.Loader.dedup_cross_flavor(cursor, claude) ++ claude
 
       _ ->
