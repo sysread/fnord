@@ -40,24 +40,20 @@ defmodule AI.Model.Venice do
   (is the level tunable?). The request builder emits the field on any
   reasoning-capable model; Venice handles the rest.
 
-  | Profile        | Model id              | Context | reasoning | web_search |
-  | -------------- | --------------------- | ------- | --------- | ---------- |
-  | smarter        | kimi-k2-6             | 256k    | yes       | yes        |
-  | smart          | zai-org-glm-5-1       | 200k    | yes       | yes        |
-  | balanced       | zai-org-glm-5         | 256k    | yes       | yes        |
-  | fast           | zai-org-glm-4.7       | 198k    | yes       | yes        |
-  | large_context  | grok-41-fast          | 1M      | yes       | yes        |
-  | web_search     | qwen3-5-35b-a3b       | 256k    | yes       | yes        |
-  | coding         | kimi-k2-6 (= smarter) | 256k    | yes       | yes        |
+  | Profile        | Model id              | Context | reasoning level | web_search |
+  | -------------- | --------------------- | ------- | --------------- | ---------- |
+  | large_context  | grok-4-20     | 1M      | high/med/low    | yes        |
 
   ## Profile aliasing
 
-  `coding` and `smarter` both resolve to `kimi-k2-6` because the user's
-  picks point both roles at the same Venice model. This is an explicit
-  Venice-side decision, not a generic property of the provider
-  abstraction. Other providers may pick different models for these two
-  roles. Do NOT add cross-profile aliases (e.g. `coding == balanced`)
-  unless the user has actually picked the same model for both.
+  `smart`, `smarter`, and `coding` all resolve to `grok-4-20` at
+  different reasoning levels. The reasoning-level dial is the only
+  thing distinguishing them; the model itself is shared. This is an
+  explicit Venice-side decision based on the user's picks, not a
+  generic property of the provider abstraction. Other providers may
+  pick different models for these roles. Do NOT add cross-profile
+  aliases (e.g. `coding == balanced`) unless the user has actually
+  picked the same model for both.
 
   ## Citation handling note
 
@@ -86,21 +82,20 @@ defmodule AI.Model.Venice do
   # specific model in the Venice catalog. Bumping a profile to a new model
   # is a single-line change here.
   # ---------------------------------------------------------------------------
+  @impl AI.Model.Provider
+  def smarter(), do: test_model(:high)
 
   @impl AI.Model.Provider
-  def smart(), do: glm_5_1(:low)
+  def smart(), do: test_model(:medium)
 
   @impl AI.Model.Provider
-  def smarter(), do: kimi_k2_6(:low)
+  def balanced(), do: test_model(:low)
 
   @impl AI.Model.Provider
-  def balanced(), do: glm_5(:medium)
+  def fast(), do: test_model(:none)
 
   @impl AI.Model.Provider
-  def fast(), do: glm_4_7(:low)
-
-  @impl AI.Model.Provider
-  def web_search(), do: qwen3_5_35b_a3b(:medium)
+  def web_search(), do: test_model(:medium)
 
   # Venice ships a coding-tuned profile (instruct-style training
   # optimized for code generation). The user's pick in
@@ -109,15 +104,15 @@ defmodule AI.Model.Venice do
   # do not assume coding == balanced just because the OpenAI catalog
   # does that.
   @impl AI.Model.Provider
-  def coding(), do: kimi_k2_6(:low)
+  def coding(), do: test_model(:medium)
 
   # All three tiers map to grok-41-fast for now; we have a single 1M-
   # context model in the catalog. Tiers are kept distinct so future
   # additions can differentiate without changing the call sites.
   @impl AI.Model.Provider
-  def large_context(:smart), do: grok_41_fast(:low)
-  def large_context(:balanced), do: grok_41_fast(:medium)
-  def large_context(:fast), do: grok_41_fast(:low)
+  def large_context(:smart), do: test_model(:high)
+  def large_context(:balanced), do: test_model(:medium)
+  def large_context(:fast), do: test_model(:low)
 
   # ---------------------------------------------------------------------------
   # Concrete model factories. Each declares the Venice model slug, context
@@ -133,50 +128,9 @@ defmodule AI.Model.Venice do
   # model; the supportsReasoningEffort flag in /api/v1/models reports
   # whether the level is *tunable* on that model, not whether the field
   # is accepted.
-  @spec kimi_k2_6(atom) :: AI.Model.t()
-  def kimi_k2_6(reasoning \\ :medium),
+  def test_model(reasoning \\ :medium),
     do:
-      AI.Model.new("kimi-k2-6", 256_000, reasoning,
-        supports_reasoning: true,
-        supports_web_search: true
-      )
-
-  @spec glm_5_1(atom) :: AI.Model.t()
-  def glm_5_1(reasoning \\ :medium),
-    do:
-      AI.Model.new("zai-org-glm-5-1", 200_000, reasoning,
-        supports_reasoning: true,
-        supports_web_search: true
-      )
-
-  @spec glm_5(atom) :: AI.Model.t()
-  def glm_5(reasoning \\ :medium),
-    do:
-      AI.Model.new("zai-org-glm-5", 256_000, reasoning,
-        supports_reasoning: true,
-        supports_web_search: true
-      )
-
-  @spec glm_4_7(atom) :: AI.Model.t()
-  def glm_4_7(reasoning \\ :medium),
-    do:
-      AI.Model.new("zai-org-glm-4.7", 198_000, reasoning,
-        supports_reasoning: true,
-        supports_web_search: true
-      )
-
-  @spec grok_41_fast(atom) :: AI.Model.t()
-  def grok_41_fast(reasoning \\ :medium),
-    do:
-      AI.Model.new("grok-41-fast", 1_000_000, reasoning,
-        supports_reasoning: true,
-        supports_web_search: true
-      )
-
-  @spec qwen3_5_35b_a3b(atom) :: AI.Model.t()
-  def qwen3_5_35b_a3b(reasoning \\ :medium),
-    do:
-      AI.Model.new("qwen3-5-35b-a3b", 256_000, reasoning,
+      AI.Model.new("qwen-3-6-plus", 1_000_000, reasoning,
         supports_reasoning: true,
         supports_web_search: true
       )

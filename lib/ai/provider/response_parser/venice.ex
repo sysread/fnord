@@ -83,6 +83,10 @@ defmodule AI.Provider.ResponseParser.Venice do
   # Tool calls take precedence over content - if the model invoked a
   # tool, that is the meaningful payload regardless of whether content
   # is also present.
+  defp walk_message(%{"tool_calls" => nil}, _usage, _citations) do
+    {:ok, :tool, []}
+  end
+
   defp walk_message(%{"tool_calls" => tool_calls}, _usage, _citations) do
     {:ok, :tool, Enum.map(tool_calls, &get_tool_call/1)}
   end

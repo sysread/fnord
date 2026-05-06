@@ -1,65 +1,88 @@
 defmodule AI.Model.VeniceTest do
   @moduledoc """
-  Locks in the Venice profile catalog. The model identifiers come from
-  `scratch/venice-models.md` and changing them is a meaningful behavior
-  change worth catching in CI.
+  Locks in the Venice profile catalog.
+
+  The catalog is currently consolidated on a single model (`grok-4-20`)
+  for end-to-end provider testing. Per-profile model selection will
+  return once the mechanical interactions between provider modules are
+  validated against the live API. Until then, these tests verify the
+  contract shape - all profile factories return a properly-populated
+  `AI.Model.t` with capability flags set, and the reasoning level is
+  the only thing distinguishing tiers.
   """
 
   use ExUnit.Case
   alias AI.Model.Venice
 
-  test "smarter -> kimi-k2-6, 256k context, both capabilities on" do
-    m = Venice.smarter()
-    assert m.model == "kimi-k2-6"
-    assert m.context == 256_000
-    assert m.supports_reasoning
-    assert m.supports_web_search
-  end
+  @model "grok-4-20"
+  @context 2_000_000
 
-  test "smart -> zai-org-glm-5-1, 200k context" do
-    m = Venice.smart()
-    assert m.model == "zai-org-glm-5-1"
-    assert m.context == 200_000
-  end
+  describe "named profiles" do
+    test "smarter -> high reasoning" do
+      m = Venice.smarter()
+      assert m.model == @model
+      assert m.context == @context
+      assert m.reasoning == :high
+      assert m.supports_reasoning
+      assert m.supports_web_search
+    end
 
-  test "balanced -> zai-org-glm-5, 256k context" do
-    m = Venice.balanced()
-    assert m.model == "zai-org-glm-5"
-    assert m.context == 256_000
-  end
+    test "smart -> medium reasoning" do
+      assert Venice.smart().reasoning == :medium
+    end
 
-  test "fast -> zai-org-glm-4.7, 198k context" do
-    m = Venice.fast()
-    assert m.model == "zai-org-glm-4.7"
-    assert m.context == 198_000
-  end
+    test "balanced -> low reasoning" do
+      assert Venice.balanced().reasoning == :low
+    end
 
-  test "web_search -> qwen3-5-35b-a3b, 256k context, web search supported" do
-    m = Venice.web_search()
-    assert m.model == "qwen3-5-35b-a3b"
-    assert m.context == 256_000
-    assert m.supports_web_search
-  end
+    test "fast -> no reasoning" do
+      assert Venice.fast().reasoning == :none
+    end
 
-  test "large_context tiers all map to grok-41-fast (1M context)" do
-    for tier <- [:smart, :balanced, :fast] do
-      m = Venice.large_context(tier)
-      assert m.model == "grok-41-fast"
-      assert m.context == 1_000_000
+    test "web_search -> medium reasoning" do
+      m = Venice.web_search()
+      assert m.reasoning == :medium
+      assert m.supports_web_search
+    end
+
+    test "coding -> medium reasoning" do
+      assert Venice.coding().reasoning == :medium
     end
   end
 
-  test "all current profiles support reasoning and web search" do
+  describe "large_context/1" do
+    test "tiers differ only by reasoning level" do
+      smart = Venice.large_context(:smart)
+      balanced = Venice.large_context(:balanced)
+      fast = Venice.large_context(:fast)
+
+      for m <- [smart, balanced, fast] do
+        assert m.model == @model
+        assert m.context == @context
+      end
+
+      assert smart.reasoning == :high
+      assert balanced.reasoning == :medium
+      assert fast.reasoning == :low
+    end
+  end
+
+  test "every profile carries capability flags and the consolidated model" do
     profiles = [
       Venice.smarter(),
       Venice.smart(),
       Venice.balanced(),
       Venice.fast(),
       Venice.web_search(),
-      Venice.large_context(:smart)
+      Venice.coding(),
+      Venice.large_context(:smart),
+      Venice.large_context(:balanced),
+      Venice.large_context(:fast)
     ]
 
     for m <- profiles do
+      assert m.model == @model
+      assert m.context == @context
       assert m.supports_reasoning, "#{m.model} should support reasoning"
       assert m.supports_web_search, "#{m.model} should support web search"
     end
