@@ -14,42 +14,43 @@ defmodule AI.Model.OpenAI do
           verbosity: atom | nil
         }
 
-  @spec smart() :: AI.Model.t()
-  def smart(), do: gpt5(:low)
-
+  # ----------------------------------------------------------------------------
+  # Common presets
+  # ----------------------------------------------------------------------------
   @spec smarter() :: AI.Model.t()
   def smarter(), do: gpt55(:low)
 
+  @spec smart() :: AI.Model.t()
+  def smart(), do: gpt54(:low)
+
   @spec balanced() :: AI.Model.t()
-  def balanced(), do: gpt5_mini()
+  def balanced(), do: gpt54(:none)
 
   @spec fast() :: AI.Model.t()
-  def fast(), do: gpt5_nano()
+  def fast(), do: gpt54_mini(:none)
 
   @spec web_search() :: AI.Model.t()
-  def web_search(), do: gpt_4o_mini_search_preview()
+  def web_search(), do: gpt5_web()
 
   @spec large_context(:smart | :balanced | :fast) :: AI.Model.t()
   def large_context(:smart), do: gpt41()
   def large_context(:balanced), do: gpt41_mini()
   def large_context(:fast), do: gpt41_nano()
 
+  # ----------------------------------------------------------------------------
+  # API-specific model definitions
+  # ----------------------------------------------------------------------------
   @spec gpt55(atom) :: AI.Model.t()
   def gpt55(reasoning \\ :medium), do: AI.Model.new("gpt-5.5", 1_050_000, reasoning)
 
   @spec gpt54(atom) :: AI.Model.t()
-  def gpt54(reasoning \\ :medium), do: AI.Model.new("gpt-5.4", 1_050_000, reasoning)
+  def gpt54(_), do: AI.Model.new("gpt-5.4", 1_050_000, :none)
 
-  @spec gpt5(atom) :: AI.Model.t()
-  def gpt5(reasoning \\ :medium), do: AI.Model.new("gpt-5-2025-08-07", 400_000, reasoning)
+  @spec gpt54_mini(atom) :: AI.Model.t()
+  def gpt54_mini(_), do: AI.Model.new("gpt-5.4-mini", 400_000, :none)
 
-  # does not support reasoning_effort through the chat completions api
-  @spec gpt5_mini() :: AI.Model.t()
-  def gpt5_mini(), do: AI.Model.new("gpt-5.4-mini", 400_000, :none)
-
-  # does not support reasoning_effort through the chat completions api
-  @spec gpt5_nano() :: AI.Model.t()
-  def gpt5_nano(), do: AI.Model.new("gpt-5.4-nano", 400_000, :none)
+  @spec gpt54_nano(atom) :: AI.Model.t()
+  def gpt54_nano(_), do: AI.Model.new("gpt-5.4-nano", 400_000, :none)
 
   @spec gpt41() :: AI.Model.t()
   def gpt41(), do: AI.Model.new("gpt-4.1", 1_000_000, :none)
@@ -60,6 +61,11 @@ defmodule AI.Model.OpenAI do
   @spec gpt41_nano() :: AI.Model.t()
   def gpt41_nano(), do: AI.Model.new("gpt-4.1-nano", 1_000_000, :none)
 
-  @spec gpt_4o_mini_search_preview() :: AI.Model.t()
-  def gpt_4o_mini_search_preview(), do: AI.Model.new("gpt-4o-mini-search-preview", 128_000, :none)
+  # only model supported by completions api, per:
+  # - https://developers.openai.com/api/docs/guides/tools-web-search#migrating-from-legacy-web-search
+  #
+  # context window gleaned from here, since this model is not advertised on the models page:
+  # - https://developers.openai.com/api/docs/guides/tools-web-search#limitations
+  @spec gpt5_web() :: AI.Model.t()
+  def gpt5_web(), do: AI.Model.new("gpt-5-search-api", 200_000, :none)
 end
