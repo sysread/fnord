@@ -6,7 +6,7 @@ Each conversation can be bound to its own worktree so edits happen on a separate
 ## How it works
 
 In edit mode (`--edit`) on a git repository, fnord enforces worktree usage.
-The coordinator is instructed to create a worktree before making any file changes, and file edit tools refuse to write without one.
+Fnord prepares any existing conversation-bound worktree before the coordinator runs, and in edit mode it may create a fnord-managed worktree early when the conversation does not already have one. The coordinator can also create one later through `git_worktree_tool` if the session reaches that point.
 All edits happen on an isolated branch — your working tree is never modified directly.
 For non-git projects, edits are applied directly to the source files.
 
@@ -30,7 +30,7 @@ If the conversation already has a worktree association (from a prior run), `--wo
 
 ## Conversation-bound worktrees
 
-When the AI creates a worktree via the coordinator tool:
+When the AI creates or resumes a worktree for the conversation:
 
 1. A new git worktree is created under `~/.fnord/projects/<project>/worktrees/<conversation-id>/`
 2. The worktree metadata (path, branch, base branch) is persisted to the conversation
