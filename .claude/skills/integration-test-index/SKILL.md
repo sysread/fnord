@@ -1,14 +1,18 @@
 ---
 name: integration-test-index
-description: Smoke-test fnord's `./fnord index` command against the isolated smoketest fixture. Use when the user wants to verify indexing still works end-to-end after a change to the indexer, embeddings pipeline, store layer, or any code on the index path. This exercises a real index pass with the dev escript and the user's configured AI provider; it makes paid embedding API calls.
+description: Smoke-test fnord's `./fnord index` command against the isolated smoketest fixture. Use when the user wants to verify indexing still works end-to-end after a change to the indexer, embeddings pipeline, store layer, or any code on the index path. This exercises a real index pass with the dev escript and the user's configured AI provider; it makes paid completion API calls for the per-file summary step.
 ---
 
 # Smoke test: ./fnord index
 
 Verifies the indexing pipeline against the `smoketest` fixture project.
-Exercises file walk, splitter, embedding generation, and persistence
-to the project store. **This makes real embedding API calls.** The
-fixture is tiny (4 files) so the cost is small, but not zero.
+Exercises file walk, splitter, embedding generation, summary
+generation, and persistence to the project store. Embeddings are
+generated locally (MiniLM), so they cost nothing. **The per-file
+summary step does hit the configured AI provider's completion API.**
+The fixture is tiny (4 files) so the cost is small, but not zero -
+that is the price of running an integration smoke test against the
+real provider rather than a stub.
 
 ## Steps
 
@@ -49,10 +53,14 @@ fixture is tiny (4 files) so the cost is small, but not zero.
 
 ## Failure interpretation
 
-- **Provider auth errors** (401/403): the user's AI provider env vars
-  are missing or wrong. Not an indexing bug; surface and stop.
-- **Embedding API errors** (5xx, rate limits): retry once, then
-  surface; intermittent upstream failure is not actionable.
+- **Provider auth errors** (401/403) on the summary step: the user's
+  AI provider env vars are missing or wrong. Not an indexing bug;
+  surface and stop.
+- **Completion API errors** (5xx, rate limits) on summaries: retry
+  once, then surface; intermittent upstream failure is not actionable.
+- **Embedding errors**: embeddings are generated locally via MiniLM,
+  so any failure here points at the local pool, the model load, or
+  the splitter - not the provider. Capture the stack and report.
 - **File count mismatch**: a real bug. Capture the file list and the
   full `index` output, name the suspect components (file walk,
   exclusion rules, store persistence).
