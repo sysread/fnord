@@ -25,6 +25,9 @@ fnord-*.tar
 # Temporary files, for example, from tests.
 /tmp/
 
+# Isolated $HOME for integration test skills (scripts/integration-setup.sh).
+/.integration-home/
+
 # ElixirLS artifacts
 .elixir_ls
 
@@ -49,7 +52,8 @@ tags
 
 # AI artifacts
 FNORD.local.md
-.claude
+.claude/*
+!.claude/skills/
 .codex
 .mcp.json
 
