@@ -1,6 +1,33 @@
 defmodule UtilTest do
   use Fnord.TestCase, async: false
 
+  describe "format_duration_ms/1" do
+    test "0 ms renders as 0.00 s" do
+      assert Util.format_duration_ms(0) == "0.00 s"
+    end
+
+    test "non-zero sub-hundredth values clamp to 0.01 s" do
+      # Anything that would otherwise round to 0.00 s but represents a
+      # real wait gets bumped to 0.01 s so the user doesn't see a
+      # misleading "0.00 s" for an actual delay.
+      assert Util.format_duration_ms(1) == "0.01 s"
+      assert Util.format_duration_ms(5) == "0.01 s"
+      assert Util.format_duration_ms(9) == "0.01 s"
+    end
+
+    test "values >= 10 ms round to hundredths normally" do
+      assert Util.format_duration_ms(10) == "0.01 s"
+      assert Util.format_duration_ms(20) == "0.02 s"
+      assert Util.format_duration_ms(1000) == "1.00 s"
+      assert Util.format_duration_ms(1234) == "1.23 s"
+    end
+
+    test "integer portion gets comma thousands separators" do
+      assert Util.format_duration_ms(1_234_567) == "1,234.57 s"
+      assert Util.format_duration_ms(1_000_000_000) == "1,000,000.00 s"
+    end
+  end
+
   test "expand_path/2" do
     assert Util.expand_path("foo/bar") == Path.expand("foo/bar")
     assert Util.expand_path("foo/../bar") == Path.expand("bar")

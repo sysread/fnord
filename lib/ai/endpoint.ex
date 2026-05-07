@@ -29,6 +29,14 @@ defmodule AI.Endpoint do
   @backoff_base_ms 200
   @backoff_cap_ms 2_000
 
+  # Hard ceiling on a single retry's wait. Any provider hint (rate-limit
+  # reset header, usage tracker, classifier suggestion) is clamped to
+  # this so a malformed or misinterpreted header cannot wedge the
+  # harness via an unbounded `Process.sleep`. 30s comfortably covers
+  # typical rate-limit reset windows while keeping the worst case
+  # bounded.
+  @wait_ceiling_ms 30_000
+
   # ----------------------------------------------------------------------------
   # Behaviour Callbacks
   # ----------------------------------------------------------------------------
@@ -144,9 +152,10 @@ defmodule AI.Endpoint do
             [wait_ms, usage_wait_ms(model), backoff_delay_ms(attempt)]
             |> Enum.reject(&is_nil/1)
             |> Enum.max()
+            |> min(@wait_ceiling_ms)
 
           UI.warn(
-            "[AI.Endpoint] Retrying, model=#{inspect(model)}, attempt #{attempt}/#{retry_limit()}, retrying in #{delay}ms"
+            "[AI.Endpoint] Retrying, model=#{inspect(model)}, attempt #{attempt}/#{retry_limit()}, retrying in #{Util.format_duration_ms(delay)}"
           )
 
           maybe_sleep(delay)

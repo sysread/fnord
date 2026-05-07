@@ -40,8 +40,16 @@ defmodule AI.Endpoint.Venice do
 
   Venice's reset headers carry mixed semantics:
 
-  - `x-ratelimit-reset-requests`: unix timestamp (seconds) when the
-    request window resets.
+  - `x-ratelimit-reset-requests`: unix timestamp when the request
+    window resets. Venice's docs describe this as a "Unix timestamp"
+    without specifying units; observed traffic shows the value shipped
+    in **ms-since-epoch** (`Date.now()` style), three orders of
+    magnitude off the conventional seconds-since-epoch. To stay robust
+    if Venice's implementation or docs converge later, the parser
+    distinguishes by magnitude: integers above `1e11` are read as
+    ms-since-epoch (year 5138 in seconds is below this threshold; year
+    1973 in ms is also below it, so the boundary is unambiguous for
+    any plausible reset value).
   - `x-ratelimit-reset-tokens`: integer seconds-until the token limit
     resets.
 
@@ -118,12 +126,18 @@ defmodule AI.Endpoint.Venice do
     end
   end
 
-  # Parse `x-ratelimit-reset-requests` (unix seconds) into ms-from-now.
+  # Parse `x-ratelimit-reset-requests` into ms-from-now. The header is
+  # documented as a "Unix timestamp" without a unit; Venice ships
+  # ms-since-epoch in practice. We auto-detect by magnitude: above 1e11
+  # is unambiguously ms-since-epoch (year 5138 in seconds vs year 1973
+  # in ms), so either encoding is handled correctly without a flag.
+  @ms_epoch_threshold 100_000_000_000
   @spec unix_ts_ms(binary | nil, non_neg_integer) :: integer | nil
   defp unix_ts_ms(nil, _now_ms), do: nil
 
   defp unix_ts_ms(value, now_ms) when is_binary(value) do
     case Integer.parse(String.trim(value)) do
+      {ts, _} when ts >= @ms_epoch_threshold -> ts - now_ms
       {ts_seconds, _} -> ts_seconds * 1000 - now_ms
       :error -> nil
     end

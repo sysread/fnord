@@ -32,12 +32,13 @@ defmodule AI.Endpoint.VeniceTest do
     end
 
     test "429 picks the soonest positive reset across requests/tokens headers" do
-      # tokens reset is 5s out; requests reset is 30s out -> tokens wins.
+      # tokens reset is 5s out; requests reset is 10s out -> tokens wins.
+      # requests header carries seconds-since-epoch (below ms threshold).
       now_ms = System.system_time(:millisecond)
-      reset_unix = div(now_ms, 1000) + 30
+      reset_unix_seconds = div(now_ms, 1000) + 10
 
       headers = [
-        {"X-RateLimit-Reset-Requests", Integer.to_string(reset_unix)},
+        {"X-RateLimit-Reset-Requests", Integer.to_string(reset_unix_seconds)},
         {"x-ratelimit-reset-tokens", "5"}
       ]
 
@@ -46,10 +47,22 @@ defmodule AI.Endpoint.VeniceTest do
       assert ms in 4_500..5_500
     end
 
+    test "429 reads requests reset as ms-since-epoch when value exceeds 1e11" do
+      # Venice ships ms-since-epoch in practice; auto-detect by magnitude.
+      now_ms = System.system_time(:millisecond)
+      reset_ms = now_ms + 7_500
+
+      headers = [{"x-ratelimit-reset-requests", Integer.to_string(reset_ms)}]
+
+      assert {:retry, :throttled, ms} = Venice.endpoint_error_classify(429, "{}", headers, nil)
+      assert ms in 7_000..8_000
+    end
+
     test "429 ignores reset headers that have already elapsed (clamps to 0)" do
       headers = [
-        # Unix timestamp 100 seconds in the past.
-        {"x-ratelimit-reset-requests", Integer.to_string(div(System.system_time(:millisecond), 1000) - 100)}
+        # Unix seconds-since-epoch, 100 seconds in the past.
+        {"x-ratelimit-reset-requests",
+         Integer.to_string(div(System.system_time(:millisecond), 1000) - 100)}
       ]
 
       assert {:retry, :throttled, 0} = Venice.endpoint_error_classify(429, "{}", headers, nil)

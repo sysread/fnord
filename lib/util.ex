@@ -115,6 +115,49 @@ defmodule Util do
   end
 
   @doc """
+  Render a millisecond duration as a human-readable seconds string.
+
+  - Converts ms to seconds, rounded to hundredths.
+  - Inserts comma thousands separators in the integer portion.
+  - Any non-zero ms value that would otherwise round to `0.00` is
+    clamped to `0.01` so a real wait is never displayed as zero.
+  - Suffix is ` s`.
+
+  Examples:
+
+      iex> Util.format_duration_ms(0)
+      "0.00 s"
+
+      iex> Util.format_duration_ms(5)
+      "0.01 s"
+
+      iex> Util.format_duration_ms(1_234_567)
+      "1,234.57 s"
+  """
+  @spec format_duration_ms(non_neg_integer) :: binary
+  def format_duration_ms(ms) when is_integer(ms) and ms >= 0 do
+    seconds = ms / 1000
+    rounded = Float.round(seconds, 2)
+
+    display =
+      if ms > 0 and rounded == 0.0 do
+        0.01
+      else
+        rounded
+      end
+
+    raw = :erlang.float_to_binary(display, decimals: 2)
+
+    case String.split(raw, ".") do
+      [int_part, dec_part] ->
+        "#{format_number(String.to_integer(int_part))}.#{dec_part} s"
+
+      [int_part] ->
+        "#{format_number(String.to_integer(int_part))} s"
+    end
+  end
+
+  @doc """
   Expands a given path to its absolute form, expanding `.` and `..`. If a root
   directory is provided, it will expand the path relative to that root. If no
   root is provided, it will expand the path relative to the current working
