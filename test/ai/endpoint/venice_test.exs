@@ -26,8 +26,38 @@ defmodule AI.Endpoint.VeniceTest do
       assert {:fail, :forbidden, _} = Venice.endpoint_error_classify(403, "", nil, nil)
     end
 
-    test "429 retries with no caller-side wait" do
+    test "429 with no rate-limit headers retries with no caller-side wait" do
       assert {:retry, :throttled, nil} = Venice.endpoint_error_classify(429, "{}", nil, nil)
+      assert {:retry, :throttled, nil} = Venice.endpoint_error_classify(429, "{}", [], nil)
+    end
+
+    test "429 picks the soonest positive reset across requests/tokens headers" do
+      # tokens reset is 5s out; requests reset is 30s out -> tokens wins.
+      now_ms = System.system_time(:millisecond)
+      reset_unix = div(now_ms, 1000) + 30
+
+      headers = [
+        {"X-RateLimit-Reset-Requests", Integer.to_string(reset_unix)},
+        {"x-ratelimit-reset-tokens", "5"}
+      ]
+
+      assert {:retry, :throttled, ms} = Venice.endpoint_error_classify(429, "{}", headers, nil)
+      # Allow a small drift (header parsing reads system_time twice).
+      assert ms in 4_500..5_500
+    end
+
+    test "429 ignores reset headers that have already elapsed (clamps to 0)" do
+      headers = [
+        # Unix timestamp 100 seconds in the past.
+        {"x-ratelimit-reset-requests", Integer.to_string(div(System.system_time(:millisecond), 1000) - 100)}
+      ]
+
+      assert {:retry, :throttled, 0} = Venice.endpoint_error_classify(429, "{}", headers, nil)
+    end
+
+    test "429 with malformed reset headers falls back to nil" do
+      headers = [{"x-ratelimit-reset-tokens", "not-a-number"}]
+      assert {:retry, :throttled, nil} = Venice.endpoint_error_classify(429, "{}", headers, nil)
     end
 
     test "5xx retries as a server error" do

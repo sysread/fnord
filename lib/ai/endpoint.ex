@@ -17,7 +17,7 @@ defmodule AI.Endpoint do
   @type payload :: map()
 
   @type http_status :: integer()
-  @type http_error :: {:http_error, {http_status, String.t()}}
+  @type http_error :: {:http_error, {http_status, String.t(), headers}}
   @type transport_error :: {:transport_error, any()}
 
   @type success :: {:ok, %{body: map(), headers: headers(), status: http_status()}}
@@ -85,12 +85,12 @@ defmodule AI.Endpoint do
         Services.BgIndexingControl.note_success(model)
         {:ok, payload}
 
-      {:http_error, {status, body}} ->
+      {:http_error, {status, body, resp_headers}} ->
         classify =
           if function_exported?(endpoint_module, :endpoint_error_classify, 4) do
-            endpoint_module.endpoint_error_classify(status, body, nil, nil)
+            endpoint_module.endpoint_error_classify(status, body, resp_headers, nil)
           else
-            default_error_classify({:http_error, {status, body}}, nil)
+            default_error_classify({:http_error, {status, body, resp_headers}}, nil)
           end
 
         handle_classification(
@@ -101,7 +101,7 @@ defmodule AI.Endpoint do
           payload,
           attempt,
           model,
-          {:http_error, {status, body}}
+          {:http_error, {status, body, resp_headers}}
         )
 
       {:transport_error, reason} ->
@@ -160,11 +160,11 @@ defmodule AI.Endpoint do
     end
   end
 
-  @spec default_error_classify({:http_error, {http_status, String.t()}} | nil, any()) ::
+  @spec default_error_classify({:http_error, {http_status, String.t(), headers}} | nil, any()) ::
           :ok
           | {:retry, reason :: atom, wait_ms :: non_neg_integer | nil}
           | {:fail, reason :: atom, human :: binary}
-  defp default_error_classify({:http_error, {status, body}}, _transport_reason) do
+  defp default_error_classify({:http_error, {status, body, _headers}}, _transport_reason) do
     cond do
       # Retry throttled 429s by default when the body indicates OpenAI-style throttling
       default_throttled?(status) and default_throttle_code?(body) ->

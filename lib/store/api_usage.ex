@@ -36,7 +36,7 @@ defmodule Store.APIUsage do
 
   @type http_result ::
           ok_result
-          | {:http_error, {status, String.t()}}
+          | {:http_error, {status, String.t(), list}}
           | {:transport_error, any}
 
   @doc """

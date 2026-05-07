@@ -40,15 +40,15 @@ defmodule AI.Provider.Health.Venice do
       {:ok, body} ->
         parse_models_body(body)
 
-      {:http_error, {401, _}} ->
+      {:http_error, {401, _, _}} ->
         {:error, :unauthorized, "Venice rejected the API key (HTTP 401)."}
 
-      {:http_error, {402, _}} ->
+      {:http_error, {402, _, _}} ->
         {:error, :unauthorized,
          "Venice reports insufficient balance (HTTP 402). The API key is " <>
            "valid but the wallet needs topping up."}
 
-      {:http_error, {status, body}} ->
+      {:http_error, {status, body, _}} ->
         {:error, :other, "Venice returned HTTP #{status}: #{trim(body)}"}
 
       {:transport_error, reason} ->

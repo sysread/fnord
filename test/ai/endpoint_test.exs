@@ -139,7 +139,7 @@ defmodule AI.EndpointTest do
       {:ok, %HTTPoison.Response{status_code: 429, headers: [], body: body}}
     end)
 
-    assert {:http_error, {429, ^body}} =
+    assert {:http_error, {429, ^body, _}} =
              AI.Endpoint.post_json(DummyEndpoint, json_headers(), %{a: 1})
 
     assert (Process.get(call_count_ref) || 0) == 1

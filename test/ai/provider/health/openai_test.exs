@@ -32,12 +32,12 @@ defmodule AI.Provider.Health.OpenAITest do
   end
 
   test "401 reports :unauthorized" do
-    :meck.expect(Http, :get, fn _url, _headers -> {:http_error, {401, "Bad key"}} end)
+    :meck.expect(Http, :get, fn _url, _headers -> {:http_error, {401, "Bad key", []}} end)
     assert {:error, :unauthorized, _} = Health.check()
   end
 
   test "5xx reports :other" do
-    :meck.expect(Http, :get, fn _url, _headers -> {:http_error, {503, "Down"}} end)
+    :meck.expect(Http, :get, fn _url, _headers -> {:http_error, {503, "Down", []}} end)
     assert {:error, :other, _} = Health.check()
   end
 

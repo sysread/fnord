@@ -43,7 +43,7 @@ defmodule HttpTest do
       {:ok, %HTTPoison.Response{status_code: 429, headers: [], body: "rate limit"}}
     end)
 
-    assert {:http_error, {429, "rate limit"}} =
+    assert {:http_error, {429, "rate limit", _}} =
              Http.post_json("http://example", json_headers(), %{})
   end
 
@@ -102,7 +102,7 @@ defmodule HttpTest do
       {:ok, %HTTPoison.Response{status_code: 500, headers: [], body: "err"}}
     end)
 
-    assert {:http_error, {500, "err"}} = Http.post_json("http://example", json_headers(), %{a: 1})
+    assert {:http_error, {500, "err", _}} = Http.post_json("http://example", json_headers(), %{a: 1})
     assert (Process.get(call_count_ref) || 0) == 10
   end
 end

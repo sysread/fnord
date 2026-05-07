@@ -13,7 +13,7 @@ defmodule Http do
   @type query :: map | String.t() | nil
 
   @type http_status :: integer
-  @type http_error :: {:http_error, {http_status, String.t()}}
+  @type http_error :: {:http_error, {http_status, String.t(), headers}}
   @type transport_error :: {:transport_error, any}
 
   @type json_response :: %{
@@ -94,7 +94,7 @@ defmodule Http do
       {:ok, %{status_code: 200, body: body}} ->
         {:ok, body}
 
-      {:ok, %{status_code: status_code, body: resp_body}} ->
+      {:ok, %{status_code: status_code, body: resp_body, headers: resp_headers}} ->
         if retryable_http_status?(status_code) and attempt < @max_retries do
           delay = backoff_delay(attempt)
 
@@ -108,7 +108,7 @@ defmodule Http do
           maybe_sleep(delay)
           do_get(url, headers, query, attempt + 1)
         else
-          {:http_error, {status_code, resp_body}}
+          {:http_error, {status_code, resp_body, resp_headers}}
         end
 
       {:error, %HTTPoison.Error{reason: reason}} ->
@@ -157,8 +157,8 @@ defmodule Http do
       {:ok, %{status_code: 200, body: body}} ->
         {:ok, body}
 
-      {:ok, %{status_code: status_code, body: resp_body}} ->
-        {:http_error, {status_code, resp_body}}
+      {:ok, %{status_code: status_code, body: resp_body, headers: resp_headers}} ->
+        {:http_error, {status_code, resp_body, resp_headers}}
 
       {:error, %HTTPoison.Error{reason: reason}} ->
         {:transport_error, reason}
@@ -184,7 +184,7 @@ defmodule Http do
             {:transport_error, :invalid_json_response}
         end
 
-      {:ok, %HTTPoison.Response{status_code: status_code, body: resp_body}} ->
+      {:ok, %HTTPoison.Response{status_code: status_code, body: resp_body, headers: resp_headers}} ->
         if retryable_http_status?(status_code) and attempt < @max_retries do
           delay = backoff_delay(attempt)
 
@@ -198,7 +198,7 @@ defmodule Http do
           maybe_sleep(delay)
           do_post_json(url, headers, body, attempt + 1)
         else
-          {:http_error, {status_code, resp_body}}
+          {:http_error, {status_code, resp_body, resp_headers}}
         end
 
       {:error, %HTTPoison.Error{reason: reason}} ->
@@ -243,8 +243,8 @@ defmodule Http do
             {:transport_error, :invalid_json_response}
         end
 
-      {:ok, %HTTPoison.Response{status_code: status_code, body: resp_body}} ->
-        {:http_error, {status_code, resp_body}}
+      {:ok, %HTTPoison.Response{status_code: status_code, body: resp_body, headers: resp_headers}} ->
+        {:http_error, {status_code, resp_body, resp_headers}}
 
       {:error, %HTTPoison.Error{reason: reason}} ->
         {:transport_error, reason}
