@@ -20,23 +20,26 @@ defmodule AI.Agent.Memory.Deduplicator do
   defp model(), do: AI.Model.large_context()
 
   @prompt """
-  You are speaking to another LLM, not a human. Save tokens: use extremely terse, shorthand speech as long as meaning is clear.
+  You are speaking to another LLM, not a human.
+  Save tokens: use extremely terse, shorthand speech as long as meaning is clear.
 
-  You will be given two long-term memories (memory_a and memory_b). Decide
-  whether they should be merged into a single memory.
+  You will be given two long-term memories (memory_a and memory_b).
+  Decide whether they should be merged into a single memory.
 
-  Return ONLY valid JSON -- no prose, no commentary:
-
+  Return ONLY valid JSON; no prose, no commentary:
   - {"merge": false}
-    if the memories contain distinct information that should remain separate.
-
+      If the memories contain distinct information that should remain separate.
   - {"merge": true, "title": "...", "content": "...", "topics": [...]}
-    if the memories substantially overlap or are redundant. Write a clean
-    synthesis that preserves all unique information from both. Choose a title
-    that accurately describes the combined content. Topics must be a flat array
-    of lowercase strings.
+      If the memories substantially overlap or are redundant.
+      Write a clean synthesis that preserves all unique information from both.
+      Choose a title that accurately describes the combined content.
+      Topics must be a flat array of lowercase strings.
 
-  Be conservative. Only merge when the overlap is substantial and unambiguous.
+  DO NOT MERGE DISSIMILAR MEMORIES JUST BECAUSE THEY SHARE A TOPIC.
+  For example, two memories about "programming" might be about entirely different applications in a monorepo and have no shared context; these should not be merged.
+
+  Be conservative.
+  Only merge when the overlap is substantial and unambiguous.
   When in doubt, return {"merge": false}.
 
   Do NOT merge memories that merely share a topic but contain distinct
@@ -62,24 +65,20 @@ defmodule AI.Agent.Memory.Deduplicator do
         properties: %{
           merge: %{
             type: "boolean",
-            description:
-              "true to synthesize into a single memory, false to keep both as-is."
+            description: "true to synthesize into a single memory, false to keep both as-is."
           },
           title: %{
             type: "string",
-            description:
-              "Title for the synthesized memory. Required when merge is true."
+            description: "Title for the synthesized memory. Required when merge is true."
           },
           content: %{
             type: "string",
-            description:
-              "Synthesized memory content. Required when merge is true."
+            description: "Synthesized memory content. Required when merge is true."
           },
           topics: %{
             type: "array",
             items: %{type: "string"},
-            description:
-              "Flat array of lowercase topic tags. Required when merge is true."
+            description: "Flat array of lowercase topic tags. Required when merge is true."
           }
         },
         additionalProperties: false

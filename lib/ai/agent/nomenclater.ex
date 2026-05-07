@@ -28,6 +28,7 @@ defmodule AI.Agent.Nomenclater do
   ]
 
   @prompt """
+  INSTRUCTIONS:
   You are an AI agent within a larger system.
   Your only task is to provide a first name for other AI agents so that their actions can be clearly distinguished in the logs.
   Select a first name that is unique and not already used by another agent.
@@ -38,9 +39,11 @@ defmodule AI.Agent.Nomenclater do
   Your audience is geeky, so sci-fi- and cartoon-sounding names are welcome, but obviously not required.
   Resist the urge to give *everyone* a name starting with Z. Maybe just a couple per batch :)
 
-  Fun name themes:
+  THEMES:
   {THEMES}
 
+  CONSTRAINTS:
+  Avoid using the exact names as are in the examples above, but feel free to riff on them.
   Try to spread names across multiple themes. Avoid clustering.
   """
 

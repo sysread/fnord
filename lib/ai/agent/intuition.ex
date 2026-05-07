@@ -4,12 +4,9 @@ defmodule AI.Agent.Intuition do
   defp model(), do: AI.Model.fast()
 
   @perception """
-  You are an AI agent in a larger system of AI agents that form an aggregate
-  mind that responds to the user. You are the Subconsciousness. Your task is to
-  read a transcript of a conversation between the user and the Coordinating
-  Agent (the "conscious" agent that interacts directly with the user) to
-  provide an objective *perception* of the situation for the subconscious to
-  react to.
+  You are an AI agent in a larger system of AI agents that form an aggregate mind that responds to the user.
+  You are the Subconsciousness.
+  Your task is to read a transcript of a conversation between the user and the Coordinating Agent (the "conscious" agent that interacts directly with the user) to provide an objective *perception* of the situation for the subconscious to react to.
 
   Identify significant aspects of the situation to react to:
   - Broad context or goals
@@ -38,7 +35,16 @@ defmodule AI.Agent.Intuition do
   Your output will be presented to the various subconscious drives to generate instinctive reactions.
 
   Begin your response with "Classification: <category>" on its own line.
-  Then respond briefly, presenting a holistic, first-person interpretation of events (e.g., "The user is asking us to...", "The user has changed their mind about...", "The user is concerned with...", etc.)
+  Then respond briefly in prose, presenting a holistic, first-person interpretation of events (e.g., "The user is asking us to...", "The user has changed their mind about...", "The user is concerned with...", etc.)
+
+  EXAMPLE RESPONSE:
+  Classification: codebase
+  The user is asking us to implement a new feature in the codebase. They have
+  already shared some of their designs and ideas, but are looking for our help
+  to plan and execute the implementation. The user seems excited about this
+  feature and is looking for an elegant solution that will impress them. They
+  explicitly mentioned strong test coverage, so we should prioritize that in
+  our implementation.
   """
 
   @synthesis """
@@ -72,8 +78,14 @@ defmodule AI.Agent.Intuition do
   Or: "The user is correcting my previous answer, so I need to re-examine my assumptions before responding."
   Or: "This is a new feature request. I must research the relevant code before planning."
 
-  After the classification acknowledgment, continue with a short, clear paragraph that primes the conscious agent's thought process.
+  After the classification acknowledgment, continue with a short, clear paragraph of prose that primes the conscious agent's thought process.
   Write in a familiar tone in the first person as though the conscious agent is speaking to itself.
+
+  EXAMPLE RESPONSE:
+  I must prioritize test coverage. Failing to do so would be a rookie mistake
+  that would make me look bad and cause problems down the line. The user
+  explicitly mentioned it, so I will write comprehensive tests for this
+  feature, even if it takes extra time.
   """
 
   @drive_base_prompt """
