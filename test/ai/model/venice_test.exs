@@ -2,7 +2,7 @@ defmodule AI.Model.VeniceTest do
   @moduledoc """
   Locks in the Venice profile catalog.
 
-  The catalog is currently consolidated on a single model (`grok-4-20`)
+  The catalog is currently consolidated on a single model (`qwen-3-6-plus`)
   for end-to-end provider testing. Per-profile model selection will
   return once the mechanical interactions between provider modules are
   validated against the live API. Until then, these tests verify the
@@ -14,8 +14,8 @@ defmodule AI.Model.VeniceTest do
   use ExUnit.Case
   alias AI.Model.Venice
 
-  @model "grok-4-20"
-  @context 2_000_000
+  @model "qwen-3-6-plus"
+  @context 1_000_000
 
   describe "named profiles" do
     test "smarter -> high reasoning" do
