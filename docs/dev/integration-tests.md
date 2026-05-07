@@ -14,11 +14,13 @@ against the dev binary.
 
 ## What each skill does
 
-| Skill                      | Role                                                                                   |
-| -------------------------- | -------------------------------------------------------------------------------------- |
-| `integration-setup`        | Build dev escript; create isolated `$HOME`; generate fixture; register `smoketest` project. Idempotent. |
-| `integration-test-index`   | Re-index the fixture and confirm the four files made it into the store.                 |
-| `integration-test-ask`     | Ask a verifiable question against the fixture and check the answer.                     |
+- `integration-setup` - builds the dev escript, creates the isolated
+  `$HOME`, generates the fixture, and registers the `smoketest`
+  project on first run. Idempotent.
+- `integration-test-index` - re-indexes the fixture and confirms the
+  four files made it into the store.
+- `integration-test-ask` - asks a verifiable question against the
+  fixture and checks the answer.
 
 Each test skill calls `integration-setup` itself, so they are safe to
 run in isolation.
