@@ -99,6 +99,22 @@ defmodule AI.Provider.RequestBuilder.Venice do
         response_format
       end
 
+    # Venice requires an instruction to the LLM to use the response format
+    msgs =
+      if is_nil(response_format) do
+        msgs
+      else
+        msgs ++
+          [
+            AI.Util.system_msg("""
+            Format your response EXACTLY according to the specified JSON `response_format`.
+            ```json
+            #{Jason.encode!(response_format, pretty: true)}
+            ```
+            """)
+          ]
+      end
+
     %{
       model: model.model,
       messages: msgs,

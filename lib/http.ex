@@ -40,7 +40,17 @@ defmodule Http do
       do_post_json(url, headers, body, 1)
     else
       {:error, msg} ->
-        UI.warn("[http] failed to encode JSON payload", msg)
+        UI.warn(
+          """
+          [http] failed to encode JSON payload
+
+          ```
+          #{inspect(payload, pretty: true)}
+          ```
+          """,
+          msg
+        )
+
         {:transport_error, :invalid_json_response}
     end
   end
