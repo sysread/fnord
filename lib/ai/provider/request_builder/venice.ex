@@ -91,19 +91,28 @@ defmodule AI.Provider.RequestBuilder.Venice do
               "web-search-capable profile."
     end
 
+    # Track whether the caller asked for a specific response shape. The
+    # field gets defaulted to `%{type: "text"}` for the wire payload, but
+    # the appended schema-instruction only makes sense when the caller
+    # actually requested structured output - reiterating "respond as
+    # text" tempts some Venice models into echoing the JSON literal back
+    # in the response body, which then leaks into the visible message.
+    structured_output? = not is_nil(response_format)
+
     response_format =
-      if is_nil(response_format) do
+      if structured_output? do
+        response_format
+      else
         # Send the OpenAI-compatible default explicitly.
         %{type: "text"}
-      else
-        response_format
       end
 
-    # Venice requires an instruction to the LLM to use the response format
+    # Venice does not honor `response_format` as strictly as OpenAI does
+    # for json_schema / json_object output. Restating the schema as a
+    # developer message gets the model to comply. Skip this for the
+    # default text case - no instruction is better than a redundant one.
     msgs =
-      if is_nil(response_format) do
-        msgs
-      else
+      if structured_output? do
         msgs ++
           [
             AI.Util.system_msg("""
@@ -113,6 +122,8 @@ defmodule AI.Provider.RequestBuilder.Venice do
             ```
             """)
           ]
+      else
+        msgs
       end
 
     %{

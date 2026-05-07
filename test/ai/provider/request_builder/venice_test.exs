@@ -49,10 +49,11 @@ defmodule AI.Provider.RequestBuilder.VeniceTest do
   end
 
   describe "build_payload/6" do
-    test "minimal payload contains model, default response_format, and strip_thinking" do
+    test "minimal payload contains model, default response_format, strip_thinking, and untouched messages" do
       model = Model.new("m", 1024)
       payload = Builder.build_payload(model, [], nil, nil, false, nil)
       assert payload[:model] == "m"
+      assert payload[:messages] == []
       assert payload[:response_format] == %{type: "text"}
       # strip_thinking_response is always on for Venice - prevents <think>
       # block leakage that breaks downstream JSON parsing.
@@ -61,23 +62,36 @@ defmodule AI.Provider.RequestBuilder.VeniceTest do
       refute Map.has_key?(payload, :reasoning_effort)
     end
 
-    test "appends a developer message reiterating the response_format" do
-      # Venice does not honor response_format strictly the way OpenAI
-      # does, so the builder restates the schema as a developer message.
-      # This keeps the contract observable so any future change has to
-      # update the test along with the implementation.
+    test "no response_format instruction is appended for the default text case" do
+      # The instruction is only useful when the caller requested
+      # structured output. Appending it for plain text invites Venice
+      # models to echo the JSON literal back into the response body
+      # (observed leaking into the MOTD output).
       model = Model.new("m", 1024)
-      payload = Builder.build_payload(model, [], nil, nil, false, nil)
+      user_msg = %{role: "user", content: "hello"}
+      payload = Builder.build_payload(model, [user_msg], nil, nil, false, nil)
+      assert payload[:messages] == [user_msg]
+    end
+
+    test "appends a developer message reiterating the response_format when caller asks for structured output" do
+      # Venice does not honor response_format strictly the way OpenAI
+      # does for json_schema, so the builder restates the schema as a
+      # developer message. This keeps the contract observable so any
+      # future change has to update the test along with the implementation.
+      model = Model.new("m", 1024)
+      rf = %{type: "json_schema", json_schema: %{name: "S", schema: %{type: "object"}}}
+      payload = Builder.build_payload(model, [], nil, rf, false, nil)
       [msg] = payload[:messages]
       assert msg.role == "developer"
       assert msg.content =~ "response_format"
-      assert msg.content =~ ~s("type": "text")
+      assert msg.content =~ ~s("type": "json_schema")
     end
 
     test "preserves caller messages and appends the response_format instruction last" do
       model = Model.new("m", 1024)
       user_msg = %{role: "user", content: "hello"}
-      payload = Builder.build_payload(model, [user_msg], nil, nil, false, nil)
+      rf = %{type: "json_object"}
+      payload = Builder.build_payload(model, [user_msg], nil, rf, false, nil)
       assert [^user_msg, instr] = payload[:messages]
       assert instr.role == "developer"
       assert instr.content =~ "response_format"
