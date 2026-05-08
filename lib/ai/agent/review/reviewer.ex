@@ -35,11 +35,23 @@ defmodule AI.Agent.Review.Reviewer do
   Do NOT execute the code under review.
   """
 
-  @formulation_prompt """
-  Your first job is to understand the change and formulate targeted review prompts
-  for five specialist agents.
+  # The formulation work runs as a two-step pipeline: first a `:research`
+  # step that has tools but no response_format (the model is free to call
+  # `cmd_tool`, `file_contents_tool`, etc. to understand the change),
+  # then a `:formulate` step that has the response_format but an empty
+  # toolbox (the model can ONLY produce JSON; tool calls aren't even
+  # available). Splitting the steps keeps the model from emitting
+  # tool-call-shaped JSON into the response_format slot - a Venice
+  # failure mode where the model conflates the two channels and
+  # produces things like `{function: "cmd_tool", parameters: {...}}` as
+  # its "structured response".
 
-  ## Step 1: Understand the change
+  @research_prompt """
+  Your task is to research the change so the next step can formulate
+  targeted review prompts for five specialist agents. This step is
+  research-only; the next step produces the structured output.
+
+  ## What to investigate
 
   Your scope description may already include a git range and diff stat. If so,
   use them directly - do NOT re-run `git diff --stat` or `git log`. Only run
@@ -59,9 +71,26 @@ defmodule AI.Agent.Review.Reviewer do
      requests)? A library (caller controls lifecycle)? A batch job? This
      determines which classes of bugs are realistic - for example, "state not
      cleaned up" is irrelevant in a short-lived process but critical in a
-     server. Include the runtime model in every specialist prompt.
+     server.
 
-  ## Step 2: Formulate specialist prompts
+  ## What to produce
+
+  When you have enough information, write a SHORT summary (a few paragraphs)
+  covering:
+  - What the change does
+  - Which files are affected and why
+  - Design intent inferred from commits, docs, or caller-provided context
+  - Any aspects that seem unusual, unrelated, or potentially risky
+  - The application's runtime model (CLI, server, library, batch)
+
+  Do NOT produce the specialist prompts yet. Do NOT emit JSON. The next
+  step handles formulation.
+  """
+
+  @formulate_prompt """
+  Based on the research above, produce the formulation JSON.
+
+  ## Specialist prompts to formulate
 
   You have five specialists, each with a different focus:
 
@@ -89,16 +118,19 @@ defmodule AI.Agent.Review.Reviewer do
   For each specialist, write a prompt that:
   - States the review scope (branch range, changed files)
   - Provides relevant design context
-  - Highlights specific areas of concern you identified in Step 1
+  - Highlights specific areas of concern from your research
   - Gives the specialist enough context to do focused, high-quality work
   - Calls out anything unusual (e.g., "3 of these changes appear to be bugfixes
     not mentioned in the design - review these separately")
+  - Includes the application's runtime model
 
   ## Constraints
 
   Your scope may begin with a "## Constraints" section listing contract/invariant constraints extracted from the change. Use them to filter out false positives and explicitly include which constraints a finding would violate.
 
   Produce a JSON object with the specialist prompts and your scope summary.
+  Tools are NOT available in this step - all research has already been done.
+  Emit only the JSON matching the schema; no commentary, no tool calls.
   """
 
   @aggregation_prompt """
@@ -349,7 +381,9 @@ defmodule AI.Agent.Review.Reviewer do
       ],
       internal: %{},
       steps: [
-        AI.Agent.Composite.completion(:formulate, @formulation_prompt,
+        AI.Agent.Composite.completion(:research, @research_prompt),
+        AI.Agent.Composite.completion(:formulate, @formulate_prompt,
+          toolbox: %{},
           response_format: @formulation_response_format
         ),
         [
@@ -385,7 +419,8 @@ defmodule AI.Agent.Review.Reviewer do
   def on_step_start(step, state) do
     label =
       case step.name do
-        :formulate -> "Researching change and formulating review prompts"
+        :research -> "Researching the change"
+        :formulate -> "Formulating specialist prompts"
         :pedantic -> "Dispatching pedantic reviewer"
         :acceptance -> "Dispatching acceptance reviewer"
         :state_flow -> "Dispatching state flow reviewer"
@@ -398,11 +433,12 @@ defmodule AI.Agent.Review.Reviewer do
     state
   end
 
-  # Formulation uses a json_schema response_format, so the API guarantees
-  # schema conformance. A parse failure here indicates an API-level problem
-  # (refusal, network fault) rather than a malformed response. Halting is
-  # intentional: all specialist delegates pattern-match on :specialist_prompts,
-  # so continuing without valid prompts would crash downstream.
+  # Formulation runs as a research-then-formulate pair (see prompts above).
+  # The :formulate step's toolbox is empty so the model cannot emit tool
+  # calls; combined with json_schema response_format, the only valid output
+  # is the structured object. Halting on parse failure is intentional:
+  # specialist delegates pattern-match on :specialist_prompts, so continuing
+  # without valid prompts would crash downstream.
   @impl AI.Agent.Composite
   def on_step_complete(%{name: :formulate}, state) do
     case SafeJson.decode_lenient(state.response, keys: :atoms!) do
@@ -417,12 +453,30 @@ defmodule AI.Agent.Review.Reviewer do
         AI.Agent.Composite.put_state(state, :specialist_prompts, prompts)
 
       other ->
-        Logger.warning("Reviewer: formulation parse failed: #{inspect(other)}")
+        log_parse_failure("formulation", other, state.response)
         %{state | error: "Failed to parse formulation response"}
     end
   end
 
   def on_step_complete(_step, state), do: state
+
+  @parse_failure_response_preview 1_500
+  defp log_parse_failure(step, decode_result, response) do
+    preview =
+      response
+      |> to_string()
+      |> String.slice(0, @parse_failure_response_preview)
+
+    truncated_marker =
+      if is_binary(response) and byte_size(response) > @parse_failure_response_preview,
+        do: " ... [truncated]",
+        else: ""
+
+    Logger.warning(
+      "Reviewer: #{step} parse failed: #{inspect(decode_result)}\n" <>
+        "raw response (#{byte_size(to_string(response))} bytes): #{preview}#{truncated_marker}"
+    )
+  end
 
   @impl AI.Agent.Composite
   def get_next_steps(_step, _state), do: []
@@ -436,7 +490,8 @@ defmodule AI.Agent.Review.Reviewer do
   end
 
   @doc "Return internal prompts (test helper)."
-  @spec __send__(:formulation_prompt | :aggregation_prompt) :: String.t()
-  def __send__(:formulation_prompt), do: @formulation_prompt
+  @spec __send__(:research_prompt | :formulate_prompt | :aggregation_prompt) :: String.t()
+  def __send__(:research_prompt), do: @research_prompt
+  def __send__(:formulate_prompt), do: @formulate_prompt
   def __send__(:aggregation_prompt), do: @aggregation_prompt
 end
