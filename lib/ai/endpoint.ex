@@ -17,7 +17,7 @@ defmodule AI.Endpoint do
   @type payload :: map()
 
   @type http_status :: integer()
-  @type http_error :: {:http_error, {http_status, String.t(), headers}}
+  @type http_error :: {:http_error, {http_status, String.t()}}
   @type transport_error :: {:transport_error, any()}
 
   @type success :: {:ok, %{body: map(), headers: headers(), status: http_status()}}
@@ -26,15 +26,16 @@ defmodule AI.Endpoint do
   @type endpoint :: module()
 
   @retry_limit 3
-  @backoff_base_ms 200
-  @backoff_cap_ms 2_000
+  @backoff_base_ms 100
+  @backoff_cap_ms 10_000
 
-  # Hard ceiling on a single retry's wait. Any provider hint (rate-limit
-  # reset header, usage tracker, classifier suggestion) is clamped to
-  # this so a malformed or misinterpreted header cannot wedge the
-  # harness via an unbounded `Process.sleep`. 30s comfortably covers
-  # typical rate-limit reset windows while keeping the worst case
-  # bounded.
+  # Hard ceiling on a single retry's wait. Any provider hint (usage
+  # tracker, classifier suggestion) is clamped to this so a malformed
+  # or misinterpreted value cannot wedge the harness via an unbounded
+  # `Process.sleep`. 30s comfortably covers typical rate-limit reset
+  # windows while keeping the worst case bounded; the backoff schedule
+  # itself caps lower (`@backoff_cap_ms`) so this only ever fires when
+  # an external hint goes haywire.
   @wait_ceiling_ms 30_000
 
   # ----------------------------------------------------------------------------
@@ -93,12 +94,12 @@ defmodule AI.Endpoint do
         Services.BgIndexingControl.note_success(model)
         {:ok, payload}
 
-      {:http_error, {status, body, resp_headers}} ->
+      {:http_error, {status, body}} ->
         classify =
           if function_exported?(endpoint_module, :endpoint_error_classify, 4) do
-            endpoint_module.endpoint_error_classify(status, body, resp_headers, nil)
+            endpoint_module.endpoint_error_classify(status, body, nil, nil)
           else
-            default_error_classify({:http_error, {status, body, resp_headers}}, nil)
+            default_error_classify({:http_error, {status, body}}, nil)
           end
 
         handle_classification(
@@ -109,7 +110,7 @@ defmodule AI.Endpoint do
           payload,
           attempt,
           model,
-          {:http_error, {status, body, resp_headers}}
+          {:http_error, {status, body}}
         )
 
       {:transport_error, reason} ->
@@ -169,11 +170,11 @@ defmodule AI.Endpoint do
     end
   end
 
-  @spec default_error_classify({:http_error, {http_status, String.t(), headers}} | nil, any()) ::
+  @spec default_error_classify({:http_error, {http_status, String.t()}} | nil, any()) ::
           :ok
           | {:retry, reason :: atom, wait_ms :: non_neg_integer | nil}
           | {:fail, reason :: atom, human :: binary}
-  defp default_error_classify({:http_error, {status, body, _headers}}, _transport_reason) do
+  defp default_error_classify({:http_error, {status, body}}, _transport_reason) do
     cond do
       # Retry throttled 429s by default when the body indicates OpenAI-style throttling
       default_throttled?(status) and default_throttle_code?(body) ->
@@ -231,12 +232,17 @@ defmodule AI.Endpoint do
     end
   end
 
-  # Exponential backoff with jitter (+/- 20%), capped at 2 seconds.
+  # Powers-of-10 backoff with jitter (+/- 20%). At base 100ms the
+  # schedule lands at ~100ms, ~1s, ~10s for attempts 1..3, capped at
+  # `@backoff_cap_ms`. This shape is deliberate: the per-attempt order
+  # of magnitude shifts by 1 each time, giving a transient overload a
+  # handful of fast retries while the third attempt waits long enough
+  # for sustained backpressure to clear.
   defp backoff_delay_ms(attempt) when attempt >= 1 do
     jitter = 0.8 + :rand.uniform() * 0.4
 
     @backoff_cap_ms
-    |> min(@backoff_base_ms * :math.pow(2, attempt - 1))
+    |> min(@backoff_base_ms * :math.pow(10, attempt - 1))
     |> trunc()
     |> then(&(&1 * jitter))
     |> min(@backoff_cap_ms)

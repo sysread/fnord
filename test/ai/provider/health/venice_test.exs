@@ -27,12 +27,12 @@ defmodule AI.Provider.Health.VeniceTest do
   end
 
   test "401 reports :unauthorized" do
-    :meck.expect(Http, :get, fn _url, _headers -> {:http_error, {401, "", []}} end)
+    :meck.expect(Http, :get, fn _url, _headers -> {:http_error, {401, ""}} end)
     assert {:error, :unauthorized, _} = Health.check()
   end
 
   test "402 reports :unauthorized with insufficient-balance phrasing" do
-    :meck.expect(Http, :get, fn _url, _headers -> {:http_error, {402, "", []}} end)
+    :meck.expect(Http, :get, fn _url, _headers -> {:http_error, {402, ""}} end)
     assert {:error, :unauthorized, msg} = Health.check()
     assert msg =~ "insufficient balance"
   end

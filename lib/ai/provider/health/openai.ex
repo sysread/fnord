@@ -36,10 +36,10 @@ defmodule AI.Provider.Health.OpenAI do
       {:ok, body} ->
         parse_models_body(body)
 
-      {:http_error, {401, _, _}} ->
+      {:http_error, {401, _}} ->
         {:error, :unauthorized, "OpenAI rejected the API key (HTTP 401)."}
 
-      {:http_error, {status, body, _}} ->
+      {:http_error, {status, body}} ->
         {:error, :other, "OpenAI returned HTTP #{status}: #{trim(body)}"}
 
       {:transport_error, reason} ->

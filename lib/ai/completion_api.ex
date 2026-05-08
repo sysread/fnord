@@ -144,7 +144,7 @@ defmodule AI.CompletionAPI do
   #
   #   {:ok, %{body: ...}} -> dispatch the body through the provider's
   #     response parser
-  #   {:http_error, {status, body, _headers}} -> let the response parser produce
+  #   {:http_error, {status, body}} -> let the response parser produce
   #     the right error tuple, but pass the special context_length and
   #     message-shaped errors through unchanged
   #   {:transport_error, reason} -> map to a binary error string for
@@ -153,7 +153,7 @@ defmodule AI.CompletionAPI do
     apply(parser, :parse_success, [body])
   end
 
-  defp dispatch_post_result({:http_error, {status, body, _headers}}, parser) do
+  defp dispatch_post_result({:http_error, {status, body}}, parser) do
     case apply(parser, :parse_error, [status, body]) do
       {:error, :context_length_exceeded, _usage} = err ->
         err

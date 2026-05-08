@@ -92,7 +92,7 @@ defmodule Util do
           _ -> :error
         end
 
-      {:http_error, {code, body, _headers}} ->
+      {:http_error, {code, body}} ->
         UI.debug("Hex API request error", "HTTP #{code}: #{body}")
         {:error, :api_request_failed}
 
