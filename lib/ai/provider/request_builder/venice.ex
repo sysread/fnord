@@ -91,39 +91,25 @@ defmodule AI.Provider.RequestBuilder.Venice do
               "web-search-capable profile."
     end
 
-    # Track whether the caller asked for a specific response shape. The
-    # field gets defaulted to `%{type: "text"}` for the wire payload, but
-    # the appended schema-instruction only makes sense when the caller
-    # actually requested structured output - reiterating "respond as
-    # text" tempts some Venice models into echoing the JSON literal back
-    # in the response body, which then leaks into the visible message.
-    structured_output? = not is_nil(response_format)
-
-    response_format =
-      if structured_output? do
-        response_format
-      else
-        # Send the OpenAI-compatible default explicitly.
-        %{type: "text"}
-      end
+    # The wire payload always carries an explicit `response_format`
+    # (Venice/OpenAI default to text when the field is absent). The
+    # caller-supplied value is what drives the developer-message
+    # instruction below; defaulting it to `%{type: "text"}` only
+    # affects the wire field.
+    instruction = response_format_instruction(response_format)
+    response_format = response_format || %{type: "text"}
 
     # Venice does not honor `response_format` as strictly as OpenAI does
-    # for json_schema / json_object output. Restating the schema as a
-    # developer message gets the model to comply. Skip this for the
-    # default text case - no instruction is better than a redundant one.
+    # for json_schema / json_object output. A developer message
+    # restating the contract gets the model to comply. The instruction
+    # avoids dumping the OpenAI envelope (`{"type": "json_schema",
+    # "json_schema": {...}}`) - smaller models read that as "echo this
+    # JSON literal" rather than "produce data conforming to this
+    # schema" and reply with the schema definition itself.
     msgs =
-      if structured_output? do
-        msgs ++
-          [
-            AI.Util.system_msg("""
-            Format your response EXACTLY according to the specified JSON `response_format`.
-            ```json
-            #{Jason.encode!(response_format, pretty: true)}
-            ```
-            """)
-          ]
-      else
-        msgs
+      case instruction do
+        nil -> msgs
+        text -> msgs ++ [AI.Util.system_msg(text)]
       end
 
     %{
@@ -140,6 +126,53 @@ defmodule AI.Provider.RequestBuilder.Venice do
     )
     |> Map.merge(reasoning_effort_field(model))
   end
+
+  # ---------------------------------------------------------------------------
+  # Developer-message instruction text for the caller-supplied
+  # response_format. Returns nil when no instruction is needed (caller
+  # passed nil, or asked for plain text).
+  #
+  # The instruction unwraps the OpenAI `response_format` envelope and
+  # passes only the inner schema (or just a "respond as JSON" line for
+  # `json_object`). Dumping the full envelope - i.e. the literal
+  # `{"type": "json_schema", "json_schema": {...}}` - was observed to
+  # confuse smaller Venice models into echoing the envelope itself
+  # back as the response, which then fails downstream parsers (e.g.
+  # `AI.Agent.Review.Decomposer.on_step_complete/2`) that expect a data
+  # instance.
+  # ---------------------------------------------------------------------------
+  @spec response_format_instruction(map | nil) :: binary | nil
+  defp response_format_instruction(nil), do: nil
+
+  defp response_format_instruction(%{type: "json_schema", json_schema: js})
+       when is_map(js) do
+    schema = Map.get(js, :schema) || Map.get(js, "schema")
+    name = Map.get(js, :name) || Map.get(js, "name")
+
+    name_line =
+      case name do
+        nil -> ""
+        n -> "Schema name: #{n}\n\n"
+      end
+
+    """
+    Your response MUST be a single JSON value that VALIDATES against the schema below.
+    The schema describes the SHAPE of your output - it is NOT a template to copy.
+    Return only the data instance. Do not echo the schema. No prose, no commentary.
+
+    #{name_line}```json
+    #{Jason.encode!(schema, pretty: true)}
+    ```
+    """
+  end
+
+  defp response_format_instruction(%{type: "json_object"}) do
+    """
+    Your response MUST be a single valid JSON value. Do not include any text outside the JSON.
+    """
+  end
+
+  defp response_format_instruction(_), do: nil
 
   # ---------------------------------------------------------------------------
   # reasoning_effort emission.

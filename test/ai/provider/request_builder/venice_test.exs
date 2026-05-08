@@ -73,28 +73,38 @@ defmodule AI.Provider.RequestBuilder.VeniceTest do
       assert payload[:messages] == [user_msg]
     end
 
-    test "appends a developer message reiterating the response_format when caller asks for structured output" do
-      # Venice does not honor response_format strictly the way OpenAI
-      # does for json_schema, so the builder restates the schema as a
-      # developer message. This keeps the contract observable so any
-      # future change has to update the test along with the implementation.
+    test "json_schema instruction sends only the inner schema, not the OpenAI envelope" do
+      # Dumping the full `{"type": "json_schema", "json_schema": {...}}`
+      # envelope tempts smaller Venice models into echoing it back as
+      # the response. The instruction unwraps to the actual schema and
+      # explicitly tells the model not to echo it.
       model = Model.new("m", 1024)
-      rf = %{type: "json_schema", json_schema: %{name: "S", schema: %{type: "object"}}}
+      rf = %{type: "json_schema", json_schema: %{name: "review_estimate", schema: %{type: "object"}}}
       payload = Builder.build_payload(model, [], nil, rf, false, nil)
       [msg] = payload[:messages]
       assert msg.role == "developer"
-      assert msg.content =~ "response_format"
-      assert msg.content =~ ~s("type": "json_schema")
+      # Schema content is present.
+      assert msg.content =~ ~s("type": "object")
+      # Schema name surfaces for model context.
+      assert msg.content =~ "review_estimate"
+      # Anti-echo guidance is in the instruction.
+      assert msg.content =~ "Do not echo the schema"
+      assert msg.content =~ "VALIDATES against the schema"
+      # The OpenAI envelope keys are NOT in the instruction body.
+      refute msg.content =~ ~s("type": "json_schema")
+      refute msg.content =~ ~s("json_schema":)
     end
 
-    test "preserves caller messages and appends the response_format instruction last" do
+    test "json_object instruction is a short respond-with-JSON directive" do
       model = Model.new("m", 1024)
       user_msg = %{role: "user", content: "hello"}
       rf = %{type: "json_object"}
       payload = Builder.build_payload(model, [user_msg], nil, rf, false, nil)
       assert [^user_msg, instr] = payload[:messages]
       assert instr.role == "developer"
-      assert instr.content =~ "response_format"
+      assert instr.content =~ "valid JSON"
+      # No JSON schema dump for json_object.
+      refute instr.content =~ "```json"
     end
 
     test "verbosity is silently dropped (Venice expresses it via text.verbosity, not honored today)" do
