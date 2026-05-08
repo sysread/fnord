@@ -33,7 +33,11 @@ defmodule AI.Agent.Review.Decomposer do
 
   alias AI.Agent.Composite
 
-  defp model(), do: AI.Model.smart()
+  # Decomposer steps (estimate, constraints, partition) are cheap
+  # classification/triage tasks - they don't need the strong reasoning
+  # profile. `AI.Model.fast()` is enough for these and avoids burning
+  # time on per-step reasoning that adds nothing to the output.
+  defp model(), do: AI.Model.fast()
 
   # Pre-registered step name atoms for scoped reviewers. Using a fixed pool
   # avoids dynamic atom creation from LLM-controlled partition counts.

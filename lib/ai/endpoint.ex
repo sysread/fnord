@@ -38,6 +38,13 @@ defmodule AI.Endpoint do
   # an external hint goes haywire.
   @wait_ceiling_ms 30_000
 
+  # Heartbeat interval for in-flight completions. The HTTP layer below
+  # doesn't surface progress, and hackney's recv_timeout resets per
+  # received chunk - so a slow-to-respond model can keep us blocked
+  # silently for arbitrary lengths of time. A periodic info log makes
+  # the wait visible without changing behavior.
+  @heartbeat_interval_ms 30_000
+
   # ----------------------------------------------------------------------------
   # Behaviour Callbacks
   # ----------------------------------------------------------------------------
@@ -85,8 +92,8 @@ defmodule AI.Endpoint do
   end
 
   defp do_post_json(endpoint_module, url, headers, payload, attempt) do
-    result = Http.post_json(url, headers, payload)
     model = model_from_payload(payload)
+    result = post_with_heartbeat(url, headers, payload, model)
     Store.APIUsage.record_for_model(model, result)
 
     case result do
@@ -167,6 +174,58 @@ defmodule AI.Endpoint do
 
       _ ->
         original_result
+    end
+  end
+
+  # Run `Http.post_json/3` in a supervised task and emit a periodic
+  # heartbeat log while it's in flight. The heartbeat is informational
+  # only - if the task crashes we surface the original exit so the
+  # caller's retry/error handling stays in control.
+  #
+  # In tests (`:http_retry_skip_sleep` set), bypass the task wrapper
+  # entirely. Tests routinely use the parent process's dictionary to
+  # track mocked HTTPoison call counts; spawning a child task isolates
+  # those writes and breaks call-count assertions. Production never
+  # sets that flag, so the heartbeat is always live there.
+  @spec post_with_heartbeat(String.t(), Http.headers(), Http.payload(), binary | nil) ::
+          Http.post_response()
+  defp post_with_heartbeat(url, headers, payload, model) do
+    if Services.Globals.get_env(:fnord, :http_retry_skip_sleep, false) do
+      Http.post_json(url, headers, payload)
+    else
+      parent_pool = HttpPool.get()
+
+      task =
+        Task.async(fn ->
+          HttpPool.set(parent_pool)
+          Http.post_json(url, headers, payload)
+        end)
+
+      await_with_heartbeat(task, model, 0)
+    end
+  end
+
+  defp await_with_heartbeat(task, model, elapsed_ms) do
+    case Task.yield(task, @heartbeat_interval_ms) do
+      nil ->
+        elapsed = elapsed_ms + @heartbeat_interval_ms
+
+        UI.info(
+          "[AI.Endpoint] Still waiting on #{inspect(model)} (#{Util.format_duration_ms(elapsed)} elapsed)"
+        )
+
+        await_with_heartbeat(task, model, elapsed)
+
+      {:ok, result} ->
+        result
+
+      {:exit, reason} ->
+        # The wrapped Http.post_json itself returns tagged tuples for
+        # all expected failure modes; an exit here is something
+        # genuinely unexpected (process kill, etc.). Re-raise so the
+        # caller sees it rather than silently treating it as a
+        # transport error.
+        exit(reason)
     end
   end
 

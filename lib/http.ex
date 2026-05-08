@@ -1,5 +1,5 @@
 defmodule Http do
-  @recv_timeout 5 * 60 * 1000
+  @recv_timeout 3 * 60 * 1000
 
   @max_retries 10
   @base_backoff 100
