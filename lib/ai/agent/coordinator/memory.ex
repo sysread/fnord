@@ -1,4 +1,6 @@
 defmodule AI.Agent.Coordinator.Memory do
+  import AI.Util, only: [is_assistant_msg?: 1, is_user_msg?: 1]
+
   @moduledoc """
   Functions related to the Coordinator's memory behavior: prompt text,
   identity injection at session start, semantic memory recall, and
@@ -299,13 +301,11 @@ defmodule AI.Agent.Coordinator.Memory do
   end
 
   # Keep only user and assistant content messages. Drop system/developer
-  # scaffolding, tool call requests, and tool responses -- the reflect agent
+  # scaffolding, tool call requests, and tool responses - the reflect agent
   # doesn't need them and they bloat the context.
   defp filter_conversation_msgs(msgs) do
-    Enum.filter(msgs, fn
-      %{role: "user"} -> true
-      %{role: "assistant", content: content} when is_binary(content) -> true
-      _ -> false
+    Enum.filter(msgs, fn msg ->
+      is_user_msg?(msg) or (is_assistant_msg?(msg) and is_binary(Map.get(msg, :content)))
     end)
   end
 end

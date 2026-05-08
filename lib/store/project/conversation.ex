@@ -1,4 +1,6 @@
 defmodule Store.Project.Conversation do
+  import AI.Util, only: [is_user_msg?: 1]
+
   @moduledoc """
   Conversations are stored per project in the project's store dir, under
   `converations/`. Each file is *mostly* JSON, but with a timestamp prepended
@@ -363,7 +365,7 @@ defmodule Store.Project.Conversation do
   def question(conversation) do
     case read(conversation) do
       {:ok, data} ->
-        case Enum.find(data.messages, &(Map.get(&1, :role) == "user")) do
+        case Enum.find(data.messages, &is_user_msg?/1) do
           nil -> {:error, :no_question}
           msg -> Map.fetch(msg, :content)
         end

@@ -720,7 +720,7 @@ defmodule AI.Completion do
 
   defp agent_name_from_messages(messages) do
     Enum.find_value(messages, fn
-      %{role: role, content: content} when role in ["system", "developer"] ->
+      %{content: content} = msg when is_system_msg?(msg) ->
         case Regex.run(~r/^Your name is (.*)\.$/, content) do
           [_, name] -> name
           _ -> nil

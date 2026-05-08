@@ -1,4 +1,6 @@
 defmodule AI.Agent.Intuition do
+  import AI.Util, only: [is_assistant_msg?: 1, is_user_msg?: 1]
+
   @behaviour AI.Agent
 
   defp model(), do: AI.Model.fast()
@@ -268,10 +270,8 @@ defmodule AI.Agent.Intuition do
   defp get_perception(%{error: nil} = state) do
     transcript =
       state.msgs
-      |> Enum.filter(fn
-        %{role: "user"} -> true
-        %{role: "assistant", content: c} when is_binary(c) -> true
-        _ -> false
+      |> Enum.filter(fn msg ->
+        is_user_msg?(msg) or (is_assistant_msg?(msg) and is_binary(Map.get(msg, :content)))
       end)
       |> Enum.map(fn %{role: role, content: content} ->
         "#{role} said: #{content}"

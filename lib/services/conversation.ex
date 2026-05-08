@@ -511,7 +511,7 @@ defmodule Services.Conversation do
         end
 
       # ...drop reasoning messages
-      %{role: "assistant", content: c} when is_binary(c) ->
+      %{content: c} = msg when is_assistant_msg?(msg) and is_binary(c) ->
         @re_reasoning_msg
         |> Regex.run(c)
         |> is_nil()

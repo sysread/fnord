@@ -1,4 +1,7 @@
 defmodule AI.Completion.Output do
+  import AI.Util,
+    only: [is_assistant_msg?: 1, is_system_msg?: 1, is_tool_call_msg?: 1, is_tool_msg?: 1, is_user_msg?: 1]
+
   @max_tool_lines 10
 
   # -----------------------------------------------------------------------------
@@ -251,25 +254,25 @@ defmodule AI.Completion.Output do
   end
 
   defp replay_msg(state, message, tool_call_args) do
-    case message do
-      %{role: "assistant", content: nil, tool_calls: tool_calls} ->
-        tool_calls
-        |> Enum.each(fn %{function: %{name: func, arguments: args_json}} ->
+    cond do
+      is_tool_call_msg?(message) ->
+        Enum.each(message.tool_calls, fn %{function: %{name: func, arguments: args_json}} ->
           with {:ok, args} <- SafeJson.decode(args_json) do
             on_event(state, :tool_call, {func, args})
           end
         end)
 
-      %{role: "tool", name: func, tool_call_id: id, content: content} ->
+      is_tool_msg?(message) ->
+        %{name: func, tool_call_id: id, content: content} = message
         on_event(state, :tool_call_result, {func, tool_call_args[id], content})
 
-      %{role: "assistant", content: content} ->
-        log_assistant_msg(state, content)
+      is_assistant_msg?(message) ->
+        log_assistant_msg(state, message.content)
 
-      %{role: "user", content: content} ->
-        log_user_msg(state, content)
+      is_user_msg?(message) ->
+        log_user_msg(state, message.content)
 
-      _ ->
+      true ->
         :ok
     end
   end
@@ -318,22 +321,18 @@ defmodule AI.Completion.Output do
   end
 
   defp build_tool_call_args(messages) do
-    messages
-    |> Enum.reduce(%{}, fn msg, acc ->
-      case msg do
-        %{role: "assistant", content: nil, tool_calls: tool_calls} ->
-          tool_calls
-          |> Enum.map(fn %{id: id, function: %{arguments: args}} -> {id, args} end)
-          |> Enum.into(acc)
-
-        _ ->
-          acc
+    Enum.reduce(messages, %{}, fn msg, acc ->
+      if is_tool_call_msg?(msg) do
+        msg.tool_calls
+        |> Enum.map(fn %{id: id, function: %{arguments: args}} -> {id, args} end)
+        |> Enum.into(acc)
+      else
+        acc
       end
     end)
   end
 
   defp extract_agent_name(messages) do
-    require AI.Util
     regex = ~r/^Your name is (.*)\.$/
     default_name = Services.NamePool.default_name()
 
@@ -342,7 +341,7 @@ defmodule AI.Completion.Output do
     # active provider.
     name =
       Enum.find_value(messages, fn msg ->
-        if AI.Util.is_system_msg?(msg) do
+        if is_system_msg?(msg) do
           case Regex.run(regex, Map.get(msg, :content, "")) do
             [_, name] -> name
             _ -> nil

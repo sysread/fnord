@@ -1,4 +1,6 @@
 defmodule Services.MemoryIndexer do
+  import AI.Util, only: [is_assistant_msg?: 1, is_user_msg?: 1]
+
   @moduledoc """
   Background service that promotes session-scoped memories to long-term
   (project/global) storage. Independently scans conversations for
@@ -1048,22 +1050,17 @@ defmodule Services.MemoryIndexer do
 
   defp first_user_message(messages) do
     messages
-    |> Enum.find(fn
-      %{role: "user"} -> true
-      _ -> false
-    end)
+    |> Enum.find(&is_user_msg?/1)
     |> extract_content()
   end
 
   defp last_assistant_message(messages) do
     messages
     |> Enum.reverse()
-    |> Enum.find(fn
-      %{role: "assistant", content: c} when is_binary(c) ->
-        not String.starts_with?(c, "<think>")
-
-      _ ->
-        false
+    |> Enum.find(fn msg ->
+      is_assistant_msg?(msg) and
+        is_binary(Map.get(msg, :content)) and
+        not String.starts_with?(Map.get(msg, :content), "<think>")
     end)
     |> extract_content()
   end

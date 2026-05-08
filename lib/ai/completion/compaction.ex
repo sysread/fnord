@@ -1,4 +1,6 @@
 defmodule AI.Completion.Compaction do
+  import AI.Util, only: [is_user_msg?: 1]
+
   @min_savings_tersified 0.3
 
   @spec compact(AI.Util.msg_list()) :: {:ok, AI.Util.msg_list(), non_neg_integer}
@@ -85,10 +87,7 @@ defmodule AI.Completion.Compaction do
     {to_compact, to_retain} =
       msgs
       |> Enum.reverse()
-      |> Enum.find_index(fn
-        %{role: "user"} -> true
-        _ -> false
-      end)
+      |> Enum.find_index(&is_user_msg?/1)
       # Note that this step extracts from the original msgs, not the reversed one
       |> then(fn
         nil -> {[], msgs}
