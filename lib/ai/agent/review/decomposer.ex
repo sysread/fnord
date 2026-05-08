@@ -494,7 +494,7 @@ defmodule AI.Agent.Review.Decomposer do
         Composite.put_state(state, :estimate, estimate)
 
       other ->
-        Logger.warning("Decomposer: estimate parse failed: #{inspect(other)}")
+        log_parse_failure("estimate", other, state.response)
         %{state | error: "Failed to parse estimate response"}
     end
   end
@@ -505,7 +505,7 @@ defmodule AI.Agent.Review.Decomposer do
         Composite.put_state(state, :constraints, %{constraints: constraints})
 
       other ->
-        Logger.warning("Decomposer: constraints parse failed: #{inspect(other)}")
+        log_parse_failure("constraints", other, state.response)
         %{state | error: "Failed to parse constraints response"}
     end
   end
@@ -521,12 +521,33 @@ defmodule AI.Agent.Review.Decomposer do
         Composite.put_state(state, :partition, %{review_units: units})
 
       other ->
-        Logger.warning("Decomposer: partition parse failed: #{inspect(other)}")
+        log_parse_failure("partition", other, state.response)
         %{state | error: "Failed to parse partition response"}
     end
   end
 
   def on_step_complete(_step, state), do: state
+
+  # Diagnostic log for any step that fails JSON parsing. Includes the
+  # raw model response (truncated) so a future failure mode is
+  # debuggable without instrumenting another build.
+  @parse_failure_response_preview 1_500
+  defp log_parse_failure(step, decode_result, response) do
+    preview =
+      response
+      |> to_string()
+      |> String.slice(0, @parse_failure_response_preview)
+
+    truncated_marker =
+      if is_binary(response) and byte_size(response) > @parse_failure_response_preview,
+        do: " ... [truncated]",
+        else: ""
+
+    Logger.warning(
+      "Decomposer: #{step} parse failed: #{inspect(decode_result)}\n" <>
+        "raw response (#{byte_size(to_string(response))} bytes): #{preview}#{truncated_marker}"
+    )
+  end
 
   # ---------------------------------------------------------------------------
   # Dynamic step generation - the core of the decomposer

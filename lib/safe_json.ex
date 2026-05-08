@@ -138,10 +138,12 @@ defmodule SafeJson do
   def decode_lenient(nil), do: {:error, {:invalid_json, "nil input"}}
 
   def decode_lenient(input) when is_binary(input) do
-    input
-    |> strip_code_fences()
-    |> extract_json_object()
-    |> decode()
+    cleaned = input |> strip_code_fences() |> extract_json_object()
+
+    case decode(cleaned) do
+      {:ok, _} = ok -> ok
+      {:error, _} -> cleaned |> repair_trailing_commas() |> decode()
+    end
   end
 
   @doc """
@@ -152,10 +154,12 @@ defmodule SafeJson do
   def decode_lenient(nil, _opts), do: {:error, {:invalid_json, "nil input"}}
 
   def decode_lenient(input, opts) when is_binary(input) do
-    input
-    |> strip_code_fences()
-    |> extract_json_object()
-    |> decode(opts)
+    cleaned = input |> strip_code_fences() |> extract_json_object()
+
+    case decode(cleaned, opts) do
+      {:ok, _} = ok -> ok
+      {:error, _} -> cleaned |> repair_trailing_commas() |> decode(opts)
+    end
   end
 
   # Remove wrapping ```json ... ``` or ``` ... ``` fences.
@@ -173,6 +177,19 @@ defmodule SafeJson do
       [_, rest] -> "{" <> rest
       _ -> text
     end
+  end
+
+  # Strip trailing commas before `]` or `}`. This is a common LLM failure
+  # mode (especially in arrays of objects: `[{...}, {...},]`) and Jason
+  # rejects it strictly. Run only as a fallback after a strict decode
+  # failure - rerunning a successfully-decoded payload through repair
+  # would risk mangling string literals containing the same byte
+  # sequence. The error path is downstream of a structural failure, so
+  # a string-internal `,]` would already have been a different parse
+  # error.
+  @repair_trailing_commas ~r/,(\s*[\]}])/
+  defp repair_trailing_commas(input) when is_binary(input) do
+    Regex.replace(@repair_trailing_commas, input, "\\1")
   end
 
   defp error_message(reason) do
