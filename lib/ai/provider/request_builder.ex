@@ -54,6 +54,20 @@ defmodule AI.Provider.RequestBuilder do
   @callback api_key!() :: binary | no_return
 
   @doc """
+  The role string this provider expects for system/developer messages.
+
+  OpenAI's newer Responses-API-era models prefer `"developer"` over
+  `"system"`; most other providers (including Venice) still expect
+  `"system"`. Sending the wrong role is not a hard error - the provider
+  silently treats the message as a no-op or downgrades it - so any
+  schema instructions or step prompts attached to a `developer`-role
+  message disappear from the model's perspective. The orchestration
+  layer dispatches through this callback when constructing a
+  system-style message so the role is correct for the active provider.
+  """
+  @callback system_role() :: String.t()
+
+  @doc """
   Build the HTTP headers for a chat-completion request. Includes the
   authorization scheme and any provider-specific headers.
   """

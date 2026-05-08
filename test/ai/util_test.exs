@@ -29,6 +29,62 @@ defmodule AI.UtilTest do
     assert_in_delta similarity, expected_similarity, 1.0e-5
   end
 
+  describe "system_msg/1 role" do
+    test "uses the active provider's system role for OpenAI" do
+      Services.Globals.put_env(:fnord, :ai_provider, "openai")
+      assert AI.Util.system_msg("hi").role == "developer"
+    end
+
+    test "uses the active provider's system role for Venice" do
+      # Venice silently downgrades developer-role messages, so the
+      # message must use role "system" - this test catches a
+      # provider-mismatch regression at construction time.
+      Services.Globals.put_env(:fnord, :ai_provider, "venice")
+      assert AI.Util.system_msg("hi").role == "system"
+    end
+  end
+
+  describe "message-type predicates" do
+    require AI.Util
+
+    test "is_system_msg? accepts both developer and system roles" do
+      assert AI.Util.is_system_msg?(%{role: "developer", content: "x"})
+      assert AI.Util.is_system_msg?(%{role: "system", content: "x"})
+      refute AI.Util.is_system_msg?(%{role: "user", content: "x"})
+      refute AI.Util.is_system_msg?(%{role: "assistant", content: "x"})
+      refute AI.Util.is_system_msg?(%{role: "tool", content: "x"})
+      refute AI.Util.is_system_msg?(%{not_a: :message})
+    end
+
+    test "is_user_msg?, is_assistant_msg?, is_tool_msg? match their roles" do
+      assert AI.Util.is_user_msg?(%{role: "user", content: ""})
+      assert AI.Util.is_assistant_msg?(%{role: "assistant", content: "ok"})
+      assert AI.Util.is_assistant_msg?(%{role: "assistant", content: nil, tool_calls: []})
+      assert AI.Util.is_tool_msg?(%{role: "tool", content: "result"})
+
+      refute AI.Util.is_user_msg?(%{role: "assistant", content: "ok"})
+      refute AI.Util.is_assistant_msg?(%{role: "tool", content: "result"})
+      refute AI.Util.is_tool_msg?(%{role: "user", content: "x"})
+    end
+
+    test "is_tool_call_msg? requires assistant role + nil content + tool_calls list" do
+      assert AI.Util.is_tool_call_msg?(%{role: "assistant", content: nil, tool_calls: []})
+
+      assert AI.Util.is_tool_call_msg?(%{
+               role: "assistant",
+               content: nil,
+               tool_calls: [%{id: "x"}]
+             })
+
+      # Plain assistant text reply is NOT a tool-call message.
+      refute AI.Util.is_tool_call_msg?(%{role: "assistant", content: "hi"})
+      # Wrong role.
+      refute AI.Util.is_tool_call_msg?(%{role: "user", content: nil, tool_calls: []})
+      # No tool_calls field.
+      refute AI.Util.is_tool_call_msg?(%{role: "assistant", content: nil})
+    end
+  end
+
   @short_msg "This is a short message."
   @long_msg String.duplicate("A", 60_000)
   @long_mb_msg String.duplicate("😀", 60_000)

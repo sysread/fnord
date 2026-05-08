@@ -12,6 +12,12 @@ defmodule AI.Provider.RequestBuilder.OpenAITest do
   alias AI.Model
   alias AI.Provider.RequestBuilder.OpenAI, as: Builder
 
+  describe "system_role/0" do
+    test "returns \"developer\" - OpenAI's Responses-API-era convention" do
+      assert Builder.system_role() == "developer"
+    end
+  end
+
   describe "api_key!/0" do
     setup do
       # Snapshot whatever the test harness already put in place, then

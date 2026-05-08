@@ -333,53 +333,27 @@ defmodule AI.Completion.Output do
   end
 
   defp extract_agent_name(messages) do
+    require AI.Util
     regex = ~r/^Your name is (.*)\.$/
     default_name = Services.NamePool.default_name()
 
-    # Prefer developer messages
-    developer_name =
-      messages
-      |> Enum.find(fn
-        %{role: "developer", content: content} -> Regex.match?(regex, content)
-        _ -> false
-      end)
-      |> case do
-        %{content: content} ->
-          case Regex.run(regex, content) do
+    # System / developer prompts both carry the agent name. Either role
+    # is treated as equivalent here - which one shows up depends on the
+    # active provider.
+    name =
+      Enum.find_value(messages, fn msg ->
+        if AI.Util.is_system_msg?(msg) do
+          case Regex.run(regex, Map.get(msg, :content, "")) do
             [_, name] -> name
             _ -> nil
           end
-
-        _ ->
-          nil
-      end
-
-    if developer_name && developer_name != default_name do
-      developer_name
-    else
-      # Fallback to system messages
-      system_name =
-        messages
-        |> Enum.find(fn
-          %{role: "system", content: content} -> Regex.match?(regex, content)
-          _ -> false
-        end)
-        |> case do
-          %{content: content} ->
-            case Regex.run(regex, content) do
-              [_, name] -> name
-              _ -> nil
-            end
-
-          _ ->
-            nil
         end
+      end)
 
-      if system_name && system_name != default_name do
-        system_name
-      else
-        default_name
-      end
+    if is_binary(name) and name != default_name do
+      name
+    else
+      default_name
     end
   end
 end

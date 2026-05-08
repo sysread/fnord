@@ -105,6 +105,16 @@ defmodule AI.Provider do
   end
 
   @doc """
+  The role string that the active provider expects for system/developer
+  messages. Delegates to the request builder; see
+  `AI.Provider.RequestBuilder.system_role/0` for the rationale.
+  """
+  @spec system_role() :: String.t()
+  def system_role() do
+    apply(module_for(:request_builder), :system_role, [])
+  end
+
+  @doc """
   Map a behaviour kind to the concrete implementation module for the
   active provider. Used by callers (request layer, completion layer, model
   catalog) that should not name a provider directly.

@@ -24,10 +24,15 @@ defmodule AI.Util do
     @max_msg_length
   end
 
-  @role_system "developer"
+  # Provider-portable role names. Each provider's request builder owns
+  # which one to emit when fnord constructs a system message
+  # (`AI.Provider.system_role/0`); the matching side accepts either so
+  # conversations from either provider can be inspected by the same
+  # code paths.
   @role_user "user"
   @role_assistant "assistant"
   @role_tool "tool"
+  @system_roles ["system", "developer"]
 
   @type tool_call :: %{
           id: binary,
@@ -114,11 +119,10 @@ defmodule AI.Util do
           ["# ASSISTANT:\n#{content}" | acc]
         end
 
-      # May be present in older conversations.
-      %{role: "system", content: _}, acc ->
-        acc
-
-      %{role: @role_system, content: _content}, acc ->
+      # System / developer messages are not part of the user-visible
+      # transcript; drop them whether they came from an OpenAI or
+      # Venice conversation.
+      %{role: role, content: _}, acc when role in @system_roles ->
         acc
 
       %{role: @role_tool, tool_call_id: id, name: name, content: content}, acc ->
@@ -176,12 +180,15 @@ defmodule AI.Util do
   @doc """
   Creates a system message object, used to define the assistant's behavior for
   the conversation.
+
+  Role is provider-specific (`developer` for OpenAI, `system` for Venice).
   """
   @spec system_msg(binary) :: content_msg
   def system_msg(msg) do
-    %{role: @role_system, content: msg}
+    %{role: AI.Provider.system_role(), content: msg}
     |> validate_msg_length()
   end
+
 
   @doc """
   Creates a user message object, representing the user's input prompt.
@@ -231,12 +238,64 @@ defmodule AI.Util do
     |> validate_msg_length()
   end
 
+  # ---------------------------------------------------------------------------
+  # Message-type predicates.
+  #
+  # Centralizing role checks here keeps callers provider-agnostic - a
+  # message produced by either OpenAI's `developer` convention or Venice's
+  # `system` convention reads as a "system message" through
+  # `is_system_msg?/1`. defguards work in both guard contexts (`when
+  # is_system_msg?(m)`) and as regular boolean calls (`if is_system_msg?(m)`),
+  # so callers pick whichever fits the surrounding code.
+  # ---------------------------------------------------------------------------
+
+  # The `is_map_key(msg, :role)` check is load-bearing in non-guard
+  # contexts: a defguard called as a regular function call inlines the
+  # body as plain code, where `msg.role` raises KeyError if the key is
+  # missing. Inside a guard the same expression silently fails-false,
+  # but we want predicate-as-function calls to also be safe on arbitrary
+  # input. Guarding the access first preserves both behaviors.
+
   @doc """
-  A guard to identify system messages.
+  True when the message is a system/developer prompt regardless of which
+  provider produced it (OpenAI uses `developer`, Venice uses `system`).
+  Usable as both a guard and a regular call.
   """
   defguard is_system_msg?(msg)
-           when is_map(msg) and
-                  msg.role in [@role_system, "system"]
+           when is_map(msg) and is_map_key(msg, :role) and
+                  :erlang.map_get(:role, msg) in @system_roles
+
+  @doc "True when the message is a user-role message."
+  defguard is_user_msg?(msg)
+           when is_map(msg) and is_map_key(msg, :role) and
+                  :erlang.map_get(:role, msg) == @role_user
+
+  @doc """
+  True for any assistant-role message - both content-bearing replies
+  and tool-call requests. Use `is_tool_call_msg?/1` to discriminate.
+  """
+  defguard is_assistant_msg?(msg)
+           when is_map(msg) and is_map_key(msg, :role) and
+                  :erlang.map_get(:role, msg) == @role_assistant
+
+  @doc """
+  True when the message is a tool-result (tool-role) message - the
+  output the assistant receives back after a tool call.
+  """
+  defguard is_tool_msg?(msg)
+           when is_map(msg) and is_map_key(msg, :role) and
+                  :erlang.map_get(:role, msg) == @role_tool
+
+  @doc """
+  True when the message is an assistant request-to-call-tools
+  (assistant role, content == nil, tool_calls is a list).
+  """
+  defguard is_tool_call_msg?(msg)
+           when is_map(msg) and is_map_key(msg, :role) and
+                  :erlang.map_get(:role, msg) == @role_assistant and
+                  is_map_key(msg, :content) and :erlang.map_get(:content, msg) == nil and
+                  is_map_key(msg, :tool_calls) and
+                  is_list(:erlang.map_get(:tool_calls, msg))
 
   # When a tool produces a very large output, writing the entire contents into the
   # conversation can blow past the model's context window. For tool outputs, we

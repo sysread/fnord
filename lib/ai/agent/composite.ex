@@ -1,4 +1,6 @@
 defmodule AI.Agent.Composite do
+  import AI.Util, only: [is_system_msg?: 1]
+
   @moduledoc """
   Behaviour and execution engine for composite agents - agents that orchestrate
   work across multiple completion turns, optionally with tool use, structured
@@ -457,7 +459,11 @@ defmodule AI.Agent.Composite do
             messages
           else
             Enum.reject(messages, fn msg ->
-              Map.get(msg, :role) == "system" and Map.get(msg, :content, "") == step.prompt
+              # The step prompt is appended via `AI.Util.system_msg/1`,
+              # whose role is provider-specific (`developer` for OpenAI,
+              # `system` for Venice). Match either so the strip-prompt
+              # contract works regardless of the active provider.
+              is_system_msg?(msg) and Map.get(msg, :content, "") == step.prompt
             end)
           end
           |> Enum.concat([AI.Util.assistant_msg(response)])

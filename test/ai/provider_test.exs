@@ -116,6 +116,23 @@ defmodule AI.ProviderTest do
     end
   end
 
+  describe "system_role/0" do
+    test "openai resolves to \"developer\"" do
+      Services.Globals.put_env(:fnord, :ai_provider, "openai")
+      assert AI.Provider.system_role() == "developer"
+    end
+
+    test "venice resolves to \"system\"" do
+      # Venice mirrors OpenAI's wire shape but follows the legacy
+      # `system` role convention. Sending `developer`-role messages to
+      # Venice causes them to be silently dropped/downgraded, which
+      # erases any schema instructions or step prompts attached to
+      # them - hence the per-provider role.
+      Services.Globals.put_env(:fnord, :ai_provider, "venice")
+      assert AI.Provider.system_role() == "system"
+    end
+  end
+
   describe "known_providers/0" do
     test "openai and venice are in the known set" do
       assert "openai" in AI.Provider.known_providers()

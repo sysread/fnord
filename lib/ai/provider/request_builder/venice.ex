@@ -71,6 +71,16 @@ defmodule AI.Provider.RequestBuilder.Venice do
   end
 
   @impl AI.Provider.RequestBuilder
+  # Venice mirrors OpenAI's chat-completions wire shape but follows the
+  # legacy `system` role convention rather than OpenAI's newer
+  # `developer`. Sending `developer`-role messages causes Venice to
+  # silently treat them as a no-op (or downgrade them in ways that
+  # erase any schema instructions / step prompts attached to them),
+  # which manifests as the model ignoring our orchestration messages
+  # entirely.
+  def system_role(), do: "system"
+
+  @impl AI.Provider.RequestBuilder
   def build_headers(api_key) when is_binary(api_key) do
     [
       {"Authorization", "Bearer #{api_key}"},

@@ -11,6 +11,12 @@ defmodule AI.Provider.RequestBuilder.VeniceTest do
   alias AI.Model
   alias AI.Provider.RequestBuilder.Venice, as: Builder
 
+  describe "system_role/0" do
+    test "returns \"system\" - Venice does not honor OpenAI's developer role" do
+      assert Builder.system_role() == "system"
+    end
+  end
+
   describe "api_key!/0" do
     setup do
       orig_fnord = System.get_env("FNORD_VENICE_API_KEY")

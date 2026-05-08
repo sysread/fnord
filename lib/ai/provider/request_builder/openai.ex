@@ -52,6 +52,13 @@ defmodule AI.Provider.RequestBuilder.OpenAI do
   end
 
   @impl AI.Provider.RequestBuilder
+  # OpenAI's newer Responses-API-era models (GPT-5, GPT-4.1, o4) prefer
+  # the `developer` role over the legacy `system` role. Both are still
+  # accepted, but `developer` is the canonical one for the model class
+  # fnord targets.
+  def system_role(), do: "developer"
+
+  @impl AI.Provider.RequestBuilder
   def build_headers(api_key) when is_binary(api_key) do
     [
       {"Authorization", "Bearer #{api_key}"},
