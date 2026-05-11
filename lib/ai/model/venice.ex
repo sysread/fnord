@@ -6,27 +6,28 @@ defmodule AI.Model.Venice do
   abstraction for Venice. Each public factory below returns a fully-
   populated `AI.Model.t` with capability flags set.
 
-  ## Current catalog state: single-model testing
+  ## Current catalog state: partial restoration in progress
 
-  All profile factories currently route through `test_model/1`, which
-  returns `qwen-3-6-plus` (1M context) at the reasoning level the
-  caller's profile name implies. This is a deliberate consolidation
-  for end-to-end provider testing on the `venice` branch - the
-  mechanical wiring (request builder, response parser, retry harness,
-  rate limiting, role handling) is being validated against a single
-  model before the per-profile catalog is restored.
+  Profile factories are in the middle of moving from a single-model
+  testing configuration back to the per-profile catalog described in
+  `scratch/venice-models.md`. Current routing:
 
-  Per-profile picks (from `scratch/venice-models.md`, partial state at
-  time of writing):
-  - `smart`, `balanced`: validated on `qwen-3-6-plus`; keepers
-  - `smarter`, `coding`: originally `kimi-k2-6` at different reasoning
-    levels; revert before the branch ships
-  - `fast`, `large_context`: originally `grok-41-fast` (1M context)
-  - `web_search`: originally `qwen3-5-35b-a3b`
+  | Profile                      | Model            | Context |
+  | ---------------------------- | ---------------- | ------- |
+  | smart / smarter / balanced   | qwen-3-6-plus    | 1M      |
+  | fast / web_search / coding   | qwen-3-6-plus    | 1M      |
+  | large_context (all tiers)    | deepseek-v4-flash| 1M      |
 
-  Restoring the per-profile catalog is a single-file change in this
-  module; the test in `test/ai/model/venice_test.exs` will need
-  matching updates.
+  Within each model, the reasoning level still varies per profile so
+  callers see meaningful differences. The remaining moves (e.g.
+  splitting coding back to a coding-tuned model, web_search to a
+  search-tuned model) will happen as each is validated against the
+  live API.
+
+  Adding or swapping a profile is a single-line change in the impl
+  block below; the corresponding test in
+  `test/ai/model/venice_test.exs` pins the wire-level model id per
+  profile and will need matching updates.
 
   ## Reasoning effort levels
 
@@ -54,13 +55,13 @@ defmodule AI.Model.Venice do
 
   ## Profile aliasing
 
-  While the catalog is consolidated, `smart`, `smarter`, `balanced`,
-  `fast`, `web_search`, `coding`, and all `large_context` tiers
-  resolve to the same model with different reasoning levels. Profile
-  aliases (e.g. `coding == smarter` when both pick the same model)
-  are valid only when explicitly picked - this is intentional, per-
-  provider configuration, not a generic property of the abstraction.
-  Do NOT carry over OpenAI's cross-profile aliases.
+  Profile aliases (e.g. `coding == smarter` when both pick the same
+  model) are valid only when explicitly picked - this is intentional,
+  per-provider configuration, not a generic property of the
+  abstraction. Do NOT carry over OpenAI's cross-profile aliases. As
+  the per-profile model restoration progresses, the current overlap
+  between `smart` / `smarter` / `balanced` / `fast` / `web_search` /
+  `coding` (all sharing qwen-3-6-plus) will dissolve.
 
   ## Citation handling note
 
@@ -113,9 +114,10 @@ defmodule AI.Model.Venice do
   @impl AI.Model.Provider
   def coding(), do: test_model(:medium)
 
-  # All three tiers map to grok-41-fast for now; we have a single 1M-
-  # context model in the catalog. Tiers are kept distinct so future
-  # additions can differentiate without changing the call sites.
+  # All three large_context tiers route through deepseek-v4-flash (1M
+  # context, Venice-native). Tiers are kept distinct so the reasoning
+  # level can vary independently per tier - and so future moves to a
+  # different per-tier model are a single-line change here.
   @impl AI.Model.Provider
   def large_context(:smart), do: deepseek_v4_flash(:high)
   def large_context(:balanced), do: deepseek_v4_flash(:medium)
