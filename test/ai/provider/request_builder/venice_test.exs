@@ -66,7 +66,7 @@ defmodule AI.Provider.RequestBuilder.VeniceTest do
       :ok
     end
 
-    test "minimal payload contains model, default response_format, strip_thinking, and untouched messages" do
+    test "minimal payload contains model, default response_format, strip_thinking, terse-verbosity, and untouched messages" do
       model = Model.new("m", 1024)
       payload = Builder.build_payload(model, [], nil, nil, false, nil)
       assert payload[:model] == "m"
@@ -75,8 +75,23 @@ defmodule AI.Provider.RequestBuilder.VeniceTest do
       # strip_thinking_response is always on for Venice - prevents <think>
       # block leakage that breaks downstream JSON parsing.
       assert payload[:venice_parameters] == %{strip_thinking_response: true}
+      # text.verbosity is pinned to "low" on every Venice request as a
+      # proactive lever against verbose responses.
+      assert payload[:text] == %{verbosity: "low"}
       refute Map.has_key?(payload, :tools)
       refute Map.has_key?(payload, :reasoning_effort)
+    end
+
+    test "text.verbosity is \"low\" regardless of caller-supplied verbosity" do
+      model = Model.new("m", 1024)
+      # Venice's `verbosity` request param (separate from text.verbosity)
+      # is not honored today and is dropped; the text.verbosity field is
+      # what fnord uses to control output length on Venice.
+      for caller_verbosity <- [nil, "high", "medium", "low"] do
+        payload = Builder.build_payload(model, [], nil, nil, false, caller_verbosity)
+        assert payload[:text] == %{verbosity: "low"},
+               "expected text.verbosity to stay \"low\" regardless of caller arg #{inspect(caller_verbosity)}"
+      end
     end
 
     test "no response_format instruction is appended for the default text case" do

@@ -6,28 +6,13 @@ defmodule AI.Model.Venice do
   abstraction for Venice. Each public factory below returns a fully-
   populated `AI.Model.t` with capability flags set.
 
-  ## Current catalog state: partial restoration in progress
+  ## Catalog state
 
-  Profile factories are in the middle of moving from a single-model
-  testing configuration back to the per-profile catalog described in
-  `scratch/venice-models.md`. Current routing:
-
-  | Profile                      | Model            | Context |
-  | ---------------------------- | ---------------- | ------- |
-  | smart / smarter / balanced   | qwen-3-6-plus    | 1M      |
-  | fast / web_search / coding   | qwen-3-6-plus    | 1M      |
-  | large_context (all tiers)    | deepseek-v4-flash| 1M      |
-
-  Within each model, the reasoning level still varies per profile so
-  callers see meaningful differences. The remaining moves (e.g.
-  splitting coding back to a coding-tuned model, web_search to a
-  search-tuned model) will happen as each is validated against the
-  live API.
-
-  Adding or swapping a profile is a single-line change in the impl
-  block below; the corresponding test in
+  Profile -> model mapping is in flux while the per-profile picks are
+  tuned against the live Venice API. The impl block below is the
+  authoritative source. The corresponding test in
   `test/ai/model/venice_test.exs` pins the wire-level model id per
-  profile and will need matching updates.
+  profile - update both together when swapping a model.
 
   ## Reasoning effort levels
 
@@ -58,10 +43,11 @@ defmodule AI.Model.Venice do
   Profile aliases (e.g. `coding == smarter` when both pick the same
   model) are valid only when explicitly picked - this is intentional,
   per-provider configuration, not a generic property of the
-  abstraction. Do NOT carry over OpenAI's cross-profile aliases. As
-  the per-profile model restoration progresses, the current overlap
-  between `smart` / `smarter` / `balanced` / `fast` / `web_search` /
-  `coding` (all sharing qwen-3-6-plus) will dissolve.
+  abstraction. Do NOT carry over OpenAI's cross-profile aliases. The
+  current `coding` and `smarter` both pick kimi-k2-6 (at different
+  reasoning levels) and `fast` and `web_search` both pick mercury-2;
+  these aliases are deliberate and may diverge as profile-specific
+  models are selected.
 
   ## Citation handling note
 
@@ -72,6 +58,9 @@ defmodule AI.Model.Venice do
   consuming the existing `{:ok, :msg, binary, usage}` contract see the
   citations without any orchestration-layer changes. See
   `AI.Provider.ResponseParser.Venice` for the implementation.
+
+  # NOTE
+  - do not use minimax-m27; it does not support response_format
   """
 
   @behaviour AI.Model.Provider
@@ -91,19 +80,19 @@ defmodule AI.Model.Venice do
   # is a single-line change here.
   # ---------------------------------------------------------------------------
   @impl AI.Model.Provider
-  def smarter(), do: test_model(:high)
+  def smarter(), do: venice_coding(:high)
 
   @impl AI.Model.Provider
-  def smart(), do: test_model(:medium)
+  def smart(), do: venice_default(:low)
 
   @impl AI.Model.Provider
-  def balanced(), do: test_model(:low)
+  def balanced(), do: venice_default(:none)
 
   @impl AI.Model.Provider
-  def fast(), do: test_model(:none)
+  def fast(), do: venice_fast(:low)
 
   @impl AI.Model.Provider
-  def web_search(), do: test_model(:medium)
+  def web_search(), do: venice_fast(:low)
 
   # Venice ships a coding-tuned profile (instruct-style training
   # optimized for code generation). The user's pick in
@@ -112,16 +101,16 @@ defmodule AI.Model.Venice do
   # do not assume coding == balanced just because the OpenAI catalog
   # does that.
   @impl AI.Model.Provider
-  def coding(), do: test_model(:medium)
+  def coding(), do: venice_coding(:none)
 
   # All three large_context tiers route through deepseek-v4-flash (1M
   # context, Venice-native). Tiers are kept distinct so the reasoning
   # level can vary independently per tier - and so future moves to a
   # different per-tier model are a single-line change here.
   @impl AI.Model.Provider
-  def large_context(:smart), do: deepseek_v4_flash(:high)
-  def large_context(:balanced), do: deepseek_v4_flash(:medium)
-  def large_context(:fast), do: deepseek_v4_flash(:low)
+  def large_context(:smart), do: venice_long_context(:high)
+  def large_context(:balanced), do: venice_long_context(:medium)
+  def large_context(:fast), do: venice_long_context(:low)
 
   # ---------------------------------------------------------------------------
   # Concrete model factories. Each declares the Venice model slug, context
@@ -137,14 +126,28 @@ defmodule AI.Model.Venice do
   # model; the supportsReasoningEffort flag in /api/v1/models reports
   # whether the level is *tunable* on that model, not whether the field
   # is accepted.
-  def test_model(reasoning \\ :medium) do
+  def venice_default(reasoning \\ :medium) do
     AI.Model.new("qwen-3-6-plus", 1_000_000, reasoning,
       supports_reasoning: true,
       supports_web_search: true
     )
   end
 
-  def deepseek_v4_flash(reasoning \\ :medium) do
+  def venice_coding(reasoning \\ :medium) do
+    AI.Model.new("kimi-k2-6", 256_000, reasoning,
+      supports_reasoning: true,
+      supports_web_search: true
+    )
+  end
+
+  def venice_fast(reasoning \\ :medium) do
+    AI.Model.new("mercury-2", 128_000, reasoning,
+      supports_reasoning: true,
+      supports_web_search: true
+    )
+  end
+
+  def venice_long_context(reasoning \\ :medium) do
     AI.Model.new("deepseek-v4-flash", 1_000_000, reasoning,
       supports_reasoning: true,
       supports_web_search: true

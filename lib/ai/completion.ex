@@ -328,6 +328,18 @@ defmodule AI.Completion do
      """}
   end
 
+  defp handle_response({:error, :throttled, reason}, _state) do
+    # AI.Endpoint exhausted its retry budget on a 429. Surface as a
+    # clean throttle message so callers can recognize the transient
+    # nature (vs treating it as a hard error).
+    {:error,
+     """
+     The #{AI.Provider.current()} API is throttling requests and retries were exhausted.
+     Try again shortly.
+     Error message: #{reason}
+     """}
+  end
+
   defp handle_response({:error, %{http_status: http_status, code: code, message: msg}}, state) do
     error_msg =
       """

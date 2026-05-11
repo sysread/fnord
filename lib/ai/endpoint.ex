@@ -291,14 +291,22 @@ defmodule AI.Endpoint do
     end
   end
 
-  # Powers-of-10 backoff with jitter (+/- 20%). At base 100ms the
-  # schedule lands at ~100ms, ~1s, ~10s for attempts 1..3, capped at
-  # `@backoff_cap_ms`. This shape is deliberate: the per-attempt order
-  # of magnitude shifts by 1 each time, giving a transient overload a
-  # handful of fast retries while the third attempt waits long enough
-  # for sustained backpressure to clear.
+  # Powers-of-10 backoff with jitter (+/- 50%). At base 100ms the
+  # nominal schedule is ~100ms, ~1s, ~10s for attempts 1..3, capped at
+  # `@backoff_cap_ms`. The per-attempt order of magnitude shifts by 1
+  # each time, giving a transient overload a handful of fast retries
+  # while the third attempt waits long enough for sustained
+  # backpressure to clear.
+  #
+  # The wide jitter range (0.5x..1.5x) is intentional: when many
+  # callers hit the same upstream throttle simultaneously (parallel
+  # memory dedup workers, parallel review specialists, etc.) a tight
+  # jitter window keeps them roughly synchronized, so they all retry
+  # at the same moment and re-trigger the throttle. Spreading them
+  # over a wider band reduces the thundering-herd amplitude on each
+  # retry round.
   defp backoff_delay_ms(attempt) when attempt >= 1 do
-    jitter = 0.8 + :rand.uniform() * 0.4
+    jitter = 0.5 + :rand.uniform()
 
     @backoff_cap_ms
     |> min(@backoff_base_ms * :math.pow(10, attempt - 1))

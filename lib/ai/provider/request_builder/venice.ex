@@ -126,6 +126,16 @@ defmodule AI.Provider.RequestBuilder.Venice do
       model: model.model,
       messages: msgs,
       response_format: response_format,
+      # Venice exposes a `text.verbosity` knob (see
+      # https://docs.venice.ai/api-reference/endpoint/chat/completions#body-text).
+      # fnord pins it to "low" on every request: agent prompts already
+      # ask for terse output, and the API-level knob keeps the model
+      # honest when the prompt is competing with other directives.
+      # This is unconditional because all current fnord callers benefit
+      # from terse responses; an interactive caller that wants
+      # exposition can override at the orchestration layer once we
+      # decide what that opt-out looks like.
+      text: %{verbosity: "low"},
       venice_parameters: venice_parameters_for(web_search?)
     }
     |> Map.merge(

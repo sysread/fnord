@@ -48,6 +48,7 @@ defmodule AI.CompletionAPI do
           | {:error, map}
           | {:error, binary}
           | {:error, :api_unavailable, any}
+          | {:error, :throttled, any}
           | {:error, :context_length_exceeded, non_neg_integer}
 
   # ---------------------------------------------------------------------------
@@ -159,6 +160,9 @@ defmodule AI.CompletionAPI do
         err
 
       {:error, :api_unavailable, _reason} = err ->
+        err
+
+      {:error, :throttled, _reason} = err ->
         err
 
       {:error, %{message: msg}} = err ->

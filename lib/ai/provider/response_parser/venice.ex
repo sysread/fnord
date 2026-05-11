@@ -177,6 +177,24 @@ defmodule AI.Provider.ResponseParser.Venice do
     {:error, :api_unavailable, json_error_string}
   end
 
+  # 429 reaches the parser only after `AI.Endpoint`'s retry harness has
+  # given up - the classifier returns `:retry, :throttled` and the harness
+  # retries `@retry_limit` times with backoff before passing the original
+  # `{:http_error, {429, body}}` through. Surface this as a typed
+  # `:throttled` error so callers can pattern-match and decide what to do
+  # (skip-and-retry-next-cycle for memory dedup, surface to user for
+  # interactive flows, etc.) rather than treating it as a generic error.
+  defp parse_http_error_body(429, json_error_string) do
+    reason =
+      case SafeJson.decode(json_error_string) do
+        {:ok, %{"error" => %{"message" => msg}}} when is_binary(msg) -> msg
+        {:ok, %{"error" => msg}} when is_binary(msg) -> msg
+        _ -> json_error_string
+      end
+
+    {:error, :throttled, reason}
+  end
+
   defp parse_http_error_body(http_status, json_error_string) do
     case SafeJson.decode(json_error_string) do
       {:ok, %{"error" => %{"code" => code, "message" => msg}}} ->

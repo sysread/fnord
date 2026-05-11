@@ -99,6 +99,21 @@ defmodule AI.Provider.ResponseParser.OpenAI do
   defp parse_http_error_body(503, reason), do: {:error, :api_unavailable, reason}
   defp parse_http_error_body(504, reason), do: {:error, :api_unavailable, reason}
 
+  # 429 reaches the parser only after `AI.Endpoint`'s retry harness has
+  # given up. Surface as a typed `:throttled` error so callers can
+  # pattern-match and decide what to do rather than treating it as a
+  # generic error map. Mirrors the Venice parser's behavior.
+  defp parse_http_error_body(429, json_error_string) do
+    reason =
+      case SafeJson.decode(json_error_string) do
+        {:ok, %{"error" => %{"message" => msg}}} when is_binary(msg) -> msg
+        {:ok, %{"error" => msg}} when is_binary(msg) -> msg
+        _ -> json_error_string
+      end
+
+    {:error, :throttled, reason}
+  end
+
   defp parse_http_error_body(http_status, json_error_string) do
     json_error_string
     |> SafeJson.decode()

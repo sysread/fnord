@@ -66,15 +66,29 @@ defmodule AI.Provider.ResponseParser.OpenAITest do
       assert {:error, :context_length_exceeded, -1} = Parser.parse_error(400, body)
     end
 
-    test "other structured errors come through as a map" do
+    test "429 surfaces as typed :throttled with the message extracted" do
+      # 429 reaches the parser only after AI.Endpoint exhausts retries.
+      # Surfacing as a typed atom lets callers (e.g. memory_indexer
+      # dedup) recognize the transient nature and decide whether to
+      # surface, retry-later, or downgrade.
       body = ~s({"error":{"code":"rate_limit_exceeded","message":"slow down"}})
+      assert {:error, :throttled, "slow down"} = Parser.parse_error(429, body)
+    end
+
+    test "429 with non-JSON body surfaces the raw body as the reason" do
+      body = "rate limit exceeded - try again later"
+      assert {:error, :throttled, ^body} = Parser.parse_error(429, body)
+    end
+
+    test "other structured errors come through as a map" do
+      body = ~s({"error":{"code":"invalid_request","message":"missing field"}})
 
       assert {:error,
               %{
-                http_status: 429,
-                code: "rate_limit_exceeded",
-                message: "slow down"
-              }} = Parser.parse_error(429, body)
+                http_status: 400,
+                code: "invalid_request",
+                message: "missing field"
+              }} = Parser.parse_error(400, body)
     end
 
     test "non-JSON body surfaces verbatim under :error" do
