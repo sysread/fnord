@@ -25,6 +25,7 @@ defmodule Services do
     Services.BackupFile.start_link()
     Services.TempFile.start_link([])
     Services.FileCache.start_link()
+    Services.ProviderConcurrency.start_link()
 
     # Start TaskSupervisor commonly used by services to spawn supervised tasks
     # Ensure Task.Supervisor is started only once

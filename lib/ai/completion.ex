@@ -347,7 +347,7 @@ defmodule AI.Completion do
 
       - HTTP Status: #{http_status}
       - Error code: #{code}
-      - Message: #{msg}
+      - Message: #{stringify_for_log(msg)}
       """
 
     {:error, %{state | response: error_msg}}
@@ -359,7 +359,7 @@ defmodule AI.Completion do
       I encountered an error while processing your request.
 
       - HTTP Status: #{http_status}
-      - Message: #{msg}
+      - Message: #{stringify_for_log(msg)}
       """
 
     {:error, %{state | response: error_msg}}
@@ -409,6 +409,14 @@ defmodule AI.Completion do
 
     {:error, %{state | response: error_msg}}
   end
+
+  # Some providers return non-binary values where we expect a string
+  # message (e.g. Inception on validation errors ships a FastAPI-style
+  # JSON array under `message`). Inspecting is safer than interpolating
+  # directly, which would raise `String.Chars` protocol errors on
+  # lists/maps.
+  defp stringify_for_log(value) when is_binary(value), do: value
+  defp stringify_for_log(value), do: inspect(value)
 
   # -----------------------------------------------------------------------------
   # Tool calls

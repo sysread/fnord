@@ -51,7 +51,7 @@ defmodule AI.Provider.ResponseParser.Inception do
     |> get_response()
   end
 
-  defp get_response(%{"tool_calls" => tool_calls}) do
+  defp get_response(%{"tool_calls" => tool_calls}) when not is_nil(tool_calls) do
     {:ok, :tool, Enum.map(tool_calls, &get_tool_call/1)}
   end
 

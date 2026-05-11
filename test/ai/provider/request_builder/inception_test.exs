@@ -10,13 +10,12 @@ defmodule AI.Provider.RequestBuilder.InceptionTest do
   alias AI.Provider.RequestBuilder.Inception, as: Builder
 
   describe "system_role/0" do
-    test "returns \"developer\" - Inception's mercury-2 prefers the Responses-API role" do
-      # Empirically: `system`-role messages on Inception produced
-      # shallow responses that ignored attached context. Same shape
-      # of bug Venice had inverted (Venice wants `system`, not
-      # `developer`); Inception's modern-mercury family lines up with
-      # OpenAI's developer convention.
-      assert Builder.system_role() == "developer"
+    test "returns \"system\" - Inception explicitly rejects \"developer\"" do
+      # Inception's chat-completions API rejects `developer`-role
+      # messages with a 500 (validation error: "Role must be one of
+      # {'assistant', 'system', 'tool', 'user', 'function'}"). The
+      # legacy `system` role is the only system-equivalent it accepts.
+      assert Builder.system_role() == "system"
     end
   end
 

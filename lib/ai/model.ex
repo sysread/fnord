@@ -54,6 +54,7 @@ defmodule AI.Model do
 
   @type reasoning_level ::
           :none
+          | :instant
           | :minimal
           | :low
           | :medium

@@ -145,13 +145,12 @@ defmodule AI.ProviderTest do
       assert AI.Provider.system_role() == "system"
     end
 
-    test "inception resolves to \"developer\"" do
-      # Mercury-2's response shape lines up with the OpenAI Responses-
-      # API era models that prefer `developer` over the legacy
-      # `system` role. Empirically observed: `system`-role messages
-      # produced shallow responses that ignored attached context.
+    test "inception resolves to \"system\"" do
+      # Inception's chat-completions API explicitly rejects
+      # `developer`-role messages. Only legacy roles are accepted:
+      # {'assistant', 'system', 'tool', 'user', 'function'}.
       Services.Globals.put_env(:fnord, :ai_provider, "inception")
-      assert AI.Provider.system_role() == "developer"
+      assert AI.Provider.system_role() == "system"
     end
   end
 

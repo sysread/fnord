@@ -165,11 +165,20 @@ defmodule AI.CompletionAPI do
       {:error, :throttled, _reason} = err ->
         err
 
-      {:error, %{message: msg}} = err ->
+      {:error, %{message: msg}} = err when is_binary(msg) ->
         # Surface the user-facing message at log time so a flaky API
         # produces a single readable error line in the operator's
         # terminal instead of a wall of inspected error map text.
         UI.error("HTTP error from upstream: #{msg}")
+        err
+
+      {:error, %{message: msg}} = err ->
+        # Defensive: some providers (e.g. Inception on a 500 with a
+        # FastAPI-style validation array) return `message:` whose
+        # value is a list/map, not a string. The above interpolation
+        # would crash. Inspect into a string so the operator still
+        # sees something useful in the terminal.
+        UI.error("HTTP error from upstream: #{inspect(msg)}")
         err
 
       {:error, %{error: detail}} = err when is_binary(detail) ->

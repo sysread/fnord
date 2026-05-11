@@ -89,7 +89,15 @@ defmodule AI.Endpoint do
   @spec post_json(endpoint, headers, payload) :: response
   def post_json(endpoint_module, headers, payload) when is_atom(endpoint_module) do
     url = endpoint_module.endpoint_path()
-    do_post_json(endpoint_module, url, headers, payload, 1)
+    # Hold a per-provider concurrency slot across the full retry
+    # sequence. Many parallel callers (review specialists, memory
+    # dedup workers, etc.) can otherwise race the same per-account
+    # input-token budget; the slot smooths the spike. The slot
+    # service is fail-open, so tests that bypass `Services.start_all/0`
+    # still run uncapped.
+    Services.ProviderConcurrency.with_slot(AI.Provider.current(), fn ->
+      do_post_json(endpoint_module, url, headers, payload, 1)
+    end)
   end
 
   defp do_post_json(endpoint_module, url, headers, payload, attempt) do

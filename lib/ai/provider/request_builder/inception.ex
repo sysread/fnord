@@ -40,14 +40,13 @@ defmodule AI.Provider.RequestBuilder.Inception do
   end
 
   @impl AI.Provider.RequestBuilder
-  # Inception is OpenAI-API-compatible at the wire level. Mercury-2 is
-  # a new-generation model in the same family as OpenAI's
-  # Responses-API-era models, which prefer `developer` over the legacy
-  # `system` role. Empirically, mercury-2 was producing shallow
-  # responses that ignored attached context when role was `system`;
-  # switching to `developer` is the same fix the Venice/OpenAI split
-  # made for that class of bug.
-  def system_role(), do: "developer"
+  # Inception's chat-completions API explicitly rejects `developer`-
+  # role messages with a 500: "Role must be one of {'assistant',
+  # 'system', 'tool', 'user', 'function'}". The legacy `system` role
+  # is the only system-equivalent it accepts. If mercury-2 still feels
+  # shallow with `system`, the lever is elsewhere (reasoning_effort
+  # emission, max_tokens, prompt content) - not the role.
+  def system_role(), do: "system"
 
   @impl AI.Provider.RequestBuilder
   def build_headers(api_key) when is_binary(api_key) do
