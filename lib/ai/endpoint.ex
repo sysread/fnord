@@ -32,11 +32,12 @@ defmodule AI.Endpoint do
   # Hard ceiling on a single retry's wait. Any provider hint (usage
   # tracker, classifier suggestion) is clamped to this so a malformed
   # or misinterpreted value cannot wedge the harness via an unbounded
-  # `Process.sleep`. 30s comfortably covers typical rate-limit reset
-  # windows while keeping the worst case bounded; the backoff schedule
-  # itself caps lower (`@backoff_cap_ms`) so this only ever fires when
-  # an external hint goes haywire.
-  @wait_ceiling_ms 30_000
+  # `Process.sleep`. 90s covers per-minute aggregate budgets (e.g.
+  # Inception's input-token-limit 429 hint at 60s) while keeping the
+  # worst case bounded; the backoff schedule itself caps lower
+  # (`@backoff_cap_ms`) so this only ever fires when an external hint
+  # explicitly asks for the longer wait.
+  @wait_ceiling_ms 90_000
 
   # Heartbeat interval for in-flight completions. The HTTP layer below
   # doesn't surface progress, and hackney's recv_timeout resets per

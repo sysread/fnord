@@ -19,9 +19,27 @@ defmodule AI.Endpoint.InceptionTest do
       assert {:fail, :forbidden, _} = Inception.endpoint_error_classify(403, "", nil, nil)
     end
 
-    test "429 retries with no caller-side wait hint" do
+    test "429 retries with no caller-side wait hint by default" do
       assert {:retry, :throttled, nil} = Inception.endpoint_error_classify(429, "{}", nil, nil)
       assert {:retry, :throttled, nil} = Inception.endpoint_error_classify(429, "{}", [], nil)
+    end
+
+    test "429 with 'input token limit' phrasing returns a 60s wait hint" do
+      # Inception's per-minute input-token budget does not recover
+      # within the default backoff window; a 60s hint matches the
+      # reset boundary. Match the phrase, not the full JSON shape, so
+      # a wording tweak on Inception's side does not silently drop
+      # the special-case.
+      body =
+        ~s({"error":"Rate limit reached: input token limit exceeded"})
+
+      assert {:retry, :throttled, 60_000} =
+               Inception.endpoint_error_classify(429, body, nil, nil)
+    end
+
+    test "429 with 'input token limit' phrasing is case-insensitive" do
+      body = "RATE LIMIT REACHED: INPUT TOKEN LIMIT EXCEEDED"
+      assert {:retry, :throttled, 60_000} = Inception.endpoint_error_classify(429, body, nil, nil)
     end
 
     test "5xx retries as a server error" do
