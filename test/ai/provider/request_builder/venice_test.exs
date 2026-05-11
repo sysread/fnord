@@ -7,7 +7,7 @@ defmodule AI.Provider.RequestBuilder.VeniceTest do
   levels), and the deliberate omission of verbosity.
   """
 
-  use ExUnit.Case
+  use Fnord.TestCase, async: false
   alias AI.Model
   alias AI.Provider.RequestBuilder.Venice, as: Builder
 

@@ -15,7 +15,7 @@ defmodule AI.CompletionAPICapabilitiesTest do
       at the call site rather than producing a confusing API error
   """
 
-  use ExUnit.Case
+  use Fnord.TestCase, async: false
   alias AI.Model
 
   setup do

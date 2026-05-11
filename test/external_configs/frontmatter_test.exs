@@ -1,5 +1,5 @@
 defmodule ExternalConfigs.FrontmatterTest do
-  use ExUnit.Case, async: true
+  use Fnord.TestCase, async: false
 
   alias ExternalConfigs.Frontmatter
 

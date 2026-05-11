@@ -6,7 +6,7 @@ defmodule AI.Provider.Health.VeniceTest do
   payment-required signal.
   """
 
-  use ExUnit.Case
+  use Fnord.TestCase, async: false
   alias AI.Provider.Health.Venice, as: Health
 
   setup do

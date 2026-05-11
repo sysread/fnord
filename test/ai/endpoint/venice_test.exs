@@ -8,7 +8,7 @@ defmodule AI.Endpoint.VeniceTest do
   recover until the user tops up.
   """
 
-  use ExUnit.Case
+  use Fnord.TestCase, async: false
   alias AI.Endpoint.Venice
 
   test "endpoint_path is the Venice chat-completions URL" do

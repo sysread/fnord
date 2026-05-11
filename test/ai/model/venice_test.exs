@@ -11,7 +11,7 @@ defmodule AI.Model.VeniceTest do
   the only thing distinguishing tiers.
   """
 
-  use ExUnit.Case
+  use Fnord.TestCase, async: false
   alias AI.Model.Venice
 
   @model "qwen-3-6-plus"

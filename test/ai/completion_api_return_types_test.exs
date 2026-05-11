@@ -1,5 +1,5 @@
 defmodule AI.CompletionAPITransportErrorTest do
-  use ExUnit.Case
+  use Fnord.TestCase, async: false
   alias AI.Model
 
   setup do

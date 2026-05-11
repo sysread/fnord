@@ -13,7 +13,7 @@ defmodule AI.Model.OpenAITest do
   flags that family is expected to carry.
   """
 
-  use ExUnit.Case
+  use Fnord.TestCase, async: false
   alias AI.Model.OpenAI
 
   describe "named profiles" do

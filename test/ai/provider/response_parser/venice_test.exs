@@ -10,7 +10,7 @@ defmodule AI.Provider.ResponseParser.VeniceTest do
     inspected error map.
   """
 
-  use ExUnit.Case
+  use Fnord.TestCase, async: false
   alias AI.Provider.ResponseParser.Venice, as: Parser
 
   describe "parse_success/1" do

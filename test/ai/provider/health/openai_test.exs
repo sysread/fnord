@@ -5,7 +5,7 @@ defmodule AI.Provider.Health.OpenAITest do
   exercise every branch without making a real call.
   """
 
-  use ExUnit.Case
+  use Fnord.TestCase, async: false
   alias AI.Provider.Health.OpenAI, as: Health
 
   setup do

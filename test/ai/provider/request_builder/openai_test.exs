@@ -8,7 +8,7 @@ defmodule AI.Provider.RequestBuilder.OpenAITest do
   going through the HTTP layer at all.
   """
 
-  use ExUnit.Case
+  use Fnord.TestCase, async: false
   alias AI.Model
   alias AI.Provider.RequestBuilder.OpenAI, as: Builder
 

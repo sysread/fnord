@@ -1,5 +1,5 @@
 defmodule AI.EndpointCatchAllTest do
-  use ExUnit.Case
+  use Fnord.TestCase, async: false
 
   setup do
     # Stub Http.post_json/3 to return a transport_error tuple

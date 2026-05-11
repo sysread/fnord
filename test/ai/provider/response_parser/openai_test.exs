@@ -8,7 +8,7 @@ defmodule AI.Provider.ResponseParser.OpenAITest do
   triggers compaction in `AI.Completion`).
   """
 
-  use ExUnit.Case
+  use Fnord.TestCase, async: false
   alias AI.Provider.ResponseParser.OpenAI, as: Parser
 
   describe "parse_success/1" do
