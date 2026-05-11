@@ -34,6 +34,7 @@ defmodule AI.Model.OpenAI do
           context: non_neg_integer,
           reasoning: atom,
           verbosity: atom | nil,
+          max_tokens: pos_integer | nil,
           supports_reasoning: boolean,
           supports_web_search: boolean
         }
