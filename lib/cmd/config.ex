@@ -190,7 +190,7 @@ defmodule Cmd.Config do
           ],
           provider: [
             name: "provider",
-            about: "Inspect or switch the active AI provider (openai, venice, inception)",
+            about: "Inspect or switch the active AI provider (openai, venice, deepseek)",
             subcommands: [
               list: [
                 name: "list",
@@ -203,7 +203,7 @@ defmodule Cmd.Config do
                 args: [
                   provider: [
                     value_name: "PROVIDER",
-                    help: "Provider key (one of: openai, venice, inception)",
+                    help: "Provider key (one of: openai, venice, deepseek)",
                     required: true
                   ]
                 ],

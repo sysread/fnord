@@ -1,25 +1,23 @@
-defmodule AI.Provider.Health.InceptionTest do
+defmodule AI.Provider.Health.DeepSeekTest do
   @moduledoc """
-  Health-check tests for the Inception Labs provider. Mirrors the
-  OpenAI/Venice shape; Inception is OpenAI-API-compatible at the
-  /v1/models endpoint.
+  Health-check tests for the DeepSeek provider.
   """
 
   use Fnord.TestCase, async: false
-  alias AI.Provider.Health.Inception, as: Health
+  alias AI.Provider.Health.DeepSeek, as: Health
 
   setup do
     :ok = :meck.new(Http, [:no_link, :passthrough])
     on_exit(fn -> :meck.unload(Http) end)
 
-    System.put_env("FNORD_INCEPTION_API_KEY", "test-key")
-    on_exit(fn -> System.delete_env("FNORD_INCEPTION_API_KEY") end)
+    System.put_env("FNORD_DEEPSEEK_API_KEY", "test-key")
+    on_exit(fn -> System.delete_env("FNORD_DEEPSEEK_API_KEY") end)
     :ok
   end
 
   test "{:ok, body} with a data array reports model count" do
     :meck.expect(Http, :get, fn _url, _headers ->
-      {:ok, ~s({"data": [{"id":"mercury-2"}]})}
+      {:ok, ~s({"data": [{"id":"deepseek-v4-flash"}]})}
     end)
 
     assert {:ok, %{model_count: 1}} = Health.check()
@@ -46,8 +44,8 @@ defmodule AI.Provider.Health.InceptionTest do
   end
 
   test "missing API key reports :missing_api_key" do
-    System.delete_env("FNORD_INCEPTION_API_KEY")
-    System.delete_env("INCEPTION_API_KEY")
+    System.delete_env("FNORD_DEEPSEEK_API_KEY")
+    System.delete_env("DEEPSEEK_API_KEY")
     assert {:error, :missing_api_key, _} = Health.check()
   end
 end

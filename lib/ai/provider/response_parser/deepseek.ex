@@ -1,27 +1,18 @@
-defmodule AI.Provider.ResponseParser.Inception do
+defmodule AI.Provider.ResponseParser.DeepSeek do
   @moduledoc """
-  Inception Labs implementation of the `AI.Provider.ResponseParser`
-  behaviour.
+  DeepSeek implementation of the `AI.Provider.ResponseParser` behaviour.
 
-  Inception is OpenAI-API-compatible at the response shape:
-
-      %{
-        "choices" => [%{"message" => %{...}}],
-        "usage" => %{"total_tokens" => N, ...}
-      }
-
-  The parser mirrors the OpenAI parser at the success path. On the
-  error path, 429s are surfaced as typed `:throttled` errors and
-  502/503/504 as `:api_unavailable`; other shapes pass through as a
-  structured map.
+  DeepSeek is OpenAI-API-compatible at the response shape: `choices`,
+  `message`, `usage`. The parser mirrors the OpenAI parser at the
+  success path; on the error path, 429s surface as typed `:throttled`
+  and 502/503/504 as `:api_unavailable`.
 
   ## Differences from the OpenAI parser
 
-  - No `context_length_exceeded` extraction. Inception's out-of-context
+  - No `context_length_exceeded` extraction. DeepSeek's out-of-context
     error format has not been observed yet; when one is captured, wire
     up the extraction here.
-  - No Cloudflare-plaintext fallback. Inception does not document a
-    Cloudflare-fronted path.
+  - No Cloudflare-plaintext fallback path.
   """
 
   @behaviour AI.Provider.ResponseParser
@@ -36,8 +27,6 @@ defmodule AI.Provider.ResponseParser.Inception do
     parse_http_error_body(http_status, body)
   end
 
-  # Defensive catch-all for non-binary bodies. Mirrors the OpenAI and
-  # Venice parsers' behavior.
   def parse_error(http_status, body) do
     {:error, %{http_status: http_status, error: inspect(body, pretty: true)}}
   end
@@ -79,9 +68,6 @@ defmodule AI.Provider.ResponseParser.Inception do
   defp parse_http_error_body(503, reason), do: {:error, :api_unavailable, reason}
   defp parse_http_error_body(504, reason), do: {:error, :api_unavailable, reason}
 
-  # 429 reaches the parser only after `AI.Endpoint`'s retry harness has
-  # given up; surface as a typed `:throttled` error so callers can
-  # pattern-match instead of treating it as a generic map error.
   defp parse_http_error_body(429, json_error_string) do
     reason =
       case SafeJson.decode(json_error_string) do

@@ -56,7 +56,7 @@ defmodule AI.Provider do
   The set of provider keys this build understands.
   """
   @spec known_providers() :: [provider_key]
-  def known_providers, do: ["openai", "venice", "inception"]
+  def known_providers, do: ["openai", "venice", "deepseek"]
 
   @doc """
   Resolve and persist the active provider for this invocation.
@@ -137,7 +137,7 @@ defmodule AI.Provider do
     case current() do
       "openai" -> AI.Endpoint.OpenAI
       "venice" -> AI.Endpoint.Venice
-      "inception" -> AI.Endpoint.Inception
+      "deepseek" -> AI.Endpoint.DeepSeek
       other -> unknown_provider(:endpoint, other)
     end
   end
@@ -146,7 +146,7 @@ defmodule AI.Provider do
     case current() do
       "openai" -> AI.Model.OpenAI
       "venice" -> AI.Model.Venice
-      "inception" -> AI.Model.Inception
+      "deepseek" -> AI.Model.DeepSeek
       other -> unknown_provider(:model, other)
     end
   end
@@ -155,7 +155,7 @@ defmodule AI.Provider do
     case current() do
       "openai" -> AI.Provider.RequestBuilder.OpenAI
       "venice" -> AI.Provider.RequestBuilder.Venice
-      "inception" -> AI.Provider.RequestBuilder.Inception
+      "deepseek" -> AI.Provider.RequestBuilder.DeepSeek
       other -> unknown_provider(:request_builder, other)
     end
   end
@@ -164,7 +164,7 @@ defmodule AI.Provider do
     case current() do
       "openai" -> AI.Provider.ResponseParser.OpenAI
       "venice" -> AI.Provider.ResponseParser.Venice
-      "inception" -> AI.Provider.ResponseParser.Inception
+      "deepseek" -> AI.Provider.ResponseParser.DeepSeek
       other -> unknown_provider(:response_parser, other)
     end
   end
@@ -173,7 +173,7 @@ defmodule AI.Provider do
     case current() do
       "openai" -> AI.Provider.WebSearch.OpenAI
       "venice" -> AI.Provider.WebSearch.Venice
-      "inception" -> AI.Provider.WebSearch.Inception
+      "deepseek" -> AI.Provider.WebSearch.DeepSeek
       other -> unknown_provider(:web_search, other)
     end
   end
@@ -182,7 +182,7 @@ defmodule AI.Provider do
     case current() do
       "openai" -> AI.Provider.Health.OpenAI
       "venice" -> AI.Provider.Health.Venice
-      "inception" -> AI.Provider.Health.Inception
+      "deepseek" -> AI.Provider.Health.DeepSeek
       other -> unknown_provider(:health, other)
     end
   end

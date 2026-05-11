@@ -1,0 +1,91 @@
+defmodule AI.Provider.RequestBuilder.DeepSeek do
+  @moduledoc """
+  DeepSeek implementation of the `AI.Provider.RequestBuilder` behaviour.
+
+  DeepSeek is OpenAI-API-compatible at the chat-completions surface:
+  `model`, `messages`, `tools`, `response_format`, `reasoning_effort`
+  (for reasoning models). No `verbosity` knob, no `web_search_options`.
+
+  ## API key resolution
+
+  Reads `FNORD_DEEPSEEK_API_KEY` first, falling back to
+  `DEEPSEEK_API_KEY`. Same fnord-prefix-wins pattern the other
+  providers use.
+
+  ## System role
+
+  DeepSeek's chat-completions API follows the legacy `system` role
+  convention.
+  """
+
+  @behaviour AI.Provider.RequestBuilder
+
+  @impl AI.Provider.RequestBuilder
+  def api_key!() do
+    ["FNORD_DEEPSEEK_API_KEY", "DEEPSEEK_API_KEY"]
+    |> Enum.find_value(fn k -> Util.Env.get_env(k, nil) end)
+    |> case do
+      nil ->
+        raise "Either FNORD_DEEPSEEK_API_KEY or DEEPSEEK_API_KEY environment variable must be set"
+
+      api_key ->
+        api_key
+    end
+  end
+
+  @impl AI.Provider.RequestBuilder
+  def system_role(), do: "system"
+
+  @impl AI.Provider.RequestBuilder
+  def build_headers(api_key) when is_binary(api_key) do
+    [
+      {"Authorization", "Bearer #{api_key}"},
+      {"Content-Type", "application/json"}
+    ]
+  end
+
+  @impl AI.Provider.RequestBuilder
+  def build_payload(model, msgs, tools, response_format, web_search?, _verbosity) do
+    # DeepSeek has no web-search-capable model in fnord's catalog. A
+    # caller asking for web search here is a programming error; raise
+    # at the call site rather than letting the API produce a confusing
+    # 4xx (or worse, silently succeed without searching).
+    if web_search? and not Map.get(model, :supports_web_search, false) do
+      raise ArgumentError,
+            "web_search? requested but model #{inspect(model.model)} does not " <>
+              "support web search on DeepSeek. DeepSeek has no web-search-" <>
+              "capable model today; route web search to a different provider."
+    end
+
+    response_format = response_format || %{type: "text"}
+
+    %{
+      model: model.model,
+      messages: msgs,
+      response_format: response_format
+    }
+    |> Map.merge(
+      case tools do
+        nil -> %{}
+        tools -> %{tools: tools}
+      end
+    )
+    |> Map.merge(reasoning_effort_field(model))
+  end
+
+  # Same two-gate pattern as the OpenAI / Inception builders. The
+  # capability flag must be true AND the level must map to a documented
+  # wire string; unmapped levels (`:none`, `:minimal`) fall through to
+  # omission rather than guessing.
+  @spec reasoning_effort_field(AI.Model.t()) :: map
+  defp reasoning_effort_field(%{supports_reasoning: false}), do: %{}
+
+  defp reasoning_effort_field(%{reasoning: level}) do
+    case level do
+      :low -> %{reasoning_effort: "low"}
+      :medium -> %{reasoning_effort: "medium"}
+      :high -> %{reasoning_effort: "high"}
+      _ -> %{}
+    end
+  end
+end

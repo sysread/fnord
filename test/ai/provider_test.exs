@@ -117,15 +117,15 @@ defmodule AI.ProviderTest do
       assert AI.Provider.module_for(:health) == AI.Provider.Health.Venice
     end
 
-    test "all kinds resolve to Inception modules when provider is inception" do
-      Services.Globals.put_env(:fnord, :ai_provider, "inception")
+    test "all kinds resolve to DeepSeek modules when provider is deepseek" do
+      Services.Globals.put_env(:fnord, :ai_provider, "deepseek")
 
-      assert AI.Provider.module_for(:endpoint) == AI.Endpoint.Inception
-      assert AI.Provider.module_for(:model) == AI.Model.Inception
-      assert AI.Provider.module_for(:request_builder) == AI.Provider.RequestBuilder.Inception
-      assert AI.Provider.module_for(:response_parser) == AI.Provider.ResponseParser.Inception
-      assert AI.Provider.module_for(:web_search) == AI.Provider.WebSearch.Inception
-      assert AI.Provider.module_for(:health) == AI.Provider.Health.Inception
+      assert AI.Provider.module_for(:endpoint) == AI.Endpoint.DeepSeek
+      assert AI.Provider.module_for(:model) == AI.Model.DeepSeek
+      assert AI.Provider.module_for(:request_builder) == AI.Provider.RequestBuilder.DeepSeek
+      assert AI.Provider.module_for(:response_parser) == AI.Provider.ResponseParser.DeepSeek
+      assert AI.Provider.module_for(:web_search) == AI.Provider.WebSearch.DeepSeek
+      assert AI.Provider.module_for(:health) == AI.Provider.Health.DeepSeek
     end
   end
 
@@ -145,20 +145,17 @@ defmodule AI.ProviderTest do
       assert AI.Provider.system_role() == "system"
     end
 
-    test "inception resolves to \"system\"" do
-      # Inception's chat-completions API explicitly rejects
-      # `developer`-role messages. Only legacy roles are accepted:
-      # {'assistant', 'system', 'tool', 'user', 'function'}.
-      Services.Globals.put_env(:fnord, :ai_provider, "inception")
+    test "deepseek resolves to \"system\"" do
+      Services.Globals.put_env(:fnord, :ai_provider, "deepseek")
       assert AI.Provider.system_role() == "system"
     end
   end
 
   describe "known_providers/0" do
-    test "openai, venice, and inception are in the known set" do
+    test "openai, venice, and deepseek are in the known set" do
       assert "openai" in AI.Provider.known_providers()
       assert "venice" in AI.Provider.known_providers()
-      assert "inception" in AI.Provider.known_providers()
+      assert "deepseek" in AI.Provider.known_providers()
     end
   end
 

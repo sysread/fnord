@@ -34,13 +34,13 @@ defmodule Services.ProviderConcurrencyTest do
       limits = ProviderConcurrency.limits()
       assert Map.has_key?(limits, "openai")
       assert Map.has_key?(limits, "venice")
-      assert Map.has_key?(limits, "inception")
+      assert Map.has_key?(limits, "deepseek")
 
-      # OpenAI is intentionally uncapped; Venice and Inception are
+      # OpenAI is intentionally uncapped; Venice and DeepSeek are
       # finite positive integers.
       assert limits["openai"] == :infinity
       assert is_integer(limits["venice"]) and limits["venice"] > 0
-      assert is_integer(limits["inception"]) and limits["inception"] > 0
+      assert is_integer(limits["deepseek"]) and limits["deepseek"] > 0
     end
   end
 end

@@ -21,8 +21,8 @@ defmodule Services.ProviderConcurrency do
   Configured per-provider via `@limits`. `:infinity` means no cap.
   Current picks:
   - openai: `:infinity` (no observed throttling under fan-out)
-  - venice: 3 (deepseek-v4-flash gets throttle-prone above this)
-  - inception: 2 (per-minute input-token budget saturates fast)
+  - venice: 3 (some models get throttle-prone above this)
+  - deepseek: 3 (start conservative; raise once we have data)
 
   Bumping limits is a one-line change in this module. If a future
   provider needs different semantics (per-model, per-key, ...) extend
@@ -44,7 +44,7 @@ defmodule Services.ProviderConcurrency do
   @limits %{
     "openai" => :infinity,
     "venice" => 3,
-    "inception" => 2
+    "deepseek" => 3
   }
 
   defstruct counts: %{}, waiters: %{}

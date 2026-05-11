@@ -1,20 +1,16 @@
-defmodule AI.Provider.ResponseParser.InceptionTest do
+defmodule AI.Provider.ResponseParser.DeepSeekTest do
   @moduledoc """
-  Behavioral tests for the Inception Labs response-parser. Inception is
-  OpenAI-API-compatible at the response shape, so the success-path
-  parsing mirrors OpenAI's. The error path has typed `:throttled` and
-  `:api_unavailable` mappings.
+  Behavioral tests for the DeepSeek response-parser. DeepSeek is
+  OpenAI-API-compatible at the response shape.
   """
 
   use Fnord.TestCase, async: false
-  alias AI.Provider.ResponseParser.Inception, as: Parser
+  alias AI.Provider.ResponseParser.DeepSeek, as: Parser
 
   describe "parse_success/1" do
     test "extracts text content and total_tokens from choices/usage" do
       body = %{
-        "choices" => [
-          %{"message" => %{"content" => "hello", "usage" => %{}}}
-        ],
+        "choices" => [%{"message" => %{"content" => "hello", "usage" => %{}}}],
         "usage" => %{"total_tokens" => 42}
       }
 
@@ -37,6 +33,15 @@ defmodule AI.Provider.ResponseParser.InceptionTest do
 
       assert {:ok, :tool, [%{id: "call_1", function: %{name: "f", arguments: "{}"}}]} =
                Parser.parse_success(body)
+    end
+
+    test "null tool_calls are not treated as present" do
+      body = %{
+        "choices" => [%{"message" => %{"content" => "hi", "tool_calls" => nil, "usage" => %{}}}],
+        "usage" => %{"total_tokens" => 5}
+      }
+
+      assert {:ok, :msg, "hi", 5} = Parser.parse_success(body)
     end
 
     test "unexpected response shape becomes a structured error" do
