@@ -26,7 +26,7 @@ defmodule AI.Endpoint do
   @type endpoint :: module()
 
   @retry_limit 3
-  @backoff_base_ms 100
+  @backoff_base_ms 500
   @backoff_cap_ms 10_000
 
   # Hard ceiling on a single retry's wait. Any provider hint (usage
@@ -291,12 +291,14 @@ defmodule AI.Endpoint do
     end
   end
 
-  # Powers-of-10 backoff with jitter (+/- 50%). At base 100ms the
-  # nominal schedule is ~100ms, ~1s, ~10s for attempts 1..3, capped at
-  # `@backoff_cap_ms`. The per-attempt order of magnitude shifts by 1
-  # each time, giving a transient overload a handful of fast retries
-  # while the third attempt waits long enough for sustained
-  # backpressure to clear.
+  # Powers-of-10 backoff with jitter (+/- 50%). At base 500ms the
+  # nominal schedule is ~500ms, ~5s, ~10s (capped) for attempts 1..3.
+  # The per-attempt order of magnitude shifts by 1 each time, giving
+  # a transient overload a single fast retry while the second and
+  # third attempts wait long enough for sustained backpressure to
+  # clear. The base was chosen empirically: at 100ms attempt 1 was
+  # fast enough to re-hammer slow upstream models (deepseek-v4-flash
+  # on Venice) before they had cleared.
   #
   # The wide jitter range (0.5x..1.5x) is intentional: when many
   # callers hit the same upstream throttle simultaneously (parallel
