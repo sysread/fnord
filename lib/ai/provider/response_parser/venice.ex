@@ -58,6 +58,15 @@ defmodule AI.Provider.ResponseParser.Venice do
     parse_http_error_body(http_status, body)
   end
 
+  # Defensive catch-all for non-binary bodies (test mocks, future
+  # refactors, or transport layers that decode the body before handing
+  # it to the parser). Without this clause a non-binary body produces a
+  # `FunctionClauseError` rather than the typed error tuple downstream
+  # callers expect.
+  def parse_error(http_status, body) do
+    {:error, %{http_status: http_status, error: inspect(body, pretty: true)}}
+  end
+
   # ---------------------------------------------------------------------------
   # Success-path body walking.
   #

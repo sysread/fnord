@@ -37,6 +37,16 @@ defmodule AI.Provider.Health.VeniceTest do
     assert msg =~ "insufficient balance"
   end
 
+  test "5xx reports :other" do
+    :meck.expect(Http, :get, fn _url, _headers -> {:http_error, {503, "Down"}} end)
+    assert {:error, :other, _} = Health.check()
+  end
+
+  test "{:ok, body} with an unexpected shape becomes :other" do
+    :meck.expect(Http, :get, fn _url, _headers -> {:ok, ~s({"surprise": true})} end)
+    assert {:error, :other, _} = Health.check()
+  end
+
   test "transport error reports :unreachable" do
     :meck.expect(Http, :get, fn _url, _headers -> {:transport_error, :timeout} end)
     assert {:error, :unreachable, _} = Health.check()

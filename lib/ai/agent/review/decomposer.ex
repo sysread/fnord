@@ -125,6 +125,14 @@ defmodule AI.Agent.Review.Decomposer do
   that must remain true for callers up, callees down, and any disjoint code paths
   that depend on the impacted state.
 
+  ## Schema reset
+
+  IMPORTANT: a previous step in this pipeline produced a JSON object with
+  fields like `points`, `reasoning`, `git_range`, `diff_stat`, `exclude_paths`,
+  and `exclude_reasoning`. THAT WAS A DIFFERENT SCHEMA FOR A DIFFERENT STEP.
+  Disregard it entirely. This step uses the constraints schema below; the
+  ONLY top-level field you should emit is `constraints`.
+
   ## Output requirements
 
   Produce a JSON object that lists each constraint with:
@@ -137,6 +145,7 @@ defmodule AI.Agent.Review.Decomposer do
     message line
 
   The output must cover the complete contract surface for this change.
+  Top-level JSON must be `{"constraints": [...]}` - nothing else.
   """
 
   @constraints_format %{
@@ -186,6 +195,14 @@ defmodule AI.Agent.Review.Decomposer do
   Based on your complexity estimate and understanding of the change, partition it
   into review units of approximately 3 scrum points each.
 
+  ## Schema reset
+
+  IMPORTANT: previous steps in this pipeline produced JSON objects with
+  different schemas (`points`/`reasoning`/... for the estimate step,
+  `constraints` for the constraints step). DISREGARD THOSE SCHEMAS. This
+  step uses the partition schema below; the ONLY top-level field you
+  should emit is `review_units`.
+
   ## Rules
 
   1. Each review unit must be a self-contained briefing string that a Reviewer
@@ -210,6 +227,7 @@ defmodule AI.Agent.Review.Decomposer do
   Produce a JSON object with a `review_units` array. Each element in the array
   is ONE review unit as a single string. You MUST produce at least 2 separate
   array elements - do NOT concatenate multiple units into one string.
+  Top-level JSON must be `{"review_units": [...]}` - nothing else.
   """
 
   @synthesis_prompt """

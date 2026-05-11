@@ -319,9 +319,11 @@ defmodule AI.Completion do
   end
 
   defp handle_response({:error, :api_unavailable, reason}, _state) do
+    # Surface the active provider's name in the error so users on
+    # Venice don't see "OpenAI API is unavailable" and vice versa.
     {:error,
      """
-     The OpenAI API is currently unavailable. Please try again later.
+     The #{AI.Provider.current()} API is currently unavailable. Please try again later.
      Error message: #{reason}
      """}
   end

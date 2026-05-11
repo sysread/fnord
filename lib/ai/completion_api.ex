@@ -168,6 +168,15 @@ defmodule AI.CompletionAPI do
         UI.error("HTTP error from upstream: #{msg}")
         err
 
+      {:error, %{error: detail}} = err when is_binary(detail) ->
+        # Same friendly logging for the alternate error shape that the
+        # parsers produce when the body is plaintext or has an
+        # unexpected JSON shape (no `message` key). Without this clause
+        # the operator sees nothing in the terminal until the
+        # orchestration layer renders the error map.
+        UI.error("HTTP error from upstream: #{detail}")
+        err
+
       other ->
         other
     end
