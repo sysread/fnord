@@ -83,6 +83,18 @@ defmodule AI.Provider.RequestBuilder.OpenAITest do
       refute Map.has_key?(payload, :verbosity)
     end
 
+    test "max_tokens emitted when set on the model profile" do
+      model = Model.new("m", 1024, :none, max_tokens: 8192)
+      payload = Builder.build_payload(model, [], nil, nil, false, nil)
+      assert payload[:max_tokens] == 8192
+    end
+
+    test "max_tokens omitted when nil on the model profile" do
+      model = Model.new("m", 1024)
+      payload = Builder.build_payload(model, [], nil, nil, false, nil)
+      refute Map.has_key?(payload, :max_tokens)
+    end
+
     test "tools field present when tools are passed" do
       model = Model.new("m", 1024)
       tools = [%{type: "function", function: %{name: "x"}}]

@@ -17,6 +17,11 @@ defmodule AI.Model do
   - `:supports_web_search` - capability flag: can the model perform a web
     search as part of its response? When false, requesting web search
     against this model is a caller bug and the request builder fails fast.
+  - `:max_tokens` - optional ceiling on the response length the provider
+    will produce. `nil` means "let the provider pick its default."
+    Provider request builders emit this as a top-level `max_tokens`
+    field when set; providers that don't support the knob may ignore
+    or reject it (so set per-profile, not blindly across the catalog).
 
   ## Why capability flags live on the model
 
@@ -43,6 +48,10 @@ defmodule AI.Model do
     :context,
     :reasoning,
     :verbosity,
+    # Optional per-profile response-length ceiling. `nil` means "no
+    # explicit cap" and the provider picks its default. Set per-profile
+    # via the `max_tokens:` opt to `new/N`.
+    :max_tokens,
     # Capability flags. Default to `false` in `new/N`; profile factories
     # opt in by passing the appropriate options. A conservative default is
     # the safer choice: an unknown model is assumed to lack a capability
@@ -72,6 +81,7 @@ defmodule AI.Model do
           context: non_neg_integer,
           reasoning: reasoning_level,
           verbosity: verbosity_level | nil,
+          max_tokens: pos_integer | nil,
           supports_reasoning: boolean,
           supports_web_search: boolean
         }
@@ -92,6 +102,7 @@ defmodule AI.Model do
       context: context,
       reasoning: reasoning,
       verbosity: nil,
+      max_tokens: Keyword.get(opts, :max_tokens),
       supports_reasoning: Keyword.get(opts, :supports_reasoning, false),
       supports_web_search: Keyword.get(opts, :supports_web_search, false)
     }

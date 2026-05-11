@@ -119,7 +119,15 @@ defmodule AI.Provider.RequestBuilder.OpenAI do
         %{}
       end
     )
+    |> Map.merge(max_tokens_field(model))
   end
+
+  # Optional per-profile response-length ceiling. Emitted when the
+  # `AI.Model.t` carries a `:max_tokens` value; nil means "no cap" and
+  # the field is omitted so the provider uses its default.
+  @spec max_tokens_field(AI.Model.t()) :: map
+  defp max_tokens_field(%{max_tokens: n}) when is_integer(n) and n > 0, do: %{max_tokens: n}
+  defp max_tokens_field(_), do: %{}
 
   # Resolve the reasoning_effort field for the request payload.
   #

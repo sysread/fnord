@@ -88,7 +88,15 @@ defmodule AI.Provider.RequestBuilder.DeepSeek do
       end
     )
     |> Map.merge(thinking_field(model))
+    |> Map.merge(max_tokens_field(model))
   end
+
+  # Optional per-profile response-length ceiling. Emitted when the
+  # `AI.Model.t` carries a `:max_tokens` value; nil means "no cap"
+  # and DeepSeek uses its default.
+  @spec max_tokens_field(AI.Model.t()) :: map
+  defp max_tokens_field(%{max_tokens: n}) when is_integer(n) and n > 0, do: %{max_tokens: n}
+  defp max_tokens_field(_), do: %{}
 
   # DeepSeek's reasoning dial is two settings, not a sliding scale:
   #
