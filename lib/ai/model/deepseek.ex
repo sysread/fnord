@@ -38,20 +38,25 @@ defmodule AI.Model.DeepSeek do
   def web_search(), do: deepseek_v4_flash(:none)
 
   @impl AI.Model.Provider
-  def coding(), do: deepseek_v4_flash(:medium)
+  def coding(), do: deepseek_v4_flash(:low)
 
   @impl AI.Model.Provider
   def large_context(:smart), do: deepseek_v4_flash(:high)
   def large_context(:balanced), do: deepseek_v4_flash(:medium)
-  def large_context(:fast), do: deepseek_v4_flash(:low)
+  def large_context(:fast), do: deepseek_v4_flash(:none)
 
   # deepseek-v4-flash: 1M context, reasoning-capable. No provider-native
   # web search - the WebSearch.DeepSeek behaviour returns an unsupported
   # error so callers can route web search to a different provider.
-  def deepseek_v4_flash(reasoning \\ :medium) do
+  #
+  # `max_tokens` is optional; nil leaves DeepSeek's default in play
+  # (8192 at time of writing). Pass an integer to set a per-profile
+  # response cap.
+  def deepseek_v4_flash(reasoning \\ :medium, max_tokens \\ nil) do
     AI.Model.new("deepseek-v4-flash", 1_000_000, reasoning,
       supports_reasoning: true,
-      supports_web_search: false
+      supports_web_search: false,
+      max_tokens: max_tokens
     )
   end
 end
