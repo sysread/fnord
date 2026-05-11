@@ -83,16 +83,16 @@ defmodule AI.Model.Venice do
   def smarter(), do: venice_coding(:high)
 
   @impl AI.Model.Provider
-  def smart(), do: venice_default(:low)
+  def smart(), do: venice_coding(:low)
 
   @impl AI.Model.Provider
   def balanced(), do: venice_default(:none)
 
   @impl AI.Model.Provider
-  def fast(), do: venice_fast(:low)
+  def fast(), do: venice_fast()
 
   @impl AI.Model.Provider
-  def web_search(), do: venice_fast(:low)
+  def web_search(), do: venice_fast()
 
   # Venice ships a coding-tuned profile (instruct-style training
   # optimized for code generation). The user's pick in
@@ -126,28 +126,28 @@ defmodule AI.Model.Venice do
   # model; the supportsReasoningEffort flag in /api/v1/models reports
   # whether the level is *tunable* on that model, not whether the field
   # is accepted.
-  def venice_default(reasoning \\ :medium) do
+  def venice_default(reasoning \\ :low) do
     AI.Model.new("qwen-3-6-plus", 1_000_000, reasoning,
       supports_reasoning: true,
       supports_web_search: true
     )
   end
 
-  def venice_coding(reasoning \\ :medium) do
+  def venice_coding(reasoning \\ :low) do
     AI.Model.new("kimi-k2-6", 256_000, reasoning,
       supports_reasoning: true,
       supports_web_search: true
     )
   end
 
-  def venice_fast(reasoning \\ :medium) do
+  def venice_fast(reasoning \\ :low) do
     AI.Model.new("mercury-2", 128_000, reasoning,
       supports_reasoning: true,
       supports_web_search: true
     )
   end
 
-  def venice_long_context(reasoning \\ :medium) do
+  def venice_long_context(reasoning \\ :low) do
     AI.Model.new("deepseek-v4-flash", 1_000_000, reasoning,
       supports_reasoning: true,
       supports_web_search: true
