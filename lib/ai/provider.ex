@@ -56,7 +56,7 @@ defmodule AI.Provider do
   The set of provider keys this build understands.
   """
   @spec known_providers() :: [provider_key]
-  def known_providers, do: ["openai", "venice"]
+  def known_providers, do: ["openai", "venice", "inception"]
 
   @doc """
   Resolve and persist the active provider for this invocation.
@@ -137,6 +137,7 @@ defmodule AI.Provider do
     case current() do
       "openai" -> AI.Endpoint.OpenAI
       "venice" -> AI.Endpoint.Venice
+      "inception" -> AI.Endpoint.Inception
       other -> unknown_provider(:endpoint, other)
     end
   end
@@ -145,6 +146,7 @@ defmodule AI.Provider do
     case current() do
       "openai" -> AI.Model.OpenAI
       "venice" -> AI.Model.Venice
+      "inception" -> AI.Model.Inception
       other -> unknown_provider(:model, other)
     end
   end
@@ -153,6 +155,7 @@ defmodule AI.Provider do
     case current() do
       "openai" -> AI.Provider.RequestBuilder.OpenAI
       "venice" -> AI.Provider.RequestBuilder.Venice
+      "inception" -> AI.Provider.RequestBuilder.Inception
       other -> unknown_provider(:request_builder, other)
     end
   end
@@ -161,6 +164,7 @@ defmodule AI.Provider do
     case current() do
       "openai" -> AI.Provider.ResponseParser.OpenAI
       "venice" -> AI.Provider.ResponseParser.Venice
+      "inception" -> AI.Provider.ResponseParser.Inception
       other -> unknown_provider(:response_parser, other)
     end
   end
@@ -169,6 +173,7 @@ defmodule AI.Provider do
     case current() do
       "openai" -> AI.Provider.WebSearch.OpenAI
       "venice" -> AI.Provider.WebSearch.Venice
+      "inception" -> AI.Provider.WebSearch.Inception
       other -> unknown_provider(:web_search, other)
     end
   end
@@ -177,6 +182,7 @@ defmodule AI.Provider do
     case current() do
       "openai" -> AI.Provider.Health.OpenAI
       "venice" -> AI.Provider.Health.Venice
+      "inception" -> AI.Provider.Health.Inception
       other -> unknown_provider(:health, other)
     end
   end

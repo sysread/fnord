@@ -123,6 +123,7 @@ The `FNORD_`-prefixed override takes precedence over the canonical name, so you 
 | --- | --- | --- |
 | OpenAI | `FNORD_OPENAI_API_KEY` | `OPENAI_API_KEY` |
 | Venice | `FNORD_VENICE_API_KEY` | `VENICE_API_KEY` |
+| Inception | `FNORD_INCEPTION_API_KEY` | `INCEPTION_API_KEY` |
 
 ## Settings structure
 
