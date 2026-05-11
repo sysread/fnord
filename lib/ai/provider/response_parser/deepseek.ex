@@ -40,6 +40,16 @@ defmodule AI.Provider.ResponseParser.DeepSeek do
     |> get_response()
   end
 
+  # Tool calls with reasoning_content - DeepSeek thinking-mode models
+  # include reasoning_content alongside the tool_calls when they
+  # decide to invoke a tool. The reasoning_content MUST be round-
+  # tripped on the next request, just like for plain content
+  # responses; without it DeepSeek 400s on the continuation.
+  defp get_response(%{"tool_calls" => tool_calls, "reasoning_content" => rc})
+       when not is_nil(tool_calls) and is_binary(rc) and rc != "" do
+    {:ok, :tool, Enum.map(tool_calls, &get_tool_call/1), rc}
+  end
+
   defp get_response(%{"tool_calls" => tool_calls}) when not is_nil(tool_calls) do
     {:ok, :tool, Enum.map(tool_calls, &get_tool_call/1)}
   end

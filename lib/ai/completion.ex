@@ -51,7 +51,14 @@ defmodule AI.Completion do
     # sub-agents that keep deciding to "check one more thing" without
     # emitting a final response. See maybe_nudge_wrap_up/1.
     :tool_round_count,
-    :tool_round_cap
+    :tool_round_cap,
+    # Holds the `reasoning_content` field from the most recent
+    # `{:ok, :tool, ...}` response, if the active provider surfaced
+    # one (DeepSeek thinking-mode). `handle_tool_call/2` attaches it
+    # to the assistant tool-call message it builds so DeepSeek's
+    # round-trip requirement is satisfied on the continuation. Cleared
+    # back to nil at the top of each tool round.
+    :pending_reasoning_content
   ]
 
   @type t :: %__MODULE__{
@@ -74,6 +81,7 @@ defmodule AI.Completion do
           is_compacting?: bool,
           initial_message_count: non_neg_integer(),
           tool_round_count: non_neg_integer(),
+          pending_reasoning_content: binary | nil,
           tool_round_cap: pos_integer()
         }
 
@@ -172,7 +180,8 @@ defmodule AI.Completion do
           is_compacting?: false,
           initial_message_count: initial_message_count,
           tool_round_count: 0,
-          tool_round_cap: resolve_tool_round_cap()
+          tool_round_cap: resolve_tool_round_cap(),
+          pending_reasoning_content: nil
         }
 
       {:ok, state}
@@ -306,6 +315,23 @@ defmodule AI.Completion do
     state
     |> Map.put(:is_compacting?, false)
     |> Map.put(:tool_call_requests, tool_calls)
+    |> Map.put(:pending_reasoning_content, nil)
+    |> Map.update(:tool_round_count, 1, &(&1 + 1))
+    |> handle_tool_calls()
+    |> maybe_apply_interrupts()
+    |> maybe_nudge_wrap_up()
+    |> send_request()
+  end
+
+  # 4-tuple variant: provider surfaced reasoning_content alongside the
+  # tool_calls (DeepSeek thinking-mode). Stash the reasoning_content on
+  # state so `handle_tool_call/2` can attach it to the assistant tool-
+  # call message it constructs.
+  defp handle_response({:ok, :tool, tool_calls, reasoning_content}, state) do
+    state
+    |> Map.put(:is_compacting?, false)
+    |> Map.put(:tool_call_requests, tool_calls)
+    |> Map.put(:pending_reasoning_content, reasoning_content)
     |> Map.update(:tool_round_count, 1, &(&1 + 1))
     |> handle_tool_calls()
     |> maybe_apply_interrupts()
@@ -548,7 +574,12 @@ defmodule AI.Completion do
     Services.NamePool.associate_name(state.name)
 
     # Now back to your regularly scheduled programming...
-    request = AI.Util.assistant_tool_msg(id, func, args_json)
+    # Attach pending reasoning_content to the first tool-call request
+    # message in this round so DeepSeek's round-trip requirement is
+    # satisfied. Only the first matters - subsequent tool calls in the
+    # same round share the prior assistant turn's reasoning_content.
+    request =
+      AI.Util.assistant_tool_msg(id, func, args_json, state.pending_reasoning_content)
 
     with {:ok, output} <- perform_tool_call(state, func, args_json) do
       if state.archive_notes do

@@ -408,6 +408,22 @@ defmodule AI.Util do
     }
   end
 
+  @doc """
+  Tool call message with a `reasoning_content` field attached.
+
+  DeepSeek's thinking-mode models surface chain-of-thought on tool-
+  call responses too, not just plain content responses. The field
+  MUST be round-tripped on the continuation or DeepSeek rejects.
+  """
+  @spec assistant_tool_msg(binary, binary, binary, binary | nil) :: map
+  def assistant_tool_msg(id, func, args, nil), do: assistant_tool_msg(id, func, args)
+
+  def assistant_tool_msg(id, func, args, reasoning_content)
+      when is_binary(reasoning_content) do
+    assistant_tool_msg(id, func, args)
+    |> Map.put(:reasoning_content, reasoning_content)
+  end
+
   defp validate_msg_length(%{content: content} = msg) when is_binary(content) do
     if String.length(content) > @max_msg_length do
       warning = "(msg truncated due to size)"

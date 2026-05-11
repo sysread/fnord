@@ -76,6 +76,47 @@ defmodule AI.Provider.ResponseParser.DeepSeekTest do
       assert {:ok, :msg, "answer", 10} = Parser.parse_success(body_empty)
     end
 
+    test "tool_calls with reasoning_content surfaces as a 4-tuple for round-tripping" do
+      # DeepSeek thinking-mode models attach reasoning_content to
+      # tool-call responses too. The parser must surface it so the
+      # orchestration layer can attach it to the assistant tool-call
+      # message; otherwise the continuation request 400s with
+      # "must be passed back to the API".
+      body = %{
+        "choices" => [
+          %{
+            "message" => %{
+              "reasoning_content" => "deciding which tool to call",
+              "tool_calls" => [
+                %{"id" => "call_1", "function" => %{"name" => "f", "arguments" => "{}"}}
+              ]
+            }
+          }
+        ],
+        "usage" => %{"total_tokens" => 50}
+      }
+
+      assert {:ok, :tool, [%{id: "call_1"} | _], "deciding which tool to call"} =
+               Parser.parse_success(body)
+    end
+
+    test "tool_calls without reasoning_content remains a 3-tuple" do
+      body = %{
+        "choices" => [
+          %{
+            "message" => %{
+              "tool_calls" => [
+                %{"id" => "call_2", "function" => %{"name" => "g", "arguments" => "{}"}}
+              ]
+            }
+          }
+        ],
+        "usage" => %{"total_tokens" => 10}
+      }
+
+      assert {:ok, :tool, [%{id: "call_2"} | _]} = Parser.parse_success(body)
+    end
+
     test "null tool_calls are not treated as present" do
       body = %{
         "choices" => [%{"message" => %{"content" => "hi", "tool_calls" => nil, "usage" => %{}}}],

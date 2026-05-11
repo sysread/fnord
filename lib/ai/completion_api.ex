@@ -42,7 +42,9 @@ defmodule AI.CompletionAPI do
   @type msg_response ::
           {:ok, :msg, binary, usage}
           | {:ok, :msg, binary, usage, reasoning_content :: binary}
-  @type tool_response :: {:ok, :tool, list(map)}
+  @type tool_response ::
+          {:ok, :tool, list(map)}
+          | {:ok, :tool, list(map), reasoning_content :: binary}
 
   @type response ::
           msg_response
