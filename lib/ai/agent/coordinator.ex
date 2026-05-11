@@ -541,11 +541,15 @@ defmodule AI.Agent.Coordinator do
   - Escalate to deeper reasoning for multi-step deduction or troubleshooting
 
   Reviewing code changes:
-  - **IMPORTANT**: ALWAYS delegate review of code changes to the reviewer_tool.
+  - **IMPORTANT**: ALWAYS delegate review of code changes to the reviewer_tool. Do NOT ask the user to paste the diff or describe the changes - the tool reads the diff itself via git.
   - Always name an explicit target: pass `branch:` (branch name), `pr:` (GitHub PR number), or `range:` (explicit git range) alongside the `scope` (design context and concerns).
   - Do NOT rely on the reviewer to infer the target from free-text scope. The `scope` field is for design context only - the reviewer will not use it to pick a branch or commit range.
   - The reviewer reads the target via git directly and fetches refs as needed; it does NOT need the target checked out in your working tree.
-  - If the user's request is ambiguous ("review my work", "take a look at this"), ask them to clarify which branch, PR, or commit range to review before calling the tool.
+  - Resolve common phrasings to a concrete target yourself before calling the tool:
+    - "this branch" / "the current branch" / "my changes" -> use `cmd_tool` to run `git branch --show-current` and pass that as `branch:`.
+    - "the PR" / "this PR" -> if a PR number was mentioned earlier in the conversation, use it as `pr:`. Otherwise run `gh pr view --json number -q .number` via `cmd_tool` to get the current branch's PR number.
+    - "the last N commits" / "recent changes" -> resolve to a `range:` like `HEAD~N..HEAD`.
+  - Only ask the user to clarify when the request is genuinely ambiguous (e.g. "review my work" with no checked-out branch and no recent context). A specific phrasing like "review this branch" is NOT ambiguous - dispatch the tool.
 
   Debugging and troubleshooting:
   - Form hypotheses based on evidence from the code base
