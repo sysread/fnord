@@ -57,12 +57,25 @@ defmodule AI.Provider.RequestBuilder.DeepSeekTest do
   end
 
   describe "build_payload/6" do
-    test "minimal payload contains model, default response_format, untouched messages" do
+    setup do
+      # `AI.Util.system_msg/1` consults `AI.Provider.system_role/0` -> the
+      # active provider's request builder. Pin the provider to "deepseek"
+      # so injected developer messages get the role DeepSeek expects.
+      orig = Services.Globals.get_env(:fnord, :ai_provider)
+      Services.Globals.put_env(:fnord, :ai_provider, "deepseek")
+      on_exit(fn -> Services.Globals.put_env(:fnord, :ai_provider, orig) end)
+      :ok
+    end
+
+    test "minimal payload omits response_format entirely (DeepSeek defaults to text)" do
       model = Model.new("m", 1024)
       payload = Builder.build_payload(model, [], nil, nil, false, nil)
       assert payload[:model] == "m"
       assert payload[:messages] == []
-      assert payload[:response_format] == %{type: "text"}
+      # DeepSeek's chat-completions API accepts only `text` and
+      # `json_object`. When the caller passes nil we omit the field
+      # entirely; DeepSeek's documented default is text.
+      refute Map.has_key?(payload, :response_format)
       refute Map.has_key?(payload, :tools)
       refute Map.has_key?(payload, :reasoning_effort)
       refute Map.has_key?(payload, :verbosity)
@@ -76,11 +89,45 @@ defmodule AI.Provider.RequestBuilder.DeepSeekTest do
       assert payload[:tools] == tools
     end
 
-    test "honors caller-supplied response_format verbatim" do
+    test "json_schema response_format degrades to json_object on the wire" do
+      # DeepSeek rejects json_schema with 400 ("This response_format
+      # type is unavailable now"). The builder degrades to json_object
+      # and injects the schema as a developer instruction so the
+      # caller's contract still lands at the model.
       model = Model.new("m", 1024)
-      rf = %{type: "json_schema", json_schema: %{name: "S", schema: %{}}}
+      rf = %{type: "json_schema", json_schema: %{name: "S", schema: %{type: "object"}}}
+      payload = Builder.build_payload(model, [], nil, rf, false, nil)
+      assert payload[:response_format] == %{type: "json_object"}
+      # Developer message restating the schema was appended.
+      [msg] = payload[:messages]
+      assert msg.role == "system"
+      # DeepSeek json_object mode requires the literal word "JSON" in
+      # the prompt; the injected text must include it.
+      assert msg.content =~ "JSON"
+      assert msg.content =~ ~s("type": "object")
+      assert msg.content =~ "Do not echo the schema"
+      # Schema name surfaces too.
+      assert msg.content =~ "S"
+    end
+
+    test "json_object response_format is preserved and gets a short JSON instruction" do
+      model = Model.new("m", 1024)
+      user_msg = %{role: "user", content: "hi"}
+      rf = %{type: "json_object"}
+      payload = Builder.build_payload(model, [user_msg], nil, rf, false, nil)
+      assert payload[:response_format] == %{type: "json_object"}
+      [^user_msg, instr] = payload[:messages]
+      assert instr.role == "system"
+      assert instr.content =~ "JSON"
+      refute instr.content =~ "```json"
+    end
+
+    test "text response_format is preserved with no injected instruction" do
+      model = Model.new("m", 1024)
+      rf = %{type: "text"}
       payload = Builder.build_payload(model, [], nil, rf, false, nil)
       assert payload[:response_format] == rf
+      assert payload[:messages] == []
     end
 
     test "verbosity is silently dropped (DeepSeek doesn't accept it)" do

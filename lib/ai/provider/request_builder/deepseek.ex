@@ -57,13 +57,30 @@ defmodule AI.Provider.RequestBuilder.DeepSeek do
               "capable model today; route web search to a different provider."
     end
 
-    response_format = response_format || %{type: "text"}
+    # DeepSeek's chat-completions API supports a narrower response_format
+    # set than OpenAI: `{"type": "json_object"}` is accepted, but
+    # `{"type": "json_schema", ...}` returns
+    # `"This response_format type is unavailable now"`. Degrade
+    # json_schema callers to json_object and inject a developer
+    # message with the schema text - same Venice-style workaround.
+    {wire_response_format, instruction} = adapt_response_format(response_format)
+
+    msgs =
+      case instruction do
+        nil -> msgs
+        text -> msgs ++ [AI.Util.system_msg(text)]
+      end
 
     %{
       model: model.model,
-      messages: msgs,
-      response_format: response_format
+      messages: msgs
     }
+    |> Map.merge(
+      case wire_response_format do
+        nil -> %{}
+        rf -> %{response_format: rf}
+      end
+    )
     |> Map.merge(
       case tools do
         nil -> %{}
@@ -73,10 +90,10 @@ defmodule AI.Provider.RequestBuilder.DeepSeek do
     |> Map.merge(reasoning_effort_field(model))
   end
 
-  # Same two-gate pattern as the OpenAI / Inception builders. The
-  # capability flag must be true AND the level must map to a documented
-  # wire string; unmapped levels (`:none`, `:minimal`) fall through to
-  # omission rather than guessing.
+  # Two-gate reasoning_effort emission mirroring the OpenAI/Venice
+  # builders. The capability flag must be true AND the level must map
+  # to a documented wire string; unmapped levels (`:none`, `:minimal`)
+  # fall through to omission rather than guessing.
   @spec reasoning_effort_field(AI.Model.t()) :: map
   defp reasoning_effort_field(%{supports_reasoning: false}), do: %{}
 
@@ -87,5 +104,59 @@ defmodule AI.Provider.RequestBuilder.DeepSeek do
       :high -> %{reasoning_effort: "high"}
       _ -> %{}
     end
+  end
+
+  # Translate the caller's response_format into:
+  #   - the value to send on the wire (or `nil` to omit the field
+  #     entirely)
+  #   - an optional developer-message instruction restating the
+  #     contract in prose
+  #
+  # DeepSeek accepts only `text` and `json_object`. `json_schema` is
+  # rejected with a 400 ("This response_format type is unavailable
+  # now"), so we degrade it to `json_object` on the wire and rely on
+  # the prompt instruction to convey the actual schema. `nil` caller
+  # -> omit response_format entirely (DeepSeek defaults to text).
+  @spec adapt_response_format(map | nil) :: {map | nil, binary | nil}
+  defp adapt_response_format(nil), do: {nil, nil}
+
+  defp adapt_response_format(%{type: "text"} = rf), do: {rf, nil}
+
+  defp adapt_response_format(%{type: "json_object"} = rf) do
+    {rf, json_object_instruction()}
+  end
+
+  defp adapt_response_format(%{type: "json_schema", json_schema: js}) when is_map(js) do
+    # Degrade to json_object on the wire (DeepSeek doesn't accept
+    # json_schema). Inject the schema as a developer instruction.
+    schema = Map.get(js, :schema) || Map.get(js, "schema")
+    name = Map.get(js, :name) || Map.get(js, "name")
+    {%{type: "json_object"}, json_schema_instruction(schema, name)}
+  end
+
+  defp adapt_response_format(other), do: {other, nil}
+
+  defp json_object_instruction do
+    """
+    Your response MUST be a single valid JSON value. Do not include any text outside the JSON.
+    """
+  end
+
+  defp json_schema_instruction(schema, name) do
+    name_line =
+      case name do
+        nil -> ""
+        n -> "Schema name: #{n}\n\n"
+      end
+
+    """
+    Your response MUST be a single JSON value that VALIDATES against the schema below.
+    The schema describes the SHAPE of your output - it is NOT a template to copy.
+    Return only the data instance. Do not echo the schema. No prose, no commentary.
+
+    #{name_line}```json
+    #{Jason.encode!(schema, pretty: true)}
+    ```
+    """
   end
 end
