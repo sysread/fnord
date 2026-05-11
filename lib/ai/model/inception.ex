@@ -35,19 +35,21 @@ defmodule AI.Model.Inception do
   def smart(), do: mercury_2(:medium)
 
   @impl AI.Model.Provider
-  def balanced(), do: mercury_2(:low)
+  def balanced(), do: mercury_2(:medium)
 
   @impl AI.Model.Provider
-  def fast(), do: mercury_2(:none)
+  def fast(), do: mercury_2(:instant)
 
   @impl AI.Model.Provider
-  def web_search(), do: mercury_2(:none)
+  def web_search(), do: mercury_2(:instant)
 
   @impl AI.Model.Provider
   def coding(), do: mercury_2(:low)
 
   @impl AI.Model.Provider
-  def large_context(_tier), do: mercury_2()
+  def large_context(:smart), do: mercury_2(:medium)
+  def large_context(:balanced), do: mercury_2(:low)
+  def large_context(:fast), do: mercury_2(:instant)
 
   # Single model: mercury-2 at 128K context. supports_reasoning is
   # true so the request builder emits the per-profile reasoning_effort
@@ -55,7 +57,7 @@ defmodule AI.Model.Inception do
   # provider-native web search and we do not have a sub-completion
   # search shim for Inception (callers should route to a different
   # provider for web search).
-  def mercury_2(reasoning \\ :none) do
+  def mercury_2(reasoning \\ :instant) do
     AI.Model.new("mercury-2", 128_000, reasoning,
       supports_reasoning: true,
       supports_web_search: false

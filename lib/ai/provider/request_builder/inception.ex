@@ -40,7 +40,14 @@ defmodule AI.Provider.RequestBuilder.Inception do
   end
 
   @impl AI.Provider.RequestBuilder
-  def system_role(), do: "system"
+  # Inception is OpenAI-API-compatible at the wire level. Mercury-2 is
+  # a new-generation model in the same family as OpenAI's
+  # Responses-API-era models, which prefer `developer` over the legacy
+  # `system` role. Empirically, mercury-2 was producing shallow
+  # responses that ignored attached context when role was `system`;
+  # switching to `developer` is the same fix the Venice/OpenAI split
+  # made for that class of bug.
+  def system_role(), do: "developer"
 
   @impl AI.Provider.RequestBuilder
   def build_headers(api_key) when is_binary(api_key) do
@@ -69,7 +76,8 @@ defmodule AI.Provider.RequestBuilder.Inception do
     %{
       model: model.model,
       messages: msgs,
-      response_format: response_format
+      response_format: response_format,
+      max_tokens: 50_000
     }
     |> Map.merge(
       case tools do
@@ -88,11 +96,16 @@ defmodule AI.Provider.RequestBuilder.Inception do
   #   2. The level must map to a documented wire string. Unmapped
   #      levels (e.g. `:none`) fall through to omission rather than
   #      guessing at an unsupported wire form.
+  #
+  # Mercury-2 supports a Venice-/Inception-specific `:instant` level
+  # alongside the OpenAI-standard low/medium/high. It maps to
+  # `"instant"` on the wire.
   @spec reasoning_effort_field(AI.Model.t()) :: map
   defp reasoning_effort_field(%{supports_reasoning: false}), do: %{}
 
   defp reasoning_effort_field(%{reasoning: level}) do
     case level do
+      :instant -> %{reasoning_effort: "instant"}
       :low -> %{reasoning_effort: "low"}
       :medium -> %{reasoning_effort: "medium"}
       :high -> %{reasoning_effort: "high"}

@@ -24,23 +24,27 @@ defmodule AI.Model.InceptionTest do
       assert Inception.smart().reasoning == :medium
     end
 
-    test "balanced -> mercury-2 reasoning :low" do
-      assert Inception.balanced().reasoning == :low
+    test "balanced -> mercury-2 reasoning :medium" do
+      assert Inception.balanced().reasoning == :medium
     end
 
-    test "fast -> mercury-2 reasoning :none" do
-      assert Inception.fast().reasoning == :none
+    test "fast -> mercury-2 reasoning :instant" do
+      assert Inception.fast().reasoning == :instant
     end
 
-    test "web_search -> mercury-2 reasoning :none" do
-      assert Inception.web_search().reasoning == :none
+    test "web_search -> mercury-2 reasoning :instant" do
+      assert Inception.web_search().reasoning == :instant
     end
 
     test "coding -> mercury-2 reasoning :low" do
       assert Inception.coding().reasoning == :low
     end
 
-    test "large_context tiers route through mercury-2" do
+    test "large_context tiers vary reasoning level" do
+      assert Inception.large_context(:smart).reasoning == :medium
+      assert Inception.large_context(:balanced).reasoning == :low
+      assert Inception.large_context(:fast).reasoning == :instant
+
       for tier <- [:smart, :balanced, :fast] do
         m = Inception.large_context(tier)
         assert m.model == "mercury-2"

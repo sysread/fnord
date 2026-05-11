@@ -10,8 +10,13 @@ defmodule AI.Provider.RequestBuilder.InceptionTest do
   alias AI.Provider.RequestBuilder.Inception, as: Builder
 
   describe "system_role/0" do
-    test "returns \"system\" - Inception follows the legacy role convention" do
-      assert Builder.system_role() == "system"
+    test "returns \"developer\" - Inception's mercury-2 prefers the Responses-API role" do
+      # Empirically: `system`-role messages on Inception produced
+      # shallow responses that ignored attached context. Same shape
+      # of bug Venice had inverted (Venice wants `system`, not
+      # `developer`); Inception's modern-mercury family lines up with
+      # OpenAI's developer convention.
+      assert Builder.system_role() == "developer"
     end
   end
 
@@ -58,14 +63,19 @@ defmodule AI.Provider.RequestBuilder.InceptionTest do
   end
 
   describe "build_payload/6" do
-    test "minimal payload contains model, default response_format, untouched messages" do
+    test "minimal payload contains model, default response_format, max_tokens, and untouched messages" do
       model = Model.new("m", 1024)
       payload = Builder.build_payload(model, [], nil, nil, false, nil)
       assert payload[:model] == "m"
       assert payload[:messages] == []
       assert payload[:response_format] == %{type: "text"}
-      # Inception does not accept reasoning_effort, verbosity, or
-      # web_search_options - the builder must NOT emit them.
+      # Inception's default max_tokens is 8192; we set it explicitly
+      # higher to leave headroom for code-heavy responses.
+      assert payload[:max_tokens] == 50_000
+      # Inception does not accept verbosity or web_search_options - the
+      # builder must NOT emit them. reasoning_effort is gated on the
+      # model's supports_reasoning flag (default false for a bare
+      # Model.new/2).
       refute Map.has_key?(payload, :tools)
       refute Map.has_key?(payload, :reasoning_effort)
       refute Map.has_key?(payload, :verbosity)
@@ -111,6 +121,24 @@ defmodule AI.Provider.RequestBuilder.InceptionTest do
                Builder.build_payload(m_off, [], nil, nil, false, nil),
                :reasoning_effort
              )
+    end
+
+    test ":instant reasoning level maps to wire string \"instant\"" do
+      # Inception-/mercury-2-specific level alongside the OpenAI-
+      # standard low/medium/high. Pinned here so a future cleanup that
+      # accidentally drops it shows up as a test failure rather than
+      # silently sending no reasoning hint.
+      m = Model.new("m", 1024, :instant, supports_reasoning: true)
+      assert Builder.build_payload(m, [], nil, nil, false, nil)[:reasoning_effort] == "instant"
+    end
+
+    test "low / medium / high reasoning levels map to their wire strings" do
+      for level <- [:low, :medium, :high] do
+        m = Model.new("m", 1024, level, supports_reasoning: true)
+
+        assert Builder.build_payload(m, [], nil, nil, false, nil)[:reasoning_effort] ==
+                 Atom.to_string(level)
+      end
     end
 
     test "unmapped reasoning levels (e.g. :none, :minimal) drop the reasoning_effort field" do

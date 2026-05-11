@@ -145,9 +145,13 @@ defmodule AI.ProviderTest do
       assert AI.Provider.system_role() == "system"
     end
 
-    test "inception resolves to \"system\"" do
+    test "inception resolves to \"developer\"" do
+      # Mercury-2's response shape lines up with the OpenAI Responses-
+      # API era models that prefer `developer` over the legacy
+      # `system` role. Empirically observed: `system`-role messages
+      # produced shallow responses that ignored attached context.
       Services.Globals.put_env(:fnord, :ai_provider, "inception")
-      assert AI.Provider.system_role() == "system"
+      assert AI.Provider.system_role() == "developer"
     end
   end
 
