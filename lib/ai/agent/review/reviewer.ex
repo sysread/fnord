@@ -7,12 +7,18 @@ defmodule AI.Agent.Review.Reviewer do
 
   ## Pipeline
 
-  1. **Formulate** - research the change and produce tailored prompts for each
-     specialist reviewer.
-  2. **Specialists** - five specialists (pedantic, acceptance, state flow,
+  1. **Research** - investigate the change with tools (cmd_tool,
+     file_contents_tool, etc.). No structured output; produces a free-text
+     summary of what was found.
+  2. **Formulate** - with tools disabled and a json_schema response_format,
+     produce tailored prompts for each specialist reviewer using the research
+     conversation as context. Splitting research from formulation prevents
+     the model from emitting tool-call-shaped JSON into the structured-output
+     slot.
+  3. **Specialists** - five specialists (pedantic, acceptance, state flow,
      no-slop, breadcrumbs) run in parallel, each producing structured findings
      in their domain.
-  3. **Incorporate** - confirm each finding by reading the cited code, classify
+  4. **Incorporate** - confirm each finding by reading the cited code, classify
      as CONFIRMED/REJECTED/UNVERIFIABLE, and produce the final report.
   """
 

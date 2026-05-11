@@ -6,15 +6,27 @@ defmodule AI.Model.Venice do
   abstraction for Venice. Each public factory below returns a fully-
   populated `AI.Model.t` with capability flags set.
 
-  Model selections come from `scratch/venice-models.md` (the user's
-  pre-picked Venice model preferences). All chosen models support both
-  reasoning and web search. Note that on Venice web search is enabled
-  per-request via `venice_parameters.enable_web_search` rather than
-  being gated to specific models, so in principle every Venice profile
-  could carry `supports_web_search: true`. We keep that explicit on each
-  profile rather than relying on a provider-level invariant - if Venice
-  later ships a model that does not support web search, the contract
-  still works.
+  ## Current catalog state: single-model testing
+
+  All profile factories currently route through `test_model/1`, which
+  returns `qwen-3-6-plus` (1M context) at the reasoning level the
+  caller's profile name implies. This is a deliberate consolidation
+  for end-to-end provider testing on the `venice` branch - the
+  mechanical wiring (request builder, response parser, retry harness,
+  rate limiting, role handling) is being validated against a single
+  model before the per-profile catalog is restored.
+
+  Per-profile picks (from `scratch/venice-models.md`, partial state at
+  time of writing):
+  - `smart`, `balanced`: validated on `qwen-3-6-plus`; keepers
+  - `smarter`, `coding`: originally `kimi-k2-6` at different reasoning
+    levels; revert before the branch ships
+  - `fast`, `large_context`: originally `grok-41-fast` (1M context)
+  - `web_search`: originally `qwen3-5-35b-a3b`
+
+  Restoring the per-profile catalog is a single-file change in this
+  module; the test in `test/ai/model/venice_test.exs` will need
+  matching updates.
 
   ## Reasoning effort levels
 
@@ -25,7 +37,7 @@ defmodule AI.Model.Venice do
   mapping. Venice's request builder handles them as Venice-only levels
   internally.
 
-  ## Capability matrix
+  ## Capability flags
 
   All configured Venice models reason (`supportsReasoning: true`).
   Venice's `supportsReasoningEffort` flag distinguishes models with a
@@ -40,20 +52,15 @@ defmodule AI.Model.Venice do
   (is the level tunable?). The request builder emits the field on any
   reasoning-capable model; Venice handles the rest.
 
-  | Profile        | Model id              | Context | reasoning level | web_search |
-  | -------------- | --------------------- | ------- | --------------- | ---------- |
-  | large_context  | grok-4-20     | 1M      | high/med/low    | yes        |
-
   ## Profile aliasing
 
-  `smart`, `smarter`, and `coding` all resolve to `grok-4-20` at
-  different reasoning levels. The reasoning-level dial is the only
-  thing distinguishing them; the model itself is shared. This is an
-  explicit Venice-side decision based on the user's picks, not a
-  generic property of the provider abstraction. Other providers may
-  pick different models for these roles. Do NOT add cross-profile
-  aliases (e.g. `coding == balanced`) unless the user has actually
-  picked the same model for both.
+  While the catalog is consolidated, `smart`, `smarter`, `balanced`,
+  `fast`, `web_search`, `coding`, and all `large_context` tiers
+  resolve to the same model with different reasoning levels. Profile
+  aliases (e.g. `coding == smarter` when both pick the same model)
+  are valid only when explicitly picked - this is intentional, per-
+  provider configuration, not a generic property of the abstraction.
+  Do NOT carry over OpenAI's cross-profile aliases.
 
   ## Citation handling note
 

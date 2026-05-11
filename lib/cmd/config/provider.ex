@@ -93,11 +93,19 @@ defmodule Cmd.Config.Provider do
 
   # Report which env var (if any) supplies each provider's API key.
   # We do not echo the actual value - just which name resolved.
+  #
+  # Env var names follow the per-provider convention `FNORD_<UPPER>_API_KEY`
+  # then `<UPPER>_API_KEY` (the fnord-prefixed override beats the
+  # upstream-canonical name). Deriving from `Provider.known_providers/0`
+  # rather than a hardcoded map means a new provider that follows the
+  # convention shows up here without a CLI edit. If a future provider
+  # needs non-standard env vars, promote this to a request-builder
+  # callback rather than special-casing here.
   defp env_key_status() do
-    %{
-      "openai" => env_key_for(["FNORD_OPENAI_API_KEY", "OPENAI_API_KEY"]),
-      "venice" => env_key_for(["FNORD_VENICE_API_KEY", "VENICE_API_KEY"])
-    }
+    for provider <- Provider.known_providers(), into: %{} do
+      upper = String.upcase(provider)
+      {provider, env_key_for(["FNORD_#{upper}_API_KEY", "#{upper}_API_KEY"])}
+    end
   end
 
   defp env_key_for(candidates) do

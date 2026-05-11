@@ -95,14 +95,15 @@ defmodule AI.ProviderTest do
   end
 
   describe "module_for/1" do
-    test ":endpoint resolves to AI.Endpoint.OpenAI for openai" do
+    test "all kinds resolve to OpenAI modules when provider is openai" do
       Services.Globals.put_env(:fnord, :ai_provider, "openai")
-      assert AI.Provider.module_for(:endpoint) == AI.Endpoint.OpenAI
-    end
 
-    test ":model resolves to AI.Model.OpenAI for openai" do
-      Services.Globals.put_env(:fnord, :ai_provider, "openai")
+      assert AI.Provider.module_for(:endpoint) == AI.Endpoint.OpenAI
       assert AI.Provider.module_for(:model) == AI.Model.OpenAI
+      assert AI.Provider.module_for(:request_builder) == AI.Provider.RequestBuilder.OpenAI
+      assert AI.Provider.module_for(:response_parser) == AI.Provider.ResponseParser.OpenAI
+      assert AI.Provider.module_for(:web_search) == AI.Provider.WebSearch.OpenAI
+      assert AI.Provider.module_for(:health) == AI.Provider.Health.OpenAI
     end
 
     test "all kinds resolve to Venice modules when provider is venice" do
@@ -113,6 +114,7 @@ defmodule AI.ProviderTest do
       assert AI.Provider.module_for(:request_builder) == AI.Provider.RequestBuilder.Venice
       assert AI.Provider.module_for(:response_parser) == AI.Provider.ResponseParser.Venice
       assert AI.Provider.module_for(:web_search) == AI.Provider.WebSearch.Venice
+      assert AI.Provider.module_for(:health) == AI.Provider.Health.Venice
     end
   end
 

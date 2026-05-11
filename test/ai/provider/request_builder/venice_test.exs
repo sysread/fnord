@@ -55,6 +55,17 @@ defmodule AI.Provider.RequestBuilder.VeniceTest do
   end
 
   describe "build_payload/6" do
+    setup do
+      # The builder constructs system-style messages via `AI.Util.system_msg/1`,
+      # which delegates role naming to `AI.Provider.system_role/0` -> the active
+      # provider's request builder. Pin the provider to "venice" so the role
+      # comes out as "system" rather than the OpenAI default of "developer".
+      orig = Services.Globals.get_env(:fnord, :ai_provider)
+      Services.Globals.put_env(:fnord, :ai_provider, "venice")
+      on_exit(fn -> Services.Globals.put_env(:fnord, :ai_provider, orig) end)
+      :ok
+    end
+
     test "minimal payload contains model, default response_format, strip_thinking, and untouched messages" do
       model = Model.new("m", 1024)
       payload = Builder.build_payload(model, [], nil, nil, false, nil)
@@ -88,7 +99,7 @@ defmodule AI.Provider.RequestBuilder.VeniceTest do
       rf = %{type: "json_schema", json_schema: %{name: "review_estimate", schema: %{type: "object"}}}
       payload = Builder.build_payload(model, [], nil, rf, false, nil)
       [msg] = payload[:messages]
-      assert msg.role == "developer"
+      assert msg.role == "system"
       # Schema content is present.
       assert msg.content =~ ~s("type": "object")
       # Schema name surfaces for model context.
@@ -107,7 +118,7 @@ defmodule AI.Provider.RequestBuilder.VeniceTest do
       rf = %{type: "json_object"}
       payload = Builder.build_payload(model, [user_msg], nil, rf, false, nil)
       assert [^user_msg, instr] = payload[:messages]
-      assert instr.role == "developer"
+      assert instr.role == "system"
       assert instr.content =~ "valid JSON"
       # No JSON schema dump for json_object.
       refute instr.content =~ "```json"
