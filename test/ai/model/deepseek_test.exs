@@ -38,14 +38,14 @@ defmodule AI.Model.DeepSeekTest do
       refute m.supports_web_search
     end
 
-    test "coding -> reasoning :medium" do
-      assert DeepSeek.coding().reasoning == :medium
+    test "coding -> reasoning :low" do
+      assert DeepSeek.coding().reasoning == :low
     end
 
     test "large_context tiers vary reasoning level" do
       assert DeepSeek.large_context(:smart).reasoning == :high
       assert DeepSeek.large_context(:balanced).reasoning == :medium
-      assert DeepSeek.large_context(:fast).reasoning == :low
+      assert DeepSeek.large_context(:fast).reasoning == :none
     end
   end
 

@@ -85,7 +85,7 @@ defmodule AI.Provider.RequestBuilder.DeepSeekTest do
       refute Map.has_key?(payload, :verbosity)
       refute Map.has_key?(payload, :web_search_options)
       # Capability flag-driven thinking kill switch.
-      assert payload[:thinking] == "disabled"
+      assert payload[:thinking] == %{type: "disabled"}
     end
 
     test "tools field present when tools are passed" do
@@ -169,7 +169,7 @@ defmodule AI.Provider.RequestBuilder.DeepSeekTest do
       m = Model.new("m", 1024, :none, supports_reasoning: true)
       payload = Builder.build_payload(m, [], nil, nil, false, nil)
 
-      assert payload[:thinking] == "disabled"
+      assert payload[:thinking] == %{type: "disabled"}
       refute Map.has_key?(payload, :reasoning_effort)
     end
 
@@ -180,7 +180,7 @@ defmodule AI.Provider.RequestBuilder.DeepSeekTest do
       m = Model.new("m", 1024, :high, supports_reasoning: false)
       payload = Builder.build_payload(m, [], nil, nil, false, nil)
 
-      assert payload[:thinking] == "disabled"
+      assert payload[:thinking] == %{type: "disabled"}
       refute Map.has_key?(payload, :reasoning_effort)
     end
 

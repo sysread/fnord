@@ -92,29 +92,27 @@ defmodule AI.Provider.RequestBuilder.DeepSeek do
 
   # DeepSeek's reasoning dial is two settings, not a sliding scale:
   #
-  # - Top-level `thinking: "disabled"` is the kill switch. Without it
-  #   the model always thinks; emitting `reasoning_effort: "low"` or
-  #   `:medium` is silently remapped to "high" upstream, and
-  #   `reasoning_effort: "high"` is remapped to "xhigh". Sending nothing
-  #   at all also gives "high" (the default).
+  # - Top-level `thinking` is an object with a `type` field; the only
+  #   documented values are `"enabled"` (default) and `"disabled"`.
+  #   Wire shape: `%{thinking: %{type: "disabled"}}`.
   # - `reasoning_effort: "low" | "medium" | "high"` is a hint for the
   #   thinking budget when thinking is enabled, but the user-observed
-  #   mapping (low/medium -> high, high -> xhigh) means the field is
-  #   really a binary "more vs. most" toggle in practice.
+  #   upstream mapping is coarse (low/medium -> high, high -> xhigh)
+  #   so the field is effectively a "more vs. most" toggle.
   #
   # fnord's profile reasoning levels map to DeepSeek as:
-  # - `:none` -> emit `thinking: "disabled"`. Skips thinking entirely;
-  #   pairs with `:none` profiles (fast / web_search / coding /
-  #   large_context :fast in some configurations).
-  # - `:low` / `:medium` / `:high` -> emit `reasoning_effort` per level.
-  #   Reasoning is on; DeepSeek does its own internal remapping.
+  # - `:none` -> emit `%{thinking: %{type: "disabled"}}`. Skips
+  #   thinking entirely; pairs with profiles configured at `:none`.
+  # - `:low` / `:medium` / `:high` -> emit `reasoning_effort` per
+  #   level. Thinking is on (default); DeepSeek does its own internal
+  #   remapping of the level.
   # - anything else -> emit neither, letting DeepSeek's default apply.
   #
-  # `supports_reasoning: false` also forces thinking off; the capability
-  # flag is authoritative.
+  # `supports_reasoning: false` also forces thinking off; the
+  # capability flag is authoritative.
   @spec thinking_field(AI.Model.t()) :: map
-  defp thinking_field(%{supports_reasoning: false}), do: %{thinking: "disabled"}
-  defp thinking_field(%{reasoning: :none}), do: %{thinking: "disabled"}
+  defp thinking_field(%{supports_reasoning: false}), do: %{thinking: %{type: "disabled"}}
+  defp thinking_field(%{reasoning: :none}), do: %{thinking: %{type: "disabled"}}
   defp thinking_field(%{reasoning: :low}), do: %{reasoning_effort: "low"}
   defp thinking_field(%{reasoning: :medium}), do: %{reasoning_effort: "medium"}
   defp thinking_field(%{reasoning: :high}), do: %{reasoning_effort: "high"}
