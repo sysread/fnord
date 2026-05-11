@@ -77,5 +77,26 @@ defmodule AI.Provider.RequestBuilder.Inception do
         tools -> %{tools: tools}
       end
     )
+    |> Map.merge(reasoning_effort_field(model))
+  end
+
+  # Inception accepts the OpenAI-shaped `reasoning_effort` field on
+  # reasoning-capable models. Two gates apply, mirroring the OpenAI
+  # builder:
+  #   1. `model.supports_reasoning` must be true. Without it, no field
+  #      is emitted regardless of the configured level.
+  #   2. The level must map to a documented wire string. Unmapped
+  #      levels (e.g. `:none`) fall through to omission rather than
+  #      guessing at an unsupported wire form.
+  @spec reasoning_effort_field(AI.Model.t()) :: map
+  defp reasoning_effort_field(%{supports_reasoning: false}), do: %{}
+
+  defp reasoning_effort_field(%{reasoning: level}) do
+    case level do
+      :low -> %{reasoning_effort: "low"}
+      :medium -> %{reasoning_effort: "medium"}
+      :high -> %{reasoning_effort: "high"}
+      _ -> %{}
+    end
   end
 end

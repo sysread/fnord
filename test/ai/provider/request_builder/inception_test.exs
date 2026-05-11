@@ -101,14 +101,31 @@ defmodule AI.Provider.RequestBuilder.InceptionTest do
       end
     end
 
-    test "no reasoning_effort field even when model.reasoning is set" do
-      # mercury-2 is not reasoning-capable; the builder should never
-      # emit reasoning_effort regardless of the model.reasoning value.
-      # The capability flag check is what gates emission - this test
-      # locks that contract.
-      model = Model.new("m", 1024, :high, supports_reasoning: false)
-      payload = Builder.build_payload(model, [], nil, nil, false, nil)
-      refute Map.has_key?(payload, :reasoning_effort)
+    test "reasoning_effort emitted only when capability flag is true" do
+      m_on = Model.new("m", 1024, :high, supports_reasoning: true)
+      m_off = Model.new("m", 1024, :high, supports_reasoning: false)
+
+      assert Builder.build_payload(m_on, [], nil, nil, false, nil)[:reasoning_effort] == "high"
+
+      refute Map.has_key?(
+               Builder.build_payload(m_off, [], nil, nil, false, nil),
+               :reasoning_effort
+             )
+    end
+
+    test "unmapped reasoning levels (e.g. :none, :minimal) drop the reasoning_effort field" do
+      m_none = Model.new("m", 1024, :none, supports_reasoning: true)
+      m_minimal = Model.new("m", 1024, :minimal, supports_reasoning: true)
+
+      refute Map.has_key?(
+               Builder.build_payload(m_none, [], nil, nil, false, nil),
+               :reasoning_effort
+             )
+
+      refute Map.has_key?(
+               Builder.build_payload(m_minimal, [], nil, nil, false, nil),
+               :reasoning_effort
+             )
     end
   end
 end
