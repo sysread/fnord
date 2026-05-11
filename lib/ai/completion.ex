@@ -285,6 +285,23 @@ defmodule AI.Completion do
      }}
   end
 
+  # 5-tuple variant: provider surfaced a `reasoning_content` chain-of-
+  # thought alongside the visible content (DeepSeek thinking-mode
+  # models). Attach the reasoning_content to the assistant message so
+  # subsequent turns can round-trip it - DeepSeek rejects continuations
+  # that drop the field.
+  defp handle_response({:ok, :msg, response, usage, reasoning_content}, state) do
+    {:ok,
+     %{
+       state
+       | messages:
+           state.messages ++ [AI.Util.assistant_msg(response, reasoning_content)],
+         response: response,
+         usage: usage,
+         is_compacting?: false
+     }}
+  end
+
   defp handle_response({:ok, :tool, tool_calls}, state) do
     state
     |> Map.put(:is_compacting?, false)

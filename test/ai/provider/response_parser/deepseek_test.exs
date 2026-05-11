@@ -35,6 +35,47 @@ defmodule AI.Provider.ResponseParser.DeepSeekTest do
                Parser.parse_success(body)
     end
 
+    test "reasoning_content surfaces as a 5-tuple for round-tripping" do
+      # DeepSeek's thinking-mode models include reasoning_content
+      # alongside content. The parser must surface it so the
+      # orchestration layer can attach it to the assistant message;
+      # subsequent turns require it round-tripped or DeepSeek rejects.
+      body = %{
+        "choices" => [
+          %{
+            "message" => %{
+              "content" => "final answer",
+              "reasoning_content" => "let me think...",
+              "usage" => %{}
+            }
+          }
+        ],
+        "usage" => %{"total_tokens" => 100}
+      }
+
+      assert {:ok, :msg, "final answer", 100, "let me think..."} = Parser.parse_success(body)
+    end
+
+    test "empty/nil reasoning_content falls through to 4-tuple shape" do
+      # The reasoning_content field is only meaningful when populated.
+      # Empty string or missing field -> use the legacy 4-tuple so
+      # the orchestration layer doesn't attach a useless field.
+      body_empty = %{
+        "choices" => [
+          %{
+            "message" => %{
+              "content" => "answer",
+              "reasoning_content" => "",
+              "usage" => %{}
+            }
+          }
+        ],
+        "usage" => %{"total_tokens" => 10}
+      }
+
+      assert {:ok, :msg, "answer", 10} = Parser.parse_success(body_empty)
+    end
+
     test "null tool_calls are not treated as present" do
       body = %{
         "choices" => [%{"message" => %{"content" => "hi", "tool_calls" => nil, "usage" => %{}}}],

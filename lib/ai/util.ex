@@ -209,6 +209,32 @@ defmodule AI.Util do
   end
 
   @doc """
+  Creates an assistant message object with a `reasoning_content` field
+  attached.
+
+  DeepSeek's thinking-mode models (and other reasoning-capable providers
+  that surface chain-of-thought separately from the final content)
+  require the prior turn's `reasoning_content` to be round-tripped on
+  subsequent requests. Without it, the API rejects with:
+
+      "The `reasoning_content` in the thinking mode must be passed
+       back to the API."
+
+  Callers attach it via this helper; provider request builders that
+  don't accept the field can strip it during payload normalization
+  (currently DeepSeek is the only provider that round-trips it -
+  others silently ignore the extra key, which is the OpenAI-API
+  default behavior).
+  """
+  @spec assistant_msg(binary, binary | nil) :: map
+  def assistant_msg(msg, nil), do: assistant_msg(msg)
+
+  def assistant_msg(msg, reasoning_content) when is_binary(reasoning_content) do
+    %{role: @role_assistant, content: msg, reasoning_content: reasoning_content}
+    |> validate_msg_length()
+  end
+
+  @doc """
   This is the tool outputs message, which must come immediately after the
   `assistant_tool_msg/3` message with the same `tool_call_id` (`id`).
   """

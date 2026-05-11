@@ -39,7 +39,9 @@ defmodule AI.CompletionAPI do
   @type verbosity :: nil | String.t()
 
   @type usage :: non_neg_integer
-  @type msg_response :: {:ok, :msg, binary, usage}
+  @type msg_response ::
+          {:ok, :msg, binary, usage}
+          | {:ok, :msg, binary, usage, reasoning_content :: binary}
   @type tool_response :: {:ok, :tool, list(map)}
 
   @type response ::

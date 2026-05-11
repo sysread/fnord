@@ -44,6 +44,18 @@ defmodule AI.Provider.ResponseParser.DeepSeek do
     {:ok, :tool, Enum.map(tool_calls, &get_tool_call/1)}
   end
 
+  # DeepSeek's thinking-mode models surface chain-of-thought under
+  # `reasoning_content` alongside the final `content`. The field MUST
+  # be round-tripped on subsequent turns or DeepSeek rejects with
+  # "The reasoning_content in the thinking mode must be passed back
+  # to the API." Surface it as a 5-tuple so the orchestration layer
+  # can attach it to the assistant message in state.messages.
+  defp get_response(%{"content" => response, "reasoning_content" => rc, "usage" => usage})
+       when is_binary(rc) and rc != "" do
+    total_tokens = Map.get(usage, "total_tokens", 0)
+    {:ok, :msg, response, total_tokens, rc}
+  end
+
   defp get_response(%{"content" => response, "usage" => usage}) do
     total_tokens = Map.get(usage, "total_tokens", 0)
     {:ok, :msg, response, total_tokens}
