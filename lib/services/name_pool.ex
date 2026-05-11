@@ -15,7 +15,14 @@ defmodule Services.NamePool do
 
   @chunk_size 12
 
-  @name_chunk_timeout_ms Application.compile_env(:fnord, :name_chunk_timeout_ms, 30_000)
+  # Wall-clock cap on a single nomenclater allocation request. Set well
+  # above `AI.Endpoint`'s combined retry budget (3 attempts at ~500ms /
+  # 5s / 10s plus per-request time) so the harness can do its full
+  # retry-and-heartbeat dance before the GenServer brutal-kills the
+  # task. Hitting this cap means something is genuinely stuck;
+  # allocation falls through to the `default_name` fallback and the
+  # session continues with "Fnord Prefect" as the speaker.
+  @name_chunk_timeout_ms Application.compile_env(:fnord, :name_chunk_timeout_ms, 180_000)
 
   @name __MODULE__
 
@@ -58,8 +65,13 @@ defmodule Services.NamePool do
   @spec checkout_name(atom() | pid()) :: {:ok, String.t()} | {:error, term()}
   @spec checkout_name(atom() | pid(), pos_integer()) :: {:ok, String.t()} | {:error, term()}
   def checkout_name(server \\ @name) do
-    # Backward-compatible: default timeout of 30_000 ms
-    checkout_name(server, 30_000)
+    # Default GenServer.call timeout. Coordinates with
+    # `@name_chunk_timeout_ms` - the caller's deadline must be at least
+    # as long as the in-handler nomenclater allocation deadline,
+    # otherwise the caller times out while the GenServer is still
+    # waiting on the nomenclater task (caller falls back to
+    # default_name despite a real result eventually being available).
+    checkout_name(server, @name_chunk_timeout_ms + 5_000)
   end
 
   def checkout_name(server, timeout_ms) do
