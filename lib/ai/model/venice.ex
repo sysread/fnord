@@ -117,9 +117,9 @@ defmodule AI.Model.Venice do
   # context model in the catalog. Tiers are kept distinct so future
   # additions can differentiate without changing the call sites.
   @impl AI.Model.Provider
-  def large_context(:smart), do: test_model(:high)
-  def large_context(:balanced), do: test_model(:medium)
-  def large_context(:fast), do: test_model(:low)
+  def large_context(:smart), do: deepseek_v4_flash(:high)
+  def large_context(:balanced), do: deepseek_v4_flash(:medium)
+  def large_context(:fast), do: deepseek_v4_flash(:low)
 
   # ---------------------------------------------------------------------------
   # Concrete model factories. Each declares the Venice model slug, context
@@ -135,10 +135,17 @@ defmodule AI.Model.Venice do
   # model; the supportsReasoningEffort flag in /api/v1/models reports
   # whether the level is *tunable* on that model, not whether the field
   # is accepted.
-  def test_model(reasoning \\ :medium),
-    do:
-      AI.Model.new("qwen-3-6-plus", 1_000_000, reasoning,
-        supports_reasoning: true,
-        supports_web_search: true
-      )
+  def test_model(reasoning \\ :medium) do
+    AI.Model.new("qwen-3-6-plus", 1_000_000, reasoning,
+      supports_reasoning: true,
+      supports_web_search: true
+    )
+  end
+
+  def deepseek_v4_flash(reasoning \\ :medium) do
+    AI.Model.new("deepseek-v4-flash", 1_000_000, reasoning,
+      supports_reasoning: true,
+      supports_web_search: true
+    )
+  end
 end
