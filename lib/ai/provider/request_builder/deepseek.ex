@@ -87,24 +87,38 @@ defmodule AI.Provider.RequestBuilder.DeepSeek do
         tools -> %{tools: tools}
       end
     )
-    |> Map.merge(reasoning_effort_field(model))
+    |> Map.merge(thinking_field(model))
   end
 
-  # Two-gate reasoning_effort emission mirroring the OpenAI/Venice
-  # builders. The capability flag must be true AND the level must map
-  # to a documented wire string; unmapped levels (`:none`, `:minimal`)
-  # fall through to omission rather than guessing.
-  @spec reasoning_effort_field(AI.Model.t()) :: map
-  defp reasoning_effort_field(%{supports_reasoning: false}), do: %{}
-
-  defp reasoning_effort_field(%{reasoning: level}) do
-    case level do
-      :low -> %{reasoning_effort: "low"}
-      :medium -> %{reasoning_effort: "medium"}
-      :high -> %{reasoning_effort: "high"}
-      _ -> %{}
-    end
-  end
+  # DeepSeek's reasoning dial is two settings, not a sliding scale:
+  #
+  # - Top-level `thinking: "disabled"` is the kill switch. Without it
+  #   the model always thinks; emitting `reasoning_effort: "low"` or
+  #   `:medium` is silently remapped to "high" upstream, and
+  #   `reasoning_effort: "high"` is remapped to "xhigh". Sending nothing
+  #   at all also gives "high" (the default).
+  # - `reasoning_effort: "low" | "medium" | "high"` is a hint for the
+  #   thinking budget when thinking is enabled, but the user-observed
+  #   mapping (low/medium -> high, high -> xhigh) means the field is
+  #   really a binary "more vs. most" toggle in practice.
+  #
+  # fnord's profile reasoning levels map to DeepSeek as:
+  # - `:none` -> emit `thinking: "disabled"`. Skips thinking entirely;
+  #   pairs with `:none` profiles (fast / web_search / coding /
+  #   large_context :fast in some configurations).
+  # - `:low` / `:medium` / `:high` -> emit `reasoning_effort` per level.
+  #   Reasoning is on; DeepSeek does its own internal remapping.
+  # - anything else -> emit neither, letting DeepSeek's default apply.
+  #
+  # `supports_reasoning: false` also forces thinking off; the capability
+  # flag is authoritative.
+  @spec thinking_field(AI.Model.t()) :: map
+  defp thinking_field(%{supports_reasoning: false}), do: %{thinking: "disabled"}
+  defp thinking_field(%{reasoning: :none}), do: %{thinking: "disabled"}
+  defp thinking_field(%{reasoning: :low}), do: %{reasoning_effort: "low"}
+  defp thinking_field(%{reasoning: :medium}), do: %{reasoning_effort: "medium"}
+  defp thinking_field(%{reasoning: :high}), do: %{reasoning_effort: "high"}
+  defp thinking_field(_), do: %{}
 
   # Translate the caller's response_format into:
   #   - the value to send on the wire (or `nil` to omit the field

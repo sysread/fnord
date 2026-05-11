@@ -67,7 +67,11 @@ defmodule AI.Provider.RequestBuilder.DeepSeekTest do
       :ok
     end
 
-    test "minimal payload omits response_format entirely (DeepSeek defaults to text)" do
+    test "minimal payload omits response_format and emits thinking: disabled for non-reasoning models" do
+      # Model.new/2 defaults supports_reasoning: false. DeepSeek's
+      # default-when-unspecified is "thinking at high", so a model
+      # without reasoning support MUST explicitly send
+      # thinking: "disabled" to actually skip thinking.
       model = Model.new("m", 1024)
       payload = Builder.build_payload(model, [], nil, nil, false, nil)
       assert payload[:model] == "m"
@@ -80,6 +84,8 @@ defmodule AI.Provider.RequestBuilder.DeepSeekTest do
       refute Map.has_key?(payload, :reasoning_effort)
       refute Map.has_key?(payload, :verbosity)
       refute Map.has_key?(payload, :web_search_options)
+      # Capability flag-driven thinking kill switch.
+      assert payload[:thinking] == "disabled"
     end
 
     test "tools field present when tools are passed" do
@@ -144,40 +150,49 @@ defmodule AI.Provider.RequestBuilder.DeepSeekTest do
       end
     end
 
-    test "reasoning_effort emitted only when capability flag is true" do
-      m_on = Model.new("m", 1024, :high, supports_reasoning: true)
-      m_off = Model.new("m", 1024, :high, supports_reasoning: false)
-
-      assert Builder.build_payload(m_on, [], nil, nil, false, nil)[:reasoning_effort] == "high"
-
-      refute Map.has_key?(
-               Builder.build_payload(m_off, [], nil, nil, false, nil),
-               :reasoning_effort
-             )
-    end
-
-    test "low / medium / high reasoning levels map to their wire strings" do
+    test "reasoning :low / :medium / :high emit reasoning_effort and no thinking field" do
       for level <- [:low, :medium, :high] do
         m = Model.new("m", 1024, level, supports_reasoning: true)
+        payload = Builder.build_payload(m, [], nil, nil, false, nil)
 
-        assert Builder.build_payload(m, [], nil, nil, false, nil)[:reasoning_effort] ==
-                 Atom.to_string(level)
+        assert payload[:reasoning_effort] == Atom.to_string(level)
+        refute Map.has_key?(payload, :thinking)
       end
     end
 
-    test "unmapped reasoning levels (e.g. :none, :minimal) drop the reasoning_effort field" do
-      m_none = Model.new("m", 1024, :none, supports_reasoning: true)
-      m_minimal = Model.new("m", 1024, :minimal, supports_reasoning: true)
+    test "reasoning :none emits thinking: \"disabled\" and no reasoning_effort" do
+      # `thinking: "disabled"` is the actual kill switch on DeepSeek -
+      # without it the model always thinks (reasoning_effort: low/medium
+      # silently remap to high upstream). Profiles configured with
+      # reasoning :none must therefore emit the thinking field, not just
+      # omit reasoning_effort.
+      m = Model.new("m", 1024, :none, supports_reasoning: true)
+      payload = Builder.build_payload(m, [], nil, nil, false, nil)
 
-      refute Map.has_key?(
-               Builder.build_payload(m_none, [], nil, nil, false, nil),
-               :reasoning_effort
-             )
+      assert payload[:thinking] == "disabled"
+      refute Map.has_key?(payload, :reasoning_effort)
+    end
 
-      refute Map.has_key?(
-               Builder.build_payload(m_minimal, [], nil, nil, false, nil),
-               :reasoning_effort
-             )
+    test "supports_reasoning: false forces thinking: \"disabled\" regardless of level" do
+      # Capability flag is authoritative. If we ever wire a non-
+      # reasoning DeepSeek model into a profile, this guarantees we
+      # don't accidentally enable thinking via the level field.
+      m = Model.new("m", 1024, :high, supports_reasoning: false)
+      payload = Builder.build_payload(m, [], nil, nil, false, nil)
+
+      assert payload[:thinking] == "disabled"
+      refute Map.has_key?(payload, :reasoning_effort)
+    end
+
+    test "unmapped reasoning levels (e.g. :minimal) emit neither field" do
+      # Defensive fallthrough - DeepSeek's default (no thinking field,
+      # no reasoning_effort) is "high" thinking. Better to let it pick
+      # than to guess at an unsupported wire form.
+      m = Model.new("m", 1024, :minimal, supports_reasoning: true)
+      payload = Builder.build_payload(m, [], nil, nil, false, nil)
+
+      refute Map.has_key?(payload, :reasoning_effort)
+      refute Map.has_key?(payload, :thinking)
     end
   end
 end
