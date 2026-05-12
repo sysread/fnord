@@ -86,7 +86,7 @@ defmodule Fnord.MixProject do
       # finch >= 0.22 rejects hermes_mcp 0.14.1's :transport_opts via
       # Keyword.validate! in Finch.Request.build/5. Hermes upstream has been
       # dormant since Aug 2025, so cap finch below 0.22 until a fix ships.
-      {:finch, ">= 0.19.0 and < 0.22.0", override: true},
+      {:finch, ">= 0.19.0 and < 0.22.0"},
       {:hermes_mcp, "~> 0.14"},
       {:httpoison, "~> 2.2.1"},
       {:jason, "~> 1.4"},
