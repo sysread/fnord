@@ -49,30 +49,28 @@ defmodule AI.Tools.Tasks.CreateList do
   def spec do
     %{
       type: "function",
-      function: %{
-        name: "tasks_create_list",
-        description: """
-        Create a new task list. Returns a list_id that must be used for all
-        subsequent operations on this list.
+      name: "tasks_create_list",
+      description: """
+      Create a new task list. Returns a list_id that must be used for all
+      subsequent operations on this list.
 
-        Tasks lists are intended to help you retain state between interactions,
-        even if your context window is full. You can add new tasks to the end of
-        the list, push tasks to the front of the list (treating it as a stack),
-        and mark tasks as completed or failed. You can also fetch the entire
-        list of tasks, including their status and results.
-        """,
-        parameters: %{
-          type: "object",
-          required: [],
-          properties: %{
-            "id" => %{
-              type: "string",
-              description: "Optional custom slug for the new task list"
-            },
-            "description" => %{
-              type: "string",
-              description: "Optional description for the new task list"
-            }
+      Tasks lists are intended to help you retain state between interactions,
+      even if your context window is full. You can add new tasks to the end of
+      the list, push tasks to the front of the list (treating it as a stack),
+      and mark tasks as completed or failed. You can also fetch the entire
+      list of tasks, including their status and results.
+      """,
+      parameters: %{
+        type: "object",
+        required: [],
+        properties: %{
+          "id" => %{
+            type: "string",
+            description: "Optional custom slug for the new task list"
+          },
+          "description" => %{
+            type: "string",
+            description: "Optional description for the new task list"
           }
         }
       }

@@ -8,9 +8,9 @@ defmodule AI.Tools.File.ReindexTest do
       spec = Reindex.spec()
 
       assert spec.type == "function"
-      assert spec.function.name == "file_reindex_tool"
+      assert spec.name == "file_reindex_tool"
 
-      params = spec.function.parameters
+      params = spec.parameters
       assert params.required == []
       assert params.properties == %{}
     end

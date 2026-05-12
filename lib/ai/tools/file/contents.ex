@@ -47,75 +47,73 @@ defmodule AI.Tools.File.Contents do
   def spec() do
     %{
       type: "function",
-      function: %{
-        name: "file_contents_tool",
-        description: """
-        Display the contents of a file in the project. Note that this retrieves
-        the ENTIRE file. If the file is large, this may fail due to limits on
-        the size of messages, or it may pull so much content into your context
-        window that you forget the user's prompt or begin hallucinating
-        responses. If you only need to learn specific facts or extract a
-        section of code, use the file_info_tool to preserve your context
-        window.
+      name: "file_contents_tool",
+      description: """
+      Display the contents of a file in the project. Note that this retrieves
+      the ENTIRE file. If the file is large, this may fail due to limits on
+      the size of messages, or it may pull so much content into your context
+      window that you forget the user's prompt or begin hallucinating
+      responses. If you only need to learn specific facts or extract a
+      section of code, use the file_info_tool to preserve your context
+      window.
 
-        This tool reads files by path regardless of index status. It works
-        for indexed source files AND for files that are not in the index -
-        including gitignored paths like `scratch/` notes. In a worktree
-        session, if the file isn't present in the worktree but exists as a
-        gitignored file in the original source repo, this tool will fall
-        back to reading it from there (and annotate the result with a note
-        explaining where it came from). If file_notes_tool, file_search_tool,
-        or file_list_tool can't find a path you know exists, reach for this
-        tool - it will read it directly.
+      This tool reads files by path regardless of index status. It works
+      for indexed source files AND for files that are not in the index -
+      including gitignored paths like `scratch/` notes. In a worktree
+      session, if the file isn't present in the worktree but exists as a
+      gitignored file in the original source repo, this tool will fall
+      back to reading it from there (and annotate the result with a note
+      explaining where it came from). If file_notes_tool, file_search_tool,
+      or file_list_tool can't find a path you know exists, reach for this
+      tool - it will read it directly.
 
-        Note that this tool ONLY shows the current version of the file on the
-        currently checked-out branch. If you need to see the contents of the
-        file on a different branch (or for files that only exist on that
-        branch), you must use your git tools to retrieve that version of the
-        file.
-        """,
-        parameters: %{
-          type: "object",
-          required: ["file"],
-          properties: %{
-            file: %{
-              type: "string",
-              description: """
-              The file whose contents you wish to review. Typically the
-              complete path provided by the file_search_tool or file_list_tool,
-              but any valid path within the project will work - including
-              unindexed and gitignored paths.
-              """
-            },
-            line_numbers: %{
-              type: "boolean",
-              description: """
-              If true (default), prefix each line with a hashline identifier:
-              `<line_number>:<content_hash>`, where the content hash is a 2-character
-              hex fingerprint of the line's content.
-              """,
-              default: true
-            },
-            start_line: %{
-              type: "integer",
-              description: """
-              The 1-based line number to start from. If not provided, defaults
-              to the first line. If start_line is outside of the range of lines
-              in the file, it will be ignored and the first line of the file
-              will be used.
-              """,
-              default: 1
-            },
-            end_line: %{
-              type: "integer",
-              description: """
-              The 1-based line number to end at. If not provided, defaults to
-              the last line of the file. If end_line is outside of the range of
-              lines in the file, it will be ignored and the last line of the
-              file will be used.
-              """,
-              default: nil
-            }
+      Note that this tool ONLY shows the current version of the file on the
+      currently checked-out branch. If you need to see the contents of the
+      file on a different branch (or for files that only exist on that
+      branch), you must use your git tools to retrieve that version of the
+      file.
+      """,
+      parameters: %{
+        type: "object",
+        required: ["file"],
+        properties: %{
+          file: %{
+            type: "string",
+            description: """
+            The file whose contents you wish to review. Typically the
+            complete path provided by the file_search_tool or file_list_tool,
+            but any valid path within the project will work - including
+            unindexed and gitignored paths.
+            """
+          },
+          line_numbers: %{
+            type: "boolean",
+            description: """
+            If true (default), prefix each line with a hashline identifier:
+            `<line_number>:<content_hash>`, where the content hash is a 2-character
+            hex fingerprint of the line's content.
+            """,
+            default: true
+          },
+          start_line: %{
+            type: "integer",
+            description: """
+            The 1-based line number to start from. If not provided, defaults
+            to the first line. If start_line is outside of the range of lines
+            in the file, it will be ignored and the first line of the file
+            will be used.
+            """,
+            default: 1
+          },
+          end_line: %{
+            type: "integer",
+            description: """
+            The 1-based line number to end at. If not provided, defaults to
+            the last line of the file. If end_line is outside of the range of
+            lines in the file, it will be ignored and the last line of the
+            file will be used.
+            """,
+            default: nil
           }
         }
       }

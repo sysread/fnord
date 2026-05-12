@@ -19,8 +19,8 @@ defmodule AI.Tools.File.ListTest do
       spec = AI.Tools.File.List.spec()
       assert is_map(spec)
       assert spec.type == "function"
-      assert spec.function.name == "file_list_tool"
-      params = spec.function.parameters
+      assert spec.name == "file_list_tool"
+      params = spec.parameters
       assert params.required == []
       assert params.properties == %{}
     end

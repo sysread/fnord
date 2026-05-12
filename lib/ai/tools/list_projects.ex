@@ -31,14 +31,12 @@ defmodule AI.Tools.ListProjects do
   def spec() do
     %{
       type: "function",
-      function: %{
-        name: "list_projects_tool",
-        description: "Lists all other available projects, apart from the currently active one.",
-        parameters: %{
-          type: "object",
-          required: [],
-          properties: %{}
-        }
+      name: "list_projects_tool",
+      description: "Lists all other available projects, apart from the currently active one.",
+      parameters: %{
+        type: "object",
+        required: [],
+        properties: %{}
       }
     }
   end

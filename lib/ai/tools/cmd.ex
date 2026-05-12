@@ -86,144 +86,142 @@ defmodule AI.Tools.Cmd do
 
     %{
       type: "function",
-      function: %{
-        name: "cmd_tool",
-        description: """
-        Runs commands via Elixir's System.cmd/3 - NOT through a shell interpreter.
-        Each entry in the `commands` array is executed directly as a process with
-        its own `command` and `args`. The `operator` field determines how commands
-        are combined: `|` pipes stdout between them, `&&` runs them sequentially.
+      name: "cmd_tool",
+      description: """
+      Runs commands via Elixir's System.cmd/3 - NOT through a shell interpreter.
+      Each entry in the `commands` array is executed directly as a process with
+      its own `command` and `args`. The `operator` field determines how commands
+      are combined: `|` pipes stdout between them, `&&` runs them sequentially.
 
-        This is NOT a shell. Shell syntax (pipes, redirects, semicolons, subshells,
-        env var expansion) has no meaning inside `command` or `args` fields. To pipe
-        or chain commands, use the `operator` field with multiple `commands` entries.
+      This is NOT a shell. Shell syntax (pipes, redirects, semicolons, subshells,
+      env var expansion) has no meaning inside `command` or `args` fields. To pipe
+      or chain commands, use the `operator` field with multiple `commands` entries.
 
-        Use for: filesystem ops (rm, mv, mkdir), project commands (git, make, npm),
-        and CLI tools needed for your task. Prefer specialized tools when available.
-        Check tool availability with `which <tool>` or `command -v <tool>`.
+      Use for: filesystem ops (rm, mv, mkdir), project commands (git, make, npm),
+      and CLI tools needed for your task. Prefer specialized tools when available.
+      Check tool availability with `which <tool>` or `command -v <tool>`.
 
-        Execution context:
-        - Working directory: the project's source root
-        - No TTY - some commands behave differently
-        - Glob patterns (*.ex, src/**/*.ts) are NOT expanded; pass literal paths
-        - Environment variables are NOT expanded in args
-        - Shell binaries (bash, sh, zsh) cannot be invoked directly
-        - Interactive commands will hang and time out
+      Execution context:
+      - Working directory: the project's source root
+      - No TTY - some commands behave differently
+      - Glob patterns (*.ex, src/**/*.ts) are NOT expanded; pass literal paths
+      - Environment variables are NOT expanded in args
+      - Shell binaries (bash, sh, zsh) cannot be invoked directly
+      - Interactive commands will hang and time out
 
-        Approval rules:
-        - File-modifying commands (awk, find -exec, patch) require user approval
-        - Read-only sed (without -i/-f/e/w) is preapproved
-        - Unapproved commands may be auto-denied if the user is not monitoring
+      Approval rules:
+      - File-modifying commands (awk, find -exec, patch) require user approval
+      - Read-only sed (without -i/-f/e/w) is preapproved
+      - Unapproved commands may be auto-denied if the user is not monitoring
 
-        Command-specific notes:
-        - rg: must include an explicit path arg when under '&&' or as first pipeline stage
-        - wc: must have file args or receive pipeline input; reading from stdin is not supported
+      Command-specific notes:
+      - rg: must include an explicit path arg when under '&&' or as first pipeline stage
+      - wc: must have file args or receive pipeline input; reading from stdin is not supported
 
-        For commands that vary by OS (grep/sed), the current OS is: #{os_name} (#{os_family}).
+      For commands that vary by OS (grep/sed), the current OS is: #{os_name} (#{os_family}).
 
-        Available tools on PATH:
-        #{available_tools()}
+      Available tools on PATH:
+      #{available_tools()}
 
-        Preapproved commands/patterns:
-        #{allowed}
-        #{user_prefixes}
-        #{user_regexes}
-        """,
-        parameters: %{
-          type: "object",
-          required: ["description", "commands"],
-          additionalProperties: false,
-          properties: %{
-            description: %{
-              type: "string",
-              description: """
-              Explain to the user what the command does and why it is needed.
-              This will be displayed to the user in the approval dialog.
-              """
-            },
-            timeout_ms: %{
-              type: "integer",
-              description: """
-              Optional execution timeout in milliseconds.
-              Defaults to #{@default_timeout_ms}.
-              Must be > 0 and ≤ #{@max_timeout_ms}.
-              """
-            },
-            operator: %{
-              type: "string",
-              enum: ["|", "&&"],
-              default: "&&",
-              description: """
-              Optional: Determines how the `commands` array entries are combined. Defaults to `&&` when omitted.
-              `|` pipes stdout of each command into stdin of the next: cmd1 | cmd2 | cmd3
-              `&&` runs commands sequentially, stopping on failure: cmd1 && cmd2 && cmd3
-              The operator is inserted BETWEEN each entry in the `commands` array.
-              Do NOT place the operator inside any command's `args`.
-              """
-            },
-            commands: %{
-              type: "array",
-              description: """
-              A list of commands to execute, combined using the `operator`.
-              Each entry is a separate command stage with its own `command` and `args`.
+      Preapproved commands/patterns:
+      #{allowed}
+      #{user_prefixes}
+      #{user_regexes}
+      """,
+      parameters: %{
+        type: "object",
+        required: ["description", "commands"],
+        additionalProperties: false,
+        properties: %{
+          description: %{
+            type: "string",
+            description: """
+            Explain to the user what the command does and why it is needed.
+            This will be displayed to the user in the approval dialog.
+            """
+          },
+          timeout_ms: %{
+            type: "integer",
+            description: """
+            Optional execution timeout in milliseconds.
+            Defaults to #{@default_timeout_ms}.
+            Must be > 0 and ≤ #{@max_timeout_ms}.
+            """
+          },
+          operator: %{
+            type: "string",
+            enum: ["|", "&&"],
+            default: "&&",
+            description: """
+            Optional: Determines how the `commands` array entries are combined. Defaults to `&&` when omitted.
+            `|` pipes stdout of each command into stdin of the next: cmd1 | cmd2 | cmd3
+            `&&` runs commands sequentially, stopping on failure: cmd1 && cmd2 && cmd3
+            The operator is inserted BETWEEN each entry in the `commands` array.
+            Do NOT place the operator inside any command's `args`.
+            """
+          },
+          commands: %{
+            type: "array",
+            description: """
+            A list of commands to execute, combined using the `operator`.
+            Each entry is a separate command stage with its own `command` and `args`.
 
-              WRONG - do not embed shell operators in args:
-              ```json
-              [{"command": "git", "args": ["log", "--oneline", "|", "head", "-5"]}]
-              ```
-              The `|` above becomes a literal argument to `git`, not a pipe.
+            WRONG - do not embed shell operators in args:
+            ```json
+            [{"command": "git", "args": ["log", "--oneline", "|", "head", "-5"]}]
+            ```
+            The `|` above becomes a literal argument to `git`, not a pipe.
 
-              CORRECT - pipeline (operator: "|"):
-              ```json
-              [
-                {"command": "git", "args": ["log", "--oneline"]},
-                {"command": "head", "args": ["-5"]}
-              ]
-              ```
+            CORRECT - pipeline (operator: "|"):
+            ```json
+            [
+              {"command": "git", "args": ["log", "--oneline"]},
+              {"command": "head", "args": ["-5"]}
+            ]
+            ```
 
-              CORRECT - sequential (operator: "&&"):
-              ```json
-              [
-                {"command": "mkdir", "args": ["-p", "out"]},
-                {"command": "cp", "args": ["src/config.json", "out/"]}
-              ]
-              ```
-              """,
-              items: %{
-                type: "object",
-                description: "An individual command within the overall pipeline.",
-                required: ["command", "args"],
-                additionalProperties: false,
-                properties: %{
-                  command: %{
+            CORRECT - sequential (operator: "&&"):
+            ```json
+            [
+              {"command": "mkdir", "args": ["-p", "out"]},
+              {"command": "cp", "args": ["src/config.json", "out/"]}
+            ]
+            ```
+            """,
+            items: %{
+              type: "object",
+              description: "An individual command within the overall pipeline.",
+              required: ["command", "args"],
+              additionalProperties: false,
+              properties: %{
+                command: %{
+                  type: "string",
+                  description: """
+                  The base command to execute, without any arguments or options.
+
+                  MUST be either:
+                  1. A bare command name on the user's PATH (e.g., "git", "rg", "npm")
+                  2. An abs path **starting with `./`** within the project (eg "./fnord" or "./scripts/run-tests.sh")
+
+                  Relative paths are NOT allowed for security reasons.
+                  """
+                },
+                args: %{
+                  type: "array",
+                  description: """
+                  A list of options to pass to the command.
+                  DO NOT include the command itself.
+                  """,
+                  items: %{
                     type: "string",
                     description: """
-                    The base command to execute, without any arguments or options.
-
-                    MUST be either:
-                    1. A bare command name on the user's PATH (e.g., "git", "rg", "npm")
-                    2. An abs path **starting with `./`** within the project (eg "./fnord" or "./scripts/run-tests.sh")
-
-                    Relative paths are NOT allowed for security reasons.
+                    A single argument or option for the command.
+                    Do not escape or quote.
+                    Env vars are NOT expanded.
+                    Shell operators (|, &&, ;, >, <, >>) are NOT valid args.
+                    To pipe or chain commands, use the `operator` field with
+                    multiple entries in the `commands` array.
                     """
-                  },
-                  args: %{
-                    type: "array",
-                    description: """
-                    A list of options to pass to the command.
-                    DO NOT include the command itself.
-                    """,
-                    items: %{
-                      type: "string",
-                      description: """
-                      A single argument or option for the command.
-                      Do not escape or quote.
-                      Env vars are NOT expanded.
-                      Shell operators (|, &&, ;, >, <, >>) are NOT valid args.
-                      To pipe or chain commands, use the `operator` field with
-                      multiple entries in the `commands` array.
-                      """
-                    }
                   }
                 }
               }

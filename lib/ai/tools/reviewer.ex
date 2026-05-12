@@ -37,82 +37,80 @@ defmodule AI.Tools.Reviewer do
   def spec do
     %{
       type: "function",
-      function: %{
-        name: "reviewer_tool",
-        description: """
-        AI-powered, multi-agent code review.
+      name: "reviewer_tool",
+      description: """
+      AI-powered, multi-agent code review.
 
-        Triages change complexity, decomposes large diffs into focused review
-        units, and fans out scoped multi-specialist reviewers in parallel.
-        Produces a unified, deduplicated, severity-grouped report.
+      Triages change complexity, decomposes large diffs into focused review
+      units, and fans out scoped multi-specialist reviewers in parallel.
+      Produces a unified, deduplicated, severity-grouped report.
 
-        The reviewer reads the target via git directly - it does NOT need the
-        target checked out in your working tree. Always name an explicit
-        target via `branch`, `pr`, or `range`; the reviewer will fetch refs
-        as needed.
+      The reviewer reads the target via git directly - it does NOT need the
+      target checked out in your working tree. Always name an explicit
+      target via `branch`, `pr`, or `range`; the reviewer will fetch refs
+      as needed.
 
-        Use for:
-        - Post-implementation review of a branch or commit range
-        - Pre-merge quality checks of a PR
-        - Comprehensive audit of changes spanning multiple files
+      Use for:
+      - Post-implementation review of a branch or commit range
+      - Pre-merge quality checks of a PR
+      - Comprehensive audit of changes spanning multiple files
 
-        NOT for quick, single-file checks - just read the file yourself.
+      NOT for quick, single-file checks - just read the file yourself.
 
-        Not safe to run concurrently. Only one active review per fnord
-        process at a time.
-        """,
-        parameters: %{
-          type: "object",
-          required: ["scope"],
-          additionalProperties: false,
-          properties: %{
-            scope: %{
-              type: "string",
-              description: """
-              Design context and specific concerns for the review. Free text.
-              Describe intent, risky areas, what "done" looks like. Do NOT
-              use this field to specify the target branch or PR - use the
-              dedicated `branch`, `pr`, or `range` parameters for that.
-              """
-            },
-            branch: %{
-              type: "string",
-              description: """
-              Branch to review (e.g. "feature-x"). The reviewer fetches the
-              branch from origin if it is not locally reachable, then reviews
-              the range `merge-base(branch, base)..branch`. Mutually
-              exclusive with `pr` and `range`.
-              """
-            },
-            pr: %{
-              type: "integer",
-              description: """
-              GitHub pull request number. Requires the `gh` CLI to be
-              installed and authenticated. The reviewer resolves the PR's
-              head and base via `gh pr view`, fetches both refs, and
-              reviews the range `merge-base(head, base)..head`. Mutually
-              exclusive with `branch` and `range`.
-              """
-            },
-            range: %{
-              type: "string",
-              description: """
-              Explicit git range in `A..B` or `A...B` form (e.g.
-              `HEAD~3..HEAD`, `abc123..def456`). Use for commit-scoped
-              reviews that are not tied to a branch or PR. The reviewer
-              fetches endpoints from origin if they are not locally
-              reachable. Mutually exclusive with `branch` and `pr`.
-              """
-            },
-            base: %{
-              type: "string",
-              description: """
-              Override the base branch used to compute merge-base. Default
-              is the repo's default branch (`main` or `master`). Useful for
-              stacked branches - set to the parent branch, not `main`.
-              Ignored when `range` is used.
-              """
-            }
+      Not safe to run concurrently. Only one active review per fnord
+      process at a time.
+      """,
+      parameters: %{
+        type: "object",
+        required: ["scope"],
+        additionalProperties: false,
+        properties: %{
+          scope: %{
+            type: "string",
+            description: """
+            Design context and specific concerns for the review. Free text.
+            Describe intent, risky areas, what "done" looks like. Do NOT
+            use this field to specify the target branch or PR - use the
+            dedicated `branch`, `pr`, or `range` parameters for that.
+            """
+          },
+          branch: %{
+            type: "string",
+            description: """
+            Branch to review (e.g. "feature-x"). The reviewer fetches the
+            branch from origin if it is not locally reachable, then reviews
+            the range `merge-base(branch, base)..branch`. Mutually
+            exclusive with `pr` and `range`.
+            """
+          },
+          pr: %{
+            type: "integer",
+            description: """
+            GitHub pull request number. Requires the `gh` CLI to be
+            installed and authenticated. The reviewer resolves the PR's
+            head and base via `gh pr view`, fetches both refs, and
+            reviews the range `merge-base(head, base)..head`. Mutually
+            exclusive with `branch` and `range`.
+            """
+          },
+          range: %{
+            type: "string",
+            description: """
+            Explicit git range in `A..B` or `A...B` form (e.g.
+            `HEAD~3..HEAD`, `abc123..def456`). Use for commit-scoped
+            reviews that are not tied to a branch or PR. The reviewer
+            fetches endpoints from origin if they are not locally
+            reachable. Mutually exclusive with `branch` and `pr`.
+            """
+          },
+          base: %{
+            type: "string",
+            description: """
+            Override the base branch used to compute merge-base. Default
+            is the repo's default branch (`main` or `master`). Useful for
+            stacked branches - set to the parent branch, not `main`.
+            Ignored when `range` is used.
+            """
           }
         }
       }

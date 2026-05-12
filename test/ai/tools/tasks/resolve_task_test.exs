@@ -12,9 +12,9 @@ defmodule AI.Tools.Tasks.ResolveTaskTest do
       spec = AI.Tools.Tasks.ResolveTask.spec()
 
       assert spec.type == "function"
-      assert spec.function.name == "tasks_resolve_task"
+      assert spec.name == "tasks_resolve_task"
 
-      params = spec.function.parameters
+      params = spec.parameters
       assert params.type == "object"
       assert params.required == ["list_id", "task_id", "disposition", "result"]
 

@@ -23,41 +23,39 @@ defmodule AI.Tools.Notify do
   def spec do
     %{
       type: "function",
-      function: %{
-        name: "notify_tool",
-        description: """
-        Regular feedback to the user improves the user experience.
-        Use this EXTENSIVELY to send short messages to the user.
+      name: "notify_tool",
+      description: """
+      Regular feedback to the user improves the user experience.
+      Use this EXTENSIVELY to send short messages to the user.
 
-        Examples:
-        - "I am looking up the latest information on the topic." (info)
-        - "Interesting! I learned that $SomeComponent is actually performing the validation itself!" (info)
-        - "ffs you've got 2 components with the same name, but they refer to entirely different concepts. Let me sort this out." (warn)
-        - "The shell command is taking longer than expected, working on it." (error)
+      Examples:
+      - "I am looking up the latest information on the topic." (info)
+      - "Interesting! I learned that $SomeComponent is actually performing the validation itself!" (info)
+      - "ffs you've got 2 components with the same name, but they refer to entirely different concepts. Let me sort this out." (warn)
+      - "The shell command is taking longer than expected, working on it." (error)
 
-        You are encouraged to speak in character or with geeky jargon if appropriate.
-        """,
-        parameters: %{
-          type: "object",
-          required: ["level", "message"],
-          additionalProperties: false,
-          properties: %{
-            level: %{
-              type: "string",
-              enum: ["info", "warn", "error", "debug"],
-              description: """
-              The type of notification to send.
-              Can be "info", "warn", or "error".
-              - `info`: general information to the user about what you are doing.
-              - `warn`: warn the user of potential conflicts or issues.
-              - `error`: report an error that prevents further progress.
-              - `debug`: the user may not see if LOGGER_LEVEL is not set, but very useful for diagnostics
-              """
-            },
-            message: %{
-              type: "string",
-              description: "The message content to send as feedback."
-            }
+      You are encouraged to speak in character or with geeky jargon if appropriate.
+      """,
+      parameters: %{
+        type: "object",
+        required: ["level", "message"],
+        additionalProperties: false,
+        properties: %{
+          level: %{
+            type: "string",
+            enum: ["info", "warn", "error", "debug"],
+            description: """
+            The type of notification to send.
+            Can be "info", "warn", or "error".
+            - `info`: general information to the user about what you are doing.
+            - `warn`: warn the user of potential conflicts or issues.
+            - `error`: report an error that prevents further progress.
+            - `debug`: the user may not see if LOGGER_LEVEL is not set, but very useful for diagnostics
+            """
+          },
+          message: %{
+            type: "string",
+            description: "The message content to send as feedback."
           }
         }
       }

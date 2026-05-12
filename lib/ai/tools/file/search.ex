@@ -40,47 +40,45 @@ defmodule AI.Tools.File.Search do
   def spec() do
     %{
       type: "function",
-      function: %{
-        name: "file_search_tool",
-        description: """
-        Semantic search over project files. Your query is converted to an
-        embedding and compared against pre-computed file embeddings using
-        cosine similarity. This means your query must be **natural language**
-        describing the concept or topic you're looking for.
+      name: "file_search_tool",
+      description: """
+      Semantic search over project files. Your query is converted to an
+      embedding and compared against pre-computed file embeddings using
+      cosine similarity. This means your query must be **natural language**
+      describing the concept or topic you're looking for.
 
-        Your query is embedded as-is. Regex, syntax fragments, function
-        signatures, and boolean operators will NOT work - they will be
-        interpreted as literal text about those topics, not as patterns.
-        For exact string or pattern matching, use `rg` via `cmd_tool`.
+      Your query is embedded as-is. Regex, syntax fragments, function
+      signatures, and boolean operators will NOT work - they will be
+      interpreted as literal text about those topics, not as patterns.
+      For exact string or pattern matching, use `rg` via `cmd_tool`.
 
-        Good queries: "user authentication", "database connection settings",
-        "error handling for HTTP requests", "modules that parse JSON"
-        Bad queries: "def.*auth", "conn |> put_status", "TODO|FIXME"
+      Good queries: "user authentication", "database connection settings",
+      "error handling for HTTP requests", "modules that parse JSON"
+      Bad queries: "def.*auth", "conn |> put_status", "TODO|FIXME"
 
-        Note that this tool does not have access to historical data or commit
-        messages. It only searches the most recently indexed version of the
-        project.
-        """,
-        parameters: %{
-          additionalProperties: false,
-          type: "object",
-          required: ["query"],
-          properties: %{
-            query: %{
-              type: "string",
-              description: """
-              A natural language query describing what you're looking for.
-              Write it as you would describe the topic to a person, not as
-              a code pattern or regex.
-              Examples:
-              - "user authentication"
-              - "feature flag definitions"
-              - "settings related to database connections"
-              - "functions that call the payment API"
-              - "unit tests related to the parser"
-              - "modules that read or write json data"
-              """
-            }
+      Note that this tool does not have access to historical data or commit
+      messages. It only searches the most recently indexed version of the
+      project.
+      """,
+      parameters: %{
+        additionalProperties: false,
+        type: "object",
+        required: ["query"],
+        properties: %{
+          query: %{
+            type: "string",
+            description: """
+            A natural language query describing what you're looking for.
+            Write it as you would describe the topic to a person, not as
+            a code pattern or regex.
+            Examples:
+            - "user authentication"
+            - "feature flag definitions"
+            - "settings related to database connections"
+            - "functions that call the payment API"
+            - "unit tests related to the parser"
+            - "modules that read or write json data"
+            """
           }
         }
       }

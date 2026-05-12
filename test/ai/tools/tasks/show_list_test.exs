@@ -12,9 +12,9 @@ defmodule AI.Tools.Tasks.ShowListTest do
       spec = AI.Tools.Tasks.ShowList.spec()
 
       assert spec.type == "function"
-      assert spec.function.name == "tasks_show_list"
+      assert spec.name == "tasks_show_list"
 
-      params = spec.function.parameters
+      params = spec.parameters
       assert params.type == "object"
       assert params.required == ["list_id"]
 

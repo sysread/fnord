@@ -41,10 +41,10 @@ defmodule AI.Tools.RunSkillTest do
 
     spec = AI.Tools.RunSkill.spec()
     assert spec.type == "function"
-    assert spec.function.name == "run_skill"
-    assert spec.function.description =~ "alpha"
+    assert spec.name == "run_skill"
+    assert spec.description =~ "alpha"
     # Full descriptions are in the skill parameter, not the top-level description
-    assert spec.function.parameters.properties.skill.description =~ "Alpha skill"
+    assert spec.parameters.properties.skill.description =~ "Alpha skill"
   end
 
   test "call/1 refuses rw-tagged skill when edit mode is disabled" do
@@ -135,9 +135,9 @@ defmodule AI.Tools.RunSkillTest do
     )
 
     spec = AI.Tools.RunSkill.spec()
-    assert spec.function.description =~ "my-claude-skill"
-    assert spec.function.parameters.properties.skill.description =~ "Does something helpful"
-    assert spec.function.parameters.properties.skill.description =~ "Claude Code skill"
+    assert spec.description =~ "my-claude-skill"
+    assert spec.parameters.properties.skill.description =~ "Does something helpful"
+    assert spec.parameters.properties.skill.description =~ "Claude Code skill"
   end
 
   test "spec/0 includes enabled external cursor skills" do
@@ -158,9 +158,9 @@ defmodule AI.Tools.RunSkillTest do
     )
 
     spec = AI.Tools.RunSkill.spec()
-    assert spec.function.description =~ "my-cursor-skill"
-    assert spec.function.parameters.properties.skill.description =~ "Refactors things"
-    assert spec.function.parameters.properties.skill.description =~ "Cursor skill"
+    assert spec.description =~ "my-cursor-skill"
+    assert spec.parameters.properties.skill.description =~ "Refactors things"
+    assert spec.parameters.properties.skill.description =~ "Cursor skill"
   end
 
   test "spec/0 does not include external skills when source toggle is disabled" do
@@ -181,8 +181,8 @@ defmodule AI.Tools.RunSkillTest do
     )
 
     spec = AI.Tools.RunSkill.spec()
-    refute spec.function.description =~ "hidden-skill"
-    refute spec.function.parameters.properties.skill.description =~ "Should not appear"
+    refute spec.description =~ "hidden-skill"
+    refute spec.parameters.properties.skill.description =~ "Should not appear"
   end
 
   test "call/1 returns :not_found for unknown external skill name" do

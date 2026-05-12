@@ -40,22 +40,20 @@ defmodule AI.Tools.Tasks.EditList do
   def spec do
     %{
       type: "function",
-      function: %{
-        name: "tasks_edit_list",
-        description: "Update the description of an existing task list.",
-        parameters: %{
-          type: "object",
-          additionalProperties: false,
-          required: ["list_id", "description"],
-          properties: %{
-            "list_id" => %{
-              type: "string",
-              description: "The ID of the task list to update (string slug; integers accepted)."
-            },
-            "description" => %{
-              type: "string",
-              description: "The new description for the task list."
-            }
+      name: "tasks_edit_list",
+      description: "Update the description of an existing task list.",
+      parameters: %{
+        type: "object",
+        additionalProperties: false,
+        required: ["list_id", "description"],
+        properties: %{
+          "list_id" => %{
+            type: "string",
+            description: "The ID of the task list to update (string slug; integers accepted)."
+          },
+          "description" => %{
+            type: "string",
+            description: "The new description for the task list."
           }
         }
       }

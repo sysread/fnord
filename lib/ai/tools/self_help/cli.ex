@@ -26,20 +26,18 @@ defmodule AI.Tools.SelfHelp.Cli do
   def spec() do
     %{
       type: "function",
-      function: %{
-        name: "fnord_help_cli_tool",
-        description: """
-        Retrieves the command specification for `fnord`, the code that is running your interface with the user.
-        If the user asks about how "you work" or "your cli client works" or similar, use this tool to view the help text for your CLI wrapper.
-        Fnord is written in elixir as an escript and uses Optimus for its CLI parsing.
-        The help text will include the command tree, command descriptions, options, etc.
-        Use that to understand how the CLI fits together and answer user questions about your interface and capabilities.
-        """,
-        parameters: %{
-          type: "object",
-          required: [],
-          properties: %{}
-        }
+      name: "fnord_help_cli_tool",
+      description: """
+      Retrieves the command specification for `fnord`, the code that is running your interface with the user.
+      If the user asks about how "you work" or "your cli client works" or similar, use this tool to view the help text for your CLI wrapper.
+      Fnord is written in elixir as an escript and uses Optimus for its CLI parsing.
+      The help text will include the command tree, command descriptions, options, etc.
+      Use that to understand how the CLI fits together and answer user questions about your interface and capabilities.
+      """,
+      parameters: %{
+        type: "object",
+        required: [],
+        properties: %{}
       }
     }
   end

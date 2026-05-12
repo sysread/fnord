@@ -46,53 +46,51 @@ defmodule AI.Tools.LongTermMemory do
   def spec do
     %{
       type: "function",
-      function: %{
-        name: "long_term_memory_tool",
-        description: "Long-term memory tool (project/global).",
-        parameters: %{
-          type: "object",
-          additionalProperties: false,
-          required: ["action"],
-          properties: %{
-            "action" => %{
-              "type" => "string",
-              "description" => "Action to perform: 'remember' | 'recall' | 'update' | 'forget'"
-            },
-            "scope" => %{
-              "type" => "string",
-              "description" => "Memory scope: 'project' | 'global'"
-            },
-            "title" => %{
-              "type" => "string",
-              "description" => "Title of the memory (required for remember/update/forget)"
-            },
-            "content" => %{
-              "type" => "string",
-              "description" => "Content of the memory (required for remember and update)"
-            },
-            "query" => %{
-              "type" => "string",
-              "description" => "Search query string for recall"
-            },
-            "search_type" => %{
-              "type" => "string",
-              "description" => "Recall search type: 'project_global' | 'session_conversations'"
-            },
-            "limit" => %{
-              "type" => "integer",
-              "description" => "Maximum number of recall results to return"
-            },
-            "status_filter" => %{
-              "anyOf" => [
-                %{"type" => "string"},
-                %{"type" => "array", "items" => %{"type" => "string"}}
-              ],
-              "description" => "Filter recall results by index status (string or list of strings)"
-            },
-            "provenance_only" => %{
-              "type" => "boolean",
-              "description" => "If true, return only provenance information for recall results"
-            }
+      name: "long_term_memory_tool",
+      description: "Long-term memory tool (project/global).",
+      parameters: %{
+        type: "object",
+        additionalProperties: false,
+        required: ["action"],
+        properties: %{
+          "action" => %{
+            "type" => "string",
+            "description" => "Action to perform: 'remember' | 'recall' | 'update' | 'forget'"
+          },
+          "scope" => %{
+            "type" => "string",
+            "description" => "Memory scope: 'project' | 'global'"
+          },
+          "title" => %{
+            "type" => "string",
+            "description" => "Title of the memory (required for remember/update/forget)"
+          },
+          "content" => %{
+            "type" => "string",
+            "description" => "Content of the memory (required for remember and update)"
+          },
+          "query" => %{
+            "type" => "string",
+            "description" => "Search query string for recall"
+          },
+          "search_type" => %{
+            "type" => "string",
+            "description" => "Recall search type: 'project_global' | 'session_conversations'"
+          },
+          "limit" => %{
+            "type" => "integer",
+            "description" => "Maximum number of recall results to return"
+          },
+          "status_filter" => %{
+            "anyOf" => [
+              %{"type" => "string"},
+              %{"type" => "array", "items" => %{"type" => "string"}}
+            ],
+            "description" => "Filter recall results by index status (string or list of strings)"
+          },
+          "provenance_only" => %{
+            "type" => "boolean",
+            "description" => "If true, return only provenance information for recall results"
           }
         }
       }

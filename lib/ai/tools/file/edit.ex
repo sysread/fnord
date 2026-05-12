@@ -54,272 +54,270 @@ defmodule AI.Tools.File.Edit do
   def spec do
     %{
       type: "function",
-      function: %{
-        name: "file_edit_tool",
-        description: """
-        Perform atomic, well-anchored edits to a single file using either exact
-        string matching or AI-interpreted natural language instructions.
+      name: "file_edit_tool",
+      description: """
+      Perform atomic, well-anchored edits to a single file using either exact
+      string matching or AI-interpreted natural language instructions.
 
-        This is the best tool for simple changes that do not require extensive
-        planning, coordination, or span many files.
+      This is the best tool for simple changes that do not require extensive
+      planning, coordination, or span many files.
 
-        **Three editing modes:**
-        1. **Hash-Anchored Replacement** (preferred): Provide hashes + old_string + new_string.
-           Each hash is a `line:hash` identifier copied from file_contents_tool output
-           (e.g. from `42:a3f1|text`, the identifier is `"42:a3f1"`).
-           List one identifier for each contiguous line in the region to replace. This is the
-           most reliable mode because the line number pinpoints the location and the hash
-           verifies the content hasn't changed.
-        2. **Exact String Matching**: Provide old_string/new_string for precise replacements.
-           Use when you know the exact text to change.
-        3. **Natural Language**: Provide descriptive change instructions for the AI to interpret.
-           Use when you need contextual understanding.
-           Do not assume the AI has the same context as you!
-           Be explicit, as though instructing someone seeing the file for the first time.
-           **TIP:** Split non-contiguous changes into separate tool call requests for the same file.
+      **Three editing modes:**
+      1. **Hash-Anchored Replacement** (preferred): Provide hashes + old_string + new_string.
+         Each hash is a `line:hash` identifier copied from file_contents_tool output
+         (e.g. from `42:a3f1|text`, the identifier is `"42:a3f1"`).
+         List one identifier for each contiguous line in the region to replace. This is the
+         most reliable mode because the line number pinpoints the location and the hash
+         verifies the content hasn't changed.
+      2. **Exact String Matching**: Provide old_string/new_string for precise replacements.
+         Use when you know the exact text to change.
+      3. **Natural Language**: Provide descriptive change instructions for the AI to interpret.
+         Use when you need contextual understanding.
+         Do not assume the AI has the same context as you!
+         Be explicit, as though instructing someone seeing the file for the first time.
+         **TIP:** Split non-contiguous changes into separate tool call requests for the same file.
 
-        Use for:
-        - One-off line or block replacements
-        - Clear, unambiguous, file-local changes
-        - Fast, low-risk operations
-        - Creating temporary scripts to assist with:
-          - complex tasks
-          - validating hypotheses
-          - analyzing code behavior
-          - processing data
-          - testing fixes and proving theories about bugs
+      Use for:
+      - One-off line or block replacements
+      - Clear, unambiguous, file-local changes
+      - Fast, low-risk operations
+      - Creating temporary scripts to assist with:
+        - complex tasks
+        - validating hypotheses
+        - analyzing code behavior
+        - processing data
+        - testing fixes and proving theories about bugs
 
-        Supports optional creation of the file when it does not exist by
-        setting `create_if_missing: true`.
+      Supports optional creation of the file when it does not exist by
+      setting `create_if_missing: true`.
 
-        **Examples:**
+      **Examples:**
 
-        Hash-anchored replacement (preferred):
-        ```json
-        {
-          "file": "src/app.js",
-          "changes": [{
-            "hashes": ["3:a3f1", "4:f10e", "5:0e5d"],
-            "old_string": "const API_URL = 'localhost';\nconst API_KEY = 'old';\nconst TIMEOUT = 3000;",
-            "new_string": "const API_URL = 'api.example.com';\nconst API_KEY = 'xxx';\nconst TIMEOUT = 5000;"
-          }]
-        }
-        ```
-        Each hash is a `line:hash` identifier from file_contents_tool (e.g. line `3:a3f1|const API_URL = 'localhost'` has identifier `"3:a3f1"`).
-        List one identifier per contiguous line in the region you want to replace.
-        old_string is the text of those lines (without hashline prefixes) - a comprehension check.
+      Hash-anchored replacement (preferred):
+      ```json
+      {
+        "file": "src/app.js",
+        "changes": [{
+          "hashes": ["3:a3f1", "4:f10e", "5:0e5d"],
+          "old_string": "const API_URL = 'localhost';\nconst API_KEY = 'old';\nconst TIMEOUT = 3000;",
+          "new_string": "const API_URL = 'api.example.com';\nconst API_KEY = 'xxx';\nconst TIMEOUT = 5000;"
+        }]
+      }
+      ```
+      Each hash is a `line:hash` identifier from file_contents_tool (e.g. line `3:a3f1|const API_URL = 'localhost'` has identifier `"3:a3f1"`).
+      List one identifier per contiguous line in the region you want to replace.
+      old_string is the text of those lines (without hashline prefixes) - a comprehension check.
 
-        File editing with exact matching (fallback):
-        ```json
-        {
-          "file": "src/app.js",
-          "changes": [{
-            "old_string": "const API_URL = 'localhost'",
-            "new_string": "const API_URL = 'api.example.com'"
-          }]
-        }
-        ```
+      File editing with exact matching (fallback):
+      ```json
+      {
+        "file": "src/app.js",
+        "changes": [{
+          "old_string": "const API_URL = 'localhost'",
+          "new_string": "const API_URL = 'api.example.com'"
+        }]
+      }
+      ```
 
-        File creation (simplified UX):
-        ```json
-        {
-          "file": "config/new-config.json",
-          "create_if_missing": true,
-          "changes": [{
-            "new_string": "{\"version\": \"1.0\", \"debug\": true}"
-          }]
-        }
-        ```
+      File creation (simplified UX):
+      ```json
+      {
+        "file": "config/new-config.json",
+        "create_if_missing": true,
+        "changes": [{
+          "new_string": "{\"version\": \"1.0\", \"debug\": true}"
+        }]
+      }
+      ```
 
-        Natural language instruction:
-        ```json
-        {
-          "file": "components/Header.tsx",
-          "changes": [{
-            "instructions": "Add a new prop called 'showLogo' to the Header component and use it to conditionally render the logo"
-          }]
-        }
-        ```
+      Natural language instruction:
+      ```json
+      {
+        "file": "components/Header.tsx",
+        "changes": [{
+          "instructions": "Add a new prop called 'showLogo' to the Header component and use it to conditionally render the logo"
+        }]
+      }
+      ```
 
-        **Best practices:**
-        - Use the file_contents_tool to read the file before editing.
-        - **Prefer hash-anchored edits**: read the file, collect the `line:hash`
-          identifiers for the lines you want to change, and pass them as the
-          `hashes` array. This is the most reliable editing mode.
-        - When using hashes, list one `line:hash` identifier per line in the
-          contiguous region to replace. Line numbers must be consecutive.
-        - When using old_string, it must contain the raw file text, NOT the
-          hashline-prefixed output from file_contents_tool.
-        - For new files: omit old_string and use create_if_missing: true at the TOP LEVEL
-        - Split complex edits into multiple changes/tool calls
-        - Keep diffs minimal and well-anchored
+      **Best practices:**
+      - Use the file_contents_tool to read the file before editing.
+      - **Prefer hash-anchored edits**: read the file, collect the `line:hash`
+        identifiers for the lines you want to change, and pass them as the
+        `hashes` array. This is the most reliable editing mode.
+      - When using hashes, list one `line:hash` identifier per line in the
+        contiguous region to replace. Line numbers must be consecutive.
+      - When using old_string, it must contain the raw file text, NOT the
+        hashline-prefixed output from file_contents_tool.
+      - For new files: omit old_string and use create_if_missing: true at the TOP LEVEL
+      - Split complex edits into multiple changes/tool calls
+      - Keep diffs minimal and well-anchored
 
-        Limitations:
-        - This tool edits the contents of a single file.
-        - It does not delete, move, or rename files or directories.
-        - Do NOT use file_edit_tool to "delete" a file by truncating it to empty content.
+      Limitations:
+      - This tool edits the contents of a single file.
+      - It does not delete, move, or rename files or directories.
+      - Do NOT use file_edit_tool to "delete" a file by truncating it to empty content.
 
-        For operations where the primary intent is to remove or move a file
-        (for example: "delete this file from the project" or "move this file to
-        a new path"), prefer cmd_tool with appropriate commands (such as
-        `rm`, `mv`, or `git mv`).
+      For operations where the primary intent is to remove or move a file
+      (for example: "delete this file from the project" or "move this file to
+      a new path"), prefer cmd_tool with appropriate commands (such as
+      `rm`, `mv`, or `git mv`).
 
-        Tool choice:
-        - Use file_edit_tool when:
-          - You are changing or adding code inside a single existing file, and
-          - The file should continue to exist at the same path.
-        - Use cmd_tool when:
-          - You need to delete, move, or rename files or directories, or
-          - You are applying changes that naturally affect many files at once.
-        """,
-        parameters: %{
-          type: "object",
-          required: ["file"],
-          additionalProperties: false,
-          properties: %{
-            file: %{
-              type: "string",
-              description: "Path (relative to project root) of the file to edit."
-            },
-            changes: %{
-              type: "array",
-              description: """
-              A list of changes to apply to the file.
-              Steps are ordered logically, with each building on the previous.
-              They will be applied in sequence.
+      Tool choice:
+      - Use file_edit_tool when:
+        - You are changing or adding code inside a single existing file, and
+        - The file should continue to exist at the same path.
+      - Use cmd_tool when:
+        - You need to delete, move, or rename files or directories, or
+        - You are applying changes that naturally affect many files at once.
+      """,
+      parameters: %{
+        type: "object",
+        required: ["file"],
+        additionalProperties: false,
+        properties: %{
+          file: %{
+            type: "string",
+            description: "Path (relative to project root) of the file to edit."
+          },
+          changes: %{
+            type: "array",
+            description: """
+            A list of changes to apply to the file.
+            Steps are ordered logically, with each building on the previous.
+            They will be applied in sequence.
 
-              Each change can be either:
-              1. Natural language instructions (for AI interpretation)
-              2. Exact string replacement (for precise, reliable edits)
-              """,
-              items: %{
-                type: "object",
-                oneOf: [
-                  %{
-                    description: "Hash-anchored replacement (preferred)",
-                    type: "object",
-                    required: ["hashes", "old_string", "new_string"],
-                    additionalProperties: false,
-                    properties: %{
-                      hashes: %{
-                        type: "array",
-                        items: %{type: "string"},
-                        description: """
-                        Ordered list of `line:hash` identifiers, one per line in the
-                        contiguous region to replace. Each identifier is the line number
-                        and content hash from file_contents_tool output (e.g. from line
-                        "42:a3f1|text", the identifier is "42:a3f1"). Line numbers must
-                        be consecutive integers. Do NOT include line content - only the
-                        `line:hash` prefix (e.g. from "129:a3f1|UI.fatal(...", use
-                        "129:a3f1", NOT "129:a3f1|UI.fatal(...").
-                        """
-                      },
-                      old_string: %{
-                        type: "string",
-                        description: """
-                        The text content of the lines identified by hashes, copied from
-                        the file WITHOUT hashline prefixes. This is a comprehension check:
-                        it proves you read the target region correctly. Leading whitespace
-                        differences are tolerated, but the content must match.
-                        """
-                      },
-                      new_string: %{
-                        type: "string",
-                        description: """
-                        The replacement text for the identified line range. Whitespace
-                        fitting is applied automatically to match surrounding indentation.
-                        """
-                      }
-                    }
-                  },
-                  %{
-                    description: "Natural language change instruction",
-                    type: "object",
-                    required: ["instructions"],
-                    additionalProperties: false,
-                    properties: %{
-                      instructions: %{
-                        type: "string",
-                        description: """
-                        Clear, specific natural language instructions for the changes to make. The
-                        instructions must be concise and unambiguous.
-
-                        Clearly define the section(s) of the file to modify. Provide
-                        unambiguous "anchors" that identify the exact location of the
-                        change.
-
-                        Examples:
-                        - "Immediately after the declaration of the main function, add the following code block: ..."
-                        - "Replace the entire contents of the calculate function with: ..."
-                        - "At the top of the file, insert the following imports: ..."
-                        """
-                      },
-                      context: %{
-                        type: "string",
-                        description: """
-                        Optional background context for the AI that will interpret the
-                        instructions. The Patcher agent does not share your conversation
-                        history - it sees only the file and the instruction. Use this
-                        field to provide rationale, constraints, conventions, or scope
-                        that help the Patcher understand *why* the change is needed and
-                        how it fits into the broader task.
-                        """
-                      }
-                    }
-                  },
-                  %{
-                    description: "Exact string replacement",
-                    type: "object",
-                    required: ["old_string", "new_string"],
-                    additionalProperties: false,
-                    properties: %{
-                      old_string: %{
-                        type: "string",
-                        description: """
-                        Exact string to replace. Must match exactly (including whitespace)
-                        or the operation will fail. For file creation, use empty string "".
-                        """
-                      },
-                      new_string: %{
-                        type: "string",
-                        description: """
-                        Exact replacement string. When used with old_string, replaces all matches.
-                        For file creation, this becomes the entire file content.
-                        """
-                      },
-                      replace_all: %{
-                        type: "boolean",
-                        description: """
-                        Whether to replace all occurrences (true) or fail if old_string appears
-                        multiple times (false). Defaults to false for safety.
-                        """,
-                        default: false
-                      }
-                    }
-                  },
-                  %{
-                    description: "File creation (simplified UX)",
-                    type: "object",
-                    required: ["new_string"],
-                    additionalProperties: false,
-                    properties: %{
-                      new_string: %{
-                        type: "string",
-                        description: """
-                        Complete file content for new file creation.
-                        Must be used with create_if_missing: true at the top level.
-                        """
-                      }
+            Each change can be either:
+            1. Natural language instructions (for AI interpretation)
+            2. Exact string replacement (for precise, reliable edits)
+            """,
+            items: %{
+              type: "object",
+              oneOf: [
+                %{
+                  description: "Hash-anchored replacement (preferred)",
+                  type: "object",
+                  required: ["hashes", "old_string", "new_string"],
+                  additionalProperties: false,
+                  properties: %{
+                    hashes: %{
+                      type: "array",
+                      items: %{type: "string"},
+                      description: """
+                      Ordered list of `line:hash` identifiers, one per line in the
+                      contiguous region to replace. Each identifier is the line number
+                      and content hash from file_contents_tool output (e.g. from line
+                      "42:a3f1|text", the identifier is "42:a3f1"). Line numbers must
+                      be consecutive integers. Do NOT include line content - only the
+                      `line:hash` prefix (e.g. from "129:a3f1|UI.fatal(...", use
+                      "129:a3f1", NOT "129:a3f1|UI.fatal(...").
+                      """
+                    },
+                    old_string: %{
+                      type: "string",
+                      description: """
+                      The text content of the lines identified by hashes, copied from
+                      the file WITHOUT hashline prefixes. This is a comprehension check:
+                      it proves you read the target region correctly. Leading whitespace
+                      differences are tolerated, but the content must match.
+                      """
+                    },
+                    new_string: %{
+                      type: "string",
+                      description: """
+                      The replacement text for the identified line range. Whitespace
+                      fitting is applied automatically to match surrounding indentation.
+                      """
                     }
                   }
-                ]
-              }
-            },
-            create_if_missing: %{
-              type: "boolean",
-              description: "If true, create the file (and parent dirs) if it doesn't exist.",
-              default: false
+                },
+                %{
+                  description: "Natural language change instruction",
+                  type: "object",
+                  required: ["instructions"],
+                  additionalProperties: false,
+                  properties: %{
+                    instructions: %{
+                      type: "string",
+                      description: """
+                      Clear, specific natural language instructions for the changes to make. The
+                      instructions must be concise and unambiguous.
+
+                      Clearly define the section(s) of the file to modify. Provide
+                      unambiguous "anchors" that identify the exact location of the
+                      change.
+
+                      Examples:
+                      - "Immediately after the declaration of the main function, add the following code block: ..."
+                      - "Replace the entire contents of the calculate function with: ..."
+                      - "At the top of the file, insert the following imports: ..."
+                      """
+                    },
+                    context: %{
+                      type: "string",
+                      description: """
+                      Optional background context for the AI that will interpret the
+                      instructions. The Patcher agent does not share your conversation
+                      history - it sees only the file and the instruction. Use this
+                      field to provide rationale, constraints, conventions, or scope
+                      that help the Patcher understand *why* the change is needed and
+                      how it fits into the broader task.
+                      """
+                    }
+                  }
+                },
+                %{
+                  description: "Exact string replacement",
+                  type: "object",
+                  required: ["old_string", "new_string"],
+                  additionalProperties: false,
+                  properties: %{
+                    old_string: %{
+                      type: "string",
+                      description: """
+                      Exact string to replace. Must match exactly (including whitespace)
+                      or the operation will fail. For file creation, use empty string "".
+                      """
+                    },
+                    new_string: %{
+                      type: "string",
+                      description: """
+                      Exact replacement string. When used with old_string, replaces all matches.
+                      For file creation, this becomes the entire file content.
+                      """
+                    },
+                    replace_all: %{
+                      type: "boolean",
+                      description: """
+                      Whether to replace all occurrences (true) or fail if old_string appears
+                      multiple times (false). Defaults to false for safety.
+                      """,
+                      default: false
+                    }
+                  }
+                },
+                %{
+                  description: "File creation (simplified UX)",
+                  type: "object",
+                  required: ["new_string"],
+                  additionalProperties: false,
+                  properties: %{
+                    new_string: %{
+                      type: "string",
+                      description: """
+                      Complete file content for new file creation.
+                      Must be used with create_if_missing: true at the top level.
+                      """
+                    }
+                  }
+                }
+              ]
             }
+          },
+          create_if_missing: %{
+            type: "boolean",
+            description: "If true, create the file (and parent dirs) if it doesn't exist.",
+            default: false
           }
         }
       }

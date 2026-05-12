@@ -72,41 +72,39 @@ defmodule AI.Tools.Conversation do
   def spec do
     %{
       type: "function",
-      function: %{
-        name: "conversation_tool",
-        description: """
-        This tool allows you to perform a semantic search through past
-        discussions that you have had with the user. Once you find a relevant
-        conversation, you can ask specific questions about it and an AI agent
-        will extract the relevant information from the conversation for you.
-        """,
-        parameters: %{
-          type: "object",
-          additionalProperties: false,
-          required: ["action"],
-          properties: %{
-            "action" => %{
-              type: "string",
-              enum: ["search", "ask"],
-              description: "Which operation to perform."
-            },
-            "query" => %{
-              type: "string",
-              description: "Search query for semantic conversation search (action=search)."
-            },
-            "limit" => %{
-              type: "integer",
-              description: "Max number of search results.",
-              default: 5
-            },
-            "conversation_id" => %{
-              type: "string",
-              description: "Conversation id to ask about (action=ask)."
-            },
-            "question" => %{
-              type: "string",
-              description: "Question about the specified conversation (action=ask)."
-            }
+      name: "conversation_tool",
+      description: """
+      This tool allows you to perform a semantic search through past
+      discussions that you have had with the user. Once you find a relevant
+      conversation, you can ask specific questions about it and an AI agent
+      will extract the relevant information from the conversation for you.
+      """,
+      parameters: %{
+        type: "object",
+        additionalProperties: false,
+        required: ["action"],
+        properties: %{
+          "action" => %{
+            type: "string",
+            enum: ["search", "ask"],
+            description: "Which operation to perform."
+          },
+          "query" => %{
+            type: "string",
+            description: "Search query for semantic conversation search (action=search)."
+          },
+          "limit" => %{
+            type: "integer",
+            description: "Max number of search results.",
+            default: 5
+          },
+          "conversation_id" => %{
+            type: "string",
+            description: "Conversation id to ask about (action=ask)."
+          },
+          "question" => %{
+            type: "string",
+            description: "Question about the specified conversation (action=ask)."
           }
         }
       }

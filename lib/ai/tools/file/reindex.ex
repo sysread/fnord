@@ -8,19 +8,17 @@ defmodule AI.Tools.File.Reindex do
   def spec() do
     %{
       type: "function",
-      function: %{
-        name: "file_reindex_tool",
-        description: """
-        Reindexes the entire project database, forcing a full rebuild of the
-        index. This ensures that the search index used by the semantic search
-        tool (file_search_tool) is up-to-date with all files in the project,
-        including any new or modified files.
-        """,
-        parameters: %{
-          type: "object",
-          required: [],
-          properties: %{}
-        }
+      name: "file_reindex_tool",
+      description: """
+      Reindexes the entire project database, forcing a full rebuild of the
+      index. This ensures that the search index used by the semantic search
+      tool (file_search_tool) is up-to-date with all files in the project,
+      including any new or modified files.
+      """,
+      parameters: %{
+        type: "object",
+        required: [],
+        properties: %{}
       }
     }
   end

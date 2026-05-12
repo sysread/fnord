@@ -42,22 +42,20 @@ defmodule AI.Tools.RunSkill do
 
     %{
       type: "function",
-      function: %{
-        name: @tool_name,
-        description: "Run a named skill.\n\nAvailable skills: #{names}",
-        parameters: %{
-          type: "object",
-          required: ["skill", "prompt"],
-          additionalProperties: false,
-          properties: %{
-            skill: %{
-              type: "string",
-              description: "Skill name. Available skills:\n#{details}"
-            },
-            prompt: %{
-              type: "string",
-              description: "Input prompt to send to the skill"
-            }
+      name: @tool_name,
+      description: "Run a named skill.\n\nAvailable skills: #{names}",
+      parameters: %{
+        type: "object",
+        required: ["skill", "prompt"],
+        additionalProperties: false,
+        properties: %{
+          skill: %{
+            type: "string",
+            description: "Skill name. Available skills:\n#{details}"
+          },
+          prompt: %{
+            type: "string",
+            description: "Input prompt to send to the skill"
           }
         }
       }

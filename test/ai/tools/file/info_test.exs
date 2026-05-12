@@ -37,8 +37,8 @@ defmodule AI.Tools.File.InfoTest do
     # spec/0 shape
     spec = AI.Tools.File.Info.spec()
     assert spec.type == "function"
-    assert spec.function.name == "file_info_tool"
-    assert spec.function.parameters.required == ["question", "files"]
+    assert spec.name == "file_info_tool"
+    assert spec.parameters.required == ["question", "files"]
   end
 
   test "ui_note_on_request and ui_note_on_result format descriptions" do

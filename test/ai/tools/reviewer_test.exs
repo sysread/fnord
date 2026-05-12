@@ -56,7 +56,7 @@ defmodule AI.Tools.ReviewerTest do
 
   describe "schema" do
     test "spec exposes the new target params" do
-      props = get_in(Reviewer.spec(), [:function, :parameters, :properties])
+      props = get_in(Reviewer.spec(), [:parameters, :properties])
 
       assert Map.has_key?(props, :scope)
       assert Map.has_key?(props, :branch)
@@ -66,12 +66,12 @@ defmodule AI.Tools.ReviewerTest do
     end
 
     test "scope is required; target params are optional" do
-      required = get_in(Reviewer.spec(), [:function, :parameters, :required])
+      required = get_in(Reviewer.spec(), [:parameters, :required])
       assert required == ["scope"]
     end
 
     test "pr parameter is an integer" do
-      type = get_in(Reviewer.spec(), [:function, :parameters, :properties, :pr, :type])
+      type = get_in(Reviewer.spec(), [:parameters, :properties, :pr, :type])
       assert type == "integer"
     end
   end

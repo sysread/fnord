@@ -12,9 +12,9 @@ defmodule AI.Tools.Tasks.PushTaskTest do
       spec = AI.Tools.Tasks.PushTask.spec()
 
       assert spec.type == "function"
-      assert spec.function.name == "tasks_push_task"
+      assert spec.name == "tasks_push_task"
 
-      params = spec.function.parameters
+      params = spec.parameters
       assert params.type == "object"
       assert params.required == ["list_id"]
 

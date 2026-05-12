@@ -29,56 +29,54 @@ defmodule AI.Tools.Git.Worktree do
   def spec do
     %{
       type: "function",
-      function: %{
-        name: "git_worktree_tool",
-        description: """
-        Manage git worktrees for the current project conversation.
+      name: "git_worktree_tool",
+      description: """
+      Manage git worktrees for the current project conversation.
 
-        Required fields per action:
-        - list: (none, root is optional)
-        - create: branch (optional, defaults to fnord-<conversation_id>)
-        - commit: message (required), wip (optional, default false)
-        - delete: root, path
-        - merge: root, path
+      Required fields per action:
+      - list: (none, root is optional)
+      - create: branch (optional, defaults to fnord-<conversation_id>)
+      - commit: message (required), wip (optional, default false)
+      - delete: root, path
+      - merge: root, path
 
-        Create derives the project and conversation from the active session.
-        """,
-        parameters: %{
-          type: "object",
-          additionalProperties: false,
-          required: ["action"],
-          properties: %{
-            "action" => %{
-              type: "string",
-              enum: ["list", "create", "commit", "delete", "merge"],
-              description: "Which worktree operation to perform."
-            },
-            "branch" => %{
-              type: "string",
-              description:
-                "Optional branch name for create. Provide a short descriptive name " <>
-                  "for the work being done. Defaults to fnord-<conversation_id>."
-            },
-            "message" => %{
-              type: "string",
-              description:
-                "Required for commit. Commit message describing the changes. " <>
-                  "When wip is true, describe what was accomplished and what problems remain."
-            },
-            "wip" => %{
-              type: "boolean",
-              description:
-                "Optional for commit (default false). Set to true when stopping " <>
-                  "due to blockers or incomplete work; prefixes the message with 'WIP: '."
-            },
-            "path" => %{
-              type: "string",
-              description: "Required for delete and merge. Absolute worktree path."
-            },
-            "root" => %{
-              type: "string",
-              description: "Git repo root. Required for delete and merge, optional for list."
-            }
+      Create derives the project and conversation from the active session.
+      """,
+      parameters: %{
+        type: "object",
+        additionalProperties: false,
+        required: ["action"],
+        properties: %{
+          "action" => %{
+            type: "string",
+            enum: ["list", "create", "commit", "delete", "merge"],
+            description: "Which worktree operation to perform."
+          },
+          "branch" => %{
+            type: "string",
+            description:
+              "Optional branch name for create. Provide a short descriptive name " <>
+                "for the work being done. Defaults to fnord-<conversation_id>."
+          },
+          "message" => %{
+            type: "string",
+            description:
+              "Required for commit. Commit message describing the changes. " <>
+                "When wip is true, describe what was accomplished and what problems remain."
+          },
+          "wip" => %{
+            type: "boolean",
+            description:
+              "Optional for commit (default false). Set to true when stopping " <>
+                "due to blockers or incomplete work; prefixes the message with 'WIP: '."
+          },
+          "path" => %{
+            type: "string",
+            description: "Required for delete and merge. Absolute worktree path."
+          },
+          "root" => %{
+            type: "string",
+            description: "Git repo root. Required for delete and merge, optional for list."
           }
         }
       }

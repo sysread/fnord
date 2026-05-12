@@ -46,25 +46,23 @@ defmodule AI.Tools.Commit.Search do
   def spec() do
     %{
       type: "function",
-      function: %{
-        name: "commit_search_tool",
-        description: "Semantic search over indexed git commits.",
-        parameters: %{
-          additionalProperties: false,
-          type: "object",
-          required: ["query"],
-          properties: %{
-            query: %{
-              type: "string",
-              description: "Natural language query to match against commit embeddings."
-            },
-            limit: %{
-              type: "integer",
-              description:
-                "Maximum number of results to return (default: #{@max_search_results}).",
-              minimum: 1,
-              maximum: 100
-            }
+      name: "commit_search_tool",
+      description: "Semantic search over indexed git commits.",
+      parameters: %{
+        additionalProperties: false,
+        type: "object",
+        required: ["query"],
+        properties: %{
+          query: %{
+            type: "string",
+            description: "Natural language query to match against commit embeddings."
+          },
+          limit: %{
+            type: "integer",
+            description:
+              "Maximum number of results to return (default: #{@max_search_results}).",
+            minimum: 1,
+            maximum: 100
           }
         }
       }

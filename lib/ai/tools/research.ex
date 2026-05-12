@@ -55,50 +55,48 @@ defmodule AI.Tools.Research do
 
     %{
       type: "function",
-      function: %{
-        name: "research_tool",
-        description: """
-        **This is your research assistant.**
+      name: "research_tool",
+      description: """
+      **This is your research assistant.**
 
-        Spin off a focused sub-research process to perform multiple lines of
-        research in parallel, allowing you to gather information from multiple
-        sources and synthesize findings into a hollistic view of the code base.
+      Spin off a focused sub-research process to perform multiple lines of
+      research in parallel, allowing you to gather information from multiple
+      sources and synthesize findings into a hollistic view of the code base.
 
-        Research is performed by another AI agent which has access to most of
-        the same tools that you do to perform their task.
+      Research is performed by another AI agent which has access to most of
+      the same tools that you do to perform their task.
 
-        The following projects are available for research:
-        #{projects}
+      The following projects are available for research:
+      #{projects}
 
-        !!! This is your most powerful tool !!!
-        """,
-        parameters: %{
-          type: "object",
-          required: ["prompt"],
-          additionalProperties: false,
-          properties: %{
-            prompt: %{
-              type: "string",
-              description: """
-              The research task to perform. This should be a specific question
-              or task that you want the AI agent to research. Provide context
-              as needed to clarify the task, as they will be starting from
-              scratch with no context. The more explicit and clear you are, the
-              more likely they are to produce useful results.
-              """
-            },
-            fnord_project: %{
-              type: "string",
-              description: """
-              By default, research is performed within the current project. If
-              the user asks for you to cross-reference a different project,
-              this option may be specified to indicate that the research should
-              be performed in that project instead.
+      !!! This is your most powerful tool !!!
+      """,
+      parameters: %{
+        type: "object",
+        required: ["prompt"],
+        additionalProperties: false,
+        properties: %{
+          prompt: %{
+            type: "string",
+            description: """
+            The research task to perform. This should be a specific question
+            or task that you want the AI agent to research. Provide context
+            as needed to clarify the task, as they will be starting from
+            scratch with no context. The more explicit and clear you are, the
+            more likely they are to produce useful results.
+            """
+          },
+          fnord_project: %{
+            type: "string",
+            description: """
+            By default, research is performed within the current project. If
+            the user asks for you to cross-reference a different project,
+            this option may be specified to indicate that the research should
+            be performed in that project instead.
 
-              Possible values:
-              #{projects}
-              """
-            }
+            Possible values:
+            #{projects}
+            """
           }
         }
       }

@@ -25,35 +25,33 @@ defmodule AI.Tools.File.Notes do
   def spec() do
     %{
       type: "function",
-      function: %{
-        name: "file_notes_tool",
-        description: """
-        Returns the indexed summary of the specified file, or indicates that
-        the file exists but has not been indexed yet. This is often MUCH more
-        useful than the raw file contents, especially if the file may be large
-        and you need only a high-level understanding of the file's purpose,
-        behaviour, and linkage to other files.
+      name: "file_notes_tool",
+      description: """
+      Returns the indexed summary of the specified file, or indicates that
+      the file exists but has not been indexed yet. This is often MUCH more
+      useful than the raw file contents, especially if the file may be large
+      and you need only a high-level understanding of the file's purpose,
+      behaviour, and linkage to other files.
 
-        Use this before using the file_contents_tool to avoid pulling in
-        unnecessary content into your context window.
+      Use this before using the file_contents_tool to avoid pulling in
+      unnecessary content into your context window.
 
-        Scope: this tool only works on *indexed* source files. Gitignored
-        paths (e.g. `scratch/` notes) are not indexed, but the tool will still
-        confirm that such a file exists in the source repo if you're in a
-        worktree session, and it will point you at file_contents_tool for
-        actually reading the contents.
-        """,
-        parameters: %{
-          additionalProperties: false,
-          type: "object",
-          required: ["file"],
-          properties: %{
-            file: %{
-              type: "string",
-              description: """
-              The absolute file path to the code file in the project.
-              """
-            }
+      Scope: this tool only works on *indexed* source files. Gitignored
+      paths (e.g. `scratch/` notes) are not indexed, but the tool will still
+      confirm that such a file exists in the source repo if you're in a
+      worktree session, and it will point you at file_contents_tool for
+      actually reading the contents.
+      """,
+      parameters: %{
+        additionalProperties: false,
+        type: "object",
+        required: ["file"],
+        properties: %{
+          file: %{
+            type: "string",
+            description: """
+            The absolute file path to the code file in the project.
+            """
           }
         }
       }

@@ -33,22 +33,20 @@ defmodule AI.Tools.ApplyPatch do
   def spec do
     %{
       type: "function",
-      function: %{
-        name: "apply_patch",
-        description: """
-        Apply a unified or git-style diff to the workspace.
-        Provide the full diff text in `patch`.
-        """,
-        parameters: %{
-          type: "object",
-          additionalProperties: false,
-          required: ["patch"],
-          properties: %{
-            "patch" => %{
-              type: "string",
-              description:
-                "Unified or git diff text (e.g., lines with `diff --git`, `---`, `+++`, `@@`, or *** Begin Patch/End Patch)."
-            }
+      name: "apply_patch",
+      description: """
+      Apply a unified or git-style diff to the workspace.
+      Provide the full diff text in `patch`.
+      """,
+      parameters: %{
+        type: "object",
+        additionalProperties: false,
+        required: ["patch"],
+        properties: %{
+          "patch" => %{
+            type: "string",
+            description:
+              "Unified or git diff text (e.g., lines with `diff --git`, `---`, `+++`, `@@`, or *** Begin Patch/End Patch)."
           }
         }
       }

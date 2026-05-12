@@ -54,7 +54,7 @@ defmodule AI.Tools.SelfHelp.DocsTest do
     # assert the spec itself is well-formed and that call/1 with a stubbed
     # completion returns {:ok, ...}, which implicitly exercises the
     # prompt construction at module-load time.
-    assert spec.function.name == "fnord_help_docs_tool"
+    assert spec.name == "fnord_help_docs_tool"
 
     # Read the source and confirm the URL builder uses the excluded path
     # filter. This catches a future regression that re-introduces the bad

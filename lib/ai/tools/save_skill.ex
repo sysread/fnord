@@ -108,33 +108,31 @@ defmodule AI.Tools.SaveSkill do
   def spec() do
     %{
       type: "function",
-      function: %{
-        name: @tool_name,
-        description:
-          "Save a skill into either the current project's skills directory (~/.fnord/projects/<project>/skills) or the user-global skills directory (~/.fnord/skills).",
-        parameters: %{
-          type: "object",
-          additionalProperties: false,
-          properties: %{
-            name: %{type: "string", description: "Skill name"},
-            description: %{type: "string", description: "Brief description"},
-            model: %{
-              type: "string",
-              description: "Model preset (smart/balanced/fast/web/large_context...)"
-            },
-            tools: %{type: "array", items: %{type: "string"}, description: "Tool tags"},
-            system_prompt: %{type: "string", description: "Base system prompt"},
-            response_format: %{
-              anyOf: [%{type: "object"}, %{type: "null"}],
-              description: "Optional response_format map"
-            },
-            scope: %{
-              type: "string",
-              description: "Scope of the skill: \"project\" or \"global\" (default \"project\")"
-            }
+      name: @tool_name,
+      description:
+        "Save a skill into either the current project's skills directory (~/.fnord/projects/<project>/skills) or the user-global skills directory (~/.fnord/skills).",
+      parameters: %{
+        type: "object",
+        additionalProperties: false,
+        properties: %{
+          name: %{type: "string", description: "Skill name"},
+          description: %{type: "string", description: "Brief description"},
+          model: %{
+            type: "string",
+            description: "Model preset (smart/balanced/fast/web/large_context...)"
           },
-          required: ["name", "description", "model", "tools", "system_prompt"]
-        }
+          tools: %{type: "array", items: %{type: "string"}, description: "Tool tags"},
+          system_prompt: %{type: "string", description: "Base system prompt"},
+          response_format: %{
+            anyOf: [%{type: "object"}, %{type: "null"}],
+            description: "Optional response_format map"
+          },
+          scope: %{
+            type: "string",
+            description: "Scope of the skill: \"project\" or \"global\" (default \"project\")"
+          }
+        },
+        required: ["name", "description", "model", "tools", "system_prompt"]
       }
     }
   end

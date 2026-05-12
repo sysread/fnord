@@ -12,9 +12,9 @@ defmodule AI.Tools.Tasks.AddTaskTest do
       spec = AI.Tools.Tasks.AddTask.spec()
 
       assert spec.type == "function"
-      assert spec.function.name == "tasks_add_task"
+      assert spec.name == "tasks_add_task"
 
-      params = spec.function.parameters
+      params = spec.parameters
       assert params.type == "object"
       assert params.required == ["list_id"]
 

@@ -36,37 +36,35 @@ defmodule AI.Tools.Coder do
   def spec do
     %{
       type: "function",
-      function: %{
-        name: "coder_tool",
-        description: """
-        AI-powered, multi-phase code change orchestration.
+      name: "coder_tool",
+      description: """
+      AI-powered, multi-phase code change orchestration.
 
-        This tool is for large, complex code changes that span many files.
-        Use this tool for "epics", not "stories".
+      This tool is for large, complex code changes that span many files.
+      Use this tool for "epics", not "stories".
 
-        Use for:
-        - Architectural refactoring
-        - Changes spanning multiple files or modules
-        - Any ambiguous or partially-specified requirement
-        - Tasks demanding robust planning and post-edit validation
+      Use for:
+      - Architectural refactoring
+      - Changes spanning multiple files or modules
+      - Any ambiguous or partially-specified requirement
+      - Tasks demanding robust planning and post-edit validation
 
-        NOT for quick, precise, atomic line edits; use `file_edit_tool` for those!
-        """,
-        parameters: %{
-          type: "object",
-          required: ["requirements"],
-          additionalProperties: false,
-          properties: %{
-            requirements: %{
-              type: "string",
-              description: """
-              Detailed requirements for the code change:
-              - Purpose of the change
-              - Concrete functionality to be implemented
-              - Clear acceptance criteria
-              - Never use the term "refactor"; the LLM *will* misinterpret it as a license to rewrite everything
-              """
-            }
+      NOT for quick, precise, atomic line edits; use `file_edit_tool` for those!
+      """,
+      parameters: %{
+        type: "object",
+        required: ["requirements"],
+        additionalProperties: false,
+        properties: %{
+          requirements: %{
+            type: "string",
+            description: """
+            Detailed requirements for the code change:
+            - Purpose of the change
+            - Concrete functionality to be implemented
+            - Clear acceptance criteria
+            - Never use the term "refactor"; the LLM *will* misinterpret it as a license to rewrite everything
+            """
           }
         }
       }

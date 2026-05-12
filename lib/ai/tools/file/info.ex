@@ -67,40 +67,38 @@ defmodule AI.Tools.File.Info do
   def spec() do
     %{
       type: "function",
-      function: %{
-        name: "file_info_tool",
-        description: """
-        Requests information about a file or files. An LLM will use your
-        question to extract relevant information from each of the specified
-        file, preserving your own context window so you can focus on answering
-        the user's questions. Specify exactly how you want the response
-        formatted (e.g. exact code sections, interfaces, explanations, yes/no,
-        etc.). File paths must match the ones provided by the file_list_tool or
-        file_search_tool to avoid enoent errors. This tool can use git to
-        provide context about its history and differences from earlier version.
-        """,
-        parameters: %{
-          type: "object",
-          required: ["question", "files"],
-          properties: %{
-            question: %{
-              type: "string",
-              description: "A complete prompt for the LLM to respond to."
-            },
-            files: %{
-              type: "array",
-              items: %{type: "string"},
-              description: """
-              A list of file paths that the LLM should process. Each file will
-              be delegated to the LLM in parallel, allowing you to perform the
-              same inquiry over many files at once.
+      name: "file_info_tool",
+      description: """
+      Requests information about a file or files. An LLM will use your
+      question to extract relevant information from each of the specified
+      file, preserving your own context window so you can focus on answering
+      the user's questions. Specify exactly how you want the response
+      formatted (e.g. exact code sections, interfaces, explanations, yes/no,
+      etc.). File paths must match the ones provided by the file_list_tool or
+      file_search_tool to avoid enoent errors. This tool can use git to
+      provide context about its history and differences from earlier version.
+      """,
+      parameters: %{
+        type: "object",
+        required: ["question", "files"],
+        properties: %{
+          question: %{
+            type: "string",
+            description: "A complete prompt for the LLM to respond to."
+          },
+          files: %{
+            type: "array",
+            items: %{type: "string"},
+            description: """
+            A list of file paths that the LLM should process. Each file will
+            be delegated to the LLM in parallel, allowing you to perform the
+            same inquiry over many files at once.
 
-              This is extremely useful when the user has asked you to identify
-              complex patterns across multiple files, such as "find all
-              functions that call this function" or "find all methods that
-              return a value of this type".
-              """
-            }
+            This is extremely useful when the user has asked you to identify
+            complex patterns across multiple files, such as "find all
+            functions that call this function" or "find all methods that
+            return a value of this type".
+            """
           }
         }
       }

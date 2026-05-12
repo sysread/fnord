@@ -12,8 +12,8 @@ defmodule AI.Tools.Tasks.CreateListTest do
       spec = AI.Tools.Tasks.CreateList.spec()
 
       assert spec.type == "function"
-      assert spec.function.name == "tasks_create_list"
-      params = spec.function.parameters
+      assert spec.name == "tasks_create_list"
+      params = spec.parameters
       assert params.type == "object"
       assert params.required == []
       props = params.properties

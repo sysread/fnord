@@ -25,31 +25,29 @@ defmodule AI.Tools.UI.Confirm do
   def spec do
     %{
       type: "function",
-      function: %{
-        name: "ui_confirm_tool",
-        description: """
-        Ask the user a yes/no question.
+      name: "ui_confirm_tool",
+      description: """
+      Ask the user a yes/no question.
 
-        Unlike UI.choose, UI.confirm works even without a tty, so this is safe
-        for simpler confirmation prompts.
+      Unlike UI.choose, UI.confirm works even without a tty, so this is safe
+      for simpler confirmation prompts.
 
-        Returns a structured response:
-        - %{choice: :yes | :no, value: boolean}
-        """,
-        parameters: %{
-          type: "object",
-          required: ["prompt"],
-          additionalProperties: false,
-          properties: %{
-            prompt: %{
-              type: "string",
-              description: "The confirmation prompt to show the user."
-            },
-            default: %{
-              type: "boolean",
-              description: "Default value used when the UI supports defaults.",
-              default: false
-            }
+      Returns a structured response:
+      - %{choice: :yes | :no, value: boolean}
+      """,
+      parameters: %{
+        type: "object",
+        required: ["prompt"],
+        additionalProperties: false,
+        properties: %{
+          prompt: %{
+            type: "string",
+            description: "The confirmation prompt to show the user."
+          },
+          default: %{
+            type: "boolean",
+            description: "Default value used when the UI supports defaults.",
+            default: false
           }
         }
       }

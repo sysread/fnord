@@ -37,18 +37,16 @@ defmodule AI.Tools.Tasks.ShowList do
   def spec do
     %{
       type: "function",
-      function: %{
-        name: "tasks_show_list",
-        description: "Return the task list as a formatted string (detailed)",
-        parameters: %{
-          type: "object",
-          additionalProperties: false,
-          required: ["list_id"],
-          properties: %{
-            "list_id" => %{
-              type: "string",
-              description: "The ID of the task list (string; integers accepted)."
-            }
+      name: "tasks_show_list",
+      description: "Return the task list as a formatted string (detailed)",
+      parameters: %{
+        type: "object",
+        additionalProperties: false,
+        required: ["list_id"],
+        properties: %{
+          "list_id" => %{
+            type: "string",
+            description: "The ID of the task list (string; integers accepted)."
           }
         }
       }

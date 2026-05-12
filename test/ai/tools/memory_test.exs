@@ -8,9 +8,9 @@ defmodule AI.Tools.MemoryTest do
       spec = Memory.spec()
 
       assert spec.type == "function"
-      assert spec.function.name == "memory_tool"
+      assert spec.name == "memory_tool"
 
-      params = spec.function.parameters
+      params = spec.parameters
       assert params.type == "object"
       assert params.required == ["action"]
 

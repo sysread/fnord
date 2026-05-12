@@ -30,23 +30,21 @@ defmodule AI.Tools.UI.Ask do
   def spec do
     %{
       type: "function",
-      function: %{
-        name: "ui_ask_tool",
-        description: """
-        Ask the user a question and collect a free-form text response.
+      name: "ui_ask_tool",
+      description: """
+      Ask the user a question and collect a free-form text response.
 
-        Use this when you need clarification or additional context from the user
-        before proceeding.
-        """,
-        parameters: %{
-          type: "object",
-          required: ["prompt"],
-          additionalProperties: false,
-          properties: %{
-            prompt: %{
-              type: "string",
-              description: "The question/prompt to show the user."
-            }
+      Use this when you need clarification or additional context from the user
+      before proceeding.
+      """,
+      parameters: %{
+        type: "object",
+        required: ["prompt"],
+        additionalProperties: false,
+        properties: %{
+          prompt: %{
+            type: "string",
+            description: "The question/prompt to show the user."
           }
         }
       }

@@ -40,18 +40,16 @@ defmodule AI.Tools do
     def spec() do
       %{
         type: "function",
-        function: %{
-          name: "something_tool",
-          description: "This tool does something.",
-          parameters: %{
-            additionalProperties: false,
-            type: "object",
-            required: ["thing"],
-            properties: %{
-              thing: %{
-                type: "string",
-                description: "The thing to do."
-              }
+        name: "something_tool",
+        description: "This tool does something.",
+        parameters: %{
+          additionalProperties: false,
+          type: "object",
+          required: ["thing"],
+          properties: %{
+            thing: %{
+              type: "string",
+              description: "The thing to do."
             }
           }
         }

@@ -42,7 +42,7 @@ defmodule AI.Tools.File.SearchTest do
     spec = AI.Tools.File.Search.spec()
     assert spec.type == "function"
 
-    f = spec.function
+    f = spec
     assert f.name == "file_search_tool"
 
     params = f.parameters

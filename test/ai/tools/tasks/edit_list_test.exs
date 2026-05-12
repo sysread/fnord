@@ -14,9 +14,9 @@ defmodule AI.Tools.Tasks.EditListTest do
     test "returns a function spec with name, list_id and description parameters" do
       spec = EditList.spec()
       assert spec.type == "function"
-      assert spec.function.name == "tasks_edit_list"
+      assert spec.name == "tasks_edit_list"
 
-      params = spec.function.parameters
+      params = spec.parameters
       assert params.type == "object"
       assert params.required == ["list_id", "description"]
 

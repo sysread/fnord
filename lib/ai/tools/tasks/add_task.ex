@@ -85,68 +85,66 @@ defmodule AI.Tools.Tasks.AddTask do
   def spec do
     %{
       type: "function",
-      function: %{
-        name: "tasks_add_task",
-        description: """
-        Add a new task to an existing task list. The task is identified by a
-        unique task_id that should be a short label, describing the task at a
-        glance (e.g. "Add some_function/3 to Some.Module") Note that this is
-        NOT a "slug" - it's a human-readable label. The data field is a
-        free-form string that can contain any details or payload for the task.
+      name: "tasks_add_task",
+      description: """
+      Add a new task to an existing task list. The task is identified by a
+      unique task_id that should be a short label, describing the task at a
+      glance (e.g. "Add some_function/3 to Some.Module") Note that this is
+      NOT a "slug" - it's a human-readable label. The data field is a
+      free-form string that can contain any details or payload for the task.
 
-        Tasks are intended to help you retain state between interactions, even
-        if your context window is full. Ensure that the data field includes
-        enough context for you to understand and complete the task later, even
-        if you have forgotten the details you had in mind when creating it.
+      Tasks are intended to help you retain state between interactions, even
+      if your context window is full. Ensure that the data field includes
+      enough context for you to understand and complete the task later, even
+      if you have forgotten the details you had in mind when creating it.
 
-        Tasks are added IN ORDER - the first task in the list will be the
-        next task to be completed.
-        """,
-        parameters: %{
-          type: "object",
-          additionalProperties: false,
-          required: ["list_id"],
-          properties: %{
-            "list_id" => %{
-              type: "string",
-              description: "The ID of the task list."
-            },
-            "task_id" => %{
-              type: "string",
-              description: """
-              A short task label that describes the task. This doubles as the
-              unique identifier for the task. Examples:
-              - "Add some_function/3 to Some.Module"
-              - "Write tests for Another.Module"
-              - "Identify stale documentation in Some.Module"
-              """
-            },
-            "data" => %{
-              type: "string",
-              description: "Free-form detail or payload for the task."
-            },
-            "tasks" => %{
-              type: "array",
-              description: "A list of tasks to add, each with a task_id and data.",
-              items: %{
-                type: "object",
-                additionalProperties: false,
-                required: ["task_id", "data"],
-                properties: %{
-                  "task_id" => %{
-                    type: "string",
-                    description: """
-                    A short task label that describes the task. This doubles as the
-                    unique identifier for the task. Examples:
-                    - "Add some_function/3 to Some.Module"
-                    - "Write tests for Another.Module"
-                    - "Identify stale documentation in Some.Module"
-                    """
-                  },
-                  "data" => %{
-                    type: "string",
-                    description: "The detail or payload for the task."
-                  }
+      Tasks are added IN ORDER - the first task in the list will be the
+      next task to be completed.
+      """,
+      parameters: %{
+        type: "object",
+        additionalProperties: false,
+        required: ["list_id"],
+        properties: %{
+          "list_id" => %{
+            type: "string",
+            description: "The ID of the task list."
+          },
+          "task_id" => %{
+            type: "string",
+            description: """
+            A short task label that describes the task. This doubles as the
+            unique identifier for the task. Examples:
+            - "Add some_function/3 to Some.Module"
+            - "Write tests for Another.Module"
+            - "Identify stale documentation in Some.Module"
+            """
+          },
+          "data" => %{
+            type: "string",
+            description: "Free-form detail or payload for the task."
+          },
+          "tasks" => %{
+            type: "array",
+            description: "A list of tasks to add, each with a task_id and data.",
+            items: %{
+              type: "object",
+              additionalProperties: false,
+              required: ["task_id", "data"],
+              properties: %{
+                "task_id" => %{
+                  type: "string",
+                  description: """
+                  A short task label that describes the task. This doubles as the
+                  unique identifier for the task. Examples:
+                  - "Add some_function/3 to Some.Module"
+                  - "Write tests for Another.Module"
+                  - "Identify stale documentation in Some.Module"
+                  """
+                },
+                "data" => %{
+                  type: "string",
+                  description: "The detail or payload for the task."
                 }
               }
             }

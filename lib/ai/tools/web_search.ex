@@ -36,20 +36,18 @@ defmodule AI.Tools.WebSearch do
   def spec() do
     %{
       type: "function",
-      function: %{
-        name: "web_search_tool",
-        description: "Search the web for relevant information to answer user queries.",
-        parameters: %{
-          type: "object",
-          required: ["query"],
-          properties: %{
-            query: %{
-              type: "string",
-              description: """
-              The search query to find relevant information on the web.
-              This may be an open-ended query to identify relevant web pages, or a specific question about a particular site.
-              """
-            }
+      name: "web_search_tool",
+      description: "Search the web for relevant information to answer user queries.",
+      parameters: %{
+        type: "object",
+        required: ["query"],
+        properties: %{
+          query: %{
+            type: "string",
+            description: """
+            The search query to find relevant information on the web.
+            This may be an open-ended query to identify relevant web pages, or a specific question about a particular site.
+            """
           }
         }
       }

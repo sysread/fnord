@@ -60,107 +60,105 @@ defmodule AI.Tools.Memory do
   def spec do
     %{
       type: "function",
-      function: %{
-        name: "memory_tool",
-        description: """
-        Tool for session-scoped memory operations and recall across scopes.
+      name: "memory_tool",
+      description: """
+      Tool for session-scoped memory operations and recall across scopes.
 
-        - Writes (remember/update/forget) performed via this tool are session-scoped:
-          they are persisted to the current conversation's memory store. These
-          session memories are intended to be short-term and may be later
-          *promoted* to project/global memory by the background indexer.
+      - Writes (remember/update/forget) performed via this tool are session-scoped:
+        they are persisted to the current conversation's memory store. These
+        session memories are intended to be short-term and may be later
+        *promoted* to project/global memory by the background indexer.
 
-        - Use this tool to record ephemeral or session-relevant facts (goals,
-          short-term decisions, troubleshooting notes). Do NOT attempt to
-          persist stable, cross-project facts here; the background indexer will
-          surface candidates and promote them to long-term storage when
-          appropriate.
+      - Use this tool to record ephemeral or session-relevant facts (goals,
+        short-term decisions, troubleshooting notes). Do NOT attempt to
+        persist stable, cross-project facts here; the background indexer will
+        surface candidates and promote them to long-term storage when
+        appropriate.
 
-        - Recall (action=recall) will search across memory scopes (session,
-          project, global) to provide Candidate memories and provenance to the
-          caller.
+      - Recall (action=recall) will search across memory scopes (session,
+        project, global) to provide Candidate memories and provenance to the
+        caller.
 
-        Hard rules:
-        - memory_tool is the short-term tool for session memories. Do not call
-          'long_term_memory_tool' from Coordinator flows; long-term writes are
-          handled by the indexer/ingest process.
-        - Do NOT store conversation IDs, ephemeral commit hashes, or secrets
-          in long-term memory. Focus on stable facts, preferences, and
-          project conventions.
-        """,
-        parameters: %{
-          type: "object",
-          additionalProperties: false,
-          required: ["action"],
-          properties: %{
-            "action" => %{
-              type: "string",
-              enum: ["list", "recall", "remember", "update", "forget"],
-              description: """
-              Which memory operation to perform.
+      Hard rules:
+      - memory_tool is the short-term tool for session memories. Do not call
+        'long_term_memory_tool' from Coordinator flows; long-term writes are
+        handled by the indexer/ingest process.
+      - Do NOT store conversation IDs, ephemeral commit hashes, or secrets
+        in long-term memory. Focus on stable facts, preferences, and
+        project conventions.
+      """,
+      parameters: %{
+        type: "object",
+        additionalProperties: false,
+        required: ["action"],
+        properties: %{
+          "action" => %{
+            type: "string",
+            enum: ["list", "recall", "remember", "update", "forget"],
+            description: """
+            Which memory operation to perform.
 
-              - list: List all memories
-                - args: none
+            - list: List all memories
+              - args: none
 
-              - recall: Search for similar memories
-                - args:
-                  - required: what
-                  - optional: limit
+            - recall: Search for similar memories
+              - args:
+                - required: what
+                - optional: limit
 
-              - remember: Create a new memory
-                - args:
-                  - required: scope, title, content
-                  - optional: topics
+            - remember: Create a new memory
+              - args:
+                - required: scope, title, content
+                - optional: topics
 
-              - update: Append content to an existing memory
-                - args:
-                  - required: scope, title, new_content
-                  - optional: new_topics
+            - update: Append content to an existing memory
+              - args:
+                - required: scope, title, new_content
+                - optional: new_topics
 
-              - forget: Delete a memory
-                - args:
-                  - required: title
-                  - optional: scope
-              """
-            },
-            "scope" => %{
-              type: "string",
-              enum: ["session"],
-              description:
-                "Memory scope for remember/update/forget operations. This tool accepts only 'session' scope; use the long_term_memory_tool for project or global memories."
-            },
-            "what" => %{
-              type: "string",
-              description: "Text to search for similar memories (action=recall)."
-            },
-            "limit" => %{
-              type: "integer",
-              description: "Maximum number of memories to return (action=recall).",
-              default: 5
-            },
-            "title" => %{
-              type: "string",
-              description:
-                "Title of the memory (remember/update/forget). Short free-form plain-English title (max 200 chars). Titles are trimmed and must contain at least one letter or digit. Titles are unique within the specified scope. Internal filename slugs are derived from titles and the system will disambiguate filenames automatically if needed."
-            },
-            "content" => %{
-              type: "string",
-              description: "Content of the memory (remember)."
-            },
-            "topics" => %{
-              type: "array",
-              items: %{type: "string"},
-              description: "Optional list of topics related to the memory (remember)."
-            },
-            "new_content" => %{
-              type: "string",
-              description: "Content to append to an existing memory (update)."
-            },
-            "new_topics" => %{
-              type: "array",
-              items: %{type: "string"},
-              description: "Optional list of new topics to add to the memory (update)."
-            }
+            - forget: Delete a memory
+              - args:
+                - required: title
+                - optional: scope
+            """
+          },
+          "scope" => %{
+            type: "string",
+            enum: ["session"],
+            description:
+              "Memory scope for remember/update/forget operations. This tool accepts only 'session' scope; use the long_term_memory_tool for project or global memories."
+          },
+          "what" => %{
+            type: "string",
+            description: "Text to search for similar memories (action=recall)."
+          },
+          "limit" => %{
+            type: "integer",
+            description: "Maximum number of memories to return (action=recall).",
+            default: 5
+          },
+          "title" => %{
+            type: "string",
+            description:
+              "Title of the memory (remember/update/forget). Short free-form plain-English title (max 200 chars). Titles are trimmed and must contain at least one letter or digit. Titles are unique within the specified scope. Internal filename slugs are derived from titles and the system will disambiguate filenames automatically if needed."
+          },
+          "content" => %{
+            type: "string",
+            description: "Content of the memory (remember)."
+          },
+          "topics" => %{
+            type: "array",
+            items: %{type: "string"},
+            description: "Optional list of topics related to the memory (remember)."
+          },
+          "new_content" => %{
+            type: "string",
+            description: "Content to append to an existing memory (update)."
+          },
+          "new_topics" => %{
+            type: "array",
+            items: %{type: "string"},
+            description: "Optional list of new topics to add to the memory (update)."
           }
         }
       }

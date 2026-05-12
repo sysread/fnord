@@ -23,18 +23,16 @@ defmodule AI.Tools.File.List do
   def spec() do
     %{
       type: "function",
-      function: %{
-        name: "file_list_tool",
-        description: """
-        Lists all files in the project database. You can discover quite a bit
-        about a project by examining the layout of the repository.
-        """,
-        parameters: %{
-          additionalProperties: false,
-          type: "object",
-          required: [],
-          properties: %{}
-        }
+      name: "file_list_tool",
+      description: """
+      Lists all files in the project database. You can discover quite a bit
+      about a project by examining the layout of the repository.
+      """,
+      parameters: %{
+        additionalProperties: false,
+        type: "object",
+        required: [],
+        properties: %{}
       }
     }
   end

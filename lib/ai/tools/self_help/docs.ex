@@ -83,22 +83,20 @@ defmodule AI.Tools.SelfHelp.Docs do
   def spec do
     %{
       type: "function",
-      function: %{
-        name: "fnord_help_docs_tool",
-        description: """
-        Search fnord's published documentation to answer questions about features, configuration, and usage.
-        Use this tool when the user asks about how fnord works, what a feature does, or how to configure something.
-        For CLI structure questions (flags, subcommands, command tree), prefer fnord_help_cli_tool instead.
-        """,
-        parameters: %{
-          type: "object",
-          additionalProperties: false,
-          required: ["question"],
-          properties: %{
-            "question" => %{
-              type: "string",
-              description: "The question to research in fnord's documentation."
-            }
+      name: "fnord_help_docs_tool",
+      description: """
+      Search fnord's published documentation to answer questions about features, configuration, and usage.
+      Use this tool when the user asks about how fnord works, what a feature does, or how to configure something.
+      For CLI structure questions (flags, subcommands, command tree), prefer fnord_help_cli_tool instead.
+      """,
+      parameters: %{
+        type: "object",
+        additionalProperties: false,
+        required: ["question"],
+        properties: %{
+          "question" => %{
+            type: "string",
+            description: "The question to research in fnord's documentation."
           }
         }
       }

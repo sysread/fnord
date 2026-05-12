@@ -44,7 +44,7 @@ defmodule AI.Tools.Commit.SearchTest do
     spec = AI.Tools.Commit.Search.spec()
     assert spec.type == "function"
 
-    f = spec.function
+    f = spec
     assert f.name == "commit_search_tool"
 
     params = f.parameters
