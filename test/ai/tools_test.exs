@@ -32,17 +32,15 @@ defmodule AI.ToolsTest do
     def spec() do
       %{
         type: "function",
-        function: %{
-          name: "mock_tool",
-          description: "pretends to do a thing",
-          parameters: %{
-            type: "object",
-            required: ["required_arg"],
-            properties: %{
-              required_arg: %{
-                type: "string",
-                description: "a required arg for a mock tool"
-              }
+        name: "mock_tool",
+        description: "pretends to do a thing",
+        parameters: %{
+          type: "object",
+          required: ["required_arg"],
+          properties: %{
+            required_arg: %{
+              type: "string",
+              description: "a required arg for a mock tool"
             }
           }
         }
@@ -82,21 +80,19 @@ defmodule AI.ToolsTest do
     def spec do
       %{
         type: "function",
-        function: %{
-          name: "passthrough_tool",
-          description: "A tool with passthrough read_args for testing centralized validation",
-          parameters: %{
-            type: "object",
-            required: ["count", "label"],
-            properties: %{
-              count: %{
-                type: "integer",
-                description: "A count"
-              },
-              label: %{
-                type: "string",
-                description: "A label"
-              }
+        name: "passthrough_tool",
+        description: "A tool with passthrough read_args for testing centralized validation",
+        parameters: %{
+          type: "object",
+          required: ["count", "label"],
+          properties: %{
+            count: %{
+              type: "integer",
+              description: "A count"
+            },
+            label: %{
+              type: "string",
+              description: "A label"
             }
           }
         }
@@ -248,7 +244,7 @@ defmodule AI.ToolsTest do
         def call(_args), do: {:ok, :ok}
 
         @impl AI.Tools
-        def spec, do: %{function: %{name: "raising_result_tool"}}
+        def spec, do: %{type: "function", name: "raising_result_tool"}
       end
 
       tools = %{"raising_result_tool" => RaisingResultTool}
@@ -265,7 +261,7 @@ defmodule AI.ToolsTest do
       def async?, do: true
 
       @impl AI.Tools
-      def spec, do: %{function: %{name: "mock_build_tool"}}
+      def spec, do: %{type: "function", name: "mock_build_tool"}
 
       @impl AI.Tools
       def is_available?, do: true
@@ -319,48 +315,6 @@ defmodule AI.ToolsTest do
     test "skips modules with malformed or missing spec/0" do
       assert AI.Tools.build_toolbox([MockBuildTool, BadSpecTool]) == %{
                "mock_build_tool" => MockBuildTool
-             }
-    end
-
-    # Flat (Responses-API) spec shape - no `function:` wrapper. build_toolbox
-    # must accept this alongside the legacy nested shape so the Phase 0
-    # migration can flip tool spec/0 emitters one batch at a time.
-    defmodule FlatSpecTool do
-      @behaviour AI.Tools
-
-      @impl AI.Tools
-      def async?, do: true
-
-      @impl AI.Tools
-      def spec, do: %{type: "function", name: "flat_spec_tool"}
-
-      @impl AI.Tools
-      def is_available?, do: true
-
-      @impl AI.Tools
-      def read_args(args), do: {:ok, args}
-
-      @impl AI.Tools
-      def ui_note_on_request(_args), do: nil
-
-      @impl AI.Tools
-      def ui_note_on_result(_args, _result), do: nil
-
-      @impl AI.Tools
-      def tool_call_failure_message(_args, _reason), do: :default
-
-      @impl AI.Tools
-      def call(_args), do: {:ok, :ok}
-    end
-
-    test "indexes flat-shape specs by their top-level :name" do
-      assert AI.Tools.build_toolbox([FlatSpecTool]) == %{"flat_spec_tool" => FlatSpecTool}
-    end
-
-    test "indexes a mix of flat and nested spec shapes" do
-      assert AI.Tools.build_toolbox([MockBuildTool, FlatSpecTool]) == %{
-               "mock_build_tool" => MockBuildTool,
-               "flat_spec_tool" => FlatSpecTool
              }
     end
   end

@@ -414,10 +414,8 @@ defmodule AI.CompletionTest do
       def spec do
         %{
           type: "function",
-          function: %{
-            name: "test_tool",
-            parameters: %{type: "object", required: [], properties: %{}}
-          }
+          name: "test_tool",
+          parameters: %{type: "object", required: [], properties: %{}}
         }
       end
 
@@ -450,10 +448,8 @@ defmodule AI.CompletionTest do
       def spec do
         %{
           type: "function",
-          function: %{
-            name: "test_tool_sync",
-            parameters: %{type: "object", required: [], properties: %{}}
-          }
+          name: "test_tool_sync",
+          parameters: %{type: "object", required: [], properties: %{}}
         }
       end
 

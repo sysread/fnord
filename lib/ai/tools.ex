@@ -66,11 +66,9 @@ defmodule AI.Tools do
 
   @type tool_spec :: %{
           :type => binary,
-          :function => %{
-            :name => binary,
-            :description => binary,
-            :parameters => map()
-          }
+          :name => binary,
+          :description => binary,
+          :parameters => map()
         }
 
   @type tool_name :: binary
@@ -888,14 +886,13 @@ defmodule AI.Tools do
 
   @doc """
   Given a list of modules, returns a map from tool_name => module, using each
-  module's spec name as the key. Accepts both the flat Responses-style shape
-  (`%{type: "function", name: ...}`) and the legacy Chat-Completions nested
-  shape (`%{type: "function", function: %{name: ...}}`).
+  module's spec().name value as the key.
   """
   @spec build_toolbox([module] | %{binary => module} | nil) :: toolbox
   def build_toolbox(modules) when is_list(modules) do
     Enum.reduce(modules, %{}, fn mod, acc ->
-      name = spec_tool_name(mod.spec())
+      spec = mod.spec()
+      name = (is_map(spec) && (spec[:name] || spec["name"])) || nil
 
       if is_binary(name) and name != "" do
         Map.put(acc, name, mod)
@@ -907,14 +904,4 @@ defmodule AI.Tools do
 
   def build_toolbox(modules) when is_map(modules), do: modules
   def build_toolbox(nil), do: %{}
-
-  # Extract the tool name from a spec, tolerating both flat and nested shapes.
-  # Flat (Responses API):       %{name: ..., parameters: ...}
-  # Nested (Chat Completions):  %{function: %{name: ..., parameters: ...}}
-  defp spec_tool_name(spec) do
-    case spec[:function] || spec["function"] do
-      nil -> spec[:name] || spec["name"]
-      fun -> fun[:name] || fun["name"]
-    end
-  end
 end

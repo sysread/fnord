@@ -19,8 +19,9 @@ defmodule AI.Tools.Params do
   @doc """
   Validate and coerce tool call arguments against a tool spec.
 
-  Accepts the full tool spec (as returned by `module.spec()`), a raw spec
-  with a `parameters` key, or a pre-normalized `%{properties: ..., required: ...}`.
+  Accepts the full tool spec (as returned by `module.spec()`) or a
+  pre-normalized `%{properties: ..., required: ...}`. The spec is expected
+  to carry `parameters` at the top level (flat Responses-API shape).
 
   Returns `{:ok, coerced_args}` or an `AI.Tools.args_error()`.
   """
@@ -28,10 +29,6 @@ defmodule AI.Tools.Params do
           {:ok, map()}
           | {:error, :missing_argument, binary()}
           | {:error, :invalid_argument, binary()}
-  def validate_json_args(%{function: %{parameters: params}}, args) do
-    validate_json_args(%{parameters: params}, args)
-  end
-
   def validate_json_args(spec, args) do
     case validate_all_args(spec, args) do
       {:ok, coerced} ->
