@@ -301,7 +301,7 @@ defmodule Frobs do
           end
 
           @impl AI.Tools
-          def spec, do: %{type: "function", function: @tool_spec}
+          def spec, do: Map.put(@tool_spec, :type, "function")
 
           @impl AI.Tools
           def read_args(args), do: {:ok, args}
