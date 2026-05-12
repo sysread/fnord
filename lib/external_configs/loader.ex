@@ -64,6 +64,10 @@ defmodule ExternalConfigs.Loader do
   @doc """
   Load all cursor skills (global + project), project overriding global.
   Cached per session and per project.
+
+  Skills flagged for self-delegation (see `ExternalConfigs.Skill` -
+  `fnord_skip`) are dropped here, before any consumer sees them. The drop
+  is logged once per cache miss with the offending path.
   """
   @spec load_cursor_skills(Store.Project.t()) :: [ExternalConfigs.Skill.t()]
   def load_cursor_skills(%Store.Project{} = project) do
@@ -74,13 +78,19 @@ defmodule ExternalConfigs.Loader do
       project_skills =
         discover_skills_dir(project_dir(source_root, ".cursor/skills"), :cursor, :project)
 
-      merge_by_name(global, project_skills)
+      global
+      |> merge_by_name(project_skills)
+      |> reject_self_delegating()
     end)
   end
 
   @doc """
   Load all Claude Code skills (global + project), project overriding global.
   Cached per session and per project.
+
+  Skills flagged for self-delegation (see `ExternalConfigs.Skill` -
+  `fnord_skip`) are dropped here, before any consumer sees them. The drop
+  is logged once per cache miss with the offending path.
   """
   @spec load_claude_skills(Store.Project.t()) :: [ExternalConfigs.Skill.t()]
   def load_claude_skills(%Store.Project{} = project) do
@@ -91,7 +101,30 @@ defmodule ExternalConfigs.Loader do
       project_skills =
         discover_skills_dir(project_dir(source_root, ".claude/skills"), :claude, :project)
 
-      merge_by_name(global, project_skills)
+      global
+      |> merge_by_name(project_skills)
+      |> reject_self_delegating()
+    end)
+  end
+
+  # Drops skills that are shims back to fnord. Filters at the loader so all
+  # consumers (run_skill, the catalog, listing commands) see the same view.
+  # Logging happens here rather than at parse time so it fires once per
+  # cache miss, not on every `from_dir` call.
+  defp reject_self_delegating(skills) do
+    Enum.reject(skills, fn skill ->
+      case skill do
+        %ExternalConfigs.Skill{fnord_skip: true, fnord_skip_reason: reason, path: path} ->
+          Logger.info(
+            "Skipping self-delegating #{skill.flavor} skill " <>
+              "#{inspect(skill.name)} (#{reason}): #{path}"
+          )
+
+          true
+
+        _ ->
+          false
+      end
     end)
   end
 

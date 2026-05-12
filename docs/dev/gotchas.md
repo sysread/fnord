@@ -302,3 +302,38 @@ rather than removing the guard.
 Symptom of a legitimate cap hit: the session produces an abrupt summary response
 mid-task with no tool calls.
 Check `state.tool_round_count` at the failure point before assuming a bug.
+
+## 23. External skills that delegate to fnord cause infinite recursion
+
+Claude Code and Cursor skills are loaded from `~/.claude/skills/` and
+`~/.cursor/skills/` (plus per-project equivalents) and surfaced to fnord's
+coordinator through `run_skill`. A common pattern is a shim skill - e.g.
+`~/claude-shared/skills/review/SKILL.md` - whose body tells the host model
+to shell out to `fnord ask -W . -q "..."`. The shim exists to delegate
+Claude/Cursor invocations into fnord.
+
+When fnord itself loads such a skill, the agent dutifully runs the body's
+instructions and shells out to a fresh `fnord ask` process. That process
+loads the same skill, and so on - infinite recursion (in practice, halted
+by the permission prompt for the nested shell command, but it still wastes
+a full turn and confuses the user).
+
+`ExternalConfigs.Loader.load_claude_skills/1` and `load_cursor_skills/1`
+filter these skills out by checking
+`ExternalConfigs.Skill.fnord_skip`. Two detection paths:
+
+1. **Explicit opt-out**: `fnord_skip: true` in the SKILL.md frontmatter.
+   This is the preferred path; skills that exist to bridge another tool
+   into fnord should declare it.
+2. **Body scan fallback**: any skill body containing `fnord ask` or
+   `fnord-dev ask` (word-bounded, case-sensitive) is filtered with reason
+   `:body_invokes_fnord` so that mis-configured shims still cannot recurse.
+
+An explicit `fnord_skip: false` in the frontmatter overrides the body scan.
+Use this only when you know the body legitimately references the command
+in prose and the skill is not a recursion hazard.
+
+If you add new ways for skills to call back into fnord (a new subcommand,
+a different binary name), update the regex in
+`lib/external_configs/skill.ex` (`@fnord_invocation_re`) and add a
+regression test.

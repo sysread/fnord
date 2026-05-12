@@ -261,6 +261,71 @@ defmodule ExternalConfigs.LoaderTest do
     assert [%{name: "claude-only", flavor: :claude}] = loaded.claude_skills
   end
 
+  test "load/1 filters out claude skills flagged for self-delegation" do
+    project = mock_project("demo")
+    Settings.ExternalConfigs.set("demo", :claude_skills, true)
+
+    # Benign skill: should remain.
+    write!(
+      Path.join(project.source_root, ".claude/skills/keeper/SKILL.md"),
+      skill_contents(name: "keeper", description: "normal")
+    )
+
+    # Explicit opt-out via frontmatter.
+    write!(
+      Path.join(project.source_root, ".claude/skills/shim/SKILL.md"),
+      """
+      ---
+      name: shim
+      description: delegates to fnord
+      fnord_skip: true
+      ---
+      Body.
+      """
+    )
+
+    # Implicit opt-out via body scan.
+    write!(
+      Path.join(project.source_root, ".claude/skills/review/SKILL.md"),
+      """
+      ---
+      name: review
+      description: review delegator
+      ---
+      Run `fnord ask -W . -q "Review <target>"`.
+      """
+    )
+
+    ExternalConfigs.Loader.clear_cache()
+    loaded = Loader.load(project)
+
+    names = Enum.map(loaded.claude_skills, & &1.name)
+    assert "keeper" in names
+    refute "shim" in names
+    refute "review" in names
+  end
+
+  test "load/1 filters out cursor skills flagged for self-delegation" do
+    project = mock_project("demo")
+    Settings.ExternalConfigs.set("demo", :cursor_skills, true)
+
+    write!(
+      Path.join(project.source_root, ".cursor/skills/cursor-review/SKILL.md"),
+      """
+      ---
+      name: cursor-review
+      description: delegates to fnord
+      ---
+      Run `fnord-dev ask -q "Review"` to delegate.
+      """
+    )
+
+    ExternalConfigs.Loader.clear_cache()
+    loaded = Loader.load(project)
+
+    refute Enum.any?(loaded.cursor_skills, &(&1.name == "cursor-review"))
+  end
+
   test "has_any_on_disk?/2 detects claude agents" do
     project = mock_project("demo")
     refute ExternalConfigs.Loader.has_any_on_disk?(project, :claude_agents)

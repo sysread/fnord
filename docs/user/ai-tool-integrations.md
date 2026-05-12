@@ -115,6 +115,26 @@ path to the `SKILL.md`. When a task matches a skill's description, the
 model reads the file with `file_contents_tool` and follows the
 guidance.
 
+#### Opting out of fnord exposure
+
+A skill that exists to delegate Claude Code or Cursor invocations back
+into fnord (`fnord ask -W . -q ...` in the body) must not be loaded by
+fnord itself - the agent would recurse into a fresh fnord process.
+Fnord filters such skills before they reach the coordinator.
+
+Two opt-out paths:
+
+- **Explicit**: add `fnord_skip: true` to the SKILL.md frontmatter.
+  Preferred for shim skills - it documents intent and survives body
+  edits.
+- **Fallback**: any skill body containing `fnord ask` or
+  `fnord-dev ask` (word-bounded, case-sensitive) is filtered
+  automatically. The match is logged at load time with the offending
+  path so it is visible in the session log.
+
+Set `fnord_skip: false` explicitly to override the fallback when a
+skill body mentions the command in prose but is not actually a shim.
+
 ### Claude Code subagents
 
 Single `.md` file per agent. YAML frontmatter defines `name`,
