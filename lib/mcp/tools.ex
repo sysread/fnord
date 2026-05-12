@@ -86,7 +86,12 @@ defmodule MCP.Tools do
 
       @impl true
       def ui_note_on_request(args) do
-        tool_name = Map.get(@spec_data.function, :name, @tool)
+        # Tolerate either the flat Responses spec or the legacy nested shape.
+        tool_name =
+          case Map.get(@spec_data, :function) do
+            nil -> Map.get(@spec_data, :name, @tool)
+            fun -> Map.get(fun, :name, @tool)
+          end
 
         case Map.keys(args) do
           [] -> "Calling #{tool_name}"

@@ -1,6 +1,38 @@
 defmodule AI.Tools.ParamsTest do
   use Fnord.TestCase, async: true
 
+  # Phase 0 (Responses API migration) flattens tool specs from
+  # %{type: "function", function: %{name, description, parameters}}
+  # to %{type: "function", name, description, parameters}. validate_json_args/2
+  # must accept either shape during the transition so individual tools can flip
+  # without a coordinated big-bang.
+  describe "validate_json_args/2 spec shape tolerance" do
+    @params %{
+      type: "object",
+      required: ["thing"],
+      properties: %{thing: %{type: "string"}}
+    }
+
+    test "accepts the legacy nested Chat-Completions spec shape" do
+      spec = %{type: "function", function: %{name: "t", parameters: @params}}
+      assert {:ok, %{"thing" => "ok"}} = AI.Tools.Params.validate_json_args(spec, %{"thing" => "ok"})
+    end
+
+    test "accepts the flat Responses-API spec shape" do
+      spec = %{type: "function", name: "t", parameters: @params}
+      assert {:ok, %{"thing" => "ok"}} = AI.Tools.Params.validate_json_args(spec, %{"thing" => "ok"})
+    end
+
+    test "reports missing required args for the flat shape" do
+      spec = %{type: "function", name: "t", parameters: @params}
+
+      assert {:error, :missing_argument, msg} =
+               AI.Tools.Params.validate_json_args(spec, %{})
+
+      assert msg =~ "thing"
+    end
+  end
+
   describe "validate_and_coerce_param/2" do
     # -------------------------------------------------------------------------
     # Flat type coercion
