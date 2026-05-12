@@ -4,7 +4,7 @@ defmodule Fnord.MixProject do
   def project do
     [
       app: :fnord,
-      version: "0.9.33",
+      version: "0.9.34",
       elixir: "~> 1.19",
       start_permanent: Mix.env() == :prod,
       description: "AI code archaeology",
@@ -83,6 +83,10 @@ defmodule Fnord.MixProject do
       {:dialyxir, "~> 1.4.5", only: [:dev], runtime: false},
       {:ex_doc, ">= 0.0.0", only: [:dev], runtime: false},
       {:excoveralls, "~> 0.18.5", only: [:test], runtime: false},
+      # finch >= 0.22 rejects hermes_mcp 0.14.1's :transport_opts via
+      # Keyword.validate! in Finch.Request.build/5. Hermes upstream has been
+      # dormant since Aug 2025, so cap finch below 0.22 until a fix ships.
+      {:finch, ">= 0.19.0 and < 0.22.0", override: true},
       {:hermes_mcp, "~> 0.14"},
       {:httpoison, "~> 2.2.1"},
       {:jason, "~> 1.4"},
