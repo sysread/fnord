@@ -24,16 +24,16 @@ defmodule AI.Model.DeepSeek do
         }
 
   @impl AI.Model.Provider
-  def smarter(), do: deepseek_v4_flash(:high)
+  def smarter(), do: deepseek_v4_flash(:high, 8196 * 8)
 
   @impl AI.Model.Provider
-  def smart(), do: deepseek_v4_flash(:medium)
+  def smart(), do: deepseek_v4_flash(:medium, 8196 * 6)
 
   @impl AI.Model.Provider
-  def balanced(), do: deepseek_v4_flash(:low)
+  def balanced(), do: deepseek_v4_flash(:low, 8196 * 4)
 
   @impl AI.Model.Provider
-  def fast(), do: deepseek_v4_flash(:none)
+  def fast(), do: deepseek_v4_flash(:none, 8196 * 2)
 
   @impl AI.Model.Provider
   def web_search(), do: deepseek_v4_flash(:none)
