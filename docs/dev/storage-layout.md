@@ -107,6 +107,53 @@ with the wrong dimension count is stale regardless of hash freshness. This
 catches entries produced by a prior embedding model that the cross-format hash
 upgrade would otherwise mark as fresh.
 
+## Conversation file format
+
+Conversations live at `~/.fnord/projects/<name>/conversations/<uuid>.json`
+and have a JSON object with four top-level keys: `messages`, `metadata`,
+`memory`, `tasks`. Two on-disk shapes are supported simultaneously:
+
+|Version|Wire shape|Timestamp source|Status|
+|---|---|---|---|
+|v0|`<unix_ts>:<json>` - numeric prefix + colon + JSON body|prefix integer|legacy; everything in the wild is v0 today|
+|v1|pure JSON object with `version: 1` and `timestamp: <unix_int>` at the top level|JSON field|forward-facing; readers accept it now, writer flips later|
+
+The v0 prefix existed so `list/1` and `timestamp/1` could sort conversations
+without parsing the JSON body. v1 trades that fast path for a uniform shape
+(no out-of-band data) - timestamp extraction under v1 requires a JSON decode.
+
+### Cross-worktree migration constraint
+
+All worktrees in a project share `conversations/`. Background services
+(MemoryIndexer, ConversationIndexer) in any worktree may read any file. If
+one build emits v1 while another build only reads v0, the older build flags
+v1 files as corrupt and skips them.
+
+The two-stage rollout:
+
+1. Ship a build whose readers understand both v0 and v1. Writer continues to
+   emit v0. (`Store.Project.Conversation.Format` - shipped in Phase 1b of the
+   Responses-API migration.)
+2. Once that build has rolled out everywhere, ship a build whose writer
+   flips to v1. Older v1-aware readers can still parse those files.
+
+### Heal-on-read for v0 files
+
+`Store.Project.Conversation.Format.read/1` applies two heal passes to v0
+files when stale shapes are detected, persisting repairs back to disk:
+
+- **Task-list shape** (`TaskListStatusMigration`) - bare lists become
+  `%{tasks:, description:, status:}` maps; status values normalize to a
+  canonical enum.
+- **Tool-call arguments** - a removed code path persisted
+  `tool_calls[].function.arguments` as decoded maps. The heal pass
+  re-encodes them as JSON strings before the in-memory atom-key conversion
+  runs. This guards against LLM-emitted garbage keys exhausting the BEAM
+  atom table via `Util.string_keys_to_atoms/1` (see gotchas.md and the
+  "Conversation file corruption" engram memory).
+
+v1 files do not carry these legacy shapes and skip the heal passes.
+
 ## Global memory store
 
 Long-term global memories live in `~/.fnord/memory/`. Storage is managed by

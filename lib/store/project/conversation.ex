@@ -215,102 +215,15 @@ defmodule Store.Project.Conversation do
   @doc """
   Reads the conversation from the store. Returns a map with the timestamp,
   messages, metadata, and memory in the conversation.
+
+  Delegates to `Store.Project.Conversation.Format.read/1`, which transparently
+  handles both v0 (legacy timestamp-prefixed) and v1 (pure JSON with
+  `version: 1`) file shapes. See that module for the cross-worktree migration
+  strategy.
   """
   @spec read(t) :: {:ok, data} | {:error, any}
   def read(conversation) do
-    with {:ok, contents} <- File.read(conversation.store_path),
-         [timestamp_str, json] <- String.split(contents, ":", parts: 2),
-         {:ok, timestamp} <- unmarshal_ts(timestamp_str),
-         {:ok, data} <- SafeJson.decode(json) do
-      # If persisted tasks use legacy shapes, heal and re-save the file so callers get canonical shape
-      Store.Project.Conversation.TaskListStatusMigration.heal_and_maybe_write(
-        data,
-        conversation,
-        timestamp_str
-      )
-
-      # A now-removed code path stored tool call arguments as decoded maps.
-      # Re-encode them to JSON strings before atomizing to prevent garbage
-      # LLM-generated keys from exhausting the atom table.
-      data = heal_tool_call_arguments_and_maybe_write(data, conversation, timestamp_str)
-
-      msgs =
-        data
-        |> Map.get("messages", [])
-        |> Util.string_keys_to_atoms()
-
-      metadata =
-        data
-        |> Map.get("metadata", %{})
-        |> Util.string_keys_to_atoms()
-
-      memories =
-        data
-        |> Map.get("memory", [])
-        |> Util.string_keys_to_atoms()
-        |> Enum.map(&Memory.new_from_map/1)
-
-      tasks =
-        data
-        |> Map.get("tasks", %{})
-        |> Enum.map(fn {list_id, value} ->
-          # Normalize to %{tasks: [...], description: ...} format
-          {raw_tasks, desc} =
-            cond do
-              is_list(value) ->
-                # Legacy format: bare list of tasks
-                {value, nil}
-
-              is_map(value) ->
-                # New format: map with tasks and description
-                val = Util.string_keys_to_atoms(value)
-                {Map.get(val, :tasks, []), Map.get(val, :description)}
-
-              true ->
-                # Invalid/empty
-                {[], nil}
-            end
-
-          # Parse tasks with outcome normalization
-          tasks_list =
-            raw_tasks
-            |> Util.string_keys_to_atoms()
-            |> Enum.map(fn %{id: task_id, data: data} = task_data ->
-              opts =
-                task_data
-                |> Map.drop([:id, :data])
-                |> Keyword.new()
-
-              # Normalize outcome using shared utility
-              opts =
-                case Keyword.get(opts, :outcome) do
-                  outcome when not is_nil(outcome) ->
-                    Keyword.put(opts, :outcome, Services.Task.Util.normalize_outcome(outcome))
-
-                  _ ->
-                    opts
-                end
-
-              Services.Task.new_task(task_id, data, opts)
-            end)
-
-          {list_id, %{description: desc, tasks: tasks_list}}
-        end)
-        |> Map.new()
-
-      {:ok,
-       %{
-         timestamp: timestamp,
-         messages: msgs,
-         metadata: metadata,
-         memory: memories,
-         tasks: tasks
-       }}
-    end
-  rescue
-    e ->
-      UI.warn("Skipping corrupt conversation file", conversation.store_path)
-      {:error, {:corrupt_conversation, Exception.message(e)}}
+    Store.Project.Conversation.Format.read(conversation)
   end
 
   @doc """
@@ -338,15 +251,16 @@ defmodule Store.Project.Conversation do
 
   @doc """
   Returns the timestamp of the conversation. If the conversation has not yet
-  been saved to the store, returns 0.
+  been saved to the store, returns 0. v0 files yield their timestamp from the
+  numeric prefix (cheap); v1 files require a full JSON decode (paid once a
+  v1 file is encountered).
   """
   @spec timestamp(t) :: DateTime.t() | 0
   def timestamp(conversation) do
     if exists?(conversation) do
       with {:ok, contents} <- File.read(conversation.store_path),
-           [timestamp, _] <- String.split(contents, ":", parts: 2),
-           {:ok, timestamp} <- timestamp |> String.to_integer() |> DateTime.from_unix() do
-        timestamp
+           {:ok, ts} <- Store.Project.Conversation.Format.timestamp_of(contents) do
+        ts
       else
         _ -> 0
       end
@@ -413,80 +327,8 @@ defmodule Store.Project.Conversation do
     file <> ".json"
   end
 
-  defp unmarshal_ts(numerical_string) do
-    numerical_string
-    |> String.to_integer()
-    |> DateTime.from_unix()
-  end
-
   defp marshal_ts() do
     DateTime.utc_now()
     |> DateTime.to_unix()
-  end
-
-  # A now-removed code path stored tool call arguments as decoded maps instead
-  # of their canonical JSON-string form. Re-encode any map arguments and
-  # persist the fix so subsequent reads don't need to heal again.
-  defp heal_tool_call_arguments_and_maybe_write(data, conversation, timestamp_str) do
-    messages = Map.get(data, "messages", [])
-
-    {healed_messages, changed} =
-      Enum.map_reduce(messages, false, fn msg, changed ->
-        case Map.get(msg, "tool_calls") do
-          tool_calls when is_list(tool_calls) ->
-            {healed_tcs, tc_changed} =
-              Enum.map_reduce(tool_calls, false, fn tc, tc_changed ->
-                function = Map.get(tc, "function", %{})
-                arguments = Map.get(function, "arguments")
-
-                if is_map(arguments) do
-                  case SafeJson.encode(arguments) do
-                    {:ok, json_str} ->
-                      healed_fn = Map.put(function, "arguments", json_str)
-                      {Map.put(tc, "function", healed_fn), true}
-
-                    {:error, _} ->
-                      {tc, tc_changed}
-                  end
-                else
-                  {tc, tc_changed}
-                end
-              end)
-
-            if tc_changed do
-              {Map.put(msg, "tool_calls", healed_tcs), true}
-            else
-              {msg, changed}
-            end
-
-          _ ->
-            {msg, changed}
-        end
-      end)
-
-    if changed do
-      repaired = Map.put(data, "messages", healed_messages)
-      persist_healed_data(repaired, conversation, timestamp_str)
-      repaired
-    else
-      data
-    end
-  end
-
-  defp persist_healed_data(data, conversation, timestamp_str) do
-    tmp = conversation.store_path <> ".tmp"
-
-    with {:ok, json} <- SafeJson.encode(data),
-         :ok <- File.write(tmp, "#{timestamp_str}:" <> json),
-         :ok <- File.rename(tmp, conversation.store_path) do
-      :ok
-    else
-      {:error, reason} ->
-        File.rm(tmp)
-
-        UI.warn(
-          "Could not persist healed tool arguments for conversation #{conversation.id}: #{inspect(reason)}"
-        )
-    end
   end
 end
