@@ -51,11 +51,9 @@ defmodule MCP.Tools do
 
     %{
       type: "function",
-      function: %{
-        name: "#{server}_#{tool_spec["name"]}",
-        description: String.trim(desc),
-        parameters: parameters
-      }
+      name: "#{server}_#{tool_spec["name"]}",
+      description: String.trim(desc),
+      parameters: parameters
     }
   end
 
