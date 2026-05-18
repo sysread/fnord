@@ -62,7 +62,7 @@ defmodule Store.Project.Conversation.FormatTest do
       assert {:ok, _} = Conversation.write(convo, data)
 
       assert {:ok, read} = Format.read(convo)
-      assert read.messages == [%{role: "user", content: "hi"}]
+      assert [%AI.Message.User{role: "user", content: "hi"}] = read.messages
       assert %DateTime{} = read.timestamp
     end
   end
@@ -90,7 +90,7 @@ defmodule Store.Project.Conversation.FormatTest do
       File.write!(convo.store_path, v1)
 
       assert {:ok, read} = Format.read(convo)
-      assert read.messages == [%{role: "user", content: "hi v1"}]
+      assert [%AI.Message.User{role: "user", content: "hi v1"}] = read.messages
       assert DateTime.to_unix(read.timestamp) == 1_700_000_000
     end
 

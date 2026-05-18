@@ -50,14 +50,14 @@ defmodule AI.Agent.Code.PatcherTest do
   defp user_messages(opts) do
     opts
     |> Keyword.get(:messages, [])
-    |> Enum.filter(fn msg -> msg[:role] == "user" end)
+    |> Enum.filter(&match?(%AI.Message.User{}, &1))
   end
 
   # Helper: extract assistant messages from a keyword list of completion args
   defp assistant_messages(opts) do
     opts
     |> Keyword.get(:messages, [])
-    |> Enum.filter(fn msg -> msg[:role] == "assistant" end)
+    |> Enum.filter(&match?(%AI.Message.Assistant{}, &1))
   end
 
   describe "retry with error feedback" do
@@ -91,8 +91,8 @@ defmodule AI.Agent.Code.PatcherTest do
           user_msgs = user_messages(opts)
           assert length(user_msgs) == 2
           error_feedback = List.last(user_msgs)
-          assert error_feedback[:content] =~ "Your previous patch attempt failed"
-          assert error_feedback[:content] =~ "I can't figure out this change"
+          assert error_feedback.content =~ "Your previous patch attempt failed"
+          assert error_feedback.content =~ "I can't figure out this change"
 
           # Return a valid patch
           h1 = "1:" <> Util.line_hash("line one")
@@ -170,8 +170,8 @@ defmodule AI.Agent.Code.PatcherTest do
       :meck.expect(AI.Completion, :get, fn opts ->
         user_msgs = user_messages(opts)
         first_user_msg = hd(user_msgs)
-        assert first_user_msg[:content] =~ "Background context from the coordinating agent:"
-        assert first_user_msg[:content] =~ "Use snake_case for all function names"
+        assert first_user_msg.content =~ "Background context from the coordinating agent:"
+        assert first_user_msg.content =~ "Use snake_case for all function names"
 
         h1 = "1:" <> Util.line_hash("original")
 
@@ -207,7 +207,7 @@ defmodule AI.Agent.Code.PatcherTest do
       :meck.expect(AI.Completion, :get, fn opts ->
         user_msgs = user_messages(opts)
         first_user_msg = hd(user_msgs)
-        refute first_user_msg[:content] =~ "Background context"
+        refute first_user_msg.content =~ "Background context"
 
         h1 = "1:" <> Util.line_hash("original")
 

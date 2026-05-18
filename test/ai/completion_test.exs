@@ -483,7 +483,11 @@ defmodule AI.CompletionTest do
                                               _res_fmt,
                                               _web_srch?,
                                               _verbosity ->
-        tool_calls_sent? = Enum.any?(msgs, fn msg -> Map.has_key?(msg, :tool_calls) end)
+        # After Phase 2b, the LLM's tool-call requests come back as
+        # AI.Message.FunctionCall structs in the messages list (no longer
+        # nested in an assistant message). Stop iterating once we've seen
+        # one in the conversation we're being asked to continue.
+        tool_calls_sent? = Enum.any?(msgs, &match?(%AI.Message.FunctionCall{}, &1))
 
         if tool_calls_sent? do
           {:ok, :msg, "final response", 0}
@@ -502,16 +506,13 @@ defmodule AI.CompletionTest do
                  toolbox: %{"test_tool" => TestTool}
                )
 
-      assert Enum.any?(state.messages, fn msg ->
-               msg.role == "assistant" and msg.content == nil and Map.has_key?(msg, :tool_calls)
-             end)
+      assert Enum.any?(state.messages, &match?(%AI.Message.FunctionCall{name: "test_tool"}, &1))
 
       assert Enum.any?(state.messages, fn msg ->
-               msg.role == "tool" and msg.name == "test_tool" and msg.content =~ "tool_result"
+               match?(%AI.Message.FunctionCallOutput{}, msg) and msg.output =~ "tool_result"
              end)
 
-      assert List.last(state.messages).role == "assistant"
-      assert List.last(state.messages).content == "final response"
+      assert %AI.Message.Assistant{content: "final response"} = List.last(state.messages)
     end
 
     test "Tool calls invocation respects async?/0" do
@@ -521,7 +522,7 @@ defmodule AI.CompletionTest do
                                               _response_fmt,
                                               _web_srch?,
                                               _verbosity ->
-        tool_calls_sent? = Enum.any?(msgs, fn msg -> Map.has_key?(msg, :tool_calls) end)
+        tool_calls_sent? = Enum.any?(msgs, &match?(%AI.Message.FunctionCall{}, &1))
 
         if tool_calls_sent? do
           {:ok, :msg, "final response", 0}
@@ -545,16 +546,15 @@ defmodule AI.CompletionTest do
                  toolbox: %{"test_tool" => TestTool}
                )
 
+      # call_ids are coerced to strings at the AI.Util boundary.
       tool_call_ids_in_order =
         state.messages
-        |> Enum.filter(&(&1.role == "tool"))
-        |> Enum.map(& &1.tool_call_id)
+        |> Enum.filter(&match?(%AI.Message.FunctionCallOutput{}, &1))
+        |> Enum.map(& &1.call_id)
 
-      assert tool_call_ids_in_order == [2, 1, 3]
+      assert tool_call_ids_in_order == ["2", "1", "3"]
 
-      # Final assistant message after tool calls
-      assert List.last(state.messages).role == "assistant"
-      assert List.last(state.messages).content == "final response"
+      assert %AI.Message.Assistant{content: "final response"} = List.last(state.messages)
     end
 
     test "Completion.get/1 handles unknown tool requests gracefully" do
@@ -564,7 +564,7 @@ defmodule AI.CompletionTest do
                                               _res_fmt,
                                               _web_srch?,
                                               _verbosity ->
-        tool_calls_sent? = Enum.any?(msgs, fn msg -> Map.has_key?(msg, :tool_calls) end)
+        tool_calls_sent? = Enum.any?(msgs, &match?(%AI.Message.FunctionCall{}, &1))
 
         if tool_calls_sent? do
           {:ok, :msg, "final assistant response", 0}
@@ -584,12 +584,12 @@ defmodule AI.CompletionTest do
                )
 
       assert Enum.any?(state.messages, fn msg ->
-               msg.role == "tool" and msg.name == "ghost_tool" and
-                 (msg.content =~ "not found" or msg.content =~ "unknown tool")
+               match?(%AI.Message.FunctionCallOutput{}, msg) and
+                 (msg.output =~ "not found" or msg.output =~ "unknown tool")
              end)
 
-      assert List.last(state.messages).role == "assistant"
-      assert List.last(state.messages).content == "final assistant response"
+      assert %AI.Message.Assistant{content: "final assistant response"} =
+               List.last(state.messages)
     end
 
     test "deduplicates identical tool calls within a single batch and preserves order" do
@@ -600,7 +600,7 @@ defmodule AI.CompletionTest do
                                               _res_fmt,
                                               _web_srch?,
                                               _verbosity ->
-        if Enum.any?(msgs, fn msg -> Map.has_key?(msg, :tool_calls) end) do
+        if Enum.any?(msgs, &match?(%AI.Message.FunctionCall{}, &1)) do
           {:ok, :msg, "done", 0}
         else
           calls = [
@@ -622,16 +622,16 @@ defmodule AI.CompletionTest do
                  toolbox: %{"test_tool" => TestTool, "test_tool_sync" => TestToolSync}
                )
 
-      # Only unique calls should be executed in order
+      # Only unique calls should be executed in order. The FunctionCall
+      # struct holds the tool name and (stringified) call_id.
       executed =
         state.messages
-        |> Enum.filter(&(&1.role == "tool"))
-        |> Enum.map(&{&1.tool_call_id, &1.name})
+        |> Enum.filter(&match?(%AI.Message.FunctionCall{}, &1))
+        |> Enum.map(&{&1.call_id, &1.name})
 
-      assert executed == [{1, "test_tool"}, {2, "test_tool_sync"}]
-      # Final assistant message
-      assert List.last(state.messages).role == "assistant"
-      assert List.last(state.messages).content == "done"
+      assert executed == [{"1", "test_tool"}, {"2", "test_tool_sync"}]
+
+      assert %AI.Message.Assistant{content: "done"} = List.last(state.messages)
     end
   end
 

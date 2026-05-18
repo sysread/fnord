@@ -220,10 +220,18 @@ defmodule AI.Completion do
     messages
     |> Enum.drop(drop_count)
     |> Enum.reduce(%{}, fn
-      %{tool_calls: tool_calls}, acc ->
-        tool_calls
-        |> Enum.reduce(acc, fn %{function: %{name: func}}, acc ->
-          Map.update(acc, func, 1, &(&1 + 1))
+      # Phase 2b: tool call requests are standalone FunctionCall structs.
+      %AI.Message.FunctionCall{name: func}, acc ->
+        Map.update(acc, func, 1, &(&1 + 1))
+
+      # Legacy chat-completions shape (raw assistant map with nested
+      # tool_calls). Still produced by paths that construct messages by
+      # hand without going through AI.Util.
+      %{tool_calls: tool_calls}, acc when is_list(tool_calls) ->
+        Enum.reduce(tool_calls, acc, fn
+          %{function: %{name: func}}, acc -> Map.update(acc, func, 1, &(&1 + 1))
+          %{"function" => %{"name" => func}}, acc -> Map.update(acc, func, 1, &(&1 + 1))
+          _, acc -> acc
         end)
 
       _, acc ->
@@ -492,8 +500,8 @@ defmodule AI.Completion do
 
   @spec handle_tool_call(t, AI.Util.tool_call()) :: {
           :ok,
-          AI.Util.tool_request_msg(),
-          AI.Util.tool_response_msg()
+          AI.Message.FunctionCall.t(),
+          AI.Message.FunctionCallOutput.t()
         }
   def handle_tool_call(state, %{id: id, function: %{name: func, arguments: args_json}}) do
     # --------------------------------------------------------------------------

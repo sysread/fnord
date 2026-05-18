@@ -5,30 +5,20 @@ defmodule AI.MessageTest do
   alias AI.Message.{User, Assistant, System, Reasoning}
 
   describe "AI.Message.user/1 + AI.Message.User" do
-    test "wraps a binary as a single input_text part" do
-      msg = Message.user("hello")
-      assert %User{content: [%{type: "input_text", text: "hello"}]} = msg
+    test "constructs with content as a binary and role: \"user\"" do
+      assert %User{role: "user", content: "hello"} = Message.user("hello")
     end
 
-    test "accepts a pre-built content-parts list verbatim" do
-      parts = [%{type: "input_text", text: "a"}, %{type: "input_text", text: "b"}]
-      assert %User{content: ^parts} = Message.user(parts)
-    end
-
-    test "text/1 joins multi-part content with newlines" do
-      msg = Message.user([%{type: "input_text", text: "a"}, %{type: "input_text", text: "b"}])
-      assert Message.text(msg) == "a\nb"
+    test "text/1 returns the binary content" do
+      assert Message.text(Message.user("hello")) == "hello"
     end
 
     test "for_transcript/1 emits a USER block" do
-      msg = Message.user("the question")
-      assert Message.for_transcript(msg) == "# USER:\nthe question"
+      assert Message.for_transcript(Message.user("the question")) == "# USER:\nthe question"
     end
 
-    test "to_map/1 produces Responses-shaped wire form" do
-      msg = Message.user("hi")
-
-      assert Message.to_map(msg) == %{
+    test "to_map/1 wraps the binary in a Responses input_text part for the wire" do
+      assert Message.to_map(Message.user("hi")) == %{
                type: "message",
                role: "user",
                content: [%{type: "input_text", text: "hi"}]
@@ -43,7 +33,7 @@ defmodule AI.MessageTest do
 
     test "from_map/1 tolerates legacy chat-completions binary content" do
       {:ok, msg} = Message.from_map(%{type: "message", role: "user", content: "legacy"})
-      assert User.text(msg) == "legacy"
+      assert msg.content == "legacy"
     end
 
     test "from_map/1 tolerates string-keyed (on-disk) shape" do
@@ -54,14 +44,27 @@ defmodule AI.MessageTest do
           "content" => [%{"type" => "input_text", "text" => "from disk"}]
         })
 
-      assert User.text(msg) == "from disk"
+      assert msg.content == "from disk"
+    end
+
+    test "from_map/1 joins multi-part wire content into one binary" do
+      {:ok, msg} =
+        Message.from_map(%{
+          type: "message",
+          role: "user",
+          content: [
+            %{type: "input_text", text: "a"},
+            %{type: "input_text", text: "b"}
+          ]
+        })
+
+      assert msg.content == "ab"
     end
   end
 
   describe "AI.Message.assistant/1 + AI.Message.Assistant" do
-    test "wraps a binary as a single output_text part" do
-      msg = Message.assistant("reply")
-      assert %Assistant{content: [%{type: "output_text", text: "reply"}]} = msg
+    test "constructs with content as a binary and role: \"assistant\"" do
+      assert %Assistant{role: "assistant", content: "reply"} = Message.assistant("reply")
     end
 
     test "for_transcript/1 emits an ASSISTANT block, nil for empty content" do
@@ -69,7 +72,7 @@ defmodule AI.MessageTest do
       assert Message.for_transcript(Message.assistant("")) == nil
     end
 
-    test "to_map/1 uses output_text on the wire" do
+    test "to_map/1 wraps the binary in a Responses output_text part for the wire" do
       assert Message.to_map(Message.assistant("yo")) == %{
                type: "message",
                role: "assistant",
@@ -85,8 +88,8 @@ defmodule AI.MessageTest do
   end
 
   describe "AI.Message.system/2 + AI.Message.System" do
-    test "defaults role to \"developer\"" do
-      assert %System{role: "developer"} = Message.system("be helpful")
+    test "defaults role to \"developer\" with content as a binary" do
+      assert %System{role: "developer", content: "be helpful"} = Message.system("be helpful")
     end
 
     test "honors a role override (e.g. for Venice's \"system\" convention)" do
@@ -273,6 +276,27 @@ defmodule AI.MessageTest do
         })
 
       assert %System{role: "system"} = msg
+    end
+  end
+
+  describe "raw-map compatibility (drop-in pattern matching)" do
+    # Phase 2b's central premise: AI.Message structs match the existing
+    # chat-completions raw-map shape for `role` and `content`, so existing
+    # pattern matches keep working unchanged.
+
+    test "User struct matches a chat-completions role+content pattern" do
+      msg = Message.user("hi")
+      assert %{role: "user", content: "hi"} = msg
+    end
+
+    test "Assistant struct matches a chat-completions role+content pattern" do
+      msg = Message.assistant("ok")
+      assert %{role: "assistant", content: "ok"} = msg
+    end
+
+    test "System struct matches a chat-completions role+content pattern" do
+      msg = Message.system("be brief")
+      assert %{role: "developer", content: "be brief"} = msg
     end
   end
 end

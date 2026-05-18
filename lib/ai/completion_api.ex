@@ -194,11 +194,25 @@ defmodule AI.CompletionAPI do
   defp reasoning_param(%{reasoning: :high}), do: %{effort: "high"}
   defp reasoning_param(_), do: nil
 
-  # Translate chat-completions-shaped messages to Responses input items. Each
-  # incoming message yields zero or more input items - an assistant message
-  # carrying tool_calls fans out into one function_call item per call.
+  # Translate messages to Responses input items. AI.Message structs go
+  # through their own to_map/1 callback (already Responses-shaped). Raw
+  # maps in the legacy chat-completions shape get translated inline -
+  # assistant messages carrying tool_calls fan out into one function_call
+  # item per call.
   defp to_input(msgs) when is_list(msgs) do
     Enum.flat_map(msgs, &msg_to_items/1)
+  end
+
+  defp msg_to_items(%mod{} = msg)
+       when mod in [
+              AI.Message.User,
+              AI.Message.Assistant,
+              AI.Message.System,
+              AI.Message.FunctionCall,
+              AI.Message.FunctionCallOutput,
+              AI.Message.Reasoning
+            ] do
+    [AI.Message.to_map(msg)]
   end
 
   defp msg_to_items(msg) when is_map(msg) do

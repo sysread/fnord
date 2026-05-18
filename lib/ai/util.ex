@@ -56,8 +56,13 @@ defmodule AI.Util do
           content: binary
         }
 
+  # Phase 2b: AI.Message structs are the canonical in-memory shape. The
+  # legacy raw-map shapes remain in the union because not every code path
+  # has been swept yet (and from-disk hydration may still surface them
+  # transiently). Phase 3 narrows this to AI.Message.t() only.
   @type msg ::
-          content_msg
+          AI.Message.t()
+          | content_msg
           | tool_request_msg
           | tool_response_msg
 
@@ -174,39 +179,53 @@ defmodule AI.Util do
   # -----------------------------------------------------------------------------
 
   @doc """
-  Creates a system message object, used to define the assistant's behavior for
-  the conversation.
+  Creates a system message struct (`AI.Message.System`), used to define the
+  assistant's behavior for the conversation. The struct still matches the
+  `%{role: ..., content: ...}` raw-map shape so existing pattern matches
+  keep working.
   """
-  @spec system_msg(binary) :: content_msg
+  @spec system_msg(binary) :: AI.Message.System.t()
   def system_msg(msg) do
-    %{role: @role_system, content: msg}
-    |> validate_msg_length()
+    msg
+    |> validate_text_length()
+    |> AI.Message.System.new()
   end
 
   @doc """
-  Creates a user message object, representing the user's input prompt.
+  Creates a user message struct (`AI.Message.User`).
   """
-  @spec user_msg(binary) :: content_msg
+  @spec user_msg(binary) :: AI.Message.User.t()
   def user_msg(msg) do
-    %{role: @role_user, content: msg}
-    |> validate_msg_length()
+    msg
+    |> validate_text_length()
+    |> AI.Message.User.new()
   end
 
   @doc """
-  Creates an assistant message object, representing the assistant's response.
+  Creates an assistant message struct (`AI.Message.Assistant`).
   """
-  @spec assistant_msg(binary) :: content_msg
+  @spec assistant_msg(binary) :: AI.Message.Assistant.t()
   def assistant_msg(msg) do
-    %{role: @role_assistant, content: msg}
-    |> validate_msg_length()
+    msg
+    |> validate_text_length()
+    |> AI.Message.Assistant.new()
   end
 
   @doc """
-  This is the tool outputs message, which must come immediately after the
-  `assistant_tool_msg/3` message with the same `tool_call_id` (`id`).
+  Creates a tool output struct (`AI.Message.FunctionCallOutput`). Must
+  immediately follow the matching `assistant_tool_msg/3` (same `id`).
+
+  The `func` argument is kept for source compatibility and used for the
+  spill-to-tempfile filename heuristic; FunctionCallOutput itself does not
+  carry the function name (it pairs to the FunctionCall by `call_id`).
+
+  `id` is coerced to a binary - real OpenAI call_ids are strings, but test
+  fixtures and a few legacy code paths use integers.
   """
-  @spec tool_msg(binary, binary, any) :: tool_response_msg
+  @spec tool_msg(any, binary, any) :: AI.Message.FunctionCallOutput.t()
   def tool_msg(id, func, output) do
+    id = to_string(id)
+
     output =
       if is_binary(output) do
         output
@@ -222,21 +241,18 @@ defmodule AI.Util do
     Tool call with ID `#{id}` completed using the function `#{func}`.
     """
 
-    %{
-      role: @role_tool,
-      name: func,
-      tool_call_id: id,
-      content: output
-    }
-    |> validate_msg_length()
+    output
+    |> validate_text_length()
+    |> then(&AI.Message.FunctionCallOutput.new(id, &1))
   end
 
   @doc """
-  A guard to identify system messages.
+  A guard to identify system messages (struct or legacy raw-map form).
   """
   defguard is_system_msg?(msg)
-           when is_map(msg) and
-                  msg.role in [@role_system, "system"]
+           when is_struct(msg, AI.Message.System) or
+                  (is_map(msg) and not is_struct(msg) and is_map_key(msg, :role) and
+                     :erlang.map_get(:role, msg) in [@role_system, "system"])
 
   # When a tool produces a very large output, writing the entire contents into the
   # conversation can blow past the model's context window. For tool outputs, we
@@ -302,39 +318,30 @@ defmodule AI.Util do
   defp spill_tool_output_if_needed(_id, _func, output), do: output
 
   @doc """
-  This is the tool call message, which must come immediately before the
-  `tool_msg/3` message with the same `tool_call_id` (`id`).
+  This is the tool call request struct (`AI.Message.FunctionCall`), which must
+  immediately precede the matching `tool_msg/3` (same `id`). In the Responses
+  API native shape, tool call requests are standalone items, not nested in an
+  assistant message.
+
+  `id` is coerced to a binary for the same reason as `tool_msg/3`.
   """
-  @spec assistant_tool_msg(binary, binary, binary) :: tool_request_msg
-  def assistant_tool_msg(id, func, args) do
-    %{
-      role: @role_assistant,
-      content: nil,
-      tool_calls: [
-        %{
-          id: id,
-          type: "function",
-          function: %{
-            name: func,
-            arguments: args
-          }
-        }
-      ]
-    }
+  @spec assistant_tool_msg(any, binary, binary) :: AI.Message.FunctionCall.t()
+  def assistant_tool_msg(id, func, args) when is_binary(args) do
+    AI.Message.FunctionCall.new(to_string(id), func, args)
   end
 
-  defp validate_msg_length(%{content: content} = msg) when is_binary(content) do
-    if String.length(content) > @max_msg_length do
+  defp validate_text_length(text) when is_binary(text) do
+    if String.length(text) > @max_msg_length do
       warning = "(msg truncated due to size)"
       wlen = String.length(warning)
       max = @max_msg_length - wlen
-      %{msg | content: String.slice(content, 0, max) <> warning}
+      String.slice(text, 0, max) <> warning
     else
-      msg
+      text
     end
   end
 
-  defp validate_msg_length(msg), do: msg
+  defp validate_text_length(text), do: text
 
   # ---------------------------------------------------------------------------
   # Project context - shared preamble for any agent that needs to know where

@@ -69,8 +69,8 @@ defmodule AI.UtilTest do
 
     test "tool_msg does not truncate short content" do
       result = AI.Util.tool_msg("id", "func", @short_msg)
-      assert String.contains?(result.content, @short_msg)
-      refute String.ends_with?(result.content, "(msg truncated due to size)")
+      assert String.contains?(result.output, @short_msg)
+      refute String.ends_with?(result.output, "(msg truncated due to size)")
     end
 
     test "tool_msg truncates long content" do
@@ -78,21 +78,21 @@ defmodule AI.UtilTest do
 
       # Very large tool outputs should be spilled to a tmp file with a header that
       # explains how to inspect the file using cmd_tool, plus a truncated preview.
-      assert String.contains?(result.content, "[fnord: tool output truncated]")
+      assert String.contains?(result.output, "[fnord: tool output truncated]")
 
       # We no longer assert on an exact file path; instead, ensure that the header
       # mentions a temp file path and that the same path is used in the cmd_tool
       # instructions. This keeps the test robust while allowing Briefly to choose
       # safe, unique filenames.
-      assert String.contains?(result.content, "Full output saved to:")
+      assert String.contains?(result.output, "Full output saved to:")
 
       assert String.contains?(
-               result.content,
+               result.output,
                "To inspect more of this output, use `cmd_tool` with a command like:"
              )
 
-      assert String.contains?(result.content, "--- Begin truncated preview ---")
-      assert String.contains?(result.content, "--- End truncated preview ---")
+      assert String.contains?(result.output, "--- Begin truncated preview ---")
+      assert String.contains?(result.output, "--- End truncated preview ---")
     end
 
     test "multibyte emoji truncation works by character count" do

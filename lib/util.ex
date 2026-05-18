@@ -53,6 +53,13 @@ defmodule Util do
     list |> Enum.map(&string_keys_to_atoms/1)
   end
 
+  # Structs are opaque to the key-atomizer. Their fields are already atoms
+  # and recursing into them would (a) not change anything useful and (b) hit
+  # Enumerable.UndefinedError because structs don't implement Enumerable.
+  # This is what protects AI.Message structs from being chewed up when they
+  # land in a list that also contains raw maps awaiting atomization.
+  def string_keys_to_atoms(%_{} = struct), do: struct
+
   def string_keys_to_atoms(map) when is_map(map) do
     map
     |> Enum.map(fn {key, value} ->

@@ -317,10 +317,14 @@ defmodule Store.Project.ConversationTest do
 
     File.write!(convo.store_path, "42:" <> SafeJson.encode!(data))
 
-    assert {:ok, %{messages: [msg]}} = Conversation.read(convo)
-    args = msg.tool_calls |> hd() |> Map.get(:function) |> Map.get(:arguments)
+    # After Phase 2b, the legacy assistant-with-tool_calls shape is hydrated
+    # by Format.read into a FunctionCall struct per call. The atom-table
+    # cliff guard still fires (heal_tool_call_arguments re-encodes the
+    # decoded map before from_map runs), so the resulting FunctionCall's
+    # arguments are a JSON string.
+    assert {:ok, %{messages: [%AI.Message.FunctionCall{arguments: args}]}} =
+             Conversation.read(convo)
 
-    # After healing, arguments should be a JSON string, not a map
     assert is_binary(args)
     assert {:ok, %{"level" => "info", "message" => "hello"}} = SafeJson.decode(args)
   end

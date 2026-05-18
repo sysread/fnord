@@ -173,7 +173,7 @@ defmodule Store.Project.Conversation.Format do
     msgs =
       raw
       |> Map.get("messages", [])
-      |> Util.string_keys_to_atoms()
+      |> Enum.flat_map(fn m -> List.wrap(hydrate_message(m)) end)
 
     metadata =
       raw
@@ -195,6 +195,89 @@ defmodule Store.Project.Conversation.Format do
       memory: memories,
       tasks: tasks
     }
+  end
+
+  # Convert a raw message map (string-keyed, post-JSON-decode) into an
+  # AI.Message struct. Tolerates:
+  #
+  #   * The new struct-serialized shape: %{"role" => ..., "content" => ...}
+  #     for User/Assistant/System; %{"type" => "function_call", ...} and
+  #     %{"type" => "function_call_output", ...} for tool requests/responses.
+  #   * The legacy chat-completions shape with a tool-role message
+  #     (%{"role" => "tool", "tool_call_id" => ..., "content" => ...}) which
+  #     becomes a FunctionCallOutput.
+  #   * The legacy assistant-with-tool_calls shape, which fans out: any
+  #     assistant message carrying tool_calls is replaced by N FunctionCall
+  #     structs (or N+1 if it also has prose content).
+  #
+  # The fan-out is why this helper can return a list. finalize/2 flattens.
+  defp hydrate_message(raw) when is_map(raw) do
+    type = Map.get(raw, "type") || Map.get(raw, :type)
+    role = Map.get(raw, "role") || Map.get(raw, :role)
+    tool_calls = Map.get(raw, "tool_calls") || Map.get(raw, :tool_calls)
+
+    cond do
+      type == "function_call" ->
+        AI.Message.FunctionCall.from_map(raw)
+
+      type == "function_call_output" ->
+        AI.Message.FunctionCallOutput.from_map(raw)
+
+      type == "reasoning" ->
+        AI.Message.Reasoning.from_map(raw)
+
+      role == "tool" ->
+        AI.Message.FunctionCallOutput.from_map(raw)
+
+      role == "assistant" and is_list(tool_calls) ->
+        hydrate_legacy_assistant_with_tool_calls(raw, tool_calls)
+
+      role == "assistant" ->
+        AI.Message.Assistant.from_map(raw)
+
+      role == "user" ->
+        AI.Message.User.from_map(raw)
+
+      role in ["system", "developer"] ->
+        AI.Message.System.from_map(raw)
+
+      true ->
+        raw
+    end
+  end
+
+  defp hydrate_message(other), do: other
+
+  # v0 files store tool call requests nested inside an assistant message.
+  # Each becomes its own FunctionCall struct in the hydrated list. Any prose
+  # content on the assistant message is preserved as a leading Assistant
+  # struct so the ordering looks chronologically right in transcripts.
+  defp hydrate_legacy_assistant_with_tool_calls(raw, tool_calls) do
+    prose = Map.get(raw, "content") || Map.get(raw, :content)
+
+    leading =
+      if is_binary(prose) and prose != "" do
+        [AI.Message.Assistant.new(prose)]
+      else
+        []
+      end
+
+    calls =
+      Enum.map(tool_calls, fn tc ->
+        id = Map.get(tc, "id") || Map.get(tc, :id) || ""
+        function = Map.get(tc, "function") || Map.get(tc, :function) || %{}
+        name = Map.get(function, "name") || Map.get(function, :name) || ""
+        args = Map.get(function, "arguments") || Map.get(function, :arguments) || "{}"
+
+        AI.Message.FunctionCall.from_map(%{
+          type: "function_call",
+          call_id: id,
+          name: name,
+          arguments: args
+        })
+      end)
+
+    leading ++ calls
   end
 
   # Normalize a `tasks` map to the canonical `%{list_id => %{description:,

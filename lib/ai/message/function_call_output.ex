@@ -8,8 +8,9 @@ defmodule AI.Message.FunctionCallOutput do
 
   @behaviour AI.Message
 
+  @derive {Jason.Encoder, only: [:type, :call_id, :output]}
   @enforce_keys [:call_id, :output]
-  defstruct [:call_id, :output]
+  defstruct [:call_id, :output, type: "function_call_output"]
 
   @type t :: %__MODULE__{
           call_id: binary(),
