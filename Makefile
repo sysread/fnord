@@ -78,3 +78,34 @@ clean: clean-bak ## Clean up ALL build artifacts, including dependencies and bui
 	rm -rf _build
 	rm -rf deps
 	rm -rf .elixir_ls
+
+# ------------------------------------------------------------------------------
+# Smoke-test rig
+#
+# Runs fnord against the real API in a HOME-isolated sandbox so the developer's
+# actual ~/.fnord/ config, conversations, memory, and indexed projects are
+# untouched. API keys propagate from the parent shell's env (the rig does not
+# override OPENAI_API_KEY / FNORD_OPENAI_API_KEY).
+#
+# Default sandbox: $(SMOKE_HOME), default project root: this repo. Override on
+# the command line, e.g.
+#   make smoke-setup SMOKE_HOME=/tmp/other SMOKE_PROJECT=otherproj
+#   make smoke-ask ARGS='-q "summarize the responses-api migration so far"'
+#   make smoke-clean
+# ------------------------------------------------------------------------------
+
+SMOKE_HOME ?= /tmp/fnord-responses-smoke
+SMOKE_PROJECT ?= smoke
+
+.PHONY: smoke-setup
+smoke-setup: build ## Index $(PWD) into the smoke sandbox at $(SMOKE_HOME) (idempotent)
+	mkdir -p $(SMOKE_HOME)
+	HOME=$(SMOKE_HOME) ./fnord index -p $(SMOKE_PROJECT) -d $(PWD)
+
+.PHONY: smoke-ask
+smoke-ask: build ## Ask the smoke project. Pass flags via ARGS, e.g. ARGS='-q "..."'
+	HOME=$(SMOKE_HOME) ./fnord ask -p $(SMOKE_PROJECT) $(ARGS)
+
+.PHONY: smoke-clean
+smoke-clean: ## Nuke the smoke sandbox. Run before retesting a destructive change.
+	rm -rf $(SMOKE_HOME)
