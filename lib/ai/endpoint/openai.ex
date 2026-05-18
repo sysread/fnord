@@ -12,7 +12,7 @@ defmodule AI.Endpoint.OpenAI do
 
   @impl AI.Endpoint
   @spec endpoint_path() :: String.t()
-  def endpoint_path, do: "#{@base_url}/v1/chat/completions"
+  def endpoint_path, do: "#{@base_url}/v1/responses"
 
   @doc """
   Provider-specific error classifier for OpenAI/Cloudflare style responses.

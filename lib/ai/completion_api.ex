@@ -68,39 +68,7 @@ defmodule AI.CompletionAPI do
       {"Content-Type", "application/json"}
     ]
 
-    payload =
-      %{
-        model: model.model,
-        messages: msgs,
-        response_format: response_format
-      }
-      |> Map.merge(
-        case tools do
-          nil -> %{}
-          tools -> %{tools: tools}
-        end
-      )
-      |> Map.merge(
-        case model.reasoning do
-          :low -> %{reasoning_effort: "low"}
-          :medium -> %{reasoning_effort: "medium"}
-          :high -> %{reasoning_effort: "high"}
-          _ -> %{}
-        end
-      )
-      |> Map.merge(
-        case verbosity do
-          nil -> %{}
-          value -> %{verbosity: value}
-        end
-      )
-      |> Map.merge(
-        if web_search? do
-          %{web_search_options: %{}}
-        else
-          %{}
-        end
-      )
+    payload = build_payload(model, msgs, tools, response_format, web_search?, verbosity)
 
     result =
       try do
@@ -176,20 +144,149 @@ defmodule AI.CompletionAPI do
     end
   end
 
-  defp get_response(%{"choices" => [%{"message" => response}], "usage" => usage}) do
-    response
-    |> Map.put("usage", usage)
-    |> get_response()
+  # --------------------------------------------------------------------------
+  # Responses API request payload
+  #
+  # Wire shape (https://platform.openai.com/docs/api-reference/responses/create):
+  #
+  #   %{
+  #     model: ...,
+  #     input: [<typed items>...],     # NOT "messages"
+  #     text: %{format: ..., verbosity: ...},
+  #     tools: [...],                  # web_search lives here as a tool entry
+  #     reasoning: %{effort: ...},
+  #     store: false                   # fnord manages conversation state locally
+  #   }
+  #
+  # Internal callers still pass chat-completions-shaped raw maps for messages
+  # and chat-completions-shaped tool calls. `to_input/1` translates on the
+  # way out; `get_response/1` translates on the way back. Phase 2b removes
+  # the translation by flipping the internal canonical format to AI.Message
+  # structs (which are already Responses-shaped).
+  # --------------------------------------------------------------------------
+
+  defp build_payload(model, msgs, tools, response_format, web_search?, verbosity) do
+    text_field =
+      %{format: response_format}
+      |> maybe_put(:verbosity, verbosity)
+
+    %{
+      model: model.model,
+      input: to_input(msgs),
+      text: text_field,
+      store: false
+    }
+    |> maybe_put(:tools, build_tools(tools, web_search?))
+    |> maybe_put(:reasoning, reasoning_param(model))
   end
 
-  defp get_response(%{"tool_calls" => tool_calls}) do
-    {:ok, :tool, Enum.map(tool_calls, &get_tool_call/1)}
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, _key, []), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
+  defp build_tools(nil, false), do: nil
+  defp build_tools(nil, true), do: [%{type: "web_search_preview"}]
+  defp build_tools(tools, false), do: tools
+  defp build_tools(tools, true), do: tools ++ [%{type: "web_search_preview"}]
+
+  defp reasoning_param(%{reasoning: :low}), do: %{effort: "low"}
+  defp reasoning_param(%{reasoning: :medium}), do: %{effort: "medium"}
+  defp reasoning_param(%{reasoning: :high}), do: %{effort: "high"}
+  defp reasoning_param(_), do: nil
+
+  # Translate chat-completions-shaped messages to Responses input items. Each
+  # incoming message yields zero or more input items - an assistant message
+  # carrying tool_calls fans out into one function_call item per call.
+  defp to_input(msgs) when is_list(msgs) do
+    Enum.flat_map(msgs, &msg_to_items/1)
   end
 
-  defp get_response(%{"content" => response, "usage" => usage}) do
-    # Return total_tokens for backward compatibility
+  defp msg_to_items(msg) when is_map(msg) do
+    role = field(msg, :role)
+    content = field(msg, :content)
+    tool_calls = field(msg, :tool_calls)
+    tool_call_id = field(msg, :tool_call_id)
+
+    cond do
+      role == "tool" ->
+        [%{type: "function_call_output", call_id: tool_call_id, output: content || ""}]
+
+      role == "assistant" and is_list(tool_calls) ->
+        Enum.map(tool_calls, &tool_call_to_item/1)
+
+      role == "assistant" ->
+        [
+          %{
+            type: "message",
+            role: "assistant",
+            content: [%{type: "output_text", text: content || ""}]
+          }
+        ]
+
+      role in ["user", "developer", "system"] ->
+        [
+          %{
+            type: "message",
+            role: role,
+            content: [%{type: "input_text", text: content || ""}]
+          }
+        ]
+
+      true ->
+        []
+    end
+  end
+
+  defp tool_call_to_item(tc) do
+    id = field(tc, :id)
+    function = field(tc, :function) || %{}
+    name = field(function, :name)
+    args = field(function, :arguments)
+
+    %{type: "function_call", call_id: id, name: name, arguments: args || "{}"}
+  end
+
+  # Read a field from a map tolerating atom OR string keys without ever
+  # atomizing a raw input key.
+  defp field(map, key) when is_atom(key) do
+    Map.get(map, key) || Map.get(map, Atom.to_string(key))
+  end
+
+  # --------------------------------------------------------------------------
+  # Responses API response parsing
+  #
+  # Wire shape:
+  #
+  #   %{"output" => [
+  #       %{"type" => "message", "content" => [%{"type" => "output_text", "text" => ...}]},
+  #       %{"type" => "function_call", "call_id" => ..., "name" => ..., "arguments" => "..."},
+  #       %{"type" => "reasoning", ...},
+  #       ...
+  #     ],
+  #     "usage" => %{"total_tokens" => n, ...}}
+  #
+  # If any function_call items are present, return {:ok, :tool, [calls]} with
+  # each call shaped as chat-completions-style %{id, function: %{name, arguments}}
+  # for internal callers. Otherwise, concatenate output_text parts from all
+  # message items and return {:ok, :msg, text, total_tokens}. Reasoning items
+  # are silently dropped in Phase 2a; Phase 2b's AI.Message.Reasoning round-trips
+  # them.
+  # --------------------------------------------------------------------------
+
+  defp get_response(%{"output" => items, "usage" => usage}) when is_list(items) do
     total_tokens = Map.get(usage, "total_tokens", 0)
-    {:ok, :msg, response, total_tokens}
+
+    tool_calls =
+      items
+      |> Enum.filter(&match?(%{"type" => "function_call"}, &1))
+      |> Enum.map(&output_tool_call/1)
+
+    if tool_calls != [] do
+      {:ok, :tool, tool_calls}
+    else
+      text = output_text(items)
+      {:ok, :msg, text, total_tokens}
+    end
   end
 
   # Fallback clause for unexpected response shapes
@@ -201,8 +298,25 @@ defmodule AI.CompletionAPI do
      }}
   end
 
-  defp get_tool_call(%{"id" => id, "function" => %{"name" => name, "arguments" => args}}) do
-    %{id: id, function: %{name: name, arguments: args}}
+  # A Responses function_call item carries `call_id`. Internal callers expect
+  # the chat-completions-style id-at-top-level + nested function map shape.
+  defp output_tool_call(%{"type" => "function_call"} = item) do
+    %{
+      id: item["call_id"] || item["id"],
+      function: %{
+        name: item["name"],
+        arguments: item["arguments"] || "{}"
+      }
+    }
+  end
+
+  defp output_text(items) do
+    items
+    |> Enum.filter(&match?(%{"type" => "message"}, &1))
+    |> Enum.flat_map(fn item -> List.wrap(item["content"]) end)
+    |> Enum.filter(&match?(%{"type" => "output_text"}, &1))
+    |> Enum.map(&Map.get(&1, "text", ""))
+    |> Enum.join("")
   end
 
   defp get_error(:closed), do: {:error, "Connection closed"}
