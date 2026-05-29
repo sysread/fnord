@@ -115,27 +115,27 @@ and have a JSON object with four top-level keys: `messages`, `metadata`,
 
 |Version|Wire shape|Timestamp source|Status|
 |---|---|---|---|
-|v0|`<unix_ts>:<json>` - numeric prefix + colon + JSON body|prefix integer|legacy; everything in the wild is v0 today|
-|v1|pure JSON object with `version: 1` and `timestamp: <unix_int>` at the top level|JSON field|forward-facing; readers accept it now, writer flips later|
+|v0|`<unix_ts>:<json>` - numeric prefix + colon + JSON body|prefix integer|legacy; readable but no longer written|
+|v1|pure JSON object with `version: 1` and `timestamp: <unix_int>` at the top level|JSON field|current; what every new write emits|
 
 The v0 prefix existed so `list/1` and `timestamp/1` could sort conversations
 without parsing the JSON body. v1 trades that fast path for a uniform shape
 (no out-of-band data) - timestamp extraction under v1 requires a JSON decode.
 
-### Cross-worktree migration constraint
+### Cross-worktree migration
 
 All worktrees in a project share `conversations/`. Background services
-(MemoryIndexer, ConversationIndexer) in any worktree may read any file. If
-one build emits v1 while another build only reads v0, the older build flags
-v1 files as corrupt and skips them.
+(MemoryIndexer, ConversationIndexer) in any worktree may read any file. The
+two-stage rollout that got us here:
 
-The two-stage rollout:
+1. Phase 1b shipped a build whose readers understand both v0 and v1, while
+   the writer continued to emit v0. (`Store.Project.Conversation.Format`.)
+2. Phase 2c flipped the writer to v1. Older v1-aware readers parse those
+   files unchanged.
 
-1. Ship a build whose readers understand both v0 and v1. Writer continues to
-   emit v0. (`Store.Project.Conversation.Format` - shipped in Phase 1b of the
-   Responses-API migration.)
-2. Once that build has rolled out everywhere, ship a build whose writer
-   flips to v1. Older v1-aware readers can still parse those files.
+v0 files still in the wild are read transparently. Any v0 file that triggers
+the tool-call-arguments heal pass is rewritten as v1 on the spot - so stale
+v0 files migrate forward incrementally as they're touched.
 
 ### Heal-on-read for v0 files
 
@@ -152,7 +152,9 @@ files when stale shapes are detected, persisting repairs back to disk:
   atom table via `Util.string_keys_to_atoms/1` (see gotchas.md and the
   "Conversation file corruption" engram memory).
 
-v1 files do not carry these legacy shapes and skip the heal passes.
+When either heal pass triggers, the file is rewritten as v1 - it never goes
+back out as v0. v1 files don't carry the legacy shapes and skip the heal
+passes entirely.
 
 ## Global memory store
 

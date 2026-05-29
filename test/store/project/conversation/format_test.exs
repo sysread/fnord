@@ -148,14 +148,55 @@ defmodule Store.Project.Conversation.FormatTest do
 
       assert {:ok, _} = Format.read(convo)
 
-      # Persisted form on disk should now have a string argument.
+      # The healed file is rewritten as v1 (pure JSON with `version: 1` and a
+      # top-level `timestamp` field). The legacy <ts>: prefix is gone. The
+      # rewrite-on-heal pattern is what migrates straggling v0 files forward
+      # to v1 incrementally on first read.
       raw = File.read!(convo.store_path)
-      assert [_, json] = String.split(raw, ":", parts: 2)
-      assert {:ok, decoded} = SafeJson.decode(json)
+      assert {:ok, decoded} = SafeJson.decode(raw)
+      assert decoded["version"] == 1
+      assert decoded["timestamp"] == 1_700_000_000
 
       [healed_call] = decoded["messages"] |> hd() |> Map.get("tool_calls")
       assert is_binary(healed_call["function"]["arguments"])
       assert healed_call["function"]["arguments"] =~ "foo"
+    end
+  end
+
+  describe "write/3 v1 emission" do
+    test "Conversation.write/2 emits v1 (pure JSON, version + timestamp in body)", ctx do
+      convo = Conversation.new("v1_write", ctx.project)
+
+      assert {:ok, _} =
+               Conversation.write(convo, %{
+                 messages: [AI.Util.user_msg("hi")],
+                 metadata: %{},
+                 memory: [],
+                 tasks: %{}
+               })
+
+      raw = File.read!(convo.store_path)
+
+      # No legacy timestamp prefix - file must start with `{`.
+      assert String.starts_with?(raw, "{")
+      assert {:ok, decoded} = SafeJson.decode(raw)
+      assert decoded["version"] == 1
+      assert is_integer(decoded["timestamp"])
+      assert decoded["messages"] == [%{"role" => "user", "content" => "hi"}]
+    end
+
+    test "Conversation.write/2 round-trip preserves user/assistant messages", ctx do
+      convo = Conversation.new("v1_roundtrip", ctx.project)
+
+      original = [
+        AI.Util.system_msg("be brief"),
+        AI.Util.user_msg("hello"),
+        AI.Util.assistant_msg("hi")
+      ]
+
+      assert {:ok, _} = Conversation.write(convo, %{messages: original})
+      assert {:ok, %{messages: read}} = Conversation.read(convo)
+      assert read == original
     end
   end
 end

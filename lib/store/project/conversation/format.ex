@@ -378,23 +378,82 @@ defmodule Store.Project.Conversation.Format do
     end
   end
 
-  # Atomic-rename persist of a healed v0 conversation file. Errors are
+  # Atomic-rename persist of a healed v0 conversation file. The healed shape
+  # is written out as v1 so the next read takes the fast path and so older
+  # builds that lack the v0 heal pass see a clean format-version gate
+  # (:corrupt_conversation) rather than silently mis-parsing. Errors are
   # warnings, not raises - the caller's in-memory copy is already healed,
   # and a failed persist just means the next read will heal again.
   defp persist_v0(data, conversation, timestamp_str) do
+    ts =
+      case Integer.parse(timestamp_str) do
+        {int, ""} -> int
+        _ -> DateTime.to_unix(DateTime.utc_now())
+      end
+
+    case write_v1_blob(data, ts) do
+      {:ok, json} -> atomic_write(conversation, json, :heal)
+      {:error, reason} -> heal_warn(conversation, reason)
+    end
+  end
+
+  # --------------------------------------------------------------------------
+  # v1 writer
+  # --------------------------------------------------------------------------
+
+  @doc """
+  Write a conversation as a v1 file. The on-disk shape is pure JSON with
+  `version: 1` and a top-level integer `timestamp` field; the legacy
+  `<unix_ts>:<json>` prefix is gone.
+
+  `data` is the canonical in-memory map (`%{messages:, metadata:, memory:,
+  tasks:}`) - the same shape `Conversation.read/1` returns. Messages are
+  encoded via their `Jason.Encoder` impls (every AI.Message struct derives
+  it); other fields encode as plain maps.
+  """
+  @spec write(Conversation.t(), map(), integer()) :: :ok | {:error, any()}
+  def write(conversation, data, timestamp) when is_integer(timestamp) do
+    with {:ok, json} <- write_v1_blob(data, timestamp) do
+      atomic_write(conversation, json, :write)
+    end
+  end
+
+  defp write_v1_blob(data, timestamp) when is_integer(timestamp) do
+    data
+    |> normalize_for_wire()
+    |> Map.put(:version, 1)
+    |> Map.put(:timestamp, timestamp)
+    |> SafeJson.encode()
+  end
+
+  # Strip any in-memory cruft that doesn't belong on the wire. Today the
+  # canonical map's keys are all directly Jason-encodable (messages contain
+  # AI.Message structs with Jason.Encoder, memory is a list of Memory structs,
+  # tasks is a map of task lists). Nothing to do yet - the function exists as
+  # a single chokepoint for any future scrubbing without re-touching the
+  # write path.
+  defp normalize_for_wire(data) when is_map(data), do: data
+
+  defp atomic_write(conversation, json, source) do
     tmp = conversation.store_path <> ".tmp"
 
-    with {:ok, json} <- SafeJson.encode(data),
-         :ok <- File.write(tmp, "#{timestamp_str}:" <> json),
+    with :ok <- File.write(tmp, json),
          :ok <- File.rename(tmp, conversation.store_path) do
       :ok
     else
       {:error, reason} ->
         File.rm(tmp)
 
-        UI.warn(
-          "Could not persist healed tool arguments for conversation #{conversation.id}: #{inspect(reason)}"
-        )
+        case source do
+          :heal -> heal_warn(conversation, reason)
+          :write -> {:error, reason}
+        end
     end
+  end
+
+  defp heal_warn(conversation, reason) do
+    UI.warn(
+      "Could not persist healed tool arguments for conversation #{conversation.id}: #{inspect(reason)}"
+    )
   end
 end

@@ -205,9 +205,10 @@ defmodule Store.Project.Conversation do
         |> Map.new()
       end)
 
-    # Encode and write JSON with timestamp prefix
-    with {:ok, json} <- SafeJson.encode(normalized),
-         :ok <- File.write(conversation.store_path, "#{timestamp}:" <> json) do
+    # Persist as v1 (pure JSON with `version: 1` and top-level `timestamp`).
+    # See Store.Project.Conversation.Format for the on-disk format rationale
+    # and the cross-worktree migration story.
+    with :ok <- Store.Project.Conversation.Format.write(conversation, normalized, timestamp) do
       {:ok, conversation}
     end
   end
