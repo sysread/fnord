@@ -41,30 +41,12 @@ defmodule AI.Util do
           function: %{name: binary, arguments: map}
         }
 
-  @type content_msg :: %{role: binary, content: binary}
-
-  @type tool_request_msg :: %{
-          role: binary,
-          content: nil,
-          tool_calls: [tool_call_parsed]
-        }
-
-  @type tool_response_msg :: %{
-          role: binary,
-          name: binary,
-          tool_call_id: binary,
-          content: binary
-        }
-
-  # Phase 2b: AI.Message structs are the canonical in-memory shape. The
-  # legacy raw-map shapes remain in the union because not every code path
-  # has been swept yet (and from-disk hydration may still surface them
-  # transiently). Phase 3 narrows this to AI.Message.t() only.
-  @type msg ::
-          AI.Message.t()
-          | content_msg
-          | tool_request_msg
-          | tool_response_msg
+  # Canonical in-memory message shape. After phase 2, every code path in
+  # production constructs and consumes AI.Message structs - no path persists
+  # or transports the legacy chat-completions raw-map shape. Test fixtures
+  # may still build raw maps for convenience and AI.CompletionAPI.to_input/1
+  # tolerates them; that's not a contract, just a concession for ergonomics.
+  @type msg :: AI.Message.t()
 
   @type msg_list :: [msg]
 
