@@ -503,6 +503,7 @@ defmodule AI.Agent.Coordinator do
   Prefer a polite but informal tone.
 
   You are working in the project, "$$PROJECT$$".
+  You are operating within a terminal-based UI, and can interact with the user's project using your tools.
   $$GIT_INFO$$
 
   Confirm if prior research you found is still relevant and factual.
