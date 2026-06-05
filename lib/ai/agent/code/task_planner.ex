@@ -200,14 +200,18 @@ defmodule AI.Agent.Code.TaskPlanner do
       """,
       schema: %{
         type: "object",
-        required: [],
+        # Responses-API strict mode: every property in `required`. error and
+        # steps are semantically alternatives, so each is a nullable union -
+        # success emits {error: null, steps: [...]}, failure emits
+        # {error: "...", steps: []}. Consumer checks `error != nil` first.
+        required: ["error", "steps"],
         additionalProperties: false,
         properties: %{
           error: %{
-            type: "string",
+            type: ["string", "null"],
             description: """
             An error message indicating why the plan could not be generated,
-            including guidance on how to resolve the issue.
+            including guidance on how to resolve the issue. null on success.
             """
           },
           steps: %{
@@ -243,6 +247,9 @@ defmodule AI.Agent.Code.TaskPlanner do
       }
     }
   }
+
+  @doc false
+  def __response_formats__, do: [@plan_response_format]
 
   @spec plan(t) :: t
   defp plan(state)
@@ -310,7 +317,11 @@ defmodule AI.Agent.Code.TaskPlanner do
 
             %{state | error: reason}
 
-          {:ok, %{error: error}} ->
+          # error is now required-but-nullable. nil means success; any
+          # binary means failure. The earlier "match anything with :error"
+          # clause would have caught success cases too once we made the
+          # field always-present.
+          {:ok, %{error: error}} when is_binary(error) and error != "" ->
             UI.report_from(
               state.agent.name,
               "Planning failed",

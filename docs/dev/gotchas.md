@@ -338,7 +338,50 @@ a different binary name), update the regex in
 `lib/external_configs/skill.ex` (`@fnord_invocation_re`) and add a
 regression test.
 
-## 24. LLM tool args: type-default placeholders, not JSON null
+## 24. Responses-API strict mode: every property must be in `required`
+
+OpenAI's `/v1/responses` structured-output validator rejects any JSON
+schema where the `required` array doesn't list **every** key in
+`properties`. Chat Completions used to silently accept partial-required
+schemas; the Responses API surfaces it as:
+
+```
+Invalid schema for response_format 'X': In context=(), 'required' is
+required to be supplied and to be an array including every key in
+properties. Missing 'Y'.
+```
+
+The error kills the call after retries, and downstream agents (reviewer
+pipeline, task planner, task implementor, patcher) have no graceful
+fallback. Symptom: `reviewer_tool` reports a schema error mid-pipeline
+even though the caller did everything right.
+
+Genuine optionality is expressed via **nullable union types** AND the
+key being in `required`:
+
+```elixir
+checkpoint: %{type: ["boolean", "null"], description: "..."}
+```
+
+Consumer code must then handle nil explicitly:
+
+```elixir
+# Wrong: Map.get default fires on absent keys, not on nil values.
+cp? = Map.get(decoded, :checkpoint, false)
+
+# Right:
+cp? = Map.get(decoded, :checkpoint) == true
+```
+
+The meta-test at `test/ai/agent/strict_schemas_test.exs` walks every
+`@response_format` we expose (via `__response_format__/0` or
+`__response_formats__/0` accessors on each agent module) and asserts the
+strict rule recursively. When you add a new agent with a json_schema
+response_format, register it in that test's `@single_accessor` or
+`@multi_accessor` list and provide the accessor function, otherwise the
+schema will trip the validator at first runtime call.
+
+## 25. LLM tool args: type-default placeholders, not JSON null
 
 OpenAI's tool-call generator often emits **type-default placeholders** for
 optional params instead of omitting them: `""` for strings, `0` for
@@ -363,7 +406,7 @@ range=""`), not just the names of the set fields - the model needs to see
 *what* tripped the mutex to know which fields it's accidentally populating
 with placeholders.
 
-## 25. `AI.Model.web_search()` is a model, not a switch
+## 26. `AI.Model.web_search()` is a model, not a switch
 
 Under the legacy Chat Completions API, OpenAI exposed web search through a
 dedicated SKU (`gpt-5-search-api`). Selecting that model was sufficient -

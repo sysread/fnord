@@ -198,6 +198,11 @@ defmodule AI.Agent.Review.Reviewer do
   # Response formats
   # ---------------------------------------------------------------------------
 
+  # OpenAI Responses-API structured-output strict mode requires the `required`
+  # array to list every key in `properties`. To express genuine optionality,
+  # use a nullable union type (e.g. `type: ["string", "null"]`) AND keep the
+  # key in required. design_context is documented as "Empty string if none"
+  # so it's always present in shape - no null needed.
   @formulation_response_format %{
     type: "json_schema",
     json_schema: %{
@@ -206,6 +211,7 @@ defmodule AI.Agent.Review.Reviewer do
         type: "object",
         required: [
           "scope_summary",
+          "design_context",
           "pedantic_prompt",
           "acceptance_prompt",
           "state_flow_prompt",
@@ -255,7 +261,7 @@ defmodule AI.Agent.Review.Reviewer do
       name: "review_findings",
       schema: %{
         type: "object",
-        required: ["findings", "files_reviewed"],
+        required: ["findings", "files_reviewed", "coverage_gaps"],
         additionalProperties: false,
         properties: %{
           findings: %{
@@ -317,6 +323,10 @@ defmodule AI.Agent.Review.Reviewer do
   @doc "The JSON schema response format used by specialist agents."
   @spec specialist_response_format() :: map
   def specialist_response_format, do: @specialist_response_format
+
+  @doc false
+  def __response_formats__,
+    do: [@formulation_response_format, @specialist_response_format]
 
   # ---------------------------------------------------------------------------
   # AI.Agent behaviour - entry point from the tool

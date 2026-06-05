@@ -76,6 +76,9 @@ defmodule AI.Agent.Nomenclater do
     }
   }
 
+  @doc false
+  def __response_format__, do: @response_format
+
   # -----------------------------------------------------------------------------
   # Behaviour implementation
   # -----------------------------------------------------------------------------

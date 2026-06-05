@@ -364,6 +364,10 @@ defmodule AI.Agent.Review.Decomposer do
     }
   }
 
+  @doc false
+  def __response_formats__,
+    do: [@constraints_format, @estimate_format, @partition_format]
+
   # ---------------------------------------------------------------------------
   # AI.Agent behaviour
   # ---------------------------------------------------------------------------

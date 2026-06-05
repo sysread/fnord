@@ -96,6 +96,9 @@ defmodule AI.Agent.Code.TaskValidator do
     }
   }
 
+  @doc false
+  def __response_format__, do: @response_format
+
   # ----------------------------------------------------------------------------
   # Behaviour Implementation
   # ----------------------------------------------------------------------------

@@ -51,7 +51,7 @@ defmodule AI.Agent.Code.TaskImplementor do
       """,
       schema: %{
         type: "object",
-        required: ["error", "outcome", "followUpTasks"],
+        required: ["error", "checkpoint", "outcome", "followUpTasks"],
         additionalProperties: false,
         properties: %{
           error: %{
@@ -64,10 +64,15 @@ defmodule AI.Agent.Code.TaskImplementor do
             the issue(s) you document in `outcome` before proceeding.
             """
           },
+          # Nullable boolean: Responses-API strict mode requires every property
+          # to be in `required`, but `checkpoint` is genuinely optional. The
+          # union-with-null pattern is the canonical way to express that. The
+          # consumer at the bottom of this file maps both nil and false to
+          # "no checkpoint."
           checkpoint: %{
-            type: "boolean",
+            type: ["boolean", "null"],
             description:
-              "Optional flag: true if a QA checkpoint is suggested after this implementation step."
+              "Optional flag: true if a QA checkpoint is suggested after this implementation step. null or false otherwise."
           },
           outcome: %{
             type: "string",
@@ -122,6 +127,9 @@ defmodule AI.Agent.Code.TaskImplementor do
       }
     }
   }
+
+  @doc false
+  def __response_format__, do: @response_format
 
   # ----------------------------------------------------------------------------
   # Behaviour Implementation
@@ -224,7 +232,10 @@ defmodule AI.Agent.Code.TaskImplementor do
         %{error: nil, response: response} = state ->
           case SafeJson.decode(response, keys: :atoms) do
             {:ok, %{error: "", outcome: outcome, followUpTasks: new_tasks} = decoded} ->
-              cp? = Map.get(decoded, :checkpoint, false)
+              # checkpoint is now required-but-nullable in the schema; map
+              # nil/false alike to "no checkpoint." Map.get/3 default fires
+              # only on absent keys, not nil values - hence the explicit `== true`.
+              cp? = Map.get(decoded, :checkpoint) == true
               state = Common.put_state(state, :checkpoint?, cp?)
 
               if cp? do

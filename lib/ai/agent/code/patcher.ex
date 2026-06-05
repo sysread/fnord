@@ -124,6 +124,9 @@ defmodule AI.Agent.Code.Patcher do
     }
   }
 
+  @doc false
+  def __response_format__, do: @response_format
+
   # ----------------------------------------------------------------------------
   # Behaviour Implementation
   # ----------------------------------------------------------------------------

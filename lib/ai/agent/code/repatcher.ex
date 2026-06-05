@@ -83,6 +83,9 @@ defmodule AI.Agent.Code.RePatcher do
     }
   }
 
+  @doc false
+  def __response_format__, do: @response_format
+
   # ----------------------------------------------------------------------------
   # Behaviour Implementation
   # ----------------------------------------------------------------------------
