@@ -212,30 +212,56 @@ defmodule AI.Completion do
 
   Falls back to scanning all messages when initial_message_count is missing
   (older state structs that predate this field).
+
+  Counts a tool invocation as exactly one *unique call_id*, not one
+  FunctionCall struct. The Responses-native shape pairs each
+  `%AI.Message.FunctionCall{}` (request) with a `%AI.Message.FunctionCallOutput{}`
+  (result) - both carry the same `call_id`. Deduping by call_id means:
+
+  - the normal paired case (request + output both present) counts once;
+  - a future code path that loses one half of the pair still counts the
+    invocation (under "<unknown>" if only the output survives, since the
+    name lives on the request side);
+
+  ...so downstream gates like `editing_tools_used` and the `save_skill`
+  success check don't silently flip off if the message slice ever drifts
+  asymmetric. Legacy nested-tool_calls shape is still accumulated
+  separately for old conversations that predate the canonical structs.
   """
   @spec tools_used(t) :: %{binary => non_neg_integer()}
   def tools_used(%{messages: messages} = state) do
     drop_count = Map.get(state, :initial_message_count) || 0
 
-    messages
-    |> Enum.drop(drop_count)
-    |> Enum.reduce(%{}, fn
-      # Phase 2b: tool call requests are standalone FunctionCall structs.
-      %AI.Message.FunctionCall{name: func}, acc ->
-        Map.update(acc, func, 1, &(&1 + 1))
+    {names_by_call_id, call_ids, legacy_counts} =
+      messages
+      |> Enum.drop(drop_count)
+      |> Enum.reduce({%{}, MapSet.new(), %{}}, fn
+        %AI.Message.FunctionCall{call_id: id, name: name}, {names, ids, legacy} ->
+          {Map.put(names, id, name), MapSet.put(ids, id), legacy}
 
-      # Legacy chat-completions shape (raw assistant map with nested
-      # tool_calls). Still produced by paths that construct messages by
-      # hand without going through AI.Util.
-      %{tool_calls: tool_calls}, acc when is_list(tool_calls) ->
-        Enum.reduce(tool_calls, acc, fn
-          %{function: %{name: func}}, acc -> Map.update(acc, func, 1, &(&1 + 1))
-          %{"function" => %{"name" => func}}, acc -> Map.update(acc, func, 1, &(&1 + 1))
-          _, acc -> acc
-        end)
+        %AI.Message.FunctionCallOutput{call_id: id}, {names, ids, legacy} ->
+          {names, MapSet.put(ids, id), legacy}
 
-      _, acc ->
-        acc
+        # Legacy chat-completions shape (raw assistant map with nested
+        # tool_calls). Still produced by paths that construct messages by
+        # hand without going through AI.Util. No call_id - counted directly.
+        %{tool_calls: tool_calls}, {names, ids, legacy} when is_list(tool_calls) ->
+          legacy =
+            Enum.reduce(tool_calls, legacy, fn
+              %{function: %{name: func}}, acc -> Map.update(acc, func, 1, &(&1 + 1))
+              %{"function" => %{"name" => func}}, acc -> Map.update(acc, func, 1, &(&1 + 1))
+              _, acc -> acc
+            end)
+
+          {names, ids, legacy}
+
+        _, acc ->
+          acc
+      end)
+
+    Enum.reduce(call_ids, legacy_counts, fn id, acc ->
+      name = Map.get(names_by_call_id, id, "<unknown>")
+      Map.update(acc, name, 1, &(&1 + 1))
     end)
   end
 

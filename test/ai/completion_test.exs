@@ -401,6 +401,97 @@ defmodule AI.CompletionTest do
                  initial_message_count: length(initial)
                })
     end
+
+    # Responses-native canonical shape: tool calls are standalone
+    # %AI.Message.FunctionCall{} (request) paired with %AI.Message.FunctionCallOutput{}
+    # (result), both carrying the same call_id. The pair should count once per
+    # call_id - never twice, never zero.
+    test "counts a paired FunctionCall + FunctionCallOutput exactly once" do
+      initial = [AI.Util.user_msg("go")]
+
+      messages =
+        initial ++
+          [
+            AI.Util.assistant_tool_msg("c1", "file_edit_tool", "{}"),
+            AI.Util.tool_msg("c1", "file_edit_tool", "ok")
+          ]
+
+      assert %{"file_edit_tool" => 1} ==
+               AI.Completion.tools_used(%AI.Completion{
+                 messages: messages,
+                 initial_message_count: length(initial)
+               })
+    end
+
+    test "counts a request with no output (e.g. crashed mid-execution)" do
+      initial = [AI.Util.user_msg("go")]
+
+      messages =
+        initial ++ [AI.Util.assistant_tool_msg("c1", "file_edit_tool", "{}")]
+
+      assert %{"file_edit_tool" => 1} ==
+               AI.Completion.tools_used(%AI.Completion{
+                 messages: messages,
+                 initial_message_count: length(initial)
+               })
+    end
+
+    test "counts an orphan FunctionCallOutput under <unknown> (future-proofing)" do
+      # If a future code path (token-budget trimming, partial hydration,
+      # resumed session) loses the request side of a tool pair, we still
+      # surface the invocation - downstream gates would silently regress
+      # otherwise. The name lives on the request side, so we lack
+      # attribution, hence the sentinel bucket.
+      initial = [AI.Util.user_msg("go")]
+      messages = initial ++ [AI.Util.tool_msg("c1", "file_edit_tool", "ok")]
+
+      assert %{"<unknown>" => 1} ==
+               AI.Completion.tools_used(%AI.Completion{
+                 messages: messages,
+                 initial_message_count: length(initial)
+               })
+    end
+
+    test "multiple distinct call_ids of the same function each count" do
+      initial = [AI.Util.user_msg("go")]
+
+      messages =
+        initial ++
+          [
+            AI.Util.assistant_tool_msg("c1", "file_edit_tool", "{}"),
+            AI.Util.tool_msg("c1", "file_edit_tool", "ok"),
+            AI.Util.assistant_tool_msg("c2", "file_edit_tool", "{}"),
+            AI.Util.tool_msg("c2", "file_edit_tool", "ok"),
+            AI.Util.assistant_tool_msg("c3", "notify_tool", "{}"),
+            AI.Util.tool_msg("c3", "notify_tool", "ok")
+          ]
+
+      assert %{"file_edit_tool" => 2, "notify_tool" => 1} ==
+               AI.Completion.tools_used(%AI.Completion{
+                 messages: messages,
+                 initial_message_count: length(initial)
+               })
+    end
+
+    test "canonical + legacy shapes accumulate independently" do
+      # An older conversation might still have nested-tool_calls maps alongside
+      # newly-emitted canonical structs. Both contribute to the count.
+      initial = [AI.Util.user_msg("go")]
+
+      messages =
+        initial ++
+          [
+            %{tool_calls: [%{function: %{name: "legacy_tool"}}]},
+            AI.Util.assistant_tool_msg("c1", "canonical_tool", "{}"),
+            AI.Util.tool_msg("c1", "canonical_tool", "ok")
+          ]
+
+      assert %{"legacy_tool" => 1, "canonical_tool" => 1} ==
+               AI.Completion.tools_used(%AI.Completion{
+                 messages: messages,
+                 initial_message_count: length(initial)
+               })
+    end
   end
 
   describe "toolbox integration" do
