@@ -59,8 +59,7 @@ defmodule AI.Tools.Commit.Search do
           },
           limit: %{
             type: "integer",
-            description:
-              "Maximum number of results to return (default: #{@max_search_results}).",
+            description: "Maximum number of results to return (default: #{@max_search_results}).",
             minimum: 1,
             maximum: 100
           }

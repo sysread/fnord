@@ -1,14 +1,20 @@
 defmodule Store.Project.Conversation do
   @moduledoc """
-  Conversations are stored per project in the project's store dir, under
-  `converations/`. Each file is *mostly* JSON, but with a timestamp prepended
-  to the JSON data, separated by a colon. This allows for easy sorting, without
-  having to parse dozens or hundreds of messages for each file.
+  Conversations are stored per project under `conversations/` in the project
+  store.
 
-  The JSON object currently has the following keys:
-  - `messages`: a list of messages in the conversation
-  - `metadata`: a map of metadata for the conversation
-  - `memory`: a list of memory objects associated with the conversation
+  The canonical on-disk shape is a v1 JSON object written by
+  `Store.Project.Conversation.Format`. That payload includes:
+
+  - `version`
+  - `timestamp`
+  - `messages`
+  - `metadata`
+  - `memory`
+  - `tasks`
+
+  Legacy v0 timestamp-prefixed files are still readable, but new writes go out
+  through the v1 format path.
 
   Existing conversations are retrieved by their UUID identifier.
   """
@@ -106,10 +112,13 @@ defmodule Store.Project.Conversation do
   @doc """
   Saves the conversation in the store.
 
-  For new conversations, generates a fresh timestamp.
-  For existing conversations, only updates the on-disk timestamp if the conversation's messages have changed;
-  otherwise reuses the existing timestamp. Incoming data is merged with existing conversation data so
-  that missing keys fallback to the existing values.
+  New conversations get a fresh timestamp and default empty fields for
+  `messages`, `metadata`, `memory`, and `tasks`.
+
+  Existing conversations are read first so the stored `messages`, `metadata`,
+  `memory`, and `tasks` can be merged with the incoming data. The timestamp is
+  reused when the merged message list is unchanged; otherwise a fresh timestamp
+  is written.
   """
   @spec write(t, map) :: {:ok, t} | {:error, any()}
   def write(conversation, data \\ %{}) do
@@ -214,8 +223,10 @@ defmodule Store.Project.Conversation do
   end
 
   @doc """
-  Reads the conversation from the store. Returns a map with the timestamp,
-  messages, metadata, and memory in the conversation.
+  Reads the conversation from the store.
+
+  Returns the canonical conversation map with `timestamp`, `messages`,
+  `metadata`, `memory`, and `tasks`.
 
   Delegates to `Store.Project.Conversation.Format.read/1`, which transparently
   handles both v0 (legacy timestamp-prefixed) and v1 (pure JSON with

@@ -14,8 +14,11 @@ defmodule AI.Message.User do
 
   Storing `content` as a binary keeps the struct drop-in compatible with the
   ~150 pattern-match sites that do `msg.content` or
-  `%{role: "user", content: c} = msg`. Multimodal multi-part content would
-  require revisiting this shape; we're not multimodal today.
+  `%{role: "user", content: c} = msg`.
+
+  We already accept typed content parts on hydrate and collapse them back to a
+  single binary. Supporting rich multi-part user messages end-to-end would still
+  require revisiting the internal struct shape.
   """
 
   @behaviour AI.Message

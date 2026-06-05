@@ -327,7 +327,9 @@ defmodule AI.CompletionAPITest do
       end)
 
       model = %Model{model: "test-model", context: 0, reasoning: :medium}
-      assert {:ok, :msg, "part one part two", 5} = AI.CompletionAPI.get(model, [], nil, nil, false)
+
+      assert {:ok, :msg, "part one part two", 5} =
+               AI.CompletionAPI.get(model, [], nil, nil, false)
     end
   end
 

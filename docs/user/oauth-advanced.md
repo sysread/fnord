@@ -1,32 +1,30 @@
 # Advanced OAuth Configuration
 
-This guide covers advanced OAuth authentication features, troubleshooting, and manual configuration.
+This guide covers the current OAuth support for MCP servers: what the CLI exposes, what fnord stores, and where manual configuration is still useful.
 
-## Quick Reference
+## Quick reference
 
-For basic OAuth setup, see the [main README](../README.md#oauth-authentication).
+For the basic flow, see the [main README](../README.md#oauth-authentication).
 
-## Command-Line Options
+## CLI workflow
 
-### Using Existing Client Credentials
+### Add an OAuth-enabled MCP server
 
-If you have a pre-registered client ID:
+If you already have a client ID:
 
 ```bash
 fnord config mcp add myserver --transport http --url https://api.example.com \
   --oauth --client-id YOUR_CLIENT_ID
 ```
 
-With client secret (for confidential clients):
+If the provider also gave you a client secret:
 
 ```bash
 fnord config mcp add myserver --transport http --url https://api.example.com \
   --oauth --client-id YOUR_CLIENT_ID --client-secret YOUR_SECRET
 ```
 
-### Custom Scopes
-
-Specify scopes if the default (`mcp:access`) isn't appropriate:
+If you need non-default scopes:
 
 ```bash
 fnord config mcp add myserver --transport http --url https://api.example.com \
@@ -34,19 +32,43 @@ fnord config mcp add myserver --transport http --url https://api.example.com \
 ```
 
 Multiple `--scope` flags add multiple scopes.
+If you do not pass any scopes, fnord defaults to `mcp:access`.
 
-### What `--oauth` Does
+### Log in
 
-The `--oauth` flag automatically:
+OAuth login is a separate command:
 
-- Fetches OAuth configuration from `/.well-known/oauth-authorization-server`
-- Registers your client using dynamic client registration (RFC 7591) if no `client_id` provided
-- Selects appropriate scopes (defaults to `mcp:access`)
-- Stores the configuration in your settings
+```bash
+fnord config mcp login myserver
+```
 
-## Manual Configuration
+The login command takes the server name plus an optional callback timeout:
 
-For maximum control, you can edit `~/.fnord/settings.json` directly:
+```bash
+fnord config mcp login myserver --timeout 300000
+```
+
+### Check status
+
+```bash
+fnord config mcp status myserver
+```
+
+## What `--oauth` does
+
+When you run `fnord config mcp add ... --oauth`, fnord:
+
+- Discovers OAuth endpoints from the provider metadata
+- Registers a client if the server supports dynamic client registration and you did not provide a client ID
+- Stores the OAuth configuration with the MCP server settings
+- Leaves the actual browser login flow for `fnord config mcp login`
+
+## Manual configuration
+
+Most users should prefer the CLI.
+Manual edits are still possible if you need to inspect or repair the stored config.
+
+A typical OAuth server entry looks like this:
 
 ```json
 {
@@ -58,266 +80,148 @@ For maximum control, you can edit `~/.fnord/settings.json` directly:
         "discovery_url": "https://api.example.com/.well-known/oauth-authorization-server",
         "client_id": "your-client-id",
         "client_secret": "optional-secret",
-        "scopes": ["mcp:access"],
-        "redirect_port": 8080
+        "redirect_uri": "http://localhost:8080/callback",
+        "scopes": ["mcp:access"]
       }
     }
   }
 }
 ```
 
-### OAuth Configuration Fields
+### OAuth configuration fields
 
-**Required:**
+Current config shape:
 
-- `discovery_url` - OAuth discovery endpoint (RFC 8414)
+- `discovery_url` - OAuth discovery endpoint
 - `client_id` - OAuth client identifier
-- `scopes` - Array of OAuth scope strings
+- `client_secret` - optional secret for confidential clients
+- `redirect_uri` - loopback callback URI used during login
+- `scopes` - list of scopes to request
 
-**Optional:**
+Fnord stores credentials separately from this config.
+The credentials store is `~/.fnord/credentials.json`.
 
-- `client_secret` - For confidential clients (keep this secure!)
-- `redirect_port` - Fixed port for loopback redirects (for exact URI matching)
-- `redirect_uri` - Custom redirect URI (advanced)
-- `credentials_path` - Custom path for token storage (default: `~/.fnord/credentials.json`)
-- `refresh_margin` - Seconds before expiry to refresh tokens (default: 300)
+## Understanding the flow
 
-## Understanding the OAuth Flow
+Fnord uses OAuth 2.0 Authorization Code flow with PKCE for MCP login.
+At a high level:
 
-Fnord implements OAuth 2.0 Authorization Code flow with PKCE (Proof Key for Code Exchange) for security.
+1. **Discovery**
+   - Fetch provider metadata
+   - Resolve authorization, token, and registration endpoints
 
-### Flow Steps
+2. **Registration**
+   - If needed, register a native client with a loopback redirect URI
 
-1. **Discovery** (RFC 8414)
-   - Fetch metadata from `/.well-known/oauth-authorization-server`
-   - Extract authorization and token endpoints
+3. **Authorization**
+   - Generate a PKCE verifier and challenge
+   - Generate a state value
+   - Open the browser to the provider's authorization page
 
-2. **Registration** (RFC 7591, if needed)
-   - If no `client_id` provided and server supports it
-   - Register as a native app with loopback redirect
-   - Obtain `client_id` (and possibly `client_secret`)
+4. **Token exchange**
+   - Receive the callback on the loopback server
+   - Validate state
+   - Exchange the code for tokens
+   - Store tokens in the credentials store
 
-3. **Authorization** (RFC 7636)
-   - Generate PKCE code verifier and challenge (S256)
-   - Generate state parameter for CSRF protection
-   - Build authorization URL with required parameters
-   - Open browser for user consent
+5. **Refresh**
+   - Reuse the refresh token when the provider issued one
+   - Persist updated credentials after refresh
 
-4. **Token Exchange**
-   - Receive authorization code via loopback callback
-   - Validate state parameter
-   - Exchange code for tokens with PKCE verifier
-   - Store tokens securely
+### PKCE
 
-5. **Token Refresh**
-   - Monitor token expiry
-   - Automatically refresh before expiration
-   - Update stored credentials
-
-### PKCE (RFC 7636)
-
-Fnord always uses PKCE with S256 challenge method for security:
-
-- Code verifier: 43-128 character random string
-- Code challenge: Base64URL(SHA256(verifier))
-- Prevents authorization code interception attacks
+Fnord always uses PKCE with the S256 challenge method.
+The exact verifier representation is an implementation detail; the important contract is that fnord generates a verifier, derives the S256 challenge from it, and sends both sides of the flow correctly.
 
 ## Security
 
-### Token Storage
+### Token storage
 
-Tokens are stored in `~/.fnord/credentials.json` with strict file permissions:
+Tokens are stored in `~/.fnord/credentials.json`.
+That file is separate from `~/.fnord/settings.json`, which holds the MCP server config.
 
-- File permissions: `0600` (owner read/write only)
-- Format: JSON with server name as key
-- Contains: `access_token`, `refresh_token`, `expires_at`, `token_type`, `scope`
+Never commit either file to version control.
 
-**Never commit this file to version control!**
+### Security properties
 
-### Security Best Practices
+Fnord's OAuth flow relies on:
 
-1. **Use PKCE** - Fnord always enables this
-2. **Loopback redirects** - Uses `http://127.0.0.1:<port>/callback` for native apps
-3. **State parameter** - Validates to prevent CSRF attacks
-4. **Secure storage** - Restrictive file permissions on credentials
-5. **No logging** - Tokens and secrets are never logged
+1. PKCE
+2. Loopback redirects for native-app login
+3. State validation
+4. Local credential storage
 
-### Revoking Access
+## Token management
 
-To revoke access:
+### Token refresh
 
-1. Delete tokens: `rm ~/.fnord/credentials.json` (or edit to remove specific server)
-2. Revoke at provider (check provider's OAuth settings)
-3. Re-authenticate: `fnord config mcp login <server>`
+Fnord refreshes access tokens when it has enough information to do so.
+Whether that succeeds depends on the provider returning a refresh token and supporting refresh for the granted client/scopes.
 
-## Token Management
+### Token expiry and status
 
-### Token Refresh
-
-Fnord automatically refreshes access tokens:
-
-- Default refresh margin: 5 minutes (300 seconds) before expiry
-- Configurable via `refresh_margin` in oauth config
-- Uses refresh token from authorization flow
-
-### Token Expiry
-
-Check token status:
+Check token status with:
 
 ```bash
-fnord config mcp status <server>
+fnord config mcp status myserver
 ```
 
-Shows:
+### Re-authentication
 
-- Token validity
-- Expiration time
-- Refresh token availability
-
-### Manual Token Refresh
-
-Tokens refresh automatically during operations, but you can force re-authentication:
+If you need to start over:
 
 ```bash
-# Remove old credentials and login again
 rm ~/.fnord/credentials.json
-fnord config mcp login <server>
+fnord config mcp login myserver
 ```
 
 ## Troubleshooting
 
-### Auto-discovery fails
+### Discovery fails
 
-**Error:** `OAuth discovery failed (404)`
+Usual causes:
 
-**Causes:**
+- The server does not expose OAuth discovery metadata
+- The configured discovery URL is wrong
 
-- Server doesn't support OAuth discovery (RFC 8414)
-- Wrong discovery URL
+Usual fixes:
 
-**Solutions:**
+1. Verify the provider supports `/.well-known/oauth-authorization-server`
+2. Try an OpenID Connect discovery document if the provider uses that shape
+3. Re-check the stored server config
 
-1. Verify server supports `/.well-known/oauth-authorization-server`
-2. Try OpenID Connect discovery: `/.well-known/openid-configuration`
-3. Get OAuth endpoints from provider and configure manually
+### Dynamic registration is unavailable
 
-### Registration not available
+Some providers require a pre-registered client.
+In that case, register a client with the provider and then add the MCP server with `--client-id` and, if required, `--client-secret`.
 
-**Error:** `OAuth registration not available`
+### Login times out
 
-**Causes:**
-
-- Server requires pre-registered clients
-- Dynamic registration (RFC 7591) not supported
-
-**Solution:**
-Register a client with the provider manually, then:
+If browser approval takes too long, rerun login with a larger timeout:
 
 ```bash
-fnord config mcp add <name> --url <url> --oauth --client-id YOUR_CLIENT_ID
+fnord config mcp login myserver --timeout 300000
 ```
 
-### Login timeout
-
-**Error:** Connection timeout during login
-
-**Causes:**
-
-- Slow browser/user interaction
-- Network issues
-- OAuth provider delays
-
-**Solutions:**
-
-1. Increase timeout (default: 120s):
-
-   ```bash
-   fnord config mcp login <server> --timeout 300000
-   ```
-
-2. Check browser opened correctly
-3. Complete OAuth consent promptly
+The timeout is passed explicitly. Do not rely on a documented default here.
 
 ### Redirect URI mismatch
 
-**Error:** Redirect URI doesn't match registered URI
-
-**Causes:**
-
-- Provider requires exact URI match
-- Port changed between registration and login
-
-**Solution:**
-Fnord reserves a port during registration and reuses it during login via `redirect_port`. If you're manually configuring, ensure the port in `redirect_port` matches what you registered with the provider.
-
-### Browser shows "Connection refused"
-
-**Causes:**
-
-- Login command exited before sending HTTP response
-
-**Solution:**
-This should not happen in current fnord versions (fixed with 3-second delay). If it does:
-
-1. Update fnord: `mix escript.install github sysread/fnord`
-2. Report the issue
+Fnord's current default loopback redirect URI is `http://localhost:8080/callback`.
+If the provider requires an exact match, make sure the registered client uses the same URI.
 
 ### No refresh token received
 
-**Causes:**
+Common reasons:
 
-- Provider doesn't support refresh tokens
-- Scopes don't include offline access
-- Provider configuration
+- The provider does not issue refresh tokens for this client
+- The provider expects an extra scope such as `offline_access`
+- The provider requires different client registration settings
 
-**Solutions:**
+## Custom discovery URLs
 
-1. Check if provider supports `refresh_token` grant type
-2. Try adding scope: `--scope offline_access` (provider-specific)
-3. Use shorter-lived sessions and re-authenticate as needed
-
-### Authorization header not added
-
-**Verify OAuth is configured:**
-
-```bash
-fnord config mcp list | grep oauth
-```
-
-**Check credentials exist:**
-
-```bash
-cat ~/.fnord/credentials.json | grep <server-name>
-```
-
-**Check token validity:**
-
-```bash
-fnord config mcp status <server>
-```
-
-**If token is expired:**
-
-```bash
-fnord config mcp login <server>
-```
-
-## Custom Discovery URLs
-
-Some providers use non-standard discovery endpoints:
-
-### OpenID Connect
-
-If provider uses OpenID Connect instead of OAuth Authorization Server:
-
-```json
-{
-  "oauth": {
-    "discovery_url": "https://provider.com/.well-known/openid-configuration",
-    ...
-  }
-}
-```
+Some providers use non-standard discovery endpoints.
+If your provider exposes OpenID Connect metadata instead of the OAuth authorization-server document, point discovery at that URL.
 
 ### Custom Endpoints
 

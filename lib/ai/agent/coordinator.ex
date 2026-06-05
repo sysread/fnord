@@ -167,11 +167,10 @@ defmodule AI.Agent.Coordinator do
   @spec bootstrap(t) :: t
   defp bootstrap(state) do
     state
-    # All sessions begin with these messages. We strip system/developer
-    # messages out of the saved conversation in Services.Conversation.save,
-    # so follow-up sessions re-inject them here. This reduces space on disk
-    # and ensures the instruction messages don't fall out of focus in long
-    # conversations.
+    # All sessions begin with these bootstrap messages. Saved conversations do
+    # not rely on prior bootstrap ordering, so follow-up sessions re-inject the
+    # current instruction and context messages here. That keeps the active
+    # session grounded in fresh identity, memory, project, and worktree state.
     |> new_session_msg()
     |> initial_msg()
     |> AI.Agent.Coordinator.Memory.identity_msg()

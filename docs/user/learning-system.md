@@ -1,274 +1,212 @@
 # Learning System
 
-Fnord builds a searchable knowledge base about your project as it researches your questions, improving its ability to answer complex questions over time.
+Fnord accumulates project knowledge as it researches questions, then reuses that context in later sessions.
+That knowledge now lives in two places: project notes and searchable memory.
 
-## How It Works
+## How it works
 
-As fnord researches your questions, it:
+As fnord researches your project, it can:
 
-1. Makes observations about your code
-2. Draws inferences about architecture and patterns
-3. Saves facts organized by topic
-4. Makes this knowledge searchable for future questions
+1. Search indexed code and git history
+2. Save project-level notes
+3. Recall project and global memories that match the current task
+4. Record new session memories that can later be promoted into longer-lived memory
 
-This accumulated knowledge helps fnord:
+This makes later questions faster and more grounded in prior work.
 
-- Answer complex questions faster
-- Make better connections between code components
-- Understand project-specific terminology and patterns
-- Provide more accurate and contextual responses
+## Viewing learned knowledge
 
-## Viewing Learned Knowledge
+### Notes
 
-See what fnord has learned about your project:
+Project notes are the high-level markdown summary of what fnord has learned:
 
 ```bash
 fnord notes --project myproject
 ```
 
-Output is markdown, so pipe through a markdown viewer:
+Output is markdown, so piping through a viewer can help:
 
 ```bash
 fnord notes --project myproject | glow
 ```
 
-### Notes Organization
+### Memory
 
-Notes are organized by topic:
+Project and global memory are searchable separately from notes:
 
-- **Architecture** - System design, component relationships
-- **Patterns** - Coding patterns, conventions observed
-- **Domain Knowledge** - Business logic, terminology
-- **Technical Details** - APIs, data structures, algorithms
-- **Testing** - Test strategies, coverage areas
+```bash
+fnord memory --project myproject
+fnord memory --project myproject --query "authentication flow"
+fnord memory --global --query "preferred testing pattern"
+```
 
-## Priming the Knowledge Base
+## Priming the knowledge base
 
-Generate an initial set of learnings without asking specific questions:
+Generate an initial set of project notes without asking a specific question:
 
 ```bash
 fnord prime --project myproject
 ```
 
-**What priming does:**
+Priming is a good fit when:
 
-- Explores project structure and organization
-- Identifies key components and their relationships
-- Documents common patterns and conventions
-- Creates initial set of searchable facts
+- You just indexed a new project
+- The project changed substantially
+- You want a fresh high-level summary before asking detailed questions
 
-**Options:**
+A common flow is:
 
 ```bash
+fnord index --project myproject
 fnord prime --project myproject
 fnord notes --project myproject | glow
 ```
 
-**When to prime:**
+## Knowledge growth over time
 
-- After initial indexing of a new project
-- After major refactoring or architecture changes
-- When notes become stale or outdated
+Knowledge grows naturally as you use fnord:
 
-## Knowledge Growth Over Time
+1. **Ask questions** - fnord gathers facts while researching
+2. **Follow up** - later questions can build on the same context
+3. **Recall memory** - relevant project and global memories are pulled into the session
+4. **Reflect** - session takeaways can be recorded for future recall
 
-The knowledge base grows naturally through use:
-
-1. **Ask questions** - Each research session adds new facts
-2. **Follow-up questions** - Builds deeper understanding
-3. **Cross-file insights** - Connects related components
-4. **Pattern recognition** - Identifies recurring structures
-
-**Example progression:**
+Example:
 
 ```bash
 # First question
 fnord ask -p myproject -q "Where is authentication handled?"
-# Learns: auth module location, basic structure
 
-# Follow-up
+# Follow-up on the same thread
 fnord ask -p myproject --follow <ID> -q "How does it integrate with the database?"
-# Learns: database integration patterns, models used
 
-# Later question
+# Later question using accumulated context
 fnord ask -p myproject -q "What's the pattern for adding a new API endpoint?"
-# Can now reference learned patterns and conventions
 ```
 
-## Managing Knowledge
+## Managing knowledge
 
-### Knowledge Storage
+### Storage
 
-Notes are stored in: `~/.fnord/projects/<project>/notes.md`
+Project notes live in:
 
-Structure:
-
-```
-~/.fnord/projects/myproject/
-└── notes.md          # Consolidated learned knowledge
+```text
+~/.fnord/projects/<project>/notes.md
 ```
 
-### Dealing with Staleness
+Project memory is stored separately under the project store, and global memory lives under `~/.fnord/memory/`.
+Use the CLI to inspect and search those stores rather than editing files directly.
 
-As your codebase evolves, some learned facts may become outdated:
+### When knowledge goes stale
 
-**Signs of stale knowledge:**
+Stale knowledge usually shows up as:
 
-- Fnord references old code that's been refactored
-- Architecture descriptions don't match current state
-- Pattern recommendations no longer apply
+- References to code that moved or was removed
+- Architecture summaries that no longer match the repo
+- Advice that reflects an old convention
 
-#### Solutions
+Good fixes, in order:
 
-##### **Re-prime** - Regenerate knowledge base
-
-```bash
-# Backup old notes if desired
-mv ~/.fnord/projects/myproject/notes.md ~/.fnord/projects/myproject/notes.md.backup
-
-# Re-prime
-fnord prime --project myproject
-```
-
-##### **Targeted updates** - Ask specific questions about changed areas
-
-```bash
-fnord ask -p myproject -q "The authentication module has been refactored. Please analyze its new structure and update your understanding."
-```
-
-##### **Re-index** - Refresh semantic index to match current code
-
-```bash
-fnord index --project myproject
-```
-
-### Dealing with Redundancy
-
-Over time, notes may accumulate redundant or overlapping information.
-
-**Current approach:**
-
-- Manual review via `fnord notes`
-- Re-priming periodically to consolidate
-
-**Note:** Automatic deduplication/consolidation is a potential future enhancement.
-
-## Integration with Semantic Search
-
-The learning system complements semantic search:
-
-| Feature | Purpose | When Used |
-| --- | --- | --- |
-| **Semantic Index** | Find relevant code | Every search and ask |
-| **Learned Notes** | Understand context | Complex questions requiring connections |
-| **Git History** | Track changes | Historical questions |
-
-Together, these create a comprehensive understanding of your project.
-
-## Best Practices
-
-1. **Prime after indexing** - Start with a solid knowledge foundation
+1. **Re-index** when the code has changed substantially
 
    ```bash
    fnord index --project myproject
+   ```
+
+2. **Ask a targeted update question** about the changed area
+
+   ```bash
+   fnord ask -p myproject -q "The authentication module changed. Re-check its structure and update your understanding."
+   ```
+
+3. **Re-prime** when you want a refreshed top-level summary
+
+   ```bash
    fnord prime --project myproject
    ```
 
-2. **Let it grow naturally** - Ask questions as they arise, knowledge accumulates
-3. **Use follow-up questions** - Builds deeper, more connected understanding
-4. **Provide feedback** - Correct the LLM with `--follow` when it makes a mistake, confuses concepts, or breaks conventions
-5. **Re-prime periodically** - After major changes or when notes feel stale
-6. **Review notes occasionally** - Understand what fnord knows about your project: `fnord notes --project myproject | glow > project-knowledge.md`
+### Redundancy and cleanup
 
-## Technical Details
+Notes and memory can overlap a bit over time.
+The right first move is usually to ask fnord to re-check and correct its understanding rather than hand-editing stored files.
 
-### Storage Format
+For example:
 
-Notes are stored as structured markdown with topic categorization and metadata for semantic search integration.
+```bash
+fnord ask -p myproject -q "Review your current project knowledge, re-check it against the codebase, and correct any redundant, dated, or incorrect information."
+```
 
-### Research Process
+If the project summary itself feels off, re-prime after re-indexing.
 
-When fnord researches a question:
+## Integration with search
 
-1. Searches learned notes for relevant context
-2. Performs semantic search on code
-3. Executes tool calls as needed
-4. Synthesizes findings
-5. Saves new insights to notes
+The learning system complements the rest of fnord's research stack:
 
-### Learning Scope
+- **Semantic index** - finds relevant code
+- **Notes** - hold a project-level summary
+- **Memory** - recalls prior conclusions and preferences
+- **Git history** - explains how behavior changed over time
 
-Fnord learns:
+Together, these give fnord both current code context and prior research context.
 
-- ✅ Code structure and organization
-- ✅ Patterns and conventions
-- ✅ Component relationships
-- ✅ Domain-specific terminology
-- ❌ Not: Sensitive data, credentials, secrets
+## Best practices
+
+1. Prime after the first index of a project
+2. Use `--follow` when the second question depends on the first
+3. Re-index after large code changes
+4. Ask targeted correction questions when notes or memory feel stale
+5. Review `fnord notes` and `fnord memory --query ...` occasionally to see what context fnord is carrying forward
+
+## Technical details
+
+### What gets stored
+
+Fnord can retain:
+
+- Code structure and organization
+- Project conventions and patterns
+- Relationships between modules and systems
+- Domain-specific terminology
+- User or project preferences captured as memory
+
+It should not retain secrets or other sensitive values.
+
+### Research flow
+
+When fnord researches a question, it can combine:
+
+1. Prior notes and memory recall
+2. Semantic search over indexed code
+3. Direct file inspection and tool calls
+4. Git history when the question is historical
+5. New findings recorded back into notes or memory
 
 ## Project context
 
 If present in the project root, `FNORD.md` and `FNORD.local.md` are injected as system instructions each session.
-The local file is appended after the shared file and takes precedence on conflicts unless the user's prompt explicitly overrides.
-We recommend adding `FNORD.local.md` to `.gitignore` as a per-user configuration file.
+`FNORD.local.md` is appended after `FNORD.md`, so it is the natural place for per-user local guidance.
+Adding `FNORD.local.md` to `.gitignore` is still the right move for a private local file.
 
 ## Troubleshooting
 
-### Notes command returns nothing
+### `fnord notes` returns nothing
 
-**Cause:** No knowledge has been accumulated yet
-
-**Solution:**
+Prime the project or ask a few questions first:
 
 ```bash
-# Prime the knowledge base
 fnord prime --project myproject
-
-# Or ask some questions first
 fnord ask -p myproject -q "What is the overall architecture of this project?"
 ```
 
-### Notes seem outdated
+### Notes or memory seem outdated
 
-**Cause:** Code has changed since notes were generated
+Re-index if needed, then ask fnord to re-check the changed area or re-prime the project summary.
 
-**Solution:** Re-prime or ask targeted update questions (see [Managing Knowledge](#managing-knowledge) above)
+### Too much overlap in stored knowledge
 
-### Too much redundant information
+Ask fnord to re-check and clean up its understanding, then re-prime if the high-level summary still feels messy.
 
-**Cause:** Overlapping learning from multiple research sessions
-
-**Solution:** Provide feedback:
-
-```bash
-fnord ask -p myproject -q "Review your memories. Use the memory tool to remove redundant, dated, and incorrect information."
-```
-
-**Solution:** Re-prime to consolidate:
-
-```bash
-mv ~/.fnord/projects/myproject/notes ~/.fnord/projects/myproject/notes.old
-fnord prime --project myproject
-```
-
-**Solution:** Edit notes manually:
-As a final resort, you can directly edit the notes file:
-
-```bash
-nvim ~/.fnord/projects/<myproject>/notes.md
-```
-
-## Future Enhancements
-
-Potential improvements to the learning system:
-
-- Automatic fact consolidation and deduplication
-- Versioned knowledge tracking (matching git commits)
-- Knowledge export/import for team sharing
-- Confidence scoring for learned facts
-- Active learning (requesting clarification)
-
-## Further Reading
+## Further reading
 
 - [Main README](../README.md)
 - [Advanced Asking Questions](asking-questions.md)

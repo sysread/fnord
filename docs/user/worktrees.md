@@ -1,21 +1,21 @@
 # Worktrees
 
-Fnord supports git worktrees for isolating file changes during edit-mode conversations.
-Each conversation can be bound to its own worktree so edits happen on a separate branch without touching the main working tree.
+Fnord can use git worktrees to isolate file changes during edit-mode conversations.
+On git repos, a conversation can carry its own worktree metadata and resume in that same checkout on later runs.
 
 ## How it works
 
-In edit mode (`--edit`) on a git repository, fnord enforces worktree usage.
-Fnord prepares any existing conversation-bound worktree before the coordinator runs, and in edit mode it may create a fnord-managed worktree early when the conversation does not already have one. The coordinator can also create one later through `git_worktree_tool` if the session reaches that point.
-All edits happen on an isolated branch — your working tree is never modified directly.
-For non-git projects, edits are applied directly to the source files.
+In edit mode (`--edit`) on a git repository, fnord may create a fnord-managed worktree before the coordinator starts if the conversation does not already have one.
+If the conversation is already bound to a worktree, fnord re-attaches to it before the session runs.
 
-At the end of the session, you decide what to do with the changes: inspect the diff, merge into your current branch, or leave them in the worktree for later.
-With `--yes`, fnord-managed worktrees skip the interactive review and attempt the same merge-and-cleanup flow automatically.
+For non-git projects, edits are applied directly to the project files.
 
-The worktree is associated with the conversation and persisted in conversation metadata, so resuming the conversation (`--follow`) reuses the same worktree.
+At the end of a session in a fnord-managed worktree, fnord can review, merge, keep, or discard the worktree depending on the session outcome and whether you are running interactively.
+With `--yes`, fnord skips the interactive review and attempts the same merge-and-cleanup flow automatically.
 
-File paths in UI output (tool notes, edit approval dialogs) are displayed relative to the source root, with the branch name shown in parentheses on edit approvals.
+The worktree association lives in conversation metadata, so `--follow` can restore the same path, branch, and base branch on later runs.
+
+File paths in UI output are shown relative to the active project root. In a worktree session, that means paths are shown relative to the worktree.
 
 ## The --worktree flag
 
@@ -23,32 +23,40 @@ File paths in UI output (tool notes, edit approval dialogs) are displayed relati
 fnord ask -q "refactor the config module" --edit --worktree /path/to/existing/worktree
 ```
 
-`--worktree / -W PATH` overrides the project source root for the current run.
-PATH must be an **existing directory** - this flag does not create worktrees.
+`--worktree / -W PATH` overrides the project root for the current run.
+PATH must be an **existing directory**. This flag never creates a worktree.
 
-If the conversation already has a worktree association (from a prior run), `--worktree` is rejected to prevent conflicting state.
+If the conversation already has stored worktree metadata, fnord compares that metadata with the path you passed. Matching paths are reused. Conflicting paths are rejected.
 
 ## Conversation-bound worktrees
 
-When the AI creates or resumes a worktree for the conversation:
+When fnord creates or resumes a conversation worktree:
 
-1. A new git worktree is created under `~/.fnord/projects/<project>/worktrees/<conversation-id>/`
-2. The worktree metadata (path, branch, base branch) is persisted to the conversation
-3. The project root override is set for the session
-4. All subsequent file operations target the worktree
+1. A git worktree is created under `~/.fnord/projects/<project>/worktrees/<conversation-id>/` unless the conversation is already bound to a different path
+2. The worktree metadata (path, branch, base branch) is stored with the conversation
+3. The session root is redirected to that worktree
+4. File tools operate against the worktree for the rest of the run
 
 On resume (`--follow`), fnord:
 
-- Detects the stored worktree association
-- Verifies the worktree directory still exists
-- Recreates it from the stored metadata if it was deleted
-- Sets the project root override automatically
+- Detects stored worktree metadata
+- Re-attaches if the directory still exists
+- Recreates the worktree from the stored branch/base branch if it was deleted
+- May adopt an existing fnord-managed worktree on disk if metadata was lost
+
+Fnord also auto-discards empty speculative worktrees at session end when nothing changed and no extra commits were created.
+
+## Gitignored files
+
+Gitignored or excluded files written inside a worktree are tracked separately in conversation metadata.
+During merge review, fnord copies those files back to the source repo before deleting the worktree so the changes are not lost just because git would ignore them.
 
 ## Initializing fresh worktrees
 
-Many projects need a one-time setup step before tooling works in a fresh worktree (fetching dependencies, building artifacts, etc.). Fnord doesn't run any language-specific commands itself, but git's `post-checkout` hook runs automatically when `git worktree add` creates a new working tree, which is exactly the moment fnord creates a worktree.
+Fnord does not run project-specific setup commands when it creates a worktree.
+If your repo is configured with a `post-checkout` hook, git will run that hook during `git worktree add`, including worktrees fnord creates.
 
-The cleanest way to wire this up is to check a `post-checkout` hook into the repository under a versioned hooks directory, then point git at it:
+One way to wire that up is to keep hooks in the repo and point git at them:
 
 ```sh
 mkdir -p .githooks
@@ -61,40 +69,20 @@ chmod +x .githooks/post-checkout
 git config core.hooksPath .githooks
 ```
 
-The hook receives three arguments: previous HEAD, new HEAD, and a flag (1 for branch checkout, 0 for file checkout). Use `$3 = 1` to limit setup to branch/worktree checkouts.
+The hook receives three arguments: previous HEAD, new HEAD, and a flag (`1` for branch checkout, `0` for file checkout). Use `$3 = 1` to limit setup to branch and worktree checkouts.
 
-Each contributor only needs to run `git config core.hooksPath .githooks` once after cloning. From then on, every `git worktree add` (including the ones fnord creates) runs the hook automatically.
+## Committing and review
 
-## Committing changes
+Fnord can commit changes made in a fnord-managed worktree during or after the session.
+If changes remain at the end, fnord can review the diff, merge the branch, and clean up the worktree.
+If merge validation fails, fnord may loop back through the coordinator so the session can fix the reported issues before trying again.
 
-The coordinator is nudged to commit its worktree changes at two points:
-
-1. **Inline with validation**: after each code-modifying tool use, if uncommitted changes exist, a system message reminds the AI to commit via the `git_worktree_tool` commit action.
-2. **Dedicated step**: a `:commit_worktree` step runs after task checking, before finalization. It loops up to 3 times if changes remain uncommitted.
-
-The AI can commit normally or use `wip: true` for incomplete work, which prefixes the message with `WIP:`.
-
-As a last resort, `maybe_auto_commit` in the ask command commits any remaining changes after the coordinator finishes.
-
-## Post-session review
-
-After the coordinator finishes in a fnord-managed worktree, the user is prompted to:
-
-1. **Inspect changes**: view the diff between the worktree branch and its base
-2. **Merge**: merge the branch into whatever is checked out in the actual project root
-3. **Clean up**: delete the worktree directory and local branch
-
-With `--yes`, the post-session review is skipped and fnord attempts the same merge-and-cleanup flow automatically.
+If a fnord-managed worktree ends the session with no meaningful changes, fnord may discard it automatically instead of prompting for review.
 
 ## Forking conversations with worktrees
 
-When forking a conversation (`--fork / -F`) that has an associated worktree, the user is prompted:
-
-- **Reuse existing worktree** (default): the forked conversation shares the original worktree
-- **Create new worktree**: worktree metadata is stripped; the coordinator will create a fresh one
-- **No worktree**: worktree metadata is stripped; no worktree is created
-
-In non-interactive mode, the default (reuse) is applied.
+When forking a conversation (`--fork / -F`) that has worktree metadata, fnord can either keep using that worktree metadata or strip it so the new conversation starts without a bound worktree.
+The exact prompt depends on whether the session is interactive.
 
 ## CLI management
 
@@ -111,10 +99,7 @@ fnord worktrees merge --conversation <uuid>
 
 ### list
 
-Lists fnord-managed worktrees in a formatted table with columns:
-Conversation, Branch, Status, Dirty, Size, Path.
-
-Only worktrees under the default fnord-managed path are shown (not user-created external worktrees).
+Lists fnord-managed worktrees for the current project, including branch and merge-related status.
 
 ### create
 
@@ -125,39 +110,31 @@ Creates a new conversation-scoped worktree.
 
 ### view
 
-Prints a colorized diff of a conversation's worktree against its fork point.
+Shows the diff of a conversation worktree from its fork point.
 
 - `--conversation / -c UUID` - conversation id (required)
-
-Useful for reviewing changes before running `merge` or `delete`, without leaving the shell.
 
 ### delete
 
-Removes a conversation's worktree. Checks for uncommitted and unmerged changes before deleting.
+Removes a conversation's worktree.
+Fnord checks the worktree state before deleting and updates the conversation metadata so follow-up runs no longer treat the conversation as bound to that worktree.
 
 - `--conversation / -c UUID` - conversation id (required)
-
-If the worktree has uncommitted changes, prompts for confirmation before force-deleting.
-If the worktree branch has unmerged commits, warns and prompts before proceeding.
-On deletion, worktree metadata is stripped from the conversation so follow-up runs no longer treat the conversation as bound to the removed worktree.
 
 ### merge
 
-Interactive review, merge, and cleanup of a conversation's worktree.
+Reviews, merges, and optionally cleans up a conversation's worktree.
 
 - `--conversation / -c UUID` - conversation id (required)
 
-Walks through the same inspect/merge/cleanup flow as the post-session review.
-
 ## Conversation deletion
 
-When deleting conversations (`fnord conversations --prune`), fnord checks each conversation for an associated worktree. If one exists on disk, the user is prompted about cleanup with status information (dirty/unmerged/clean).
+When deleting conversations with `fnord conversations --prune`, fnord checks whether each conversation still has a worktree on disk and prompts about cleanup when needed.
 
 ## Design notes
 
 - `-W` is strictly an existing-directory override, never a creation hint
-- One worktree per conversation - the coordinator enforces this
-- Worktree recreation preserves the originally stored path
-- The worktree tool is only available in edit mode on git repositories
+- One worktree can be associated with a conversation at a time
+- Worktree recreation preserves the stored path, branch, and base branch
 - The `git_worktree_tool` create action derives project and conversation from the active session; only branch is user-specified
 - The `git_worktree_tool` commit action only works in fnord-managed worktrees

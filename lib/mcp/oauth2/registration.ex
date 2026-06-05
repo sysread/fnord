@@ -14,7 +14,7 @@ defmodule MCP.OAuth2.Registration do
     - registration_endpoint: The registration endpoint URL from discovery
     - opts: Optional overrides
       - :client_name - Application name (default: "fnord")
-      - :redirect_uris - Callback URIs (default: ["http://127.0.0.1/callback"])
+      - :redirect_uris - Callback URIs (default: ["http://localhost:8080/callback"])
 
   ## Returns
     - `{:ok, %{client_id: String.t(), client_secret: String.t() | nil}}`

@@ -156,16 +156,13 @@ defmodule AI.Tools.Reviewer do
         {:ok, %{branch: nil, pr: nil, range: nil, base: present_or_nil(base)}}
 
       [{:branch, _}] ->
-        {:ok,
-         %{branch: branch, pr: nil, range: nil, base: present_or_nil(base)}}
+        {:ok, %{branch: branch, pr: nil, range: nil, base: present_or_nil(base)}}
 
       [{:pr, _}] ->
-        {:ok,
-         %{branch: nil, pr: pr, range: nil, base: present_or_nil(base)}}
+        {:ok, %{branch: nil, pr: pr, range: nil, base: present_or_nil(base)}}
 
       [{:range, _}] ->
-        {:ok,
-         %{branch: nil, pr: nil, range: range, base: present_or_nil(base)}}
+        {:ok, %{branch: nil, pr: nil, range: range, base: present_or_nil(base)}}
 
       multiple ->
         details =
