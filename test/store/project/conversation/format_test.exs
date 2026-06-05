@@ -151,6 +151,95 @@ defmodule Store.Project.Conversation.FormatTest do
     end
   end
 
+  describe "read/1 heal-on-read combined passes (both repairs in one file)" do
+    # Earlier each heal pass persisted independently. If both fired on the
+    # same v0 file, the second write built its JSON from data the first
+    # write had repaired in memory but NOT threaded forward - so the
+    # second write clobbered the first repair on disk. parse_v0/2 now
+    # composes both heals as pure functions and writes once at the end.
+    test "both heals run together; persisted v1 file carries both repairs", ctx do
+      convo = Conversation.new("heal_combined", ctx.project)
+
+      # File needs BOTH:
+      #  - task list in legacy bare-list shape
+      #  - tool_call.function.arguments stored as a decoded map instead of a JSON string
+      bad_data =
+        SafeJson.encode!(%{
+          "messages" => [
+            %{
+              "role" => "assistant",
+              "content" => nil,
+              "tool_calls" => [
+                %{
+                  "id" => "c1",
+                  "type" => "function",
+                  "function" => %{
+                    "name" => "search",
+                    "arguments" => %{"q" => "foo"}
+                  }
+                }
+              ]
+            }
+          ],
+          "metadata" => %{},
+          "memory" => [],
+          "tasks" => %{"list-1" => [%{"id" => "t1", "data" => "do the thing"}]}
+        })
+
+      File.mkdir_p!(Path.dirname(convo.store_path))
+      File.write!(convo.store_path, "1700000000:" <> bad_data)
+
+      assert {:ok, _} = Format.read(convo)
+
+      raw = File.read!(convo.store_path)
+      assert {:ok, decoded} = SafeJson.decode(raw)
+      assert decoded["version"] == 1
+      assert decoded["timestamp"] == 1_700_000_000
+
+      # Tool-call args repair survived.
+      [healed_call] = decoded["messages"] |> hd() |> Map.get("tool_calls")
+      assert is_binary(healed_call["function"]["arguments"])
+      assert healed_call["function"]["arguments"] =~ "foo"
+
+      # Task-list repair survived (this is the one the prior bug would have
+      # clobbered - second write built from data without the task heal).
+      healed_list = decoded["tasks"]["list-1"]
+      assert healed_list["status"] == "planning"
+      assert [%{"id" => "t1", "data" => "do the thing"}] = healed_list["tasks"]
+    end
+
+    test "clean v0 file with already-canonical tasks does not trigger a heal-write", ctx do
+      # Only the tool-call args heal flag should trip when there's nothing
+      # to repair. Verify a clean read leaves the file untouched (still v0
+      # on disk, no atomic-rename has happened).
+      convo = Conversation.new("heal_noop", ctx.project)
+
+      clean_data =
+        SafeJson.encode!(%{
+          "messages" => [%{"role" => "user", "content" => "hi"}],
+          "metadata" => %{},
+          "memory" => [],
+          "tasks" => %{
+            "list-1" => %{
+              "tasks" => [],
+              "description" => nil,
+              "status" => "planning"
+            }
+          }
+        })
+
+      File.mkdir_p!(Path.dirname(convo.store_path))
+      v0_blob = "1700000000:" <> clean_data
+      File.write!(convo.store_path, v0_blob)
+
+      assert {:ok, _} = Format.read(convo)
+
+      # File still in v0 form - no heal-write fired.
+      raw = File.read!(convo.store_path)
+      assert raw == v0_blob
+    end
+  end
+
   describe "read/1 heal-on-read for v0 tool-call arguments" do
     test "re-encodes map-valued arguments back to a JSON string and persists", ctx do
       convo = Conversation.new("heal_args", ctx.project)

@@ -5,77 +5,76 @@ defmodule Store.Project.Conversation.TaskListStatusMigration do
   These functions are intentionally minimal and safe: they only alter the
   `tasks` map of the decoded conversation JSON if legacy shapes are detected
   (for example the value is a bare list instead of a map), or if a `status`
-  field is missing or non-canonical. Repairs are applied in-memory, and the
-  module delegates the actual on-disk write to
-  `Store.Project.Conversation.Format.persist_heal_as_v1/3` so the heal-write
-  format matches every other heal pass (deterministically v1). If
-  persistence fails, processing continues without raising.
-  """
+  field is missing or non-canonical.
 
-  alias Store.Project.Conversation.Format
+  Pure: `heal/1` returns `{repaired_map, changed?}` and does no I/O.
+  Persistence is the caller's concern - `Format.parse_v0/2` composes this
+  pass with `heal_tool_call_arguments/1` and writes once at the end via
+  `Format.persist_heal_as_v1/3` so the two heals can't clobber each other
+  on disk.
+  """
 
   @doc """
-  Inspect the decoded JSON map `original_json_map` for legacy task-list
-  shapes and/or non-canonical status values. If repairs are needed, apply them
-  in-memory and attempt to atomically persist the repaired JSON to disk via
-  `Format.persist_heal_as_v1/3`. `ts_int` is the original v0 prefix timestamp
-  (already parsed to integer in `Format.parse_v0/2`).
+  Inspect the decoded JSON map for legacy task-list shapes and/or
+  non-canonical status values. Returns `{repaired_map, changed?}` - the
+  caller decides whether to persist.
 
-  Persistence is best-effort: if the write fails (for example due to concurrent
-  access or filesystem issues), this function will warn and continue without
-  raising so callers can keep reading the conversation.
-
-  This function is safe to call from Store.Project.Conversation.Format.parse_v0/2;
-  it is conservative and only writes when it detects a change.
+  `changed?` is `true` only if at least one list in the tasks map actually
+  needed repair. Already-canonical task lists pass through untouched and
+  do not flip the flag, so a clean read does not trigger an atomic write.
   """
-  @spec heal_and_maybe_write(map(), Store.Project.Conversation.t(), integer()) :: :ok
-  def heal_and_maybe_write(original_json_map, conversation, ts_int) do
-    {changed, repaired} =
-      original_json_map
-      |> Enum.reduce({false, %{}}, fn {k, v}, {acc_changed, acc_map} ->
-        if k == "tasks" do
-          tasks_map =
-            v
-            |> Enum.map(fn {list_id, value} ->
-              cond do
-                is_list(value) ->
-                  # Legacy shape: bare list of tasks -> convert to canonical map
-                  {list_id, %{"tasks" => value, "description" => nil, "status" => "planning"}}
+  @spec heal(map()) :: {map(), boolean()}
+  def heal(original_json_map) do
+    case Map.get(original_json_map, "tasks") do
+      nil ->
+        {original_json_map, false}
 
-                is_map(value) ->
-                  # Ensure string keys and normalize status
-                  val = for {kk, vv} <- value, into: %{}, do: {to_string(kk), vv}
+      tasks_value when is_map(tasks_value) ->
+        {healed_tasks, changed?} = heal_tasks_map(tasks_value)
 
-                  status = normalize_status(Map.get(val, "status"))
-                  tasks = Map.get(val, "tasks", [])
-                  desc = Map.get(val, "description")
-
-                  {list_id, %{"tasks" => tasks, "description" => desc, "status" => status}}
-
-                true ->
-                  {list_id, %{"tasks" => [], "description" => nil, "status" => "planning"}}
-              end
-            end)
-            |> Map.new()
-
-          {true, Map.put(acc_map, "tasks", tasks_map)}
+        if changed? do
+          {Map.put(original_json_map, "tasks", healed_tasks), true}
         else
-          {acc_changed, Map.put(acc_map, k, v)}
+          {original_json_map, false}
         end
-      end)
 
-    if changed do
-      # Ensure the conversations directory exists before the atomic-rename
-      # write that Format.persist_heal_as_v1/3 performs. Cheap, idempotent.
-      conversation.project_home
-      |> Path.join("conversations")
-      |> File.mkdir_p()
-
-      _ = Format.persist_heal_as_v1(conversation, repaired, ts_int)
-      :ok
-    else
-      :ok
+      _other ->
+        # Top-level "tasks" present but not a map - that's malformed; replace
+        # with an empty canonical tasks map.
+        {Map.put(original_json_map, "tasks", %{}), true}
     end
+  end
+
+  defp heal_tasks_map(tasks_value) do
+    Enum.reduce(tasks_value, {%{}, false}, fn {list_id, value}, {acc, acc_changed} ->
+      {healed_value, list_changed?} = heal_task_list(value)
+      {Map.put(acc, list_id, healed_value), acc_changed or list_changed?}
+    end)
+  end
+
+  defp heal_task_list(value) when is_list(value) do
+    # Legacy shape: bare list of tasks -> canonical map.
+    {%{"tasks" => value, "description" => nil, "status" => "planning"}, true}
+  end
+
+  defp heal_task_list(value) when is_map(value) do
+    val = for {kk, vv} <- value, into: %{}, do: {to_string(kk), vv}
+
+    status = normalize_status(Map.get(val, "status"))
+    tasks = Map.get(val, "tasks", [])
+    desc = Map.get(val, "description")
+
+    healed = %{"tasks" => tasks, "description" => desc, "status" => status}
+
+    # Change detection: if string-keying the input + normalizing status
+    # produced something identical to the canonical-shape healed map (no
+    # extra keys, status already canonical, etc.) then nothing actually
+    # needed repair.
+    {healed, val != healed}
+  end
+
+  defp heal_task_list(_other) do
+    {%{"tasks" => [], "description" => nil, "status" => "planning"}, true}
   end
 
   # Normalize status values to canonical string set

@@ -144,19 +144,27 @@ defmodule Store.Project.Conversation.Format do
          {ts_int, ""} <- Integer.parse(timestamp_str),
          {:ok, timestamp} <- DateTime.from_unix(ts_int),
          {:ok, raw} <- SafeJson.decode(json) do
-      # Both heal passes share a single persistence path
-      # (`persist_heal_as_v1/3`) so on-disk format after any heal is
-      # deterministically v1. ts_int is passed (not the original string)
-      # so the persistence path has no string-parsing dead code.
+      # Compose both heal passes as pure functions (raw -> {repaired, changed?}),
+      # THEN persist once if anything changed. Two reasons this composition
+      # matters:
+      #
+      #   1. If both heals fire and each persists independently, the second
+      #      write builds its JSON from data that doesn't include the first
+      #      heal's repair - so the second write clobbers the first on disk.
+      #   2. Single end-of-read write is atomic: either both repairs persist
+      #      or neither does (e.g. on BEAM crash mid-heal). No half-healed
+      #      file on disk.
+      #
+      # On-disk format after any heal is deterministically v1 via
+      # persist_heal_as_v1/3.
+      {repaired_tasks, tasks_changed?} = TaskListStatusMigration.heal(raw)
+      {repaired, tools_changed?} = heal_tool_call_arguments(repaired_tasks)
 
-      # Task-list shape healing. Persists to disk if anything changed.
-      TaskListStatusMigration.heal_and_maybe_write(raw, conversation, ts_int)
+      if tasks_changed? or tools_changed? do
+        _ = persist_heal_as_v1(conversation, repaired, ts_int)
+      end
 
-      # Tool-call argument healing. Re-encodes any map-valued arguments
-      # back to JSON strings (atom-table cliff guard) and persists.
-      raw = heal_tool_call_arguments(raw, conversation, ts_int)
-
-      {:ok, finalize(raw, timestamp)}
+      {:ok, finalize(repaired, timestamp)}
     else
       _ -> {:error, {:corrupt_conversation, :v0_parse_failed}}
     end
@@ -350,7 +358,12 @@ defmodule Store.Project.Conversation.Format do
   # pipeline turns string keys into atoms. See the module doc.
   # --------------------------------------------------------------------------
 
-  defp heal_tool_call_arguments(data, conversation, ts_int) do
+  # Pure heal: takes the decoded v0 map, returns {repaired_map, changed?}.
+  # Persistence is the caller's concern - parse_v0/2 composes this with the
+  # other heal passes and writes once at the end so the heals can't clobber
+  # each other on disk.
+  @spec heal_tool_call_arguments(map()) :: {map(), boolean()}
+  defp heal_tool_call_arguments(data) do
     messages = Map.get(data, "messages", [])
 
     {healed_messages, changed} =
@@ -388,11 +401,9 @@ defmodule Store.Project.Conversation.Format do
       end)
 
     if changed do
-      repaired = Map.put(data, "messages", healed_messages)
-      persist_heal_as_v1(conversation, repaired, ts_int)
-      repaired
+      {Map.put(data, "messages", healed_messages), true}
     else
-      data
+      {data, false}
     end
   end
 
