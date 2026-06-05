@@ -84,6 +84,86 @@ defmodule AI.CompletionAPITest do
       assert payload.text.format == %{type: "json_object"}
     end
 
+    test "chat-completions-style json_schema is flattened for the Responses API" do
+      test_pid = self()
+
+      :meck.expect(AI.Endpoint, :post_json, fn AI.CompletionAPI, _headers, payload ->
+        send(test_pid, {:payload, payload})
+        {:ok, %{body: %{"output" => [], "usage" => %{"total_tokens" => 0}}}}
+      end)
+
+      model = %Model{model: "test-model", context: 0, reasoning: :medium}
+
+      nested = %{
+        type: "json_schema",
+        json_schema: %{
+          name: "thing",
+          description: "a thing",
+          strict: true,
+          schema: %{type: "object", properties: %{x: %{type: "string"}}}
+        }
+      }
+
+      AI.CompletionAPI.get(model, [], nil, nested, false)
+
+      assert_receive {:payload, payload}
+      assert payload.text.format.type == "json_schema"
+      assert payload.text.format.name == "thing"
+      assert payload.text.format.description == "a thing"
+      assert payload.text.format.strict == true
+      assert payload.text.format.schema.type == "object"
+      refute Map.has_key?(payload.text.format, :json_schema)
+    end
+
+    test "already-flat json_schema passes through untouched" do
+      test_pid = self()
+
+      :meck.expect(AI.Endpoint, :post_json, fn AI.CompletionAPI, _headers, payload ->
+        send(test_pid, {:payload, payload})
+        {:ok, %{body: %{"output" => [], "usage" => %{"total_tokens" => 0}}}}
+      end)
+
+      model = %Model{model: "test-model", context: 0, reasoning: :medium}
+
+      flat = %{
+        type: "json_schema",
+        name: "thing",
+        schema: %{type: "object"}
+      }
+
+      AI.CompletionAPI.get(model, [], nil, flat, false)
+
+      assert_receive {:payload, payload}
+      assert payload.text.format == flat
+    end
+
+    test "string-keyed nested json_schema (e.g. TOML-loaded skills) is also flattened" do
+      test_pid = self()
+
+      :meck.expect(AI.Endpoint, :post_json, fn AI.CompletionAPI, _headers, payload ->
+        send(test_pid, {:payload, payload})
+        {:ok, %{body: %{"output" => [], "usage" => %{"total_tokens" => 0}}}}
+      end)
+
+      model = %Model{model: "test-model", context: 0, reasoning: :medium}
+
+      nested = %{
+        "type" => "json_schema",
+        "json_schema" => %{
+          "name" => "thing",
+          "schema" => %{"type" => "object"}
+        }
+      }
+
+      AI.CompletionAPI.get(model, [], nil, nested, false)
+
+      assert_receive {:payload, payload}
+      assert payload.text.format["type"] == "json_schema"
+      assert payload.text.format["name"] == "thing"
+      assert payload.text.format["schema"] == %{"type" => "object"}
+      refute Map.has_key?(payload.text.format, "json_schema")
+    end
+
     test "reasoning is routed under reasoning.effort (not reasoning_effort)" do
       test_pid = self()
 

@@ -30,7 +30,7 @@ defmodule AI.Model.OpenAI do
   def fast(), do: gpt54_mini(:none)
 
   @spec web_search() :: AI.Model.t()
-  def web_search(), do: gpt5_web()
+  def web_search(), do: gpt54(:none)
 
   @spec large_context(:smart | :balanced | :fast) :: AI.Model.t()
   def large_context(:smart), do: gpt41()
@@ -61,11 +61,10 @@ defmodule AI.Model.OpenAI do
   @spec gpt41_nano() :: AI.Model.t()
   def gpt41_nano(), do: AI.Model.new("gpt-4.1-nano", 1_000_000, :none)
 
-  # only model supported by completions api, per:
-  # - https://developers.openai.com/api/docs/guides/tools-web-search#migrating-from-legacy-web-search
-  #
-  # context window gleaned from here, since this model is not advertised on the models page:
-  # - https://developers.openai.com/api/docs/guides/tools-web-search#limitations
+  # The Responses API exposes web search as a tool entry
+  # (%{type: "web_search_preview"} in the tools array), not as a model variant.
+  # web_search/0 returns a normal model; callers that need search must also pass
+  # web_search?: true to AI.Completion.get/1 so the tool gets attached.
   @spec gpt5_web() :: AI.Model.t()
-  def gpt5_web(), do: AI.Model.new("gpt-5-search-api", 200_000, :none)
+  def gpt5_web(), do: gpt54(:none)
 end

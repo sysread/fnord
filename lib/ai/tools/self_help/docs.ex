@@ -116,6 +116,7 @@ defmodule AI.Tools.SelfHelp.Docs do
   defp search_docs(question) do
     AI.Completion.get(
       model: AI.Model.web_search(),
+      web_search?: true,
       messages: [
         AI.Util.system_msg(@system_prompt),
         AI.Util.user_msg(question)

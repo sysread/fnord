@@ -167,7 +167,7 @@ defmodule AI.CompletionAPI do
 
   defp build_payload(model, msgs, tools, response_format, web_search?, verbosity) do
     text_field =
-      %{format: response_format}
+      %{format: normalize_response_format(response_format)}
       |> maybe_put(:verbosity, verbosity)
 
     %{
@@ -183,6 +183,41 @@ defmodule AI.CompletionAPI do
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, _key, []), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
+  # text.format under the Responses API hoists json_schema's inner fields
+  # (name, schema, description, strict) to the format object itself. Chat
+  # Completions nested them inside a `json_schema` map. Internal agents and
+  # user-supplied skill response_formats still use the nested shape; we flatten
+  # here so the boundary owns the wire-format quirk, not every caller.
+  #
+  # Already-flat shapes ({type: "json_schema", name:, schema:, ...}) and
+  # non-schema formats ({type: "text"}, {type: "json_object"}) pass through.
+  defp normalize_response_format(%{type: "json_schema"} = fmt) do
+    cond do
+      Map.has_key?(fmt, :json_schema) -> hoist_json_schema(fmt, :json_schema)
+      Map.has_key?(fmt, "json_schema") -> hoist_json_schema(fmt, "json_schema")
+      true -> fmt
+    end
+  end
+
+  defp normalize_response_format(%{"type" => "json_schema"} = fmt) do
+    cond do
+      Map.has_key?(fmt, :json_schema) -> hoist_json_schema(fmt, :json_schema)
+      Map.has_key?(fmt, "json_schema") -> hoist_json_schema(fmt, "json_schema")
+      true -> fmt
+    end
+  end
+
+  defp normalize_response_format(fmt), do: fmt
+
+  defp hoist_json_schema(fmt, key) do
+    {inner, outer} = Map.pop(fmt, key)
+
+    case inner do
+      inner when is_map(inner) -> Map.merge(outer, inner)
+      _ -> fmt
+    end
+  end
 
   defp build_tools(nil, false), do: nil
   defp build_tools(nil, true), do: [%{type: "web_search_preview"}]

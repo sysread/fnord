@@ -64,6 +64,7 @@ defmodule AI.Tools.WebSearch do
   defp perform_search(query) do
     AI.Completion.get(
       model: AI.Model.web_search(),
+      web_search?: true,
       messages: [
         AI.Util.system_msg("""
         You are a web search tool that provides concise and relevant information based on user queries.
