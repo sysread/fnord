@@ -80,7 +80,8 @@ defmodule AI.Tools.Reviewer do
             Branch to review (e.g. "feature-x"). The reviewer fetches the
             branch from origin if it is not locally reachable, then reviews
             the range `merge-base(branch, base)..branch`. Mutually
-            exclusive with `pr` and `range`.
+            exclusive with `pr` and `range` - **omit the other two
+            entirely**; do not pass them as empty strings, 0, or null.
             """
           },
           pr: %{
@@ -90,7 +91,8 @@ defmodule AI.Tools.Reviewer do
             installed and authenticated. The reviewer resolves the PR's
             head and base via `gh pr view`, fetches both refs, and
             reviews the range `merge-base(head, base)..head`. Mutually
-            exclusive with `branch` and `range`.
+            exclusive with `branch` and `range` - **omit the other two
+            entirely**; do not pass them as empty strings, 0, or null.
             """
           },
           range: %{
@@ -100,7 +102,9 @@ defmodule AI.Tools.Reviewer do
             `HEAD~3..HEAD`, `abc123..def456`). Use for commit-scoped
             reviews that are not tied to a branch or PR. The reviewer
             fetches endpoints from origin if they are not locally
-            reachable. Mutually exclusive with `branch` and `pr`.
+            reachable. Mutually exclusive with `branch` and `pr` -
+            **omit the other two entirely**; do not pass them as empty
+            strings, 0, or null.
             """
           },
           base: %{
@@ -131,28 +135,58 @@ defmodule AI.Tools.Reviewer do
   # subset (or none) of branch / pr / range; at most one is allowed. `base`
   # is free-standing and applies only when resolving branch: or falling back
   # to the current checkout.
+  #
+  # `present?/1` rather than Elixir truthiness: LLMs often emit type-default
+  # placeholders (`""` for omitted strings, `0` for omitted integers) instead
+  # of leaving the key out of the tool call. Those are semantically "not
+  # provided" - treating them as set produces a mutex-failure-loop where every
+  # retry passes the same shape and gets rejected the same way.
   defp normalize_target_args(args) do
     branch = Map.get(args, "branch")
     pr = Map.get(args, "pr")
     range = Map.get(args, "range")
     base = Map.get(args, "base")
 
-    given = [{:branch, branch}, {:pr, pr}, {:range, range}] |> Enum.filter(fn {_, v} -> v end)
+    given =
+      [{:branch, branch}, {:pr, pr}, {:range, range}]
+      |> Enum.filter(fn {_, v} -> present?(v) end)
 
     case given do
       [] ->
-        {:ok, %{branch: nil, pr: nil, range: nil, base: base}}
+        {:ok, %{branch: nil, pr: nil, range: nil, base: present_or_nil(base)}}
 
-      [{_, _}] ->
-        {:ok, %{branch: branch, pr: pr, range: range, base: base}}
+      [{:branch, _}] ->
+        {:ok,
+         %{branch: branch, pr: nil, range: nil, base: present_or_nil(base)}}
+
+      [{:pr, _}] ->
+        {:ok,
+         %{branch: nil, pr: pr, range: nil, base: present_or_nil(base)}}
+
+      [{:range, _}] ->
+        {:ok,
+         %{branch: nil, pr: nil, range: range, base: present_or_nil(base)}}
 
       multiple ->
-        names = multiple |> Enum.map_join(", ", fn {k, _} -> to_string(k) end)
+        details =
+          multiple
+          |> Enum.map_join(", ", fn {k, v} -> "#{k}=#{inspect(v)}" end)
 
         {:error,
-         "reviewer_tool: pass at most one of branch, pr, range (got: #{names}). " <>
-           "Use `range` for explicit commit ranges, `pr` for a GitHub PR number, " <>
-           "`branch` for a branch name."}
+         "reviewer_tool: only one of branch, pr, range may be set; got: #{details}. " <>
+           "Pass ONLY the target you want and OMIT the others entirely - do not " <>
+           "send them as empty strings, 0, or null. Use `range` for explicit commit " <>
+           "ranges, `pr` for a GitHub PR number, `branch` for a branch name."}
     end
   end
+
+  # Treat type-default placeholders ("", 0, []) as semantically absent, matching
+  # how OpenAPI / JSON Schema callers typically intend "field not provided."
+  defp present?(nil), do: false
+  defp present?(""), do: false
+  defp present?(0), do: false
+  defp present?([]), do: false
+  defp present?(_), do: true
+
+  defp present_or_nil(value), do: if(present?(value), do: value, else: nil)
 end

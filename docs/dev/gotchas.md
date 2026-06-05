@@ -338,7 +338,32 @@ a different binary name), update the regex in
 `lib/external_configs/skill.ex` (`@fnord_invocation_re`) and add a
 regression test.
 
-## 24. `AI.Model.web_search()` is a model, not a switch
+## 24. LLM tool args: type-default placeholders, not JSON null
+
+OpenAI's tool-call generator often emits **type-default placeholders** for
+optional params instead of omitting them: `""` for strings, `0` for
+integers, `[]` for arrays. From the Elixir side, those values are all
+truthy - only `nil` and `false` are falsy. So a `Enum.filter(fn {_, v} -> v end)`
+that intends "keep only provided fields" silently keeps the placeholders.
+
+When the tool's contract is *"pass at most one of A, B, C,"* this produces
+an unrecoverable retry loop: the model thinks it sent just `A`, the tool
+sees `A=set, B="", C=0` and rejects the call as "all three set," the
+model's chain-of-thought reads the error and resends the same shape.
+
+`AI.Tools.Reviewer.normalize_target_args/1` (`lib/ai/tools/reviewer.ex`)
+uses a `present?/1` predicate that treats `nil`, `""`, `0`, and `[]` as
+absent. Any tool that exposes mutually-exclusive optional params should do
+the same; never filter on bare Elixir truthiness when the inputs come from
+an LLM tool call.
+
+When a mutex tool DOES reject multi-set input, the error message should
+include the actual values received (e.g. `branch="responses", pr=0,
+range=""`), not just the names of the set fields - the model needs to see
+*what* tripped the mutex to know which fields it's accidentally populating
+with placeholders.
+
+## 25. `AI.Model.web_search()` is a model, not a switch
 
 Under the legacy Chat Completions API, OpenAI exposed web search through a
 dedicated SKU (`gpt-5-search-api`). Selecting that model was sufficient -
