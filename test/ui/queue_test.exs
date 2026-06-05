@@ -185,6 +185,108 @@ defmodule UI.Queue.Test do
     end
   end
 
+  describe "log buffering during fast-path interact (in-context branch)" do
+    # The fast-path is taken when the caller is already in a UI context, e.g.
+    # via Services.Approvals.handle_call -> UI.Queue.run_from_genserver -> ...
+    # -> UI.choose -> UI.Queue.interact. Without the pause coordination, the
+    # GenServer keeps processing {:log, ...} calls from other processes
+    # (memory_indexer, background_indexer, etc.) and scribbles over the
+    # active prompt. This regression test exercises the exact scenario.
+    test "log calls from other processes buffer while a fast-path interact holds the prompt" do
+      caller = self()
+
+      assert :ok =
+               :logger.add_handler(:ui_queue_test_fastpath, LogCaptureHandler, %{
+                 test_pid: caller,
+                 level: :all
+               })
+
+      on_exit(fn ->
+        try do
+          :logger.remove_handler(:ui_queue_test_fastpath)
+        rescue
+          _ -> :ok
+        end
+      end)
+
+      # Process A simulates the Approvals path: enters a fresh context (so
+      # in_ctx? returns true), then calls interact - taking the fast path.
+      # A's interact runs IN A's process (not in UI.Queue's), so :release
+      # must be sent to A, not UI.Queue.
+      a_pid =
+        Services.Globals.Spawn.spawn(fn ->
+          UI.Queue.run_from_genserver(fn ->
+            UI.Queue.interact(fn ->
+              send(caller, :prompt_open)
+
+              receive do
+                :release -> :ok
+              end
+            end)
+          end)
+
+          send(caller, :a_done)
+        end)
+
+      assert_receive :prompt_open, 500
+
+      # Process B logs while A holds the prompt. Without the fix, this would
+      # immediately emit. With the fix, it buffers until A releases.
+      # Use :error so the OTP Logger primary-level filter (default :notice
+      # outside production) doesn't drop the event before our handler sees it.
+      Services.Globals.Spawn.spawn(fn ->
+        :ok = UI.Queue.log(UI.Queue, :error, "should-be-buffered")
+        send(caller, :log_returned)
+      end)
+
+      assert_receive :log_returned, 1_000
+      refute_receive {:captured_log, _}, 200
+
+      # Release A's interact; the buffered log should now flush.
+      send(a_pid, :release)
+      assert_receive :a_done, 1_000
+
+      assert_receive {:captured_log, event}, 1_000
+      assert inspect(event) =~ "should-be-buffered"
+    end
+
+    test "pause/unpause counter: two concurrent pausers, only the last unpause flushes" do
+      caller = self()
+
+      assert :ok =
+               :logger.add_handler(:ui_queue_test_counter, LogCaptureHandler, %{
+                 test_pid: caller,
+                 level: :all
+               })
+
+      on_exit(fn ->
+        try do
+          :logger.remove_handler(:ui_queue_test_counter)
+        rescue
+          _ -> :ok
+        end
+      end)
+
+      # Two independent pauses.
+      :ok = UI.Queue.pause_logs()
+      :ok = UI.Queue.pause_logs()
+
+      # Log a thing - should buffer. :error to clear OTP's default
+      # primary-level :notice filter in test runs.
+      :ok = UI.Queue.log(UI.Queue, :error, "counter-test")
+      refute_receive {:captured_log, _}, 150
+
+      # First unpause - depth still > 0; nothing should flush.
+      :ok = UI.Queue.unpause_logs()
+      refute_receive {:captured_log, _}, 150
+
+      # Second unpause - depth reaches 0; buffer flushes.
+      :ok = UI.Queue.unpause_logs()
+      assert_receive {:captured_log, event}, 1_000
+      assert inspect(event) =~ "counter-test"
+    end
+  end
+
   describe "log buffering during interact" do
     test "log events are buffered until interact completes" do
       caller = self()

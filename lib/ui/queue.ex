@@ -70,14 +70,36 @@ defmodule UI.Queue do
     GenServer.call(server, {:log, level, chardata, md}, timeout)
   end
 
-  # Interactive (priority). If already in context, run inline.
+  # Interactive (priority). If already in context, run inline - but FIRST
+  # tell the GenServer to pause logs so concurrent {:log, ...} calls don't
+  # scribble over the active prompt. Without this, the fast-path leaves the
+  # GenServer happily processing log messages while the inline interaction
+  # blocks on stdin in a different process.
   def interact(server \\ __MODULE__, fun, timeout \\ :infinity) when is_function(fun, 0) do
     if in_ctx?(server) do
-      exec({:interact, fun})
+      :ok = pause_logs(server, timeout)
+
+      try do
+        exec({:interact, fun})
+      after
+        :ok = unpause_logs(server, timeout)
+      end
     else
       GenServer.call(server, {:interact, fun}, timeout)
     end
   end
+
+  # Increment the GenServer's interactive-context depth. While depth > 0,
+  # incoming {:log, ...} calls are buffered. Synchronous so the caller has a
+  # happens-before relationship with subsequent log calls. Safe to nest from
+  # multiple processes; only the last unpause flushes.
+  @doc false
+  def pause_logs(server \\ __MODULE__, timeout \\ :infinity),
+    do: GenServer.call(server, :pause_logs, timeout)
+
+  @doc false
+  def unpause_logs(server \\ __MODULE__, timeout \\ :infinity),
+    do: GenServer.call(server, :unpause_logs, timeout)
 
   # ----------------------------------------------------------------------------
   # Context utilities for spawned processes
@@ -159,6 +181,11 @@ defmodule UI.Queue do
       hq: :queue.new(),
       q: :queue.new(),
       paused_logs: false,
+      # Tracks concurrent fast-path interact callers (pause_logs / unpause_logs).
+      # paused_logs derives from interact_depth > 0; we keep the explicit
+      # boolean only so the existing handle_call(:log, ...) clauses stay
+      # cheap pattern matches.
+      interact_depth: 0,
       log_buffer: :queue.new()
     }
 
@@ -171,15 +198,43 @@ defmodule UI.Queue do
     # mark busy and pause logging
     st1 = %{st | busy: true, paused_logs: true}
     result = exec({:interact, fun})
-    # unpause logging and flush buffered logs
-    st2 = %{st1 | paused_logs: false}
-    st3 = flush_log_buffer(st2)
+    # Only restore paused_logs if no fast-path callers are still holding the
+    # pause. Otherwise their unpause_logs/0 will flush when the count hits 0.
+    st2 =
+      if st1.interact_depth == 0 do
+        flush_log_buffer(%{st1 | paused_logs: false})
+      else
+        st1
+      end
+
     GenServer.reply(from, result)
-    {:noreply, drain(st3)}
+    {:noreply, drain(st2)}
   end
 
   def handle_call({:interact, fun}, from, %{busy: true} = st) do
     {:noreply, enqueue(:hq, {from, {:interact, fun}}, st)}
+  end
+
+  # FAST-PATH PAUSE / UNPAUSE — used by interact/3's in-context branch so the
+  # GenServer buffers concurrent {:log, ...} calls while another process holds
+  # an interactive context.
+  def handle_call(:pause_logs, _from, %{interact_depth: n} = st) do
+    {:reply, :ok, %{st | interact_depth: n + 1, paused_logs: true}}
+  end
+
+  def handle_call(:unpause_logs, _from, %{interact_depth: 1} = st) do
+    st2 = flush_log_buffer(%{st | interact_depth: 0, paused_logs: false})
+    {:reply, :ok, st2}
+  end
+
+  def handle_call(:unpause_logs, _from, %{interact_depth: n} = st) when n > 1 do
+    {:reply, :ok, %{st | interact_depth: n - 1}}
+  end
+
+  # Defensive: extra unpause without matching pause. Don't crash, just leave
+  # state alone. Indicates a code bug somewhere but isn't user-facing damage.
+  def handle_call(:unpause_logs, _from, st) do
+    {:reply, :ok, st}
   end
 
   # PUTS
