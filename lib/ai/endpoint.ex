@@ -25,7 +25,12 @@ defmodule AI.Endpoint do
 
   @type endpoint :: module()
 
-  @retry_limit 3
+  # Cap on retries per request. Each attempt waits min/max with the server's
+  # "try again in Xs" hint (when present), so 8 attempts spread out to
+  # ~30-60s in the worst case - enough to outwait a saturated 60s rolling
+  # TPM window. Smaller values (we had 3) gave up before the bucket
+  # drained on jumbo requests.
+  @retry_limit 8
   @backoff_base_ms 200
   @backoff_cap_ms 2_000
 
