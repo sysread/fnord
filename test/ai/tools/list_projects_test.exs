@@ -43,9 +43,26 @@ defmodule AI.Tools.ListProjectsTest do
   end
 
   describe "ui_note_on_result/2" do
-    test "includes project count" do
+    # Note: in production this is called by AI.Tools.on_tool_result/4 with the
+    # POST-encoding string from perform_tool_call/3, not the raw list.
+    # Earlier versions of this test passed a raw list and `length/1` happened
+    # to work; in real usage the model crashed because `result` is a JSON
+    # string.
+    test "counts projects from the JSON-encoded result" do
+      result = SafeJson.encode!(["a", "b", "c"])
+
       assert {"Projects listed", "Found 3 other project(s)"} =
-               ListProjects.ui_note_on_result(%{}, ["a", "b", "c"])
+               ListProjects.ui_note_on_result(%{}, result)
+    end
+
+    test "falls back to 0 on unexpected result shape (defensive)" do
+      assert {"Projects listed", "Found 0 other project(s)"} =
+               ListProjects.ui_note_on_result(%{}, "not json")
+    end
+
+    test "falls back to 0 on a JSON value that isn't a list" do
+      assert {"Projects listed", "Found 0 other project(s)"} =
+               ListProjects.ui_note_on_result(%{}, ~s({"unexpected": "shape"}))
     end
   end
 end

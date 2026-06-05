@@ -17,8 +17,17 @@ defmodule AI.Tools.ListProjects do
   end
 
   @impl AI.Tools
+  # `result` here is what AI.Tools.perform_tool_call/3 returns to the caller -
+  # a JSON-encoded string for structured (list/map) return values from `call/1`,
+  # not the raw list. Decode-then-count keeps this resilient to that contract.
   def ui_note_on_result(_args, result) do
-    {"Projects listed", "Found #{length(result)} other project(s)"}
+    count =
+      case SafeJson.decode(result) do
+        {:ok, list} when is_list(list) -> length(list)
+        _ -> 0
+      end
+
+    {"Projects listed", "Found #{count} other project(s)"}
   end
 
   @impl AI.Tools
