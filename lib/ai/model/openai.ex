@@ -29,8 +29,14 @@ defmodule AI.Model.OpenAI do
   @spec fast() :: AI.Model.t()
   def fast(), do: gpt54_mini(:none)
 
+  # The Responses API exposes web search as a tool entry
+  # (%{type: "web_search"} in the tools array), not as a model variant. The
+  # legacy gpt-5-search-api SKU only worked under chat completions and is
+  # scheduled for removal. web_search/0 returns a normal model; callers that
+  # need search must also pass web_search?: true to AI.Completion.get/1 so
+  # the tool gets attached.
   @spec web_search() :: AI.Model.t()
-  def web_search(), do: gpt54(:none)
+  def web_search(), do: gpt54_nano(:none)
 
   @spec large_context(:smart | :balanced | :fast) :: AI.Model.t()
   def large_context(:smart), do: gpt41()
@@ -61,10 +67,4 @@ defmodule AI.Model.OpenAI do
   @spec gpt41_nano() :: AI.Model.t()
   def gpt41_nano(), do: AI.Model.new("gpt-4.1-nano", 1_000_000, :none)
 
-  # The Responses API exposes web search as a tool entry
-  # (%{type: "web_search_preview"} in the tools array), not as a model variant.
-  # web_search/0 returns a normal model; callers that need search must also pass
-  # web_search?: true to AI.Completion.get/1 so the tool gets attached.
-  @spec gpt5_web() :: AI.Model.t()
-  def gpt5_web(), do: gpt54(:none)
 end

@@ -219,10 +219,13 @@ defmodule AI.CompletionAPI do
     end
   end
 
+  # web_search is the current canonical tool name under /v1/responses.
+  # web_search_preview is the legacy form kept around for backwards
+  # compatibility; new integrations should use web_search.
   defp build_tools(nil, false), do: nil
-  defp build_tools(nil, true), do: [%{type: "web_search_preview"}]
+  defp build_tools(nil, true), do: [%{type: "web_search"}]
   defp build_tools(tools, false), do: tools
-  defp build_tools(tools, true), do: tools ++ [%{type: "web_search_preview"}]
+  defp build_tools(tools, true), do: tools ++ [%{type: "web_search"}]
 
   defp reasoning_param(%{reasoning: :low}), do: %{effort: "low"}
   defp reasoning_param(%{reasoning: :medium}), do: %{effort: "medium"}

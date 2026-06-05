@@ -193,7 +193,9 @@ defmodule AI.CompletionAPITest do
 
       assert_receive {:payload, payload}
       refute Map.has_key?(payload, :web_search_options)
-      assert %{type: "web_search_preview"} in payload.tools
+      assert %{type: "web_search"} in payload.tools
+      # Belt-and-braces: never emit the legacy preview name for new requests.
+      refute %{type: "web_search_preview"} in payload.tools
     end
 
     test "assistant tool-call messages fan out to function_call input items" do

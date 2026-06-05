@@ -337,3 +337,26 @@ If you add new ways for skills to call back into fnord (a new subcommand,
 a different binary name), update the regex in
 `lib/external_configs/skill.ex` (`@fnord_invocation_re`) and add a
 regression test.
+
+## 24. `AI.Model.web_search()` is a model, not a switch
+
+Under the legacy Chat Completions API, OpenAI exposed web search through a
+dedicated SKU (`gpt-5-search-api`). Selecting that model was sufficient -
+the model itself knew how to search. Under the Responses API, web search
+is a tool entry (`%{type: "web_search"}` in the `tools` array) that any
+model can use.
+
+`AI.Model.web_search()` now returns a **normal** model. Calling it without
+also passing `web_search?: true` to `AI.Completion.get/1` produces a
+completion that has no access to web search. The two existing call sites
+that need search (`AI.Tools.WebSearch.perform_search/1` and
+`AI.Tools.SelfHelp.Docs.search_docs/1`) set both.
+
+If you add a new caller, the contract is: pick `model: AI.Model.web_search()`
+**and** pass `web_search?: true`. Missing the second half is a silent
+degradation - the call still succeeds, it just runs without search.
+
+The wire payload is built in `AI.CompletionAPI.build_tools/2`
+(`lib/ai/completion_api.ex`). Use the canonical `web_search` name;
+`web_search_preview` is the legacy form retained by OpenAI for backwards
+compatibility only.
