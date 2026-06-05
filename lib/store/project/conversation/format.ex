@@ -144,12 +144,17 @@ defmodule Store.Project.Conversation.Format do
          {ts_int, ""} <- Integer.parse(timestamp_str),
          {:ok, timestamp} <- DateTime.from_unix(ts_int),
          {:ok, raw} <- SafeJson.decode(json) do
+      # Both heal passes share a single persistence path
+      # (`persist_heal_as_v1/3`) so on-disk format after any heal is
+      # deterministically v1. ts_int is passed (not the original string)
+      # so the persistence path has no string-parsing dead code.
+
       # Task-list shape healing. Persists to disk if anything changed.
-      TaskListStatusMigration.heal_and_maybe_write(raw, conversation, timestamp_str)
+      TaskListStatusMigration.heal_and_maybe_write(raw, conversation, ts_int)
 
       # Tool-call argument healing. Re-encodes any map-valued arguments
       # back to JSON strings (atom-table cliff guard) and persists.
-      raw = heal_tool_call_arguments(raw, conversation, timestamp_str)
+      raw = heal_tool_call_arguments(raw, conversation, ts_int)
 
       {:ok, finalize(raw, timestamp)}
     else
@@ -345,7 +350,7 @@ defmodule Store.Project.Conversation.Format do
   # pipeline turns string keys into atoms. See the module doc.
   # --------------------------------------------------------------------------
 
-  defp heal_tool_call_arguments(data, conversation, timestamp_str) do
+  defp heal_tool_call_arguments(data, conversation, ts_int) do
     messages = Map.get(data, "messages", [])
 
     {healed_messages, changed} =
@@ -384,27 +389,33 @@ defmodule Store.Project.Conversation.Format do
 
     if changed do
       repaired = Map.put(data, "messages", healed_messages)
-      persist_v0(repaired, conversation, timestamp_str)
+      persist_heal_as_v1(conversation, repaired, ts_int)
       repaired
     else
       data
     end
   end
 
-  # Atomic-rename persist of a healed v0 conversation file. The healed shape
-  # is written out as v1 so the next read takes the fast path and so older
-  # builds that lack the v0 heal pass see a clean format-version gate
-  # (:corrupt_conversation) rather than silently mis-parsing. Errors are
-  # warnings, not raises - the caller's in-memory copy is already healed,
-  # and a failed persist just means the next read will heal again.
-  defp persist_v0(data, conversation, timestamp_str) do
-    ts =
-      case Integer.parse(timestamp_str) do
-        {int, ""} -> int
-        _ -> DateTime.to_unix(DateTime.utc_now())
-      end
+  @doc """
+  Shared heal-persistence path: write a healed v0 conversation back as v1.
 
-    case write_v1_blob(data, ts) do
+  Used by both heal passes (`heal_tool_call_arguments/3` in this module and
+  `TaskListStatusMigration.heal_and_maybe_write/3`) so the on-disk format
+  after any heal is deterministically v1 - not "whichever pass happened to
+  fire last."
+
+  Why heal forward to v1 rather than re-emit v0:
+    1. The writer is at v1; emitting fresh v0 would create new legacy files.
+    2. Older builds without the heal pass would silently mis-parse a healed
+       v0 file; a v1 file at least surfaces as :corrupt_conversation in
+       those builds so it gets skipped rather than mis-interpreted.
+
+  Errors are warnings, not raises - the caller's in-memory copy is already
+  healed, and a failed persist just means the next read will heal again.
+  """
+  @spec persist_heal_as_v1(Conversation.t(), map(), integer()) :: :ok | {:error, any()}
+  def persist_heal_as_v1(conversation, data, ts_int) when is_integer(ts_int) do
+    case write_v1_blob(data, ts_int) do
       {:ok, json} -> atomic_write(conversation, json, :heal)
       {:error, reason} -> heal_warn(conversation, reason)
     end

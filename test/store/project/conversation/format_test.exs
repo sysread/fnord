@@ -113,6 +113,44 @@ defmodule Store.Project.Conversation.FormatTest do
     end
   end
 
+  describe "read/1 heal-on-read for v0 task lists" do
+    test "task-list shape heal also rewrites the file as v1 (not back to v0)", ctx do
+      # Parallel to the tool-call-args heal test below. Both heal passes
+      # must agree on the persisted format - either both write v0 or both
+      # write v1. Inconsistency was a real bug: TaskListStatusMigration
+      # used to rewrite back as v0 while heal_tool_call_arguments emitted
+      # v1, so the on-disk format after heal depended on which pass fired.
+      convo = Conversation.new("heal_tasks", ctx.project)
+
+      # Legacy task shape: bare list of tasks under a list_id, instead of
+      # the canonical %{"tasks" => [...], "description" => ..., "status" => ...}.
+      # Tasks themselves use the %{id, data, ...} shape that
+      # `Services.Task.new_task/3` expects when finalize_tasks/1 hydrates.
+      bad_data =
+        SafeJson.encode!(%{
+          "messages" => [],
+          "metadata" => %{},
+          "memory" => [],
+          "tasks" => %{"list-1" => [%{"id" => "t1", "data" => "do the thing"}]}
+        })
+
+      File.mkdir_p!(Path.dirname(convo.store_path))
+      File.write!(convo.store_path, "1700000000:" <> bad_data)
+
+      assert {:ok, _} = Format.read(convo)
+
+      raw = File.read!(convo.store_path)
+      assert {:ok, decoded} = SafeJson.decode(raw)
+      assert decoded["version"] == 1
+      assert decoded["timestamp"] == 1_700_000_000
+
+      # The legacy bare list got upgraded to the canonical map shape.
+      healed_list = decoded["tasks"]["list-1"]
+      assert healed_list["status"] == "planning"
+      assert [%{"id" => "t1", "data" => "do the thing"}] = healed_list["tasks"]
+    end
+  end
+
   describe "read/1 heal-on-read for v0 tool-call arguments" do
     test "re-encodes map-valued arguments back to a JSON string and persists", ctx do
       convo = Conversation.new("heal_args", ctx.project)

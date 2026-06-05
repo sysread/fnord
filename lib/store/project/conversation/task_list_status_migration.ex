@@ -6,27 +6,30 @@ defmodule Store.Project.Conversation.TaskListStatusMigration do
   `tasks` map of the decoded conversation JSON if legacy shapes are detected
   (for example the value is a bare list instead of a map), or if a `status`
   field is missing or non-canonical. Repairs are applied in-memory, and the
-  module attempts an atomic write of the repaired JSON back to disk, but if
-  persistence fails, processing continues without raising. The timestamp prefix
-  used by the Store.Project.Conversation format is preserved.
+  module delegates the actual on-disk write to
+  `Store.Project.Conversation.Format.persist_heal_as_v1/3` so the heal-write
+  format matches every other heal pass (deterministically v1). If
+  persistence fails, processing continues without raising.
   """
+
+  alias Store.Project.Conversation.Format
 
   @doc """
   Inspect the decoded JSON map `original_json_map` for legacy task-list
   shapes and/or non-canonical status values. If repairs are needed, apply them
-  in-memory and attempt to atomically persist the repaired JSON to disk using
-  the provided `conversation` and the original `timestamp_str` (the unix
-  timestamp string prefix).
+  in-memory and attempt to atomically persist the repaired JSON to disk via
+  `Format.persist_heal_as_v1/3`. `ts_int` is the original v0 prefix timestamp
+  (already parsed to integer in `Format.parse_v0/2`).
 
   Persistence is best-effort: if the write fails (for example due to concurrent
   access or filesystem issues), this function will warn and continue without
   raising so callers can keep reading the conversation.
 
-  This function is safe to call from Store.Project.Conversation.read/1; it is
-  conservative and only writes when it detects a change.
+  This function is safe to call from Store.Project.Conversation.Format.parse_v0/2;
+  it is conservative and only writes when it detects a change.
   """
-  @spec heal_and_maybe_write(map(), Store.Project.Conversation.t(), String.t()) :: :ok
-  def heal_and_maybe_write(original_json_map, conversation, timestamp_str) do
+  @spec heal_and_maybe_write(map(), Store.Project.Conversation.t(), integer()) :: :ok
+  def heal_and_maybe_write(original_json_map, conversation, ts_int) do
     {changed, repaired} =
       original_json_map
       |> Enum.reduce({false, %{}}, fn {k, v}, {acc_changed, acc_map} ->
@@ -62,17 +65,14 @@ defmodule Store.Project.Conversation.TaskListStatusMigration do
       end)
 
     if changed do
-      case write_file_with_ts(conversation, timestamp_str, repaired) do
-        :ok ->
-          :ok
+      # Ensure the conversations directory exists before the atomic-rename
+      # write that Format.persist_heal_as_v1/3 performs. Cheap, idempotent.
+      conversation.project_home
+      |> Path.join("conversations")
+      |> File.mkdir_p()
 
-        {:error, reason} ->
-          UI.warn(
-            "Could not persist healed tasks for conversation #{conversation.id}: #{inspect(reason)}"
-          )
-
-          :ok
-      end
+      _ = Format.persist_heal_as_v1(conversation, repaired, ts_int)
+      :ok
     else
       :ok
     end
@@ -95,44 +95,6 @@ defmodule Store.Project.Conversation.TaskListStatusMigration do
       "done" -> "done"
       "failed" -> "done"
       other -> other
-    end
-  end
-
-  @spec write_file_with_ts(Store.Project.Conversation.t(), String.t(), map()) ::
-          :ok | {:error, term()}
-  defp write_file_with_ts(conversation, timestamp_str, data_map) do
-    conversation.project_home
-    |> Path.join("conversations")
-    |> File.mkdir_p()
-
-    tmp = conversation.store_path <> ".tmp"
-
-    with {:ok, json} <- SafeJson.encode(data_map),
-         :ok <- File.write(tmp, "#{timestamp_str}:" <> json),
-         :ok <- safe_rename(tmp, conversation.store_path) do
-      :ok
-    else
-      {:error, reason} ->
-        File.rm(tmp)
-        {:error, reason}
-    end
-  end
-
-  @spec safe_rename(String.t(), String.t()) :: :ok | {:error, term()}
-  defp safe_rename(tmp, dest) do
-    case File.rename(tmp, dest) do
-      :ok ->
-        :ok
-
-      {:error, :enoent} ->
-        if File.exists?(tmp) do
-          {:error, :dest_missing}
-        else
-          {:error, :tmp_missing}
-        end
-
-      {:error, reason} ->
-        {:error, reason}
     end
   end
 end
