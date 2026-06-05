@@ -18,13 +18,13 @@ defmodule AI.Model.OpenAI do
   # Common presets
   # ----------------------------------------------------------------------------
   @spec smarter() :: AI.Model.t()
-  def smarter(), do: gpt55(:low)
+  def smarter(), do: gpt55(:medium)
 
   @spec smart() :: AI.Model.t()
-  def smart(), do: gpt54(:low)
+  def smart(), do: gpt54_mini(:medium)
 
   @spec balanced() :: AI.Model.t()
-  def balanced(), do: gpt54(:none)
+  def balanced(), do: gpt54_mini(:low)
 
   @spec fast() :: AI.Model.t()
   def fast(), do: gpt54_mini(:none)
