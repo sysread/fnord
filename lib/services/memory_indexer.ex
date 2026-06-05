@@ -272,9 +272,17 @@ defmodule Services.MemoryIndexer do
         _ ->
           debug("deep sleep pass #{pass}: #{length(all_pairs)} pair(s)")
 
+          # Deep-sleep dedup is a background pass, not latency-critical. Each
+          # pair fires a gpt-4.1 completion; with default async_stream
+          # concurrency (= schedulers_online), N passes × M pairs blows past
+          # OpenAI's TPM cap and the retry layer can't recover before the
+          # 3-attempt budget exhausts. Bounded concurrency keeps the workload
+          # under the TPM headroom and trades a few seconds of wall time for
+          # actually completing the work.
           all_pairs
           |> Services.Globals.Spawn.async_stream(
             fn {scope, a, b} -> consolidate_pair(scope, a, b) end,
+            max_concurrency: 2,
             timeout: :infinity
           )
           |> Enum.to_list()
