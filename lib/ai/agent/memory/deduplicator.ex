@@ -17,7 +17,12 @@ defmodule AI.Agent.Memory.Deduplicator do
 
   @behaviour AI.Agent
 
-  @model AI.Model.large_context()
+  # Dedup is a binary classification (merge yes/no) with an occasional small
+  # JSON synthesis on the merge path. Inputs are typically <2k tokens. A
+  # fast-tier model is plenty for the task and sits on a much higher TPM
+  # quota than the flagship tier - dedup runs in a burst at shutdown and
+  # would otherwise saturate the gpt-4.1 TPM bucket.
+  @model AI.Model.fast()
 
   @prompt """
   You are speaking to another LLM, not a human. Save tokens: use extremely terse, shorthand speech as long as meaning is clear.
