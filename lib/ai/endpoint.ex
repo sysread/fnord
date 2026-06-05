@@ -196,11 +196,29 @@ defmodule AI.Endpoint do
     end
   end
 
+  # OpenAI's rate-limit body uses either "try again in 250ms" or "try again
+  # in 1.566s" depending on the wait. Both formats may carry a decimal point
+  # (e.g. 1.566s, 1500.5ms). The retry scheduler is in ms.
   @spec default_try_again_ms(binary()) :: non_neg_integer | nil
   defp default_try_again_ms(body) do
-    case Regex.run(~r/try\s+again\s+in\s+(\d+)ms/i, body) do
-      [_, ms] -> max(1, String.to_integer(ms))
-      _ -> nil
+    cond do
+      match = Regex.run(~r/try\s+again\s+in\s+(\d+(?:\.\d+)?)\s*ms/i, body) ->
+        [_, ms_str] = match
+        max(1, ms_str |> parse_number() |> round())
+
+      match = Regex.run(~r/try\s+again\s+in\s+(\d+(?:\.\d+)?)\s*s/i, body) ->
+        [_, s_str] = match
+        max(1, (parse_number(s_str) * 1000) |> round())
+
+      true ->
+        nil
+    end
+  end
+
+  defp parse_number(str) do
+    case Float.parse(str) do
+      {n, _} -> n
+      :error -> 0.0
     end
   end
 
