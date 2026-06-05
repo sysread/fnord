@@ -85,11 +85,22 @@ defmodule AI.Embeddings.Script do
   defmodule Embed do
     @model "sentence-transformers/all-MiniLM-L12-v2"
 
+    # HuggingFace's CDN returns transient 5xx errors under load. Without
+    # retry, a single blip kills the embed.exs process - the GenServer pool
+    # then reports the dead worker and the user's command aborts with a
+    # MatchError. After the first successful load, weights are cached under
+    # BUMBLEBEE_CACHE_DIR and subsequent runs skip the network entirely, so
+    # this only matters on cold cache or after a cache eviction.
+    @hf_retry_attempts 5
+    @hf_retry_base_ms 500
+
     def load_serving do
       model_name = @model
 
-      {:ok, model} = Bumblebee.load_model({:hf, model_name})
-      {:ok, tokenizer} = Bumblebee.load_tokenizer({:hf, model_name})
+      {:ok, model} = with_hf_retry("load_model", fn -> Bumblebee.load_model({:hf, model_name}) end)
+
+      {:ok, tokenizer} =
+        with_hf_retry("load_tokenizer", fn -> Bumblebee.load_tokenizer({:hf, model_name}) end)
 
       Bumblebee.Text.TextEmbedding.text_embedding(
         model,
@@ -104,6 +115,34 @@ defmodule AI.Embeddings.Script do
     def embed(serving, text) do
       %{embedding: tensor} = Nx.Serving.run(serving, text)
       Nx.to_flat_list(tensor)
+    end
+
+    # Exponential backoff retry around a HuggingFace fetch. Bumblebee surfaces
+    # transient transport failures as {:error, binary} - we treat any error as
+    # retryable since the alternative is the bare pattern-match crashing the
+    # whole script. Non-retryable failures (e.g. 404 on a typo'd model name)
+    # would still ultimately raise via the {:ok, _} = match in the caller, but
+    # only after exhausting attempts, which is acceptable for a one-shot script.
+    defp with_hf_retry(label, fun, attempt \\ 1) do
+      case fun.() do
+        {:ok, _} = ok ->
+          ok
+
+        {:error, reason} when attempt < @hf_retry_attempts ->
+          delay = @hf_retry_base_ms * :math.pow(2, attempt - 1) |> trunc()
+
+          IO.puts(
+            :stderr,
+            "[embed.exs] #{label} attempt #{attempt}/#{@hf_retry_attempts} failed: " <>
+              inspect(reason) <> "; retrying in #{delay}ms"
+          )
+
+          Process.sleep(delay)
+          with_hf_retry(label, fun, attempt + 1)
+
+        other ->
+          other
+      end
     end
   end
 
