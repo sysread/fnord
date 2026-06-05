@@ -13,10 +13,10 @@ defmodule MCP.OAuth2.Discovery do
   ## Parameters
     - base_url: The MCP server's base URL
     - opts: Configuration options
-      - :client_id - Use existing client_id (skip registration)
+      - :client_id - Use an existing client_id and skip dynamic registration
       - :client_secret - Client secret (optional)
-      - :scope - List of scopes (default: auto-detect)
-      - :redirect_port - Port to use for redirect URI (for registration)
+      - :scope - List of scopes to request; if omitted, fnord prefers `mcp:access` when the server advertises it and otherwise falls back to the server's supported scopes
+      - :redirect_port - Port to use for the loopback redirect URI; if present, the discovered config carries it forward and dynamic registration uses it for exact callback matching
 
   ## Returns
     - `{:ok, oauth_config}` - Ready-to-use OAuth configuration map

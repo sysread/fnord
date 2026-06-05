@@ -207,15 +207,16 @@ For advanced options (e.g., unindexed projects, replaying conversations), see [d
 
 #### Create and manage your fnord doc library
 
-`fnord` builds a persistent document library of your saved responses and learned notes for easy reference as you work.
+`fnord` keeps a persistent library of saved outputs, project notes, and searchable memory so later sessions can reuse prior work.
 
 - Saved outputs (via `--save`) are stored in `~/fnord/outputs/<project_id>/`.
-- View and explore learned notes with `fnord notes`.
-- Browse your docs with a markdown viewer (e.g., `glow`). For more, see [docs/user/asking-questions.md](docs/user/asking-questions.md) and [docs/user/learning-system.md](docs/user/learning-system.md).
+- View project notes with `fnord notes`.
+- Search project or global memory with `fnord memory`.
+- Browse saved outputs and notes with a markdown viewer (for example, `glow`). For more, see [docs/user/asking-questions.md](docs/user/asking-questions.md) and [docs/user/learning-system.md](docs/user/learning-system.md).
 
 ### Learning over time
 
-`fnord` learns about your project while researching your questions. It saves facts and inferences it makes, building a searchable knowledge base that improves over time. As the knowledge base grows, fnord can answer increasingly complex questions with less research.
+`fnord` learns about your project while researching your questions. It builds up project notes and memory that later sessions can search and recall. As that context grows, fnord can answer increasingly complex questions with less repeated research.
 
 You can prime this learning process with:
 
@@ -312,7 +313,7 @@ It *cannot* perform write operations with `git` or act on files outside of the p
 fnord ask --project myproj --edit --question "Add a docstring to foo/thing.ex"
 ```
 
-**In git repositories, fnord requires worktree-backed editing. Use `--worktree` to point fnord at an existing git worktree directory for the current run; edits are applied there instead of the main checkout.**
+**In git repositories, fnord may use a conversation-bound worktree for edit-mode sessions. Use `--worktree` to point fnord at an existing git worktree directory for the current run.**
 
 ```bash
 fnord ask --project myproj --worktree /path/to/myproj-wt --edit --question "Add a docstring to foo/thing.ex"
