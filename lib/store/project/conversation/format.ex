@@ -4,13 +4,13 @@ defmodule Store.Project.Conversation.Format do
 
     * **v0** - the legacy timestamp-prefixed shape: `<unix_ts>:<json>`. The
       `<unix_ts>` is a numeric prefix that lets `list/1` and `timestamp/1`
-      sort conversations without parsing the JSON. Has been in use since
-      conversations were first persisted.
+      sort conversations without parsing the JSON. Read-only at this point -
+      no code path emits v0; older files still on disk are read transparently.
 
     * **v1** - pure JSON. The top-level object carries `version: 1`,
       `timestamp: <unix_int>`, and the same `messages`/`metadata`/`memory`/
-      `tasks` keys v0 has. Forward-facing shape that aligns with the
-      Responses-API switchover.
+      `tasks` keys v0 has. Current on-the-wire shape; what every writer
+      emits.
 
   ## Why this module exists
 
@@ -20,17 +20,19 @@ defmodule Store.Project.Conversation.Format do
   another build only reads v0, the older build flags every v1 file as corrupt
   and skips it - data loss in practice.
 
-  The migration plan is therefore:
+  The two-step rollout that got us here:
 
-    1. Ship a build (this one - Phase 1b) where every reader understands BOTH
-       v0 and v1. Writer continues to emit v0.
-    2. Wait for that build to roll out to every worktree.
-    3. Ship a build (Phase 2) where the writer flips to v1. Now older v1-aware
-       readers can still parse the new files.
+    1. **Phase 1b** - shipped a build whose readers understand BOTH v0 and
+       v1, while the writer continued to emit v0. Reader-tolerant +
+       writer-conservative.
+    2. **Phase 2c** - flipped the writer to v1. Older Phase-1b readers parse
+       the new files unchanged. Writer-aggressive.
 
-  Step 1 is reader-tolerant + writer-conservative. Step 2 is writer-aggressive.
+  This module is now at Phase 2c. v1 is the canonical on-disk format; v0 is a
+  read-only legacy shape that still appears in files written before the
+  flip.
 
-  ## Heal-on-read
+  ## Heal-on-read (and forward migration)
 
   v0 files in the wild may carry legacy shapes from earlier code paths:
 
@@ -41,8 +43,19 @@ defmodule Store.Project.Conversation.Format do
       engram memory "Conversation file corruption - responses branch tool
       arguments" for the atom-table backstory.)
 
-  Both heal passes persist the repaired v0 shape back to disk best-effort.
-  v1 files do not need either pass.
+  When either heal pass triggers on a v0 file, the repaired content is
+  persisted **as v1** via `write_v1_blob/2`, not back as v0. Two reasons:
+
+    1. The writer is at v1; emitting fresh v0 would create new legacy files.
+    2. Older builds without the heal pass would silently mis-parse the
+       healed-in-place v0 shape; a v1 file at least surfaces as a clean
+       format-version skip rather than a corrupt decode.
+
+  This means stale v0 files migrate forward incrementally as they are
+  touched. Untouched v0 files stay v0 indefinitely (read-only paths don't
+  rewrite them).
+
+  v1 files don't carry the legacy shapes and skip the heal passes entirely.
   """
 
   alias Store.Project.Conversation
