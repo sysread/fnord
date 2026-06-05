@@ -21,10 +21,10 @@ defmodule AI.Model.OpenAI do
   def smarter(), do: gpt55(:medium)
 
   @spec smart() :: AI.Model.t()
-  def smart(), do: gpt54_mini(:medium)
+  def smart(), do: gpt54(:low)
 
   @spec balanced() :: AI.Model.t()
-  def balanced(), do: gpt54_mini(:low)
+  def balanced(), do: gpt54_mini(:medium)
 
   @spec fast() :: AI.Model.t()
   def fast(), do: gpt54_mini(:none)
@@ -66,5 +66,4 @@ defmodule AI.Model.OpenAI do
 
   @spec gpt41_nano() :: AI.Model.t()
   def gpt41_nano(), do: AI.Model.new("gpt-4.1-nano", 1_000_000, :none)
-
 end
