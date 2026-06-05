@@ -22,6 +22,12 @@ defmodule AI.Endpoint.OpenAI do
   @spec endpoint_error_classify(integer | nil, binary | nil, list | nil, term | nil) ::
           :ok | {:retry, atom, non_neg_integer | nil} | {:fail, atom, binary}
   def endpoint_error_classify(status, body, _headers, transport_reason) do
+    # Body is always a binary here when status is set: the HTTP client
+    # (HTTPoison via Http.post_json) returns binary bodies for every non-2xx
+    # response. The `is_binary(b)` guards on the 429 clause are paranoia,
+    # not feature gating - if a non-binary body somehow appeared they'd
+    # fall through to the catch-all `:ok` (no retry), which is the right
+    # safe default for "we don't know what this is."
     case {status, body, transport_reason} do
       {nil, nil, :timeout} ->
         {:retry, :network_glitch, nil}

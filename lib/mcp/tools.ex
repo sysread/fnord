@@ -36,7 +36,12 @@ defmodule MCP.Tools do
     Module.concat([AI.Tools.MCP, server_mod, tool_mod])
   end
 
-  # Construct default spec metadata for the dynamic tool module
+  # Construct default spec metadata for the dynamic tool module. Emits the
+  # flat Responses-API shape: %{type, name, description, parameters} at the
+  # top level. AI.Tools.Params.normalize_spec/1 (the central validator)
+  # expects this exact shape - nested chat-completions-style
+  # %{function: %{...}} would fail loudly there. Keep this in sync if the
+  # MCP `inputSchema` ever grows additional wrapper layers.
   defp default_spec(server, tool_spec) do
     input_schema = Map.get(tool_spec, "inputSchema", %{})
 

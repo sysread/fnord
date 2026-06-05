@@ -232,11 +232,28 @@ defmodule AI.CompletionAPI do
   defp reasoning_param(%{reasoning: :high}), do: %{effort: "high"}
   defp reasoning_param(_), do: nil
 
-  # Translate messages to Responses input items. AI.Message structs go
-  # through their own to_map/1 callback (already Responses-shaped). Raw
-  # maps in the legacy chat-completions shape get translated inline -
-  # assistant messages carrying tool_calls fan out into one function_call
-  # item per call.
+  # Translate messages to Responses input items.
+  #
+  # Two shape families show up here:
+  #
+  # 1. **AI.Message structs** (the canonical in-memory shape since Phase
+  #    1a / commit 601ad059). Each struct's to_map/1 already produces a
+  #    Responses-API-shaped item - INCLUDING the standalone
+  #    %{type: "function_call", call_id, name, arguments} shape from
+  #    AI.Message.FunctionCall. These take the struct branch below and
+  #    pass through unchanged.
+  #
+  # 2. **Raw chat-completions-shaped maps**: %{role:, content:, tool_calls:}.
+  #    These come from test fixtures and a few legacy code paths that
+  #    construct messages by hand without going through AI.Util. The
+  #    raw-map branch translates the chat-completions shape into
+  #    Responses-API items: assistant messages carrying tool_calls fan
+  #    out into one function_call item per call.
+  #
+  # No code path in production produces a raw %{type: "function_call"}
+  # map - that shape only exists as output of AI.Message.to_map/1, which
+  # always takes the struct branch. So the raw-map branch deliberately
+  # does NOT inspect `type` - role-based dispatch is sufficient.
   defp to_input(msgs) when is_list(msgs) do
     Enum.flat_map(msgs, &msg_to_items/1)
   end
@@ -285,6 +302,11 @@ defmodule AI.CompletionAPI do
         ]
 
       true ->
+        # Unknown role on a raw map. Drop silently rather than fail loudly:
+        # the only realistic source is a test fixture or unhydrated legacy
+        # data, and there's no useful translation we could synthesize. If a
+        # production code path ever lands here we'd see prompt loss in
+        # downstream logs, not a silent success.
         []
     end
   end

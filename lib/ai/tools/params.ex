@@ -23,6 +23,13 @@ defmodule AI.Tools.Params do
   pre-normalized `%{properties: ..., required: ...}`. The spec is expected
   to carry `parameters` at the top level (flat Responses-API shape).
 
+  The nested chat-completions wrapper `%{function: %{parameters: ...}}` is
+  NOT supported - `normalize_spec/1` returns `{:error, :invalid_parameters}`
+  rather than silently mis-parsing. All in-tree tool specs (built-in via
+  `AI.Tools.<*>.spec/0`, MCP-generated via `MCP.Tools.default_spec/2`,
+  user frobs via `Frobs.spec/1`) emit the flat shape, so the nested form
+  shouldn't appear in practice.
+
   Returns `{:ok, coerced_args}` or an `AI.Tools.args_error()`.
   """
   @spec validate_json_args(map(), map()) ::

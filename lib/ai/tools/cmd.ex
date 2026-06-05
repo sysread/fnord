@@ -128,6 +128,12 @@ defmodule AI.Tools.Cmd do
       #{user_prefixes}
       #{user_regexes}
       """,
+      # Tool-spec parameter schemas are NOT validated under OpenAI's strict
+      # structured-output mode unless we opt in via `strict: true` at the
+      # function-spec level (we don't, anywhere in lib/ai/tools/). So
+      # optional fields like timeout_ms / operator can sit in `properties`
+      # without being in `required`. This is unlike agent @response_format
+      # schemas, which DO go through strict mode - see gotchas.md #24.
       parameters: %{
         type: "object",
         required: ["description", "commands"],
