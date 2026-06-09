@@ -452,19 +452,22 @@ The kill switch is `FNORD_NO_LOWFAT=1`. The test suite sets it by default
 `lowfat` is installed; `test/ai/tools/cmd/lowfat_test.exs` opts back in with a
 PATH-prepended stub.
 
-## 28. `make check` does not run `mix docs`; broken doc autolinks slip through
+## 28. Broken doc autolinks fail only the docs build, not compile/test/dialyzer
 
-`make check` is `compile + test + dialyzer + md-lint`. ExDoc autolink
-resolution happens only during `mix docs` (a separate Makefile target), which
-CI runs as its own "build docs" step with warnings treated as failure.
-Compilation does **not** resolve `` `Mod.fun/arity` `` references inside
-`@moduledoc`/`@doc` strings, so a backtick reference to a function that is
-undefined, private, or wrong-arity passes compile/test/dialyzer cleanly and
-only fails in CI.
+ExDoc autolink resolution happens only when the docs are generated, never
+during compilation. A backtick reference inside an `@moduledoc`/`@doc` string
+to a function that is undefined, private, or wrong-arity passes
+compile/test/dialyzer cleanly - the compiler does **not** resolve
+`` `Mod.fun/arity` `` references in doc strings.
+
+This was invisible locally until `make check` gained the `docs-check` target
+(`mix docs --warnings-as-errors`); previously `check` was just
+`compile + test + dialyzer + md-lint` and the only gate was CI's separate
+"build docs" step. The local `docs-check` now mirrors that CI gate, so a broken
+autolink fails `make check` before it reaches CI.
 
 Footgun: any `` `Name.fun/arity` `` in a docstring is an autolink target. If
 the symbol doesn't exist (e.g. it's a behaviour callback, not a function), the
-build fails. Reference callbacks with the `` `c:Mod.fun/arity` `` form, and run
-`mix docs` locally before pushing doc changes. A wildcard like
-`` `AI.Tools.<*>.spec/0` `` is not a valid reference shape, so ExDoc leaves it
-alone - that is why such forms don't warn.
+build fails. Reference callbacks with the `` `c:Mod.fun/arity` `` form. A
+wildcard like `` `AI.Tools.<*>.spec/0` `` is not a valid reference shape, so
+ExDoc leaves it alone - that is why such forms don't warn.
