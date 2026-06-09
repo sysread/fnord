@@ -116,6 +116,16 @@ injects a nudge telling the model to produce its final response, and lets the co
 Lower the cap to force earlier wrap-up; raise it when a repo legitimately needs more exploration.
 Accepts any positive integer; malformed values fall back to the default.
 
+### `FNORD_NO_LOWFAT`
+
+When [lowfat](https://github.com/zdk/lowfat) is on your `PATH`, fnord automatically wraps
+eligible shell commands run by the AI with it to trim noise from their output and save
+model tokens.
+The filtering is lossy by design: the *model* sees the trimmed output, though the command
+shown in the UI is the original, unwrapped form.
+fnord does not configure lowfat; your own lowfat config controls what gets trimmed.
+Set `FNORD_NO_LOWFAT=1` to disable the wrapping entirely.
+
 ### `FNORD_DEBUG_TOOL_CALLS`
 
 See [Debugging Tool Call Errors](asking-questions.md#debugging-tool-call-errors).
