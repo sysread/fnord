@@ -128,8 +128,8 @@ defmodule AI.Agent.Coordinator.FripperyTest do
       {:ok, project: project}
     end
 
-    test "warns when cursor rules exist on disk but feature is disabled", %{project: project} do
-      rule_path = Path.join(project.source_root, ".cursor/rules/x.mdc")
+    defp write_rule!(dir) do
+      rule_path = Path.join(dir, "x.mdc")
       File.mkdir_p!(Path.dirname(rule_path))
 
       File.write!(rule_path, """
@@ -139,12 +139,55 @@ defmodule AI.Agent.Coordinator.FripperyTest do
       ---
       body
       """)
+    end
+
+    test "warns when cursor rules exist on disk but feature is disabled", %{project: project} do
+      write_rule!(Path.join(project.source_root, ".cursor/rules"))
 
       expect(UI.Output.Mock, :log, fn level, msg ->
         rendered = IO.iodata_to_binary(msg)
         assert level == :warning
         assert rendered =~ "Cursor rules detected"
         assert rendered =~ "fnord config external enable cursor:rules"
+        :ok
+      end)
+
+      AI.Agent.Coordinator.Frippery.hint_disabled_external_configs()
+    end
+
+    test "names the project scope when files are repo-local", %{project: project} do
+      write_rule!(Path.join(project.source_root, ".cursor/rules"))
+
+      expect(UI.Output.Mock, :log, fn :warning, msg ->
+        assert IO.iodata_to_binary(msg) =~ "in this project"
+        :ok
+      end)
+
+      AI.Agent.Coordinator.Frippery.hint_disabled_external_configs()
+    end
+
+    test "names the home scope when files are global", %{home_dir: home_dir} do
+      write_rule!(Path.join(home_dir, ".cursor/rules"))
+
+      expect(UI.Output.Mock, :log, fn :warning, msg ->
+        rendered = IO.iodata_to_binary(msg)
+        assert rendered =~ "in your home directory (~)"
+        assert rendered =~ "apply to all your projects"
+        :ok
+      end)
+
+      AI.Agent.Coordinator.Frippery.hint_disabled_external_configs()
+    end
+
+    test "names both scopes when files exist in home and project", %{
+      project: project,
+      home_dir: home_dir
+    } do
+      write_rule!(Path.join(home_dir, ".cursor/rules"))
+      write_rule!(Path.join(project.source_root, ".cursor/rules"))
+
+      expect(UI.Output.Mock, :log, fn :warning, msg ->
+        assert IO.iodata_to_binary(msg) =~ "in your home directory (~) and in this project"
         :ok
       end)
 

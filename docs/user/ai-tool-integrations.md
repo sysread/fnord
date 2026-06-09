@@ -64,7 +64,10 @@ fnord config external disable cursor:skills
 
 At `fnord ask` start, if files exist on disk for a disabled source,
 fnord emits a yellow warning with the exact command to enable it
-(command highlighted in green).
+(command highlighted in green). The warning also states where the files
+were found — your home directory (`~`, shared across all projects), this
+project, or both — so you know whether enabling the source will pull your
+personal global configs into this project.
 
 ### Sources
 

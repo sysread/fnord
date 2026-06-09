@@ -200,6 +200,13 @@ defmodule ExternalConfigs.Loader do
     :ok
   end
 
+  # Where a detected file lives. `:global` is the user's home directory
+  # (~/.cursor, ~/.claude) and applies to every project; `:project` is the
+  # repo's source root; `:legacy` is the project-root `.cursorrules` file.
+  # The startup nudge uses this to tell the user whether they're about to
+  # surface their personal global configs or repo-local ones.
+  @type on_disk_scope :: :global | :project | :legacy
+
   @doc """
   Cheap on-disk presence check, used by the coordinator's startup nudge
   to detect "feature is off, but the files are sitting right there."
@@ -207,26 +214,51 @@ defmodule ExternalConfigs.Loader do
   global or project search paths for the given source.
   """
   @spec has_any_on_disk?(Store.Project.t(), Settings.ExternalConfigs.source()) :: boolean()
-  def has_any_on_disk?(%Store.Project{source_root: source_root}, :cursor_rules) do
-    any_mdc?(home_dir(".cursor/rules")) or
-      any_mdc?(project_dir(source_root, ".cursor/rules")) or
-      legacy_cursorrules_present?(source_root)
+  def has_any_on_disk?(%Store.Project{} = project, source) do
+    on_disk_scopes(project, source) != []
   end
 
-  def has_any_on_disk?(%Store.Project{source_root: source_root}, :cursor_skills) do
-    any_skill_md?(home_dir(".cursor/skills")) or
-      any_skill_md?(project_dir(source_root, ".cursor/skills"))
+  @doc """
+  Reports which scopes (`:global`, `:project`, `:legacy`) actually have
+  candidate files on disk for the given source. Empty list means nothing
+  is present. Like `has_any_on_disk?/2` this skips parsing and only probes
+  for file existence, but it preserves *where* the hits are so the startup
+  nudge can tell the user whether the detected files are global (in their
+  home directory, shared across all projects) or local to this repo.
+  """
+  @spec on_disk_scopes(Store.Project.t(), Settings.ExternalConfigs.source()) :: [on_disk_scope()]
+  def on_disk_scopes(%Store.Project{source_root: source_root}, :cursor_rules) do
+    scopes_present([
+      {:global, any_mdc?(home_dir(".cursor/rules"))},
+      {:project, any_mdc?(project_dir(source_root, ".cursor/rules"))},
+      {:legacy, legacy_cursorrules_present?(source_root)}
+    ])
   end
 
-  def has_any_on_disk?(%Store.Project{source_root: source_root}, :claude_skills) do
-    any_skill_md?(home_dir(".claude/skills")) or
-      any_skill_md?(project_dir(source_root, ".claude/skills"))
+  def on_disk_scopes(%Store.Project{source_root: source_root}, :cursor_skills) do
+    scopes_present([
+      {:global, any_skill_md?(home_dir(".cursor/skills"))},
+      {:project, any_skill_md?(project_dir(source_root, ".cursor/skills"))}
+    ])
   end
 
-  def has_any_on_disk?(%Store.Project{source_root: source_root}, :claude_agents) do
-    any_agent_md?(home_dir(".claude/agents")) or
-      any_agent_md?(project_dir(source_root, ".claude/agents"))
+  def on_disk_scopes(%Store.Project{source_root: source_root}, :claude_skills) do
+    scopes_present([
+      {:global, any_skill_md?(home_dir(".claude/skills"))},
+      {:project, any_skill_md?(project_dir(source_root, ".claude/skills"))}
+    ])
   end
+
+  def on_disk_scopes(%Store.Project{source_root: source_root}, :claude_agents) do
+    scopes_present([
+      {:global, any_agent_md?(home_dir(".claude/agents"))},
+      {:project, any_agent_md?(project_dir(source_root, ".claude/agents"))}
+    ])
+  end
+
+  # Keeps only the scopes whose probe returned true, preserving listed order
+  # (global before project before legacy) for stable output.
+  defp scopes_present(pairs), do: for({scope, true} <- pairs, do: scope)
 
   defp any_mdc?(nil), do: false
 

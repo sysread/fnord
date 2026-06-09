@@ -343,4 +343,24 @@ defmodule ExternalConfigs.LoaderTest do
 
     assert ExternalConfigs.Loader.has_any_on_disk?(project, :claude_agents)
   end
+
+  test "on_disk_scopes/2 reports where cursor rules live", %{home_dir: home} do
+    project = mock_project("scopes")
+
+    # Nothing on disk yet.
+    assert Loader.on_disk_scopes(project, :cursor_rules) == []
+
+    # Global only.
+    write!(Path.join(home, ".cursor/rules/g.mdc"), rule_contents([]))
+    assert Loader.on_disk_scopes(project, :cursor_rules) == [:global]
+
+    # Global + project.
+    write!(Path.join(project.source_root, ".cursor/rules/p.mdc"), rule_contents([]))
+    assert Loader.on_disk_scopes(project, :cursor_rules) == [:global, :project]
+
+    # Legacy .cursorrules at the project root counts as a distinct scope.
+    write!(Path.join(project.source_root, ".cursorrules"), "legacy body")
+
+    assert Loader.on_disk_scopes(project, :cursor_rules) == [:global, :project, :legacy]
+  end
 end

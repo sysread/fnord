@@ -128,15 +128,16 @@ defmodule AI.Agent.Coordinator.Frippery do
   def hint_disabled_external_configs do
     with {:ok, project} <- Store.get_project() do
       Enum.each(Settings.ExternalConfigs.sources(), fn source ->
-        if not Settings.ExternalConfigs.enabled?(project.name, source) and
-             ExternalConfigs.Loader.has_any_on_disk?(project, source) do
+        scopes = ExternalConfigs.Loader.on_disk_scopes(project, source)
+
+        if not Settings.ExternalConfigs.enabled?(project.name, source) and scopes != [] do
           command =
             "fnord config external enable " <>
               "#{Settings.ExternalConfigs.source_to_string(source)} --project #{project.name}"
 
           prefix =
-            "#{Map.fetch!(@hints, source)} but not enabled for project `#{project.name}`. " <>
-              "Enable with: "
+            "#{Map.fetch!(@hints, source)} #{location_phrase(scopes)} " <>
+              "but not enabled for project `#{project.name}`. Enable with: "
 
           # UI.warn wraps the whole msg in :yellow; the inner :green escape
           # switches color to green for the command and the trailing :reset
@@ -147,6 +148,24 @@ defmodule AI.Agent.Coordinator.Frippery do
       end)
     else
       _ -> :ok
+    end
+  end
+
+  # Turns the on-disk scopes into a phrase that tells the user where the
+  # detected files actually live. The distinction is load-bearing: enabling
+  # a source is project-scoped, but the loader merges global ∪ project, so
+  # enabling a source whose files are global pulls the user's personal
+  # ~/.cursor or ~/.claude configs into *this* project. The user should know
+  # that before running the command. Legacy `.cursorrules` sits at the
+  # project root, so it counts as local.
+  defp location_phrase(scopes) do
+    global? = :global in scopes
+    local? = :project in scopes or :legacy in scopes
+
+    cond do
+      global? and local? -> "in your home directory (~) and in this project"
+      global? -> "in your home directory (~), where they apply to all your projects,"
+      true -> "in this project"
     end
   end
 
