@@ -1,5 +1,4 @@
 defmodule Settings do
-  require Logger
 
   # ----------------------------------------------------------------------------
   # Settings type

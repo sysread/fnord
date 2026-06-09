@@ -4,7 +4,6 @@ defmodule MCP.OAuth2.Discovery do
   Implements RFC 8414 Authorization Server Metadata discovery.
   """
 
-  require Logger
   alias MCP.OAuth2.Registration
 
   @doc """

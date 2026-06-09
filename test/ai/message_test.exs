@@ -120,8 +120,11 @@ defmodule AI.MessageTest do
 
   describe "AI.Message.function_call/3 + AI.Message.FunctionCall" do
     test "arguments must be a binary - rejects decoded maps at construction" do
+      # Pass the non-binary args via apply/3 so the compile-time type checker
+      # doesn't flag this deliberately-invalid call; we are asserting the
+      # runtime guard, not a statically valid call.
       assert_raise FunctionClauseError, fn ->
-        Message.function_call("c1", "tool", %{"a" => 1})
+        apply(Message, :function_call, ["c1", "tool", %{"a" => 1}])
       end
     end
 

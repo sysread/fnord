@@ -3,8 +3,6 @@ defmodule MCP.EndpointDiscovery do
   Auto-discovers MCP endpoint paths when the default path returns 404.
   """
 
-  require Logger
-
   @common_paths ["/mcp", "/", "/api/mcp", "/mcp/v1"]
 
   @doc """

@@ -335,17 +335,17 @@ defmodule AI.Completion do
   end
 
   defp handle_response(
-         {:error, :context_length_exceeded, usage},
+         {:error, :context_length_exceeded, _usage},
          %{messages: msgs, is_compacting?: false} = state
        ) do
     UI.warn("[compaction] Context length exceeded, compacting conversation and retrying...")
 
-    with {:ok, compacted, new_usage} <- AI.Completion.Compaction.compact(msgs) do
-      %{state | messages: compacted, usage: new_usage, is_compacting?: true}
-      |> send_request()
-    else
-      {:error, _reason} -> {:error, :context_length_exceeded, usage}
-    end
+    # Compaction.compact/1 always succeeds: on internal failure it falls back to
+    # returning the original messages, so there is no error path to handle here.
+    {:ok, compacted, new_usage} = AI.Completion.Compaction.compact(msgs)
+
+    %{state | messages: compacted, usage: new_usage, is_compacting?: true}
+    |> send_request()
   end
 
   defp handle_response({:error, :context_length_exceeded, usage}, _state) do

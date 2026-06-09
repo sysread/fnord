@@ -1,5 +1,4 @@
 defmodule Timed do
-  require Logger
 
   def timed(name, fun) do
     {time_us, result} = :timer.tc(fun)

@@ -489,37 +489,30 @@ defmodule AI.Tools.Params do
         {:error, reason, msg}
 
       {:ok, norm} ->
-        case param_list(norm) do
-          {:error, reason, msg} ->
-            {:error, reason, msg}
+        props = norm.properties
 
-          {:ok, _list} ->
-            props = norm.properties
+        unknown_keys =
+          args_map
+          |> Map.keys()
+          |> Enum.map(&to_string/1)
+          |> Enum.filter(fn k -> not Map.has_key?(props, k) end)
 
-            unknown_keys =
-              args_map
-              |> Map.keys()
-              |> Enum.map(&to_string/1)
-              |> Enum.filter(fn k -> not Map.has_key?(props, k) end)
+        if unknown_keys != [] do
+          {:error, :unknown_prefill_keys, "unknown prefilled keys: #{inspect(unknown_keys)}"}
+        else
+          Enum.reduce_while(Map.to_list(args_map), {:ok, %{}}, fn {k, v}, {:ok, acc} ->
+            name = to_string(k)
+            schema = Map.fetch!(props, name)
 
-            if unknown_keys != [] do
-              {:error, :unknown_prefill_keys, "unknown prefilled keys: #{inspect(unknown_keys)}"}
-            else
-              Enum.reduce_while(Map.to_list(args_map), {:ok, %{}}, fn {k, v}, {:ok, acc} ->
-                name = to_string(k)
-                schema = Map.fetch!(props, name)
+            case validate_and_coerce_param(schema, v) do
+              {:ok, coerced} ->
+                {:cont, {:ok, Map.put(acc, name, coerced)}}
 
-                case validate_and_coerce_param(schema, v) do
-                  {:ok, coerced} ->
-                    {:cont, {:ok, Map.put(acc, name, coerced)}}
-
-                  {:error, reason, msg} ->
-                    {:halt,
-                     {:error, :invalid_prefill,
-                      "prefilled key #{name}: #{inspect({reason, msg})}"}}
-                end
-              end)
+              {:error, reason, msg} ->
+                {:halt,
+                 {:error, :invalid_prefill, "prefilled key #{name}: #{inspect({reason, msg})}"}}
             end
+          end)
         end
     end
   end
@@ -544,18 +537,12 @@ defmodule AI.Tools.Params do
         {:error, reason, msg}
 
       {:ok, norm} ->
-        case param_list(norm) do
-          {:error, reason, msg} ->
-            {:error, reason, msg}
+        missing = Enum.filter(norm.required, fn key -> not Map.has_key?(args_map, key) end)
 
-          {:ok, _} ->
-            missing = Enum.filter(norm.required, fn key -> not Map.has_key?(args_map, key) end)
-
-            if missing != [] do
-              {:error, {:missing_required, missing}}
-            else
-              validate_prefilled_args(norm, args_map)
-            end
+        if missing != [] do
+          {:error, {:missing_required, missing}}
+        else
+          validate_prefilled_args(norm, args_map)
         end
     end
   end

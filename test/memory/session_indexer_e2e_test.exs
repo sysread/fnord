@@ -54,7 +54,6 @@ defmodule Memory.SessionIndexerE2ETest do
           {:ok, mem} ->
             case Memory.save(mem) do
               {:ok, saved} -> {:ok, saved}
-              :ok -> {:ok, mem}
               {:error, reason} -> {:error, reason}
             end
 
@@ -345,7 +344,6 @@ defmodule Memory.SessionIndexerE2ETest do
           {:ok, mem} ->
             case Memory.save(mem) do
               {:ok, saved} -> {:ok, saved}
-              :ok -> {:ok, mem}
               {:error, reason} -> {:error, reason}
             end
 
@@ -450,7 +448,6 @@ defmodule Memory.SessionIndexerE2ETest do
           {:ok, mem} ->
             case Memory.save(mem) do
               {:ok, saved} -> {:ok, saved}
-              :ok -> {:ok, mem}
               {:error, reason} -> {:error, reason}
             end
 

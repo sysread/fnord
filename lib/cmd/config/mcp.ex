@@ -129,9 +129,7 @@ defmodule Cmd.Config.MCP do
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
-  @spec parse_kv_list(nil | [String.t()]) :: map()
-  defp parse_kv_list(nil), do: %{}
-
+  @spec parse_kv_list([String.t()]) :: map()
   defp parse_kv_list(list) when is_list(list) do
     Enum.reduce(list, %{}, fn kv, acc ->
       case String.split(kv, "=", parts: 2) do

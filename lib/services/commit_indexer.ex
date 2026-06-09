@@ -86,15 +86,14 @@ defmodule Services.CommitIndexer do
   def handle_continue(:process_next, %{task: nil, project: project} = state)
       when not is_nil(project) do
     if GitCli.is_git_repo_at?(Store.Project.original_source_root()) do
-      case state.candidates do
-        [commit | rest] ->
-          case start_commit_task(commit, %{state | candidates: rest}) do
-            {:noreply, new_state} -> {:noreply, new_state}
-            other -> other
-          end
+      # The empty-candidates state is peeled off by the earlier
+      # `%{task: nil, candidates: []}` clause, so by here there is always at
+      # least one commit to process.
+      [commit | rest] = state.candidates
 
-        [] ->
-          {:stop, :normal, state}
+      case start_commit_task(commit, %{state | candidates: rest}) do
+        {:noreply, new_state} -> {:noreply, new_state}
+        other -> other
       end
     else
       {:stop, :normal, state}

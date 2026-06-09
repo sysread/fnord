@@ -262,11 +262,6 @@ defmodule UI.Queue do
     {:noreply, drain(st)}
   end
 
-  def handle_call({:log, level, chardata, md}, _from, %{busy: true, paused_logs: true} = st) do
-    st2 = buffer_log(st, {level, chardata, md})
-    {:reply, :ok, st2}
-  end
-
   def handle_call({:log, level, chardata, md}, from, %{busy: true} = st) do
     {:noreply, enqueue(:q, {from, {:log, level, chardata, md}}, st)}
   end

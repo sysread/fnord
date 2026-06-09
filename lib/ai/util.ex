@@ -323,8 +323,6 @@ defmodule AI.Util do
     end
   end
 
-  defp validate_text_length(text), do: text
-
   # ---------------------------------------------------------------------------
   # Project context - shared preamble for any agent that needs to know where
   # files live. The coordinator gets this via $$PROJECT$$ and $$GIT_INFO$$

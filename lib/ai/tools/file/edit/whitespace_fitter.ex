@@ -200,8 +200,6 @@ defmodule AI.Tools.File.Edit.WhitespaceFitter do
   end
 
   @spec pick_space_width([non_neg_integer]) :: pos_integer
-  defp pick_space_width([]), do: 2
-
   defp pick_space_width(counts) do
     counts
     |> Enum.filter(&(&1 > 0))
@@ -246,23 +244,18 @@ defmodule AI.Tools.File.Edit.WhitespaceFitter do
     end
   end
 
-  @spec indent_level(non_neg_integer, indent_style) :: non_neg_integer
+  # indent_level/2 and indent_string/2 serve the tab path only. fit/4 re-bases
+  # space indentation inline (exact column counts), so only the `:tabs` style
+  # ever reaches these, which quantize visual columns into whole tab stops.
+  @spec indent_level(non_neg_integer, %{type: :tabs, width: pos_integer}) :: non_neg_integer
   defp indent_level(cols, %{type: :tabs}) do
     # Convert from visual columns back to a logical tab count. We currently
     # treat each tab as @tab_width visual columns in visual_width/1.
     div(cols + @tab_width - 1, @tab_width)
   end
 
-  defp indent_level(cols, %{type: :spaces, width: w}) when w > 0 do
-    div(cols + w - 1, w)
-  end
-
-  @spec indent_string(non_neg_integer, indent_style) :: String.t()
+  @spec indent_string(non_neg_integer, %{type: :tabs, width: pos_integer}) :: String.t()
   defp indent_string(level, %{type: :tabs}) when level >= 0 do
     String.duplicate("\t", level)
-  end
-
-  defp indent_string(level, %{type: :spaces, width: w}) when level >= 0 do
-    String.duplicate(" ", level * w)
   end
 end

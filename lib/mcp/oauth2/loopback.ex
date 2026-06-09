@@ -10,7 +10,6 @@ defmodule MCP.OAuth2.Loopback do
   """
 
   use GenServer
-  require Logger
 
   @type t :: %{
           server_ref: pid(),
