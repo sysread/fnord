@@ -143,3 +143,35 @@ run sequentially after all async tools complete.
 operations in git repos. In a git repo, edits must target a worktree (either
 fnord-managed or user-supplied via `-W`). Returns an error instructing the LLM
 to create a worktree first if no override is set.
+
+## cmd_tool output filtering via lowfat
+
+`AI.Tools.Cmd` optionally routes command execution through
+[lowfat](https://github.com/zdk/lowfat), a user-installed CLI that strips noise
+from command output to save model tokens. lowfat is an *exec wrapper*
+(`lowfat <cmd> <args...>`): it spawns the command itself, captures the output,
+and filters it by the command's basename. It has no mode to filter
+already-captured output, so fnord hands it the command to run rather than
+post-processing.
+
+`maybe_wrap_lowfat/4` (`lib/ai/tools/cmd.ex`) sits between `run_pipeline/5` and
+`shell_out/4`. After commands are resolved to absolute paths, an eligible
+command is rewritten to `%{"command" => lowfat_path, "args" => [resolved | args]}`.
+lowfat routes by basename, so the absolute path still matches its filters while
+fnord keeps its own resolution guarantees.
+
+Eligibility (`lowfat_eligible?/3`) requires both:
+
+- **empty stdin** (`input == nil`) -- lowfat runs the child with a closed
+  stdin, so a stage that consumes stdin cannot be wrapped.
+- **output reaches the model** -- every `&&` step is accumulated and returned,
+  but in a `|` pipeline only the final stage's output does.
+
+This wraps sole commands, every `&&` step, and the single-command `|` case, but
+never a true `|` stage. The wrap is auto-on whenever `lowfat` is on `PATH`; set
+`FNORD_NO_LOWFAT=1` to disable. fnord does not set `LOWFAT_LEVEL` or otherwise
+configure lowfat -- the user's own lowfat config governs level and filters.
+Commands the model issues as `lowfat ...` are not double-wrapped.
+
+Approvals are unaffected: `Services.Approvals.confirm(:shell)` runs on the
+original, unresolved commands before resolution and wrapping.

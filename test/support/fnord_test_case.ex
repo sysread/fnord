@@ -91,6 +91,15 @@ defmodule Fnord.TestCase do
       end
 
       setup do
+        # Disable lowfat output-filtering by default so cmd_tool tests observe
+        # raw command output regardless of whether `lowfat` is installed on the
+        # machine running the suite. The dedicated lowfat test opts back in.
+        Util.Env.put_env("FNORD_NO_LOWFAT", "1")
+        on_exit(fn -> System.delete_env("FNORD_NO_LOWFAT") end)
+        :ok
+      end
+
+      setup do
         # Silence git's default-branch advice during tests and prefer 'main'
         # These environment variables affect git subprocesses spawned by System.cmd/3
         Util.Env.put_env("GIT_CONFIG_COUNT", "2")

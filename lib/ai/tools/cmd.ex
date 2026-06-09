@@ -687,9 +687,12 @@ defmodule AI.Tools.Cmd do
         "&&" -> nil
       end
 
+    # Report the real command, not the lowfat-wrapped form: the wrapper is an
+    # output-filtering transport detail the user does not need to see.
     UI.report_step("Executing command", format_command(command))
 
     command
+    |> maybe_wrap_lowfat(op, rest, input)
     |> shell_out(timeout_ms, root, input)
     |> case do
       {:error, :timeout} ->
@@ -731,6 +734,61 @@ defmodule AI.Tools.Cmd do
          Output:
          #{out}
          """}
+    end
+  end
+
+  # ----------------------------------------------------------------------------
+  # lowfat output filtering
+  #
+  # lowfat (https://github.com/zdk/lowfat) is an optional, user-installed CLI
+  # that trims noise from command output to save model tokens. It is an *exec
+  # wrapper*: `lowfat <cmd> <args...>` spawns the command itself, captures its
+  # output, and filters by the command's basename. There is no mode to filter
+  # already-captured output, so fnord must hand it the command to run.
+  #
+  # Two of lowfat's properties bound where we may apply it:
+  #   - It runs the child with a closed stdin, so any step that consumes stdin
+  #     (a '|' pipe stage) cannot be wrapped without breaking the command.
+  #   - It is lossy by design, so only output destined for the *model* may be
+  #     filtered; output feeding the next pipeline stage must stay raw.
+  #
+  # Eligibility (`lowfat_eligible?/3`) is the conjunction of both rules:
+  #   - stdin is empty: `input == nil`
+  #   - output reaches the model: every stage of an '&&' sequence is accumulated
+  #     and returned, but in a '|' pipeline only the final stage's output does.
+  # So: wrap iff `input == nil and (op == "&&" or rest == [])`. This wraps sole
+  # commands and '&&' steps, and the single-command '|' case, but never a true
+  # '|' stage (a non-final stage feeds the pipe raw; the final stage of a
+  # multi-stage pipe receives stdin, which lowfat would close).
+  #
+  # The wrap is auto-on whenever `lowfat` is on PATH; set FNORD_NO_LOWFAT=1 to
+  # disable. fnord does not configure lowfat's level or filters; the user's own
+  # lowfat config wins.
+  # ----------------------------------------------------------------------------
+  defp maybe_wrap_lowfat(%{"command" => cmd, "args" => args} = command, op, rest, input) do
+    with true <- lowfat_eligible?(op, rest, input),
+         false <- already_lowfat?(cmd),
+         path when is_binary(path) <- lowfat_exe() do
+      %{"command" => path, "args" => [cmd | args]}
+    else
+      _ -> command
+    end
+  end
+
+  defp lowfat_eligible?(op, rest, nil), do: op == "&&" or rest == []
+  defp lowfat_eligible?(_op, _rest, _stdin), do: false
+
+  # Don't double-wrap when the model itself invokes lowfat.
+  defp already_lowfat?(cmd), do: Path.basename(cmd) == "lowfat"
+
+  # Resolve the lowfat executable, honoring the FNORD_NO_LOWFAT kill switch.
+  # Returns the absolute path or nil. Deliberately unmemoized: a single PATH
+  # lookup is negligible beside spawning the command it precedes.
+  defp lowfat_exe do
+    if Util.Env.looks_truthy?("FNORD_NO_LOWFAT") do
+      nil
+    else
+      System.find_executable("lowfat")
     end
   end
 

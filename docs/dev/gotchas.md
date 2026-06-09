@@ -428,3 +428,26 @@ The wire payload is built in `AI.CompletionAPI.build_tools/2`
 (`lib/ai/completion_api.ex`). Use the canonical `web_search` name;
 `web_search_preview` is the legacy form retained by OpenAI for backwards
 compatibility only.
+
+## 27. lowfat wrapping must never touch a stdin-consuming command
+
+`AI.Tools.Cmd` optionally wraps command execution with `lowfat` to filter
+output (see `docs/dev/tool-system.md`). lowfat is an exec wrapper that spawns
+the child with a **closed stdin** and is **lossy by design**. Both properties
+constrain where it may be applied:
+
+- A `|` pipeline stage receives data on stdin; wrapping it would feed the child
+  a closed stdin and break the command.
+- A non-final stage's output feeds the next command; filtering it would corrupt
+  the pipe. Only output that reaches the *model* may be filtered.
+
+`lowfat_eligible?/3` encodes this as `input == nil and (op == "&&" or rest == [])`.
+Anyone touching `run_pipeline/5` or `shell_out/4` must preserve the invariant:
+wrap only when stdin is empty **and** the output is the model-facing result.
+Wrapping a `|` stage is a correctness bug, not a perf regression - the command
+will silently misbehave.
+
+The kill switch is `FNORD_NO_LOWFAT=1`. The test suite sets it by default
+(`Fnord.TestCase`) so cmd_tool tests see raw output regardless of whether
+`lowfat` is installed; `test/ai/tools/cmd/lowfat_test.exs` opts back in with a
+PATH-prepended stub.
