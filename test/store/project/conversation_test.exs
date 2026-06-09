@@ -183,9 +183,12 @@ defmodule Store.Project.ConversationTest do
     timestamp = 99
     File.write!(convo.store_path, "#{timestamp}:" <> SafeJson.encode!(legacy_data))
 
-    # Create a directory at .tmp to cause migration write to fail
-    tmp_path = convo.store_path <> ".tmp"
-    File.mkdir_p!(tmp_path)
+    # Make the conversation directory unwritable so the heal's tmp-file write
+    # fails (tmp names are unique per writer, so there is no fixed path to
+    # block).
+    convo_dir = Path.dirname(convo.store_path)
+    File.chmod!(convo_dir, 0o555)
+    on_exit(fn -> File.chmod(convo_dir, 0o755) end)
 
     before_contents = File.read!(convo.store_path)
     # Ensure read/1 still succeeds

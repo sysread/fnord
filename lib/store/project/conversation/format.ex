@@ -39,7 +39,7 @@ defmodule Store.Project.Conversation.Format do
     * `tasks` map with bare lists or non-canonical statuses - healed by
       `Store.Project.Conversation.TaskListStatusMigration`.
     * `tool_calls[].function.arguments` stored as decoded maps instead of
-      JSON strings - re-encoded by `heal_tool_call_arguments/3` here. (See
+      JSON strings - re-encoded by `heal_tool_call_arguments/1` here. (See
       engram memory "Conversation file corruption - responses branch tool
       arguments" for the atom-table backstory.)
 
@@ -55,7 +55,10 @@ defmodule Store.Project.Conversation.Format do
   touched. Untouched v0 files stay v0 indefinitely (read-only paths don't
   rewrite them).
 
-  v1 files don't carry the legacy shapes and skip the heal passes entirely.
+  v1 files skip the heal passes entirely. Note that a heal-produced v1 file
+  preserves its legacy message shapes verbatim (only the broken fields are
+  repaired), so v1 content can still contain assistant-with-`tool_calls`
+  messages - `hydrate_message/1` handles those regardless of file version.
   """
 
   alias Store.Project.Conversation
@@ -172,10 +175,11 @@ defmodule Store.Project.Conversation.Format do
 
   # --------------------------------------------------------------------------
   # v1 parser - pure JSON object with `version: 1` and `timestamp: <unix>`
-  # at the top level. v1 files don't carry the v0 legacy shapes, so the
-  # heal passes are not applied. (If a v1 file is ever observed with a
-  # stale shape, the existing pattern is to add an explicit migrator in
-  # this namespace rather than re-running the v0 heals.)
+  # at the top level. The v0 heal passes are not applied; a heal-produced v1
+  # file may still carry legacy message shapes verbatim, which hydration
+  # handles regardless of version. (If a v1 file is ever observed with a
+  # shape that needs repair, the existing pattern is to add an explicit
+  # migrator in this namespace rather than re-running the v0 heals.)
   # --------------------------------------------------------------------------
 
   defp parse_v1(contents, _conversation) do
@@ -410,10 +414,10 @@ defmodule Store.Project.Conversation.Format do
   @doc """
   Shared heal-persistence path: write a healed v0 conversation back as v1.
 
-  Used by both heal passes (`heal_tool_call_arguments/3` in this module and
-  `TaskListStatusMigration.heal_and_maybe_write/3`) so the on-disk format
-  after any heal is deterministically v1 - not "whichever pass happened to
-  fire last."
+  Called once by `parse_v0/2` after composing the pure heal passes
+  (`TaskListStatusMigration.heal/1` and `heal_tool_call_arguments/1` here),
+  so the on-disk format after any heal is deterministically v1 - not
+  "whichever pass happened to fire last."
 
   Why heal forward to v1 rather than re-emit v0:
     1. The writer is at v1; emitting fresh v0 would create new legacy files.
@@ -470,7 +474,14 @@ defmodule Store.Project.Conversation.Format do
   defp normalize_for_wire(data) when is_map(data), do: data
 
   defp atomic_write(conversation, json, source) do
-    tmp = conversation.store_path <> ".tmp"
+    # The tmp name is unique per writer: two fnord processes can touch the
+    # same conversation concurrently (a session save racing a heal-on-read
+    # from a background indexer or a sibling worktree). A shared "<path>.tmp"
+    # would let their writes interleave; per-writer names confine the race to
+    # the final rename, which is atomic. OS pid + unique_integer covers both
+    # cross-VM and within-VM writers.
+    tmp =
+      "#{conversation.store_path}.tmp.#{System.pid()}.#{:erlang.unique_integer([:positive])}"
 
     with :ok <- File.write(tmp, json),
          :ok <- File.rename(tmp, conversation.store_path) do

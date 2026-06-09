@@ -48,8 +48,8 @@ defmodule Store.Project.Conversation.FormatTest do
     end
   end
 
-  describe "read/1 v0 path (existing format)" do
-    test "round-trips a written v0 conversation", ctx do
+  describe "read/1 round-trip through the current writer" do
+    test "round-trips a written conversation (v1 on disk)", ctx do
       convo = Conversation.new("rt_v0", ctx.project)
 
       data = %{
@@ -67,11 +67,10 @@ defmodule Store.Project.Conversation.FormatTest do
     end
   end
 
-  describe "read/1 v1 path (forward-facing format)" do
-    # No writer emits v1 yet - we hand-roll a v1 file on disk to verify the
-    # reader handles it. Cross-worktree safety relies on this: an older
-    # worktree with this build must be able to parse a v1 file written by a
-    # future build.
+  describe "read/1 v1 path" do
+    # Hand-roll a v1 file on disk to verify the reader handles it
+    # independently of the writer. Cross-worktree safety relies on this: a
+    # build must be able to parse a v1 file written by any other build.
 
     test "parses a hand-rolled v1 conversation", ctx do
       convo = Conversation.new("rt_v1", ctx.project)
@@ -206,6 +205,16 @@ defmodule Store.Project.Conversation.FormatTest do
       healed_list = decoded["tasks"]["list-1"]
       assert healed_list["status"] == "planning"
       assert [%{"id" => "t1", "data" => "do the thing"}] = healed_list["tasks"]
+
+      # The healed v1 file preserves the legacy assistant-with-tool_calls
+      # shape verbatim; re-reading must hydrate it the same way the v0 path
+      # does (fan out into FunctionCall structs).
+      assert {:ok, reread} = Format.read(convo)
+
+      assert [%AI.Message.FunctionCall{call_id: "c1", name: "search", arguments: args}] =
+               reread.messages
+
+      assert args =~ "foo"
     end
 
     test "clean v0 file with already-canonical tasks does not trigger a heal-write", ctx do
