@@ -63,6 +63,16 @@ md-format: ## Format markdown files
 format: ## Format the code
 	mix format
 
+# Deliberately NOT a dependency of release/publish: an aborted publish must
+# not leave a bump commit behind. Run as `make bump && make release`.
+.PHONY: bump
+bump: ## Bump the patch version in mix.exs and commit it as "version bump"
+	@test -z "$$(git status --porcelain)" || (printf "!! Working tree is not clean\n!! Commit or stash first\n\n" >&2 && exit 1)
+	@perl -i -pe 's/version: "\K(\d+)\.(\d+)\.(\d+)/"$$1.$$2." . ($$3 + 1)/e' mix.exs
+	@git add mix.exs
+	@git commit --quiet -m "version bump"
+	@printf "Bumped to %s\n" "$$(perl -ne 'print $$1 if /version: "([^"]+)"/' mix.exs)"
+
 .PHONY: release
 release: publish ## Alias for publish because apparently this is what my fingers' muscle memory prefers
 
