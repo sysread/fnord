@@ -36,8 +36,18 @@ docs: md-lint ## Generate documentation
 	mix docs
 	@echo
 
+# Builds the docs purely to surface ExDoc autolink failures (broken
+# `Mod.fun/arity` references in @doc/@moduledoc strings). These are invisible
+# to compile/test/dialyzer - only the doc generator resolves them - so without
+# this the only gate is CI's "build docs" step. `--warnings-as-errors` makes
+# ExDoc exit non-zero on any warning, mirroring that CI step locally.
+.PHONY: docs-check
+docs-check: ## Build docs, failing on any ExDoc warning (autolink check)
+	MIX_ENV=dev mix docs --warnings-as-errors
+	@echo
+
 .PHONY: check
-check: compile test dialyzer md-lint ## Run all checks
+check: compile test dialyzer md-lint docs-check ## Run all checks
 	@echo "All checks passed"
 
 .PHONY: md-lint
