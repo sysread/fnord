@@ -181,6 +181,34 @@ defmodule MCP.OAuth2.BridgeTest do
              MCP.OAuth2.Bridge.authorization_header("srv1", cfg(), refresh_margin: 120)
   end
 
+  test "refresh threads the server base_url through as the RFC 8707 resource" do
+    now = System.os_time(:second)
+
+    cfg_with_base = Map.put(cfg(), "base_url", "https://mcp.example.com/mcp")
+
+    :meck.expect(MCP.OAuth2.CredentialsStore, :read, fn "srv1" ->
+      {:ok, %{"access_token" => "old", "refresh_token" => "rt", "expires_at" => now + 10}}
+    end)
+
+    :meck.expect(MCP.OAuth2.Client, :refresh_token, fn oauth_cfg, "rt" ->
+      assert oauth_cfg[:resource] == "https://mcp.example.com/mcp"
+
+      {:ok,
+       %{
+         access_token: "new",
+         refresh_token: "rt",
+         token_type: "Bearer",
+         expires_at: now + 3600,
+         scope: "openid"
+       }}
+    end)
+
+    :meck.expect(MCP.OAuth2.CredentialsStore, :write, fn "srv1", _ -> :ok end)
+
+    assert {:ok, [{"authorization", "Bearer new"}]} =
+             MCP.OAuth2.Bridge.authorization_header("srv1", cfg_with_base, refresh_margin: 120)
+  end
+
   test "refresh prefers explicit redirect_uri over redirect_port" do
     now = System.os_time(:second)
 

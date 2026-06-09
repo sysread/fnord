@@ -50,13 +50,17 @@ defmodule MCP.OAuth2.Bridge do
           nil
       end
 
-    # Build OAuth config for refresh - need discovery_url, client_id, optional client_secret
+    # Build OAuth config for refresh - need discovery_url, client_id, optional
+    # client_secret. The RFC 8707 resource indicator (the MCP server's own
+    # URL) rides along so refreshed tokens stay bound to the same resource
+    # the original grant was issued for.
     oauth_cfg =
       %{
         discovery_url: oauth["discovery_url"],
         client_id: oauth["client_id"],
         client_secret: oauth["client_secret"],
-        scopes: Map.get(oauth, "scopes", [])
+        scopes: Map.get(oauth, "scopes", []),
+        resource: Map.get(cfg, "base_url")
       }
       |> maybe_put_redirect(redirect_uri)
 

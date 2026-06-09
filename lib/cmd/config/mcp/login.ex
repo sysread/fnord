@@ -105,7 +105,7 @@ defmodule Cmd.Config.MCP.Login do
     end
   end
 
-  defp fetch_oauth(%{"oauth" => oauth}) when is_map(oauth) do
+  defp fetch_oauth(%{"oauth" => oauth} = srv_cfg) when is_map(oauth) do
     with discovery when is_binary(discovery) <- Map.get(oauth, "discovery_url"),
          client_id when is_binary(client_id) <- Map.get(oauth, "client_id"),
          scopes when is_list(scopes) <- Map.get(oauth, "scopes") do
@@ -113,7 +113,11 @@ defmodule Cmd.Config.MCP.Login do
         discovery_url: discovery,
         client_id: client_id,
         client_secret: Map.get(oauth, "client_secret"),
-        scopes: scopes
+        scopes: scopes,
+        # RFC 8707 resource indicator: the MCP server's own URL. Servers
+        # like Linear bind the grant to this and reject flows without it.
+        # nil for non-http transports; the Client omits the param then.
+        resource: Map.get(srv_cfg, "base_url")
       }
 
       # Include redirect_port if present (for exact URI matching with OAuth provider)
@@ -132,8 +136,13 @@ defmodule Cmd.Config.MCP.Login do
 
   defp fetch_oauth(_), do: {:error, {:oauth_missing, "No OAuth config for this server"}}
 
+  # The token exchange must present the byte-identical redirect_uri used on
+  # the authorization request (RFC 6749 §4.1.3). The adapter and dynamic
+  # registration both use the `localhost` host form, so the exchange must
+  # too - `127.0.0.1` here would be rejected as a redirect_uri mismatch even
+  # though both resolve to the same loopback.
   defp await_callback(oauth, base_url, server, state, verifier, port, timeout_ms) do
-    cfg = Map.put(oauth, :redirect_uri, "http://127.0.0.1:#{port}/callback")
+    cfg = Map.put(oauth, :redirect_uri, "http://localhost:#{port}/callback")
     MCP.OAuth2.Loopback.run(cfg, base_url, server, state, verifier, port, timeout_ms)
   end
 

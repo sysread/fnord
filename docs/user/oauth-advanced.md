@@ -128,6 +128,14 @@ At a high level:
    - Reuse the refresh token when the provider issued one
    - Persist updated credentials after refresh
 
+### Resource indicators (RFC 8707)
+
+The MCP authorization spec requires clients to identify which server a
+token is for. Fnord sends the server's configured `base_url` as the
+`resource` parameter on the authorization request, the token exchange,
+and refreshes. Servers that enforce this (e.g. Linear) reject flows
+that omit it; servers that predate it ignore the extra parameter.
+
 ### PKCE
 
 Fnord always uses PKCE with the S256 challenge method.

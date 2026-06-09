@@ -10,6 +10,15 @@ defmodule MCP.OAuth2.Client do
   - Authorization Code flow with PKCE (RFC 7636)
   - Token refresh (RFC 6749)
   - OAuth2 server metadata discovery (RFC 8414)
+  - Resource Indicators (RFC 8707) via the optional `:resource` config key
+
+  The MCP authorization spec requires clients to send the canonical MCP
+  server URI as the `resource` parameter on both the authorization and
+  token requests so the server can bind the grant to that resource.
+  Servers that advertise a `resource` in their metadata (e.g. Linear)
+  hard-fail flows that omit it. Callers pass the server's `base_url` as
+  `:resource`; when absent the parameter is omitted for compatibility
+  with servers that predate RFC 8707.
 
   Security:
   - PKCE is always required (S256 challenge method)
@@ -22,7 +31,8 @@ defmodule MCP.OAuth2.Client do
           required(:client_id) => String.t(),
           optional(:client_secret) => String.t(),
           required(:redirect_uri) => String.t(),
-          required(:scopes) => [String.t()]
+          required(:scopes) => [String.t()],
+          optional(:resource) => String.t()
         }
 
   @type tokens :: %{
@@ -145,18 +155,31 @@ defmodule MCP.OAuth2.Client do
   defp build_authorization_url(metadata, cfg, state, challenge) do
     auth_endpoint = metadata["authorization_endpoint"]
 
-    params = %{
-      "response_type" => "code",
-      "client_id" => cfg.client_id,
-      "redirect_uri" => cfg.redirect_uri,
-      "scope" => Enum.join(cfg.scopes, " "),
-      "state" => state,
-      "code_challenge" => challenge,
-      "code_challenge_method" => "S256"
-    }
+    params =
+      %{
+        "response_type" => "code",
+        "client_id" => cfg.client_id,
+        "redirect_uri" => cfg.redirect_uri,
+        "scope" => Enum.join(cfg.scopes, " "),
+        "state" => state,
+        "code_challenge" => challenge,
+        "code_challenge_method" => "S256"
+      }
+      |> Map.merge(resource_param(cfg))
 
     query = URI.encode_query(params)
     {:ok, "#{auth_endpoint}?#{query}"}
+  end
+
+  # RFC 8707 resource indicator. Present on the authorization request, the
+  # code exchange, AND the refresh request - the MCP spec requires it on all
+  # three so each issued token stays bound to the same resource. Omitted
+  # entirely when the caller didn't configure one (pre-RFC 8707 servers).
+  defp resource_param(cfg) do
+    case Map.get(cfg, :resource) do
+      resource when is_binary(resource) and resource != "" -> %{"resource" => resource}
+      _ -> %{}
+    end
   end
 
   # -- State Verification --
@@ -182,13 +205,15 @@ defmodule MCP.OAuth2.Client do
   defp exchange_code(metadata, cfg, code, code_verifier) do
     token_endpoint = metadata["token_endpoint"]
 
-    body_params = %{
-      "grant_type" => "authorization_code",
-      "code" => code,
-      "redirect_uri" => cfg.redirect_uri,
-      "client_id" => cfg.client_id,
-      "code_verifier" => code_verifier
-    }
+    body_params =
+      %{
+        "grant_type" => "authorization_code",
+        "code" => code,
+        "redirect_uri" => cfg.redirect_uri,
+        "client_id" => cfg.client_id,
+        "code_verifier" => code_verifier
+      }
+      |> Map.merge(resource_param(cfg))
 
     # Add client_secret if provided (confidential client)
     body_params =
@@ -206,11 +231,13 @@ defmodule MCP.OAuth2.Client do
   defp refresh_with_server(metadata, cfg, refresh_token) do
     token_endpoint = metadata["token_endpoint"]
 
-    body_params = %{
-      "grant_type" => "refresh_token",
-      "refresh_token" => refresh_token,
-      "client_id" => cfg.client_id
-    }
+    body_params =
+      %{
+        "grant_type" => "refresh_token",
+        "refresh_token" => refresh_token,
+        "client_id" => cfg.client_id
+      }
+      |> Map.merge(resource_param(cfg))
 
     # Add client_secret if provided
     body_params =

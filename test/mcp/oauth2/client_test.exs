@@ -53,6 +53,55 @@ defmodule MCP.OAuth2.ClientTest do
       assert byte_size(verifier) > 0
     end
 
+    test "includes the RFC 8707 resource parameter when configured" do
+      cfg = %{
+        discovery_url: "https://example.com/.well-known/oauth-authorization-server",
+        client_id: "test-client",
+        scopes: ["read"],
+        redirect_uri: "http://localhost:3000/callback",
+        resource: "https://example.com/mcp"
+      }
+
+      metadata = %{
+        "issuer" => "https://example.com",
+        "authorization_endpoint" => "https://example.com/authorize",
+        "token_endpoint" => "https://example.com/token"
+      }
+
+      :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
+        {:ok, %{status_code: 200, body: SafeJson.encode!(metadata)}}
+      end)
+
+      assert {:ok, %{auth_url: auth_url}} = MCP.OAuth2.Client.start_flow(cfg)
+
+      %{query: query} = URI.parse(auth_url)
+      assert URI.decode_query(query)["resource"] == "https://example.com/mcp"
+    end
+
+    test "omits the resource parameter when not configured" do
+      cfg = %{
+        discovery_url: "https://example.com/.well-known/oauth-authorization-server",
+        client_id: "test-client",
+        scopes: ["read"],
+        redirect_uri: "http://localhost:3000/callback"
+      }
+
+      metadata = %{
+        "issuer" => "https://example.com",
+        "authorization_endpoint" => "https://example.com/authorize",
+        "token_endpoint" => "https://example.com/token"
+      }
+
+      :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
+        {:ok, %{status_code: 200, body: SafeJson.encode!(metadata)}}
+      end)
+
+      assert {:ok, %{auth_url: auth_url}} = MCP.OAuth2.Client.start_flow(cfg)
+
+      %{query: query} = URI.parse(auth_url)
+      refute Map.has_key?(URI.decode_query(query), "resource")
+    end
+
     test "returns error when discovery fails" do
       cfg = %{
         discovery_url: "https://example.com/.well-known/oauth-authorization-server",
@@ -107,6 +156,49 @@ defmodule MCP.OAuth2.ClientTest do
       assert tokens.access_token == "access-123"
       assert tokens.token_type == "Bearer"
       assert is_integer(tokens.expires_at)
+    end
+
+    test "token exchange carries the resource parameter when configured" do
+      cfg = %{
+        discovery_url: "https://example.com/.well-known/oauth-authorization-server",
+        client_id: "test-client",
+        scopes: ["read"],
+        redirect_uri: "http://localhost:3000/callback",
+        resource: "https://example.com/mcp"
+      }
+
+      metadata = %{
+        "issuer" => "https://example.com",
+        "authorization_endpoint" => "https://example.com/authorize",
+        "token_endpoint" => "https://example.com/token"
+      }
+
+      token_response = %{
+        "access_token" => "access-123",
+        "token_type" => "Bearer",
+        "expires_in" => 3600
+      }
+
+      :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
+        {:ok, %{status_code: 200, body: SafeJson.encode!(metadata)}}
+      end)
+
+      # Surface the form-encoded POST body to the test pid; asserting inside
+      # the meck callback would be swallowed by the call site.
+      test_pid = self()
+
+      :meck.expect(HTTPoison, :post, fn _url, body, _headers, _opts ->
+        send(test_pid, {:token_request_body, body})
+        {:ok, %{status_code: 200, body: SafeJson.encode!(token_response)}}
+      end)
+
+      params = %{"code" => "auth-code", "state" => "test-state"}
+
+      assert {:ok, _tokens} =
+               MCP.OAuth2.Client.handle_callback(cfg, params, "test-state", "verifier")
+
+      assert_receive {:token_request_body, body}
+      assert URI.decode_query(body)["resource"] == "https://example.com/mcp"
     end
 
     test "returns error when state mismatch" do
@@ -167,6 +259,42 @@ defmodule MCP.OAuth2.ClientTest do
 
       assert tokens.access_token == "new-access-123"
       assert tokens.refresh_token == "new-refresh-123"
+    end
+
+    test "refresh carries the resource parameter when configured" do
+      cfg = %{
+        discovery_url: "https://example.com/.well-known/oauth-authorization-server",
+        client_id: "test-client",
+        resource: "https://example.com/mcp"
+      }
+
+      metadata = %{
+        "issuer" => "https://example.com",
+        "authorization_endpoint" => "https://example.com/authorize",
+        "token_endpoint" => "https://example.com/token"
+      }
+
+      token_response = %{
+        "access_token" => "new-access-123",
+        "token_type" => "Bearer",
+        "expires_in" => 3600
+      }
+
+      :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
+        {:ok, %{status_code: 200, body: SafeJson.encode!(metadata)}}
+      end)
+
+      test_pid = self()
+
+      :meck.expect(HTTPoison, :post, fn _url, body, _headers, _opts ->
+        send(test_pid, {:token_request_body, body})
+        {:ok, %{status_code: 200, body: SafeJson.encode!(token_response)}}
+      end)
+
+      assert {:ok, _tokens} = MCP.OAuth2.Client.refresh_token(cfg, "old-refresh-token")
+
+      assert_receive {:token_request_body, body}
+      assert URI.decode_query(body)["resource"] == "https://example.com/mcp"
     end
   end
 end
