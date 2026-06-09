@@ -20,20 +20,14 @@ defmodule MCP.Transport do
 
   def map(server, %{"transport" => "http"} = cfg) do
     headers = merge_oauth_header(server, cfg, cfg["headers"] || %{})
+    {base_url, mcp_path} = split_endpoint(cfg)
 
-    opts = [
-      base_url: cfg["base_url"],
-      headers: headers
-    ]
-
-    # Add optional mcp_path if specified (default is "/mcp" in Hermes)
-    opts =
-      case Map.get(cfg, "mcp_path") do
-        path when is_binary(path) -> Keyword.put(opts, :mcp_path, path)
-        _ -> opts
-      end
-
-    {:streamable_http, opts}
+    {:streamable_http,
+     [
+       base_url: base_url,
+       mcp_path: mcp_path,
+       headers: headers
+     ]}
   end
 
   def map(server, %{"transport" => "websocket"} = cfg) do
@@ -74,6 +68,35 @@ defmodule MCP.Transport do
     """)
 
     raise ArgumentError, "Missing transport configuration for MCP server '#{server}'"
+  end
+
+  # Hermes builds the request URL as URI.append_path(base_url, mcp_path),
+  # with mcp_path defaulting to "/". A base_url that already carries the
+  # endpoint path (e.g. https://mcp.linear.app/mcp) would be mangled to
+  # ".../mcp/" - and servers route the trailing-slash form as a distinct,
+  # usually nonexistent, path. So: an explicit mcp_path passes through with
+  # Hermes's append semantics intact (base_url is the origin, mcp_path the
+  # endpoint); without one, the configured base_url is treated as the
+  # complete endpoint URL and split into origin + path so the request hits
+  # exactly the URL the user configured.
+  defp split_endpoint(cfg) do
+    base_url = cfg["base_url"]
+
+    case Map.get(cfg, "mcp_path") do
+      path when is_binary(path) ->
+        {base_url, path}
+
+      _ ->
+        uri = URI.parse(base_url)
+
+        case uri.path do
+          path when is_binary(path) and path != "" ->
+            {URI.to_string(%{uri | path: nil}), path}
+
+          _ ->
+            {base_url, "/"}
+        end
+    end
   end
 
   # Inject OAuth Authorization header if server has oauth config and valid credentials

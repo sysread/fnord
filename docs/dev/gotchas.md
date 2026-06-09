@@ -471,3 +471,45 @@ the symbol doesn't exist (e.g. it's a behaviour callback, not a function), the
 build fails. Reference callbacks with the `` `c:Mod.fun/arity` `` form. A
 wildcard like `` `AI.Tools.<*>.spec/0` `` is not a valid reference shape, so
 ExDoc leaves it alone - that is why such forms don't warn.
+
+## 29. MCP OAuth: redirect_uri must be byte-identical across the whole flow
+
+The OAuth redirect_uri appears in three requests: dynamic client
+registration (`MCP.OAuth2.Registration` via `Discovery`), the authorization
+request (`MCP.OAuth2.Adapter.Default`), and the token exchange
+(`Cmd.Config.MCP.Login.await_callback` -> `Client.exchange_code`). RFC 6749
+§4.1.3 requires the token-exchange value to match the authorization value
+**byte for byte** - `http://localhost:N/callback` and
+`http://127.0.0.1:N/callback` are a mismatch even though they hit the same
+loopback. fnord standardizes on the `localhost` host form at every site;
+anyone touching one site must keep all three in lockstep. (The loopback
+HTTP server itself binds `127.0.0.1` - that's the *bind address*, not the
+redirect_uri, and is unrelated.)
+
+Related: the MCP authorization spec layers RFC 8707 on OAuth 2.1 - the
+client must send `resource=<canonical MCP server URI>` on the authorization
+request, code exchange, and refresh. fnord threads the server's `base_url`
+into `MCP.OAuth2.Client` as the optional `:resource` config key
+(`Cmd.Config.MCP.Login.fetch_oauth` and `MCP.OAuth2.Bridge.refresh`).
+Servers like Linear hard-fail (opaque "internal error" page after consent)
+when it is missing; servers that predate RFC 8707 ignore it.
+
+## 30. MCP http transport: Hermes mangles a base_url that carries the path
+
+Hermes's StreamableHTTP transport computes the request URL as
+`URI.append_path(base_url, mcp_path)` with `mcp_path` defaulting to `"/"`
+(not `"/mcp"` as one might assume). A config whose `base_url` already
+contains the endpoint path - `https://mcp.linear.app/mcp` - therefore gets
+requested as `.../mcp/`, and servers route the trailing-slash form as a
+distinct (404) path. The failure is invisible in a normal session because
+`Services.MCP.discover_once/1` silently skips servers whose handshake
+fails - the server just doesn't appear in the `MCP tools:` startup line.
+`FNORD_DEBUG_MCP=1 fnord config mcp check` exposes the real URL and
+status code.
+
+`MCP.Transport.split_endpoint/1` prevents this: with an explicit
+`mcp_path` the Hermes append semantics apply (base_url = origin); without
+one, the configured base_url is split into origin + path so the request
+hits exactly the URL the user configured. Keep that contract in mind when
+touching transport config handling: "no mcp_path" means *the base_url IS
+the endpoint*, not "use a default path".

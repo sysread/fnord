@@ -116,9 +116,15 @@ The CLI exposes common options, but Hermes supports additional parameters for po
 
 Beyond `base_url` and `headers`, you can configure:
 
+**Endpoint URL:** when `mcp_path` is set, the request URL is
+`base_url` + `mcp_path` (base_url should be just the origin). Without
+`mcp_path`, fnord requests exactly the `base_url` you configured - so
+`https://mcp.linear.app/mcp` works as-is, with no path appended or
+trailing slash added.
+
 **Available options:**
 
-- `mcp_path` (string) - Custom MCP endpoint path (default: "/mcp")
+- `mcp_path` (string) - MCP endpoint path, appended to `base_url`
 - `enable_sse` (boolean) - Enable Server-Sent Events for server-initiated messages (default: false)
 - `transport_opts` (keyword list) - Underlying HTTP transport options
 - `http_options` (keyword list) - HTTP client configuration options
@@ -254,7 +260,8 @@ For HTTP servers, verify:
 
 - `base_url` is correct and accessible
 - Server is running and listening on specified port
-- `mcp_path` matches server's endpoint (default: "/mcp")
+- `mcp_path`, when set, matches the server's endpoint; without it the
+  `base_url` is requested verbatim
 
 For stdio servers, verify:
 
