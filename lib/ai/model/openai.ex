@@ -50,13 +50,13 @@ defmodule AI.Model.OpenAI do
   def gpt55(reasoning \\ :medium), do: AI.Model.new("gpt-5.5", 1_050_000, reasoning)
 
   @spec gpt54(atom) :: AI.Model.t()
-  def gpt54(_), do: AI.Model.new("gpt-5.4", 1_050_000, :none)
+  def gpt54(reasoning \\ :medium), do: AI.Model.new("gpt-5.4", 1_050_000, reasoning)
 
   @spec gpt54_mini(atom) :: AI.Model.t()
-  def gpt54_mini(_), do: AI.Model.new("gpt-5.4-mini", 400_000, :none)
+  def gpt54_mini(reasoning \\ :medium), do: AI.Model.new("gpt-5.4-mini", 400_000, reasoning)
 
   @spec gpt54_nano(atom) :: AI.Model.t()
-  def gpt54_nano(_), do: AI.Model.new("gpt-5.4-nano", 400_000, :none)
+  def gpt54_nano(reasoning \\ :medium), do: AI.Model.new("gpt-5.4-nano", 400_000, reasoning)
 
   @spec gpt41() :: AI.Model.t()
   def gpt41(), do: AI.Model.new("gpt-4.1", 1_000_000, :none)
