@@ -513,3 +513,21 @@ one, the configured base_url is split into origin + path so the request
 hits exactly the URL the user configured. Keep that contract in mind when
 touching transport config handling: "no mcp_path" means *the base_url IS
 the endpoint*, not "use a default path".
+
+## 31. UI.Queue queued interacts execute inside the queue process - nesting must not call back in
+
+`UI.Queue`'s queued interact path (`handle_call({:interact, fun}, ...)`)
+runs the fun inline in the queue's own process, and `exec/1` plants the
+interaction-context token in the queue process's pdict. A nested
+`UI.interact` from inside that fun therefore sees `in_ctx?` true and takes
+the fast path - which must not `GenServer.call` the queue (`:pause_logs`,
+or anything else): a call-to-self from within `handle_call` crashes with
+`:calling_self`. `interact/3` special-cases `to_pid(server) == self()` to
+a bare `exec/1`; no pause is needed there because the GenServer can't
+process concurrent `{:log, ...}` calls while it's busy executing the fun.
+This nesting is not exotic - `fnord frobs call` wraps its whole
+parameter-prompt loop in `UI.interact` and each per-parameter
+choose/prompt interacts again. The same constraint applies to any new
+GenServer.call-based coordination added to the fast path, and to UI
+helpers invoked from interact funs (e.g. a `UI.Queue.log` from inside a
+queued interact fun would hit the same wall - it has no self-call guard).

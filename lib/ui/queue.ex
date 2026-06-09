@@ -75,17 +75,29 @@ defmodule UI.Queue do
   # scribble over the active prompt. Without this, the fast-path leaves the
   # GenServer happily processing log messages while the inline interaction
   # blocks on stdin in a different process.
+  #
+  # One exception: when the caller IS the queue process. The queued handler
+  # (handle_call({:interact, ...})) executes funs inline via exec/1, which
+  # tokens the queue's own pdict - so a nested interact from within a queued
+  # fun lands here with in_ctx? true. No pause is needed (the GenServer can't
+  # process {:log, ...} calls while it's busy executing the fun), and a
+  # GenServer.call back into ourselves would crash with :calling_self.
   def interact(server \\ __MODULE__, fun, timeout \\ :infinity) when is_function(fun, 0) do
-    if in_ctx?(server) do
-      :ok = pause_logs(server, timeout)
+    cond do
+      not in_ctx?(server) ->
+        GenServer.call(server, {:interact, fun}, timeout)
 
-      try do
+      to_pid(server) == self() ->
         exec({:interact, fun})
-      after
-        :ok = unpause_logs(server, timeout)
-      end
-    else
-      GenServer.call(server, {:interact, fun}, timeout)
+
+      true ->
+        :ok = pause_logs(server, timeout)
+
+        try do
+          exec({:interact, fun})
+        after
+          :ok = unpause_logs(server, timeout)
+        end
     end
   end
 

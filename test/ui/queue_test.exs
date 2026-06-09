@@ -126,6 +126,25 @@ defmodule UI.Queue.Test do
     end
   end
 
+  describe "nested interact via the queued path" do
+    # The queued interact handler runs the fun inside the UI.Queue process
+    # itself, tokening the queue's own pdict - so a nested interact takes the
+    # in-context branch FROM the queue process. That branch must not
+    # GenServer.call back into the queue (:calling_self). This is the
+    # `fnord frobs call` shape: Cmd.Frobs.call_frob wraps the whole
+    # parameter-prompt loop in UI.interact, and each per-parameter
+    # choose/prompt is itself an interact.
+    test "an interact nested inside a queued interact runs inline" do
+      result =
+        UI.Queue.interact(fn ->
+          {:ok, inner} = UI.Queue.interact(fn -> :nested_ok end)
+          inner
+        end)
+
+      assert result == {:ok, :nested_ok}
+    end
+  end
+
   describe "error handling in interact/3" do
     test "if the fun raises, interact returns {:error, {exception, stack_trace}}" do
       {:error, {exc, stack}} =
