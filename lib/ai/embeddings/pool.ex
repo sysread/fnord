@@ -181,6 +181,15 @@ defmodule AI.Embeddings.Pool do
       pending: %{},
       next_id: 0,
       buffer: "",
+      # Flips true on the first well-formed protocol response. Until then the
+      # embed process is still in cold start - running `Mix.install`, compiling
+      # the EXLA NIF, and downloading model weights - and any non-JSON stdout it
+      # emits is build/compile progress, not a malfunction. See
+      # handle_response_line/2.
+      ready?: false,
+      # Ensures the one-time "setting up the embeddings backend" reassurance is
+      # shown at most once per cold start, instead of once per noisy build line.
+      cold_notice_shown?: false,
       # set by terminate/2 so death messages that race with intentional
       # shutdown don't emit "embed process died" warnings and don't
       # trigger a port respawn that will immediately be torn down.
@@ -194,7 +203,11 @@ defmodule AI.Embeddings.Pool do
   def handle_continue(:spawn, state) do
     case spawn_port(state.workers) do
       {:ok, port, ref} ->
-        {:noreply, %{state | port: port, ref: ref, buffer: ""}}
+        # A fresh port is back in cold start: reset readiness so its setup
+        # output is treated as benign until it answers, and re-arm the one-time
+        # notice.
+        {:noreply,
+         %{state | port: port, ref: ref, buffer: "", ready?: false, cold_notice_shown?: false}}
 
       {:error, reason} ->
         state = fail_all_pending(state, {:error, reason})
@@ -321,6 +334,8 @@ defmodule AI.Embeddings.Pool do
   defp handle_response_line(line, state) do
     case SafeJson.decode(line) do
       {:ok, %{"id" => id, "embedding" => embedding}} when is_list(embedding) ->
+        state = mark_ready(state)
+
         case Map.pop(state.pending, id) do
           {nil, _pending} ->
             UI.warn("[Embeddings.Pool] received response for unknown id: #{id}")
@@ -332,6 +347,8 @@ defmodule AI.Embeddings.Pool do
         end
 
       {:ok, %{"id" => id, "error" => error}} ->
+        state = mark_ready(state)
+
         case Map.pop(state.pending, id) do
           {nil, _pending} ->
             state
@@ -345,6 +362,18 @@ defmodule AI.Embeddings.Pool do
         UI.warn("[Embeddings.Pool] protocol error from embed process: #{error}")
         state
 
+      # During cold start the embed process writes `Mix.install`, EXLA NIF
+      # build, and model-download progress to stdout - the same channel it
+      # later uses for JSON responses. That output is expected setup activity,
+      # not a fault, so we reassure the user once and route the rest to debug
+      # rather than crying wolf with a warning per build line. Only once the
+      # process has proven it can answer (mark_ready) do unparseable lines
+      # become genuinely anomalous and warn-worthy.
+      {:error, _} when not state.ready? ->
+        state = announce_cold_start(state)
+        UI.debug("[Embeddings.Pool] embed setup: #{String.slice(line, 0, 120)}")
+        state
+
       {:error, _} ->
         UI.warn(
           "[Embeddings.Pool] unparseable output from embed process: #{String.slice(line, 0, 120)}"
@@ -352,6 +381,26 @@ defmodule AI.Embeddings.Pool do
 
         state
     end
+  end
+
+  # Mark the embed process as past cold start. The first well-formed response
+  # proves Mix.install, NIF compilation, and model load all completed.
+  defp mark_ready(%{ready?: true} = state), do: state
+  defp mark_ready(state), do: %{state | ready?: true}
+
+  # Emit the one-time, non-alarming explanation for the build noise that
+  # follows. Guarded so it shows once per cold start regardless of how many
+  # build lines arrive.
+  defp announce_cold_start(%{cold_notice_shown?: true} = state), do: state
+
+  defp announce_cold_start(state) do
+    UI.info(
+      "[Embeddings] Setting up the local embeddings backend (one-time): downloading the " <>
+        "model and compiling native code. This can take several minutes on first run, or " <>
+        "after an Elixir/OTP upgrade. Your settings and project data are not touched."
+    )
+
+    %{state | cold_notice_shown?: true}
   end
 
   # Central handler for every flavor of port-death message. Suppresses the

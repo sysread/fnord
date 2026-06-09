@@ -80,6 +80,12 @@ The `Pool` GenServer assigns monotonic integer ids, keeps a `pending` map from i
 - Port death (`:closed`, `:exit_status`, `:DOWN`, `:EXIT`) — fail all pending callers with `{:error, :port_died}`, wait 2s, respawn.
 - `terminate/2` sets `shutting_down?: true` before calling `Port.close/1` so the subsequent port-death messages skip the warning + respawn paths.
 
+## Cold-start output handling
+
+On first run — and after an Elixir/OTP or dependency bump — `embed.exs` runs `Mix.install`, compiles the EXLA NIF, and downloads the model. That build progress (`==> nimble_pool`, `Compiling …`, `c++ …`, `Caching libexla.so …`) lands on **stdout**, the same channel the JSON protocol uses, so each line reaches `handle_response_line/2` as undecodable.
+
+The Pool distinguishes this expected setup noise from a genuine fault with a `ready?` flag: false until the first well-formed protocol response, flipped by `mark_ready/1`. While `ready?` is false, an undecodable line emits a single reassuring `UI.info` (via `announce_cold_start/1`, guarded by `cold_notice_shown?`) and routes the rest to `UI.debug` — explicitly reassuring the user their settings and project data are untouched. Once `ready?` is true, an undecodable line is anomalous and warns as before. Both flags reset on every (re)spawn in `handle_continue(:spawn)`, so a restarted process gets the same grace window.
+
 ## Gotchas
 
 - **Pool does not cap pending requests.** Back-pressure happens at `embed.exs`'s worker pool, not in the GenServer queue. An unbounded pile of slow embeddings can stack up.
