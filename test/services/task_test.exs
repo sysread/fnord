@@ -1,5 +1,5 @@
 defmodule Services.TaskTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   setup do
     # Create a mock project

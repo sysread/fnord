@@ -1,5 +1,5 @@
 defmodule AI.Tools.LongTermMemoryTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   alias AI.Tools.LongTermMemory
 

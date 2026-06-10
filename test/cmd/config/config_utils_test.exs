@@ -1,5 +1,5 @@
 defmodule Cmd.Config.UtilsTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   alias Cmd.Config.Utils
 

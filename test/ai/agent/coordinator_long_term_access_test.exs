@@ -1,5 +1,5 @@
 defmodule AI.Agent.CoordinatorLongTermAccessTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   test "Coordinator toolbox does not expose long_term_memory_tool" do
     toolbox = AI.Tools.basic_tools()

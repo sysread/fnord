@@ -1,5 +1,5 @@
 defmodule Store.Project.FilesDirMigrationTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   describe "ensure_files_dir_layout/1" do
     setup do

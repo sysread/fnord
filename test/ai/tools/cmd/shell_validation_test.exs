@@ -1,5 +1,5 @@
 defmodule AI.Tools.Cmd.ValidationTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   describe "read_args/1 validation" do
     test "accepts valid command structure with args" do

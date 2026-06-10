@@ -1,5 +1,5 @@
 defmodule TomlTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   describe "decode/1" do
     test "decodes a TOML document into a map" do

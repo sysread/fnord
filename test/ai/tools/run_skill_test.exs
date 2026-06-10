@@ -1,5 +1,5 @@
 defmodule AI.Tools.RunSkillTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   defp write_skill!(dir, filename, toml) do
     File.mkdir_p!(dir)

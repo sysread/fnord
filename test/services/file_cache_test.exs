@@ -1,5 +1,5 @@
 defmodule Services.FileCacheTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   test "get_file_contents uses the cache and reflects file changes" do
     project = mock_project("service-cache-test")

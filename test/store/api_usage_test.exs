@@ -1,5 +1,5 @@
 defmodule Store.APIUsageTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   defp usage_path(), do: Store.APIUsage.store_path()
 

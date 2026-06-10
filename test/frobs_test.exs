@@ -1,5 +1,5 @@
 defmodule FrobsTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   setup do
     mock_project("blarg")

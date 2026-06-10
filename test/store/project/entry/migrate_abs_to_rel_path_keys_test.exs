@@ -1,5 +1,5 @@
 defmodule Store.Project.Entry.MigrateAbsToRelPathKeysTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   import LayoutMigrationHelpers
 

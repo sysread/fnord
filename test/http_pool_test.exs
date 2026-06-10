@@ -1,5 +1,5 @@
 defmodule HttpPoolTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   alias HttpPool
 

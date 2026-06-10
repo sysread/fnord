@@ -1,5 +1,5 @@
 defmodule Settings.ConcurrencyLockTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   alias Settings
   alias Settings.Approvals

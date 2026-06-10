@@ -1,5 +1,5 @@
 defmodule AI.UtilTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   test "cosine_similarity/2 computes correct similarity", _context do
     vec1 = [1.0, 0.0, 0.0]

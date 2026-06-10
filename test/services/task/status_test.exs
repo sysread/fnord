@@ -1,5 +1,5 @@
 defmodule Services.Task.StatusTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   alias Services.Task
   alias Services.Conversation

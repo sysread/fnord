@@ -1,5 +1,5 @@
 defmodule Store.Project.Entry.StorageTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   alias Store.Project.Entry
   alias Store.Project.Entry.Storage

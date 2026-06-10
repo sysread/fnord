@@ -1,5 +1,5 @@
 defmodule OutputsTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   describe "save/3" do
     setup do

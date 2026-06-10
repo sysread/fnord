@@ -1,5 +1,5 @@
 defmodule Settings.ValidationTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   test "returns empty list when project has no validation rules" do
     mock_project("demo")

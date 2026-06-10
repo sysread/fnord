@@ -1,5 +1,5 @@
 defmodule AI.Tools.Cmd.InvocationTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   setup do
     project = mock_project("shell-invocation-test")

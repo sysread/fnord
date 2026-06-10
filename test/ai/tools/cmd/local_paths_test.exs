@@ -1,5 +1,5 @@
 defmodule AI.Tools.Cmd.LocalPathsTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   test "./ script inside project executes (positive path)" do
     project = mock_project("shell-local-positive")

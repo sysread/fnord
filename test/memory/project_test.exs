@@ -1,5 +1,5 @@
 defmodule Memory.ProjectTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   describe "init/0" do
     setup do

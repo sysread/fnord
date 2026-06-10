@@ -1,5 +1,5 @@
 defmodule AI.Agent.Code.CommonTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   alias AI.Agent.Code.Common
 

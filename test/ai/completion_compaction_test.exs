@@ -1,5 +1,5 @@
 defmodule AI.Completion.CompactionTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   alias AI.Completion.Compaction
 

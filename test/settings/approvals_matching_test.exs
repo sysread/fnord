@@ -1,5 +1,5 @@
 defmodule Settings.ApprovalsMatchingTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   alias Settings.Approvals
 

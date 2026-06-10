@@ -1,5 +1,5 @@
 defmodule Memory.SessionIndexerTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   defp stale_lock_dir(path) do
     File.mkdir_p!(path)

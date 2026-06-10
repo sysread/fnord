@@ -1,5 +1,5 @@
 defmodule Memory.GlobalTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   describe "init/0" do
     test "creates the global memory directory and drops old storage if present", %{home_dir: home} do

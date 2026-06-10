@@ -1,5 +1,5 @@
 defmodule ResolveProjectTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   describe "resolve/1" do
     test "discovers when cwd == project root" do

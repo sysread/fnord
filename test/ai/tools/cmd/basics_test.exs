@@ -1,5 +1,5 @@
 defmodule AI.Tools.Cmd.BasicsTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   test "preapproved pipeline: cat -> wc -l counts lines in files" do
     project = mock_project("shell-preapproved")

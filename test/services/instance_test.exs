@@ -1,5 +1,5 @@
 defmodule Services.InstanceTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   # These tests exercise the instance-checkout model: an owner process calls
   # Fnord.Instance.start_link/1, becoming a Services.Globals root with its own

@@ -1,5 +1,5 @@
 defmodule AI.Agent.Coordinator.FripperyTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   # Collects every UI.Output.Mock.log/2 call made while fun executes, so
   # tests that drive Frippery through multiple info lines can make

@@ -1,5 +1,5 @@
 defmodule CmdTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   defmodule MockCmd do
     @behaviour Cmd

@@ -1,5 +1,5 @@
 defmodule ExternalConfigs.CatalogTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   alias ExternalConfigs.Catalog
 

@@ -1,5 +1,5 @@
 defmodule AI.Tools.Tasks.ShowListTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   setup do
     mock_project("test_project_show_list_tool")

@@ -1,5 +1,5 @@
 defmodule AI.Agent.Review.ReviewerTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   test "formulation prompt tells specialists about constraints sections" do
     prompt = AI.Agent.Review.Reviewer.__send__(:formulation_prompt)

@@ -1,5 +1,5 @@
 defmodule Settings.SkillsTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   describe "effective_enabled/0" do
     test "falls back to global list when no project is selected" do

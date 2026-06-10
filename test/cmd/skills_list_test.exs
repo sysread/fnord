@@ -1,5 +1,5 @@
 defmodule Cmd.SkillsListTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   setup do
     # run/3 calls UI.puts with the formatted output; suppress it so it doesn't

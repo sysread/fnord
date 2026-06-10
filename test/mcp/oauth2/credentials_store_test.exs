@@ -1,5 +1,5 @@
 defmodule MCP.OAuth2.CredentialsStoreTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   @server "testsrv"
 

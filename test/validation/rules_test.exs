@@ -1,5 +1,5 @@
 defmodule Validation.RulesTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   test "matches changed files against glob rules and deduplicates commands" do
     rules = [

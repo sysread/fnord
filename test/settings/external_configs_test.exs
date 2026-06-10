@@ -1,5 +1,5 @@
 defmodule Settings.ExternalConfigsTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   test "defaults are all false when project has no settings" do
     mock_project("demo")

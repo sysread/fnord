@@ -1,5 +1,5 @@
 defmodule Store.Project.Entry.MetadataTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   setup do
     # Create a temporary directory for testing

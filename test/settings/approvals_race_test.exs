@@ -1,5 +1,5 @@
 defmodule Settings.Approvals.RaceTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   setup do
     project = mock_project("blarg")

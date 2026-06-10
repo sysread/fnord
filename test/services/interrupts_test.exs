@@ -1,5 +1,5 @@
 defmodule Services.Conversation.InterruptsTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   alias Services.Conversation.Interrupts
 

@@ -1,5 +1,5 @@
 defmodule Skills.RuntimeTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   describe "model_from_string/1" do
     test "supports known presets" do
