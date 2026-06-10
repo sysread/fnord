@@ -17,8 +17,6 @@ defmodule Services.NamePool do
 
   @name_chunk_timeout_ms Application.compile_env(:fnord, :name_chunk_timeout_ms, 30_000)
 
-  @name __MODULE__
-
   @type t :: %__MODULE__{
           available: [String.t()],
           checked_out: MapSet.t(String.t()),
@@ -44,10 +42,16 @@ defmodule Services.NamePool do
 
   @doc "Starts the name pool service"
   def start_link(opts \\ []) do
-    name = Keyword.get(opts, :name, @name)
     init_opts = Keyword.drop(opts, [:name])
-    GenServer.start_link(__MODULE__, init_opts, name: name)
+
+    with {:ok, pid} <- GenServer.start_link(__MODULE__, init_opts) do
+      Services.Instance.register(__MODULE__, pid)
+      {:ok, pid}
+    end
   end
+
+  @spec default_server() :: pid()
+  defp default_server(), do: Services.Instance.fetch!(__MODULE__)
 
   @doc """
   Checks out a name from the pool. If the pool is empty or running low,
@@ -57,7 +61,7 @@ defmodule Services.NamePool do
   """
   @spec checkout_name(atom() | pid()) :: {:ok, String.t()} | {:error, term()}
   @spec checkout_name(atom() | pid(), pos_integer()) :: {:ok, String.t()} | {:error, term()}
-  def checkout_name(server \\ @name) do
+  def checkout_name(server \\ default_server()) do
     # Backward-compatible: default timeout of 30_000 ms
     checkout_name(server, 30_000)
   end
@@ -76,7 +80,7 @@ defmodule Services.NamePool do
   names that are never checked back in will simply be lost when the session ends.
   """
   @spec checkin_name(String.t(), atom() | pid()) :: :ok
-  def checkin_name(name, server \\ @name)
+  def checkin_name(name, server \\ default_server())
 
   def checkin_name(@default_name, _), do: :ok
 
@@ -93,7 +97,7 @@ defmodule Services.NamePool do
   immediately after restoring it.
   """
   @spec associate_name(String.t() | nil, atom() | pid(), timeout()) :: :ok | {:error, :timeout}
-  def associate_name(name, server \\ @name, timeout_ms \\ 30_000)
+  def associate_name(name, server \\ default_server(), timeout_ms \\ 30_000)
 
   def associate_name(nil, _, _), do: :ok
 
@@ -107,12 +111,12 @@ defmodule Services.NamePool do
   end
 
   @doc "Returns pool statistics for debugging/monitoring"
-  def pool_stats(server \\ @name) do
+  def pool_stats(server \\ default_server()) do
     GenServer.call(server, :pool_stats)
   end
 
   @doc "Resets the pool state (mainly for testing)"
-  def reset(server \\ @name) do
+  def reset(server \\ default_server()) do
     GenServer.call(server, :reset)
   end
 
@@ -122,7 +126,7 @@ defmodule Services.NamePool do
   """
   @spec get_name_by_pid(pid(), atom() | pid(), timeout()) ::
           {:ok, String.t()} | {:error, :not_found} | {:error, :timeout}
-  def get_name_by_pid(pid, server \\ @name, timeout_ms \\ 5_000) when is_pid(pid) do
+  def get_name_by_pid(pid, server \\ default_server(), timeout_ms \\ 5_000) when is_pid(pid) do
     try do
       GenServer.call(server, {:get_name_by_pid, pid}, timeout_ms)
     catch

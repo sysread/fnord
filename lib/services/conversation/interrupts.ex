@@ -25,7 +25,10 @@ defmodule Services.Conversation.Interrupts do
   """
   @spec start_link(Keyword.t()) :: GenServer.on_start()
   def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, %{}, Keyword.merge([name: __MODULE__], opts))
+    with {:ok, pid} <- GenServer.start_link(__MODULE__, %{}, opts) do
+      Services.Instance.register(__MODULE__, pid)
+      {:ok, pid}
+    end
   end
 
   @doc """
@@ -36,7 +39,7 @@ defmodule Services.Conversation.Interrupts do
       when is_pid(conversation_pid) and
              is_binary(content) do
     msg = AI.Util.user_msg("[User Interjection] " <> content)
-    GenServer.cast(__MODULE__, {:enqueue, conversation_pid, msg})
+    Services.Instance.cast(__MODULE__, {:enqueue, conversation_pid, msg})
     :ok
   end
 
@@ -46,7 +49,7 @@ defmodule Services.Conversation.Interrupts do
   """
   @spec take_all(pid()) :: [msg]
   def take_all(conversation_pid) when is_pid(conversation_pid) do
-    GenServer.call(__MODULE__, {:take_all, conversation_pid})
+    Services.Instance.call(__MODULE__, {:take_all, conversation_pid})
   end
 
   @doc """
@@ -54,7 +57,7 @@ defmodule Services.Conversation.Interrupts do
   """
   @spec pending?(pid()) :: boolean()
   def pending?(conversation_pid) when is_pid(conversation_pid) do
-    GenServer.call(__MODULE__, {:pending, conversation_pid})
+    Services.Instance.call(__MODULE__, {:pending, conversation_pid})
   end
 
   # ---------------------------------------------------------------------------
@@ -110,7 +113,7 @@ defmodule Services.Conversation.Interrupts do
   """
   @spec block(pid()) :: :ok
   def block(conversation_pid) when is_pid(conversation_pid) do
-    GenServer.cast(__MODULE__, {:block, conversation_pid})
+    Services.Instance.cast(__MODULE__, {:block, conversation_pid})
   end
 
   @doc """
@@ -118,7 +121,7 @@ defmodule Services.Conversation.Interrupts do
   """
   @spec unblock(pid()) :: :ok
   def unblock(conversation_pid) when is_pid(conversation_pid) do
-    GenServer.cast(__MODULE__, {:unblock, conversation_pid})
+    Services.Instance.cast(__MODULE__, {:unblock, conversation_pid})
   end
 
   @doc """
@@ -126,6 +129,6 @@ defmodule Services.Conversation.Interrupts do
   """
   @spec blocked?(pid()) :: boolean()
   def blocked?(conversation_pid) when is_pid(conversation_pid) do
-    GenServer.call(__MODULE__, {:blocked?, conversation_pid})
+    Services.Instance.call(__MODULE__, {:blocked?, conversation_pid})
   end
 end

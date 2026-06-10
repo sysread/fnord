@@ -117,7 +117,7 @@ defmodule Services.TaskTest do
       task1 = %{id: "dup", data: %{foo: 1}, outcome: "todo", result: nil}
       task2 = %{id: "dup", data: %{bar: 2}, outcome: "todo", result: nil}
       assert :ok = Services.Conversation.upsert_task_list(pid, list_id, [task1, task2])
-      GenServer.stop(Services.Task)
+      GenServer.stop(Services.Instance.fetch!(Services.Task))
       {:ok, _} = Services.Task.start_link(conversation_pid: pid)
 
       assert [%{id: "dup", outcome: :todo}, %{id: "dup", outcome: :todo}] =
@@ -176,7 +176,7 @@ defmodule Services.TaskTest do
                Services.Conversation.get_task_list(pid, list_id)
 
       {:ok, _} = Services.Conversation.save(pid)
-      GenServer.stop(Services.Task)
+      GenServer.stop(Services.Instance.fetch!(Services.Task))
       GenServer.stop(pid)
       {:ok, new_pid} = Services.Conversation.start_link(conversation.id)
       {:ok, _} = Services.Task.start_link(conversation_pid: new_pid)

@@ -145,7 +145,7 @@ defmodule AI.Tools.Tasks.ResolveTask do
   # Checks whether the given task is already in a terminal state (done/failed).
   # Returns false if the task service is unavailable or the task doesn't exist.
   defp task_already_resolved?(list_id, task_id) do
-    case Process.whereis(Services.Task) do
+    case Services.Instance.whereis(Services.Task) do
       nil ->
         false
 
@@ -163,7 +163,7 @@ defmodule AI.Tools.Tasks.ResolveTask do
   # Returns {total, resolved} task counts if the Services.Task GenServer is
   # running, or nil if it's not available (e.g., during replay).
   defp get_task_counts(list_id) do
-    case Process.whereis(Services.Task) do
+    case Services.Instance.whereis(Services.Task) do
       nil ->
         nil
 

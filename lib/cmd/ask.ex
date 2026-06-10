@@ -489,7 +489,7 @@ defmodule Cmd.Ask do
   end
 
   defp start_memory_indexer() do
-    case Process.whereis(Services.MemoryIndexer) do
+    case Services.Instance.whereis(Services.MemoryIndexer) do
       nil ->
         try do
           Services.MemoryIndexer.start_link([])

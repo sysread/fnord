@@ -27,12 +27,19 @@ defmodule Services.BackupFile do
   # ----------------------------------------------------------------------------
 
   @doc """
-  Starts the backup file server with a globally registered name.
+  Starts the backup file server and registers it for the current process tree
+  (see `Services.Instance`).
   """
   @spec start_link(keyword) :: {:ok, pid} | {:error, term}
   def start_link(_opts \\ []) do
-    Agent.start_link(&initial_state/0, name: __MODULE__)
+    with {:ok, pid} <- Agent.start_link(&initial_state/0) do
+      Services.Instance.register(__MODULE__, pid)
+      {:ok, pid}
+    end
   end
+
+  @spec instance() :: pid
+  defp instance(), do: Services.Instance.fetch!(__MODULE__)
 
   @doc """
   Creates a backup file for the given file path and returns the backup path.
@@ -40,7 +47,7 @@ defmodule Services.BackupFile do
   """
   @spec create_backup(binary) :: {:ok, binary} | {:error, term}
   def create_backup(file_path) do
-    Agent.get_and_update(__MODULE__, fn state ->
+    Agent.get_and_update(instance(), fn state ->
       case do_create_backup(file_path, state) do
         {:ok, backup_path, new_state} ->
           {{:ok, backup_path}, new_state}
@@ -61,7 +68,7 @@ defmodule Services.BackupFile do
   """
   @spec get_session_backups() :: [binary]
   def get_session_backups do
-    Agent.get(__MODULE__, fn state -> state.backup_files end)
+    Agent.get(instance(), fn state -> state.backup_files end)
   end
 
   @doc """
@@ -69,7 +76,7 @@ defmodule Services.BackupFile do
   """
   @spec reset() :: :ok
   def reset do
-    Agent.update(__MODULE__, fn _state -> initial_state() end)
+    Agent.update(instance(), fn _state -> initial_state() end)
   end
 
   @doc """

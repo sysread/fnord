@@ -3,15 +3,35 @@ defmodule Services.Once do
   This module provides a mechanism to perform actions only once, using a unique
   key provided by the caller to determine whether the action has already been
   performed this session.
+
+  The agent is tree-scoped rather than VM-global: `start_link/0` starts an
+  unnamed agent and registers it for the current process tree via
+  `Services.Instance`. Each instance root (a test, a `Fnord.Instance`
+  checkout, or the escript's main process in production) gets its own notion
+  of "once", so seen-keys cannot leak between trees sharing a BEAM.
   """
 
   use Agent
 
   @doc """
-  Starts the agent that keeps track of seen keys.
+  Starts the agent that keeps track of seen keys and registers it as the
+  current process tree's instance.
   """
   def start_link() do
-    Agent.start_link(fn -> Map.new() end, name: __MODULE__)
+    with {:ok, pid} <- Agent.start_link(fn -> Map.new() end) do
+      Services.Instance.register(__MODULE__, pid)
+      {:ok, pid}
+    end
+  end
+
+  @doc """
+  True when a Services.Once instance is running in the current process tree.
+  Callers that may be exercised outside a live session (without the service
+  roster running) use this to no-op instead of crashing.
+  """
+  @spec running?() :: boolean()
+  def running?() do
+    Services.Instance.whereis(__MODULE__) != nil
   end
 
   @doc """
@@ -21,7 +41,7 @@ defmodule Services.Once do
   value was specified.
   """
   def get(key) do
-    Agent.get(__MODULE__, fn seen ->
+    Agent.get(instance(), fn seen ->
       with {:ok, value} <- Map.fetch(seen, key) do
         {:ok, value}
       else
@@ -36,7 +56,7 @@ defmodule Services.Once do
   `false` without updating the state.
   """
   def set(key, value \\ true) do
-    Agent.get_and_update(__MODULE__, fn seen ->
+    Agent.get_and_update(instance(), fn seen ->
       if Map.has_key?(seen, key) do
         {false, seen}
       else
@@ -67,5 +87,9 @@ defmodule Services.Once do
       true -> fun.()
       false -> :ignore
     end
+  end
+
+  defp instance() do
+    Services.Instance.fetch!(__MODULE__)
   end
 end

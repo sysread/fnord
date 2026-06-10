@@ -21,9 +21,11 @@ defmodule Services.Approvals do
   # ----------------------------------------------------------------------------
   # Client API
   # ----------------------------------------------------------------------------
-  def start_link(opts \\ []) do
-    name = Keyword.get(opts, :name, __MODULE__)
-    GenServer.start_link(__MODULE__, nil, name: name)
+  def start_link(_opts \\ []) do
+    with {:ok, pid} <- GenServer.start_link(__MODULE__, nil) do
+      Services.Instance.register(__MODULE__, pid)
+      {:ok, pid}
+    end
   end
 
   @spec confirm(term, atom) ::
@@ -31,7 +33,7 @@ defmodule Services.Approvals do
           | {:denied, binary}
           | {:error, binary}
   def confirm(args, kind) do
-    GenServer.call(__MODULE__, {:confirm, kind, args}, :infinity)
+    Services.Instance.call(__MODULE__, {:confirm, kind, args}, :infinity)
   end
 
   # ----------------------------------------------------------------------------

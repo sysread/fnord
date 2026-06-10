@@ -5,16 +5,13 @@ defmodule Services.BackupFileTest do
     project = mock_project("backup-server-test")
     File.mkdir_p!(project.source_root)
 
-    # Reset backup server state for clean tests
-    Services.BackupFile.reset()
-
     {:ok, project: project}
   end
 
   describe "start_link/0" do
     test "positive path" do
       # Server should already be started in test setup
-      assert Process.whereis(Services.BackupFile) != nil
+      assert Services.Instance.whereis(Services.BackupFile) != nil
     end
   end
 
@@ -200,9 +197,6 @@ defmodule Services.BackupFileTest do
       # Create backup in a new, clean file
       test_file = Path.join(project.source_root, "fresh_file.txt")
       File.write!(test_file, "content")
-
-      # Reset server state first 
-      Services.BackupFile.reset()
 
       # Should start from 0.0 for a file with no existing backups
       assert {:ok, backup} = Services.BackupFile.create_backup(test_file)

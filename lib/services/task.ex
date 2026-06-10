@@ -41,16 +41,19 @@ defmodule Services.Task do
   # ----------------------------------------------------------------------------
   @spec start_link(any) :: GenServer.on_start()
   def start_link(opts \\ []) do
-    with {:ok, _conversation_pid} <- Keyword.fetch(opts, :conversation_pid) do
-      GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+    with {:ok, _conversation_pid} <- Keyword.fetch(opts, :conversation_pid),
+         {:ok, pid} <- GenServer.start_link(__MODULE__, opts) do
+      Services.Instance.register(__MODULE__, pid)
+      {:ok, pid}
     else
       :error -> {:error, :missing_conversation_pid}
+      other -> other
     end
   end
 
   @spec start_list() :: list_id
   def start_list() do
-    GenServer.call(__MODULE__, :start_list)
+    Services.Instance.call(__MODULE__, :start_list)
   end
 
   @doc """
@@ -62,11 +65,11 @@ defmodule Services.Task do
           list_id | {:error, :exists}
   def start_list(%{id: id} = opts) when is_binary(id) do
     desc = Map.get(opts, :description)
-    GenServer.call(__MODULE__, {:start_list, id, desc})
+    Services.Instance.call(__MODULE__, {:start_list, id, desc})
   end
 
   def start_list(id) when is_binary(id) do
-    GenServer.call(__MODULE__, {:start_list, id, nil})
+    Services.Instance.call(__MODULE__, {:start_list, id, nil})
   end
 
   @doc """
@@ -74,7 +77,7 @@ defmodule Services.Task do
   """
   @spec list_ids() :: [list_id]
   def list_ids() do
-    GenServer.call(__MODULE__, :list_ids)
+    Services.Instance.call(__MODULE__, :list_ids)
   end
 
   @doc """
@@ -83,7 +86,7 @@ defmodule Services.Task do
   """
   @spec get_list(list_id) :: task_list | {:error, :not_found}
   def get_list(list_id) do
-    GenServer.call(__MODULE__, {:get_list, list_id})
+    Services.Instance.call(__MODULE__, {:get_list, list_id})
   end
 
   @doc """
@@ -93,7 +96,7 @@ defmodule Services.Task do
   @spec get_list_with_description(list_id) ::
           {:ok, task_list, binary | nil} | {:error, :not_found}
   def get_list_with_description(list_id) when is_binary(list_id) do
-    GenServer.call(__MODULE__, {:get_list_with_meta, list_id})
+    Services.Instance.call(__MODULE__, {:get_list_with_meta, list_id})
   end
 
   @doc """
@@ -102,7 +105,7 @@ defmodule Services.Task do
   """
   @spec add_task(list_id, task_id, task_data) :: :ok
   def add_task(list_id, task_id, task_data) do
-    GenServer.cast(__MODULE__, {:add_task, list_id, task_id, task_data})
+    Services.Instance.cast(__MODULE__, {:add_task, list_id, task_id, task_data})
   end
 
   @doc """
@@ -111,7 +114,7 @@ defmodule Services.Task do
   """
   @spec push_task(list_id, task_id, task_data) :: :ok
   def push_task(list_id, task_id, task_data) do
-    GenServer.cast(__MODULE__, {:push_task, list_id, task_id, task_data})
+    Services.Instance.cast(__MODULE__, {:push_task, list_id, task_id, task_data})
   end
 
   @doc """
@@ -122,7 +125,7 @@ defmodule Services.Task do
   @spec complete_task(list_id, task_id, task_result) ::
           :ok | {:error, :already_resolved | :not_found}
   def complete_task(list_id, task_id, result) do
-    GenServer.call(__MODULE__, {:resolve, list_id, task_id, :done, result})
+    Services.Instance.call(__MODULE__, {:resolve, list_id, task_id, :done, result})
   end
 
   @doc """
@@ -132,7 +135,7 @@ defmodule Services.Task do
   """
   @spec fail_task(list_id, task_id, task_result) :: :ok | {:error, :already_resolved | :not_found}
   def fail_task(list_id, task_id, msg) do
-    GenServer.call(__MODULE__, {:resolve, list_id, task_id, :failed, msg})
+    Services.Instance.call(__MODULE__, {:resolve, list_id, task_id, :failed, msg})
   end
 
   @doc """
@@ -141,7 +144,7 @@ defmodule Services.Task do
   """
   @spec peek_task(list_id) :: {:ok, task} | {:error, :not_found} | {:error, :empty}
   def peek_task(list_id) do
-    GenServer.call(__MODULE__, {:peek_task, list_id})
+    Services.Instance.call(__MODULE__, {:peek_task, list_id})
   end
 
   @doc """
@@ -161,7 +164,7 @@ defmodule Services.Task do
   """
   @spec set_description(list_id, binary) :: :ok | {:error, :not_found}
   def set_description(list_id, description) when is_binary(list_id) and is_binary(description) do
-    GenServer.call(__MODULE__, {:set_description, list_id, description})
+    Services.Instance.call(__MODULE__, {:set_description, list_id, description})
   end
 
   @doc """
@@ -169,7 +172,7 @@ defmodule Services.Task do
   """
   @spec get_description(list_id) :: {:ok, binary | nil} | {:error, :not_found}
   def get_description(list_id) when is_binary(list_id) do
-    GenServer.call(__MODULE__, {:get_description, list_id})
+    Services.Instance.call(__MODULE__, {:get_description, list_id})
   end
 
   # ----------------------------------------------------------------------------

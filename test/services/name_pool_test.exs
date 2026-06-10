@@ -20,18 +20,15 @@ defmodule Services.NamePoolTest do
   end
 
   test "get_name_by_pid/1 returns name for checking process" do
-    NamePool.reset()
     {:ok, name} = NamePool.checkout_name()
     assert {:ok, ^name} = NamePool.get_name_by_pid(self())
   end
 
   test "get_name_by_pid/1 returns error for unknown pid" do
-    NamePool.reset()
     assert {:error, :not_found} = NamePool.get_name_by_pid(self())
   end
 
   test "mapping removed on checkin_name" do
-    NamePool.reset()
     {:ok, name} = NamePool.checkout_name()
     assert {:ok, ^name} = NamePool.get_name_by_pid(self())
 
@@ -40,8 +37,6 @@ defmodule Services.NamePoolTest do
   end
 
   test "distinct pids get distinct names" do
-    NamePool.reset()
-
     names =
       1..4
       |> Util.async_stream(fn _ ->
@@ -56,8 +51,6 @@ defmodule Services.NamePoolTest do
   end
 
   test "checkout_name/0 returns error on timeout" do
-    NamePool.reset()
-
     # Define a dummy GenServer that never replies to handle_call(:checkout_name)
     defmodule NoReplyServer do
       use GenServer
@@ -87,28 +80,26 @@ defmodule Services.NamePoolTest do
   end
 
   test "checkin_name/1 is a no-op for default name" do
-    NamePool.reset()
     assert :ok = NamePool.checkin_name(NamePool.default_name())
   end
 
   test "checkin_name/1 warns but preserves state when name not checked out" do
-    NamePool.reset()
     {:ok, name} = NamePool.checkout_name()
     NamePool.checkin_name("not checked out")
     assert {:ok, ^name} = NamePool.get_name_by_pid(self())
   end
 
   test "associate_name/1 is a no-op for nil" do
-    NamePool.reset()
     assert :ok = NamePool.associate_name(nil)
   end
 
   test "associate_name/1 remaps name ownership from previous pid" do
-    NamePool.reset()
     {:ok, name} = NamePool.checkout_name()
     old_pid = self()
 
-    spawn(fn ->
+    # Task.start (not raw spawn) so the child carries :"$ancestors" and can
+    # resolve the tree-scoped pool, mirroring prod agent processes.
+    Task.start(fn ->
       NamePool.associate_name(name)
       send(old_pid, {:spawned, self()})
     end)
@@ -119,8 +110,6 @@ defmodule Services.NamePoolTest do
   end
 
   test "associate_name/3 returns timeout when target server never replies" do
-    NamePool.reset()
-
     defmodule NoAssociateReplyServer do
       use GenServer
 
@@ -143,7 +132,6 @@ defmodule Services.NamePoolTest do
   end
 
   test "associate_name/1 replaces the caller's previous name mapping" do
-    NamePool.reset()
     {:ok, _first_name} = NamePool.checkout_name()
     {:ok, second_name} = NamePool.checkout_name()
 
@@ -173,8 +161,6 @@ defmodule Services.NamePoolTest do
   end
 
   test "get_name_by_pid/3 returns timeout when target server never replies" do
-    NamePool.reset()
-
     defmodule NoGetNameReplyServer do
       use GenServer
 
@@ -197,7 +183,6 @@ defmodule Services.NamePoolTest do
   end
 
   test "pool_stats reflects checked-out and available counts" do
-    NamePool.reset()
     {:ok, _name1} = NamePool.checkout_name()
     {:ok, _name2} = NamePool.checkout_name()
     stats = NamePool.pool_stats()

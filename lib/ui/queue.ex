@@ -52,12 +52,27 @@ defmodule UI.Queue do
   # Client API
   # ----------------------------------------------------------------------------
   def start_link(opts \\ []) do
-    name = Keyword.get(opts, :name, __MODULE__)
-    GenServer.start_link(__MODULE__, :ok, name: name)
+    init_opts = Keyword.drop(opts, [:name])
+
+    with {:ok, pid} <- GenServer.start_link(__MODULE__, :ok, init_opts) do
+      Services.Instance.register(__MODULE__, pid)
+      {:ok, pid}
+    end
   end
 
+  @doc """
+  The queue pid serving the current process tree. Public because some call
+  sites (UI.Output.Production, tests) pass the server explicitly - the
+  positional optional `server` argument makes partial calls ambiguous.
+  """
+  @spec instance() :: pid()
+  def instance(), do: Services.Instance.fetch!(__MODULE__)
+
+  @spec default_server() :: pid()
+  defp default_server(), do: Services.Instance.fetch!(__MODULE__)
+
   # Normal output (fast-path if in interaction context)
-  def puts(server \\ __MODULE__, io_device \\ :stdio, data, timeout \\ :infinity) do
+  def puts(server \\ default_server(), io_device \\ :stdio, data, timeout \\ :infinity) do
     if in_ctx?(server) do
       exec({:puts, io_device, data})
     else
@@ -66,7 +81,7 @@ defmodule UI.Queue do
   end
 
   # Logger proxy (fast-path if in interaction context)
-  def log(server \\ __MODULE__, level, chardata, md \\ [], timeout \\ :infinity) do
+  def log(server \\ default_server(), level, chardata, md \\ [], timeout \\ :infinity) do
     GenServer.call(server, {:log, level, chardata, md}, timeout)
   end
 
@@ -82,7 +97,7 @@ defmodule UI.Queue do
   # fun lands here with in_ctx? true. No pause is needed (the GenServer can't
   # process {:log, ...} calls while it's busy executing the fun), and a
   # GenServer.call back into ourselves would crash with :calling_self.
-  def interact(server \\ __MODULE__, fun, timeout \\ :infinity) when is_function(fun, 0) do
+  def interact(server \\ default_server(), fun, timeout \\ :infinity) when is_function(fun, 0) do
     cond do
       not in_ctx?(server) ->
         GenServer.call(server, {:interact, fun}, timeout)
@@ -106,21 +121,21 @@ defmodule UI.Queue do
   # happens-before relationship with subsequent log calls. Safe to nest from
   # multiple processes; only the last unpause flushes.
   @doc false
-  def pause_logs(server \\ __MODULE__, timeout \\ :infinity),
+  def pause_logs(server \\ default_server(), timeout \\ :infinity),
     do: GenServer.call(server, :pause_logs, timeout)
 
   @doc false
-  def unpause_logs(server \\ __MODULE__, timeout \\ :infinity),
+  def unpause_logs(server \\ default_server(), timeout \\ :infinity),
     do: GenServer.call(server, :unpause_logs, timeout)
 
   # ----------------------------------------------------------------------------
   # Context utilities for spawned processes
   # ----------------------------------------------------------------------------
-  def interaction_token(server \\ __MODULE__) do
+  def interaction_token(server \\ default_server()) do
     Process.get(pd_key(server))
   end
 
-  def bind(server \\ __MODULE__, token, fun) when is_function(fun, 0) do
+  def bind(server \\ default_server(), token, fun) when is_function(fun, 0) do
     Process.put(pd_key(server), token)
 
     try do
@@ -148,7 +163,7 @@ defmodule UI.Queue do
         {:reply, result, state}
       end
   """
-  def run_from_genserver(server \\ __MODULE__, fun) when is_function(fun, 0) do
+  def run_from_genserver(server \\ default_server(), fun) when is_function(fun, 0) do
     bind(server, make_ref(), fun)
   end
 
@@ -173,12 +188,12 @@ defmodule UI.Queue do
       
       result = Task.await(task)
   """
-  def run_from_task(server \\ __MODULE__, fun) when is_function(fun, 0) do
+  def run_from_task(server \\ default_server(), fun) when is_function(fun, 0) do
     parent_token = interaction_token(server)
     bind(server, parent_token, fun)
   end
 
-  def spawn_bound(server \\ __MODULE__, fun) when is_function(fun, 0) do
+  def spawn_bound(server \\ default_server(), fun) when is_function(fun, 0) do
     tok = interaction_token(server)
     Services.Globals.Spawn.spawn(fn -> bind(server, tok, fun) end)
   end

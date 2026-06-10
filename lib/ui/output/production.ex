@@ -9,17 +9,17 @@ defmodule UI.Output.Production do
 
   @impl UI.Output
   def puts(data) do
-    UI.Queue.puts(UI.Queue, :stdio, data)
+    UI.Queue.puts(UI.Queue.instance(), :stdio, data)
   end
 
   @impl UI.Output
   def log(level, data) do
-    UI.Queue.log(UI.Queue, level, data)
+    UI.Queue.log(UI.Queue.instance(), level, data)
   end
 
   @impl UI.Output
   def interact(fun) do
-    case UI.Queue.interact(UI.Queue, fun) do
+    case UI.Queue.interact(UI.Queue.instance(), fun) do
       {:ok, result} ->
         result
 
@@ -96,7 +96,7 @@ defmodule UI.Output.Production do
               Notifier.dismiss("Fnord")
 
               UI.Queue.log(
-                UI.Queue,
+                UI.Queue.instance(),
                 :info,
                 "Auto-selection after timeout: #{label} -> #{inspect(default)}"
               )

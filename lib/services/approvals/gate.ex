@@ -25,8 +25,14 @@ defmodule Services.Approvals.Gate do
 
   @spec start_link(keyword()) :: {:ok, pid()} | {:error, term()}
   def start_link(_opts \\ []) do
-    Agent.start_link(fn -> %{} end, name: __MODULE__)
+    with {:ok, pid} <- Agent.start_link(fn -> %{} end) do
+      Services.Instance.register(__MODULE__, pid)
+      {:ok, pid}
+    end
   end
+
+  @spec instance() :: pid()
+  defp instance(), do: Services.Instance.fetch!(__MODULE__)
 
   @doc """
   Require approval for a resource. Returns :approved immediately when policy is
@@ -40,7 +46,7 @@ defmodule Services.Approvals.Gate do
       ref = gen_ref()
       now = System.os_time(:second)
 
-      Agent.update(__MODULE__, fn m ->
+      Agent.update(instance(), fn m ->
         Map.put(m, ref, %{resource: resource, status: :pending, created_at: now})
       end)
 
@@ -65,7 +71,7 @@ defmodule Services.Approvals.Gate do
   """
   @spec status(ref) :: status | {:error, :not_found}
   def status(ref) do
-    Agent.get(__MODULE__, fn m ->
+    Agent.get(instance(), fn m ->
       case Map.get(m, ref) do
         nil -> {:error, :not_found}
         %{status: s} -> s
@@ -78,7 +84,7 @@ defmodule Services.Approvals.Gate do
   """
   @spec list() :: list(map())
   def list do
-    Agent.get(__MODULE__, fn m ->
+    Agent.get(instance(), fn m ->
       Enum.map(m, fn {ref, v} -> Map.put(v, :ref, ref) end)
     end)
   end
@@ -86,7 +92,7 @@ defmodule Services.Approvals.Gate do
   # -- internals --
 
   defp update(ref, fun) do
-    Agent.get_and_update(__MODULE__, fn m ->
+    Agent.get_and_update(instance(), fn m ->
       case Map.get(m, ref) do
         nil -> {{:error, :not_found}, m}
         v -> {:ok, Map.put(m, ref, fun.(v))}

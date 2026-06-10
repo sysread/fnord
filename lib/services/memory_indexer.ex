@@ -50,22 +50,25 @@ defmodule Services.MemoryIndexer do
   # Public API
   # --------------------------------------------------------------------------
   def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+    with {:ok, pid} <- GenServer.start_link(__MODULE__, opts) do
+      Services.Instance.register(__MODULE__, pid)
+      {:ok, pid}
+    end
   end
 
   @doc "Nudge the service to scan for unprocessed conversations"
   def scan do
-    GenServer.cast(__MODULE__, :scan)
+    Services.Instance.cast(__MODULE__, :scan)
   end
 
   @doc "Process a conversation synchronously; returns :ok | {:error, term()}"
   def process_sync(convo) do
-    GenServer.call(__MODULE__, {:process_sync, convo}, :infinity)
+    Services.Instance.call(__MODULE__, {:process_sync, convo}, :infinity)
   end
 
   @doc "Get status: whether a task is currently running"
   def status do
-    GenServer.call(__MODULE__, :status)
+    Services.Instance.call(__MODULE__, :status)
   end
 
   # --------------------------------------------------------------------------

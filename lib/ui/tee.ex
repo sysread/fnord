@@ -41,7 +41,10 @@ defmodule UI.Tee do
 
   @spec start_link(Path.t()) :: GenServer.on_start()
   def start_link(path) do
-    GenServer.start_link(__MODULE__, path, name: __MODULE__)
+    with {:ok, pid} <- GenServer.start_link(__MODULE__, path) do
+      Services.Instance.register(__MODULE__, pid)
+      {:ok, pid}
+    end
   end
 
   @doc """
@@ -50,10 +53,7 @@ defmodule UI.Tee do
   """
   @spec write(iodata()) :: :ok
   def write(data) do
-    case Process.whereis(__MODULE__) do
-      nil -> :ok
-      pid -> GenServer.cast(pid, {:write, data})
-    end
+    Services.Instance.cast(__MODULE__, {:write, data})
   end
 
   @doc """
@@ -61,7 +61,7 @@ defmodule UI.Tee do
   """
   @spec stop() :: :ok
   def stop do
-    case Process.whereis(__MODULE__) do
+    case Services.Instance.whereis(__MODULE__) do
       nil -> :ok
       pid -> GenServer.stop(pid, :normal)
     end

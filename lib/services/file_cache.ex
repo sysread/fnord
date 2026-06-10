@@ -15,8 +15,6 @@ defmodule Services.FileCache do
 
   use GenServer
 
-  @name __MODULE__
-
   @type entry :: %{sha: String.t(), content: String.t()}
 
   # ----------------------------------------------------------------------------
@@ -25,7 +23,10 @@ defmodule Services.FileCache do
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, %{}, Keyword.put_new(opts, :name, @name))
+    with {:ok, pid} <- GenServer.start_link(__MODULE__, %{}, opts) do
+      Services.Instance.register(__MODULE__, pid)
+      {:ok, pid}
+    end
   end
 
   @doc """
@@ -38,13 +39,17 @@ defmodule Services.FileCache do
           | {:error, any()}
           | :miss
   def get_or_fetch(path, fetch_fun) do
-    GenServer.call(@name, {:get_or_fetch, path, fetch_fun}, :infinity)
+    GenServer.call(
+      Services.Instance.fetch!(__MODULE__),
+      {:get_or_fetch, path, fetch_fun},
+      :infinity
+    )
   end
 
   @doc "Directly put content into the cache for a path."
   @spec put(String.t(), String.t()) :: :ok
   def put(path, content) do
-    GenServer.cast(@name, {:put, path, content})
+    GenServer.cast(Services.Instance.fetch!(__MODULE__), {:put, path, content})
   end
 
   # ----------------------------------------------------------------------------

@@ -93,7 +93,10 @@ defmodule AI.Embeddings.Pool do
   """
   @spec start_link(keyword) :: GenServer.on_start()
   def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+    with {:ok, pid} <- GenServer.start_link(__MODULE__, opts) do
+      Services.Instance.register(__MODULE__, pid)
+      {:ok, pid}
+    end
   end
 
   @doc """
@@ -113,20 +116,22 @@ defmodule AI.Embeddings.Pool do
   """
   @spec ensure_started(keyword) :: :ok
   def ensure_started(opts \\ []) do
-    if Indexer.impl() == Indexer do
-      case start_link(opts) do
-        {:ok, _pid} ->
-          :ok
+    cond do
+      Indexer.impl() != Indexer ->
+        :ok
 
-        {:error, {:already_started, _pid}} ->
-          :ok
+      Services.Instance.whereis(__MODULE__) != nil ->
+        :ok
 
-        {:error, reason} ->
-          UI.warn("[Embeddings.Pool] Failed to start: #{inspect(reason)}")
-          :ok
-      end
-    else
-      :ok
+      true ->
+        case start_link(opts) do
+          {:ok, _pid} ->
+            :ok
+
+          {:error, reason} ->
+            UI.warn("[Embeddings.Pool] Failed to start: #{inspect(reason)}")
+            :ok
+        end
     end
   end
 
@@ -145,7 +150,13 @@ defmodule AI.Embeddings.Pool do
           | {:error, :shutting_down}
           | {:error, binary}
   def embed(text) when is_binary(text) do
-    GenServer.call(__MODULE__, {:embed, text}, @call_timeout)
+    case Services.Instance.whereis(__MODULE__) do
+      nil ->
+        {:error, :pool_not_running}
+
+      pid ->
+        GenServer.call(pid, {:embed, text}, @call_timeout)
+    end
   catch
     :exit, {:noproc, _} -> {:error, :pool_not_running}
     :exit, {:timeout, _} -> {:error, :timeout}
@@ -158,10 +169,16 @@ defmodule AI.Embeddings.Pool do
   """
   @spec shutdown() :: :ok
   def shutdown do
-    try do
-      GenServer.stop(__MODULE__, :normal, 5_000)
-    catch
-      :exit, _ -> :ok
+    case Services.Instance.whereis(__MODULE__) do
+      nil ->
+        :ok
+
+      pid ->
+        try do
+          GenServer.stop(pid, :normal, 5_000)
+        catch
+          :exit, _ -> :ok
+        end
     end
   end
 

@@ -113,12 +113,12 @@ defmodule UI.Queue.Test do
 
       # Enqueue a puts (normal priority)
       Services.Globals.Spawn.spawn(fn ->
-        UI.Queue.puts(UI.Queue, :stdout, "dummy")
+        UI.Queue.puts(UI.Queue.instance(), :stdout, "dummy")
         send(parent, :after_puts)
       end)
 
       # Release the blocker
-      send(UI.Queue, :go)
+      send(UI.Queue.instance(), :go)
 
       # Ensure interact runs before puts
       assert_receive :after_interact, 200
@@ -163,7 +163,7 @@ defmodule UI.Queue.Test do
 
       output =
         ExUnit.CaptureIO.capture_io(:stderr, fn ->
-          result = UI.Queue.log(UI.Queue, :error, invalid)
+          result = UI.Queue.log(UI.Queue.instance(), :error, invalid)
           assert result == :ok
         end)
 
@@ -197,7 +197,7 @@ defmodule UI.Queue.Test do
 
       result =
         UI.Queue.interact(fn ->
-          UI.Queue.puts(UI.Queue, :stdio, owl_data)
+          UI.Queue.puts(UI.Queue.instance(), :stdio, owl_data)
         end)
 
       assert result == {:ok, :ok}
@@ -254,7 +254,7 @@ defmodule UI.Queue.Test do
       # Use :error so the OTP Logger primary-level filter (default :notice
       # outside production) doesn't drop the event before our handler sees it.
       Services.Globals.Spawn.spawn(fn ->
-        :ok = UI.Queue.log(UI.Queue, :error, "should-be-buffered")
+        :ok = UI.Queue.log(UI.Queue.instance(), :error, "should-be-buffered")
         send(caller, :log_returned)
       end)
 
@@ -292,7 +292,7 @@ defmodule UI.Queue.Test do
 
       # Log a thing - should buffer. :error to clear OTP's default
       # primary-level :notice filter in test runs.
-      :ok = UI.Queue.log(UI.Queue, :error, "counter-test")
+      :ok = UI.Queue.log(UI.Queue.instance(), :error, "counter-test")
       refute_receive {:captured_log, _}, 150
 
       # First unpause - depth still > 0; nothing should flush.
@@ -343,9 +343,9 @@ defmodule UI.Queue.Test do
       # Attempt to log during interact
       Services.Globals.Spawn.spawn(fn ->
         send(caller, {:log_start, self()})
-        Process.delete({:uiq_ctx, Process.whereis(UI.Queue)})
+        Process.delete({:uiq_ctx, UI.Queue.instance()})
         send(caller, {:token_deleted, self()})
-        result = UI.Queue.log(UI.Queue, :error, "buffer-me")
+        result = UI.Queue.log(UI.Queue.instance(), :error, "buffer-me")
         send(caller, {:log_returned, result})
       end)
 
@@ -355,7 +355,7 @@ defmodule UI.Queue.Test do
       refute_receive {:captured_log, _}, 200
 
       # Release the interact
-      send(UI.Queue, :release)
+      send(UI.Queue.instance(), :release)
 
       assert_receive {:log_returned, :ok}, 1_000
 

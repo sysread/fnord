@@ -6,7 +6,10 @@ defmodule Services.Notes do
   # -----------------------------------------------------------------------------
   @spec start_link(opts :: keyword()) :: GenServer.on_start()
   def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+    with {:ok, pid} <- GenServer.start_link(__MODULE__, opts) do
+      Services.Instance.register(__MODULE__, pid)
+      {:ok, pid}
+    end
   end
 
   @doc """
@@ -15,7 +18,7 @@ defmodule Services.Notes do
   """
   @spec load_notes() :: :ok | {:error, any}
   def load_notes() do
-    GenServer.cast(__MODULE__, :load_notes)
+    Services.Instance.cast(__MODULE__, :load_notes)
   end
 
   @doc """
@@ -27,7 +30,7 @@ defmodule Services.Notes do
   """
   @spec ask(binary) :: binary
   def ask(question) do
-    GenServer.call(__MODULE__, {:ask, question}, :infinity)
+    Services.Instance.call(__MODULE__, {:ask, question}, :infinity)
   end
 
   @doc """
@@ -38,7 +41,7 @@ defmodule Services.Notes do
   """
   @spec ingest_user_msg(binary) :: :ok
   def ingest_user_msg(msg_text) do
-    GenServer.cast(__MODULE__, {:ingest_user_msg, msg_text})
+    Services.Instance.cast(__MODULE__, {:ingest_user_msg, msg_text})
   end
 
   @doc """
@@ -48,7 +51,7 @@ defmodule Services.Notes do
   """
   @spec ingest_research(binary, binary, any) :: :ok
   def ingest_research(func, args_json, result) do
-    GenServer.cast(__MODULE__, {:ingest_research, func, args_json, result})
+    Services.Instance.cast(__MODULE__, {:ingest_research, func, args_json, result})
   end
 
   @doc """
@@ -62,7 +65,7 @@ defmodule Services.Notes do
   """
   @spec consolidate() :: :ok
   def consolidate() do
-    GenServer.cast(__MODULE__, :consolidate)
+    Services.Instance.cast(__MODULE__, :consolidate)
   end
 
   @doc """
@@ -72,7 +75,7 @@ defmodule Services.Notes do
   """
   def join() do
     UI.info("[notes-server]", "waiting for operations to complete")
-    GenServer.call(__MODULE__, :join, :infinity)
+    Services.Instance.call(__MODULE__, :join, :infinity)
   end
 
   @doc """
@@ -89,7 +92,7 @@ defmodule Services.Notes do
   """
   def save() do
     UI.debug("[notes-server]", "saving new research")
-    GenServer.cast(__MODULE__, :save)
+    Services.Instance.cast(__MODULE__, :save)
   end
 
   # -----------------------------------------------------------------------------
@@ -248,6 +251,13 @@ defmodule Services.Notes do
   # ----------------------------------------------------------------------------
   # Pending Operations Instrumentation (ETS)
   # Internal helpers for tracking pending async operations non-blockingly.
+  #
+  # The table itself is VM-global infrastructure, but entries are keyed by the
+  # caller's Services.Globals root so that each instance tree counts its own
+  # pending operations (same keying pattern as Globals' data table). Clients
+  # and the server share a tree, so they resolve the same key. A dead root
+  # leaves at most one stale integer behind - negligible, and acceptable for
+  # a counter that exists only to answer "is my tree's notes server busy?".
   # ----------------------------------------------------------------------------
 
   @doc """
@@ -264,13 +274,17 @@ defmodule Services.Notes do
   def pending_count() do
     ensure_ets()
 
-    case :ets.lookup(:notes_status, :pending_ops) do
-      [{:pending_ops, count}] -> count
+    case :ets.lookup(:notes_status, pending_key()) do
+      [{_key, count}] -> count
       [] -> 0
     end
   end
 
   # Private helpers for ETS-backed pending counter
+  defp pending_key() do
+    {Services.Globals.current_root() || self(), :pending_ops}
+  end
+
   defp ensure_ets() do
     case :ets.info(:notes_status) do
       :undefined -> :ets.new(:notes_status, [:named_table, :public, read_concurrency: true])
@@ -280,15 +294,16 @@ defmodule Services.Notes do
 
   defp inc_pending() do
     ensure_ets()
-    :ets.update_counter(:notes_status, :pending_ops, {2, 1}, {:pending_ops, 0})
+    :ets.update_counter(:notes_status, pending_key(), {2, 1}, {pending_key(), 0})
   end
 
   defp dec_pending() do
     ensure_ets()
-    new = :ets.update_counter(:notes_status, :pending_ops, {2, -1}, {:pending_ops, 0})
+    key = pending_key()
+    new = :ets.update_counter(:notes_status, key, {2, -1}, {key, 0})
 
     if new < 0 do
-      :ets.insert(:notes_status, {:pending_ops, 0})
+      :ets.insert(:notes_status, {key, 0})
     end
 
     :ok

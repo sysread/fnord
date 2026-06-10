@@ -82,14 +82,11 @@ defmodule ExternalConfigs.Injector do
 
   # Load-bearing guard: file tools are exercised by tests that don't boot
   # the full Services supervision tree, so Services.Once may not be
-  # registered. Calling Services.Once.run/2 in that state would crash the
-  # tool call. Early-exit keeps the injector a no-op outside live
-  # sessions.
+  # running in the caller's process tree. Calling Services.Once.run/2 in
+  # that state would crash the tool call. Early-exit keeps the injector a
+  # no-op outside live sessions.
   defp once_running?() do
-    case Process.whereis(Services.Once) do
-      nil -> false
-      _ -> true
-    end
+    Services.Once.running?()
   end
 
   defp relative_path(%Store.Project{source_root: nil}, path), do: path
