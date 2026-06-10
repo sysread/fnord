@@ -113,9 +113,10 @@ defmodule AI.Agent.Coordinator do
 
       Settings.set_edit_mode(edit?)
 
-      # Restart approvals service to pick up edit mode setting
-      GenServer.stop(Services.Approvals, :normal)
-      {:ok, _pid} = Services.Approvals.start_link()
+      # Entering/leaving edit mode is a session boundary for approvals:
+      # discard session-scoped grants. (Approvals reads config at
+      # confirm-time, so no restart is needed for the mode flag itself.)
+      :ok = Services.Approvals.reset_session()
 
       %__MODULE__{
         # Agent

@@ -48,9 +48,8 @@ defmodule Services.Approvals.Shell.ConversationPersistenceTest do
 
     assert {:approved, _state1} = Shell.confirm(%{session: []}, {"|", [cmd], "first approval"})
 
-    # Kill and restart Approvals server to simulate fresh state (new session state lost)
-    :ok = GenServer.stop(Services.Approvals)
-    {:ok, _pid} = Services.Approvals.start_link()
+    # Reset session state to simulate a fresh session (session grants lost)
+    :ok = Services.Approvals.reset_session()
 
     # Second run: should auto-approve without UI interaction due to conversation metadata reuse
     # No choose/prompt expectations here: if they fire, Mox will complain

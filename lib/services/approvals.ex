@@ -28,6 +28,17 @@ defmodule Services.Approvals do
     end
   end
 
+  @doc """
+  Discards session-scoped approval state, as when a logical session boundary
+  occurs within the same OS process (entering edit mode, starting a fresh
+  follow-up). Config is resolved at confirm-time via impl dispatch, so no
+  restart is needed to observe new settings.
+  """
+  @spec reset_session() :: :ok
+  def reset_session() do
+    Services.Instance.call(__MODULE__, :reset_session)
+  end
+
   @spec confirm(term, atom) ::
           {:ok, :approved}
           | {:denied, binary}
@@ -42,6 +53,11 @@ defmodule Services.Approvals do
   @impl GenServer
   def init(_) do
     {:ok, %__MODULE__{session: []}}
+  end
+
+  @impl GenServer
+  def handle_call(:reset_session, _from, _state) do
+    {:reply, :ok, %__MODULE__{session: []}}
   end
 
   @impl GenServer
