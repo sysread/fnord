@@ -78,6 +78,27 @@ defmodule Services.Globals do
   end
 
   @doc """
+  Get a tree-local override only, with no fallback to `Application.get_env/3`.
+  Returns `default` when the caller is not under a root or no override is set.
+  Use this for keys that have no meaningful Application-env counterpart (e.g.
+  `Services.Instance` registrations, whose keys are not atoms and whose values
+  are pids scoped to a single tree's lifetime).
+  """
+  @spec get_override(atom, term, term) :: term
+  def get_override(app, key, default \\ nil) do
+    case resolve_root() do
+      nil ->
+        default
+
+      root ->
+        case :ets.lookup(@data_tab, {root, app, key}) do
+          [{{^root, ^app, ^key}, value}] -> value
+          [] -> default
+        end
+    end
+  end
+
+  @doc """
   Delete a tree-local override (no-op if none). Returns :ok.
   """
   @spec delete_env(atom, term) :: :ok
@@ -93,36 +114,28 @@ defmodule Services.Globals do
   end
 
   @doc """
-  Bulk put multiple overrides for one or more apps in the current tree
+  Bulk put multiple overrides for the given app in the current tree
   (installing the caller as a root if needed).
   """
-  @spec put_all_env([{app(), [{key(), value()}]}], keyword()) :: :ok
-  def put_all_env(app_kvs_list, _opts \\ [])
-
-  def put_all_env(app_kvs_list, _opts) when is_list(app_kvs_list) do
+  @spec put_all_env(app(), [{key(), value()}]) :: :ok
+  def put_all_env(app, kvs) when is_atom(app) and is_list(kvs) do
     root = ensure_root!()
 
-    Enum.each(app_kvs_list, fn
-      {app, kvs} when is_atom(app) and is_list(kvs) ->
-        Enum.each(kvs, fn {k, v} ->
-          true = :ets.insert(@data_tab, {{root, app, k}, v})
-        end)
-
-      other ->
-        raise ArgumentError,
-              "put_all_env/2 expects [{app, keyword}] entries, got: #{inspect(other)}"
+    Enum.each(kvs, fn {k, v} ->
+      true = :ets.insert(@data_tab, {{root, app, k}, v})
     end)
 
     :ok
   end
 
-  def put_all_env(app, kvs) when is_atom(app) and is_list(kvs) do
-    put_all_env([{app, kvs}], [])
-  end
-
   @doc """
   Get all tree-local overrides for the given app, overlaying them on top of
   `Application.get_all_env/1` if the caller is the root.
+
+  Only atom-keyed overrides are included, mirroring Application env
+  semantics. Non-atom keys (e.g. `Services.Instance` registrations) are
+  visible via `overrides/1` instead - including them here would crash
+  `Keyword.put/3`.
   """
   @spec get_all_env(atom()) :: keyword()
   def get_all_env(app) do
@@ -137,13 +150,30 @@ defmodule Services.Globals do
 
         root
         |> overrides_for(app)
+        |> Enum.filter(fn {k, _v} -> is_atom(k) end)
         |> Enum.reduce(base, fn {k, v}, acc ->
           Keyword.put(acc, k, v)
         end)
 
       root ->
         # Descendant: show only overrides (matches your get_env/3 semantics)
-        overrides_for(root, app) |> Enum.sort_by(&elem(&1, 0))
+        overrides_for(root, app)
+        |> Enum.filter(fn {k, _v} -> is_atom(k) end)
+        |> Enum.sort_by(&elem(&1, 0))
+    end
+  end
+
+  @doc """
+  All tree-local overrides for the given app as raw `{key, value}` tuples,
+  with no Application-env overlay and no atom-key restriction. This is the
+  introspection surface for non-atom keys such as `Services.Instance`
+  registrations.
+  """
+  @spec overrides(atom()) :: [{term(), term()}]
+  def overrides(app) do
+    case resolve_root() do
+      nil -> []
+      root -> overrides_for(root, app)
     end
   end
 
