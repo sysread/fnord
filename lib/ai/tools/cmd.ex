@@ -968,10 +968,13 @@ defmodule AI.Tools.Cmd do
   ]
 
   defp available_tools do
-    # Create memoization table if it doesn't exist
-    if :ets.info(@non_posix_tools_memo_table) == :undefined do
-      :ets.new(@non_posix_tools_memo_table, [:named_table, :public, read_concurrency: true])
-    end
+    # Create memoization table if it doesn't exist (serialized through
+    # Globals: bare check-then-new races under concurrent tests, and the
+    # table must not die with the first caller's process).
+    Services.Globals.ensure_shared_table(
+      @non_posix_tools_memo_table,
+      [:named_table, :public, read_concurrency: true]
+    )
 
     # Check if we have a cached value
     case :ets.lookup(@non_posix_tools_memo_table, :cached) do

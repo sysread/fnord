@@ -286,10 +286,10 @@ defmodule Services.Notes do
   end
 
   defp ensure_ets() do
-    case :ets.info(:notes_status) do
-      :undefined -> :ets.new(:notes_status, [:named_table, :public, read_concurrency: true])
-      _info -> :ok
-    end
+    Services.Globals.ensure_shared_table(
+      :notes_status,
+      [:named_table, :public, read_concurrency: true]
+    )
   end
 
   defp inc_pending() do

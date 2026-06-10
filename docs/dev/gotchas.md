@@ -565,3 +565,17 @@ Related: registry entries must be looked up with
 path of `get_env/3` falls back to `Application.get_env/3`, which
 deprecates (and will eventually reject) non-atom keys like
 `{:instance_service, module}`.
+
+## 33. Never check-then-create a named ETS table - use Globals.ensure_shared_table
+
+The bare pattern (`if :ets.info(name) == :undefined, do: :ets.new(name, ...)`)
+has two failure modes under concurrent tests: the check-then-act races (both
+callers see :undefined; the loser raises "table name already exists" - under
+the instance supervisor's max_restarts: 0, that kills the whole instance and
+fails an unrelated test), and the table is owned by whichever process created
+it, so it silently vanishes when that process exits (under per-test
+instances: when the first test to touch it finishes).
+`Services.Globals.ensure_shared_table/2` serializes creation through the
+Globals GenServer and makes Globals - which lives for the whole VM - the
+owner. Both prior offenders (Services.Notes' :notes_status counter,
+AI.Tools.Cmd's tool-availability memo) now go through it.

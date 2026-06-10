@@ -178,6 +178,20 @@ defmodule Services.Globals do
   end
 
   @doc """
+  Idempotently create a named, public ETS table owned by the Globals server.
+  Use this instead of check-then-:ets.new in caller code: the bare pattern
+  races under concurrency (both callers see :undefined, the loser crashes),
+  and a table created by an arbitrary process dies with that process -
+  under per-test instances, that means whichever test got there first.
+  Creation is serialized through the Globals GenServer, and Globals lives
+  for the whole VM, so the table is race-free and permanent.
+  """
+  @spec ensure_shared_table(atom(), list()) :: :ok
+  def ensure_shared_table(name, opts) when is_atom(name) and is_list(opts) do
+    GenServer.call(__MODULE__, {:ensure_shared_table, name, opts})
+  end
+
+  @doc """
   Install the caller as a shadowing root explicitly (rarely needed; put_env/3
   auto-installs).
   """
@@ -241,6 +255,16 @@ defmodule Services.Globals do
     :ets.new(@roots_tab, [:named_table, :set, :public])
     :ets.new(@data_tab, [:named_table, :set, :public, :compressed, read_concurrency: true])
     {:ok, %{refs: %{}}}
+  end
+
+  @impl true
+  def handle_call({:ensure_shared_table, name, opts}, _from, s) do
+    case :ets.info(name) do
+      :undefined -> :ets.new(name, opts)
+      _info -> :ok
+    end
+
+    {:reply, :ok, s}
   end
 
   @impl true
