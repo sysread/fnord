@@ -1,5 +1,5 @@
 defmodule AI.CompletionAPITest do
-  use ExUnit.Case
+  use Fnord.TestCase, async: false
   alias AI.Model
 
   # The mock stub runs inside AI.CompletionAPI.get/6, which has a catch-all

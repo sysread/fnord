@@ -1,5 +1,5 @@
 defmodule AI.Endpoint.OpenAITest do
-  use ExUnit.Case, async: true
+  use Fnord.TestCase, async: true
 
   alias AI.Endpoint.OpenAI
 

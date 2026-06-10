@@ -1,5 +1,5 @@
 defmodule Store.Project.Entry.IDTest do
-  use ExUnit.Case, async: true
+  use Fnord.TestCase, async: true
   alias Store.Project.Entry.ID
 
   @short "foo/bar.txt"

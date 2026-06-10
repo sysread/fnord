@@ -1,5 +1,5 @@
 defmodule AI.Agent.StrictSchemasTest do
-  use ExUnit.Case, async: true
+  use Fnord.TestCase, async: true
 
   # OpenAI's Responses-API strict structured-output validator rejects any
   # JSON schema where the `required` array does not list every key in

@@ -26,7 +26,6 @@ defmodule Fnord.TestCase do
   using do
     quote do
       @moduletag capture_log: true
-      use ExUnit.Case
 
       import ExUnit.CaptureIO
       import Mox
@@ -36,6 +35,7 @@ defmodule Fnord.TestCase do
       # ------------------------------------------------------------------------
       import Fnord.TestCase,
         only: [
+          allow_service_mocks: 1,
           tmpdir: 0,
           capture_all: 1,
           mock_project: 1,
@@ -78,44 +78,6 @@ defmodule Fnord.TestCase do
       # ------------------------------------------------------------------------
       setup do
         Services.Globals.put_env(:fnord, :indexer, MockIndexer)
-        :ok
-      end
-
-      setup do
-        # Clear OpenAI API keys so completion-path tests that forget to mock
-        # can't silently reach the live API. Embeddings are local now, so this
-        # only guards completions.
-        Util.Env.put_env("OPENAI_API_KEY", "")
-        Util.Env.put_env("FNORD_OPENAI_API_KEY", "")
-        :ok
-      end
-
-      setup do
-        # Disable lowfat output-filtering by default so cmd_tool tests observe
-        # raw command output regardless of whether `lowfat` is installed on the
-        # machine running the suite. The dedicated lowfat test opts back in.
-        Util.Env.put_env("FNORD_NO_LOWFAT", "1")
-        on_exit(fn -> System.delete_env("FNORD_NO_LOWFAT") end)
-        :ok
-      end
-
-      setup do
-        # Silence git's default-branch advice during tests and prefer 'main'
-        # These environment variables affect git subprocesses spawned by System.cmd/3
-        Util.Env.put_env("GIT_CONFIG_COUNT", "2")
-        Util.Env.put_env("GIT_CONFIG_KEY_0", "advice.defaultBranchName")
-        Util.Env.put_env("GIT_CONFIG_VALUE_0", "false")
-        Util.Env.put_env("GIT_CONFIG_KEY_1", "init.defaultBranch")
-        Util.Env.put_env("GIT_CONFIG_VALUE_1", "main")
-
-        on_exit(fn ->
-          System.delete_env("GIT_CONFIG_COUNT")
-          System.delete_env("GIT_CONFIG_KEY_0")
-          System.delete_env("GIT_CONFIG_VALUE_0")
-          System.delete_env("GIT_CONFIG_KEY_1")
-          System.delete_env("GIT_CONFIG_VALUE_1")
-        end)
-
         :ok
       end
 
@@ -206,8 +168,15 @@ defmodule Fnord.TestCase do
       # applied by the preceding setup blocks via put_env, so no :config is
       # passed here.
       # -----------------------------------------------------------------------------
-      setup do
+      setup context do
+        # Record async-ness for allow_service_mocks/1: Mox runs in private
+        # mode for async tests (set_mox_from_context above), and Mox.allow
+        # is only meaningful - and only legal - in private mode.
+        Process.put(:fnord_test_async, Map.get(context, :async, false))
+
         {:ok, _} = Fnord.Instance.start_link()
+        allow_service_mocks(self())
+
         :ok
       end
 
@@ -233,6 +202,45 @@ defmodule Fnord.TestCase do
     Briefly.create(directory: true)
   end
 
+  # Mocks whose calls may execute inside service processes rather than the
+  # test process (UI.Queue runs puts in its own GenServer, Approvals
+  # dispatches impls, indexing happens in spawned workers).
+  @service_facing_mocks [MockIndexer, MockApprovals, UI.Output.Mock]
+
+  @doc """
+  Grants the calling test's Mox stubs/expectations to every service process
+  registered in the current tree. Async tests run Mox in private mode, where
+  a mock called from a GenServer fails ownership - `$callers` covers Task
+  processes, but GenServers carry only `$ancestors`, which Mox does not
+  consult. No-op for sync tests (global mode, where Mox.allow is illegal).
+
+  Called automatically after the instance boots. Call it again after starting
+  a tree-scoped service ad hoc (`mock_conversation/0` does this for
+  `Services.Task`); already-allowed pids are skipped.
+  """
+  @spec allow_service_mocks(pid()) :: :ok
+  def allow_service_mocks(owner) do
+    if Process.get(:fnord_test_async, false) do
+      already = Process.get(:fnord_test_allowed_pids, MapSet.new())
+
+      pids =
+        Services.Instance.registered()
+        |> Enum.map(&Services.Instance.whereis/1)
+        |> Enum.filter(&is_pid/1)
+        |> Enum.reject(&MapSet.member?(already, &1))
+
+      for pid <- pids, mock <- @service_facing_mocks do
+        Mox.allow(mock, owner, pid)
+      end
+
+      Process.put(
+        :fnord_test_allowed_pids,
+        Enum.into(pids, already)
+      )
+    end
+
+    :ok
+  end
 
   @doc """
   Safely creates a new meck mock for the given module. If the module is
@@ -447,6 +455,9 @@ defmodule Fnord.TestCase do
 
     # Start the task service
     {:ok, task_pid} = Services.Task.start_link(conversation_pid: conversation_pid)
+
+    # Async tests: the new service pids need Mox allowances like the roster.
+    allow_service_mocks(self())
 
     %{
       conversation: conversation,
