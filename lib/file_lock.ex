@@ -169,7 +169,22 @@ defmodule FileLock do
         max(0, (now - mtime) * 1_000)
 
       _ ->
-        @stale_ms + 1
+        # A lock dir we cannot stat is almost always one that was just
+        # RELEASED (renamed away between our mkdir EEXIST and this stat) -
+        # that is healthy contention, not staleness. Treating it as stale
+        # sent us into attempt_stale_takeover, whose rename would steal
+        # whatever lock dir exists by then - typically the NEXT holder's
+        # live lock - putting two processes in the critical section and
+        # losing one's update. Report fresh; the retry loop's mkdir will
+        # win the lock honestly if it is actually free.
+        #
+        # Residual (accepted) hazard: a lock that genuinely ages past
+        # @stale_ms while also being actively contended can still be
+        # stolen between the stat and the takeover rename. That requires
+        # a crashed holder AND two live racers in a ~ms window - the
+        # takeover path exists only for crash recovery, where contention
+        # is absent.
+        0
     end
   end
 
