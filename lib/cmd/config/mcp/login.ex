@@ -116,7 +116,10 @@ defmodule Cmd.Config.MCP.Login do
         scopes: scopes,
         # RFC 8707 resource indicator: the MCP server's own URL. Servers
         # like Linear bind the grant to this and reject flows without it.
-        # nil for non-http transports; the Client omits the param then.
+        # Sent for any transport whose config carries a base_url (http AND
+        # websocket - a wss:// URL is a legal absolute URI and identifies
+        # the resource the grant is for); nil when absent (stdio), in which
+        # case the Client omits the param.
         resource: Map.get(srv_cfg, "base_url")
       }
 
