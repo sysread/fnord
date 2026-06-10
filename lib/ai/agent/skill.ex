@@ -49,6 +49,11 @@ defmodule AI.Agent.Skill do
 
       AI.Agent.get_completion(agent,
         model: model,
+        # Under the Responses API, web search is a tool entry attached via
+        # web_search?, not a property of the model - the "web" preset resolves
+        # to a plain model. Without this flag, a skill declaring model = "web"
+        # would silently run without search.
+        web_search?: skill.model == "web",
         toolbox: toolbox,
         response_format: response_format,
         log_msgs: true,
