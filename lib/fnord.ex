@@ -22,7 +22,7 @@ defmodule Fnord do
   def main(args) do
     configure_logger()
 
-    Services.start_all()
+    {:ok, _} = Fnord.Instance.start_link()
 
     # Load all frob modules to prevent race conditions during concurrent operations
     Frobs.load_all_modules()
@@ -42,10 +42,6 @@ defmodule Fnord do
       :hackney_pool.start_pool(:ai_indexer, max_connections: @pool_indexer)
       :hackney_pool.start_pool(:ai_memory, max_connections: @pool_memory)
       :hackney_pool.start_pool(:ai_notes, max_connections: @pool_notes)
-
-      # Start services that depend on CLI configuration now that it's available.
-      # These services depend on settings parsed from CLI arguments in set_globals().
-      Services.start_config_dependent_services(command)
 
       # Require a project if the command needs it. As a rule, we make the
       # project option optional in the Cmd implementation, and then manually

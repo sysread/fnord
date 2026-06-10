@@ -200,11 +200,14 @@ defmodule Fnord.TestCase do
       end
 
       # -----------------------------------------------------------------------------
-      # Start internal services
+      # Check out this test's app instance. The test process is already the
+      # Globals root (installed in the first setup block), so the instance
+      # and its services scope to this test and die with it. Config was
+      # applied by the preceding setup blocks via put_env, so no :config is
+      # passed here.
       # -----------------------------------------------------------------------------
       setup do
-        Services.start_all()
-        Services.start_config_dependent_services()
+        {:ok, _} = Fnord.Instance.start_link()
         :ok
       end
 
@@ -229,6 +232,7 @@ defmodule Fnord.TestCase do
   def tmpdir() do
     Briefly.create(directory: true)
   end
+
 
   @doc """
   Safely creates a new meck mock for the given module. If the module is

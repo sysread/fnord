@@ -73,15 +73,21 @@ not in the GenServer queue. If the pool workers are all busy, new requests
 queue indefinitely in the GenServer mailbox. Timeout or port death fails the
 individual caller; there is no built-in retry or circuit breaker.
 
-## 9. Two-phase service startup
+## 9. Single-phase service startup via Fnord.Instance
 
-Core services (`Services.start_all/0`, `lib/services.ex:2`) start before CLI
-parsing: Globals, UI.Queue, Registry, Once, Notes, BackupFile, TempFile,
-FileCache, TaskSupervisor. Config-dependent services
-(`Services.start_config_dependent_services/1`, line 43) start after
-`set_globals/1`: NamePool, Approvals, Approvals.Gate. MCP is started lazily
-on first tool access. This split avoids circular dependencies between services
-that need config and the CLI parser that sets it.
+All services boot in one pass through `Fnord.Instance.start_link/1`
+(production: `Fnord.main/1` before CLI parsing; tests: `Fnord.TestCase`
+setup after config overrides are applied). This works because services do
+not read config at init - they resolve it at call time through
+`Services.Globals` (e.g. `Services.Approvals.impl_for/1`, NamePool's
+nomenclater check). If you add a service whose `init/1` reads config, it
+will see unparsed defaults in production - resolve config at call time
+instead, or redesign the boot. MCP is still started lazily on first tool
+access. The instance supervisor runs with `max_restarts: 0`: any service
+termination kills the instance and its owner, preserving the historical
+bare-link crash semantics - reset state through service APIs (e.g.
+`Services.Approvals.reset_session/0`), never by stopping/restarting a
+roster service.
 
 ## 10. Conversations persist incrementally
 
@@ -531,3 +537,31 @@ choose/prompt interacts again. The same constraint applies to any new
 GenServer.call-based coordination added to the fast path, and to UI
 helpers invoked from interact funs (e.g. a `UI.Queue.log` from inside a
 queued interact fun would hit the same wall - it has no self-call guard).
+
+## 32. Tree-scoped services resolve via $ancestors only - raw spawns and cross-tree supervisors see nothing
+
+`Services.Instance` (and `Services.Globals` generally) resolves the
+current tree's root by walking `:"$ancestors"`, which only
+proc_lib-spawned processes (GenServer, Supervisor, Task, Agent) carry.
+Two consequences:
+
+- A raw-`spawn`ed process has no ancestry: it resolves no root, so
+  tree-scoped service calls (`Services.Once.set/2`, etc.) raise and
+  config reads fall back to defaults. Use `Task`/`proc_lib` spawns for
+  anything that needs the tree's services or config.
+- A process spawned through a supervisor owned by a *different* tree
+  inherits that tree's ancestry, not the caller's. A globally-named,
+  shared Task.Supervisor is the canonical trap: it would be started by
+  the first tree that boots services (in tests, the first test), so
+  tasks spawned through it would resolve a dead root. The unused
+  `Services.TaskSupervisor` was deleted for exactly this reason - if
+  you need supervised tasks, start a Task.Supervisor inside your own
+  tree (as `Services.MemoryIndexer.init/1` does) or use
+  `Services.Globals.Spawn`, which propagates the root via pdict.
+  `$callers` (which Task sets) is NOT consulted by root resolution.
+
+Related: registry entries must be looked up with
+`Services.Globals.get_override/3`, not `get_env/3` - the no-override
+path of `get_env/3` falls back to `Application.get_env/3`, which
+deprecates (and will eventually reject) non-atom keys like
+`{:instance_service, module}`.

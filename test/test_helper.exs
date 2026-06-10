@@ -5,10 +5,9 @@ ExUnit.start()
 # ------------------------------------------------------------------------------
 Services.Globals.start_link()
 
-case Services.Once.start_link() do
-  {:ok, _} -> :ok
-  {:error, {:already_started, _}} -> :ok
-end
+# Services are tree-scoped (see Services.Instance) and boot per-test via
+# Fnord.Instance in Fnord.TestCase setup; a suite-global instance here would
+# be unreachable from test process trees and would mask leaks.
 
 # ------------------------------------------------------------------------------
 # Start test applications
