@@ -499,7 +499,7 @@ defmodule Store.Project.Conversation.Format do
 
   defp heal_warn(conversation, reason) do
     UI.warn(
-      "Could not persist healed tool arguments for conversation #{conversation.id}: #{inspect(reason)}"
+      "Could not persist healed conversation #{conversation.id}: #{inspect(reason)}"
     )
   end
 end
