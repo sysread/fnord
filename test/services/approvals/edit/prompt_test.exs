@@ -1,5 +1,5 @@
 defmodule Services.Approvals.Edit.PromptTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   import Mox
 
@@ -9,17 +9,8 @@ defmodule Services.Approvals.Edit.PromptTest do
   @auto_deny "(auto-deny)"
 
   setup do
-    safe_meck_new(UI, [:passthrough])
-    :meck.expect(UI, :is_tty?, fn -> true end)
-    :meck.expect(UI, :quiet?, fn -> false end)
-
-    on_exit(fn ->
-      try do
-        safe_meck_unload(UI)
-      rescue
-        _ -> :ok
-      end
-    end)
+    set_config(:is_tty, true)
+    set_config(:quiet, false)
 
     # ensure UI is mocked
     Mox.stub_with(UI.Output.Mock, UI.Output.TestStub)

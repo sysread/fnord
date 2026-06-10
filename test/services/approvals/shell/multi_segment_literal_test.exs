@@ -1,18 +1,9 @@
 defmodule Services.Approvals.Shell.MultiSegmentLiteralTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   setup do
     Settings.new() |> Settings.update(:approvals, fn _ -> %{} end)
-    :ok = safe_meck_new(UI, [:passthrough])
-    :meck.expect(UI, :is_tty?, fn -> false end)
-
-    on_exit(fn ->
-      try do
-        safe_meck_unload(UI)
-      catch
-        _, _ -> :ok
-      end
-    end)
+    set_config(:is_tty, false)
 
     :ok
   end

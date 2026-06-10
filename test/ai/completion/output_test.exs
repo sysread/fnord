@@ -5,48 +5,22 @@ defmodule AI.Completion.OutputTest do
 
   describe "replay_conversation_as_output/1" do
     test "writes final response to STDOUT without invoking formatter when stdout is not a TTY" do
-      # Capture and restore environment and globals for isolation
+      set_config(:stdout_tty, false)
+      set_config(:ui_output, UI.Output.TestStub)
+      set_config(:quiet, true)
+
+      # The formatter is only invoked when stdout is a TTY. Point it at a
+      # command that would visibly mutate the output ("final" -> "finbl"), so
+      # the exact-match assertion below doubles as proof it never ran.
       orig_formatter = System.get_env("FNORD_FORMATTER")
-      orig_ui_output = Services.Globals.get_env(:fnord, :ui_output)
-      orig_quiet = Services.Globals.get_env(:fnord, :quiet)
-
-      mocked? =
-        try do
-          safe_meck_new(UI, [:passthrough])
-          true
-        rescue
-          _ -> false
-        end
-
-      if mocked? do
-        :meck.expect(UI, :stdout_tty?, 0, fn -> false end)
-        :meck.expect(UI, :format, 1, fn _ -> raise "formatter called" end)
-      end
+      System.put_env("FNORD_FORMATTER", "tr 'a' 'b'")
 
       on_exit(fn ->
-        if mocked? do
-          try do
-            safe_meck_unload(UI)
-          catch
-            :error, {:not_mocked, UI} -> :ok
-          end
-        end
-
         case orig_formatter do
           nil -> System.delete_env("FNORD_FORMATTER")
           val -> System.put_env("FNORD_FORMATTER", val)
         end
-
-        Services.Globals.put_env(:fnord, :ui_output, orig_ui_output)
-        Services.Globals.put_env(:fnord, :quiet, orig_quiet)
       end)
-
-      Services.Globals.put_env(:fnord, :ui_output, UI.Output.TestStub)
-      Services.Globals.put_env(:fnord, :quiet, true)
-
-      # The formatter is only called when stdout is a TTY, so we can safely set
-      # it to something that would otherwise mutate output.
-      System.put_env("FNORD_FORMATTER", "tr 'a' 'b'")
 
       state = %{
         name: "Xalor",

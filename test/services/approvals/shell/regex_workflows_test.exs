@@ -32,7 +32,7 @@ defmodule Services.Approvals.Shell.RegexWorkflowsTest do
   - Regex patterns are matched against the complete command string including arguments
   - Fallback behavior preserves user safety when regex compilation fails
   """
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   alias Services.Approvals.Shell
   alias Settings.Approvals, as: SettingsApprovals
@@ -69,23 +69,15 @@ defmodule Services.Approvals.Shell.RegexWorkflowsTest do
     baseline_project_regex = ["^baseline.*project"]
 
     # Mock UI for interactive testing - enable tty mode and set up default responses
-    safe_meck_new(UI, [:passthrough])
-    :meck.expect(UI, :is_tty?, fn -> true end)
+    set_config(:is_tty, true)
+    set_config(:quiet, false)
 
-    :meck.expect(UI, :choose, fn
+    stub(UI.Output.Mock, :choose, fn
       "Choose approval scope for:" <> _, _opts -> "Approve for this session"
       "Approve this request?", _opts -> "Approve persistently"
     end)
 
-    :meck.expect(UI, :prompt, fn _prompt, _opts -> "" end)
-
-    on_exit(fn ->
-      try do
-        safe_meck_unload(UI)
-      rescue
-        _ -> :ok
-      end
-    end)
+    stub(UI.Output.Mock, :prompt, fn _msg, _opts -> "" end)
 
     {
       :ok,
@@ -137,12 +129,12 @@ defmodule Services.Approvals.Shell.RegexWorkflowsTest do
       cmd = %{"command" => "testcmd", "args" => ["arg1", "arg2"]}
 
       # Mock UI to choose "Approve persistently" then "Approve globally" then custom regex
-      :meck.expect(UI, :choose, fn
+      stub(UI.Output.Mock, :choose, fn
         "Approve this request?", _opts -> "Approve persistently"
         "Choose approval scope for:\n    ^testcmd.*arg\n", _opts -> "Approve globally"
       end)
 
-      :meck.expect(UI, :prompt, fn _msg, opts ->
+      stub(UI.Output.Mock, :prompt, fn _msg, opts ->
         if Keyword.get(opts, :optional), do: "/^testcmd.*arg/"
       end)
 
@@ -182,14 +174,14 @@ defmodule Services.Approvals.Shell.RegexWorkflowsTest do
       cmd = %{"command" => "testcmd", "args" => ["arg1"]}
 
       # Mock UI to choose "Approve persistently" then "Approve globally" then invalid regex
-      :meck.expect(UI, :choose, fn
+      stub(UI.Output.Mock, :choose, fn
         "Approve this request?", _opts -> "Approve persistently"
         "Choose approval scope for:\n    testcmd\n", _opts -> "Approve globally"
       end)
 
       prompt_call_count = :counters.new(1, [])
 
-      :meck.expect(UI, :prompt, fn _msg, opts ->
+      stub(UI.Output.Mock, :prompt, fn _msg, opts ->
         if Keyword.get(opts, :optional) do
           case :counters.get(prompt_call_count, 1) do
             0 ->
@@ -203,9 +195,6 @@ defmodule Services.Approvals.Shell.RegexWorkflowsTest do
           end
         end
       end)
-
-      # Mock UI.error to be called for invalid regex
-      :meck.expect(UI, :error, fn _msg -> :ok end)
 
       # When: We execute the approval workflow with invalid regex
       assert {:approved, _new_state} = Shell.confirm(%{session: []}, {"|", [cmd], "test purpose"})
@@ -229,12 +218,12 @@ defmodule Services.Approvals.Shell.RegexWorkflowsTest do
     } do
       cmd = %{"command" => "projcmd", "args" => ["build"]}
 
-      :meck.expect(UI, :choose, fn
+      stub(UI.Output.Mock, :choose, fn
         "Approve this request?", _opts -> "Approve persistently"
         "Choose approval scope for:\n    ^projcmd build.*\n", _opts -> "Approve for the project"
       end)
 
-      :meck.expect(UI, :prompt, fn _msg, opts ->
+      stub(UI.Output.Mock, :prompt, fn _msg, opts ->
         if Keyword.get(opts, :optional), do: "/^projcmd build.*/"
       end)
 
@@ -250,14 +239,14 @@ defmodule Services.Approvals.Shell.RegexWorkflowsTest do
     test "project regex approval - negative path (empty regex)" do
       cmd = %{"command" => "projcmd", "args" => ["test"]}
 
-      :meck.expect(UI, :choose, fn
+      stub(UI.Output.Mock, :choose, fn
         "Approve this request?", _opts -> "Approve persistently"
         "Choose approval scope for:\n    projcmd\n", _opts -> "Approve for the project"
       end)
 
       prompt_call_count = :counters.new(1, [])
 
-      :meck.expect(UI, :prompt, fn _msg, opts ->
+      stub(UI.Output.Mock, :prompt, fn _msg, opts ->
         if Keyword.get(opts, :optional) do
           case :counters.get(prompt_call_count, 1) do
             0 ->
@@ -272,9 +261,25 @@ defmodule Services.Approvals.Shell.RegexWorkflowsTest do
         end
       end)
 
-      :meck.expect(UI, :error, fn "Empty regex is not allowed" -> :ok end)
+      # UI.error routes through UI.Output.log(:error, formatted); require
+      # the empty-regex complaint by content match.
+      saw_error = :counters.new(1, [:atomics])
+
+      stub(UI.Output.Mock, :log, fn
+        :error, msg ->
+          if IO.iodata_to_binary(msg) =~ "Empty regex is not allowed" do
+            :counters.add(saw_error, 1, 1)
+          end
+
+          :ok
+
+        _level, _msg ->
+          :ok
+      end)
 
       assert {:approved, _new_state} = Shell.confirm(%{session: []}, {"|", [cmd], "test purpose"})
+
+      assert :counters.get(saw_error, 1) >= 1
 
       # Should fall back to prefix approval
       settings = Settings.new()
@@ -294,12 +299,12 @@ defmodule Services.Approvals.Shell.RegexWorkflowsTest do
       # Given: A command that needs session-scoped regex approval
       cmd = %{"command" => "sesscmd", "args" => ["run"]}
 
-      :meck.expect(UI, :choose, fn
+      stub(UI.Output.Mock, :choose, fn
         "Approve this request?", _opts -> "Approve persistently"
         "Choose approval scope for:\n    ^sesscmd run\n", _opts -> "Approve for this session"
       end)
 
-      :meck.expect(UI, :prompt, fn _msg, opts ->
+      stub(UI.Output.Mock, :prompt, fn _msg, opts ->
         if Keyword.get(opts, :optional), do: "/^sesscmd run/"
       end)
 
@@ -325,12 +330,12 @@ defmodule Services.Approvals.Shell.RegexWorkflowsTest do
     test "session regex approval - negative path (blank input uses prefix)" do
       cmd = %{"command" => "sesscmd", "args" => ["deploy"]}
 
-      :meck.expect(UI, :choose, fn
+      stub(UI.Output.Mock, :choose, fn
         "Approve this request?", _opts -> "Approve persistently"
         "Choose approval scope for:\n    sesscmd\n", _opts -> "Approve for this session"
       end)
 
-      :meck.expect(UI, :prompt, fn _msg, opts ->
+      stub(UI.Output.Mock, :prompt, fn _msg, opts ->
         if Keyword.get(opts, :optional), do: ""
       end)
 
@@ -376,7 +381,7 @@ defmodule Services.Approvals.Shell.RegexWorkflowsTest do
       cmd2 = %{"command" => "gradle", "args" => ["build"]}
 
       # First command requires approval
-      :meck.expect(UI, :choose, fn
+      stub(UI.Output.Mock, :choose, fn
         "Approve this request?", _opts ->
           "Approve persistently"
 
@@ -384,7 +389,7 @@ defmodule Services.Approvals.Shell.RegexWorkflowsTest do
           "Approve for this session"
       end)
 
-      :meck.expect(UI, :prompt, fn _msg, opts ->
+      stub(UI.Output.Mock, :prompt, fn _msg, opts ->
         if Keyword.get(opts, :optional), do: "/^gradle (clean|build|test)/"
       end)
 
@@ -406,7 +411,7 @@ defmodule Services.Approvals.Shell.RegexWorkflowsTest do
       cmd = %{"command" => "git", "args" => ["push", "origin", "main"]}
 
       # Should require approval since it doesn't match
-      :meck.expect(UI, :choose, fn "Approve this request?", _opts -> "Approve" end)
+      stub(UI.Output.Mock, :choose, fn "Approve this request?", _opts -> "Approve" end)
 
       assert {:approved, _state} = Shell.confirm(%{session: []}, {"|", [cmd], "git push"})
     end
@@ -421,7 +426,7 @@ defmodule Services.Approvals.Shell.RegexWorkflowsTest do
     } do
       cmd = %{"command" => "locate", "args" => ["*.ex", "|", "grep", "test"]}
 
-      :meck.expect(UI, :choose, fn
+      stub(UI.Output.Mock, :choose, fn
         "Approve this request?", _opts ->
           "Approve persistently"
 
@@ -429,7 +434,7 @@ defmodule Services.Approvals.Shell.RegexWorkflowsTest do
           "Approve globally"
       end)
 
-      :meck.expect(UI, :prompt, fn _msg, opts ->
+      stub(UI.Output.Mock, :prompt, fn _msg, opts ->
         if Keyword.get(opts, :optional), do: "/^locate \\*\\.ex \\| grep test/"
       end)
 
@@ -451,12 +456,12 @@ defmodule Services.Approvals.Shell.RegexWorkflowsTest do
     } do
       cmd = %{"command" => "custom", "args" => ["action"]}
 
-      :meck.expect(UI, :choose, fn
+      stub(UI.Output.Mock, :choose, fn
         "Approve this request?", _opts -> "Approve persistently"
         "Choose approval scope for:\n    custom action\n", _opts -> "Approve globally"
       end)
 
-      :meck.expect(UI, :prompt, fn _msg, opts ->
+      stub(UI.Output.Mock, :prompt, fn _msg, opts ->
         if Keyword.get(opts, :optional), do: "custom action"
       end)
 
@@ -486,12 +491,12 @@ defmodule Services.Approvals.Shell.RegexWorkflowsTest do
       cmd2 = %{"command" => "search-tool", "args" => ["pattern", "file"]}
 
       # When: First approval - prefix (blank input defaults to prefix)
-      :meck.expect(UI, :choose, fn
+      stub(UI.Output.Mock, :choose, fn
         "Approve this request?", _opts -> "Approve persistently"
         "Choose approval scope for:\n    custom-tool\n", _opts -> "Approve for this session"
       end)
 
-      :meck.expect(UI, :prompt, fn _msg, opts ->
+      stub(UI.Output.Mock, :prompt, fn _msg, opts ->
         if Keyword.get(opts, :optional), do: ""
       end)
 
@@ -501,7 +506,7 @@ defmodule Services.Approvals.Shell.RegexWorkflowsTest do
       assert {:prefix, "custom-tool"} in state1.session
 
       # And When: Second approval - regex (slash-delimited input creates regex)
-      :meck.expect(UI, :choose, fn
+      stub(UI.Output.Mock, :choose, fn
         "Approve this request?", _opts ->
           "Approve persistently"
 
@@ -509,7 +514,7 @@ defmodule Services.Approvals.Shell.RegexWorkflowsTest do
           "Approve for this session"
       end)
 
-      :meck.expect(UI, :prompt, fn _msg, opts ->
+      stub(UI.Output.Mock, :prompt, fn _msg, opts ->
         if Keyword.get(opts, :optional), do: "/^search-tool .* .*/"
       end)
 

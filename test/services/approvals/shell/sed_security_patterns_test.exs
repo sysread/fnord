@@ -6,7 +6,7 @@ defmodule Services.Approvals.Shell.SedSecurityPatternsTest do
   This test serves as documentation of security decisions and regression prevention.
   """
 
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   alias Services.Approvals.Shell
 
@@ -15,16 +15,7 @@ defmodule Services.Approvals.Shell.SedSecurityPatternsTest do
     File.rm_rf!(Settings.settings_file())
 
     # Allow UI calls to pass through but simulate non-interactive mode
-    safe_meck_new(UI, [:passthrough])
-    :meck.expect(UI, :is_tty?, fn -> false end)
-
-    on_exit(fn ->
-      try do
-        safe_meck_unload(UI)
-      rescue
-        _ -> :ok
-      end
-    end)
+    set_config(:is_tty, false)
 
     :ok
   end

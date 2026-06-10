@@ -1,8 +1,47 @@
 defmodule AI.CompletionOutputReplayTest do
-  use Fnord.TestCase
+  use Fnord.TestCase, async: true
   @moduletag :capture_log
 
   import ExUnit.CaptureIO
+
+  # Replay events surface through the UI.Output seam: report_from/feedback
+  # format the agent name into the message ("⦑ name ⦒ msg", speech markers)
+  # and route through log/2, which is gated on quiet?. Tests stub :log to
+  # forward formatted content here and assert on it by pattern.
+  setup do
+    set_config(:quiet, false)
+
+    parent = self()
+
+    stub(UI.Output.Mock, :log, fn _level, msg ->
+      send(parent, {:log, loggable_to_text(msg)})
+      :ok
+    end)
+
+    :ok
+  end
+
+  # The log seam tolerates loose data (UI.Queue sanitizes chardata in
+  # production, and callers occasionally embed raw terms); mirror that
+  # tolerance rather than asserting strict iodata.
+  defp loggable_to_text(msg) do
+    IO.iodata_to_binary(msg)
+  rescue
+    ArgumentError -> inspect(msg)
+  end
+
+  defp assert_logged(pattern, timeout \\ 2_000) do
+    receive do
+      {:log, content} ->
+        if content =~ pattern do
+          :ok
+        else
+          assert_logged(pattern, timeout)
+        end
+    after
+      timeout -> flunk("no log output matching #{inspect(pattern)} within #{timeout}ms")
+    end
+  end
 
   test "replay uses all_tools to render tool call UI notes even if tool not in basic toolbox" do
     # Build a minimal completion state with a transcript that includes a tool call
@@ -40,34 +79,13 @@ defmodule AI.CompletionOutputReplayTest do
       replay_conversation: true
     }
 
-    # Mock UI to capture report calls so we can assert tool UI was rendered
-    safe_meck_new(UI, [:no_link, :passthrough, :non_strict])
-    on_exit(fn -> safe_meck_unload(UI) end)
-
-    # Capture any UI.report_from/2 or /3 calls
-    parent = self()
-
-    :meck.expect(UI, :report_from, fn name, step, msg ->
-      send(parent, {:ui_step_msg, name, step, msg})
-      :ok
-    end)
-
-    :meck.expect(UI, :report_from, fn name, step ->
-      send(parent, {:ui_step, name, step})
-      :ok
-    end)
-
-    # Exercise: this will internally build `tool_call_args`, switch toolbox to AI.Tools.all_tools(),
-    # and emit on_event(:tool_call, ...) and on_event(:tool_call_result, ...)
+    # Exercise: this will internally build `tool_call_args`, switch toolbox to
+    # AI.Tools.all_tools(), and emit on_event(:tool_call, ...) and
+    # on_event(:tool_call_result, ...)
     AI.Completion.Output.replay_conversation(state)
 
-    # Assert: we saw UI output indicating tool UI notes were produced
-    receive do
-      {:ui_step_msg, "TestAgent", _step, _msg} -> :ok
-      {:ui_step, "TestAgent", _step} -> :ok
-    after
-      1000 -> flunk("Did not receive a UI step message or step within 1000ms")
-    end
+    # Assert: tool UI notes were produced, attributed to the agent.
+    assert_logged(~r/TestAgent/)
   end
 
   test "developer message sets agent name in replay events" do
@@ -104,29 +122,9 @@ defmodule AI.CompletionOutputReplayTest do
       replay_conversation: true
     }
 
-    safe_meck_new(UI, [:no_link, :passthrough, :non_strict])
-    on_exit(fn -> safe_meck_unload(UI) end)
-
-    parent = self()
-
-    :meck.expect(UI, :report_from, fn name, step, msg ->
-      send(parent, {:ui_step_msg, name, step, msg})
-      :ok
-    end)
-
-    :meck.expect(UI, :report_from, fn name, step ->
-      send(parent, {:ui_step, name, step})
-      :ok
-    end)
-
     AI.Completion.Output.replay_conversation(state)
 
-    receive do
-      {:ui_step_msg, "Dev Agent", _step, _msg} -> :ok
-      {:ui_step, "Dev Agent", _step} -> :ok
-    after
-      2000 -> flunk("Did not receive UI report for Dev Agent within 2000ms")
-    end
+    assert_logged(~r/Dev Agent/)
   end
 
   test "developer message sets agent name and prints final output via replay_conversation_as_output" do
@@ -164,34 +162,19 @@ defmodule AI.CompletionOutputReplayTest do
       replay_conversation: true
     }
 
-    safe_meck_new(UI, [:no_link, :passthrough, :non_strict])
-    on_exit(fn -> safe_meck_unload(UI) end)
+    # The formatter passes output through unchanged when FNORD_FORMATTER is
+    # unset (the suite never sets it), so no stubbing is needed even with
+    # stdout treated as a TTY. UI.say routes through UI.Output.puts, which
+    # the TestStub prints - captured below.
+    set_config(:stdout_tty, true)
 
-    parent = self()
-
-    :meck.expect(UI, :report_from, fn name, step, msg ->
-      send(parent, {:ui_step_msg, name, step, msg})
-      :ok
-    end)
-
-    :meck.expect(UI, :report_from, fn name, step ->
-      send(parent, {:ui_step, name, step})
-      :ok
-    end)
-
-    :meck.expect(UI, :say, fn msg ->
-      send(parent, {:ui_say, msg})
-      :ok
-    end)
-
-    :meck.expect(UI, :stdout_tty?, fn -> true end)
-
-    :meck.expect(UI, :format, fn msg -> msg end)
-
+    # stdout-as-TTY renders with ANSI color codes that split text
+    # mid-phrase; strip them before asserting on content.
     output =
       capture_io(:stdio, fn ->
         AI.Completion.Output.replay_conversation_as_output(state)
       end)
+      |> UI.Tee.strip_ansi()
 
     assert output =~ "◆ Dev Agent's Response ◆"
     assert output =~ "Final assistant response"
@@ -199,13 +182,7 @@ defmodule AI.CompletionOutputReplayTest do
 
     assert output =~ ~r/◆ Dev Agent's Response ◆.*Final assistant response/s
 
-    receive do
-      {:ui_step_msg, "Dev Agent", _step, _msg} -> :ok
-      {:ui_step, "Dev Agent", _step} -> :ok
-      {:ui_say, "Final assistant response"} -> :ok
-    after
-      2000 -> flunk("Did not receive UI report and say for Dev Agent within 2000ms")
-    end
+    assert_logged(~r/Dev Agent/)
   end
 
   test "developer name only via AI.Completion.new_from_conversation/2 sets agent name in replay events" do
@@ -222,22 +199,8 @@ defmodule AI.CompletionOutputReplayTest do
       replay_conversation: true
     }
 
-    safe_meck_new(UI, [:no_link, :passthrough, :non_strict])
-    on_exit(fn -> safe_meck_unload(UI) end)
-
-    parent = self()
-
-    :meck.expect(UI, :feedback_assistant, fn name, msg ->
-      send(parent, {:ui_feedback, name, msg})
-      :ok
-    end)
-
     AI.Completion.Output.replay_conversation(state)
 
-    receive do
-      {:ui_feedback, "Dev Only", "hello"} -> :ok
-    after
-      2000 -> flunk("Did not receive UI feedback for Dev Only within 2000ms")
-    end
+    assert_logged(~r/Dev Only.*hello|hello.*Dev Only/s)
   end
 end

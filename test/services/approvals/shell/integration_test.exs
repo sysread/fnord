@@ -45,7 +45,7 @@ defmodule Services.Approvals.Shell.IntegrationTest do
   - Session state accumulation over multiple commands
   - Settings.json integrity preservation across operations
   """
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   import Mox
 
@@ -67,20 +67,10 @@ defmodule Services.Approvals.Shell.IntegrationTest do
     # Create a real project for testing project-scoped approvals
     project = mock_project("integration-test")
 
-    # Mock UI functions using Mox for better performance
-    # UI.Output.Mock is already set up in Fnord.TestCase for UI.Output behaviour functions
-    # However, UI.is_tty?/0 and UI.quiet?/0 are not part of UI.Output behaviour, so we use meck just for those
-    safe_meck_new(UI, [:passthrough])
-    :meck.expect(UI, :is_tty?, fn -> true end)
-    :meck.expect(UI, :quiet?, fn -> false end)
-
-    on_exit(fn ->
-      try do
-        safe_meck_unload(UI)
-      rescue
-        _ -> :ok
-      end
-    end)
+    # Interactive-terminal posture: TTY-ness and quiet are tree-scoped
+    # config; interactive prompts go through UI.Output.Mock (Mox).
+    set_config(:is_tty, true)
+    set_config(:quiet, false)
 
     {:ok, project: project}
   end

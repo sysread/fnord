@@ -15,17 +15,11 @@ defmodule UI.FormatterTest do
   end
 
   setup do
-    original = Services.Globals.get_env(:fnord, :quiet)
-    on_exit(fn -> Services.Globals.put_env(:fnord, :quiet, original) end)
-    Services.Globals.put_env(:fnord, :quiet, false)
-    :ok
-  end
+    set_config(:quiet, false)
 
-  setup do
-    # Tests run in a non-TTY context; mock stdout_tty? so the formatter
+    # Tests run in a non-TTY context; override stdout_tty? so the formatter
     # is not short-circuited by the TTY check.
-    :meck.expect(UI, :stdout_tty?, fn -> true end)
-    on_exit(fn -> :meck.unload(UI) end)
+    set_config(:stdout_tty, true)
     :ok
   end
 

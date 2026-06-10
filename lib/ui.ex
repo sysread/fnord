@@ -579,10 +579,11 @@ defmodule UI do
   end
 
   def is_tty? do
-    :prim_tty.isatty(:stderr)
-    |> case do
-      true -> true
-      _ -> false
+    # Tree-scoped override so tests can dictate TTY-ness without mocking the
+    # UI module itself; :auto probes the real device.
+    case Services.Globals.get_env(:fnord, :is_tty, :auto) do
+      :auto -> :prim_tty.isatty(:stderr) == true
+      value -> value == true
     end
   end
 
@@ -590,10 +591,9 @@ defmodule UI do
   # stdout is piped (e.g. `| tee`), since formatted output (e.g. box-drawing
   # characters) is not useful in a log file.
   def stdout_tty? do
-    :prim_tty.isatty(:stdout)
-    |> case do
-      true -> true
-      _ -> false
+    case Services.Globals.get_env(:fnord, :stdout_tty, :auto) do
+      :auto -> :prim_tty.isatty(:stdout) == true
+      value -> value == true
     end
   end
 

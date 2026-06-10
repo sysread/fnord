@@ -4,26 +4,11 @@ defmodule AI.Tools.UIToolsTest do
   setup do
     set_log_level(:none)
 
-    try do
-      safe_meck_new(UI, [:passthrough])
-    rescue
-      _ -> :ok
-    end
-
-    :meck.expect(UI, :is_tty?, 0, true)
-    :meck.expect(UI, :quiet?, 0, false)
-
-    original = Services.Globals.get_env(:fnord, :ui_output)
-
-    on_exit(fn ->
-      Services.Globals.put_env(:fnord, :ui_output, original)
-
-      try do
-        safe_meck_unload(UI)
-      rescue
-        _ -> :ok
-      end
-    end)
+    # Interactive-terminal posture, tree-scoped. Tests install their own
+    # ui_output module per test via set_config; the per-test tree makes
+    # save/restore unnecessary.
+    set_config(:is_tty, true)
+    set_config(:quiet, false)
 
     :ok
   end
@@ -39,7 +24,7 @@ defmodule AI.Tools.UIToolsTest do
 
   describe "AI.Tools.UI.Ask" do
     test "returns structured answer" do
-      Services.Globals.put_env(:fnord, :ui_output, MockUIOutput)
+      set_config(:ui_output, MockUIOutput)
 
       assert {:ok, %{answer: "freeform"}} = AI.Tools.UI.Ask.call(%{"prompt" => "what?"})
     end
@@ -47,7 +32,7 @@ defmodule AI.Tools.UIToolsTest do
 
   describe "AI.Tools.UI.Choose" do
     test "returns structured option choice" do
-      Services.Globals.put_env(:fnord, :ui_output, MockUIOutput)
+      set_config(:ui_output, MockUIOutput)
 
       args = %{"prompt" => "pick", "options" => ["a", "b"]}
 
@@ -64,7 +49,7 @@ defmodule AI.Tools.UIToolsTest do
         def box(_contents, _opts), do: :ok
       end
 
-      Services.Globals.put_env(:fnord, :ui_output, SomethingElseOutput)
+      set_config(:ui_output, SomethingElseOutput)
 
       args = %{"prompt" => "pick", "options" => ["a", "b"]}
 
@@ -90,7 +75,7 @@ defmodule AI.Tools.UIToolsTest do
         def box(_contents, _opts), do: :ok
       end
 
-      Services.Globals.put_env(:fnord, :ui_output, DedupeOutput)
+      set_config(:ui_output, DedupeOutput)
 
       args = %{"prompt" => "pick", "options" => ["a", "Something else", "b"]}
       assert {:ok, %{choice: :option, value: "a"}} = AI.Tools.UI.Choose.call(args)
@@ -99,7 +84,7 @@ defmodule AI.Tools.UIToolsTest do
 
   describe "AI.Tools.UI.Confirm" do
     test "returns structured yes/no with default" do
-      Services.Globals.put_env(:fnord, :ui_output, MockUIOutput)
+      set_config(:ui_output, MockUIOutput)
 
       assert {:ok, %{choice: :no, value: false}} =
                AI.Tools.UI.Confirm.call(%{"prompt" => "ok?", "default" => false})

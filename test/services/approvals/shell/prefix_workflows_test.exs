@@ -21,7 +21,7 @@ defmodule Services.Approvals.Shell.PrefixWorkflowsTest do
   - Session approval workflow correctly triggers via "Approve persistently" → scope selection
   - Prefix extraction behavior is consistent for known vs unknown command families
   """
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   alias Services.Approvals.Shell
   alias Settings.Approvals, as: SettingsApprovals
@@ -58,23 +58,15 @@ defmodule Services.Approvals.Shell.PrefixWorkflowsTest do
 
     # Mock UI for interactive testing
     # We enable tty mode and set up default UI responses that can be overridden per test
-    safe_meck_new(UI, [:passthrough])
-    :meck.expect(UI, :is_tty?, fn -> true end)
+    set_config(:is_tty, true)
+    set_config(:quiet, false)
 
-    :meck.expect(UI, :choose, fn
+    stub(UI.Output.Mock, :choose, fn
       "Choose approval scope for:" <> _, _opts -> "Approve for this session"
       "Approve this request?", _opts -> "Approve persistently"
     end)
 
-    :meck.expect(UI, :prompt, fn _prompt -> "" end)
-
-    on_exit(fn ->
-      try do
-        safe_meck_unload(UI)
-      rescue
-        _ -> :ok
-      end
-    end)
+    stub(UI.Output.Mock, :prompt, fn _msg, _opts -> "" end)
 
     {:ok, project: project, baseline_global: baseline_global, baseline_project: baseline_project}
   end
@@ -206,7 +198,7 @@ defmodule Services.Approvals.Shell.PrefixWorkflowsTest do
       # interactive approval flow that stores the approval in global settings.
 
       # Given: UI mock configured to choose global scope
-      :meck.expect(UI, :choose, fn
+      stub(UI.Output.Mock, :choose, fn
         "Choose approval scope for:" <> _, _opts -> "Approve globally"
         "Approve this request?", _opts -> "Approve persistently"
       end)
@@ -236,7 +228,7 @@ defmodule Services.Approvals.Shell.PrefixWorkflowsTest do
       # globally. This tests that users can scope approvals to just the current project.
 
       # Given: UI mock configured to choose project scope
-      :meck.expect(UI, :choose, fn
+      stub(UI.Output.Mock, :choose, fn
         "Choose approval scope for:" <> _, _opts -> "Approve for the project"
         "Approve this request?", _opts -> "Approve persistently"
       end)
@@ -308,7 +300,7 @@ defmodule Services.Approvals.Shell.PrefixWorkflowsTest do
 
       # And When: We run the same command again with the updated session
       # (Mock UI to fail if it gets called - it shouldn't be)
-      :meck.expect(UI, :choose, fn
+      stub(UI.Output.Mock, :choose, fn
         _prompt, _opts -> flunk("UI should not be called for pre-approved command")
       end)
 
@@ -330,7 +322,7 @@ defmodule Services.Approvals.Shell.PrefixWorkflowsTest do
       # on subsequent commands, validating our settings.json storage and retrieval.
 
       # Given: UI mock configured for global approval on first run
-      :meck.expect(UI, :choose, fn
+      stub(UI.Output.Mock, :choose, fn
         "Choose approval scope for:" <> _, _opts -> "Approve globally"
         "Approve this request?", _opts -> "Approve persistently"
       end)
@@ -349,7 +341,7 @@ defmodule Services.Approvals.Shell.PrefixWorkflowsTest do
       assert "global-lifecycle-tool" in global_approvals
 
       # When: We run the same command again (mock UI to fail if called)
-      :meck.expect(UI, :choose, fn
+      stub(UI.Output.Mock, :choose, fn
         _prompt, _opts -> flunk("UI should not be called for globally pre-approved command")
       end)
 
@@ -367,7 +359,7 @@ defmodule Services.Approvals.Shell.PrefixWorkflowsTest do
       # REASONING: Tests project approval persistence and retrieval workflow.
 
       # Given: UI mock configured for project approval on first run
-      :meck.expect(UI, :choose, fn
+      stub(UI.Output.Mock, :choose, fn
         "Choose approval scope for:" <> _, _opts -> "Approve for the project"
         "Approve this request?", _opts -> "Approve persistently"
       end)
@@ -381,7 +373,7 @@ defmodule Services.Approvals.Shell.PrefixWorkflowsTest do
       assert {:approved, %{session: []}} = first_result
 
       # When: We run the same command again (mock UI to fail if called)
-      :meck.expect(UI, :choose, fn
+      stub(UI.Output.Mock, :choose, fn
         _prompt, _opts -> flunk("UI should not be called for project pre-approved command")
       end)
 
@@ -402,7 +394,7 @@ defmodule Services.Approvals.Shell.PrefixWorkflowsTest do
       # This tests that denials work correctly and don't have unintended side effects.
 
       # Given: UI mock configured to deny the approval
-      :meck.expect(UI, :choose, fn
+      stub(UI.Output.Mock, :choose, fn
         "Approve this request?", _opts -> "Deny"
       end)
 
@@ -422,7 +414,7 @@ defmodule Services.Approvals.Shell.PrefixWorkflowsTest do
       # REASONING: Similar to global denials, but tests the project-scoped denial path.
 
       # Given: UI mock configured to deny the approval
-      :meck.expect(UI, :choose, fn
+      stub(UI.Output.Mock, :choose, fn
         "Approve this request?", _opts -> "Deny"
       end)
 
@@ -439,7 +431,7 @@ defmodule Services.Approvals.Shell.PrefixWorkflowsTest do
       # REASONING: Even temporary approvals must be deniable by users.
 
       # Given: UI mock configured to deny the approval
-      :meck.expect(UI, :choose, fn
+      stub(UI.Output.Mock, :choose, fn
         "Approve this request?", _opts -> "Deny"
       end)
 
@@ -464,7 +456,7 @@ defmodule Services.Approvals.Shell.PrefixWorkflowsTest do
       _settings = SettingsApprovals.approve(settings, :global, "shell", "approved-tool")
 
       # And: UI mock configured to deny when prompted
-      :meck.expect(UI, :choose, fn
+      stub(UI.Output.Mock, :choose, fn
         "Approve this request?", _opts -> "Deny"
       end)
 
@@ -488,7 +480,7 @@ defmodule Services.Approvals.Shell.PrefixWorkflowsTest do
       _settings = SettingsApprovals.approve(settings, :project, "shell", "approved-project-tool")
 
       # And: UI mock configured to deny when prompted
-      :meck.expect(UI, :choose, fn
+      stub(UI.Output.Mock, :choose, fn
         "Approve this request?", _opts -> "Deny"
       end)
 
@@ -509,7 +501,7 @@ defmodule Services.Approvals.Shell.PrefixWorkflowsTest do
       session_with_different_approval = [{:prefix, "approved-session-tool"}]
 
       # And: UI mock configured to deny when prompted
-      :meck.expect(UI, :choose, fn
+      stub(UI.Output.Mock, :choose, fn
         "Approve this request?", _opts -> "Deny"
       end)
 

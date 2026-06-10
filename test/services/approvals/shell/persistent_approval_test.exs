@@ -1,5 +1,13 @@
 defmodule Services.Approvals.Shell.PersistentApprovalTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
+
+  setup do
+    # Interactive-terminal posture: UI.choose/prompt gate on is_tty?() and
+    # !quiet?() before reaching UI.Output. The old UI meck bypassed the gate.
+    set_config(:is_tty, true)
+    set_config(:quiet, false)
+    :ok
+  end
 
   describe "customize/2" do
     test "skips prompting for approved prefixes" do
@@ -22,22 +30,12 @@ defmodule Services.Approvals.Shell.PersistentApprovalTest do
         {"bar", "bar"}
       ]
 
-      :ok = safe_meck_new(UI, [:passthrough])
-
-      on_exit(fn ->
-        try do
-          safe_meck_unload(UI)
-        catch
-          _, _ -> :ok
-        end
-      end)
-
-      :meck.expect(UI, :choose, fn
+      stub(UI.Output.Mock, :choose, fn
         "Choose approval scope for:\n    bar\n", _opts ->
           "Approve for this session"
       end)
 
-      :meck.expect(UI, :prompt, fn _ -> "" end)
+      stub(UI.Output.Mock, :prompt, fn _msg, _opts -> "" end)
       {:approved, result_state} = Services.Approvals.Shell.customize(initial_state, stages)
 
       assert result_state.session == [
@@ -55,20 +53,10 @@ defmodule Services.Approvals.Shell.PersistentApprovalTest do
         {"git not-preapproved", "git not-preapproved --all"}
       ]
 
-      :ok = safe_meck_new(UI, [:passthrough])
-
-      on_exit(fn ->
-        try do
-          safe_meck_unload(UI)
-        catch
-          _, _ -> :ok
-        end
-      end)
-
       # Stub prompt to accept default prefix
-      :meck.expect(UI, :prompt, fn _ -> "" end)
+      stub(UI.Output.Mock, :prompt, fn _msg, _opts -> "" end)
       # Expect only one choose call for the shared prefix
-      :meck.expect(UI, :choose, fn
+      stub(UI.Output.Mock, :choose, fn
         "Choose approval scope for:\n    git not-preapproved\n", _opts ->
           "Approve for this session"
       end)

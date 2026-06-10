@@ -1,5 +1,5 @@
 defmodule Services.Approvals.Shell.ConversationPersistenceTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   alias Services.Approvals.Shell
 
@@ -19,17 +19,8 @@ defmodule Services.Approvals.Shell.ConversationPersistenceTest do
     conv = mock_conversation()
 
     # Ensure UI is interactive for prompts in this test
-    safe_meck_new(UI, [:passthrough])
-    :meck.expect(UI, :is_tty?, fn -> true end)
-    :meck.expect(UI, :quiet?, fn -> false end)
-
-    on_exit(fn ->
-      try do
-        safe_meck_unload(UI)
-      rescue
-        _ -> :ok
-      end
-    end)
+    set_config(:is_tty, true)
+    set_config(:quiet, false)
 
     {:ok, project: project, conversation: conv}
   end
@@ -96,9 +87,18 @@ defmodule Services.Approvals.Shell.ConversationPersistenceTest do
 
     announcements = :counters.new(1, [:atomics])
 
-    :meck.expect(UI, :info, fn label, _body ->
-      if label == "Shell approvals", do: :counters.add(announcements, 1, 1)
-      :ok
+    # UI.info routes through UI.Output.log(:info, formatted); count the
+    # announcement by content match on the formatted iodata.
+    stub(UI.Output.Mock, :log, fn
+      :info, msg ->
+        if IO.iodata_to_binary(msg) =~ "Shell approvals" do
+          :counters.add(announcements, 1, 1)
+        end
+
+        :ok
+
+      _level, _msg ->
+        :ok
     end)
 
     # Two approval calls in the same process (same Approvals GenServer pid).
