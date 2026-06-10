@@ -57,6 +57,14 @@ jobs:
     - name: Run tests
       run: MIX_ENV=test mix test
 
+    # The suite cannot catch prod boot regressions (test_helper boots
+    # foundational services for the VM); boot the real escript once.
+    # Mirrors `make boot-check`.
+    - name: Boot escript
+      run: |
+        MIX_ENV=dev mix escript.build
+        HOME=$(mktemp -d) ./fnord -h > /dev/null
+
     - name: Run dialyzer
       run: MIX_ENV=dev mix dialyzer
 

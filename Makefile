@@ -46,8 +46,21 @@ docs-check: ## Build docs, failing on any ExDoc warning (autolink check)
 	MIX_ENV=dev mix docs --warnings-as-errors
 	@echo
 
+# Boots the built escript once and requires exit 0. The test suite cannot
+# catch production boot regressions: test_helper starts foundational services
+# (e.g. Services.Globals) for the whole VM, so a missing start in the prod
+# boot path passes every test and crashes the binary (see docs/dev/gotchas.md
+# item 9). Help output exercises the full pre-parse boot (Fnord.Instance,
+# frob loading, CLI parse) without needing a project or network. HOME is
+# isolated so the check neither reads nor writes the developer's ~/.fnord.
+.PHONY: boot-check
+boot-check: build ## Boot the escript once (catches prod-boot-path regressions)
+	@tmp=$$(mktemp -d) && HOME=$$tmp ./fnord -h > /dev/null && rm -rf $$tmp
+	@echo "escript boots"
+	@echo
+
 .PHONY: check
-check: compile test dialyzer md-lint docs-check ## Run all checks
+check: compile boot-check test dialyzer md-lint docs-check ## Run all checks
 	@echo "All checks passed"
 
 .PHONY: md-lint
