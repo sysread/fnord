@@ -71,30 +71,9 @@ defmodule Memory.SessionIndexerE2ETest do
     end)
 
     # Run the session indexer
-    # Ensure the MemoryIndexer is available in this test.
-    case Process.whereis(Services.MemoryIndexer) do
-      nil ->
-        case Services.MemoryIndexer.start_link(auto_scan: false) do
-          {:ok, _} ->
-            on_exit(fn ->
-              pid = Process.whereis(Services.MemoryIndexer)
-
-              if is_pid(pid) and Process.alive?(pid) do
-                try do
-                  GenServer.stop(Services.MemoryIndexer)
-                catch
-                  :exit, _ -> :ok
-                end
-              end
-            end)
-
-          _ ->
-            :ok
-        end
-
-      _pid ->
-        :ok
-    end
+    # Fresh per-test tree: the MemoryIndexer is not running yet and dies
+    # with the test process.
+    {:ok, _} = Services.MemoryIndexer.start_link(auto_scan: false)
 
     assert {:ok, {:ok, %Store.Project.Conversation{}}} =
              Services.MemoryIndexer.process_sync(conv)
@@ -175,29 +154,9 @@ defmodule Memory.SessionIndexerE2ETest do
       :meck.unload(AI.Tools.LongTermMemory)
     end)
 
-    case Process.whereis(Services.MemoryIndexer) do
-      nil ->
-        case Services.MemoryIndexer.start_link(auto_scan: false) do
-          {:ok, _} ->
-            on_exit(fn ->
-              pid = Process.whereis(Services.MemoryIndexer)
-
-              if is_pid(pid) and Process.alive?(pid) do
-                try do
-                  GenServer.stop(Services.MemoryIndexer)
-                catch
-                  :exit, _ -> :ok
-                end
-              end
-            end)
-
-          _ ->
-            :ok
-        end
-
-      _pid ->
-        :ok
-    end
+    # Fresh per-test tree: the MemoryIndexer is not running yet and dies
+    # with the test process.
+    {:ok, _} = Services.MemoryIndexer.start_link(auto_scan: false)
 
     assert :ok = Services.MemoryIndexer.process_sync(conv)
 
@@ -257,29 +216,9 @@ defmodule Memory.SessionIndexerE2ETest do
       :meck.unload(AI.Tools.LongTermMemory)
     end)
 
-    case Process.whereis(Services.MemoryIndexer) do
-      nil ->
-        case Services.MemoryIndexer.start_link(auto_scan: false) do
-          {:ok, _} ->
-            on_exit(fn ->
-              pid = Process.whereis(Services.MemoryIndexer)
-
-              if is_pid(pid) and Process.alive?(pid) do
-                try do
-                  GenServer.stop(Services.MemoryIndexer)
-                catch
-                  :exit, _ -> :ok
-                end
-              end
-            end)
-
-          _ ->
-            :ok
-        end
-
-      _pid ->
-        :ok
-    end
+    # Fresh per-test tree: the MemoryIndexer is not running yet and dies
+    # with the test process.
+    {:ok, _} = Services.MemoryIndexer.start_link(auto_scan: false)
 
     assert {:ok, {:ok, %Store.Project.Conversation{}}} =
              Services.MemoryIndexer.process_sync(conv)
@@ -360,29 +299,9 @@ defmodule Memory.SessionIndexerE2ETest do
       :meck.unload(AI.Tools.LongTermMemory)
     end)
 
-    case Process.whereis(Services.MemoryIndexer) do
-      nil ->
-        case Services.MemoryIndexer.start_link(auto_scan: false) do
-          {:ok, _} ->
-            on_exit(fn ->
-              pid = Process.whereis(Services.MemoryIndexer)
-
-              if is_pid(pid) and Process.alive?(pid) do
-                try do
-                  GenServer.stop(Services.MemoryIndexer)
-                catch
-                  :exit, _ -> :ok
-                end
-              end
-            end)
-
-          _ ->
-            :ok
-        end
-
-      _pid ->
-        :ok
-    end
+    # Fresh per-test tree: the MemoryIndexer is not running yet and dies
+    # with the test process.
+    {:ok, _} = Services.MemoryIndexer.start_link(auto_scan: false)
 
     assert {:ok, {:ok, %Store.Project.Conversation{}}} =
              Services.MemoryIndexer.process_sync(conv)
@@ -464,29 +383,9 @@ defmodule Memory.SessionIndexerE2ETest do
       :meck.unload(AI.Tools.LongTermMemory)
     end)
 
-    case Process.whereis(Services.MemoryIndexer) do
-      nil ->
-        case Services.MemoryIndexer.start_link(auto_scan: false) do
-          {:ok, _} ->
-            on_exit(fn ->
-              pid = Process.whereis(Services.MemoryIndexer)
-
-              if is_pid(pid) and Process.alive?(pid) do
-                try do
-                  GenServer.stop(Services.MemoryIndexer)
-                catch
-                  :exit, _ -> :ok
-                end
-              end
-            end)
-
-          _ ->
-            :ok
-        end
-
-      _pid ->
-        :ok
-    end
+    # Fresh per-test tree: the MemoryIndexer is not running yet and dies
+    # with the test process.
+    {:ok, _} = Services.MemoryIndexer.start_link(auto_scan: false)
 
     assert {:ok, {:ok, %Store.Project.Conversation{}}} =
              Services.MemoryIndexer.process_sync(conv)
@@ -537,29 +436,9 @@ defmodule Memory.SessionIndexerE2ETest do
       :meck.unload(AI.Tools.LongTermMemory)
     end)
 
-    case Process.whereis(Services.MemoryIndexer) do
-      nil ->
-        case Services.MemoryIndexer.start_link(auto_scan: false) do
-          {:ok, _} ->
-            on_exit(fn ->
-              pid = Process.whereis(Services.MemoryIndexer)
-
-              if is_pid(pid) and Process.alive?(pid) do
-                try do
-                  GenServer.stop(Services.MemoryIndexer)
-                catch
-                  :exit, _ -> :ok
-                end
-              end
-            end)
-
-          _ ->
-            :ok
-        end
-
-      _pid ->
-        :ok
-    end
+    # Fresh per-test tree: the MemoryIndexer is not running yet and dies
+    # with the test process.
+    {:ok, _} = Services.MemoryIndexer.start_link(auto_scan: false)
 
     assert {:ok, {:ok, %Store.Project.Conversation{}}} = Services.MemoryIndexer.process_sync(conv)
 
@@ -621,29 +500,9 @@ defmodule Memory.SessionIndexerE2ETest do
       :meck.unload(AI.Tools.LongTermMemory)
     end)
 
-    case Process.whereis(Services.MemoryIndexer) do
-      nil ->
-        case Services.MemoryIndexer.start_link(auto_scan: false) do
-          {:ok, _} ->
-            on_exit(fn ->
-              pid = Process.whereis(Services.MemoryIndexer)
-
-              if is_pid(pid) and Process.alive?(pid) do
-                try do
-                  GenServer.stop(Services.MemoryIndexer)
-                catch
-                  :exit, _ -> :ok
-                end
-              end
-            end)
-
-          _ ->
-            :ok
-        end
-
-      _pid ->
-        :ok
-    end
+    # Fresh per-test tree: the MemoryIndexer is not running yet and dies
+    # with the test process.
+    {:ok, _} = Services.MemoryIndexer.start_link(auto_scan: false)
 
     Services.MemoryIndexer.process_sync(conv)
 
