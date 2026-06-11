@@ -40,18 +40,6 @@ System.put_env("GIT_CONFIG_VALUE_0", "false")
 System.put_env("GIT_CONFIG_KEY_1", "init.defaultBranch")
 System.put_env("GIT_CONFIG_VALUE_1", "main")
 
-try do
-  :meck.new(MCP.Supervisor, [:passthrough])
-  :meck.expect(MCP.Supervisor, :start_link, fn _ -> {:ok, self()} end)
-  :meck.expect(MCP.Supervisor, :instance_name, fn _ -> :mcp_supervisor end)
-  :meck.new(Hermes.Client.Base, [:passthrough])
-  :meck.expect(Hermes.Client.Base, :list_tools, fn _ -> [] end)
-rescue
-  _ -> :ok
-catch
-  _ -> :ok
-end
-
 # ------------------------------------------------------------------------------
 # Require all elixir files in test/support
 # ------------------------------------------------------------------------------

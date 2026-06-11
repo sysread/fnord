@@ -1,87 +1,116 @@
 defmodule Cmd.Config.MCP.StatusTest do
-  use Fnord.TestCase, async: false
-  import ExUnit.CaptureLog
+  use Fnord.TestCase, async: true
 
   alias Cmd.Config.MCP.Status
 
+  # ---------------------------------------------------------------------------
+  # The status command reads real state: server config from the per-test
+  # settings file, credentials from the real store under the per-test HOME.
+  # Output lands on UI.info/warn/error -> UI.Output.log, captured here by
+  # mirroring log traffic to the test process.
+  # ---------------------------------------------------------------------------
+
   setup do
-    old_level = Logger.level()
-    Logger.configure(level: :debug)
-    on_exit(fn -> Logger.configure(level: old_level) end)
+    test_pid = self()
 
-    :meck.new(Settings.MCP, [:passthrough])
-    :meck.new(MCP.OAuth2.CredentialsStore, [:passthrough])
-
-    on_exit(fn ->
-      for mod <- [Settings.MCP, MCP.OAuth2.CredentialsStore] do
-        try do
-          :meck.unload(mod)
-        catch
-          _, _ -> :ok
-        end
-      end
+    Mox.stub(UI.Output.Mock, :log, fn _level, msg ->
+      send(test_pid, {:log, log_text(msg)})
     end)
 
-    # Stub effective_config to return a config containing "srv"
-    :meck.expect(Settings.MCP, :effective_config, fn _settings ->
-      %{"srv" => %{"command" => "echo"}}
-    end)
+    :ok
+  end
+
+  defp log_text(msg) do
+    IO.iodata_to_binary(msg)
+  rescue
+    _ -> inspect(msg)
+  end
+
+  defp drain_logs(acc \\ []) do
+    receive do
+      {:log, msg} -> drain_logs([msg | acc])
+    after
+      0 -> acc |> Enum.reverse() |> Enum.join("\n")
+    end
+  end
+
+  defp add_server(name) do
+    {:ok, _settings} =
+      Settings.MCP.add_server(Settings.new(), :global, name, %{
+        "transport" => "stdio",
+        "command" => "echo",
+        "args" => []
+      })
 
     :ok
   end
 
   describe "mcp status" do
     test "displays token info when expires_at is present" do
+      add_server("srv")
       now = System.os_time(:second)
 
-      :meck.expect(MCP.OAuth2.CredentialsStore, :read, fn "srv" ->
-        {:ok, %{"access_token" => "tok", "expires_at" => now + 300, "last_updated" => now - 10}}
-      end)
+      :ok =
+        MCP.OAuth2.CredentialsStore.write("srv", %{
+          "access_token" => "tok",
+          "expires_at" => now + 300,
+          "last_updated" => now - 10
+        })
 
-      log = capture_log(fn -> Status.run(%{}, [:mcp, :status], ["srv"]) end)
+      Status.run(%{}, [:mcp, :status], ["srv"])
+
+      log = drain_logs()
       assert log =~ "Token"
       assert log =~ "present"
       assert log =~ "Expires in"
     end
 
     test "displays 'unknown' when expires_at is nil" do
+      add_server("srv")
       now = System.os_time(:second)
 
-      :meck.expect(MCP.OAuth2.CredentialsStore, :read, fn "srv" ->
-        {:ok, %{"access_token" => "tok", "expires_at" => nil, "last_updated" => now - 5}}
-      end)
+      :ok =
+        MCP.OAuth2.CredentialsStore.write("srv", %{
+          "access_token" => "tok",
+          "expires_at" => nil,
+          "last_updated" => now - 5
+        })
 
-      log = capture_log(fn -> Status.run(%{}, [:mcp, :status], ["srv"]) end)
+      Status.run(%{}, [:mcp, :status], ["srv"])
+
+      log = drain_logs()
       assert log =~ "Token"
       assert log =~ "present"
       assert log =~ "unknown"
     end
 
     test "displays 'unknown' when expires_at key is missing" do
+      add_server("srv")
       now = System.os_time(:second)
 
-      :meck.expect(MCP.OAuth2.CredentialsStore, :read, fn "srv" ->
-        {:ok, %{"access_token" => "tok", "last_updated" => now}}
-      end)
+      :ok =
+        MCP.OAuth2.CredentialsStore.write("srv", %{
+          "access_token" => "tok",
+          "last_updated" => now
+        })
 
-      log = capture_log(fn -> Status.run(%{}, [:mcp, :status], ["srv"]) end)
-      assert log =~ "unknown"
+      Status.run(%{}, [:mcp, :status], ["srv"])
+
+      assert drain_logs() =~ "unknown"
     end
 
     test "server not found in config" do
-      :meck.expect(Settings.MCP, :effective_config, fn _settings -> %{} end)
+      Status.run(%{}, [:mcp, :status], ["nope"])
 
-      log = capture_log(fn -> Status.run(%{}, [:mcp, :status], ["nope"]) end)
-      assert log =~ "Server not found"
+      assert drain_logs() =~ "Server not found"
     end
 
     test "no credentials found" do
-      :meck.expect(MCP.OAuth2.CredentialsStore, :read, fn "srv" ->
-        {:error, :not_found}
-      end)
+      add_server("srv")
 
-      log = capture_log(fn -> Status.run(%{}, [:mcp, :status], ["srv"]) end)
-      assert log =~ "No credentials found"
+      Status.run(%{}, [:mcp, :status], ["srv"])
+
+      assert drain_logs() =~ "No credentials found"
     end
   end
 end

@@ -73,19 +73,29 @@ defmodule Cmd.SearchTest do
     refute Enum.member?(results, file3)
   end
 
-  test "does not start MCP.Supervisor when running search" do
-    on_exit(fn ->
-      :meck.expect(MCP.Supervisor, :start_link, fn _ -> {:ok, self()} end)
-    end)
+  test "does not start the MCP runtime when running search" do
+    # An MCP server is configured, so any code path that boots MCP would call
+    # MCP.Client.start_supervisor - search must not be one.
+    mock_mcp_client()
 
-    :meck.expect(MCP.Supervisor, :start_link, fn _ ->
-      flunk("MCP.Supervisor.start_link should not be called")
+    {:ok, _settings} =
+      Settings.MCP.add_server(Settings.new(), :global, "srv", %{
+        "transport" => "stdio",
+        "command" => "echo",
+        "args" => []
+      })
+
+    test_pid = self()
+
+    Mox.stub(MCP.Client.Mock, :start_supervisor, fn ->
+      send(test_pid, :mcp_started)
+      :ok
     end)
 
     search_opts = %{project: "test_project", query: "file1", limit: 1, detail: false}
     capture_all(fn -> Cmd.Search.run(search_opts, [], []) end)
 
-    :meck.validate(MCP.Supervisor)
+    refute_received :mcp_started
   end
 
   describe "migration of legacy root-level entries" do

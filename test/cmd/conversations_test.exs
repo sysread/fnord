@@ -1,5 +1,5 @@
 defmodule Cmd.ConversationsTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   setup do
     set_config(quiet: true)
@@ -27,13 +27,23 @@ defmodule Cmd.ConversationsTest do
     assert output =~ "No conversations found."
   end
 
-  test "does not start MCP.Supervisor when listing conversations", %{project: project} do
-    on_exit(fn ->
-      :meck.expect(MCP.Supervisor, :start_link, fn _ -> {:ok, self()} end)
-    end)
+  test "does not start the MCP runtime when listing conversations", %{project: project} do
+    # An MCP server is configured, so any code path that boots MCP would call
+    # MCP.Client.start_supervisor - listing conversations must not be one.
+    mock_mcp_client()
 
-    :meck.expect(MCP.Supervisor, :start_link, fn _ ->
-      flunk("MCP.Supervisor.start_link/1 was called")
+    {:ok, _settings} =
+      Settings.MCP.add_server(Settings.new(), :global, "srv", %{
+        "transport" => "stdio",
+        "command" => "echo",
+        "args" => []
+      })
+
+    test_pid = self()
+
+    Mox.stub(MCP.Client.Mock, :start_supervisor, fn ->
+      send(test_pid, :mcp_started)
+      :ok
     end)
 
     {output, _stderr} =
@@ -41,7 +51,7 @@ defmodule Cmd.ConversationsTest do
         Cmd.Conversations.run(%{project: project.name}, [], [])
       end)
 
-    :meck.validate(MCP.Supervisor)
+    refute_received :mcp_started
     assert output =~ "No conversations found."
   end
 

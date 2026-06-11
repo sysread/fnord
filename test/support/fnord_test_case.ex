@@ -28,6 +28,7 @@ defmodule Fnord.TestCase do
   Mox.defmock(GitCli.Mock, for: GitCli)
   Mox.defmock(GitCli.Worktree.Mock, for: GitCli.Worktree)
   Mox.defmock(GitCli.Worktree.Review.Mock, for: GitCli.Worktree.Review)
+  Mox.defmock(MCP.Client.Mock, for: MCP.Client)
 
   using do
     quote do
@@ -61,6 +62,7 @@ defmodule Fnord.TestCase do
           mock_git_cli: 0,
           mock_git_worktree: 0,
           mock_git_review: 0,
+          mock_mcp_client: 0,
           set_log_level: 1,
           set_config: 1,
           set_config: 2,
@@ -239,7 +241,8 @@ defmodule Fnord.TestCase do
     AI.Agent.Dispatcher.Mock,
     GitCli.Mock,
     GitCli.Worktree.Mock,
-    GitCli.Worktree.Review.Mock
+    GitCli.Worktree.Review.Mock,
+    MCP.Client.Mock
   ]
 
   @doc """
@@ -614,6 +617,22 @@ defmodule Fnord.TestCase do
   def mock_git_review() do
     Services.Globals.put_env(:fnord, :git_review, GitCli.Worktree.Review.Mock)
     Mox.stub_with(GitCli.Worktree.Review.Mock, GitCli.Worktree.Review.Default)
+    :ok
+  end
+
+  @doc """
+  Routes `MCP.Client` calls through a mock for this test, pre-stubbed to pass
+  through to the real implementation - EXCEPT `start_supervisor/0`, which is
+  stubbed to `:ok`: the real one registers the VM-global Hermes stack, which
+  must never boot from a test. The remaining passthroughs are inert without
+  it (no client processes exist, so calls resolve to `{:error, :not_started}`
+  / `connected?` false). Tests script the calls they care about with
+  `Mox.stub`/`Mox.expect` on `MCP.Client.Mock`.
+  """
+  def mock_mcp_client() do
+    Services.Globals.put_env(:fnord, :mcp_client, MCP.Client.Mock)
+    Mox.stub_with(MCP.Client.Mock, MCP.Client.Default)
+    Mox.stub(MCP.Client.Mock, :start_supervisor, fn -> :ok end)
     :ok
   end
 end

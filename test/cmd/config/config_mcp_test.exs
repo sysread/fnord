@@ -3,6 +3,10 @@ defmodule Cmd.Config.MCPTest do
   import ExUnit.CaptureLog
   alias Cmd.Config.MCP
 
+  # `alias Cmd.Config.MCP` captures the MCP namespace, so the facade mock
+  # needs an explicit alias to keep resolving to the top-level module.
+  alias Elixir.MCP.Client.Mock, as: MCPClientMock
+
   setup do
     File.rm_rf!(Settings.settings_file())
     :ok
@@ -150,58 +154,29 @@ defmodule Cmd.Config.MCPTest do
 
   describe "mcp check" do
     setup do
-      # Mock only Services.MCP.test to avoid actually connecting to MCP servers
-      :meck.new(Services.MCP, [:passthrough])
-      :meck.expect(Services.MCP, :start, fn _ -> :ok end)
+      # The check command boots MCP and runs discovery for real; the Hermes
+      # runtime is scripted through the MCP.Client facade so no server
+      # process is ever spawned.
+      mock_mcp_client()
+      :ok
+    end
 
-      :meck.expect(Services.MCP, :test, fn _ ->
-        %{
-          status: "ok",
-          servers: %{
-            "test_server" => %{
-              status: "ok",
-              server_info: %{"name" => "test_server-server", "status" => "running"},
-              tools: [],
-              has_oauth: false
-            }
-          }
-        }
-      end)
-
-      on_exit(fn ->
-        try do
-          :meck.unload(Services.MCP)
-        catch
-          _, _ -> :ok
-        end
-      end)
-
-      # add server for check testing (but don't expect it to actually connect)
+    test "check shows server status" do
       {_stdout, _stderr} =
         capture_all(fn ->
           MCP.run(%{global: true, command: "echo", arg: ["hello"]}, [:mcp, :add], ["test_server"])
         end)
 
-      :ok
-    end
+      Mox.stub(MCPClientMock, :connected?, fn "test_server" -> true end)
 
-    test "check shows server status" do
-      # Mock the test function to return a successful response
-      :meck.expect(Services.MCP, :test, fn _ ->
-        %{
-          status: "ok",
-          servers: %{
-            "test_server" => %{
-              status: "ok",
-              tools: [%{"name" => "test_tool", "description" => "A test tool"}],
-              capabilities: %{"tools" => true},
-              has_oauth: false
-            }
-          }
-        }
+      Mox.stub(MCPClientMock, :list_tools, fn "test_server" ->
+        {:ok, [%{"name" => "test_tool", "description" => "A test tool"}]}
       end)
 
-      # This will try to connect but fail gracefully - we're just testing the command structure
+      Mox.stub(MCPClientMock, :get_server_capabilities, fn "test_server" ->
+        {:ok, %{"tools" => %{}}}
+      end)
+
       {out, _stderr} = capture_all(fn -> MCP.run(%{global: true}, [:mcp, :check], []) end)
       assert out =~ "Checking MCP servers"
       assert out =~ "test_server"
@@ -210,9 +185,6 @@ defmodule Cmd.Config.MCPTest do
     end
 
     test "check with project scope" do
-      # Mock empty response for project scope (accepts any arguments)
-      :meck.expect(Services.MCP, :test, fn _ -> %{status: "ok", servers: %{}} end)
-
       mock_project("check_test")
       Settings.set_project("check_test")
       {out, _stderr} = capture_all(fn -> MCP.run(%{}, [:mcp, :check], []) end)
