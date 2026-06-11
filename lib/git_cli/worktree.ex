@@ -1,7 +1,16 @@
 defmodule GitCli.Worktree do
   @moduledoc """
-  Shared worktree context for listing, creating, deleting, merging, and
-  recreating project worktrees.
+  Facade for shared worktree context: listing, creating, deleting,
+  merging, and recreating project worktrees.
+
+  Every public function dispatches through `impl/0`, resolved via the
+  `:git_worktree` Globals key and defaulting to `GitCli.Worktree.Default`
+  (the real git implementation). Tests do NOT point this key at a mock
+  by default; tests that script worktree state opt in per test (see
+  `Fnord.TestCase.mock_git_worktree/0`). The default implementation
+  routes calls to public siblings back through this facade so a test
+  double intercepts nested calls (matching `:meck` passthrough
+  semantics).
   """
 
   @type worktree_meta :: %{
@@ -24,78 +33,97 @@ defmodule GitCli.Worktree do
           meta: worktree_meta()
         }
 
-  @spec default_root(String.t()) :: String.t()
+  @callback default_root(String.t()) :: String.t()
+  @callback conversation_path(String.t(), String.t()) :: String.t()
+  @callback list(String.t() | nil) :: {:ok, [worktree_entry()]} | {:error, atom()}
+  @callback list_raw(String.t() | nil) :: {:ok, [map()]} | {:error, atom()}
+  @callback enrich(String.t(), map()) :: map()
+  @callback create(String.t(), String.t(), String.t() | nil) ::
+              {:ok, worktree_entry()} | {:error, atom()}
+  @callback duplicate(String.t(), worktree_meta(), String.t()) ::
+              {:ok, worktree_entry()} | {:error, atom()}
+  @callback delete(String.t(), String.t()) :: {:ok, any()} | {:error, atom()}
+  @callback merge(String.t(), String.t()) :: {:ok, any()} | {:error, atom()}
+  @callback recreate_conversation_worktree(String.t(), String.t(), worktree_meta()) ::
+              {:ok, worktree_meta()} | {:error, atom()}
+  @callback has_uncommitted_changes?(String.t()) :: boolean()
+  @callback path_ignored?(String.t(), String.t()) :: boolean()
+  @callback has_changes_to_merge?(
+              String.t(),
+              String.t(),
+              String.t() | nil,
+              String.t() | nil
+            ) :: boolean()
+  @callback copy_ignored_files(String.t(), String.t(), [String.t()]) ::
+              [{:ok, String.t()} | {:error, String.t(), term}]
+  @callback force_delete(String.t(), String.t()) :: {:ok, :ok} | {:error, atom()}
+  @callback fnord_managed?(String.t(), String.t()) :: boolean()
+  @callback commit_all(String.t(), String.t()) :: {:ok, :ok} | {:error, atom()}
+  @callback diff_against_base(String.t(), String.t(), String.t()) ::
+              {:ok, String.t()} | {:error, atom()}
+  @callback diff_from_fork_point(String.t(), String.t(), String.t()) ::
+              {:ok, String.t()} | {:error, atom()}
+  @callback delete_branch(String.t(), String.t()) :: {:ok, :ok} | {:error, atom()}
+  @callback head_sha(String.t()) :: String.t() | nil
+  @callback head_sha_full(String.t()) :: String.t() | nil
+  @callback log_oneline(String.t(), String.t(), String.t()) :: [String.t()]
+  @callback reset_hard(String.t(), String.t()) :: {:ok, :ok} | {:error, atom()}
+  @callback force_delete_branch(String.t(), String.t()) :: {:ok, :ok} | {:error, atom()}
+  @callback project_root() :: {:ok, String.t()} | {:error, atom()}
+  @callback normalize_worktree_meta(map()) :: worktree_meta()
+  @callback normalize_worktree_meta_in_parent(map()) :: map()
+  @callback recursive_size(String.t()) :: non_neg_integer()
+  @callback merge_status(String.t(), String.t(), String.t() | nil, String.t() | nil) ::
+              :ahead | :diverged | :unknown
+  @callback default_base_branch(String.t()) :: String.t() | nil
+  @callback current_branch(String.t()) :: String.t() | nil
+
   @doc """
   Returns the default on-disk worktree root for a project under the user's home
   directory.
   """
-  def default_root(project) when is_binary(project) do
-    Path.join([Settings.get_user_home(), ".fnord", "projects", project, "worktrees"])
-  end
+  @spec default_root(String.t()) :: String.t()
+  def default_root(project), do: impl().default_root(project)
 
-  @spec conversation_path(String.t(), String.t()) :: String.t()
   @doc """
   Returns the default path for a conversation worktree within a project.
   """
-  def conversation_path(project, conversation_id)
-      when is_binary(project) and is_binary(conversation_id) do
-    Path.join([default_root(project), conversation_id])
-  end
+  @spec conversation_path(String.t(), String.t()) :: String.t()
+  def conversation_path(project, conversation_id),
+    do: impl().conversation_path(project, conversation_id)
 
-  @spec list(String.t() | nil) :: {:ok, [worktree_entry()]} | {:error, atom()}
   @doc """
   Lists Git worktrees for a repository root and enriches each entry with merge
   status, size, and existence information.
   """
-  def list(nil), do: {:error, :not_a_repo}
+  @spec list(String.t() | nil) :: {:ok, [worktree_entry()]} | {:error, atom()}
+  def list(root), do: impl().list(root)
 
-  def list(root) when is_binary(root) do
-    with {:ok, worktrees} <- git_worktree_list(root) do
-      {:ok, Enum.map(worktrees, &enrich_worktree(root, &1))}
-    end
-  end
-
-  @spec list_raw(String.t() | nil) :: {:ok, [map()]} | {:error, atom()}
   @doc """
   Lists Git worktrees for a repository root without enrichment. Returns the
   parsed records as maps containing at least :path and optionally :branch and
   :base_branch. Callers that only need to filter/select should prefer this to
   avoid per-worktree git calls and filesystem walks.
   """
-  def list_raw(nil), do: {:error, :not_a_repo}
+  @spec list_raw(String.t() | nil) :: {:ok, [map()]} | {:error, atom()}
+  def list_raw(root), do: impl().list_raw(root)
 
-  def list_raw(root) when is_binary(root) do
-    git_worktree_list(root)
-  end
-
-  @spec enrich(String.t(), map()) :: map()
   @doc """
   Enriches a raw worktree record with merge status, size, and existence
   information.
   """
-  def enrich(root, entry) when is_binary(root) and is_map(entry) do
-    enrich_worktree(root, entry)
-  end
+  @spec enrich(String.t(), map()) :: map()
+  def enrich(root, entry), do: impl().enrich(root, entry)
 
-  @spec create(String.t(), String.t(), String.t() | nil) ::
-          {:ok, worktree_entry()} | {:error, atom()}
   @doc """
   Creates a local conversation worktree under the default project conversation
   path.
   """
-  def create(project, conversation_id, branch \\ nil) do
-    branch = branch || "fnord-#{conversation_id}"
-
-    with {:ok, root} <- project_root(),
-         {:ok, base_branch} <- resolve_default_base_branch(root),
-         {:ok, path} <- ensure_conversation_path(project, conversation_id),
-         {:ok, _out} <- git_worktree_add_branch(root, path, branch, base_branch) do
-      {:ok, normalize_worktree_entry(path, branch, base_branch, root)}
-    end
-  end
-
-  @spec duplicate(String.t(), worktree_meta(), String.t()) ::
+  @spec create(String.t(), String.t(), String.t() | nil) ::
           {:ok, worktree_entry()} | {:error, atom()}
+  def create(project, conversation_id, branch \\ nil),
+    do: impl().create(project, conversation_id, branch)
+
   @doc """
   Creates an independent copy of an existing worktree for a forked
   conversation. The new worktree:
@@ -113,227 +141,49 @@ defmodule GitCli.Worktree do
   On any failure the new worktree and branch are torn down before returning so
   the caller can fall back cleanly.
   """
-  def duplicate(project, source_meta, new_conversation_id)
-      when is_binary(project) and is_map(source_meta) and is_binary(new_conversation_id) do
-    source_path = meta_path(source_meta)
-    source_branch = meta_branch(source_meta)
-    source_base_branch = meta_base_branch(source_meta)
+  @spec duplicate(String.t(), worktree_meta(), String.t()) ::
+          {:ok, worktree_entry()} | {:error, atom()}
+  def duplicate(project, source_meta, new_conversation_id),
+    do: impl().duplicate(project, source_meta, new_conversation_id)
 
-    cond do
-      not is_binary(source_path) or not File.dir?(source_path) ->
-        {:error, :source_missing}
-
-      not is_binary(source_branch) ->
-        {:error, :source_branch_missing}
-
-      true ->
-        new_branch = "fnord-#{new_conversation_id}"
-
-        with {:ok, root} <- project_root(),
-             {:ok, base_branch} <-
-               resolve_duplicate_base_branch(root, source_base_branch),
-             {:ok, new_path} <- ensure_conversation_path(project, new_conversation_id),
-             {:ok, _out} <-
-               git_worktree_add_branch(root, new_path, new_branch, source_branch),
-             :ok <- overlay_dirty_state(source_path, new_path) do
-          {:ok, normalize_worktree_entry(new_path, new_branch, base_branch, root)}
-        else
-          {:error, reason} ->
-            cleanup_failed_duplicate(new_conversation_id, project, new_branch)
-            {:error, reason}
-        end
-    end
-  end
-
-  # Prefer the source's recorded base branch so the duplicate keeps merging
-  # into the same target. Fall back to the repo default only when the source
-  # didn't carry one, which is the legacy-metadata case.
-  defp resolve_duplicate_base_branch(_root, base) when is_binary(base), do: {:ok, base}
-  defp resolve_duplicate_base_branch(root, _), do: resolve_default_base_branch(root)
-
-  # Replays the source worktree's uncommitted state into the freshly created
-  # destination worktree without touching the source. Three name lists drive
-  # three file ops, in order: modified tracked files are copied (covering both
-  # staged and unstaged edits, including binaries), deletions are propagated so
-  # the destination doesn't silently resurrect removed files, and untracked
-  # files (excluding .gitignore'd noise) are copied last.
-  defp overlay_dirty_state(source_path, dest_path) do
-    with {:ok, modified} <- list_modified_tracked(source_path),
-         {:ok, deleted} <- list_deleted_tracked(source_path),
-         {:ok, untracked} <- list_untracked(source_path),
-         :ok <- copy_files(source_path, dest_path, modified),
-         :ok <- delete_files(dest_path, deleted),
-         :ok <- copy_files(source_path, dest_path, untracked) do
-      :ok
-    end
-  end
-
-  defp list_modified_tracked(path) do
-    case git_cmd(path, ["diff", "--name-only", "--diff-filter=ACMRT", "HEAD"]) do
-      {:ok, out} -> {:ok, parse_name_list(out)}
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
-  defp list_deleted_tracked(path) do
-    case git_cmd(path, ["ls-files", "--deleted"]) do
-      {:ok, out} -> {:ok, parse_name_list(out)}
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
-  defp list_untracked(path) do
-    case git_cmd(path, ["ls-files", "--others", "--exclude-standard"]) do
-      {:ok, out} -> {:ok, parse_name_list(out)}
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
-  defp parse_name_list(out) do
-    out
-    |> String.split("\n", trim: true)
-    |> Enum.map(&String.trim/1)
-    |> Enum.reject(&(&1 == ""))
-  end
-
-  defp copy_files(_source_root, _dest_root, []), do: :ok
-
-  defp copy_files(source_root, dest_root, [rel | rest]) do
-    src = Path.join(source_root, rel)
-    dst = Path.join(dest_root, rel)
-
-    with :ok <- File.mkdir_p(Path.dirname(dst)),
-         {:ok, _} <- File.copy(src, dst) do
-      copy_files(source_root, dest_root, rest)
-    else
-      _ -> {:error, :copy_failed}
-    end
-  end
-
-  defp delete_files(_dest_root, []), do: :ok
-
-  defp delete_files(dest_root, [rel | rest]) do
-    dst = Path.join(dest_root, rel)
-
-    case File.rm(dst) do
-      :ok -> delete_files(dest_root, rest)
-      # Tolerate already-absent destinations: the source recorded a deletion
-      # against a file that the destination branch never had, so the desired
-      # end state (file gone) already holds.
-      {:error, :enoent} -> delete_files(dest_root, rest)
-      {:error, _} -> {:error, :delete_failed}
-    end
-  end
-
-  # Best-effort rollback after a failed duplicate. Ignores errors because the
-  # caller is already returning the original failure reason and partial state
-  # left behind here is preferable to masking the real cause.
-  defp cleanup_failed_duplicate(new_conversation_id, project, new_branch) do
-    new_path = conversation_path(project, new_conversation_id)
-
-    case project_root() do
-      {:ok, root} ->
-        if File.exists?(new_path) do
-          _ = git_cmd(root, ["worktree", "remove", "--force", new_path])
-        end
-
-        _ = git_cmd(root, ["branch", "-D", new_branch])
-        :ok
-
-      _ ->
-        :ok
-    end
-  end
-
-  @spec delete(String.t(), String.t()) :: {:ok, any()} | {:error, atom()}
   @doc """
   Removes a worktree at the given path from the repository.
   """
-  def delete(root, path) when is_binary(root) and is_binary(path) do
-    with {:ok, _out} <- git_worktree_remove(root, path) do
-      {:ok, :ok}
-    end
-  end
+  @spec delete(String.t(), String.t()) :: {:ok, any()} | {:error, atom()}
+  def delete(root, path), do: impl().delete(root, path)
 
-  @spec merge(String.t(), String.t()) :: {:ok, any()} | {:error, atom()}
   @doc """
   Merges the checked-out worktree branch into the repository root current
   branch. Rebases the branch onto the target first, then fast-forward merges
   for a linear history. Falls back to a regular merge if the rebase fails.
   """
-  def merge(root, path) when is_binary(root) and is_binary(path) do
-    with {:ok, branch} <- git_worktree_branch(root, path) do
-      rebase_and_ff_merge(root, path, branch)
-    else
-      {:error, :worktree_not_found} -> {:error, :worktree_not_found}
-      {:error, :not_a_repo} -> {:error, :not_a_repo}
-    end
-  end
+  @spec merge(String.t(), String.t()) :: {:ok, any()} | {:error, atom()}
+  def merge(root, path), do: impl().merge(root, path)
 
-  # Rebase the worktree branch onto the current root branch, then ff-merge.
-  # If the rebase conflicts, abort it and fall back to a regular merge.
-  defp rebase_and_ff_merge(root, path, branch) do
-    target = current_branch(root) || "HEAD"
-
-    case git_cmd(path, ["rebase", target]) do
-      {:ok, _} ->
-        case git_cmd(root, ["merge", "--ff-only", branch]) do
-          {:ok, _out} -> {:ok, :ok}
-          _ -> {:error, :merge_failed}
-        end
-
-      _ ->
-        git_cmd(path, ["rebase", "--abort"])
-
-        case git_cmd(root, ["merge", branch]) do
-          {:ok, _out} -> {:ok, :ok}
-          _ -> {:error, :merge_failed}
-        end
-    end
-  end
-
-  @spec recreate_conversation_worktree(String.t(), String.t(), worktree_meta()) ::
-          {:ok, worktree_meta()} | {:error, atom()}
   @doc """
   Recreates a missing conversation worktree at its default path from stored
   metadata.
   """
-  def recreate_conversation_worktree(project, conversation_id, meta)
-      when is_binary(project) and is_binary(conversation_id) and is_map(meta) do
-    with {:ok, prepared} <- prepare_recreated_worktree(project, conversation_id, meta),
-         {:ok, _out} <- git_worktree_add(prepared.root, prepared.path, prepared.branch) do
-      {:ok, prepared.meta}
-    end
-  end
+  @spec recreate_conversation_worktree(String.t(), String.t(), worktree_meta()) ::
+          {:ok, worktree_meta()} | {:error, atom()}
+  def recreate_conversation_worktree(project, conversation_id, meta),
+    do: impl().recreate_conversation_worktree(project, conversation_id, meta)
 
-  @spec has_uncommitted_changes?(String.t()) :: boolean()
   @doc """
   Returns true when the worktree at `path` has staged, unstaged, or untracked
   changes that would be lost by a non-force removal.
   """
-  def has_uncommitted_changes?(path) when is_binary(path) do
-    case git_cmd(path, ["status", "--porcelain"]) do
-      {:ok, ""} -> false
-      {:ok, _output} -> true
-      _ -> false
-    end
-  end
+  @spec has_uncommitted_changes?(String.t()) :: boolean()
+  def has_uncommitted_changes?(path), do: impl().has_uncommitted_changes?(path)
 
-  @spec path_ignored?(String.t(), String.t()) :: boolean()
   @doc """
   Returns true when the file at `path` is ignored by git in the given `root`
   directory (via .gitignore or other exclusion mechanisms). Uses
   `git check-ignore -q` which returns exit 0 for ignored paths, 1 otherwise.
   """
-  def path_ignored?(root, path) when is_binary(root) and is_binary(path) do
-    case System.cmd("git", ["check-ignore", "-q", path], cd: root, stderr_to_stdout: true) do
-      {_, 0} -> true
-      _ -> false
-    end
-  end
+  @spec path_ignored?(String.t(), String.t()) :: boolean()
+  def path_ignored?(root, path), do: impl().path_ignored?(root, path)
 
-  @spec has_changes_to_merge?(String.t(), String.t(), String.t() | nil, String.t() | nil) ::
-          boolean()
   @doc """
   Returns true when the worktree at `path` either has uncommitted changes OR
   has commits on `branch` that are not yet on `base_branch`. This is the
@@ -344,75 +194,27 @@ defmodule GitCli.Worktree do
   agent-side tool tracking, which can miss edits made via cmd_tool, frobs,
   MCP servers, or any code path the heuristic does not enumerate.
   """
-  def has_changes_to_merge?(root, path, branch, base_branch)
-      when is_binary(root) and is_binary(path) do
-    cond do
-      not File.dir?(path) ->
-        false
+  @spec has_changes_to_merge?(String.t(), String.t(), String.t() | nil, String.t() | nil) ::
+          boolean()
+  def has_changes_to_merge?(root, path, branch, base_branch),
+    do: impl().has_changes_to_merge?(root, path, branch, base_branch)
 
-      has_uncommitted_changes?(path) ->
-        true
-
-      is_binary(branch) and is_binary(base_branch) ->
-        branch_ahead_of_base?(root, branch, base_branch)
-
-      true ->
-        false
-    end
-  end
-
-  def has_changes_to_merge?(_root, _path, _branch, _base_branch), do: false
-
-  @spec copy_ignored_files(String.t(), String.t(), [String.t()]) ::
-          [{:ok, String.t()} | {:error, String.t(), term}]
   @doc """
   Copies a list of relative paths from the worktree to the source repo,
   creating parent directories as needed. Returns a list of results for each
   path attempted.
   """
-  def copy_ignored_files(source_root, worktree_path, rel_paths)
-      when is_binary(source_root) and is_binary(worktree_path) and is_list(rel_paths) do
-    Enum.map(rel_paths, fn rel ->
-      src = Path.join(worktree_path, rel)
-      dest = Path.join(source_root, rel)
-      File.mkdir_p!(Path.dirname(dest))
+  @spec copy_ignored_files(String.t(), String.t(), [String.t()]) ::
+          [{:ok, String.t()} | {:error, String.t(), term}]
+  def copy_ignored_files(source_root, worktree_path, rel_paths),
+    do: impl().copy_ignored_files(source_root, worktree_path, rel_paths)
 
-      case File.cp(src, dest) do
-        :ok -> {:ok, rel}
-        {:error, reason} -> {:error, rel, reason}
-      end
-    end)
-  end
-
-  # Returns true when `branch` has commits that `base_branch` does not. Uses
-  # the same fork-point logic as diff_from_fork_point/3 so the answer matches
-  # what the merge flow would actually try to land.
-  defp branch_ahead_of_base?(root, branch, base_branch) do
-    case diff_from_fork_point(root, branch, base_branch) do
-      {:ok, diff} -> byte_size(diff) > 0
-      _ -> false
-    end
-  end
-
-  @spec force_delete(String.t(), String.t()) :: {:ok, :ok} | {:error, atom()}
   @doc """
   Removes a worktree even when it contains uncommitted changes.
   """
-  def force_delete(root, path) when is_binary(root) and is_binary(path) do
-    case File.dir?(path) do
-      false ->
-        {:error, :worktree_not_found}
+  @spec force_delete(String.t(), String.t()) :: {:ok, :ok} | {:error, atom()}
+  def force_delete(root, path), do: impl().force_delete(root, path)
 
-      true ->
-        case git_cmd(root, ["worktree", "remove", "--force", path]) do
-          {:ok, _out} -> {:ok, :ok}
-          {:error, :not_a_repo} -> {:error, :not_a_repo}
-          _ -> {:error, :git_failed}
-        end
-    end
-  end
-
-  @spec fnord_managed?(String.t(), String.t()) :: boolean()
   @doc """
   Returns true when the given worktree path resolves to the default
   fnord-managed worktree root for the project or to a path beneath it.
@@ -420,247 +222,103 @@ defmodule GitCli.Worktree do
   prefixed branch, so a normalized path check is sufficient to identify
   internally managed worktrees.
   """
-  def fnord_managed?(project, path)
-      when is_binary(project) and is_binary(path) do
-    default_root = Path.expand(default_root(project)) |> String.trim_trailing("/")
-    candidate = Path.expand(path) |> String.trim_trailing("/")
+  @spec fnord_managed?(String.t(), String.t()) :: boolean()
+  def fnord_managed?(project, path), do: impl().fnord_managed?(project, path)
 
-    candidate == default_root or String.starts_with?(candidate, default_root <> "/")
-  end
-
-  @spec commit_all(String.t(), String.t()) :: {:ok, :ok} | {:error, atom()}
   @doc """
   Stages all changes and commits them in the given worktree directory.
   Returns `{:error, :nothing_to_commit}` when there is nothing to commit.
   """
-  def commit_all(path, message) when is_binary(path) and is_binary(message) do
-    with {:ok, _} <- git_cmd(path, ["add", "-A"]),
-         {:ok, _} <- git_cmd(path, ["commit", "-m", message]) do
-      {:ok, :ok}
-    else
-      {:error, :git_failed} -> {:error, :nothing_to_commit}
-      error -> error
-    end
-  end
+  @spec commit_all(String.t(), String.t()) :: {:ok, :ok} | {:error, atom()}
+  def commit_all(path, message), do: impl().commit_all(path, message)
 
-  @spec diff_against_base(String.t(), String.t(), String.t()) ::
-          {:ok, String.t()} | {:error, atom()}
   @doc """
   Returns the diff between a base branch and a worktree branch, run from the
   repository root.
   """
-  def diff_against_base(root, branch, base_branch)
-      when is_binary(root) and is_binary(branch) and is_binary(base_branch) do
-    git_cmd(root, ["diff", "#{base_branch}...#{branch}"])
-  end
-
-  @spec diff_from_fork_point(String.t(), String.t(), String.t()) ::
+  @spec diff_against_base(String.t(), String.t(), String.t()) ::
           {:ok, String.t()} | {:error, atom()}
+  def diff_against_base(root, branch, base_branch),
+    do: impl().diff_against_base(root, branch, base_branch)
+
   @doc """
   Returns the diff between the fork point (merge-base) of the worktree branch
   and its base branch. This shows all changes since the branch was created,
   regardless of what has happened on the base branch since.
   """
-  def diff_from_fork_point(root, branch, base_branch)
-      when is_binary(root) and is_binary(branch) and is_binary(base_branch) do
-    with {:ok, merge_base} <- git_cmd(root, ["merge-base", base_branch, branch]) do
-      git_cmd(root, ["diff", String.trim(merge_base), branch])
-    end
-  end
+  @spec diff_from_fork_point(String.t(), String.t(), String.t()) ::
+          {:ok, String.t()} | {:error, atom()}
+  def diff_from_fork_point(root, branch, base_branch),
+    do: impl().diff_from_fork_point(root, branch, base_branch)
 
-  @spec delete_branch(String.t(), String.t()) :: {:ok, :ok} | {:error, atom()}
   @doc """
   Deletes a local branch from the repository. Uses `-d` (safe delete) which
   refuses to delete unmerged branches.
   """
-  def delete_branch(root, branch) when is_binary(root) and is_binary(branch) do
-    with {:ok, _} <- git_cmd(root, ["branch", "-d", branch]) do
-      {:ok, :ok}
-    end
-  end
+  @spec delete_branch(String.t(), String.t()) :: {:ok, :ok} | {:error, atom()}
+  def delete_branch(root, branch), do: impl().delete_branch(root, branch)
 
-  @spec head_sha(String.t()) :: String.t() | nil
   @doc """
   Returns the short SHA of HEAD in the given repo root, or nil on failure.
   """
-  def head_sha(root) when is_binary(root) do
-    case git_cmd(root, ["rev-parse", "--short", "HEAD"]) do
-      {:ok, out} -> String.trim(out)
-      _ -> nil
-    end
-  end
+  @spec head_sha(String.t()) :: String.t() | nil
+  def head_sha(root), do: impl().head_sha(root)
 
-  @spec head_sha_full(String.t()) :: String.t() | nil
   @doc """
   Returns the full (unabbreviated) SHA of HEAD, suitable for use as a reset
   target.
   """
-  def head_sha_full(root) when is_binary(root) do
-    case git_cmd(root, ["rev-parse", "HEAD"]) do
-      {:ok, out} -> String.trim(out)
-      _ -> nil
-    end
-  end
+  @spec head_sha_full(String.t()) :: String.t() | nil
+  def head_sha_full(root), do: impl().head_sha_full(root)
 
-  @spec log_oneline(String.t(), String.t(), String.t()) :: [String.t()]
   @doc """
   Returns a list of one-line commit summaries in the range `from..to`,
   newest first. Each entry is a short-sha + subject line.
   """
-  def log_oneline(root, from, to) when is_binary(root) and is_binary(from) and is_binary(to) do
-    case git_cmd(root, ["log", "--oneline", "#{from}..#{to}"]) do
-      {:ok, ""} -> []
-      {:ok, out} -> String.split(out, "\n", trim: true)
-      _ -> []
-    end
-  end
+  @spec log_oneline(String.t(), String.t(), String.t()) :: [String.t()]
+  def log_oneline(root, from, to), do: impl().log_oneline(root, from, to)
 
-  @spec reset_hard(String.t(), String.t()) :: {:ok, :ok} | {:error, atom()}
   @doc """
   Hard-resets the repository at `root` to the given `target` ref. Used to
   revert a fast-forward merge that may have advanced HEAD by multiple commits.
   """
-  def reset_hard(root, target) when is_binary(root) and is_binary(target) do
-    with {:ok, _} <- git_cmd(root, ["reset", "--hard", target]) do
-      {:ok, :ok}
-    end
-  end
+  @spec reset_hard(String.t(), String.t()) :: {:ok, :ok} | {:error, atom()}
+  def reset_hard(root, target), do: impl().reset_hard(root, target)
 
-  @spec force_delete_branch(String.t(), String.t()) :: {:ok, :ok} | {:error, atom()}
   @doc """
   Force-deletes a local branch regardless of merge status.
   """
-  def force_delete_branch(root, branch) when is_binary(root) and is_binary(branch) do
-    with {:ok, _} <- git_cmd(root, ["branch", "-D", branch]) do
-      {:ok, :ok}
-    end
-  end
+  @spec force_delete_branch(String.t(), String.t()) :: {:ok, :ok} | {:error, atom()}
+  def force_delete_branch(root, branch), do: impl().force_delete_branch(root, branch)
 
-  @spec project_root() :: {:ok, String.t()} | {:error, atom()}
   @doc """
   Returns the current repository root or `:not_a_repo` when the process is not
   inside a Git repository.
   """
-  def project_root do
-    case GitCli.repo_root() do
-      nil -> {:error, :not_a_repo}
-      root -> {:ok, root}
-    end
-  end
+  @spec project_root() :: {:ok, String.t()} | {:error, atom()}
+  def project_root(), do: impl().project_root()
 
-  @spec normalize_worktree_meta(map()) :: worktree_meta()
   @doc """
   Normalizes stored worktree metadata into the shape expected by the context.
   """
-  def normalize_worktree_meta(meta) when is_map(meta) do
-    %{path: meta_path(meta), branch: meta_branch(meta), base_branch: meta_base_branch(meta)}
-  end
+  @spec normalize_worktree_meta(map()) :: worktree_meta()
+  def normalize_worktree_meta(meta), do: impl().normalize_worktree_meta(meta)
 
-  @spec normalize_worktree_meta_in_parent(map()) :: map()
   @doc """
   Normalizes the worktree sub-map within a parent metadata map, handling both
   atom and string keys for the worktree entry itself. Returns the parent map
   with a normalized :worktree value, or unchanged if no worktree is present.
   """
-  def normalize_worktree_meta_in_parent(meta) when is_map(meta) do
-    raw = Map.get(meta, :worktree) || Map.get(meta, "worktree")
+  @spec normalize_worktree_meta_in_parent(map()) :: map()
+  def normalize_worktree_meta_in_parent(meta),
+    do: impl().normalize_worktree_meta_in_parent(meta)
 
-    case raw do
-      nil -> meta
-      m when is_map(m) -> Map.put(meta, :worktree, normalize_worktree_meta(m))
-    end
-  end
-
+  @doc """
+  Returns the total size in bytes of all regular files beneath `path`.
+  """
   @spec recursive_size(String.t()) :: non_neg_integer()
-  def recursive_size(path) when is_binary(path) do
-    path
-    |> recursive_entries()
-    |> Enum.reduce(0, fn entry, acc -> acc + file_size(entry) end)
-  end
+  def recursive_size(path), do: impl().recursive_size(path)
 
-  defp resolve_default_base_branch(root) do
-    case default_base_branch(root) do
-      branch when is_binary(branch) -> {:ok, branch}
-      nil -> {:error, :invalid_branch}
-    end
-  end
-
-  defp ensure_conversation_path(project, conversation_id) do
-    path = conversation_path(project, conversation_id)
-
-    case File.mkdir_p(default_root(project)) do
-      :ok -> {:ok, path}
-      _ -> {:error, :git_failed}
-    end
-  end
-
-  defp ensure_parent_dir(path) do
-    case File.mkdir_p(Path.dirname(path)) do
-      :ok -> :ok
-      _ -> {:error, :git_failed}
-    end
-  end
-
-  @spec prepare_recreated_worktree(String.t(), String.t(), worktree_meta()) ::
-          {:ok, recreation_result()} | {:error, atom()}
-  # Preserves the stored worktree path when one exists in metadata, falling
-  # back to the default conversation path only for worktrees that were created
-  # without an explicit location.
-  defp prepare_recreated_worktree(project, conversation_id, meta) do
-    stored_path = meta_path(meta)
-
-    target_path =
-      if is_binary(stored_path),
-        do: stored_path,
-        else: conversation_path(project, conversation_id)
-
-    branch = meta_branch(meta)
-    base_branch = meta_base_branch(meta)
-
-    with {:ok, root} <- project_root(),
-         :ok <- ensure_parent_dir(target_path),
-         {:ok, resolved_base_branch} <- resolve_default_base_branch(root),
-         {:ok, branch} <- normalize_branch(branch, base_branch || resolved_base_branch) do
-      normalized_meta =
-        meta
-        |> Map.put(:path, target_path)
-        |> Map.put(:branch, branch)
-        |> Map.put(:base_branch, base_branch || resolved_base_branch)
-        |> normalize_worktree_meta()
-
-      {:ok, %{root: root, path: target_path, branch: branch, meta: normalized_meta}}
-    end
-  end
-
-  defp normalize_worktree_entry(path, branch, base_branch, root) do
-    %{
-      path: path,
-      branch: branch,
-      base_branch: base_branch,
-      merge_status: merge_status(path, root, branch, base_branch),
-      size: recursive_size(path),
-      exists?: true
-    }
-  end
-
-  defp enrich_worktree(root, %{path: path} = entry) do
-    branch = Map.get(entry, :branch) || Map.get(entry, "branch")
-
-    base_branch =
-      Map.get(entry, :base_branch) || Map.get(entry, "base_branch") || default_base_branch(root)
-
-    Map.merge(entry, %{
-      path: path,
-      branch: branch,
-      base_branch: base_branch,
-      merge_status: merge_status(path, root, branch, base_branch),
-      size: recursive_size(path),
-      exists?: File.dir?(path)
-    })
-  end
-
-  @spec merge_status(String.t(), String.t(), String.t() | nil, String.t() | nil) ::
-          :ahead | :diverged | :unknown
   @doc """
   Returns the merge status of a worktree branch relative to its base branch.
 
@@ -669,184 +327,27 @@ defmodule GitCli.Worktree do
   Any other git result is reported as `:diverged` so callers can treat the
   branch as needing manual attention before merge.
   """
-  def merge_status(path, root, branch, base_branch) do
-    cond do
-      not File.dir?(path) ->
-        :unknown
+  @spec merge_status(String.t(), String.t(), String.t() | nil, String.t() | nil) ::
+          :ahead | :diverged | :unknown
+  def merge_status(path, root, branch, base_branch),
+    do: impl().merge_status(path, root, branch, base_branch)
 
-      is_nil(branch) ->
-        :unknown
-
-      is_nil(base_branch) ->
-        :unknown
-
-      true ->
-        case git_cmd(root, ["merge-base", "--is-ancestor", base_branch, branch]) do
-          {:ok, _out} -> :ahead
-          _ -> :diverged
-        end
-    end
-  end
-
-  defp git_worktree_list(root) do
-    with {:ok, out} <- git_cmd(root, ["worktree", "list", "--porcelain"]) do
-      {:ok, parse_worktree_list(out)}
-    end
-  end
-
-  defp parse_worktree_list(out) do
-    out
-    |> String.split(~r/\n\s*\n/, trim: true)
-    |> Enum.map(&parse_worktree_record/1)
-    |> Enum.reject(&is_nil/1)
-  end
-
-  defp parse_worktree_record(record) do
-    fields =
-      record
-      |> String.split("\n", trim: true)
-      |> Enum.reduce(%{}, fn line, acc -> parse_worktree_line(line, acc) end)
-
-    case Map.fetch(fields, :path) do
-      {:ok, path} ->
-        %{
-          path: path,
-          branch: Map.get(fields, :branch),
-          base_branch: Map.get(fields, :base_branch)
-        }
-
-      :error ->
-        nil
-    end
-  end
-
-  defp parse_worktree_line("worktree " <> path, acc), do: Map.put(acc, :path, path)
-  defp parse_worktree_line("branch refs/heads/" <> branch, acc), do: Map.put(acc, :branch, branch)
-  defp parse_worktree_line("detached", acc), do: Map.put(acc, :branch, nil)
-  defp parse_worktree_line("HEAD " <> _head, acc), do: acc
-  defp parse_worktree_line(_, acc), do: acc
-
-  # Creates a worktree with a new branch forked from a start point. Used by
-  # create/3 for fresh conversation worktrees.
-  defp git_worktree_add_branch(root, path, branch, start_point) do
-    case git_cmd(root, ["worktree", "add", "--force", "-b", branch, path, start_point]) do
-      {:ok, out} -> {:ok, out}
-      {:error, :invalid_branch} -> {:error, :invalid_branch}
-      {:error, :not_a_repo} -> {:error, :not_a_repo}
-      _ -> {:error, :git_failed}
-    end
-  end
-
-  # Checks out an existing branch into a worktree. Used by
-  # recreate_conversation_worktree/3 to restore a previously created worktree.
-  defp git_worktree_add(root, path, branch) do
-    case git_cmd(root, ["worktree", "add", "--force", path, branch]) do
-      {:ok, out} -> {:ok, out}
-      {:error, :invalid_branch} -> {:error, :invalid_branch}
-      {:error, :not_a_repo} -> {:error, :not_a_repo}
-      _ -> {:error, :git_failed}
-    end
-  end
-
-  defp git_worktree_remove(root, path) do
-    case File.dir?(path) do
-      false ->
-        {:error, :worktree_not_found}
-
-      true ->
-        case git_cmd(root, ["worktree", "remove", path]) do
-          {:ok, out} -> {:ok, out}
-          {:error, :not_a_repo} -> {:error, :not_a_repo}
-          _ -> {:error, :git_failed}
-        end
-    end
-  end
-
-  defp git_worktree_branch(root, path) do
-    with true <- File.dir?(path) or {:error, :worktree_not_found},
-         {:ok, branch} <- git_cmd(root, ["rev-parse", "--abbrev-ref", "HEAD"], cd: path) do
-      {:ok, String.trim(branch)}
-    end
-  end
-
-  defp normalize_branch(nil, base_branch), do: {:ok, base_branch}
-  defp normalize_branch(branch, _base_branch) when is_binary(branch), do: {:ok, branch}
-  defp normalize_branch(_, _), do: {:error, :invalid_branch}
-
-  @spec default_base_branch(String.t()) :: String.t() | nil
   @doc """
   Returns the default base branch for the repository — either the remote HEAD
   (e.g., `main`) or the current branch as a fallback.
   """
-  def default_base_branch(root) when is_binary(root) do
-    case repo_default_branch(root) do
-      branch when is_binary(branch) -> branch
-      nil -> current_branch(root)
-    end
-  end
+  @spec default_base_branch(String.t()) :: String.t() | nil
+  def default_base_branch(root), do: impl().default_base_branch(root)
 
-  defp repo_default_branch(root) when is_binary(root) do
-    with {:ok, out} <- git_cmd(root, ["symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"]) do
-      out
-      |> String.trim()
-      |> String.replace_prefix("refs/remotes/origin/", "")
-      |> case do
-        "" -> nil
-        branch -> branch
-      end
-    else
-      _ -> nil
-    end
-  end
-
-  @spec current_branch(String.t()) :: String.t() | nil
   @doc """
   Returns the currently checked-out branch name for the given repo root, or
   nil when HEAD is detached or the branch cannot be determined.
   """
-  def current_branch(root) when is_binary(root) do
-    with {:ok, branch} <- git_cmd(root, ["rev-parse", "--abbrev-ref", "HEAD"]) do
-      branch = String.trim(branch)
+  @spec current_branch(String.t()) :: String.t() | nil
+  def current_branch(root), do: impl().current_branch(root)
 
-      case branch do
-        "HEAD" -> nil
-        "" -> nil
-        valid_branch -> valid_branch
-      end
-    else
-      _ -> nil
-    end
+  @spec impl() :: module
+  def impl() do
+    Services.Globals.get_env(:fnord, :git_worktree) || GitCli.Worktree.Default
   end
-
-  defp git_cmd(root, args, opts \\ []) do
-    case System.cmd("git", args, Keyword.merge([cd: root, stderr_to_stdout: true], opts)) do
-      {out, 0} -> {:ok, out}
-      {_, 128} -> {:error, :not_a_repo}
-      {_, 129} -> {:error, :invalid_branch}
-      {_, 1} -> {:error, :git_failed}
-      {_, _} -> {:error, :git_failed}
-    end
-  end
-
-  defp file_size(path) do
-    case File.stat(path) do
-      {:ok, %{size: size}} -> size
-      _ -> 0
-    end
-  end
-
-  defp recursive_entries(path) do
-    if File.dir?(path) do
-      path
-      |> Path.join("**/*")
-      |> Path.wildcard()
-      |> Enum.filter(&File.regular?/1)
-    else
-      []
-    end
-  end
-
-  defp meta_path(meta), do: Map.get(meta, :path) || Map.get(meta, "path")
-  defp meta_branch(meta), do: Map.get(meta, :branch) || Map.get(meta, "branch")
-  defp meta_base_branch(meta), do: Map.get(meta, :base_branch) || Map.get(meta, "base_branch")
 end

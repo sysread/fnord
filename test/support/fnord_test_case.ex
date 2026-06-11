@@ -25,6 +25,9 @@ defmodule Fnord.TestCase do
   Mox.defmock(Http.Client.Mock, for: Http.Client)
   Mox.defmock(AI.CompletionAPI.Mock, for: AI.CompletionAPI)
   Mox.defmock(AI.Agent.Dispatcher.Mock, for: AI.Agent.Dispatcher)
+  Mox.defmock(GitCli.Mock, for: GitCli)
+  Mox.defmock(GitCli.Worktree.Mock, for: GitCli.Worktree)
+  Mox.defmock(GitCli.Worktree.Review.Mock, for: GitCli.Worktree.Review)
 
   using do
     quote do
@@ -55,6 +58,9 @@ defmodule Fnord.TestCase do
           git_checkout_detached!: 2,
           setup_git_repo!: 2,
           mock_conversation: 0,
+          mock_git_cli: 0,
+          mock_git_worktree: 0,
+          mock_git_review: 0,
           set_log_level: 1,
           set_config: 1,
           set_config: 2,
@@ -230,7 +236,10 @@ defmodule Fnord.TestCase do
     UI.Output.Mock,
     Http.Client.Mock,
     AI.CompletionAPI.Mock,
-    AI.Agent.Dispatcher.Mock
+    AI.Agent.Dispatcher.Mock,
+    GitCli.Mock,
+    GitCli.Worktree.Mock,
+    GitCli.Worktree.Review.Mock
   ]
 
   @doc """
@@ -567,6 +576,44 @@ defmodule Fnord.TestCase do
   def canned_agent(fun) when is_function(fun, 2) do
     Services.Globals.put_env(:fnord, :agent_dispatcher, AI.Agent.Dispatcher.Mock)
     Mox.stub(AI.Agent.Dispatcher.Mock, :dispatch, fun)
+    :ok
+  end
+
+  @doc """
+  Routes `GitCli` calls through a mock for this test, pre-stubbed to pass
+  through to the real implementation. Override individual functions with
+  `Mox.stub(GitCli.Mock, :fn, ...)` to script git state. Because the real
+  implementations route nested public calls back through the facade, an
+  override is seen by sibling functions too (matching the interception
+  semantics of `:meck` passthrough).
+
+  Like the agent-dispatch seam, the default stays the real implementation:
+  most tests never touch git, and those that do usually want a real repo.
+  """
+  def mock_git_cli() do
+    Services.Globals.put_env(:fnord, :git_cli, GitCli.Mock)
+    Mox.stub_with(GitCli.Mock, GitCli.Default)
+    :ok
+  end
+
+  @doc """
+  Routes `GitCli.Worktree` calls through a mock for this test, pre-stubbed
+  to pass through to the real implementation. See `mock_git_cli/0`.
+  """
+  def mock_git_worktree() do
+    Services.Globals.put_env(:fnord, :git_worktree, GitCli.Worktree.Mock)
+    Mox.stub_with(GitCli.Worktree.Mock, GitCli.Worktree.Default)
+    :ok
+  end
+
+  @doc """
+  Routes `GitCli.Worktree.Review` calls through a mock for this test,
+  pre-stubbed to pass through to the real implementation. See
+  `mock_git_cli/0`.
+  """
+  def mock_git_review() do
+    Services.Globals.put_env(:fnord, :git_review, GitCli.Worktree.Review.Mock)
+    Mox.stub_with(GitCli.Worktree.Review.Mock, GitCli.Worktree.Review.Default)
     :ok
   end
 end

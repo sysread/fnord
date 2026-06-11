@@ -27,6 +27,12 @@ One layer up, `AI.CompletionAPI` is the model-call boundary: `AI.Completion`'s l
 
 At the top, `AI.Agent.Dispatcher` is the agent-invocation boundary: `AI.Agent.get_response/2` runs its bookkeeping (name checkout, task wrapping, HTTP pool propagation) and then calls `AI.Agent.Dispatcher.impl().dispatch(impl_mod, args)`, resolved via the `:agent_dispatcher` Globals key. Tests that treat a sub-agent as an opaque collaborator (e.g. the edit tool's Patcher, the conversation summarizer) canned-respond per agent module with `Fnord.TestCase.canned_agent/1`. Unlike the two lower seams, tests do NOT default this key to a mock - the default stays the real dispatcher so most tests exercise real agents driven by canned model responses, and the no-unmocked-network guarantee already lives below.
 
+## Git subprocess boundary
+
+`GitCli`, `GitCli.Worktree`, and `GitCli.Worktree.Review` are **facades**: each is a behaviour whose public functions delegate through `impl/0` (Globals keys `:git_cli`, `:git_worktree`, `:git_review`), defaulting to the real implementation in the sibling `Default` module (`System.cmd("git", ...)` wrappers). This seam uses facade delegation instead of the caller-side `Module.impl().fn()` convention of the narrow seams above because the git API is wide (~45 functions) with ~100 call sites - the facade keeps callers untouched.
+
+Two properties matter for tests. First, the `Default` modules route calls to *public siblings* back through their facade (e.g. `has_changes_to_merge?` calls `GitCli.Worktree.has_uncommitted_changes?`, not a local function), so a test double on the Globals key intercepts nested calls exactly the way `:meck` passthrough did. Second, tests do NOT point these keys at mocks by default - real git stays in place. Tests that script git state opt in via `Fnord.TestCase.mock_git_cli/0` / `mock_git_worktree/0` / `mock_git_review/0`, which install the Mox mock pre-stubbed (`stub_with`) to pass through to `Default`; the test then overrides individual functions with `Mox.stub`.
+
 ## Command dispatch
 
 Each subcommand is a module that implements the `Cmd` behaviour:

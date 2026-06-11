@@ -594,3 +594,17 @@ session-long server. `MCP.Tools` was the last offender: its lazy
 registered through `Services.Instance` like every other tree-scoped service.
 If a service needs to exist, it belongs in the roster; if state must outlive
 the tree, it belongs to Globals (item 33).
+
+## 35. GitCli Default impls must call public siblings through the facade
+
+`GitCli`, `GitCli.Worktree`, and `GitCli.Worktree.Review` are facades over
+`*.Default` implementation modules (Globals keys `:git_cli`, `:git_worktree`,
+`:git_review`). Inside a `Default` module, a call to a public sibling must be
+facade-qualified (`GitCli.Worktree.has_uncommitted_changes?(path)`), never a
+bare local call - the facade hop is what lets a test double installed on the
+Globals key intercept nested calls, matching the `:meck` passthrough
+semantics the test suite was written against. A bare local call compiles and
+works in prod, but silently bypasses test doubles: a test that stubs
+`has_uncommitted_changes?` and exercises `has_changes_to_merge?` would hit
+real git instead of the stub. Private helpers stay local; only public
+functions route through the facade.

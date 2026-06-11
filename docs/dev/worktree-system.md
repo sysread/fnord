@@ -10,15 +10,18 @@ alongside the project, and merged or discarded at session end.
 ~/.fnord/projects/<name>/worktrees/<conversation-id>/
 ```
 
-`GitCli.Worktree.default_root/1` (`lib/git_cli/worktree.ex:32`) returns the
-parent directory. `GitCli.Worktree.conversation_path/2` (line 40) appends the
-conversation ID.
+`GitCli.Worktree.default_root/1` returns the parent directory.
+`GitCli.Worktree.conversation_path/2` appends the conversation ID.
+
+Note: `GitCli.Worktree` (`lib/git_cli/worktree.ex`) is a facade; the real git
+implementation lives in `GitCli.Worktree.Default`
+(`lib/git_cli/worktree/default.ex`). See the "Git subprocess boundary"
+section of [architecture.md](architecture.md) and gotcha 35.
 
 ## Creation
 
-`GitCli.Worktree.create/3` (`lib/git_cli/worktree.ex:64`) creates the
-worktree, branching from the default base branch. The branch name defaults to
-`fnord-<conversation-id>`.
+`GitCli.Worktree.create/3` creates the worktree, branching from the default
+base branch. The branch name defaults to `fnord-<conversation-id>`.
 
 Auto-creation happens in `Cmd.Ask.maybe_auto_create_worktree/4`
 (`lib/cmd/ask.ex:892`). Conditions:
