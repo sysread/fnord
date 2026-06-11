@@ -7,25 +7,12 @@ defmodule AI.Agent.Coordinator.GlueCompletionTest do
     set_log_level(:none)
     _project = mock_project("glue_completion_test")
 
-    safe_meck_new(Services.Conversation, [:passthrough, :no_link, :non_strict])
-    safe_meck_new(Services.Conversation.Interrupts, [:passthrough, :no_link, :non_strict])
+    # Glue drives a real conversation server: get_messages/save/replace_msgs
+    # run against the per-test store, and the tree-local Interrupts service
+    # answers pending?/1 for the pid.
+    %{conversation_pid: conversation_pid} = mock_conversation()
 
-    on_exit(fn ->
-      safe_meck_unload(Services.Conversation.Interrupts)
-      safe_meck_unload(Services.Conversation)
-    end)
-
-    :meck.expect(Services.Conversation, :get_messages, fn _pid -> [] end)
-
-    :meck.expect(Services.Conversation, :save, fn pid ->
-      {:ok, %{id: "conv-test-#{inspect(pid)}"}}
-    end)
-
-    :meck.expect(Services.Conversation, :replace_msgs, fn _msgs, _pid -> :ok end)
-    :meck.expect(Services.Conversation, :append_msg, fn _msg, _pid -> :ok end)
-    :meck.expect(Services.Conversation.Interrupts, :pending?, fn _pid -> false end)
-
-    :ok
+    {:ok, conversation_pid: conversation_pid}
   end
 
   # Regression: the Coordinator's Glue layer used to pass `:model` (with a
@@ -35,7 +22,7 @@ defmodule AI.Agent.Coordinator.GlueCompletionTest do
   # the Coordinator path. The stubs below capture the model and verbosity at
   # the completion-API boundary, proving the flag survives the whole trip
   # through Glue AND the real completion loop to the wire layer.
-  test "forwards state.model.verbosity through to the completion API" do
+  test "forwards state.model.verbosity through to the completion API", ctx do
     test_pid = self()
 
     stub(AI.CompletionAPI.Mock, :get, fn model, _msgs, _tools, _rf, _web, verbosity ->
@@ -44,14 +31,14 @@ defmodule AI.Agent.Coordinator.GlueCompletionTest do
     end)
 
     model = AI.Model.smart() |> AI.Model.with_verbosity(:low)
-    state = fake_coordinator_state(model)
+    state = fake_coordinator_state(model, ctx.conversation_pid)
 
     Glue.get_completion(state)
 
     assert_received {:completion_call, ^model, :low}
   end
 
-  test "forwards nil verbosity when the user did not pass -V" do
+  test "forwards nil verbosity when the user did not pass -V", ctx do
     test_pid = self()
 
     stub(AI.CompletionAPI.Mock, :get, fn model, _msgs, _tools, _rf, _web, verbosity ->
@@ -60,20 +47,20 @@ defmodule AI.Agent.Coordinator.GlueCompletionTest do
     end)
 
     model = AI.Model.smart()
-    state = fake_coordinator_state(model)
+    state = fake_coordinator_state(model, ctx.conversation_pid)
 
     Glue.get_completion(state)
 
     assert_received {:completion_call, ^model, nil}
   end
 
-  defp fake_coordinator_state(model) do
+  defp fake_coordinator_state(model, conversation_pid) do
     %AI.Agent.Coordinator{
       agent: %AI.Agent{impl: AI.Agent.Coordinator, name: "test", named?: true},
       edit?: false,
       replay: false,
       question: "Q",
-      conversation_pid: self(),
+      conversation_pid: conversation_pid,
       followup?: false,
       project: "glue_completion_test",
       model: model,

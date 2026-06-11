@@ -635,3 +635,27 @@ fresh mock project. Tests seed it with
 `File.mkdir_p!(Store.Project.files_root(project))` - the wildcard sees the
 subdirectory and the project becomes resolvable. Code paths that use
 `Store.get_project/0` directly (search, commit index) do not need this.
+
+## 38. Running the full ask flow in a test wakes the ConversationIndexer's summary agent
+
+`Cmd.Ask.run/3` starts the background indexers for real. The
+ConversationIndexer resolves its candidate list at startup, so a test that
+seeds a conversation file *before* calling `run/3` (e.g. to exercise
+`--follow`) will see that conversation summarized mid-test - through the
+same `:agent_dispatcher` seam as the coordinator, but with
+`AI.Agent.ConversationSummary` as the impl module. A `canned_agent/1` fun
+that only matches `AI.Agent.Coordinator` dies with a FunctionClauseError
+inside the indexer's task, which the task link propagates back into the
+test. Can both agents (see `canned_coordinator/1` in `test/cmd/ask_test.exs`).
+Conversations created *during* the run (the normal save path) are not
+affected: the candidate list was resolved before they existed.
+
+## 39. GitCli.is_git_repo_at?/1 is not a commit-indexer-specific probe
+
+`Services.CommitIndexer` gates its commit-history scan on
+`GitCli.is_git_repo_at?/1`, which makes it tempting to stub as a "did the
+commit indexer run?" probe. But the file-index scan consults the same
+callback per scan via `GitCli.Default.resolve_default_branch/1`
+(`Source.hash`/`Source.exists?`), so the probe fires from
+`Services.BackgroundIndexer` too. `GitCli.commit_shas/2` is only reachable
+through the commit index - probe that instead.

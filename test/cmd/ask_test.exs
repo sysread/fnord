@@ -1,20 +1,64 @@
 defmodule Cmd.AskTest do
+  # async: false - Cmd.Ask.run boots ad-hoc GenServers (Services.Conversation,
+  # the background indexers) whose init code calls Mox-backed facades. Those
+  # processes are not in the instance registry, so private-mode allowances
+  # cannot reach them; this file needs global Mox.
   use Fnord.TestCase, async: false
 
   setup do
     Services.Globals.delete_env(:fnord, :auto_policy)
+    {:ok, project: mock_project("ask_proj")}
+  end
 
-    # Ensure settings directory exists without deleting it to avoid races
-    settings_file = Settings.settings_file()
-    settings_dir = Path.dirname(settings_file)
-    File.mkdir_p!(settings_dir)
-
-    # Ensure lock directory parent exists so FileLock can create locks without errors
-    lock_dir = settings_file <> ".lock"
-    lock_parent = Path.dirname(lock_dir)
-    File.mkdir_p!(lock_parent)
-
+  setup do
+    # The repo this suite runs from IS a git worktree, so the real GitCli
+    # would trip ask's worktree-mismatch detection. Script git state through
+    # the facades: plain checkout, not a git repo (the commit-indexer tests
+    # override is_git_repo? to exercise that branch).
+    mock_git_cli()
+    mock_git_worktree()
+    mock_git_review()
+    Mox.stub(GitCli.Mock, :is_worktree?, fn -> false end)
+    Mox.stub(GitCli.Mock, :is_git_repo?, fn -> false end)
     :ok
+  end
+
+  # Cans the coordinator at the agent-dispatch seam. Everything below the
+  # dispatcher - the real Services.Conversation server, conversation
+  # persistence, Services.Task, Memory - runs for real against the per-test
+  # store. The ConversationIndexer summarizes pre-existing conversations
+  # through the same seam, so --follow tests also need that agent canned.
+  defp canned_coordinator(response \\ "hello") do
+    canned_agent(fn
+      AI.Agent.Coordinator, _args ->
+        {:ok, %{usage: 1, context: 2, last_response: response}}
+
+      AI.Agent.ConversationSummary, _args ->
+        {:ok, "test summary"}
+    end)
+  end
+
+  # UI.error/info land on UI.Output.log, which the default TestStub routes to
+  # Logger - invisible to capture_all. Mirror log traffic onto stderr so the
+  # assertions below see it, the same surface the user does.
+  defp redirect_ui_log_to_stderr() do
+    Mox.stub(UI.Output.Mock, :log, fn _level, msg -> IO.puts(:stderr, msg) end)
+  end
+
+  # Seeds a real conversation file carrying worktree metadata, the state a
+  # prior `ask --edit` session would have persisted. Following it is the
+  # honest path into the merge-review flow.
+  defp seed_worktree_conversation(worktree_dir) do
+    {:ok, conv} =
+      Store.Project.Conversation.new()
+      |> Store.Project.Conversation.write(%{
+        messages: [AI.Util.user_msg("earlier question")],
+        metadata: %{worktree: %{path: worktree_dir, branch: "feat", base_branch: "main"}},
+        memory: [],
+        tasks: %{}
+      })
+
+    conv
   end
 
   test "default auto policy is deny after 180_000 ms when no flags provided" do
@@ -49,548 +93,225 @@ defmodule Cmd.AskTest do
     assert {:error, _} = apply(Cmd.Ask, :validate_auto, [%{auto_deny_after: -1}])
   end
 
-  describe "run/3 exception handling" do
-    setup do
-      # safe_meck_new tolerates a previously-leaked mock by unloading it
-      # first, preventing :already_started errors when this setup runs after
-      # an unrelated test that mocked the same module without cleanup.
-      :ok = safe_meck_new(Services.Conversation, [:passthrough])
-      :ok = safe_meck_new(GitCli, [:passthrough])
-      :meck.expect(Services.Conversation, :start_link, fn _args -> raise "boom" end)
-      :meck.expect(GitCli, :is_worktree?, fn -> false end)
-      :meck.validate(Services.Conversation)
+  describe "run/3 crash propagation" do
+    test "a coordinator crash propagates instead of becoming a fake result" do
+      canned_agent(fn AI.Agent.Coordinator, _args -> raise "boom" end)
 
-      on_exit(fn ->
-        for mod <- [Services.Conversation, GitCli] do
-          safe_meck_unload(mod)
-        end
+      # The crash happens inside the Task that AI.Agent.get_response wraps
+      # around dispatch; the task link delivers it to this process, where
+      # trapping converts it into the Task.await exit we can assert on.
+      Process.flag(:trap_exit, true)
+
+      capture_all(fn ->
+        assert {{%RuntimeError{message: "boom"}, _stack}, _mfa} =
+                 catch_exit(Cmd.Ask.run(%{question: "whoops?"}, [], []))
       end)
-
-      :ok
-    end
-
-    test "propagates start_link exceptions (outside try)" do
-      opts = %{question: "whoops?"}
-
-      assert_raise RuntimeError, "boom", fn ->
-        Cmd.Ask.run(opts, [], [])
-      end
     end
   end
 
   describe "run/3 missing conversations" do
-    setup do
-      :ok = safe_meck_new(UI, [:passthrough])
-      :ok = safe_meck_new(Store.Project.Conversation, [:passthrough])
-      :ok = safe_meck_new(GitCli, [:passthrough])
-
-      :meck.expect(UI, :quiet?, fn -> true end)
-      :meck.expect(UI, :error, fn _ -> :ok end)
-      :meck.expect(UI, :spin, fn _label, fun -> fun.() end)
-      :meck.expect(GitCli, :is_worktree?, fn -> false end)
-      :meck.expect(Store.Project.Conversation, :new, fn id -> %{id: id} end)
-      :meck.expect(Store.Project.Conversation, :exists?, fn _ -> false end)
-
-      on_exit(fn ->
-        Enum.each([UI, Store.Project.Conversation, GitCli], fn mod ->
-          try do
-            :meck.unload(mod)
-          catch
-            _, _ -> :ok
-          end
-        end)
-      end)
-
-      :ok
-    end
-
     test "reports the missing fork conversation id" do
-      assert {:error, :conversation_not_found} =
-               Cmd.Ask.run(%{question: "hello", fork: "fork-404"}, [], [])
+      redirect_ui_log_to_stderr()
 
-      assert :meck.called(UI, :error, ["Conversation ID fork-404 not found"])
+      {_stdout, stderr} =
+        capture_all(fn ->
+          assert {:error, :conversation_not_found} =
+                   Cmd.Ask.run(%{question: "hello", fork: "fork-404"}, [], [])
+        end)
+
+      assert stderr =~ "Conversation ID fork-404 not found"
     end
   end
 
-  describe "run/3 save failures" do
-    setup do
-      :ok = safe_meck_new(Store, [:passthrough])
-      :ok = safe_meck_new(Outputs, [:passthrough])
-      :ok = safe_meck_new(UI, [:passthrough])
-      :ok = safe_meck_new(GitCli, [:passthrough])
-      :ok = safe_meck_new(Services.Conversation, [:passthrough])
-      :ok = safe_meck_new(Services.Task, [:passthrough])
-      :ok = safe_meck_new(Memory, [:passthrough])
-      :ok = safe_meck_new(Clipboard, [:passthrough])
-      :ok = safe_meck_new(Notifier, [:passthrough])
+  describe "run/3 output persistence" do
+    test "saves the response to the outputs store with --save" do
+      canned_coordinator("# Title: My Answer\n\nthe answer is 42")
 
-      :meck.expect(GitCli, :is_worktree?, fn -> false end)
+      {_stdout, _stderr} =
+        capture_all(fn ->
+          assert :ok == Cmd.Ask.run(%{question: "hello", save: true}, [], [])
+        end)
 
-      on_exit(fn ->
-        Enum.each(
-          [
-            Store,
-            Outputs,
-            UI,
-            GitCli,
-            Services.Conversation,
-            Services.Task,
-            Memory,
-            Clipboard,
-            Notifier
-          ],
-          fn mod ->
-            try do
-              :meck.unload(mod)
-            catch
-              _, _ -> :ok
-            end
-          end
-        )
-      end)
-
-      :ok
+      assert [path] = Path.wildcard(Path.join(Outputs.outputs_dir("ask_proj"), "*.md"))
+      assert Path.basename(path) =~ "my-answer"
+      assert File.read!(path) =~ "the answer is 42"
     end
 
     test "logs a save failure instead of crashing when output persistence fails" do
-      project = Store.Project.new("demo", "/tmp/demo")
+      canned_coordinator()
+      redirect_ui_log_to_stderr()
 
-      :meck.expect(Store, :get_project, fn -> {:ok, project} end)
-      :meck.expect(Outputs, :save, fn _project_name, _response, _opts -> {:error, :disk_full} end)
-      :meck.expect(UI, :quiet?, fn -> true end)
-      :meck.expect(UI, :debug, fn _, _ -> :ok end)
-      :meck.expect(UI, :error, fn _ -> :ok end)
-      :meck.expect(UI, :report_step, fn _, _ -> :ok end)
-      :meck.expect(UI, :say, fn _ -> :ok end)
-      :meck.expect(UI, :flush, fn -> :ok end)
-      :meck.expect(UI, :warn, fn _ -> :ok end)
-      :meck.expect(UI, :spin, fn _label, fun -> fun.() end)
-      :meck.expect(Services.Conversation, :start_link, fn _ -> {:ok, self()} end)
-      :meck.expect(Services.Conversation, :get_id, fn _ -> "conv-1" end)
-      :meck.expect(Services.Conversation, :get_conversation_meta, fn _ -> %{} end)
-
-      :meck.expect(Services.Conversation, :get_response, fn _, _ ->
-        {:ok, %{usage: 1, context: 2, last_response: "hello"}}
-      end)
-
-      :meck.expect(Services.Conversation, :save, fn _ ->
-        {:ok, %{id: "conv-1", store_path: "/tmp/conv-1.json"}}
-      end)
-
-      :meck.expect(Services.Task, :start_link, fn opts ->
-        assert Keyword.get(opts, :conversation_pid) == self()
-        {:ok, self()}
-      end)
-
-      :meck.expect(Memory, :init, fn -> :ok end)
-      :meck.expect(Memory, :list, fn _ -> {:ok, []} end)
-      :meck.expect(Memory, :search_stats, fn -> nil end)
-      :meck.expect(Clipboard, :copy, fn _ -> :ok end)
-      :meck.expect(Notifier, :notify, fn _, _ -> :ok end)
+      # Real failure injection: an unwritable outputs dir denies the lock
+      # file, so Outputs.save surfaces an error instead of writing.
+      dir = Outputs.outputs_dir("ask_proj")
+      File.mkdir_p!(dir)
+      File.chmod!(dir, 0o555)
+      on_exit(fn -> File.chmod(dir, 0o755) end)
 
       {_stdout, stderr} =
         capture_all(fn ->
           assert :ok == Cmd.Ask.run(%{question: "hello", save: true}, [], [])
         end)
 
+      assert stderr =~ "Failed to save output:"
       assert stderr =~ "(no file changes during this session)"
-      assert :meck.called(UI, :error, ["Failed to save output: disk_full"])
     end
+  end
 
-    test "omits clipboard success text when copying the conversation id fails" do
-      project = Store.Project.new("demo", "/tmp/demo")
-      parent = self()
+  describe "run/3 clipboard reporting" do
+    test "reports the conversation id as copied to the clipboard" do
+      canned_coordinator()
 
-      :meck.expect(Store, :get_project, fn -> {:ok, project} end)
-      :meck.expect(UI, :quiet?, fn -> true end)
-      :meck.expect(UI, :debug, fn _, _ -> :ok end)
-      :meck.expect(UI, :error, fn _ -> :ok end)
-      :meck.expect(UI, :report_step, fn _, _ -> :ok end)
-
-      :meck.expect(UI, :say, fn message ->
-        send(parent, {:ui_say, message})
-        :ok
-      end)
-
-      :meck.expect(UI, :flush, fn -> :ok end)
-      :meck.expect(UI, :warn, fn _ -> :ok end)
-      :meck.expect(UI, :spin, fn _label, fun -> fun.() end)
-      :meck.expect(Services.Conversation, :start_link, fn _ -> {:ok, self()} end)
-      :meck.expect(Services.Conversation, :get_id, fn _ -> "conv-1" end)
-      :meck.expect(Services.Conversation, :get_conversation_meta, fn _ -> %{} end)
-
-      :meck.expect(Services.Conversation, :get_response, fn _, _ ->
-        {:ok, %{usage: 1, context: 2, last_response: "hello"}}
-      end)
-
-      :meck.expect(Services.Conversation, :save, fn _ ->
-        {:ok, %{id: "conv-1", store_path: "/tmp/conv-1.json"}}
-      end)
-
-      :meck.expect(Services.Task, :start_link, fn opts ->
-        assert Keyword.get(opts, :conversation_pid) == self()
-        {:ok, self()}
-      end)
-
-      :meck.expect(Memory, :init, fn -> :ok end)
-      :meck.expect(Memory, :list, fn _ -> {:ok, []} end)
-      :meck.expect(Memory, :search_stats, fn -> nil end)
-      :meck.expect(Clipboard, :copy, fn _ -> {:error, :unavailable} end)
-      :meck.expect(Notifier, :notify, fn _, _ -> :ok end)
-
-      {_stdout, stderr} =
+      {stdout, stderr} =
         capture_all(fn ->
           assert :ok == Cmd.Ask.run(%{question: "hello"}, [], [])
         end)
 
       assert stderr =~ "(no file changes during this session)"
-      assert_receive {:ui_say, output}
-      assert output =~ "Conversation saved with ID conv-1"
-      refute output =~ "copied to clipboard"
+      assert stdout =~ "Conversation saved with ID"
+      assert stdout =~ "copied to clipboard"
+    end
+
+    test "omits clipboard success text when copying the conversation id fails" do
+      canned_coordinator()
+      Mox.stub(Util.Clipboard.Mock, :copy, fn _text -> {:error, :unavailable} end)
+
+      {stdout, stderr} =
+        capture_all(fn ->
+          assert :ok == Cmd.Ask.run(%{question: "hello"}, [], [])
+        end)
+
+      assert stderr =~ "(no file changes during this session)"
+      assert stdout =~ "Conversation saved with ID"
+      refute stdout =~ "copied to clipboard"
     end
   end
 
   describe "run/3 merged worktree reporting" do
-    setup do
-      # Store.Project must be in this list because the tests below
-      # :meck.expect(Store.Project, :index_status, ...). Calling :meck.expect
-      # on a module that has not been :meck.new'd creates an IMPLICIT
-      # non-passthrough mock that leaks past the test boundary - subsequent
-      # tests in the suite (Cmd.FilesTest, Cmd.IndexTest, Store.Project.EntryTest,
-      # Cmd.SummaryTest, etc.) call Store.Project.index_status as part of
-      # their indexing setup and get back the empty mock result, which made
-      # them fail with "No files to index" / "No conversations to index".
-      :ok = safe_meck_new(Store, [:passthrough])
-      :ok = safe_meck_new(Store.Project, [:passthrough])
-      :ok = safe_meck_new(Settings, [:passthrough])
-      :ok = safe_meck_new(UI, [:passthrough])
-      :ok = safe_meck_new(GitCli, [:passthrough])
-      :ok = safe_meck_new(GitCli.Worktree, [:passthrough])
-      :ok = safe_meck_new(GitCli.Worktree.Review, [:passthrough])
-      :ok = safe_meck_new(Services.Conversation, [:passthrough])
-      :ok = safe_meck_new(Services.Task, [:passthrough])
-      :ok = safe_meck_new(Memory, [:passthrough])
-      :ok = safe_meck_new(Clipboard, [:passthrough])
-      :ok = safe_meck_new(Notifier, [:passthrough])
-
-      on_exit(fn ->
-        Settings.set_project_root_override(nil)
-
-        Enum.each(
-          [
-            Store,
-            Store.Project,
-            Settings,
-            UI,
-            GitCli,
-            GitCli.Worktree,
-            GitCli.Worktree.Review,
-            Services.Conversation,
-            Services.Task,
-            Memory,
-            Clipboard,
-            Notifier
-          ],
-          fn mod ->
-            try do
-              :meck.unload(mod)
-            catch
-              _, _ -> :ok
-            end
-          end
-        )
-      end)
-
-      :ok
-    end
-
-    test "clears the final worktree summary after interactive merge cleanup" do
+    setup %{project: project} do
       {:ok, worktree_dir} = tmpdir()
-      Settings.set_project_root_override(worktree_dir)
-      parent = self()
-      project = Store.Project.new("demo", "/tmp/demo")
-      settings = Settings.new()
+      conv = seed_worktree_conversation(worktree_dir)
+      canned_coordinator()
 
-      :meck.expect(Settings, :get_project_data, fn ^settings, "demo" ->
-        %{"root" => "/tmp/demo"}
+      # Script the worktree git plumbing: fnord-managed worktree with real
+      # work to merge. The review outcome itself is per-test.
+      Mox.stub(GitCli.Worktree.Mock, :fnord_managed?, fn "ask_proj", ^worktree_dir -> true end)
+      Mox.stub(GitCli.Worktree.Mock, :has_uncommitted_changes?, fn ^worktree_dir -> true end)
+
+      Mox.stub(GitCli.Worktree.Mock, :commit_all, fn ^worktree_dir, _label ->
+        {:error, :nothing_to_commit}
       end)
 
-      :meck.expect(Store, :get_project, fn -> {:ok, project} end)
-      :meck.expect(Store.Project, :index_status, fn _ -> %{new: [], stale: [], deleted: []} end)
-      :meck.expect(UI, :quiet?, fn -> true end)
-      :meck.expect(UI, :debug, fn _, _ -> :ok end)
-      :meck.expect(UI, :error, fn _ -> :ok end)
-      :meck.expect(UI, :report_step, fn _, _ -> :ok end)
-      :meck.expect(UI, :flush, fn -> :ok end)
-      :meck.expect(UI, :warn, fn _ -> :ok end)
-      :meck.expect(UI, :spin, fn _label, fun -> fun.() end)
+      root = project.source_root
 
-      :meck.expect(UI, :say, fn message ->
-        send(parent, {:ui_say, message})
-        :ok
-      end)
-
-      :meck.expect(GitCli, :is_worktree?, fn -> false end)
-      :meck.expect(GitCli.Worktree, :fnord_managed?, fn "demo", ^worktree_dir -> true end)
-      :meck.expect(GitCli.Worktree, :has_uncommitted_changes?, fn ^worktree_dir -> true end)
-
-      :meck.expect(GitCli.Worktree, :has_changes_to_merge?, fn "/tmp/demo",
-                                                               ^worktree_dir,
-                                                               "feat",
-                                                               "main" ->
+      Mox.stub(GitCli.Worktree.Mock, :has_changes_to_merge?, fn ^root,
+                                                                ^worktree_dir,
+                                                                "feat",
+                                                                "main" ->
         true
       end)
 
-      :meck.expect(GitCli.Worktree.Review, :interactive_review, fn "/tmp/demo", meta, _opts ->
+      {:ok, conv: conv, worktree_dir: worktree_dir, root: root}
+    end
+
+    test "clears the final worktree summary after interactive merge cleanup", ctx do
+      %{conv: conv, worktree_dir: worktree_dir, root: root} = ctx
+
+      Mox.stub(GitCli.Worktree.Review.Mock, :interactive_review, fn ^root, meta, _opts ->
         assert meta.path == worktree_dir
         assert meta.branch == "feat"
         assert meta.base_branch == "main"
         {:cleaned_up, {"aaa000", "abc123"}, :interactive}
       end)
 
-      :meck.expect(GitCli.Worktree, :log_oneline, fn _root, "aaa000", "abc123" ->
+      Mox.stub(GitCli.Worktree.Mock, :log_oneline, fn ^root, "aaa000", "abc123" ->
         ["abc123 add feature file"]
       end)
 
-      :meck.expect(Services.Conversation, :start_link, fn _ -> {:ok, self()} end)
-      :meck.expect(Services.Conversation, :get_id, fn _ -> "conv-1" end)
-
-      :meck.expect(Services.Conversation, :get_conversation_meta, fn _ ->
-        %{worktree: %{path: worktree_dir, branch: "feat", base_branch: "main"}}
-      end)
-
-      :meck.expect(Services.Conversation, :upsert_conversation_meta, fn _, %{worktree: nil} ->
-        :ok
-      end)
-
-      :meck.expect(Services.Conversation, :get_response, fn _, _ ->
-        {:ok, %{usage: 1, context: 2, last_response: "hello", editing_tools_used: true}}
-      end)
-
-      :meck.expect(Services.Conversation, :save, fn _ ->
-        {:ok, %{id: "conv-1", store_path: "/tmp/conv-1.json"}}
-      end)
-
-      :meck.expect(Services.Task, :start_link, fn opts ->
-        assert Keyword.get(opts, :conversation_pid) == self()
-        {:ok, self()}
-      end)
-
-      :meck.expect(Memory, :init, fn -> :ok end)
-      :meck.expect(Memory, :list, fn _ -> {:ok, []} end)
-      :meck.expect(Memory, :search_stats, fn -> nil end)
-      :meck.expect(Clipboard, :copy, fn _ -> :ok end)
-      :meck.expect(Notifier, :notify, fn _, _ -> :ok end)
-
-      {_stdout, stderr} =
+      {stdout, stderr} =
         capture_all(fn ->
-          assert :ok == Cmd.Ask.run(%{question: "hello", edit: true}, [], [])
+          assert :ok == Cmd.Ask.run(%{question: "hello", follow: conv.id, edit: true}, [], [])
         end)
 
       assert stderr =~ "Worktree changes merged successfully"
       assert stderr =~ "abc123 add feature file"
       assert Settings.get_project_root_override() == nil
+      refute stdout =~ "Worktree path:"
 
-      assert_receive {:ui_say, output}
-      refute output =~ "Worktree path:"
+      # The merge cleanup also strips the worktree association from the
+      # persisted conversation, so the next --follow starts fresh.
+      {:ok, data} = Store.Project.Conversation.read(conv)
+      refute Map.has_key?(data.metadata, :worktree)
+      refute Map.has_key?(data.metadata, "worktree")
     end
 
-    test "notes that --yes triggered auto-merge and clears the worktree summary" do
-      {:ok, worktree_dir} = tmpdir()
-      Settings.set_project_root_override(worktree_dir)
-      parent = self()
-      project = Store.Project.new("demo", "/tmp/demo")
-      settings = Settings.new()
+    test "notes that --yes triggered auto-merge and clears the worktree summary", ctx do
+      %{conv: conv, worktree_dir: worktree_dir, root: root} = ctx
 
-      :meck.expect(Settings, :get_project_data, fn ^settings, "demo" ->
-        %{"root" => "/tmp/demo"}
-      end)
-
-      :meck.expect(Store, :get_project, fn -> {:ok, project} end)
-      :meck.expect(Store.Project, :index_status, fn _ -> %{new: [], stale: [], deleted: []} end)
-      :meck.expect(UI, :quiet?, fn -> true end)
-      :meck.expect(UI, :debug, fn _, _ -> :ok end)
-      :meck.expect(UI, :error, fn _ -> :ok end)
-      :meck.expect(UI, :report_step, fn _, _ -> :ok end)
-      :meck.expect(UI, :flush, fn -> :ok end)
-      :meck.expect(UI, :warn, fn _ -> :ok end)
-      :meck.expect(UI, :spin, fn _label, fun -> fun.() end)
-
-      :meck.expect(UI, :say, fn message ->
-        send(parent, {:ui_say, message})
-        :ok
-      end)
-
-      :meck.expect(GitCli, :is_worktree?, fn -> false end)
-      :meck.expect(GitCli.Worktree, :fnord_managed?, fn "demo", ^worktree_dir -> true end)
-      :meck.expect(GitCli.Worktree, :has_uncommitted_changes?, fn ^worktree_dir -> true end)
-
-      :meck.expect(GitCli.Worktree, :has_changes_to_merge?, fn "/tmp/demo",
-                                                               ^worktree_dir,
-                                                               "feat",
-                                                               "main" ->
-        true
-      end)
-
-      :meck.expect(GitCli.Worktree.Review, :auto_merge, fn "/tmp/demo", meta, _opts ->
+      Mox.stub(GitCli.Worktree.Review.Mock, :auto_merge, fn ^root, meta, _opts ->
         assert meta.path == worktree_dir
         assert meta.branch == "feat"
         assert meta.base_branch == "main"
         {:cleaned_up, {"bbb000", "def456"}, :auto}
       end)
 
-      :meck.expect(GitCli.Worktree, :log_oneline, fn _root, "bbb000", "def456" ->
+      Mox.stub(GitCli.Worktree.Mock, :log_oneline, fn ^root, "bbb000", "def456" ->
         ["def456 auto feature"]
       end)
 
-      :meck.expect(Services.Conversation, :start_link, fn _ -> {:ok, self()} end)
-      :meck.expect(Services.Conversation, :get_id, fn _ -> "conv-1" end)
-
-      :meck.expect(Services.Conversation, :get_conversation_meta, fn _ ->
-        %{worktree: %{path: worktree_dir, branch: "feat", base_branch: "main"}}
-      end)
-
-      :meck.expect(Services.Conversation, :upsert_conversation_meta, fn _, %{worktree: nil} ->
-        :ok
-      end)
-
-      :meck.expect(Services.Conversation, :get_response, fn _, _ ->
-        {:ok, %{usage: 1, context: 2, last_response: "hello", editing_tools_used: true}}
-      end)
-
-      :meck.expect(Services.Conversation, :save, fn _ ->
-        {:ok, %{id: "conv-1", store_path: "/tmp/conv-1.json"}}
-      end)
-
-      :meck.expect(Services.Task, :start_link, fn opts ->
-        assert Keyword.get(opts, :conversation_pid) == self()
-        {:ok, self()}
-      end)
-
-      :meck.expect(Memory, :init, fn -> :ok end)
-      :meck.expect(Memory, :list, fn _ -> {:ok, []} end)
-      :meck.expect(Memory, :search_stats, fn -> nil end)
-      :meck.expect(Clipboard, :copy, fn _ -> :ok end)
-      :meck.expect(Notifier, :notify, fn _, _ -> :ok end)
-
-      {_stdout, stderr} =
+      {stdout, stderr} =
         capture_all(fn ->
-          assert :ok == Cmd.Ask.run(%{question: "hello", edit: true, yes: true}, [], [])
+          assert :ok ==
+                   Cmd.Ask.run(
+                     %{question: "hello", follow: conv.id, edit: true, yes: true},
+                     [],
+                     []
+                   )
         end)
 
       assert stderr =~ "auto-merged because --yes was specified"
       assert stderr =~ "def456 auto feature"
       assert Settings.get_project_root_override() == nil
-
-      assert_receive {:ui_say, output}
-      refute output =~ "Worktree path:"
+      refute stdout =~ "Worktree path:"
     end
   end
 
   describe "commit indexer startup" do
+    # Services.CommitIndexer's init resolves its candidate list through the
+    # commit-history enumeration on the GitCli facade. commit_shas is only
+    # reachable through that scan, so the probe below observes the indexer
+    # actually booting and scanning - not just the gating branch in Cmd.Ask.
+    # (is_git_repo_at? would be a bad probe: the file-index scan consults it
+    # too, via resolve_default_branch.)
     setup do
-      :ok = safe_meck_new(Services.CommitIndexer, [:passthrough])
-      :ok = safe_meck_new(GitCli, [:passthrough])
-      :ok = safe_meck_new(Services.Conversation, [:passthrough])
-      :ok = safe_meck_new(Services.Task, [:passthrough])
-      :ok = safe_meck_new(Memory, [:passthrough])
-      :ok = safe_meck_new(Clipboard, [:passthrough])
-      :ok = safe_meck_new(Notifier, [:passthrough])
-      :ok = safe_meck_new(UI, [:passthrough])
-      :ok = safe_meck_new(Store, [:passthrough])
+      canned_coordinator()
+      test_pid = self()
 
-      :meck.expect(UI, :quiet?, fn -> true end)
-      :meck.expect(UI, :error, fn _ -> :ok end)
-      :meck.expect(UI, :debug, fn _, _ -> :ok end)
-      :meck.expect(UI, :report_step, fn _, _ -> :ok end)
-      :meck.expect(UI, :say, fn _ -> :ok end)
-      :meck.expect(UI, :flush, fn -> :ok end)
-      :meck.expect(UI, :warn, fn _ -> :ok end)
-      :meck.expect(UI, :spin, fn _label, fun -> fun.() end)
-      :meck.expect(Services.Conversation, :start_link, fn _ -> {:ok, self()} end)
-      :meck.expect(Services.Conversation, :get_id, fn _ -> "conv-1" end)
-      :meck.expect(Services.Conversation, :get_conversation_meta, fn _ -> %{} end)
-
-      :meck.expect(Services.Conversation, :get_response, fn _, _ ->
-        {:ok, %{usage: 1, context: 2, last_response: "hello"}}
-      end)
-
-      :meck.expect(Services.Conversation, :save, fn _ ->
-        {:ok, %{id: "conv-1", store_path: "/tmp/conv-1.json"}}
-      end)
-
-      :meck.expect(Services.Task, :start_link, fn opts ->
-        assert Keyword.get(opts, :conversation_pid) == self()
-        {:ok, self()}
-      end)
-
-      :meck.expect(Memory, :init, fn -> :ok end)
-      :meck.expect(Memory, :list, fn _ -> {:ok, []} end)
-      :meck.expect(Memory, :search_stats, fn -> nil end)
-      :meck.expect(Clipboard, :copy, fn _ -> :ok end)
-      :meck.expect(Notifier, :notify, fn _, _ -> :ok end)
-      project = mock_project("ask_commit_indexer")
-      :meck.expect(Store, :get_project, fn -> {:ok, project} end)
-
-      on_exit(fn ->
-        Enum.each(
-          [
-            Services.CommitIndexer,
-            GitCli,
-            Services.Conversation,
-            Services.Task,
-            Memory,
-            Clipboard,
-            Notifier,
-            UI,
-            Store
-          ],
-          fn mod ->
-            try do
-              :meck.unload(mod)
-            catch
-              _, _ -> :ok
-            end
-          end
-        )
+      Mox.stub(GitCli.Mock, :commit_shas, fn _root, _ref ->
+        send(test_pid, :commit_history_scanned)
+        {:ok, []}
       end)
 
       :ok
     end
 
     test "starts the commit indexer in git repositories" do
-      parent = self()
-      project = Store.get_project() |> elem(1)
+      Mox.stub(GitCli.Mock, :is_git_repo?, fn -> true end)
+      Mox.stub(GitCli.Mock, :is_git_repo_at?, fn _root -> true end)
 
-      :meck.expect(GitCli, :is_git_repo?, fn -> true end)
-      :meck.expect(Services.CommitIndexer, :start_link, fn -> {:ok, parent} end)
-
-      :meck.expect(Services.CommitIndexer, :stop, fn pid ->
-        assert pid == parent
-        send(parent, :commit_indexer_stopped)
-        :ok
+      capture_all(fn ->
+        assert :ok == Cmd.Ask.run(%{question: "hello"}, [], [])
       end)
 
-      :meck.expect(Store, :get_project, fn -> {:ok, project} end)
-
-      {_stdout, _stderr} =
-        capture_all(fn ->
-          assert :ok == Cmd.Ask.run(%{question: "hello"}, [], [])
-        end)
-
-      assert :meck.called(Services.CommitIndexer, :start_link, [])
+      assert_received :commit_history_scanned
     end
 
     test "skips the commit indexer outside git repositories" do
-      :meck.expect(GitCli, :is_git_repo?, fn -> false end)
-      :meck.expect(Services.CommitIndexer, :start_link, fn _opts -> flunk("should not start") end)
+      capture_all(fn ->
+        assert :ok == Cmd.Ask.run(%{question: "hello"}, [], [])
+      end)
 
-      {_stdout, _stderr} =
-        capture_all(fn ->
-          assert :ok == Cmd.Ask.run(%{question: "hello"}, [], [])
-        end)
-
-      refute :meck.called(Services.CommitIndexer, :start_link, [[]])
+      refute_received :commit_history_scanned
     end
   end
 end

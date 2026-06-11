@@ -1,43 +1,44 @@
 defmodule Cmd.PrimeTest do
-  use Fnord.TestCase
-  @moduletag :capture_log
+  # async: false - the delegated Cmd.Ask.run boots ad-hoc GenServers whose
+  # init code calls Mox-backed facades; those processes are outside
+  # private-mode ownership, so this file needs global Mox.
+  use Fnord.TestCase, async: false
 
   describe "run/3" do
     setup do
       mock_project("test_proj")
+
+      # Prime delegates to the full ask flow; script git state through the
+      # facades so the real GitCli does not see the repo this suite runs in.
+      mock_git_cli()
+      Mox.stub(GitCli.Mock, :is_worktree?, fn -> false end)
+      Mox.stub(GitCli.Mock, :is_git_repo?, fn -> false end)
+
       :ok
     end
 
-    test "delegates to Cmd.Ask.run/3 with primer question (happy path)" do
-      :meck.new(Cmd.Ask, [:no_link, :passthrough, :non_strict])
-      on_exit(fn -> :meck.unload(Cmd.Ask) end)
+    test "runs the ask flow with the primer question (happy path)" do
+      test_pid = self()
 
-      :meck.expect(Cmd.Ask, :run, fn opts, subcommands, unknown ->
-        # Overrides
-
-        question = Map.get(opts, :question)
-        assert is_binary(question)
-        assert String.starts_with?(question, "Please provide an overview of the current project.")
-
-        # Delegates
-        assert subcommands == []
-        assert unknown == []
-
-        :ok
+      canned_agent(fn AI.Agent.Coordinator, args ->
+        send(test_pid, {:question, args.question})
+        {:ok, %{usage: 1, context: 2, last_response: "primed"}}
       end)
 
-      result = Cmd.Prime.run(%{}, [], [])
-      assert result == :ok
+      capture_all(fn ->
+        assert :ok == Cmd.Prime.run(%{}, [], [])
+      end)
+
+      assert_received {:question, question}
+      assert String.starts_with?(question, "Please provide an overview of the current project.")
     end
 
-    test "propagates error from Cmd.Ask.run/3" do
-      :meck.new(Cmd.Ask, [:no_link, :passthrough, :non_strict])
-      on_exit(fn -> :meck.unload(Cmd.Ask) end)
-
-      :meck.expect(Cmd.Ask, :run, fn _opts, _sub, _unk -> {:error, :boom} end)
-
-      result = Cmd.Prime.run(%{}, [], [])
-      assert result == {:error, :boom}
+    test "propagates errors from the ask flow" do
+      # An invalid --worktree fails ask's validation before the coordinator
+      # runs; Prime must surface that error untouched.
+      capture_all(fn ->
+        assert {:error, :invalid_worktree} = Cmd.Prime.run(%{worktree: "/nope"}, [], [])
+      end)
     end
   end
 end

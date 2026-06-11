@@ -29,6 +29,7 @@ defmodule Fnord.TestCase do
   Mox.defmock(GitCli.Worktree.Mock, for: GitCli.Worktree)
   Mox.defmock(GitCli.Worktree.Review.Mock, for: GitCli.Worktree.Review)
   Mox.defmock(MCP.Client.Mock, for: MCP.Client)
+  Mox.defmock(Util.Clipboard.Mock, for: Util.Clipboard)
 
   using do
     quote do
@@ -146,6 +147,15 @@ defmodule Fnord.TestCase do
       end
 
       setup do
+        # The real clipboard impl shells out to pbcopy/xclip and would clobber
+        # the developer's clipboard from any test that runs the ask flow, so
+        # every test gets the inert success stub. Failure-path tests override
+        # with Mox.stub(Util.Clipboard.Mock, :copy, ...).
+        Mox.stub_with(Util.Clipboard.Mock, StubClipboard)
+        Services.Globals.put_env(:fnord, :clipboard, Util.Clipboard.Mock)
+      end
+
+      setup do
         # Instruct Services.NamePool to always return the default name.
         set_config(:nomenclater, :fake)
       end
@@ -242,7 +252,8 @@ defmodule Fnord.TestCase do
     GitCli.Mock,
     GitCli.Worktree.Mock,
     GitCli.Worktree.Review.Mock,
-    MCP.Client.Mock
+    MCP.Client.Mock,
+    Util.Clipboard.Mock
   ]
 
   @doc """
