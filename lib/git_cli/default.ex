@@ -372,6 +372,17 @@ defmodule GitCli.Default do
     end
   end
 
+  @impl GitCli
+  def status_short(root) when is_binary(root) do
+    case System.cmd("git", ["status", "--short", "--untracked-files=all"],
+           cd: root,
+           stderr_to_stdout: true
+         ) do
+      {out, 0} -> {:ok, String.split(out, "\n", trim: true)}
+      {error, status} -> {:error, {status, error}}
+    end
+  end
+
   @spec parse_numstat_counts(String.t(), String.t()) ::
           {non_neg_integer(), non_neg_integer()}
   defp parse_numstat_counts(adds, dels) do

@@ -480,11 +480,14 @@ defmodule Validation.Rules do
     String.contains?(token, ["*", "?", "[", "{"])
   end
 
+  # Changed-file discovery goes through the GitCli facade (the subprocess
+  # call and line splitting live in GitCli.Default); this wrapper only maps
+  # the facade's error shape onto the guardrail's :git_failed.
   @spec git_status_lines(String.t()) :: {:ok, [String.t()]} | {:error, :git_failed}
   defp git_status_lines(root) do
-    case System.cmd("git", ["status", "--short", "--untracked-files=all"], cd: root) do
-      {output, 0} -> {:ok, String.split(output, "\n", trim: true)}
-      {_output, _status} -> {:error, :git_failed}
+    case GitCli.status_short(root) do
+      {:ok, lines} -> {:ok, lines}
+      {:error, _} -> {:error, :git_failed}
     end
   end
 

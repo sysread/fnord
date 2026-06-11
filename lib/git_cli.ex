@@ -41,6 +41,7 @@ defmodule GitCli do
   @callback commit_shas(String.t(), String.t()) :: {:ok, [String.t()]} | {:error, term}
   @callback commit_meta(String.t(), String.t()) :: {:ok, commit_meta} | {:error, term}
   @callback commit_numstat(String.t(), String.t()) :: {:ok, commit_numstat} | {:error, term}
+  @callback status_short(String.t()) :: {:ok, [String.t()]} | {:error, term}
 
   @typedoc """
   Parsed metadata for a single commit, as reported by `git show`.
@@ -185,6 +186,14 @@ defmodule GitCli do
   """
   @spec commit_numstat(String.t(), String.t()) :: {:ok, commit_numstat} | {:error, term}
   def commit_numstat(root, sha), do: impl().commit_numstat(root, sha)
+
+  @doc """
+  Returns the raw `git status --short --untracked-files=all` lines for the
+  repo at `root`, one entry per changed or untracked file. Used by
+  validation-rule changed-file discovery.
+  """
+  @spec status_short(String.t()) :: {:ok, [String.t()]} | {:error, term}
+  def status_short(root), do: impl().status_short(root)
 
   @spec impl() :: module
   def impl() do
