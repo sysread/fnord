@@ -1,34 +1,34 @@
 defmodule AI.Tools.Commit.SearchTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
   @moduletag capture_log: true
+
+  # ---------------------------------------------------------------------------
+  # These tests run the real search pipeline over a real tmpdir store: commit
+  # entries are written with CommitIndex.write_embeddings and scored against
+  # a query vector canned through MockIndexer. The mock project dir is not a
+  # git repo, so index_status sees no source commits - indexed entries
+  # therefore classify as deleted, which the footer assertions reflect.
+  # ---------------------------------------------------------------------------
+
+  alias Store.Project.CommitIndex
 
   setup do
     {:ok, project: mock_project("commit_search_test")}
-  end
-
-  setup do
-    :meck.new(AI.Tools, [:passthrough])
-
-    on_exit(fn ->
-      try do
-        :meck.unload(AI.Tools)
-      rescue
-        _ -> :ok
-      end
-    end)
-
-    :ok
   end
 
   test "async?/0 returns true" do
     assert AI.Tools.Commit.Search.async?() == true
   end
 
-  test "is_available?/0 delegates to AI.Tools.has_indexed_project/0" do
-    :meck.expect(AI.Tools, :has_indexed_project, fn -> false end)
-    assert AI.Tools.Commit.Search.is_available?() == false
+  test "is_available?/0 reflects whether the project has a file index", %{project: project} do
+    # Fresh project: no embeddings on disk anywhere.
+    refute AI.Tools.Commit.Search.is_available?()
 
-    :meck.expect(AI.Tools, :has_indexed_project, fn -> true end)
+    # Fabricate a minimal file index entry; availability flips on.
+    entry_dir = Path.join(Store.Project.files_root(project), "stub_entry")
+    File.mkdir_p!(entry_dir)
+    File.write!(Path.join(entry_dir, "embeddings.json"), "[]")
+
     assert AI.Tools.Commit.Search.is_available?() == true
   end
 
@@ -64,70 +64,59 @@ defmodule AI.Tools.Commit.SearchTest do
              """)
   end
 
-  test "call/1 returns formatted results when search and index_state succeed" do
-    for mod <- [Search.Commits, Store.Project, Store, Store.Project.CommitIndex] do
-      safe_meck_new(mod, [:passthrough])
-    end
+  test "call/1 returns formatted results ranked by similarity", %{project: project} do
+    # The query embeds to [1.0, 0.0]; abc123's stored vector is identical
+    # (cosine 1.0) and def456's is orthogonal (cosine 0.0), pinning the
+    # ranking without depending on float formatting beyond the exact cases.
+    Mox.stub(MockIndexer, :get_embeddings, fn "anything" -> {:ok, [1.0, 0.0]} end)
 
-    on_exit(fn ->
-      for mod <- [Search.Commits, Store.Project, Store, Store.Project.CommitIndex] do
-        safe_meck_unload(mod)
-      end
-    end)
+    :ok =
+      CommitIndex.write_embeddings(project, "abc123", [1.0, 0.0], %{
+        "subject" => "first",
+        "author" => "A",
+        "committed_at" => "t1"
+      })
 
-    :meck.expect(Search.Commits, :get_results, fn _search ->
-      {:ok,
-       [
-         {"abc123", 0.42, %{"subject" => "first", "author" => "A", "committed_at" => "t1"}},
-         {"def456", 0.21, %{"subject" => "second", "author" => "B", "committed_at" => "t2"}}
-       ]}
-    end)
-
-    :meck.expect(Store, :get_project, fn -> {:ok, mock_project("commit_search_test")} end)
-
-    :meck.expect(Store.Project.CommitIndex, :index_status, fn _proj ->
-      %{new: [1], stale: [1, 2], deleted: []}
-    end)
+    :ok =
+      CommitIndex.write_embeddings(project, "def456", [0.0, 1.0], %{
+        "subject" => "second",
+        "author" => "B",
+        "committed_at" => "t2"
+      })
 
     {:ok, msg} = AI.Tools.Commit.Search.call(%{"query" => "anything", "limit" => 25})
 
     assert msg =~ "[commit_search_tool]"
-    assert msg =~ "# abc123 (cosine similarity: 0.42)"
+    assert msg =~ "# abc123 (cosine similarity: 1.0)"
     assert msg =~ "- subject: first"
     assert msg =~ "- author: A"
     assert msg =~ "- committed_at: t1"
 
-    assert msg =~ "# def456 (cosine similarity: 0.21)"
+    assert msg =~ "# def456 (cosine similarity: 0.0)"
     assert msg =~ "- subject: second"
     assert msg =~ "- author: B"
     assert msg =~ "- committed_at: t2"
 
-    assert msg =~ "- New commits (not yet embedded): 1"
-    assert msg =~ "- Stale commits (outdated index): 2"
-    assert msg =~ "- Deleted commits (indexed but missing from repo): 0"
+    # Higher similarity sorts first.
+    {abc_idx, _} = :binary.match(msg, "# abc123")
+    {def_idx, _} = :binary.match(msg, "# def456")
+    assert abc_idx < def_idx
+
+    # No source repo: both indexed commits classify as deleted.
+    assert msg =~ "- New commits (not yet embedded): 0"
+    assert msg =~ "- Stale commits (outdated index): 0"
+    assert msg =~ "- Deleted commits (indexed but missing from repo): 2"
   end
 
   test "call/1 propagates search errors" do
-    safe_meck_new(Search.Commits, [:passthrough])
-    on_exit(fn -> safe_meck_unload(Search.Commits) end)
-
-    :meck.expect(Search.Commits, :get_results, fn _ -> {:error, :boom} end)
+    Mox.stub(MockIndexer, :get_embeddings, fn _ -> {:error, :boom} end)
     assert AI.Tools.Commit.Search.call(%{"query" => "q", "limit" => 25}) == {:error, :boom}
   end
 
-  test "call/1 propagates index_state errors" do
-    safe_meck_new(Search.Commits, [:passthrough])
-    safe_meck_new(Store, [:passthrough])
-
-    on_exit(fn ->
-      safe_meck_unload(Search.Commits)
-      safe_meck_unload(Store)
-    end)
-
-    :meck.expect(Search.Commits, :get_results, fn _ -> {:ok, []} end)
-    :meck.expect(Store, :get_project, fn -> {:error, :proj_missing} end)
+  test "call/1 propagates store errors when no project is selected" do
+    set_config(:project, nil)
 
     assert AI.Tools.Commit.Search.call(%{"query" => "q", "limit" => 25}) ==
-             {:error, :proj_missing}
+             {:error, :project_not_set}
   end
 end
