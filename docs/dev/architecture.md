@@ -39,6 +39,10 @@ Commit enumeration for the commit index (`commit_shas/2`, `commit_meta/2`, `comm
 
 `MCP.Client` (`lib/mcp/client.ex`) is the facade over the Hermes MCP runtime - the VM-global `MCP.Supervisor` and the per-server hermes client GenServers it supervises. Callbacks are keyed by server name (`start_supervisor/0`, `connected?/1`, `list_tools/1`, `get_server_capabilities/1`, `call_tool/4`); resolving a server's registered atom is an implementation detail of `MCP.Client.Default`, which also owns the defensive plumbing around a runtime we don't control (registration/aliveness checks, rescue/catch around hermes calls, response unwrapping, and the start-then-unlink dance that detaches the supervisor from whichever process happened to boot it). `impl/0` resolves the `:mcp_client` Globals key. `Services.MCP` keeps orchestration (discovery loop, tool registration, status assembly, auth checks); `MCP.Tools`-generated tool modules invoke tools through the facade. Tests opt in via `Fnord.TestCase.mock_mcp_client/0`, which passes through to `Default` except `start_supervisor/0` (stubbed to `:ok` - the real one registers the VM-global hermes stack, which must never boot from a test). Raw `Hermes.*` calls outside `lib/mcp/client/` are a seam hole, same rule as git.
 
+## Desktop side effects
+
+`Util.Clipboard` (`lib/util/clipboard.ex`) is the seam over the system clipboard: the `Clipboard` hex package shells out to pbcopy/xclip, so a copy overwrites whatever the user has on their clipboard. `impl/0` resolves the `:clipboard` Globals key (narrow-seam pattern, like `:http_client`), defaulting to the passthrough in `Util.Clipboard.Default`. Unlike the other narrow seams, `Fnord.TestCase` defaults the key to an inert success stub (`StubClipboard`) rather than a loud unstubbed mock - clipboard copy is an incidental side effect of the ask flow, and the right default for tests is "succeeds without touching the developer's clipboard". Desktop notifications (`Notifier`) have no seam yet; they are gated behind `UI.quiet?`, which the test case forces to true.
+
 ## Command dispatch
 
 Each subcommand is a module that implements the `Cmd` behaviour:

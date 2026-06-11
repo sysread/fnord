@@ -258,7 +258,7 @@ defmodule Cmd.Ask do
         maybe_save_output(opts, conversation_id, response)
 
         copied_to_clipboard? =
-          copied_to_clipboard?(Clipboard.copy(conversation_id), conversation_id)
+          copied_to_clipboard?(Util.Clipboard.copy(conversation_id), conversation_id)
 
         print_result(
           start_time,
