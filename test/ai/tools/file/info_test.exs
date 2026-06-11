@@ -3,14 +3,15 @@ defmodule AI.Tools.File.InfoTest do
   @moduletag capture_log: true
 
   setup do
-    # Prepare fresh mocks for each test
-    for mod <- [AI.Tools, AI.Agent, Services.BackupFile] do
+    # Prepare fresh mocks for each test. The FileInfo sub-agent itself is
+    # canned per-test at the agent-dispatch seam via canned_agent/1.
+    for mod <- [AI.Tools, Services.BackupFile] do
       :meck.new(mod, [:passthrough])
     end
 
     on_exit(fn ->
       # Unload mocks after each test
-      for mod <- [AI.Tools, AI.Agent, Services.BackupFile] do
+      for mod <- [AI.Tools, Services.BackupFile] do
         try do
           :meck.unload(mod)
         rescue
@@ -64,12 +65,11 @@ defmodule AI.Tools.File.InfoTest do
 
   describe "call/1 behavior" do
     test "success path without backup" do
-      # Stub file reading and agent
+      # Stub file reading and the FileInfo sub-agent
       :meck.expect(AI.Tools, :get_file_contents, fn _ -> {:ok, "line1\nline2"} end)
-      :meck.expect(AI.Agent, :new, fn AI.Agent.FileInfo -> :agent end)
 
-      :meck.expect(AI.Agent, :get_response, fn :agent, opts ->
-        {:ok, "RESP for #{opts.file}"}
+      canned_agent(fn AI.Agent.FileInfo, args ->
+        {:ok, "RESP for #{args.file}"}
       end)
 
       :meck.expect(Services.BackupFile, :describe_backup, fn _ -> nil end)
@@ -87,11 +87,9 @@ defmodule AI.Tools.File.InfoTest do
         "y.ex" -> {:ok, "b"}
       end)
 
-      # Stub agent
-      :meck.expect(AI.Agent, :new, fn AI.Agent.FileInfo -> :agent end)
-
-      :meck.expect(AI.Agent, :get_response, fn :agent, opts ->
-        {:ok, "ANS for #{opts.file}"}
+      # Stub the FileInfo sub-agent
+      canned_agent(fn AI.Agent.FileInfo, args ->
+        {:ok, "ANS for #{args.file}"}
       end)
 
       # Backup for x.ex only

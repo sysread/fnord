@@ -3,7 +3,7 @@ defmodule AI.Tools.File.EditAgentPatternsTest do
   Tests for agent UX improvements based on real usage patterns observed in production logs.
   These tests verify the fixes for common agent confusion patterns.
   """
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   alias AI.Tools.File.Edit
 
@@ -12,12 +12,6 @@ defmodule AI.Tools.File.EditAgentPatternsTest do
     Settings.set_project_root_override(project.source_root)
     on_exit(fn -> Settings.set_project_root_override(nil) end)
     {:ok, project: project}
-  end
-
-  setup do
-    :meck.new(AI.Agent.Code.Patcher, [:no_link, :non_strict, :passthrough])
-    on_exit(fn -> :meck.unload(AI.Agent.Code.Patcher) end)
-    :ok
   end
 
   setup do
@@ -33,6 +27,16 @@ defmodule AI.Tools.File.EditAgentPatternsTest do
   describe "agent UX improvements" do
     test "file creation with omitted old_string (improved UX)", %{project: project} do
       path = Path.join(project.source_root, "agent_created.txt")
+
+      # File creation with new_string is exact-content handling; the AI
+      # patcher must not be consulted. Canned-respond at the dispatch seam
+      # purely to detect (and refute) any agent invocation.
+      test_pid = self()
+
+      canned_agent(fn impl, _args ->
+        send(test_pid, {:agent_dispatched, impl})
+        {:ok, "unexpected"}
+      end)
 
       # This pattern was confusing for agents before - now it should work seamlessly
       {:ok, result} =
@@ -52,7 +56,7 @@ defmodule AI.Tools.File.EditAgentPatternsTest do
       assert result.backup_file == ""
 
       # Verify AI patcher was not called (exact string matching)
-      assert :meck.num_calls(AI.Agent.Code.Patcher, :get_response, :_) == 0
+      refute_received {:agent_dispatched, _}
     end
 
     test "better error message for missing new_string", %{project: project} do
@@ -158,8 +162,8 @@ defmodule AI.Tools.File.EditAgentPatternsTest do
     test "natural language error provides better guidance", %{project: project} do
       file = mock_source_file(project, "test.txt", "content")
 
-      # Mock AI patcher to fail
-      :meck.expect(AI.Agent.Code.Patcher, :get_response, fn _args ->
+      # Canned patcher failure at the agent-dispatch seam
+      canned_agent(fn AI.Agent.Code.Patcher, _args ->
         {:error, "AI processing failed"}
       end)
 

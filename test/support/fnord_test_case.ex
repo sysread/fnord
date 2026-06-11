@@ -24,6 +24,7 @@ defmodule Fnord.TestCase do
   Mox.defmock(UI.Output.Mock, for: UI.Output)
   Mox.defmock(Http.Client.Mock, for: Http.Client)
   Mox.defmock(AI.CompletionAPI.Mock, for: AI.CompletionAPI)
+  Mox.defmock(AI.Agent.Dispatcher.Mock, for: AI.Agent.Dispatcher)
 
   using do
     quote do
@@ -38,6 +39,7 @@ defmodule Fnord.TestCase do
       import Fnord.TestCase,
         only: [
           allow_service_mocks: 1,
+          canned_agent: 1,
           canned_completion: 1,
           tmpdir: 0,
           capture_all: 1,
@@ -227,7 +229,8 @@ defmodule Fnord.TestCase do
     MockApprovals,
     UI.Output.Mock,
     Http.Client.Mock,
-    AI.CompletionAPI.Mock
+    AI.CompletionAPI.Mock,
+    AI.Agent.Dispatcher.Mock
   ]
 
   @doc """
@@ -547,6 +550,23 @@ defmodule Fnord.TestCase do
       response
     end)
 
+    :ok
+  end
+
+  @doc """
+  Routes agent dispatch through a mock for this test. `fun` receives the
+  agent's impl module and the args map (which carries the `%AI.Agent{}` under
+  `:agent`) and returns the agent's `{:ok, _}` / `{:error, _}` response.
+  `AI.Agent.get_response/2`'s bookkeeping (name checkout, task wrapping)
+  still runs - only the impl invocation is replaced.
+
+  Unlike the completion/http mocks, the default stays the real dispatcher:
+  most tests want real agents driven by `canned_completion/1`, and only tests
+  that treat a sub-agent as an opaque collaborator should stub it here.
+  """
+  def canned_agent(fun) when is_function(fun, 2) do
+    Services.Globals.put_env(:fnord, :agent_dispatcher, AI.Agent.Dispatcher.Mock)
+    Mox.stub(AI.Agent.Dispatcher.Mock, :dispatch, fun)
     :ok
   end
 end

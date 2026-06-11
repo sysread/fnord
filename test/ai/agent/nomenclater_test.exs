@@ -1,20 +1,10 @@
 defmodule AI.Agent.NomenclaterTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
   alias AI.Agent.Nomenclater
 
-  setup do
-    # Create a Meck mock for AI.Agent to intercept get_completion calls,
-    # allowing existing functions to passthrough
-    # Mock AI.Agent: allow real functions to passthrough except for get_completion
-    :ok = :meck.new(AI.Agent, [:no_link, :passthrough, :non_strict])
-
-    on_exit(fn ->
-      # Unload Meck mock
-      :meck.unload(AI.Agent)
-    end)
-
-    :ok
-  end
+  # Nomenclater builds its own completion via AI.Agent.get_completion, so the
+  # canned responses below run through the real AI.Completion loop and the
+  # tests exercise Nomenclater's JSON extraction against actual loop output.
 
   test "parses fenced JSON response" do
     fenced = """
@@ -23,7 +13,7 @@ defmodule AI.Agent.NomenclaterTest do
     ```
     """
 
-    :meck.expect(AI.Agent, :get_completion, fn _, _ -> {:ok, %{response: fenced}} end)
+    canned_completion(fenced)
     agent = AI.Agent.new(Nomenclater, named?: false)
 
     assert {:ok, ["Zorg", "Merv"]} =
@@ -35,8 +25,7 @@ defmodule AI.Agent.NomenclaterTest do
   end
 
   test "parses prefixed JSON response" do
-    prefixed = "Here is the JSON: {\"names\":[\"Lrrr\"]}"
-    :meck.expect(AI.Agent, :get_completion, fn _, _ -> {:ok, %{response: prefixed}} end)
+    canned_completion("Here is the JSON: {\"names\":[\"Lrrr\"]}")
     agent = AI.Agent.new(Nomenclater, named?: false)
 
     assert {:ok, ["Lrrr"]} =
@@ -46,12 +35,16 @@ defmodule AI.Agent.NomenclaterTest do
   test "retries on malformed JSON then succeeds" do
     bad = "no JSON here"
     good = "{\"names\":[\"Alpha\"]}"
-    counter = :atomics.new(1, signed: false)
 
-    :meck.expect(AI.Agent, :get_completion, fn _, _ ->
-      case :atomics.add_get(counter, 1, 1) do
-        1 -> {:ok, %{response: bad}}
-        _ -> {:ok, %{response: good}}
+    # The stub runs in the test process (Nomenclater is called directly), so
+    # a pdict counter distinguishes the first completion from the retry.
+    canned_completion(fn _msgs ->
+      calls = Process.get(:nomenclater_calls, 0)
+      Process.put(:nomenclater_calls, calls + 1)
+
+      case calls do
+        0 -> {:ok, :msg, bad, 0}
+        _ -> {:ok, :msg, good, 0}
       end
     end)
 
@@ -66,8 +59,7 @@ defmodule AI.Agent.NomenclaterTest do
   end
 
   test "parses epithet-rich name with apostrophe and hyphen" do
-    response = "{\"names\":[\"K'tah the Yak-Shaver\"]}"
-    :meck.expect(AI.Agent, :get_completion, fn _, _ -> {:ok, %{response: response}} end)
+    canned_completion("{\"names\":[\"K'tah the Yak-Shaver\"]}")
     agent = AI.Agent.new(Nomenclater, named?: false)
 
     assert {:ok, ["K'tah the Yak-Shaver"]} =
@@ -76,11 +68,13 @@ defmodule AI.Agent.NomenclaterTest do
 
   describe "response_format schema" do
     setup do
-      :meck.expect(AI.Agent, :get_completion, fn _agent, opts ->
-        # Capture the response_format from opts
-        rf = Keyword.get(opts, :response_format)
-        send(self(), {:captured_response_format, rf})
-        {:ok, %{response: ~s/{"names": ["Alpha"]}/}}
+      # The response_format is only visible at the completion-API boundary,
+      # so this stubs the mock directly rather than using canned_completion.
+      test_pid = self()
+
+      stub(AI.CompletionAPI.Mock, :get, fn _model, _msgs, _tools, rf, _web, _verbosity ->
+        send(test_pid, {:captured_response_format, rf})
+        {:ok, :msg, ~s/{"names": ["Alpha"]}/, 0}
       end)
 
       :ok

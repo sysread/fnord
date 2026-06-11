@@ -11,11 +11,12 @@ defmodule AI.Tools.File.EditTest do
     {:ok, project: project}
   end
 
-  setup do
-    :meck.new(AI.Agent.Code.Patcher, [:no_link, :non_strict, :passthrough])
-    on_exit(fn -> :meck.unload(AI.Agent.Code.Patcher) end)
-    :ok
-  end
+  # The natural-language path dispatches to AI.Agent.Code.Patcher through the
+  # agent-dispatch seam. Tests canned-respond with canned_agent/1, capturing
+  # the patcher's args via send so assertions run in the test process; tests
+  # for exact-matching paths install a sentinel stub and refute any dispatch.
+  # An unexpected dispatch in tests with no stub dies loudly on the unstubbed
+  # completion mock.
 
   setup do
     Settings.set_edit_mode(true)
@@ -35,12 +36,10 @@ defmodule AI.Tools.File.EditTest do
       How now, brown cow?
       """)
 
-    :meck.expect(AI.Agent.Code.Patcher, :get_response, fn args ->
-      assert args[:file] == file
+    test_pid = self()
 
-      assert args[:changes] == [
-               ~s{Replace the word "cow" with "bureaucrat" in the final sentence.}
-             ]
+    canned_agent(fn AI.Agent.Code.Patcher, args ->
+      send(test_pid, {:patcher_args, args})
 
       {:ok,
        """
@@ -68,7 +67,14 @@ defmodule AI.Tools.File.EditTest do
     assert result.backup_file == file <> ".0.0.bak"
     assert File.exists?(result.backup_file)
 
-    assert :meck.num_calls(AI.Agent.Code.Patcher, :get_response, :_) == 1
+    # The patcher was called exactly once, with the file and instruction
+    assert_received {:patcher_args, args}
+    refute_received {:patcher_args, _}
+    assert args[:file] == file
+
+    assert args[:changes] == [
+             ~s{Replace the word "cow" with "bureaucrat" in the final sentence.}
+           ]
   end
 
   test "call/1 allows edits for non-git project roots without override", %{project: project} do
@@ -107,8 +113,10 @@ defmodule AI.Tools.File.EditTest do
       path = Path.join(project.source_root, "newdir/foo.txt")
       refute File.exists?(path)
 
-      :meck.expect(AI.Agent.Code.Patcher, :get_response, fn args ->
-        assert args[:file] == path
+      test_pid = self()
+
+      canned_agent(fn AI.Agent.Code.Patcher, args ->
+        send(test_pid, {:patcher_args, args})
         {:ok, "Line One\n"}
       end)
 
@@ -124,6 +132,9 @@ defmodule AI.Tools.File.EditTest do
       assert res.diff =~ "--- ORIGINAL"
       assert res.diff =~ "+Line One"
       assert res.backup_file == ""
+
+      assert_received {:patcher_args, args}
+      assert args[:file] == path
     end
 
     test "fails when missing and create_if_missing false", %{project: project} do
@@ -145,6 +156,13 @@ defmodule AI.Tools.File.EditTest do
         Goodbye World
         """)
 
+      test_pid = self()
+
+      canned_agent(fn _impl, args ->
+        send(test_pid, {:patcher_args, args})
+        {:ok, "unexpected"}
+      end)
+
       {:ok, result} =
         Edit.call(%{
           "file" => file,
@@ -161,7 +179,7 @@ defmodule AI.Tools.File.EditTest do
       assert result.diff =~ "+Hi Universe"
 
       # Verify AI patcher was not called for exact matching
-      assert :meck.num_calls(AI.Agent.Code.Patcher, :get_response, :_) == 0
+      refute_received {:patcher_args, _}
     end
 
     test "exact replacement with multiple occurrences fails without replace_all", %{
@@ -442,9 +460,11 @@ defmodule AI.Tools.File.EditTest do
         # Footer
         """)
 
-      # Mock the natural language change
-      :meck.expect(AI.Agent.Code.Patcher, :get_response, fn args ->
-        assert args[:changes] == ["Add a new line after the header"]
+      # Canned response for the natural language change
+      test_pid = self()
+
+      canned_agent(fn AI.Agent.Code.Patcher, args ->
+        send(test_pid, {:patcher_args, args})
 
         {:ok,
          """
@@ -478,7 +498,9 @@ defmodule AI.Tools.File.EditTest do
       refute String.contains?(final_content, "Hello World")
 
       # Verify AI patcher was called only once (for natural language change)
-      assert :meck.num_calls(AI.Agent.Code.Patcher, :get_response, :_) == 1
+      assert_received {:patcher_args, args}
+      refute_received {:patcher_args, _}
+      assert args[:changes] == ["Add a new line after the header"]
     end
   end
 
@@ -496,6 +518,13 @@ defmodule AI.Tools.File.EditTest do
     test "replaces lines identified by line:hash identifiers", %{project: project} do
       content = "line one\nline two\nline three\nline four"
       file = mock_source_file(project, "test.txt", content)
+
+      test_pid = self()
+
+      canned_agent(fn _impl, args ->
+        send(test_pid, {:patcher_args, args})
+        {:ok, "unexpected"}
+      end)
 
       hashes = hashline_ids(content, 2, 3)
 
@@ -520,7 +549,7 @@ defmodule AI.Tools.File.EditTest do
       assert final =~ "line four"
 
       # Verify patcher was not called
-      assert :meck.num_calls(AI.Agent.Code.Patcher, :get_response, :_) == 0
+      refute_received {:patcher_args, _}
     end
 
     test "single-line edit succeeds", %{project: project} do
@@ -793,6 +822,13 @@ defmodule AI.Tools.File.EditTest do
       path = Path.join(project.source_root, "simple_new_file.txt")
       refute File.exists?(path)
 
+      test_pid = self()
+
+      canned_agent(fn _impl, args ->
+        send(test_pid, {:patcher_args, args})
+        {:ok, "unexpected"}
+      end)
+
       {:ok, result} =
         Edit.call(%{
           "file" => path,
@@ -815,7 +851,7 @@ defmodule AI.Tools.File.EditTest do
       assert content == "Just the content\nNo old_string needed!"
 
       # Verify AI patcher was not called (exact string matching)
-      assert :meck.num_calls(AI.Agent.Code.Patcher, :get_response, :_) == 0
+      refute_received {:patcher_args, _}
     end
 
     test "rejects old_string containing hashline prefixes", %{project: project} do
@@ -904,14 +940,10 @@ defmodule AI.Tools.File.EditTest do
         Original content here.
         """)
 
-      :meck.expect(AI.Agent.Code.Patcher, :get_response, fn args ->
-        assert args[:file] == file
-        assert args[:context] == "This file uses tab indentation and camelCase naming."
+      test_pid = self()
 
-        assert args[:changes] == [
-                 "Add a new function after the existing content"
-               ]
-
+      canned_agent(fn AI.Agent.Code.Patcher, args ->
+        send(test_pid, {:patcher_args, args})
         {:ok, "Original content here.\ndef newFunc(): pass\n"}
       end)
 
@@ -926,7 +958,14 @@ defmodule AI.Tools.File.EditTest do
                  ]
                })
 
-      assert :meck.num_calls(AI.Agent.Code.Patcher, :get_response, :_) == 1
+      assert_received {:patcher_args, args}
+      refute_received {:patcher_args, _}
+      assert args[:file] == file
+      assert args[:context] == "This file uses tab indentation and camelCase naming."
+
+      assert args[:changes] == [
+               "Add a new function after the existing content"
+             ]
     end
 
     test "context is nil when not provided", %{project: project} do
@@ -935,8 +974,10 @@ defmodule AI.Tools.File.EditTest do
         Some content.
         """)
 
-      :meck.expect(AI.Agent.Code.Patcher, :get_response, fn args ->
-        assert args[:context] == nil
+      test_pid = self()
+
+      canned_agent(fn AI.Agent.Code.Patcher, args ->
+        send(test_pid, {:patcher_args, args})
         {:ok, "Some content.\nMore content.\n"}
       end)
 
@@ -949,6 +990,9 @@ defmodule AI.Tools.File.EditTest do
                    }
                  ]
                })
+
+      assert_received {:patcher_args, args}
+      assert args[:context] == nil
     end
 
     test "empty string context is treated as nil", %{project: project} do
@@ -957,8 +1001,10 @@ defmodule AI.Tools.File.EditTest do
         Content here.
         """)
 
-      :meck.expect(AI.Agent.Code.Patcher, :get_response, fn args ->
-        assert args[:context] == nil
+      test_pid = self()
+
+      canned_agent(fn AI.Agent.Code.Patcher, args ->
+        send(test_pid, {:patcher_args, args})
         {:ok, "Content here.\nNew stuff.\n"}
       end)
 
@@ -972,6 +1018,9 @@ defmodule AI.Tools.File.EditTest do
                    }
                  ]
                })
+
+      assert_received {:patcher_args, args}
+      assert args[:context] == nil
     end
   end
 end

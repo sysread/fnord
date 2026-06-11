@@ -25,6 +25,8 @@ All network I/O funnels through `Http.Client` (`lib/http/client.ex`), the single
 
 One layer up, `AI.CompletionAPI` is the model-call boundary: `AI.Completion`'s loop calls `AI.CompletionAPI.impl().get/6`, resolved via the `:completion_api` Globals key. Everything below that contract is wire concerns (payload shape, auth, retry); everything above it is the completion loop. Tests feed canned model responses through the real loop with `Fnord.TestCase.canned_completion/1` instead of mocking `AI.Completion` itself - the loop's message handling, compaction, and error mapping stay under test.
 
+At the top, `AI.Agent.Dispatcher` is the agent-invocation boundary: `AI.Agent.get_response/2` runs its bookkeeping (name checkout, task wrapping, HTTP pool propagation) and then calls `AI.Agent.Dispatcher.impl().dispatch(impl_mod, args)`, resolved via the `:agent_dispatcher` Globals key. Tests that treat a sub-agent as an opaque collaborator (e.g. the edit tool's Patcher, the conversation summarizer) canned-respond per agent module with `Fnord.TestCase.canned_agent/1`. Unlike the two lower seams, tests do NOT default this key to a mock - the default stays the real dispatcher so most tests exercise real agents driven by canned model responses, and the no-unmocked-network guarantee already lives below.
+
 ## Command dispatch
 
 Each subcommand is a module that implements the `Cmd` behaviour:

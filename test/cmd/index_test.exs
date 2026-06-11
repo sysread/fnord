@@ -4,14 +4,13 @@ defmodule Cmd.IndexTest do
   setup do
     set_config(workers: 1)
 
-    # Stub the conversation summarizer so it doesn't hit the real LLM
-    :meck.new(AI.Agent.ConversationSummary, [:no_link, :passthrough])
-
-    :meck.expect(AI.Agent.ConversationSummary, :get_response, fn _opts ->
+    # Canned conversation summarizer at the agent-dispatch seam so indexing
+    # never hits the real LLM
+    canned_agent(fn AI.Agent.ConversationSummary, _args ->
       {:ok, "test summary"}
     end)
 
-    on_exit(fn -> :meck.unload(AI.Agent.ConversationSummary) end)
+    :ok
   end
 
   describe "run" do

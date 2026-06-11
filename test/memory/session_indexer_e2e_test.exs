@@ -38,8 +38,7 @@ defmodule Memory.SessionIndexerE2ETest do
       })
 
     # Mock AI.Agent.get_response to return the structured JSON
-    :meck.new(AI.Agent, [:no_link, :passthrough, :non_strict])
-    :meck.expect(AI.Agent, :get_response, fn _agent, _opts -> {:ok, response} end)
+    canned_agent(fn _impl, _args -> {:ok, response} end)
 
     # Also stub the long_term memory tool to perform an actual project save
     # during the test. This avoids timing/race issues with on-disk writes and
@@ -66,7 +65,6 @@ defmodule Memory.SessionIndexerE2ETest do
     end)
 
     on_exit(fn ->
-      :meck.unload(AI.Agent)
       :meck.unload(AI.Tools.LongTermMemory)
     end)
 
@@ -143,14 +141,12 @@ defmodule Memory.SessionIndexerE2ETest do
 
     response = SafeJson.encode!(%{"actions" => actions, "processed" => ["Session One"]})
 
-    :meck.new(AI.Agent, [:no_link, :passthrough, :non_strict])
-    :meck.expect(AI.Agent, :get_response, fn _agent, _opts -> {:ok, response} end)
+    canned_agent(fn _impl, _args -> {:ok, response} end)
 
     :meck.new(AI.Tools.LongTermMemory, [:no_link, :passthrough, :non_strict])
     :meck.expect(AI.Tools.LongTermMemory, :call, fn _args -> {:ok, :unexpected_success} end)
 
     on_exit(fn ->
-      :meck.unload(AI.Agent)
       :meck.unload(AI.Tools.LongTermMemory)
     end)
 
@@ -205,14 +201,12 @@ defmodule Memory.SessionIndexerE2ETest do
 
     response = SafeJson.encode!(%{"actions" => actions, "processed" => ["Session One"]})
 
-    :meck.new(AI.Agent, [:no_link, :passthrough, :non_strict])
-    :meck.expect(AI.Agent, :get_response, fn _agent, _opts -> {:ok, response} end)
+    canned_agent(fn _impl, _args -> {:ok, response} end)
 
     :meck.new(AI.Tools.LongTermMemory, [:no_link, :passthrough, :non_strict])
     :meck.expect(AI.Tools.LongTermMemory, :call, fn _args -> {:error, "boom"} end)
 
     on_exit(fn ->
-      :meck.unload(AI.Agent)
       :meck.unload(AI.Tools.LongTermMemory)
     end)
 
@@ -270,8 +264,7 @@ defmodule Memory.SessionIndexerE2ETest do
 
     response = SafeJson.encode!(%{"actions" => actions, "processed" => []})
 
-    :meck.new(AI.Agent, [:no_link, :passthrough, :non_strict])
-    :meck.expect(AI.Agent, :get_response, fn _agent, _opts -> {:ok, response} end)
+    canned_agent(fn _impl, _args -> {:ok, response} end)
 
     :meck.new(AI.Tools.LongTermMemory, [:no_link, :passthrough, :non_strict])
 
@@ -295,7 +288,6 @@ defmodule Memory.SessionIndexerE2ETest do
     end)
 
     on_exit(fn ->
-      :meck.unload(AI.Agent)
       :meck.unload(AI.Tools.LongTermMemory)
     end)
 
@@ -354,8 +346,7 @@ defmodule Memory.SessionIndexerE2ETest do
         "status_updates" => status_updates
       })
 
-    :meck.new(AI.Agent, [:no_link, :passthrough, :non_strict])
-    :meck.expect(AI.Agent, :get_response, fn _agent, _opts -> {:ok, response} end)
+    canned_agent(fn _impl, _args -> {:ok, response} end)
 
     :meck.new(AI.Tools.LongTermMemory, [:no_link, :passthrough, :non_strict])
 
@@ -379,7 +370,6 @@ defmodule Memory.SessionIndexerE2ETest do
     end)
 
     on_exit(fn ->
-      :meck.unload(AI.Agent)
       :meck.unload(AI.Tools.LongTermMemory)
     end)
 
@@ -425,14 +415,12 @@ defmodule Memory.SessionIndexerE2ETest do
         "processed" => ["Missing Session"]
       })
 
-    :meck.new(AI.Agent, [:no_link, :passthrough, :non_strict])
-    :meck.expect(AI.Agent, :get_response, fn _agent, _opts -> {:ok, response} end)
+    canned_agent(fn _impl, _args -> {:ok, response} end)
 
     :meck.new(AI.Tools.LongTermMemory, [:no_link, :passthrough, :non_strict])
     :meck.expect(AI.Tools.LongTermMemory, :call, fn _args -> {:ok, :unexpected_success} end)
 
     on_exit(fn ->
-      :meck.unload(AI.Agent)
       :meck.unload(AI.Tools.LongTermMemory)
     end)
 
@@ -489,14 +477,12 @@ defmodule Memory.SessionIndexerE2ETest do
         "status_updates" => status_updates
       })
 
-    :meck.new(AI.Agent, [:no_link, :passthrough, :non_strict])
-    :meck.expect(AI.Agent, :get_response, fn _agent, _opts -> {:ok, response} end)
+    canned_agent(fn _impl, _args -> {:ok, response} end)
 
     :meck.new(AI.Tools.LongTermMemory, [:no_link, :passthrough, :non_strict])
     :meck.expect(AI.Tools.LongTermMemory, :call, fn _args -> {:ok, []} end)
 
     on_exit(fn ->
-      :meck.unload(AI.Agent)
       :meck.unload(AI.Tools.LongTermMemory)
     end)
 

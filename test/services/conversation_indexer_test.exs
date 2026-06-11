@@ -1,40 +1,16 @@
 defmodule Services.Conversation.IndexerTest do
+  # Sync: the indexer is started by the test rather than the instance roster
+  # and begins processing immediately, so async Mox allowances cannot be
+  # granted to it before it needs them. Global mode sidesteps that.
   use Fnord.TestCase, async: false
 
-  defmodule StubIndexer do
-    use Agent
-    @behaviour Indexer
-
-    def start_link(_opts) do
-      Agent.start_link(fn -> MapSet.new() end, name: __MODULE__)
-    end
-
-    def reset do
-      Agent.update(__MODULE__, fn _ -> MapSet.new() end)
-    end
-
-    def processed?(id), do: Agent.get(__MODULE__, &MapSet.member?(&1, id))
-
-    @impl Indexer
-    def get_embeddings(_content), do: {:ok, List.duplicate(0.1, 384)}
-
-    @impl Indexer
-    def get_summary(_file, _content), do: {:ok, "summary"}
-  end
-
   setup do
-    Services.Globals.put_env(:fnord, :indexer, StubIndexer)
-    {:ok, _} = StubIndexer.start_link([])
-    StubIndexer.reset()
-
-    # Stub the conversation summarizer so it doesn't hit the real LLM
-    :meck.new(AI.Agent.ConversationSummary, [:no_link, :passthrough])
-
-    :meck.expect(AI.Agent.ConversationSummary, :get_response, fn _opts ->
+    # Embeddings go through the default MockIndexer stub; the conversation
+    # summarizer is canned at the agent-dispatch seam so it doesn't hit the
+    # real LLM.
+    canned_agent(fn AI.Agent.ConversationSummary, _args ->
       {:ok, "test summary"}
     end)
-
-    on_exit(fn -> :meck.unload(AI.Agent.ConversationSummary) end)
 
     {:ok, project: mock_project("conv_indexer_test")}
   end
@@ -89,7 +65,11 @@ defmodule Services.Conversation.IndexerTest do
     assert_receive {:DOWN, ^ref, :process, ^pid, reason}, 2_000
     assert reason in [:normal, :noproc]
 
-    refute StubIndexer.processed?(convo1.id)
-    refute StubIndexer.processed?(convo2.id)
+    # Nothing may have been written to the index while paused.
+    embeddings =
+      Store.Project.ConversationIndex.all_embeddings(project)
+      |> Enum.into([])
+
+    assert embeddings == []
   end
 end

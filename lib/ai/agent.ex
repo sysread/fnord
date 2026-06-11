@@ -89,7 +89,7 @@ defmodule AI.Agent do
       try do
         args
         |> Map.put(:agent, agent)
-        |> agent.impl.get_response()
+        |> then(&AI.Agent.Dispatcher.impl().dispatch(agent.impl, &1))
       after
         if agent.named? && is_binary(agent.name) do
           Services.NamePool.checkin_name(agent.name)

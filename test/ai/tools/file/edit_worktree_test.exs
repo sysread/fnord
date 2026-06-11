@@ -4,7 +4,7 @@ defmodule AI.Tools.File.EditWorktreeTest do
   rather than the original source root. Exercises the full edit pipeline:
   path resolution, file read, change application, and commit_changes write.
   """
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   alias AI.Tools.File.Edit
 
@@ -24,12 +24,6 @@ defmodule AI.Tools.File.EditWorktreeTest do
     end)
 
     {:ok, project: project, worktree_dir: worktree_dir}
-  end
-
-  setup do
-    :meck.new(AI.Agent.Code.Patcher, [:no_link, :non_strict, :passthrough])
-    on_exit(fn -> :meck.unload(AI.Agent.Code.Patcher) end)
-    :ok
   end
 
   setup do
@@ -92,9 +86,14 @@ defmodule AI.Tools.File.EditWorktreeTest do
     File.mkdir_p!(Path.dirname(original_root_file))
     File.write!(original_root_file, "ORIGINAL ROOT CONTENT\n")
 
-    :meck.expect(AI.Agent.Code.Patcher, :get_response, fn args ->
-      # The patcher should receive the worktree absolute path
-      assert String.starts_with?(args[:file], worktree_dir)
+    # Canned-respond at the agent-dispatch seam; capture the file path the
+    # patcher receives so we can assert it resolved to the worktree. The
+    # assertion happens back in the test process - a failed assert inside the
+    # stub would only surface as an opaque task crash.
+    test_pid = self()
+
+    canned_agent(fn AI.Agent.Code.Patcher, args ->
+      send(test_pid, {:patcher_file, args[:file]})
       {:ok, edited_content}
     end)
 
@@ -108,6 +107,10 @@ defmodule AI.Tools.File.EditWorktreeTest do
 
     assert result.diff =~ "-  def bar, do: :ok"
     assert result.diff =~ "+  def bar, do: :changed"
+
+    # The patcher must have received the worktree absolute path
+    assert_receive {:patcher_file, patcher_file}, 1000
+    assert String.starts_with?(patcher_file, worktree_dir)
 
     # Worktree file modified
     assert File.read!(worktree_file) == edited_content
