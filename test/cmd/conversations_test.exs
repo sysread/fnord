@@ -3,13 +3,19 @@ defmodule Cmd.ConversationsTest do
 
   setup do
     set_config(quiet: true)
-    # Defensive cleanup: tests in this file mock UI via :meck mid-body and
-    # call safe_meck_unload at the end. If a test crashes between, the mock
-    # leaks and breaks downstream tests that capture_log on UI.error
-    # (UI.error stays mocked to print to stderr instead of going through
-    # Logger). on_exit here always unloads UI even on crash.
-    on_exit(fn -> safe_meck_unload(UI) end)
     {:ok, project: mock_project("test_proj")}
+  end
+
+  # UI.info/error land on UI.Output.log, which the default TestStub routes
+  # to Logger - invisible to capture_all. Mirror log traffic onto stderr so
+  # the output assertions below see it, the same surface the user does.
+  defp redirect_ui_log_to_stderr() do
+    Mox.stub(UI.Output.Mock, :log, fn _level, msg -> IO.puts(:stderr, msg) end)
+  end
+
+  # Scripts the prune confirmation prompt.
+  defp script_confirm(answer) do
+    Mox.stub(UI.Output.Mock, :confirm, fn _msg, _default -> answer end)
   end
 
   test "listing with no conversations prints no-found message", %{project: project} do
@@ -40,9 +46,7 @@ defmodule Cmd.ConversationsTest do
   end
 
   test "prune with no conversations only prints prune info and no JSON", %{project: project} do
-    :ok = safe_meck_new(UI, [:non_strict])
-    :meck.expect(UI, :info, fn msg -> IO.puts(:stderr, msg) end)
-    :meck.expect(UI, :error, fn msg -> IO.puts(:stderr, msg) end)
+    redirect_ui_log_to_stderr()
 
     {_stdout, output} =
       capture_all(fn ->
@@ -52,8 +56,6 @@ defmodule Cmd.ConversationsTest do
     assert output =~ "Pruning conversations older than 30 days"
     assert output =~ "No conversations to prune."
     refute output =~ "["
-
-    safe_meck_unload(UI)
   end
 
   test "prune deletes matching old conversations", %{project: project} do
@@ -64,11 +66,8 @@ defmodule Cmd.ConversationsTest do
     File.mkdir_p!(Path.dirname(conv.store_path))
     File.write!(conv.store_path, "#{old_ts}:[]")
 
-    # Stub confirmation to true
-    :ok = safe_meck_new(UI, [:non_strict])
-    :meck.expect(UI, :confirm, fn _ -> true end)
-    :meck.expect(UI, :info, fn msg -> IO.puts(:stderr, msg) end)
-    :meck.expect(UI, :error, fn msg -> IO.puts(:stderr, msg) end)
+    redirect_ui_log_to_stderr()
+    script_confirm(true)
 
     {_stdout, output} =
       capture_all(fn ->
@@ -80,8 +79,6 @@ defmodule Cmd.ConversationsTest do
     assert output =~ "Deleted 1 conversation(s)."
     refute output =~ "["
     refute File.exists?(conv.store_path)
-
-    safe_meck_unload(UI)
   end
 
   test "prune deletes conversation index entries", %{project: project} do
@@ -100,11 +97,8 @@ defmodule Cmd.ConversationsTest do
       "last_indexed_ts" => old_ts
     })
 
-    # Stub confirmation to true
-    :ok = safe_meck_new(UI, [:non_strict])
-    :meck.expect(UI, :confirm, fn _ -> true end)
-    :meck.expect(UI, :info, fn msg -> IO.puts(:stderr, msg) end)
-    :meck.expect(UI, :error, fn msg -> IO.puts(:stderr, msg) end)
+    redirect_ui_log_to_stderr()
+    script_confirm(true)
 
     {_stdout, output} =
       capture_all(fn ->
@@ -114,8 +108,6 @@ defmodule Cmd.ConversationsTest do
     assert output =~ "Pruning conversations older than 30 days"
     refute File.exists?(conv.store_path)
     refute File.exists?(index_dir)
-
-    safe_meck_unload(UI)
   end
 
   test "prune cancellation prints only cancellation message", %{project: project} do
@@ -131,11 +123,8 @@ defmodule Cmd.ConversationsTest do
     File.mkdir_p!(Path.dirname(conv.store_path))
     File.write!(conv.store_path, "#{old_ts}:[]")
 
-    # Stub confirmation to false
-    :ok = safe_meck_new(UI, [:non_strict])
-    :meck.expect(UI, :confirm, fn _ -> false end)
-    :meck.expect(UI, :info, fn msg -> IO.puts(:stderr, msg) end)
-    :meck.expect(UI, :error, fn msg -> IO.puts(:stderr, msg) end)
+    redirect_ui_log_to_stderr()
+    script_confirm(false)
 
     {_stdout, output} =
       capture_all(fn ->
@@ -148,8 +137,6 @@ defmodule Cmd.ConversationsTest do
     refute output =~ "["
     # Ensure the conversation was not deleted
     assert File.exists?(conv.store_path)
-
-    safe_meck_unload(UI)
   end
 
   test "prune by id deletes specific conversation", %{project: project} do
@@ -170,11 +157,8 @@ defmodule Cmd.ConversationsTest do
       "last_indexed_ts" => DateTime.utc_now() |> DateTime.to_unix()
     })
 
-    # Stub confirmation to true
-    :ok = safe_meck_new(UI, [:non_strict])
-    :meck.expect(UI, :confirm, fn _ -> true end)
-    :meck.expect(UI, :info, fn msg -> IO.puts(:stderr, msg) end)
-    :meck.expect(UI, :error, fn msg -> IO.puts(:stderr, msg) end)
+    redirect_ui_log_to_stderr()
+    script_confirm(true)
 
     {_stdout, output} =
       capture_all(fn ->
@@ -184,17 +168,13 @@ defmodule Cmd.ConversationsTest do
     assert output =~ "Deleted conversation #{id}."
     refute File.exists?(conv.store_path)
     refute File.exists?(index_dir)
-
-    safe_meck_unload(UI)
   end
 
   test "prune by id non-existent id prints not found", %{project: project} do
     id = "nope"
 
-    :ok = safe_meck_new(UI, [:non_strict])
-    :meck.expect(UI, :confirm, fn _ -> true end)
-    :meck.expect(UI, :info, fn msg -> IO.puts(:stderr, msg) end)
-    :meck.expect(UI, :error, fn msg -> IO.puts(:stderr, msg) end)
+    redirect_ui_log_to_stderr()
+    script_confirm(true)
 
     {_stdout, output} =
       capture_all(fn ->
@@ -202,8 +182,6 @@ defmodule Cmd.ConversationsTest do
       end)
 
     assert output =~ "Conversation #{id} not found."
-
-    safe_meck_unload(UI)
   end
 
   test "prune by id cancellation leaves conversation intact", %{project: project} do
@@ -216,11 +194,8 @@ defmodule Cmd.ConversationsTest do
       "#{DateTime.utc_now() |> DateTime.to_unix()}:#{SafeJson.encode!(%{"messages" => [%{"role" => "user", "content" => "test question"}], "metadata" => %{}, "memory" => []})}"
     )
 
-    # Stub confirmation to false
-    :ok = safe_meck_new(UI, [:non_strict])
-    :meck.expect(UI, :confirm, fn _ -> false end)
-    :meck.expect(UI, :info, fn msg -> IO.puts(:stderr, msg) end)
-    :meck.expect(UI, :error, fn msg -> IO.puts(:stderr, msg) end)
+    redirect_ui_log_to_stderr()
+    script_confirm(false)
 
     {_stdout, output} =
       capture_all(fn ->
@@ -230,14 +205,10 @@ defmodule Cmd.ConversationsTest do
     assert output =~ id
     assert output =~ "Operation cancelled."
     assert File.exists?(conv.store_path)
-
-    safe_meck_unload(UI)
   end
 
   test "invalid prune value emits error and does not list", %{project: project} do
-    :ok = safe_meck_new(UI, [:non_strict])
-    :meck.expect(UI, :info, fn msg -> IO.puts(:stderr, msg) end)
-    :meck.expect(UI, :error, fn msg -> IO.puts(:stderr, msg) end)
+    redirect_ui_log_to_stderr()
 
     {_stdout, output} =
       capture_all(fn ->
@@ -246,8 +217,6 @@ defmodule Cmd.ConversationsTest do
 
     assert output =~ "Invalid --prune value: -5"
     refute output =~ "["
-
-    safe_meck_unload(UI)
   end
 
   test "semantic search returns formatted results", %{project: project} do
