@@ -5,8 +5,6 @@ defmodule AI.Tools.SelfHelp.DocsTest do
 
   setup do
     set_log_level(:none)
-    safe_meck_new(AI.Completion, [:passthrough, :no_link])
-    on_exit(fn -> safe_meck_unload(AI.Completion) end)
     :ok
   end
 
@@ -14,28 +12,25 @@ defmodule AI.Tools.SelfHelp.DocsTest do
   # :context_length_exceeded (`{:error, :context_length_exceeded, usage}`),
   # which previously fell through the two-tuple case clauses and crashed
   # with CaseClauseError. The tool must now surface a soft error without
-  # raising.
+  # raising. The completion loop's compaction retry also hits the canned
+  # error, so this exercises the full exhausted-compaction path.
   test "handles {:error, :context_length_exceeded, usage} without raising" do
-    :meck.expect(AI.Completion, :get, fn _opts ->
-      {:error, :context_length_exceeded, 12_345}
-    end)
+    canned_completion({:error, :context_length_exceeded, 12_345})
 
     assert {:error, reason} = Docs.call(%{"question" => "How do worktrees work?"})
     assert reason =~ "context"
   end
 
-  test "passes through ordinary error tuples unchanged" do
-    :meck.expect(AI.Completion, :get, fn _opts ->
-      {:error, :api_unavailable}
-    end)
+  test "passes the loop's API-unavailable message through as the error reason" do
+    canned_completion({:error, :api_unavailable, "the model is on fire"})
 
-    assert {:error, :api_unavailable} = Docs.call(%{"question" => "anything"})
+    assert {:error, reason} = Docs.call(%{"question" => "anything"})
+    assert reason =~ "currently unavailable"
+    assert reason =~ "the model is on fire"
   end
 
   test "returns response on success" do
-    :meck.expect(AI.Completion, :get, fn _opts ->
-      {:ok, %{response: "here's the answer"}}
-    end)
+    canned_completion("here's the answer")
 
     assert {:ok, "here's the answer"} = Docs.call(%{"question" => "anything"})
   end

@@ -153,6 +153,20 @@ defmodule AI.Completion.Compaction do
 
           {:ok, %{msg | content: content}}
 
+        # The inner completion runs with compact?: false, so a message that
+        # is itself too large surfaces as the three-element tuple. That is
+        # routine during compaction (which runs precisely because context is
+        # tight) - keep the message as-is and let the summarize fallback
+        # deal with it, rather than crashing the tersify task and taking
+        # down the completion this compaction is trying to rescue.
+        {:error, :context_length_exceeded, usage} ->
+          UI.warn(
+            "[compaction]",
+            "Message too large to tersify (#{usage} tokens); deferring to summarization"
+          )
+
+          {:ok, msg}
+
         {:error, reason} ->
           UI.warn("[compaction]", """
           Error compacting message:

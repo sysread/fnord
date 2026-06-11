@@ -55,6 +55,42 @@ defmodule AI.Completion.CompactionTest do
            end)
   end
 
+  # Regression: tersify_msg's inner completion runs with compact?: false, so
+  # an oversized message surfaces {:error, :context_length_exceeded, usage} -
+  # a three-element tuple its case once had no clause for. The tersify task
+  # crashed, killing the very completion compaction was trying to rescue.
+  # The message must instead pass through untersified to the summarize
+  # fallback.
+  test "a message too large to tersify defers to summarization instead of crashing" do
+    canned_completion(fn msgs ->
+      tersify_call? =
+        Enum.any?(msgs, fn
+          %{content: content} when is_binary(content) ->
+            content =~ "restating them as tersely"
+
+          _ ->
+            false
+        end)
+
+      if tersify_call? do
+        {:error, :context_length_exceeded, 999_999}
+      else
+        {:ok, :msg, "summary of the conversation", 1}
+      end
+    end)
+
+    msgs = [
+      %{role: "assistant", content: "pretend this message is enormous"},
+      %{role: "user", content: "latest user message"}
+    ]
+
+    {:ok, compacted, _usage} = Compaction.compact(msgs)
+
+    assert [%{content: summary}] = compacted
+    assert summary =~ "<fnord-meta:summary />"
+    assert summary =~ "summary of the conversation"
+  end
+
   test "tersifies unmarked messages and adds the tersified marker" do
     long =
       String.duplicate("This is a long assistant message that should be compacted. ", 20)
