@@ -608,3 +608,30 @@ works in prod, but silently bypasses test doubles: a test that stubs
 `has_uncommitted_changes?` and exercises `has_changes_to_merge?` would hit
 real git instead of the stub. Private helpers stay local; only public
 functions route through the facade.
+
+## 36. Mox-mocked facades cannot be called from an ad-hoc GenServer's init in async tests
+
+Async tests run Mox in private mode, and `Fnord.TestCase.allow_service_mocks/1`
+grants allowances only to processes in the `Services.Instance` roster. A
+GenServer started ad hoc by a test (`Services.CommitIndexer.start_link/1` in
+its test, for example) executes `init/1` in its own process *before*
+`start_link` returns - there is no moment at which the test can grant it an
+allowance. If that init path calls a Mox-backed facade (GitCli, UI.Output,
+etc.), the call dies with a Mox ownership error, but only under async
+scheduling. Such tests must stay `async: false` (global Mox mode) and say so
+in a comment. Tasks are different: they inherit `$callers`, which Mox
+consults, so spawned-task mock calls are fine in async tests.
+
+## 37. AI.Tools.get_project/0 rejects projects with missing or empty store dirs
+
+`AI.Tools.get_project/0` layers `Store.Project.exists_in_store?/1` on top of
+`Store.get_project/0`, and `exists_in_store?` returns false for a store
+directory that is missing OR empty (a defensive check against a historical
+partial-delete bug). `Fnord.TestCase.mock_project/1` saves project settings
+but does not populate the store, so any code path that resolves the project
+through `AI.Tools.get_project/0` (the canonical file accessor
+`get_file_contents*`, most file tools) fails with `:project_not_found` in a
+fresh mock project. Tests seed it with
+`File.mkdir_p!(Store.Project.files_root(project))` - the wildcard sees the
+subdirectory and the project becomes resolvable. Code paths that use
+`Store.get_project/0` directly (search, commit index) do not need this.
