@@ -1,55 +1,45 @@
 defmodule Cmd.ReplayTest do
-  use Fnord.TestCase
+  use Fnord.TestCase, async: true
   @moduletag :capture_log
 
   describe "run/3" do
     setup do
-      mock_project("test_proj")
-      :ok
+      project = mock_project("test_proj")
+      {:ok, project: project}
     end
 
     test "replays an existing conversation (happy path)" do
-      :meck.new(Store.Project.Conversation, [:no_link, :passthrough, :non_strict])
-      :meck.new(AI.Completion, [:no_link, :passthrough, :non_strict])
-      :meck.new(AI.Completion.Output, [:no_link, :passthrough, :non_strict])
+      # A real conversation in the per-test store: replay reads it back,
+      # rebuilds the completion state, and replays the transcript through UI
+      # (swallowed by the test output stub).
+      conversation = Store.Project.Conversation.new("abc-123")
 
-      on_exit(fn ->
-        :meck.unload(Store.Project.Conversation)
-        :meck.unload(AI.Completion)
-        :meck.unload(AI.Completion.Output)
-      end)
+      {:ok, _} =
+        Store.Project.Conversation.write(conversation, %{
+          messages: [AI.Util.user_msg("hi"), AI.Util.assistant_msg("hello there")],
+          metadata: %{},
+          memories: []
+        })
 
-      # Setup: conversation exists
-      :meck.expect(Store.Project.Conversation, :exists?, fn _conv -> true end)
+      # The final response prints to stdout from the calling process; capture
+      # it both to keep test output clean and to assert the replayed content.
+      {stdout, _stderr} =
+        capture_all(fn ->
+          Process.put(:replay_result, Cmd.Replay.run(%{conversation: "abc-123"}, [], []))
+        end)
 
-      # Stub Completion creation
-      fake_conv = Store.Project.Conversation.new("abc-123")
-      fake_completion = %AI.Completion{messages: [AI.Util.user_msg("hi")], response: nil}
+      result = Process.delete(:replay_result)
 
-      :meck.expect(AI.Completion, :new_from_conversation, fn ^fake_conv, opts
-                                                             when is_list(opts) ->
-        {:ok, fake_completion}
-      end)
-
-      :meck.expect(AI.Completion.Output, :replay_conversation_as_output, fn completion ->
-        assert completion == fake_completion
-        :ok
-      end)
-
-      # Execute
-      result = Cmd.Replay.run(%{conversation: "abc-123"}, [], [])
-      assert result == :ok
+      # The happy path returns the completion state rebuilt from the
+      # conversation we wrote (plus the loop's prepended agent-name message),
+      # and the assistant's final response is replayed to stdout.
+      assert %AI.Completion{} = result
+      assert Enum.any?(result.messages, &(&1.content == "hi"))
+      assert Enum.any?(result.messages, &(&1.content == "hello there"))
+      assert stdout =~ "hello there"
     end
 
     test "returns error when conversation does not exist" do
-      :meck.new(Store.Project.Conversation, [:no_link, :passthrough, :non_strict])
-
-      on_exit(fn ->
-        :meck.unload(Store.Project.Conversation)
-      end)
-
-      :meck.expect(Store.Project.Conversation, :exists?, fn _conv -> false end)
-
       result = Cmd.Replay.run(%{conversation: "missing"}, [], [])
       assert result == {:error, :conversation_not_found}
     end

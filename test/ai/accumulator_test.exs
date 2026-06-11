@@ -1,18 +1,24 @@
 defmodule AI.Accumulator.Test do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   @moduledoc """
-  Unit tests for AI.Accumulator covering missing options, multi‐chunk, backoff,
-  and line_numbers.
+  Unit tests for AI.Accumulator covering missing options, multi-chunk, backoff,
+  and line_numbers. The real AI.Splitter runs (it is deterministic char math
+  over PretendTokenizer estimates); model responses are canned at the
+  completion-API boundary, keyed on the accumulator's chunk vs finalize
+  system prompts.
   """
 
-  setup do
-    :meck.new(AI.Splitter, [:no_link, :non_strict, :passthrough])
-    :meck.new(AI.Completion, [:no_link, :non_strict, :passthrough])
+  # The accumulator's two stages are distinguishable by system prompt: chunk
+  # passes open with "You are processing input chunks in sequence", and the
+  # finalize pass with "You have processed the user's input in chunks".
+  defp finalize_call?(msgs) do
+    Enum.any?(msgs, fn
+      %{content: content} when is_binary(content) ->
+        content =~ "You have processed the user's input in chunks"
 
-    on_exit(fn ->
-      :meck.unload(AI.Splitter)
-      :meck.unload(AI.Completion)
+      _ ->
+        false
     end)
   end
 
@@ -21,108 +27,129 @@ defmodule AI.Accumulator.Test do
   end
 
   test "processes multiple chunks and then finalizes" do
-    # Define fake splitter states
+    # Context of 100 tokens leaves room for ~250 input chars per chunk after
+    # the accumulator preamble, so 600 chars force at least two chunks.
     model = AI.Model.new("fake", 100)
-    splitter0 = %AI.Splitter{done: false, input: "dummy0", model: model}
-    splitter1 = %AI.Splitter{done: false, input: "dummy1", model: model}
-    splitter2 = %AI.Splitter{done: true, input: "", model: model}
+    input = String.duplicate("lorem ipsum dolor sit amet ", 22)
 
-    # Mock Splitter.new/2 and next_chunk/3
-    :meck.expect(AI.Splitter, :new, fn _input, _model -> splitter0 end)
+    test_pid = self()
 
-    :meck.expect(AI.Splitter, :next_chunk, fn
-      ^splitter0, _user, _max -> {"chunk1", splitter1}
-      ^splitter1, _user, _max -> {"chunk2", splitter2}
-    end)
+    canned_completion(fn msgs ->
+      send(test_pid, {:completion, msgs})
 
-    # Mock Completion.get/1 to return two partials and final
-    Process.put(:call_count, 0)
-
-    :meck.expect(AI.Completion, :get, fn _args ->
-      n = Process.get(:call_count)
-      Process.put(:call_count, n + 1)
-
-      case n do
-        0 -> {:ok, %AI.Completion{response: "resp1"}}
-        1 -> {:ok, %AI.Completion{response: "resp2"}}
-        _ -> {:ok, %AI.Completion{response: "FINAL"}}
+      if finalize_call?(msgs) do
+        {:ok, :msg, "FINAL", 0}
+      else
+        n = Process.get(:chunk_calls, 0) + 1
+        Process.put(:chunk_calls, n)
+        {:ok, :msg, "resp#{n}", 0}
       end
     end)
 
-    # Execute and assert
-    opts = [model: model, prompt: "PROMPT", input: "IGNORED"]
+    opts = [model: model, prompt: "PROMPT", input: input]
     assert {:ok, %AI.Completion{response: "FINAL"}} = AI.Accumulator.get_response(opts)
-    assert :meck.num_calls(AI.Splitter, :next_chunk, :_) == 2
-    assert :meck.num_calls(AI.Completion, :get, :_) == 3
+
+    # Drain the captured completions: several chunk passes, then one finalize.
+    calls =
+      Stream.repeatedly(fn ->
+        receive do
+          {:completion, msgs} -> msgs
+        after
+          0 -> nil
+        end
+      end)
+      |> Enum.take_while(& &1)
+
+    {final_calls, chunk_calls} = Enum.split_with(calls, &finalize_call?/1)
+    assert length(final_calls) == 1
+    assert length(chunk_calls) >= 2
+
+    # Continuity: the second chunk's accumulator carries the first response.
+    second_chunk = Enum.at(chunk_calls, 1)
+    user_content = second_chunk |> Enum.map(&Map.get(&1, :content)) |> Enum.join("\n")
+    assert user_content =~ "resp1"
+
+    # The finalize pass receives the last chunk response in its buffer.
+    final_content =
+      final_calls |> hd() |> Enum.map(&Map.get(&1, :content)) |> Enum.join("\n")
+
+    assert final_content =~ "resp#{length(chunk_calls)}"
   end
 
   test "backs off on context_length_exceeded then succeeds" do
-    # Mock splitter for a single chunk then done
     model = AI.Model.new("fake", 20)
-    _splitter0 = %AI.Splitter{done: false, input: "input", model: model}
-    splitter1 = %AI.Splitter{done: true, input: "", model: model}
 
-    :meck.expect(AI.Splitter, :next_chunk, fn _sp, _user, _max -> {"chunk", splitter1} end)
+    test_pid = self()
 
-    # Mock Completion.get/1 with backoff
-    Process.put(:call_count, 0)
+    canned_completion(fn msgs ->
+      send(test_pid, {:completion, msgs})
 
-    :meck.expect(AI.Completion, :get, fn _args ->
-      case Process.get(:call_count) do
-        0 ->
-          Process.put(:call_count, 1)
+      cond do
+        finalize_call?(msgs) ->
+          {:ok, :msg, "DONE", 0}
+
+        Process.get(:chunk_calls, 0) == 0 ->
+          Process.put(:chunk_calls, 1)
           {:error, :context_length_exceeded, 42}
 
-        1 ->
-          Process.put(:call_count, 2)
-          {:ok, %AI.Completion{response: "buf"}}
-
-        _ ->
-          {:ok, %AI.Completion{response: "DONE"}}
+        true ->
+          {:ok, :msg, "buf", 0}
       end
     end)
 
-    # Execute and assert backoff path
-    opts = [model: model, prompt: "P", input: "X"]
+    # compact?: false keeps the completion loop from trying to rescue the
+    # canned context-length error itself (its compaction retry would spawn
+    # extra completions); the 3-tuple surfaces directly to the accumulator's
+    # own backoff, which is what this test exercises.
+    opts = [model: model, prompt: "P", input: "X", compact?: false]
     assert {:ok, %AI.Completion{response: "DONE"}} = AI.Accumulator.get_response(opts)
-    assert :meck.num_calls(AI.Completion, :get, :_) == 3
+
+    # Three model calls: the failed chunk pass, the backed-off retry, and
+    # the finalize pass.
+    assert_received {:completion, _}
+    assert_received {:completion, _}
+    assert_received {:completion, _}
+    refute_received {:completion, _}
   end
 
   test "backoff eventually fails when below threshold" do
-    # Mock single chunk then done
     model = AI.Model.new("fake", 20)
-    splitter0 = %AI.Splitter{done: false, input: "input", model: model}
-    splitter1 = %AI.Splitter{done: true, input: "", model: model}
-    :meck.expect(AI.Splitter, :new, fn _input, _model -> splitter0 end)
-    :meck.expect(AI.Splitter, :new, fn _input, _model -> splitter0 end)
-    :meck.expect(AI.Splitter, :next_chunk, fn _sp, _user, _max -> {"chunk", splitter1} end)
-    # Always return context length exceeded
-    :meck.expect(AI.Completion, :get, fn _args -> {:error, :context_length_exceeded, 100} end)
 
-    opts = [model: model, prompt: "P", input: "X"]
+    test_pid = self()
+
+    canned_completion(fn _msgs ->
+      send(test_pid, {:completion, :called})
+      {:error, :context_length_exceeded, 100}
+    end)
+
+    opts = [model: model, prompt: "P", input: "X", compact?: false]
     assert {:error, msg} = AI.Accumulator.get_response(opts)
     assert msg =~ "unable to back off further"
-    assert :meck.num_calls(AI.Completion, :get, :_) >= 3
+
+    # Backoff walks frac 1.0 -> 0.8 -> 0.6 before giving up.
+    assert_received {:completion, :called}
+    assert_received {:completion, :called}
+    assert_received {:completion, :called}
   end
 
   test "line_numbers: true prefixes each line before chunking" do
     raw_input = "apple\nbanana\n"
     model = AI.Model.new("fake", 50)
-    # Expect Splitter.new to receive numbered input
-    splitter = %AI.Splitter{done: true, input: "", model: model}
 
-    :meck.expect(AI.Splitter, :new, fn input, ^model ->
-      send(self(), {:transformed, input})
-      splitter
+    test_pid = self()
+
+    canned_completion(fn msgs ->
+      send(test_pid, {:completion, msgs})
+      {:ok, :msg, "resp", 0}
     end)
 
-    # Completion.get returns a dummy response
-    :meck.expect(AI.Completion, :get, fn _args -> {:ok, %AI.Completion{response: "resp"}} end)
-
     opts = [model: model, prompt: "P", input: raw_input, line_numbers: true]
-    assert {:ok, %AI.Completion{response: _}} = AI.Accumulator.get_response(opts)
-    assert_receive {:transformed, numbered}
-    assert numbered =~ ~r/1:[0-9a-f]{4}\|apple/
-    assert numbered =~ ~r/2:[0-9a-f]{4}\|banana/
+    assert {:ok, %AI.Completion{response: "resp"}} = AI.Accumulator.get_response(opts)
+
+    # The first (chunk) completion must receive the hashline-numbered input.
+    assert_received {:completion, chunk_msgs}
+    content = chunk_msgs |> Enum.map(&Map.get(&1, :content)) |> Enum.join("\n")
+    assert content =~ ~r/1:[0-9a-f]{4}\|apple/
+    assert content =~ ~r/2:[0-9a-f]{4}\|banana/
   end
 end

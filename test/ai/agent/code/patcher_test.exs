@@ -1,25 +1,18 @@
 defmodule AI.Agent.Code.PatcherTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   # -------------------------------------------------------------------------
   # These tests verify the Patcher's retry-with-feedback and context
   # passthrough behaviors. The Patcher is an AI agent that applies natural
   # language change instructions to files by producing hash-anchored patches.
-  # We mock the AI completion layer to control responses and inspect what
-  # messages the Patcher sends on first attempt vs retry.
+  # Canned completions control the LLM responses while the real agent runs:
+  # file reads go through the real AI.Tools.get_file_contents (the file
+  # exists in the mock project), and each completion's messages are captured
+  # at the completion-API boundary and asserted in the test process.
   # -------------------------------------------------------------------------
 
   setup do
     project = mock_project("patcher-test")
-
-    :meck.new(AI.Completion, [:no_link, :non_strict, :passthrough])
-    :meck.new(AI.Tools, [:no_link, :non_strict, :passthrough])
-
-    on_exit(fn ->
-      :meck.unload(AI.Completion)
-      :meck.unload(AI.Tools)
-    end)
-
     {:ok, project: project}
   end
 
@@ -45,19 +38,13 @@ defmodule AI.Agent.Code.PatcherTest do
     })
   end
 
-  # Helper: extract user messages from a keyword list of completion args.
-  # Messages use atom keys (e.g. %{role: "user", content: "..."}).
-  defp user_messages(opts) do
-    opts
-    |> Keyword.get(:messages, [])
-    |> Enum.filter(&match?(%AI.Message.User{}, &1))
+  # Helpers: extract user/assistant messages from a captured messages list.
+  defp user_messages(msgs) do
+    Enum.filter(msgs, &match?(%AI.Message.User{}, &1))
   end
 
-  # Helper: extract assistant messages from a keyword list of completion args
-  defp assistant_messages(opts) do
-    opts
-    |> Keyword.get(:messages, [])
-    |> Enum.filter(&match?(%AI.Message.Assistant{}, &1))
+  defp assistant_messages(msgs) do
+    Enum.filter(msgs, &match?(%AI.Message.Assistant{}, &1))
   end
 
   describe "retry with error feedback" do
@@ -65,48 +52,26 @@ defmodule AI.Agent.Code.PatcherTest do
       file_content = "line one\nline two\nline three\n"
       file = mock_source_file(project, "retry.txt", file_content)
 
-      :meck.expect(AI.Tools, :get_file_contents, fn _path ->
-        {:ok, file_content}
-      end)
+      h1 = "1:" <> Util.line_hash("line one")
+      h2 = "2:" <> Util.line_hash("line two")
 
-      # Track calls to inspect messages on each attempt
-      call_count = :counters.new(1, [:atomics])
+      test_pid = self()
 
-      :meck.expect(AI.Completion, :get, fn opts ->
-        attempt = :counters.get(call_count, 1) + 1
-        :counters.put(call_count, 1, attempt)
+      # First attempt: the LLM reports it cannot make the change. The retry
+      # is recognized by the error feedback the Patcher must thread back into
+      # the conversation; it gets a valid patch.
+      canned_completion(fn msgs ->
+        send(test_pid, {:completion_msgs, msgs})
 
-        if attempt == 1 do
-          # First attempt: return an error response from the LLM
-          {:ok, %{response: error_patch_response("I can't figure out this change")}}
+        retry? =
+          msgs
+          |> user_messages()
+          |> Enum.any?(&(&1.content =~ "Your previous patch attempt failed"))
+
+        if retry? do
+          {:ok, :msg, patch_response([h1, h2], "line one\nline two", "LINE ONE\nLINE TWO"), 0}
         else
-          # Second attempt: verify error feedback is in messages, then succeed
-          messages = Keyword.get(opts, :messages, [])
-          assert length(messages) == 5
-
-          assistant_msgs = assistant_messages(opts)
-          assert length(assistant_msgs) == 1
-          assert assistant_msgs |> hd() |> Map.get(:content) =~ "I can't figure out"
-
-          user_msgs = user_messages(opts)
-          assert length(user_msgs) == 2
-          error_feedback = List.last(user_msgs)
-          assert error_feedback.content =~ "Your previous patch attempt failed"
-          assert error_feedback.content =~ "I can't figure out this change"
-
-          # Return a valid patch
-          h1 = "1:" <> Util.line_hash("line one")
-          h2 = "2:" <> Util.line_hash("line two")
-
-          {:ok,
-           %{
-             response:
-               patch_response(
-                 [h1, h2],
-                 "line one\nline two",
-                 "LINE ONE\nLINE TWO"
-               )
-           }}
+          {:ok, :msg, error_patch_response("I can't figure out this change"), 0}
         end
       end)
 
@@ -120,32 +85,39 @@ defmodule AI.Agent.Code.PatcherTest do
 
       assert result =~ "LINE ONE"
       assert result =~ "LINE TWO"
-      assert :counters.get(call_count, 1) == 2
+
+      # Exactly two attempts
+      assert_received {:completion_msgs, _first_attempt}
+      assert_received {:completion_msgs, retry_msgs}
+      refute_received {:completion_msgs, _}
+
+      # The retry carries the full first exchange plus the error feedback.
+      # (Counts are at the completion-API boundary, where the loop has
+      # prepended one agent-name message to the Patcher's own messages.)
+      assert length(retry_msgs) == 6
+
+      assistant_msgs = assistant_messages(retry_msgs)
+      assert length(assistant_msgs) == 1
+      assert assistant_msgs |> hd() |> Map.get(:content) =~ "I can't figure out"
+
+      user_msgs = user_messages(retry_msgs)
+      assert length(user_msgs) == 2
+      error_feedback = List.last(user_msgs)
+      assert error_feedback.content =~ "Your previous patch attempt failed"
+      assert error_feedback.content =~ "I can't figure out this change"
     end
 
-    test "first attempt has only 2 messages", %{project: project} do
+    test "first attempt has only the initial messages", %{project: project} do
       file_content = "hello world\n"
       file = mock_source_file(project, "first.txt", file_content)
 
-      :meck.expect(AI.Tools, :get_file_contents, fn _path ->
-        {:ok, file_content}
-      end)
+      h1 = "1:" <> Util.line_hash("hello world")
 
-      :meck.expect(AI.Completion, :get, fn opts ->
-        messages = Keyword.get(opts, :messages, [])
-        assert length(messages) == 3
+      test_pid = self()
 
-        h1 = "1:" <> Util.line_hash("hello world")
-
-        {:ok,
-         %{
-           response:
-             patch_response(
-               [h1],
-               "hello world",
-               "HELLO WORLD"
-             )
-         }}
+      canned_completion(fn msgs ->
+        send(test_pid, {:completion_msgs, msgs})
+        {:ok, :msg, patch_response([h1], "hello world", "HELLO WORLD"), 0}
       end)
 
       agent = AI.Agent.new(AI.Agent.Code.Patcher)
@@ -155,6 +127,11 @@ defmodule AI.Agent.Code.PatcherTest do
                  file: file,
                  changes: ["Uppercase everything"]
                })
+
+      # The loop's agent-name message plus the Patcher's system and task
+      # messages - nothing else on a first attempt.
+      assert_received {:completion_msgs, msgs}
+      assert length(msgs) == 4
     end
   end
 
@@ -163,27 +140,13 @@ defmodule AI.Agent.Code.PatcherTest do
       file_content = "original\n"
       file = mock_source_file(project, "context.txt", file_content)
 
-      :meck.expect(AI.Tools, :get_file_contents, fn _path ->
-        {:ok, file_content}
-      end)
+      h1 = "1:" <> Util.line_hash("original")
 
-      :meck.expect(AI.Completion, :get, fn opts ->
-        user_msgs = user_messages(opts)
-        first_user_msg = hd(user_msgs)
-        assert first_user_msg.content =~ "Background context from the coordinating agent:"
-        assert first_user_msg.content =~ "Use snake_case for all function names"
+      test_pid = self()
 
-        h1 = "1:" <> Util.line_hash("original")
-
-        {:ok,
-         %{
-           response:
-             patch_response(
-               [h1],
-               "original",
-               "modified"
-             )
-         }}
+      canned_completion(fn msgs ->
+        send(test_pid, {:completion_msgs, msgs})
+        {:ok, :msg, patch_response([h1], "original", "modified"), 0}
       end)
 
       agent = AI.Agent.new(AI.Agent.Code.Patcher)
@@ -194,32 +157,24 @@ defmodule AI.Agent.Code.PatcherTest do
                  changes: ["Change original to modified"],
                  context: "Use snake_case for all function names"
                })
+
+      assert_received {:completion_msgs, msgs}
+      first_user_msg = msgs |> user_messages() |> hd()
+      assert first_user_msg.content =~ "Background context from the coordinating agent:"
+      assert first_user_msg.content =~ "Use snake_case for all function names"
     end
 
     test "no context section when context is nil", %{project: project} do
       file_content = "original\n"
       file = mock_source_file(project, "nocontext.txt", file_content)
 
-      :meck.expect(AI.Tools, :get_file_contents, fn _path ->
-        {:ok, file_content}
-      end)
+      h1 = "1:" <> Util.line_hash("original")
 
-      :meck.expect(AI.Completion, :get, fn opts ->
-        user_msgs = user_messages(opts)
-        first_user_msg = hd(user_msgs)
-        refute first_user_msg.content =~ "Background context"
+      test_pid = self()
 
-        h1 = "1:" <> Util.line_hash("original")
-
-        {:ok,
-         %{
-           response:
-             patch_response(
-               [h1],
-               "original",
-               "modified"
-             )
-         }}
+      canned_completion(fn msgs ->
+        send(test_pid, {:completion_msgs, msgs})
+        {:ok, :msg, patch_response([h1], "original", "modified"), 0}
       end)
 
       agent = AI.Agent.new(AI.Agent.Code.Patcher)
@@ -229,6 +184,10 @@ defmodule AI.Agent.Code.PatcherTest do
                  file: file,
                  changes: ["Change original to modified"]
                })
+
+      assert_received {:completion_msgs, msgs}
+      first_user_msg = msgs |> user_messages() |> hd()
+      refute first_user_msg.content =~ "Background context"
     end
   end
 end
