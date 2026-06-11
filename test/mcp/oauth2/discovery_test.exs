@@ -1,22 +1,5 @@
 defmodule MCP.OAuth2.DiscoveryTest do
-  use Fnord.TestCase, async: false
-
-  setup do
-    :meck.new(HTTPoison, [:passthrough])
-    :meck.new(MCP.OAuth2.Registration, [:passthrough])
-
-    on_exit(fn ->
-      for m <- [HTTPoison, MCP.OAuth2.Registration] do
-        try do
-          :meck.unload(m)
-        catch
-          _, _ -> :ok
-        end
-      end
-    end)
-
-    :ok
-  end
+  use Fnord.TestCase, async: true
 
   describe "discover_and_setup/2" do
     test "discovers OAuth metadata from authorization server endpoint" do
@@ -26,7 +9,7 @@ defmodule MCP.OAuth2.DiscoveryTest do
         "token_endpoint" => "https://example.com/token"
       }
 
-      :meck.expect(HTTPoison, :get, fn url, _headers, _opts ->
+      stub(Http.Client.Mock, :get, fn url, _headers, _opts ->
         assert String.ends_with?(url, ".well-known/oauth-authorization-server")
         {:ok, %{status_code: 200, body: SafeJson.encode!(metadata)}}
       end)
@@ -45,7 +28,7 @@ defmodule MCP.OAuth2.DiscoveryTest do
     end
 
     test "returns error when discovery fails" do
-      :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
+      stub(Http.Client.Mock, :get, fn _url, _headers, _opts ->
         {:ok, %{status_code: 404, body: "Not found"}}
       end)
 
@@ -63,14 +46,18 @@ defmodule MCP.OAuth2.DiscoveryTest do
         "registration_endpoint" => "https://example.com/register"
       }
 
-      :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
+      stub(Http.Client.Mock, :get, fn _url, _headers, _opts ->
         {:ok, %{status_code: 200, body: SafeJson.encode!(metadata)}}
       end)
 
-      :meck.expect(MCP.OAuth2.Registration, :register, fn endpoint, opts ->
-        assert endpoint == "https://example.com/register"
-        assert opts[:redirect_uris] == ["http://localhost:8080/callback"]
-        {:ok, %{client_id: "dynamic-client-123", client_secret: nil}}
+      # Dynamic registration goes over the wire as an RFC 7591 POST; stub it
+      # at the transport and assert the redirect_port flowed through to the
+      # registered callback URI.
+      stub(Http.Client.Mock, :post, fn url, body, _headers, _opts ->
+        assert url == "https://example.com/register"
+        assert SafeJson.decode!(body)["redirect_uris"] == ["http://localhost:8080/callback"]
+
+        {:ok, %{status_code: 201, body: SafeJson.encode!(%{"client_id" => "dynamic-client-123"})}}
       end)
 
       assert {:ok, config} =
@@ -90,7 +77,7 @@ defmodule MCP.OAuth2.DiscoveryTest do
         "token_endpoint" => "https://example.com/token"
       }
 
-      :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
+      stub(Http.Client.Mock, :get, fn _url, _headers, _opts ->
         {:ok, %{status_code: 200, body: SafeJson.encode!(metadata)}}
       end)
 
@@ -110,7 +97,7 @@ defmodule MCP.OAuth2.DiscoveryTest do
         "token_endpoint" => "https://example.com/token"
       }
 
-      :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
+      stub(Http.Client.Mock, :get, fn _url, _headers, _opts ->
         {:ok, %{status_code: 200, body: SafeJson.encode!(metadata)}}
       end)
 
@@ -130,7 +117,7 @@ defmodule MCP.OAuth2.DiscoveryTest do
         "token_endpoint" => "https://example.com/token"
       }
 
-      :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
+      stub(Http.Client.Mock, :get, fn _url, _headers, _opts ->
         {:ok, %{status_code: 200, body: SafeJson.encode!(metadata)}}
       end)
 

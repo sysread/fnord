@@ -1,11 +1,5 @@
 defmodule AI.EndpointTest do
-  use Fnord.TestCase, async: false
-
-  setup do
-    :meck.new(HTTPoison, [:no_link, :passthrough, :non_strict])
-    on_exit(fn -> :meck.unload(HTTPoison) end)
-    :ok
-  end
+  use Fnord.TestCase, async: true
 
   defmodule DummyEndpoint do
     @behaviour AI.Endpoint
@@ -55,7 +49,7 @@ defmodule AI.EndpointTest do
         }
       })
 
-    :meck.expect(HTTPoison, :post, fn _url, _body, _headers, _opts ->
+    stub(Http.Client.Mock, :post, fn _url, _body, _headers, _opts ->
       n = (Process.get(call_count_ref) || 0) + 1
       Process.put(call_count_ref, n)
 
@@ -102,7 +96,7 @@ defmodule AI.EndpointTest do
         }
       })
 
-    :meck.expect(HTTPoison, :post, fn _url, _body, _headers, _opts ->
+    stub(Http.Client.Mock, :post, fn _url, _body, _headers, _opts ->
       n = (Process.get(call_count_ref) || 0) + 1
       Process.put(call_count_ref, n)
 
@@ -133,7 +127,7 @@ defmodule AI.EndpointTest do
         }
       })
 
-    :meck.expect(HTTPoison, :post, fn _url, _body, _headers, _opts ->
+    stub(Http.Client.Mock, :post, fn _url, _body, _headers, _opts ->
       n = (Process.get(call_count_ref) || 0) + 1
       Process.put(call_count_ref, n)
       {:ok, %HTTPoison.Response{status_code: 429, headers: [], body: body}}
@@ -159,7 +153,7 @@ defmodule AI.EndpointTest do
         }
       })
 
-    :meck.expect(HTTPoison, :post, fn _url, _body, _headers, _opts ->
+    stub(Http.Client.Mock, :post, fn _url, _body, _headers, _opts ->
       n = (Process.get(call_count_ref) || 0) + 1
       Process.put(call_count_ref, n)
       {:ok, %HTTPoison.Response{status_code: 429, headers: [], body: throttled_body}}

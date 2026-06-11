@@ -79,7 +79,7 @@ defmodule Http do
     |> URI.new!()
     |> Map.put(:query, query)
     |> URI.to_string()
-    |> HTTPoison.get(headers, options)
+    |> Http.Client.impl().get(headers, options)
     |> case do
       {:ok, %{status_code: 200, body: body}} ->
         {:ok, body}
@@ -142,7 +142,7 @@ defmodule Http do
     |> URI.new!()
     |> Map.put(:query, query)
     |> URI.to_string()
-    |> HTTPoison.get(headers, options)
+    |> Http.Client.impl().get(headers, options)
     |> case do
       {:ok, %{status_code: 200, body: body}} ->
         {:ok, body}
@@ -161,7 +161,7 @@ defmodule Http do
       hackney_options: [pool: HttpPool.get()]
     ]
 
-    result = HTTPoison.post(url, body, headers, options)
+    result = Http.Client.impl().post(url, body, headers, options)
 
     case result do
       {:ok, %HTTPoison.Response{status_code: 200, body: json, headers: headers}} ->
@@ -220,7 +220,7 @@ defmodule Http do
       hackney_options: [pool: HttpPool.get()]
     ]
 
-    result = HTTPoison.post(url, body, headers, options)
+    result = Http.Client.impl().post(url, body, headers, options)
 
     case result do
       {:ok, %HTTPoison.Response{status_code: 200, body: json, headers: headers}} ->

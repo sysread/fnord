@@ -22,6 +22,7 @@ defmodule Fnord.TestCase do
   Mox.defmock(MockIndexer, for: Indexer)
   Mox.defmock(MockApprovals, for: Services.Approvals.Workflow)
   Mox.defmock(UI.Output.Mock, for: UI.Output)
+  Mox.defmock(Http.Client.Mock, for: Http.Client)
 
   using do
     quote do
@@ -78,6 +79,13 @@ defmodule Fnord.TestCase do
       # ------------------------------------------------------------------------
       setup do
         Services.Globals.put_env(:fnord, :indexer, MockIndexer)
+
+        # Route all HTTP transport through the mock with NO default stub: any
+        # code path that tries to reach the network during a test dies with a
+        # Mox "no expectation" error instead of silently hitting the wire.
+        # Tests that exercise HTTP paths stub Http.Client.Mock explicitly.
+        Services.Globals.put_env(:fnord, :http_client, Http.Client.Mock)
+
         :ok
       end
 
@@ -205,7 +213,7 @@ defmodule Fnord.TestCase do
   # Mocks whose calls may execute inside service processes rather than the
   # test process (UI.Queue runs puts in its own GenServer, Approvals
   # dispatches impls, indexing happens in spawned workers).
-  @service_facing_mocks [MockIndexer, MockApprovals, UI.Output.Mock]
+  @service_facing_mocks [MockIndexer, MockApprovals, UI.Output.Mock, Http.Client.Mock]
 
   @doc """
   Grants the calling test's Mox stubs/expectations to every service process

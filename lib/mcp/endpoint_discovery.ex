@@ -174,7 +174,7 @@ defmodule MCP.EndpointDiscovery do
   # Check if endpoint exists using HEAD request, fallback to GET
   defp check_endpoint(url, headers) do
     # Try HEAD first
-    case HTTPoison.head(url, headers, recv_timeout: 5_000, timeout: 5_000) do
+    case Http.Client.impl().head(url, headers, recv_timeout: 5_000, timeout: 5_000) do
       {:ok, %{status_code: status}} when status in 200..299 ->
         {:ok, status}
 
@@ -196,7 +196,7 @@ defmodule MCP.EndpointDiscovery do
   end
 
   defp check_endpoint_with_get(url, headers) do
-    case HTTPoison.get(url, headers, recv_timeout: 5_000, timeout: 5_000) do
+    case Http.Client.impl().get(url, headers, recv_timeout: 5_000, timeout: 5_000) do
       {:ok, %{status_code: status}} when status in 200..299 ->
         {:ok, status}
 

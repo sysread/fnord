@@ -107,14 +107,8 @@ defmodule UtilTest do
   end
 
   describe "get_latest_version" do
-    setup do
-      :meck.new(HTTPoison, [:no_link, :passthrough])
-      on_exit(fn -> :meck.unload(HTTPoison) end)
-      :ok
-    end
-
     test "returns {:ok, version} when API returns 200 and valid JSON" do
-      :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
+      stub(Http.Client.Mock, :get, fn _url, _headers, _opts ->
         {:ok, %HTTPoison.Response{status_code: 200, body: ~s({"latest_version":"1.2.3"})}}
       end)
 
@@ -122,7 +116,7 @@ defmodule UtilTest do
     end
 
     test "returns :error when API returns 200 but invalid JSON" do
-      :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
+      stub(Http.Client.Mock, :get, fn _url, _headers, _opts ->
         {:ok, %HTTPoison.Response{status_code: 200, body: "invalid json"}}
       end)
 
@@ -130,7 +124,7 @@ defmodule UtilTest do
     end
 
     test "returns {:error, :api_request_failed} and warns when non-200 status code" do
-      :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
+      stub(Http.Client.Mock, :get, fn _url, _headers, _opts ->
         {:ok, %HTTPoison.Response{status_code: 500, body: ""}}
       end)
 
@@ -140,7 +134,7 @@ defmodule UtilTest do
     end
 
     test "returns {:error, reason} and warns when transport error occurs" do
-      :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
+      stub(Http.Client.Mock, :get, fn _url, _headers, _opts ->
         {:error, %HTTPoison.Error{reason: :timeout}}
       end)
 

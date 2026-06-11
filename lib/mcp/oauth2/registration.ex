@@ -40,7 +40,7 @@ defmodule MCP.OAuth2.Registration do
 
     headers = [{"Content-Type", "application/json"}]
 
-    case HTTPoison.post(
+    case Http.Client.impl().post(
            registration_endpoint,
            SafeJson.encode!(request_body),
            headers,

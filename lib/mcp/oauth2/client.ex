@@ -96,7 +96,7 @@ defmodule MCP.OAuth2.Client do
   # -- Metadata Discovery --
 
   defp fetch_metadata(discovery_url) do
-    case HTTPoison.get(discovery_url, [], recv_timeout: 10_000, timeout: 10_000) do
+    case Http.Client.impl().get(discovery_url, [], recv_timeout: 10_000, timeout: 10_000) do
       {:ok, %{status_code: 200, body: body}} ->
         case SafeJson.decode(body) do
           {:ok, metadata} when is_map(metadata) ->
@@ -260,7 +260,10 @@ defmodule MCP.OAuth2.Client do
 
     body = URI.encode_query(body_params)
 
-    case HTTPoison.post(token_endpoint, body, headers, recv_timeout: 15_000, timeout: 15_000) do
+    case Http.Client.impl().post(token_endpoint, body, headers,
+           recv_timeout: 15_000,
+           timeout: 15_000
+         ) do
       {:ok, %{status_code: 200, body: response_body}} ->
         case SafeJson.decode(response_body) do
           {:ok, tokens} when is_map(tokens) ->

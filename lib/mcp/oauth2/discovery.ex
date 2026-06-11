@@ -72,7 +72,7 @@ defmodule MCP.OAuth2.Discovery do
   defp fetch_metadata(discovery_url) do
     MCP.Util.debug("MCP OAuth", "Fetching metadata from #{discovery_url}")
 
-    case HTTPoison.get(discovery_url, [], recv_timeout: 10_000, timeout: 10_000) do
+    case Http.Client.impl().get(discovery_url, [], recv_timeout: 10_000, timeout: 10_000) do
       {:ok, %{status_code: 200, body: body}} ->
         case SafeJson.decode(body) do
           {:ok, metadata} when is_map(metadata) ->

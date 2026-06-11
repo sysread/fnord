@@ -1,20 +1,5 @@
 defmodule MCP.OAuth2.ClientTest do
-  use Fnord.TestCase, async: false
-
-  setup do
-    # Mock HTTPoison for network calls
-    :meck.new(HTTPoison, [:passthrough])
-
-    on_exit(fn ->
-      try do
-        :meck.unload(HTTPoison)
-      catch
-        _, _ -> :ok
-      end
-    end)
-
-    :ok
-  end
+  use Fnord.TestCase, async: true
 
   describe "start_flow/1" do
     test "fetches metadata and generates authorization URL with PKCE" do
@@ -31,7 +16,7 @@ defmodule MCP.OAuth2.ClientTest do
         "token_endpoint" => "https://example.com/token"
       }
 
-      :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
+      stub(Http.Client.Mock, :get, fn _url, _headers, _opts ->
         {:ok, %{status_code: 200, body: SafeJson.encode!(metadata)}}
       end)
 
@@ -68,7 +53,7 @@ defmodule MCP.OAuth2.ClientTest do
         "token_endpoint" => "https://example.com/token"
       }
 
-      :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
+      stub(Http.Client.Mock, :get, fn _url, _headers, _opts ->
         {:ok, %{status_code: 200, body: SafeJson.encode!(metadata)}}
       end)
 
@@ -92,7 +77,7 @@ defmodule MCP.OAuth2.ClientTest do
         "token_endpoint" => "https://example.com/token"
       }
 
-      :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
+      stub(Http.Client.Mock, :get, fn _url, _headers, _opts ->
         {:ok, %{status_code: 200, body: SafeJson.encode!(metadata)}}
       end)
 
@@ -110,7 +95,7 @@ defmodule MCP.OAuth2.ClientTest do
         redirect_uri: "http://localhost:3000/callback"
       }
 
-      :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
+      stub(Http.Client.Mock, :get, fn _url, _headers, _opts ->
         {:ok, %{status_code: 404, body: "Not found"}}
       end)
 
@@ -140,11 +125,11 @@ defmodule MCP.OAuth2.ClientTest do
         "expires_in" => 3600
       }
 
-      :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
+      stub(Http.Client.Mock, :get, fn _url, _headers, _opts ->
         {:ok, %{status_code: 200, body: SafeJson.encode!(metadata)}}
       end)
 
-      :meck.expect(HTTPoison, :post, fn _url, _body, _headers, _opts ->
+      stub(Http.Client.Mock, :post, fn _url, _body, _headers, _opts ->
         {:ok, %{status_code: 200, body: SafeJson.encode!(token_response)}}
       end)
 
@@ -179,15 +164,15 @@ defmodule MCP.OAuth2.ClientTest do
         "expires_in" => 3600
       }
 
-      :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
+      stub(Http.Client.Mock, :get, fn _url, _headers, _opts ->
         {:ok, %{status_code: 200, body: SafeJson.encode!(metadata)}}
       end)
 
       # Surface the form-encoded POST body to the test pid; asserting inside
-      # the meck callback would be swallowed by the call site.
+      # the stub callback would be swallowed by the call site.
       test_pid = self()
 
-      :meck.expect(HTTPoison, :post, fn _url, body, _headers, _opts ->
+      stub(Http.Client.Mock, :post, fn _url, body, _headers, _opts ->
         send(test_pid, {:token_request_body, body})
         {:ok, %{status_code: 200, body: SafeJson.encode!(token_response)}}
       end)
@@ -215,7 +200,7 @@ defmodule MCP.OAuth2.ClientTest do
         "token_endpoint" => "https://example.com/token"
       }
 
-      :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
+      stub(Http.Client.Mock, :get, fn _url, _headers, _opts ->
         {:ok, %{status_code: 200, body: SafeJson.encode!(metadata)}}
       end)
 
@@ -247,11 +232,11 @@ defmodule MCP.OAuth2.ClientTest do
         "refresh_token" => "new-refresh-123"
       }
 
-      :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
+      stub(Http.Client.Mock, :get, fn _url, _headers, _opts ->
         {:ok, %{status_code: 200, body: SafeJson.encode!(metadata)}}
       end)
 
-      :meck.expect(HTTPoison, :post, fn _url, _body, _headers, _opts ->
+      stub(Http.Client.Mock, :post, fn _url, _body, _headers, _opts ->
         {:ok, %{status_code: 200, body: SafeJson.encode!(token_response)}}
       end)
 
@@ -280,13 +265,13 @@ defmodule MCP.OAuth2.ClientTest do
         "expires_in" => 3600
       }
 
-      :meck.expect(HTTPoison, :get, fn _url, _headers, _opts ->
+      stub(Http.Client.Mock, :get, fn _url, _headers, _opts ->
         {:ok, %{status_code: 200, body: SafeJson.encode!(metadata)}}
       end)
 
       test_pid = self()
 
-      :meck.expect(HTTPoison, :post, fn _url, body, _headers, _opts ->
+      stub(Http.Client.Mock, :post, fn _url, body, _headers, _opts ->
         send(test_pid, {:token_request_body, body})
         {:ok, %{status_code: 200, body: SafeJson.encode!(token_response)}}
       end)

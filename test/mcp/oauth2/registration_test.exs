@@ -1,19 +1,5 @@
 defmodule MCP.OAuth2.RegistrationTest do
-  use Fnord.TestCase, async: false
-
-  setup do
-    :meck.new(HTTPoison, [:passthrough])
-
-    on_exit(fn ->
-      try do
-        :meck.unload(HTTPoison)
-      catch
-        _, _ -> :ok
-      end
-    end)
-
-    :ok
-  end
+  use Fnord.TestCase, async: true
 
   describe "register/2" do
     test "registers client with default configuration" do
@@ -22,7 +8,7 @@ defmodule MCP.OAuth2.RegistrationTest do
         "client_id_issued_at" => System.os_time(:second)
       }
 
-      :meck.expect(HTTPoison, :post, fn url, body, headers, _opts ->
+      stub(Http.Client.Mock, :post, fn url, body, headers, _opts ->
         assert url == "https://example.com/register"
         assert {"Content-Type", "application/json"} in headers
 
@@ -48,7 +34,7 @@ defmodule MCP.OAuth2.RegistrationTest do
         "client_secret" => "secret-123"
       }
 
-      :meck.expect(HTTPoison, :post, fn _url, body, _headers, _opts ->
+      stub(Http.Client.Mock, :post, fn _url, body, _headers, _opts ->
         request = SafeJson.decode!(body)
         assert request["redirect_uris"] == ["http://localhost:9090/callback"]
 
@@ -69,7 +55,7 @@ defmodule MCP.OAuth2.RegistrationTest do
         "client_id" => "named-client"
       }
 
-      :meck.expect(HTTPoison, :post, fn _url, body, _headers, _opts ->
+      stub(Http.Client.Mock, :post, fn _url, body, _headers, _opts ->
         request = SafeJson.decode!(body)
         assert request["client_name"] == "MyApp"
 
@@ -89,7 +75,7 @@ defmodule MCP.OAuth2.RegistrationTest do
         "client_id" => "client-200"
       }
 
-      :meck.expect(HTTPoison, :post, fn _url, _body, _headers, _opts ->
+      stub(Http.Client.Mock, :post, fn _url, _body, _headers, _opts ->
         {:ok, %{status_code: 200, body: SafeJson.encode!(registration_response)}}
       end)
 
@@ -98,7 +84,7 @@ defmodule MCP.OAuth2.RegistrationTest do
     end
 
     test "returns error when registration fails with HTTP error" do
-      :meck.expect(HTTPoison, :post, fn _url, _body, _headers, _opts ->
+      stub(Http.Client.Mock, :post, fn _url, _body, _headers, _opts ->
         {:ok, %{status_code: 400, body: "Invalid request"}}
       end)
 
@@ -107,7 +93,7 @@ defmodule MCP.OAuth2.RegistrationTest do
     end
 
     test "returns error when network request fails" do
-      :meck.expect(HTTPoison, :post, fn _url, _body, _headers, _opts ->
+      stub(Http.Client.Mock, :post, fn _url, _body, _headers, _opts ->
         raise HTTPoison.Error, reason: :timeout
       end)
 
@@ -116,7 +102,7 @@ defmodule MCP.OAuth2.RegistrationTest do
     end
 
     test "returns error when response is missing client_id" do
-      :meck.expect(HTTPoison, :post, fn _url, _body, _headers, _opts ->
+      stub(Http.Client.Mock, :post, fn _url, _body, _headers, _opts ->
         {:ok, %{status_code: 201, body: SafeJson.encode!(%{"foo" => "bar"})}}
       end)
 
@@ -125,7 +111,7 @@ defmodule MCP.OAuth2.RegistrationTest do
     end
 
     test "returns error when response JSON is invalid" do
-      :meck.expect(HTTPoison, :post, fn _url, _body, _headers, _opts ->
+      stub(Http.Client.Mock, :post, fn _url, _body, _headers, _opts ->
         {:ok, %{status_code: 201, body: "not json"}}
       end)
 

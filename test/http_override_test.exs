@@ -1,19 +1,19 @@
 defmodule HttpOverrideTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   alias HttpPool
 
+  # HttpPool overrides live in the process dictionary, so each async test
+  # process gets its own; clear defensively in case a helper set one.
   setup do
     HttpPool.clear()
-    :meck.new(HTTPoison, [:no_link, :passthrough, :non_strict])
-    on_exit(fn -> :meck.unload(HTTPoison) end)
     :ok
   end
 
   defp json_headers, do: [{"Content-Type", "application/json"}]
 
   test "post_json uses default :ai_api pool" do
-    :meck.expect(HTTPoison, :post, fn _url, _body, _headers, opts ->
+    stub(Http.Client.Mock, :post, fn _url, _body, _headers, opts ->
       assert opts[:hackney_options] == [pool: :ai_api]
       {:ok, %HTTPoison.Response{status_code: 200, headers: [], body: ~s({})}}
     end)
@@ -25,7 +25,7 @@ defmodule HttpOverrideTest do
   test "post_json uses overridden :ai_indexer pool" do
     HttpPool.set(:ai_indexer)
 
-    :meck.expect(HTTPoison, :post, fn _url, _body, _headers, opts ->
+    stub(Http.Client.Mock, :post, fn _url, _body, _headers, opts ->
       assert opts[:hackney_options] == [pool: :ai_indexer]
       {:ok, %HTTPoison.Response{status_code: 200, headers: [], body: ~s({})}}
     end)

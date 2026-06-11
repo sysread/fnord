@@ -1,18 +1,5 @@
 defmodule AI.EndpointCatchAllTest do
-  use Fnord.TestCase, async: false
-
-  setup do
-    # Stub Http.post_json/3 to return a transport_error tuple
-    :ok = :meck.new(Http, [:no_link, :passthrough])
-    :ok = :meck.new(Store.APIUsage, [:no_link, :passthrough])
-
-    on_exit(fn ->
-      :meck.unload(Http)
-      :meck.unload(Store.APIUsage)
-    end)
-
-    :ok
-  end
+  use Fnord.TestCase, async: true
 
   defmodule DummyEndpoint do
     @behaviour AI.Endpoint
@@ -25,8 +12,11 @@ defmodule AI.EndpointCatchAllTest do
   end
 
   test "passthrough transport_error tuple" do
-    :meck.expect(Http, :post_json, fn _url, _headers, _payload ->
-      {:transport_error, :closed}
+    # :closed is a retryable transport reason, so Http exhausts its retry
+    # budget (sleeps are skipped by TestCase) before surfacing the error;
+    # the endpoint's catch-all classifier must pass the tuple through as-is.
+    stub(Http.Client.Mock, :post, fn _url, _body, _headers, _opts ->
+      {:error, %HTTPoison.Error{reason: :closed}}
     end)
 
     result = AI.Endpoint.post_json(DummyEndpoint, [], %{})
