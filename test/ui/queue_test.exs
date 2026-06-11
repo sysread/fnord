@@ -175,32 +175,25 @@ defmodule UI.Queue.Test do
     test "puts/4 accepts Owl.Data lists with wide unicode characters" do
       owl_data = ["Wide: ", Owl.Data.tag("世界", :green), " ", Owl.Data.tag("🙂", :green), "\n"]
 
-      :meck.new(Owl.IO, [:passthrough])
+      # The queue's exec runs Owl.IO.puts in the queue process, which writes
+      # to the queue's group leader. Start a fresh queue *inside* capture_io
+      # so it inherits the capture device and the real rendered output is
+      # assertable. (start_link re-registers the tree's instance; this test
+      # ends immediately after, so nothing downstream notices.)
+      output =
+        ExUnit.CaptureIO.capture_io(fn ->
+          {:ok, queue} = UI.Queue.start_link([])
 
-      :meck.expect(Owl.IO, :puts, fn data ->
-        # Convert Owl data to chardata for inspection
-        rendered = Owl.Data.to_chardata(data) |> IO.iodata_to_binary()
-        assert rendered =~ "世界"
-        assert rendered =~ "🙂"
-        :ok
-      end)
+          result =
+            UI.Queue.interact(queue, fn ->
+              UI.Queue.puts(queue, :stdio, owl_data)
+            end)
 
-      on_exit(fn ->
-        try do
-          :meck.unload(Owl.IO)
-        rescue
-          _ -> :ok
-        catch
-          _, _ -> :ok
-        end
-      end)
-
-      result =
-        UI.Queue.interact(fn ->
-          UI.Queue.puts(UI.Queue.instance(), :stdio, owl_data)
+          assert result == {:ok, :ok}
         end)
 
-      assert result == {:ok, :ok}
+      assert output =~ "世界"
+      assert output =~ "🙂"
     end
   end
 

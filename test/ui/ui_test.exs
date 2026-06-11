@@ -1,11 +1,9 @@
 defmodule UI.UITest do
-  import ExUnit.CaptureIO
-
   @moduledoc """
   Unit tests for UI.clean_detail/1 and UI.iodata?/1 functions.
   """
 
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   alias UI
 
@@ -149,25 +147,18 @@ defmodule UI.UITest do
     end
   end
 
-  describe "spin/1 when registry is absent" do
-    setup do
-      Settings.set_quiet(false)
-      # Stub Owl.Spinner.start/1 and Owl.Spinner.stop/1 to no-ops
-      :meck.new(Owl.Spinner, [:no_link])
-      :meck.expect(Owl.Spinner, :start, fn _ -> :ok end)
-      :meck.expect(Owl.Spinner, :stop, fn _ -> :ok end)
-      on_exit(fn -> :meck.unload(Owl.Spinner) end)
-      :ok
-    end
-
-    test "returns :ok and does not raise when registry is not running" do
-      # Ensure Owl WidgetsRegistry is not running
+  describe "Spinner.run when no spinner widget exists" do
+    # Quiet mode (the TestCase default) skips Owl.IO.puts and Owl.Spinner.start,
+    # so no real spinner renders to the terminal. The after-block's
+    # Owl.Spinner.stop and the label-changer's update_label still run for
+    # real against the absent :fnord widget - exercising the defensive
+    # rescue/catch wrapping that keeps Spinner.run from raising when Owl's
+    # machinery has nothing registered under our id.
+    test "returns the fun's result and does not raise" do
       assert Registry.whereis_name({Owl.WidgetsRegistry, :fnord}) in [nil, :undefined]
 
-      capture_io(fn ->
-        assert Spinner.run(fn -> {"Conversation summarized", :ok} end, "Summarizing conversation") ==
-                 :ok
-      end)
+      assert Spinner.run(fn -> {"Conversation summarized", :ok} end, "Summarizing conversation") ==
+               :ok
     end
   end
 end
