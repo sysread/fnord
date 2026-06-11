@@ -1,26 +1,22 @@
 defmodule AI.Tools.File.InfoTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
   @moduletag capture_log: true
 
+  # ---------------------------------------------------------------------------
+  # File contents are read for real from the project source root; the FileInfo
+  # sub-agent is the only canned collaborator, scripted per test at the
+  # agent-dispatch seam via canned_agent/1. Backup annotations come from the
+  # real Services.BackupFile, driven by the backup-file naming convention.
+  # ---------------------------------------------------------------------------
+
   setup do
-    # Prepare fresh mocks for each test. The FileInfo sub-agent itself is
-    # canned per-test at the agent-dispatch seam via canned_agent/1.
-    for mod <- [AI.Tools, Services.BackupFile] do
-      :meck.new(mod, [:passthrough])
-    end
+    project = mock_project("info_test")
 
-    on_exit(fn ->
-      # Unload mocks after each test
-      for mod <- [AI.Tools, Services.BackupFile] do
-        try do
-          :meck.unload(mod)
-        rescue
-          _ -> :ok
-        end
-      end
-    end)
+    # The canonical accessor resolves the project via AI.Tools.get_project/0,
+    # which rejects projects whose store directory is missing or empty.
+    File.mkdir_p!(Store.Project.files_root(project))
 
-    :ok
+    {:ok, project: project}
   end
 
   test "metadata callbacks" do
@@ -64,15 +60,12 @@ defmodule AI.Tools.File.InfoTest do
   end
 
   describe "call/1 behavior" do
-    test "success path without backup" do
-      # Stub file reading and the FileInfo sub-agent
-      :meck.expect(AI.Tools, :get_file_contents, fn _ -> {:ok, "line1\nline2"} end)
+    test "success path without backup", %{project: project} do
+      mock_source_file(project, "f1.ex", "line1\nline2")
 
       canned_agent(fn AI.Agent.FileInfo, args ->
         {:ok, "RESP for #{args.file}"}
       end)
-
-      :meck.expect(Services.BackupFile, :describe_backup, fn _ -> nil end)
 
       {:ok, output} = AI.Tools.File.Info.call(%{"files" => ["f1.ex"], "question" => "Q"})
       assert output =~ "Hashline identifiers"
@@ -80,45 +73,35 @@ defmodule AI.Tools.File.InfoTest do
       assert output =~ "## Result\nRESP for f1.ex"
     end
 
-    test "success path with backup and multiple files ordering" do
-      # Stub file contents
-      :meck.expect(AI.Tools, :get_file_contents, fn
-        "x.ex" -> {:ok, "a"}
-        "y.ex" -> {:ok, "b"}
-      end)
+    test "success path with backup and multiple files ordering", %{project: project} do
+      # The first file's name follows the backup convention, so the real
+      # BackupFile service annotates its block; the second stays plain.
+      mock_source_file(project, "x.ex.0.0.bak", "a")
+      mock_source_file(project, "y.ex", "b")
 
-      # Stub the FileInfo sub-agent
       canned_agent(fn AI.Agent.FileInfo, args ->
         {:ok, "ANS for #{args.file}"}
       end)
 
-      # Backup for x.ex only
-      :meck.expect(Services.BackupFile, :describe_backup, fn
-        "x.ex" -> "BACKUP NOTE"
-        _ -> nil
-      end)
+      {:ok, output} =
+        AI.Tools.File.Info.call(%{"files" => ["x.ex.0.0.bak", "y.ex"], "question" => "Q"})
 
-      {:ok, output} = AI.Tools.File.Info.call(%{"files" => ["x.ex", "y.ex"], "question" => "Q"})
       [block1, block2] = String.split(output, "\n\n-----\n\n")
 
-      # x.ex block
-      assert block1 =~ "## File\nx.ex"
+      # backup block
+      assert block1 =~ "## File\nx.ex.0.0.bak"
       assert block1 =~ "## Result"
-      assert block1 =~ "BACKUP NOTE"
-      assert block1 =~ "ANS for x.ex"
+      assert block1 =~ "[fnord backup file]"
+      assert block1 =~ "ANS for x.ex.0.0.bak"
 
       # y.ex block
       assert block2 =~ "## File\ny.ex"
       assert block2 =~ "## Result"
       assert block2 =~ "ANS for y.ex"
-      refute block2 =~ "BACKUP"
+      refute block2 =~ "backup"
     end
 
     test "error path when file read fails" do
-      # Simulate get_file_contents error
-      :meck.expect(AI.Tools, :get_file_contents, fn _ -> {:error, :enoent} end)
-      :meck.expect(Services.BackupFile, :describe_backup, fn _ -> nil end)
-
       {:ok, output} = AI.Tools.File.Info.call(%{"files" => ["bad.ex"], "question" => "Q"})
       assert output =~ "Unable to read the file contents"
       assert output =~ "FILE:  bad.ex"

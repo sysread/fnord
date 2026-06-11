@@ -1,5 +1,21 @@
 defmodule AI.Tools.File.ContentsTest do
-  use Fnord.TestCase
+  use Fnord.TestCase, async: true
+
+  # ---------------------------------------------------------------------------
+  # These tests read real files from a real project source root; the canonical
+  # accessor (AI.Tools.get_file_contents_with_origin/1) runs for real,
+  # including the FileCache and the source-fallback resolution path.
+  # ---------------------------------------------------------------------------
+
+  setup do
+    project = mock_project("contents_test")
+
+    # The canonical accessor resolves the project via AI.Tools.get_project/0,
+    # which rejects projects whose store directory is missing or empty.
+    File.mkdir_p!(Store.Project.files_root(project))
+
+    {:ok, project: project}
+  end
 
   describe "metadata" do
     test "async?/0 returns true" do
@@ -55,34 +71,9 @@ defmodule AI.Tools.File.ContentsTest do
   end
 
   describe "call/1 - successful read with numbering" do
-    setup do
-      :meck.new(AI.Tools)
+    test "returns numbered lines wrapped in code fence", %{project: project} do
+      mock_source_file(project, "file.txt", "one\ntwo\nthree")
 
-      :meck.expect(AI.Tools, :get_file_contents_with_origin, fn "file.txt" ->
-        {:ok, "one\ntwo\nthree"}
-      end)
-
-      :meck.new(Services.BackupFile)
-      :meck.expect(Services.BackupFile, :describe_backup, fn _ -> nil end)
-
-      on_exit(fn ->
-        try do
-          :meck.unload(AI.Tools)
-        catch
-          _, _ -> :ok
-        end
-
-        try do
-          :meck.unload(Services.BackupFile)
-        catch
-          _, _ -> :ok
-        end
-      end)
-
-      :ok
-    end
-
-    test "returns numbered lines wrapped in code fence" do
       {:ok, out} = AI.Tools.File.Contents.call(%{"file" => "file.txt"})
       assert out =~ "[file_contents_tool] Contents of file.txt:"
       assert out =~ ~r/1:[0-9a-f]{4}\tone/
@@ -93,34 +84,9 @@ defmodule AI.Tools.File.ContentsTest do
   end
 
   describe "call/1 - no numbering with slice" do
-    setup do
-      :meck.new(AI.Tools)
+    test "slice lines 2 to 3 without numbering", %{project: project} do
+      mock_source_file(project, "file.txt", "a\nb\nc\nd")
 
-      :meck.expect(AI.Tools, :get_file_contents_with_origin, fn "file.txt" ->
-        {:ok, "a\nb\nc\nd"}
-      end)
-
-      :meck.new(Services.BackupFile)
-      :meck.expect(Services.BackupFile, :describe_backup, fn _ -> nil end)
-
-      on_exit(fn ->
-        try do
-          :meck.unload(AI.Tools)
-        catch
-          _, _ -> :ok
-        end
-
-        try do
-          :meck.unload(Services.BackupFile)
-        catch
-          _, _ -> :ok
-        end
-      end)
-
-      :ok
-    end
-
-    test "slice lines 2 to 3 without numbering" do
       {:ok, out} =
         AI.Tools.File.Contents.call(%{
           "file" => "file.txt",
@@ -135,30 +101,9 @@ defmodule AI.Tools.File.ContentsTest do
   end
 
   describe "call/1 - default no numbering" do
-    setup do
-      :meck.new(AI.Tools)
-      :meck.expect(AI.Tools, :get_file_contents_with_origin, fn "plain" -> {:ok, "x\ny"} end)
-      :meck.new(Services.BackupFile)
-      :meck.expect(Services.BackupFile, :describe_backup, fn _ -> nil end)
+    test "no numbering by explicit false", %{project: project} do
+      mock_source_file(project, "plain", "x\ny")
 
-      on_exit(fn ->
-        try do
-          :meck.unload(AI.Tools)
-        catch
-          _, _ -> :ok
-        end
-
-        try do
-          :meck.unload(Services.BackupFile)
-        catch
-          _, _ -> :ok
-        end
-      end)
-
-      :ok
-    end
-
-    test "no numbering by explicit false" do
       {:ok, out} = AI.Tools.File.Contents.call(%{"file" => "plain", "line_numbers" => false})
       refute String.match?(out, ~r/^\d+\t/)
       assert out =~ "x\ny"
@@ -166,30 +111,9 @@ defmodule AI.Tools.File.ContentsTest do
   end
 
   describe "call/1 - slicing to end without end_line" do
-    setup do
-      :meck.new(AI.Tools)
-      :meck.expect(AI.Tools, :get_file_contents_with_origin, fn "toend" -> {:ok, "a\nb\nc"} end)
-      :meck.new(Services.BackupFile)
-      :meck.expect(Services.BackupFile, :describe_backup, fn _ -> nil end)
+    test "slice from line 2 to end", %{project: project} do
+      mock_source_file(project, "toend", "a\nb\nc")
 
-      on_exit(fn ->
-        try do
-          :meck.unload(AI.Tools)
-        catch
-          _, _ -> :ok
-        end
-
-        try do
-          :meck.unload(Services.BackupFile)
-        catch
-          _, _ -> :ok
-        end
-      end)
-
-      :ok
-    end
-
-    test "slice from line 2 to end" do
       {:ok, out} = AI.Tools.File.Contents.call(%{"file" => "toend", "start_line" => 2})
       assert out =~ ~r/2:[0-9a-f]{4}\tb/
       assert out =~ ~r/3:[0-9a-f]{4}\tc/
@@ -197,30 +121,9 @@ defmodule AI.Tools.File.ContentsTest do
   end
 
   describe "call/1 - start > end returns full content" do
-    setup do
-      :meck.new(AI.Tools)
-      :meck.expect(AI.Tools, :get_file_contents_with_origin, fn "rng" -> {:ok, "a\nb\nc"} end)
-      :meck.new(Services.BackupFile)
-      :meck.expect(Services.BackupFile, :describe_backup, fn _ -> nil end)
+    test "start_line > end_line returns all lines numbered", %{project: project} do
+      mock_source_file(project, "rng", "a\nb\nc")
 
-      on_exit(fn ->
-        try do
-          :meck.unload(AI.Tools)
-        catch
-          _, _ -> :ok
-        end
-
-        try do
-          :meck.unload(Services.BackupFile)
-        catch
-          _, _ -> :ok
-        end
-      end)
-
-      :ok
-    end
-
-    test "start_line > end_line returns all lines numbered" do
       {:ok, out} =
         AI.Tools.File.Contents.call(%{"file" => "rng", "start_line" => 5, "end_line" => 2})
 
@@ -230,51 +133,17 @@ defmodule AI.Tools.File.ContentsTest do
   end
 
   describe "call/1 - includes backup description" do
-    setup do
-      :meck.new(AI.Tools)
-      :meck.expect(AI.Tools, :get_file_contents_with_origin, fn "b.txt" -> {:ok, "ln1"} end)
-      :meck.new(Services.BackupFile)
-      :meck.expect(Services.BackupFile, :describe_backup, fn "b.txt" -> "bak" end)
+    test "backup note is included", %{project: project} do
+      # The backup-file naming convention alone triggers the annotation;
+      # this one was not created this session, so the plain note applies.
+      mock_source_file(project, "b.txt.0.0.bak", "ln1")
 
-      on_exit(fn ->
-        try do
-          :meck.unload(AI.Tools)
-        catch
-          _, _ -> :ok
-        end
-
-        try do
-          :meck.unload(Services.BackupFile)
-        catch
-          _, _ -> :ok
-        end
-      end)
-
-      :ok
-    end
-
-    test "backup note is included" do
-      {:ok, out} = AI.Tools.File.Contents.call(%{"file" => "b.txt"})
-      assert out =~ "bak"
+      {:ok, out} = AI.Tools.File.Contents.call(%{"file" => "b.txt.0.0.bak"})
+      assert out =~ "[fnord backup file]"
     end
   end
 
   describe "call/1 - file not found" do
-    setup do
-      :meck.new(AI.Tools)
-      :meck.expect(AI.Tools, :get_file_contents_with_origin, fn "nof" -> {:error, :enoent} end)
-
-      on_exit(fn ->
-        try do
-          :meck.unload(AI.Tools)
-        catch
-          _, _ -> :ok
-        end
-      end)
-
-      :ok
-    end
-
     test "returns friendly error message" do
       {:error, msg} = AI.Tools.File.Contents.call(%{"file" => "nof"})
       assert msg =~ "does not exist"
@@ -283,40 +152,32 @@ defmodule AI.Tools.File.ContentsTest do
   end
 
   describe "call/1 - source-fallback for gitignored files" do
-    setup do
-      :meck.new(AI.Tools)
+    # Simulates a worktree session: the project root override points at an
+    # empty "worktree" dir, the original source root holds a gitignored file
+    # that was never propagated, and the gitignore check is scripted through
+    # the GitCli.Worktree facade mock.
+    setup %{project: project} do
+      {:ok, worktree} = tmpdir()
+      Settings.set_project_root_override(worktree)
+      set_config(:original_project_root, project.source_root)
 
-      :meck.expect(AI.Tools, :get_file_contents_with_origin, fn "scratch/plan.md" ->
-        {:source_fallback, "/source/scratch/plan.md", "the plan"}
-      end)
+      source_path = mock_source_file(project, "scratch/plan.md", "the plan")
 
-      :meck.new(Services.BackupFile)
-      :meck.expect(Services.BackupFile, :describe_backup, fn _ -> nil end)
+      mock_git_worktree()
+      Mox.stub(GitCli.Worktree.Mock, :path_ignored?, fn _root, _path -> true end)
 
-      on_exit(fn ->
-        try do
-          :meck.unload(AI.Tools)
-        catch
-          _, _ -> :ok
-        end
-
-        try do
-          :meck.unload(Services.BackupFile)
-        catch
-          _, _ -> :ok
-        end
-      end)
-
-      :ok
+      {:ok, source_path: source_path}
     end
 
-    test "wraps content with source-fallback note explaining where it came from" do
+    test "wraps content with source-fallback note explaining where it came from", %{
+      source_path: source_path
+    } do
       {:ok, out} =
         AI.Tools.File.Contents.call(%{"file" => "scratch/plan.md", "line_numbers" => false})
 
       assert out =~ "gitignored"
       assert out =~ "not present in"
-      assert out =~ "/source/scratch/plan.md"
+      assert out =~ source_path
       assert out =~ "the plan"
     end
 
@@ -331,23 +192,10 @@ defmodule AI.Tools.File.ContentsTest do
   end
 
   describe "call/1 - other errors" do
-    setup do
-      :meck.new(AI.Tools)
-      :meck.expect(AI.Tools, :get_file_contents_with_origin, fn "err" -> {:error, :eacces} end)
+    test "propagates non-enoent errors from the accessor" do
+      set_config(:project, nil)
 
-      on_exit(fn ->
-        try do
-          :meck.unload(AI.Tools)
-        catch
-          _, _ -> :ok
-        end
-      end)
-
-      :ok
-    end
-
-    test "propagates non-enoent errors" do
-      assert AI.Tools.File.Contents.call(%{"file" => "err"}) == {:error, :eacces}
+      assert AI.Tools.File.Contents.call(%{"file" => "err"}) == {:error, :project_not_set}
     end
   end
 end
