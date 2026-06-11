@@ -144,18 +144,7 @@ defmodule MCP.Tools do
       @impl true
       def call(args) do
         timeout = min(Map.get(@spec_data, "timeout_ms", 30_000), 300_000)
-        client = MCP.Supervisor.instance_name(@server)
-
-        # Call the Base GenServer directly by its registered name
-        try do
-          case Hermes.Client.Base.call_tool(client, @tool, args, timeout: timeout) do
-            {:ok, %Hermes.MCP.Response{result: result}} -> {:ok, result}
-            {:ok, res} -> {:ok, res}
-            {:error, reason} -> {:error, reason}
-          end
-        catch
-          :exit, _ -> {:error, "MCP client not available"}
-        end
+        MCP.Client.call_tool(@server, @tool, args, timeout: timeout)
       end
     end
   end

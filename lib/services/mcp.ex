@@ -1,7 +1,6 @@
 defmodule Services.MCP do
   @moduledoc false
 
-  alias MCP.Supervisor, as: MCPSup
   alias Settings.MCP, as: MCPSettings
   alias Services.Once
   alias MCP.Tools
@@ -47,25 +46,8 @@ defmodule Services.MCP do
   end
 
   defp ensure_supervisor do
-    case Process.whereis(MCPSup) do
-      nil ->
-        start_supervisor_and_unlink()
-
-      _pid ->
-        :ok
-    end
-
-    :ok
-  end
-
-  defp start_supervisor_and_unlink do
-    case MCPSup.start_link([]) do
-      {:ok, pid} ->
-        Process.unlink(pid)
-        :ok
-
-      {:error, {:already_started, pid}} ->
-        Process.unlink(pid)
+    case MCP.Client.start_supervisor() do
+      :ok ->
         :ok
 
       {:error, reason} ->
@@ -76,7 +58,7 @@ defmodule Services.MCP do
 
   defp discover_once(servers) when is_map(servers) do
     Enum.each(servers, fn {server, _cfg} ->
-      case safe_list_tools(server) do
+      case MCP.Client.list_tools(server) do
         {:ok, tools} ->
           Tools.register_server_tools(server, tools)
 
@@ -86,39 +68,6 @@ defmodule Services.MCP do
           :ok
       end
     end)
-  end
-
-  # Robustly list tools for a server, supporting both Hermes.Base and stubbed return shapes.
-  defp safe_list_tools(server) do
-    client = MCPSup.instance_name(server)
-
-    # Check if the Base GenServer is registered and alive
-    case Process.whereis(client) do
-      nil ->
-        {:error, :not_started}
-
-      pid when is_pid(pid) ->
-        if Process.alive?(pid) do
-          try do
-            # Give the server a moment to complete initialization and handshake
-            :timer.sleep(1000)
-
-            case Hermes.Client.Base.list_tools(client) do
-              {:ok, %Hermes.MCP.Response{result: %{"tools" => tools}}} -> {:ok, tools}
-              {:ok, _response} -> {:ok, []}
-              {:error, reason} -> {:error, reason}
-            end
-          rescue
-            error ->
-              {:error, {:rescue, error}}
-          catch
-            :exit, reason ->
-              {:error, {:exit, reason}}
-          end
-        else
-          {:error, :not_alive}
-        end
-    end
   end
 
   @spec test(keyword()) :: map()
@@ -171,14 +120,14 @@ defmodule Services.MCP do
       end
 
     capabilities =
-      case safe_get_capabilities(server) do
+      case MCP.Client.get_server_capabilities(server) do
         {:ok, caps} -> %{capabilities: caps}
         {:error, _} -> %{capabilities: %{}}
       end
 
     # Collect tools first so we can use the tools count as a proxy for auth when expiry is unknown
     {tools_count, tools_map} =
-      case safe_list_tools(server) do
+      case MCP.Client.list_tools(server) do
         {:ok, tools_list} ->
           count = length(tools_list)
 
@@ -276,49 +225,12 @@ defmodule Services.MCP do
     end
   end
 
-  # Retrieve server info; check if process is alive for now
+  # Retrieve server info; connectivity is the only signal available
   defp safe_get_info(server) do
-    instance = MCPSup.instance_name(server)
-
-    # Check if the process exists and is alive
-    case Process.whereis(instance) do
-      nil ->
-        {:error, :not_started}
-
-      pid when is_pid(pid) ->
-        if Process.alive?(pid) do
-          {:ok, %{"name" => "#{server}-server", "status" => "running"}}
-        else
-          {:error, :not_alive}
-        end
-    end
-  end
-
-  # Retrieve server capabilities
-  defp safe_get_capabilities(server) do
-    client = MCPSup.instance_name(server)
-
-    case Process.whereis(client) do
-      nil ->
-        {:error, :not_started}
-
-      pid when is_pid(pid) ->
-        if Process.alive?(pid) do
-          try do
-            case Hermes.Client.Base.get_server_capabilities(client) do
-              caps when is_map(caps) -> {:ok, caps}
-              nil -> {:ok, %{}}
-            end
-          rescue
-            _ ->
-              {:ok, %{}}
-          catch
-            :exit, _ ->
-              {:ok, %{}}
-          end
-        else
-          {:error, :not_alive}
-        end
+    if MCP.Client.connected?(server) do
+      {:ok, %{"name" => "#{server}-server", "status" => "running"}}
+    else
+      {:error, :not_started}
     end
   end
 

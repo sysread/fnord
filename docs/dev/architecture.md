@@ -35,6 +35,10 @@ Two properties matter for tests. First, the `Default` modules route calls to *pu
 
 Commit enumeration for the commit index (`commit_shas/2`, `commit_meta/2`, `commit_numstat/2`) also lives behind `GitCli`: the subprocess calls and their output parsing are in `GitCli.Default`, while `Store.Project.CommitIndex` owns candidate assembly (model stamping, drop logging, the async fan-out over SHAs). Raw `System.cmd("git", ...)` outside `lib/git_cli/` is a seam hole - it forces tests back onto `:meck`-over-`System`; add the operation to the `GitCli` behaviour instead (`repo_root_at/1` and the commit enumeration trio are the precedents).
 
+## MCP runtime boundary
+
+`MCP.Client` (`lib/mcp/client.ex`) is the facade over the Hermes MCP runtime - the VM-global `MCP.Supervisor` and the per-server hermes client GenServers it supervises. Callbacks are keyed by server name (`start_supervisor/0`, `connected?/1`, `list_tools/1`, `get_server_capabilities/1`, `call_tool/4`); resolving a server's registered atom is an implementation detail of `MCP.Client.Default`, which also owns the defensive plumbing around a runtime we don't control (registration/aliveness checks, rescue/catch around hermes calls, response unwrapping, and the start-then-unlink dance that detaches the supervisor from whichever process happened to boot it). `impl/0` resolves the `:mcp_client` Globals key. `Services.MCP` keeps orchestration (discovery loop, tool registration, status assembly, auth checks); `MCP.Tools`-generated tool modules invoke tools through the facade. Tests opt in via `Fnord.TestCase.mock_mcp_client/0`, which passes through to `Default` except `start_supervisor/0` (stubbed to `:ok` - the real one registers the VM-global hermes stack, which must never boot from a test). Raw `Hermes.*` calls outside `lib/mcp/client/` are a seam hole, same rule as git.
+
 ## Command dispatch
 
 Each subcommand is a module that implements the `Cmd` behaviour:
