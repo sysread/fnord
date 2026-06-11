@@ -1,5 +1,11 @@
 defmodule Services.BackupFileTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
+
+  # ---------------------------------------------------------------------------
+  # The backup service runs real against the per-test source dir; cleanup
+  # prompts are scripted at the UI.Output seam (warning_banner bypasses it,
+  # writing straight to stderr, so those assertions go through capture_all).
+  # ---------------------------------------------------------------------------
 
   setup do
     project = mock_project("backup-server-test")
@@ -205,16 +211,33 @@ defmodule Services.BackupFileTest do
   end
 
   describe "offer_cleanup/0" do
+    # UI.say lands on Output.puts (UI.format is identity in tests: quiet
+    # mode short-circuits the formatter), and UI.confirm lands on
+    # Output.confirm. UI.warning_banner writes directly to stderr and never
+    # reaches the Output seam.
+    defp script_cleanup_prompts(accept?) do
+      test_pid = self()
+
+      Mox.stub(UI.Output.Mock, :puts, fn msg ->
+        send(test_pid, {:puts, msg})
+        :ok
+      end)
+
+      Mox.stub(UI.Output.Mock, :confirm, fn msg, _default ->
+        send(test_pid, {:confirm, msg})
+        accept?
+      end)
+    end
+
     test "skips cleanup when no backup files exist" do
-      # Mock UI to capture calls (but none should be made)
-      safe_meck_new(UI, [:passthrough])
+      script_cleanup_prompts(true)
 
-      Services.BackupFile.offer_cleanup()
+      {_stdout, stderr} = capture_all(fn -> Services.BackupFile.offer_cleanup() end)
 
-      # Verify no UI calls were made
-      assert :meck.called(UI, :info, :_) == false
-
-      safe_meck_unload(UI)
+      # No banner, no listing, no prompt.
+      assert stderr == ""
+      refute_received {:puts, _}
+      refute_received {:confirm, _}
     end
 
     test "offers cleanup when backup files exist and user accepts", %{project: project} do
@@ -231,29 +254,20 @@ defmodule Services.BackupFileTest do
       assert File.exists?(backup1)
       assert File.exists?(backup2)
 
-      # Mock UI functions
-      safe_meck_new(UI, [:passthrough])
-      :meck.expect(UI, :warning_banner, fn _msg -> :ok end)
-      :meck.expect(UI, :say, fn _msg -> :ok end)
-      :meck.expect(UI, :info, fn _msg -> :ok end)
-      :meck.expect(UI, :confirm, fn _prompt -> true end)
+      script_cleanup_prompts(true)
 
-      Services.BackupFile.offer_cleanup()
+      {_stdout, stderr} = capture_all(fn -> Services.BackupFile.offer_cleanup() end)
 
-      # Verify UI calls were made
-      assert :meck.called(UI, :warning_banner, ["Backup files were created during this session"])
-      # The backup files are listed in chronological order (oldest first) due to Enum.reverse()
-      assert :meck.called(UI, :say, [
-               "- #{project_path(project, backup1)}\n- #{project_path(project, backup2)}"
-             ])
+      assert stderr =~ "Backup files were created during this session"
 
-      assert :meck.called(UI, :confirm, ["Would you like to delete these backup files?"])
+      assert_received {:puts, listing}
+      assert listing == "- #{project_path(project, backup1)}\n- #{project_path(project, backup2)}"
+
+      assert_received {:confirm, "Would you like to delete these backup files?"}
 
       # Verify backup files were deleted
       refute File.exists?(backup1)
       refute File.exists?(backup2)
-
-      safe_meck_unload(UI)
     end
 
     test "retains backup files when user declines", %{project: project} do
@@ -264,27 +278,22 @@ defmodule Services.BackupFileTest do
       {:ok, backup_file} = Services.BackupFile.create_backup(test_file)
       assert File.exists?(backup_file)
 
-      # Mock UI functions - user declines deletion
-      safe_meck_new(UI, [:passthrough])
-      :meck.expect(UI, :warning_banner, fn _msg -> :ok end)
-      :meck.expect(UI, :say, fn _msg -> :ok end)
-      :meck.expect(UI, :confirm, fn _prompt -> false end)
+      script_cleanup_prompts(false)
 
-      Services.BackupFile.offer_cleanup()
+      {_stdout, stderr} = capture_all(fn -> Services.BackupFile.offer_cleanup() end)
 
-      # Verify UI calls were made
-      assert :meck.called(UI, :warning_banner, ["Backup files were created during this session"])
-      assert :meck.called(UI, :say, ["- #{project_path(project, backup_file)}"])
-      assert :meck.called(UI, :confirm, ["Would you like to delete these backup files?"])
+      assert stderr =~ "Backup files were created during this session"
 
-      assert :meck.called(UI, :say, [
-               "_Backup files not deleted. They may be removed at your convenience._"
-             ])
+      assert_received {:puts, listing}
+      assert listing == "- #{project_path(project, backup_file)}"
+
+      assert_received {:confirm, "Would you like to delete these backup files?"}
+
+      assert_received {:puts,
+                       "_Backup files not deleted. They may be removed at your convenience._"}
 
       # Verify backup file still exists
       assert File.exists?(backup_file)
-
-      safe_meck_unload(UI)
     end
 
     test "handles partial deletion failures gracefully", %{project: project} do
@@ -295,27 +304,23 @@ defmodule Services.BackupFileTest do
       {:ok, backup_file} = Services.BackupFile.create_backup(test_file)
       assert File.exists?(backup_file)
 
-      # Mock UI functions
-      safe_meck_new(UI, [:passthrough])
-      :meck.expect(UI, :warning_banner, fn _msg -> :ok end)
-      :meck.expect(UI, :say, fn _msg -> :ok end)
-      :meck.expect(UI, :warn, fn _msg1, _msg2 -> :ok end)
-      :meck.expect(UI, :debug, fn _msg1, _msg2 -> :ok end)
-      :meck.expect(UI, :confirm, fn _prompt -> true end)
+      # Removing a file requires write permission on its directory; locking
+      # the dir makes File.rm fail with :eacces for real. Restore before
+      # tmpdir cleanup.
+      File.chmod!(project.source_root, 0o555)
+      on_exit(fn -> File.chmod!(project.source_root, 0o755) end)
 
-      # Mock File.rm to simulate file failing to delete
-      :meck.new(File, [:passthrough])
-      :meck.expect(File, :rm, fn _path -> {:error, :eacces} end)
+      script_cleanup_prompts(true)
 
-      Services.BackupFile.offer_cleanup()
+      {_stdout, stderr} = capture_all(fn -> Services.BackupFile.offer_cleanup() end)
 
-      # Verify UI calls were made
-      assert :meck.called(UI, :warning_banner, ["Backup files were created during this session"])
-      assert :meck.called(UI, :say, ["- #{project_path(project, backup_file)}"])
-      assert :meck.called(UI, :confirm, ["Would you like to delete these backup files?"])
+      assert stderr =~ "Backup files were created during this session"
+      assert_received {:puts, listing}
+      assert listing == "- #{project_path(project, backup_file)}"
+      assert_received {:confirm, "Would you like to delete these backup files?"}
 
-      safe_meck_unload(UI)
-      :meck.unload(File)
+      # Deletion failed; the file survives and nothing crashed.
+      assert File.exists?(backup_file)
     end
 
     test "shows nested relative paths in cleanup summary with dotted syntax", %{project: project} do
@@ -328,24 +333,13 @@ defmodule Services.BackupFileTest do
       # Create three backups to generate a 0..2 range
       Enum.each(1..3, fn _ -> Services.BackupFile.create_backup(file) end)
 
-      # Mock UI to capture the summary and decline deletion
-      safe_meck_new(UI, [:passthrough])
-      :meck.expect(UI, :warning_banner, fn _ -> :ok end)
+      script_cleanup_prompts(false)
 
-      :meck.expect(UI, :say, fn msg ->
-        send(self(), {:say, msg})
-        :ok
-      end)
+      capture_all(fn -> Services.BackupFile.offer_cleanup() end)
 
-      :meck.expect(UI, :confirm, fn _ -> false end)
-
-      Services.BackupFile.offer_cleanup()
-
-      # Assert exactly one summary line with nested/dir prefix and dotted range
-      assert_received {:say, summary}
+      # First listing line collapses the range with dotted syntax.
+      assert_received {:puts, summary}
       assert summary == "- nested/dir/file.txt.0.0..2.bak"
-
-      safe_meck_unload(UI)
     end
   end
 
@@ -396,13 +390,10 @@ defmodule Services.BackupFileTest do
     end
 
     test "handles errors gracefully when project not available" do
-      # Mock Store.get_project to return error
-      :meck.new(Store, [:passthrough])
-      :meck.expect(Store, :get_project, fn -> {:error, :no_project} end)
+      # With no project selected, Store.get_project/0 errors for real.
+      set_config(:project, nil)
 
       refute Services.BackupFile.is_session_backup?("any_file.0.0.bak")
-
-      :meck.unload(Store)
     end
   end
 
