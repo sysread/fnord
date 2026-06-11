@@ -1,117 +1,92 @@
 defmodule Cmd.UpgradeTest do
-  use Fnord.TestCase
+  use Fnord.TestCase, async: true
   @moduletag :capture_log
+
+  # Cmd.Upgrade compares the real running version (read from the app spec)
+  # against whatever hex.pm reports, so each test derives its scripted
+  # "latest" relative to the version actually compiled into this suite.
+  defp stub_latest_version(version) do
+    stub(Http.Client.Mock, :get, fn url, _headers, _opts ->
+      assert url =~ "hex.pm/api/packages/fnord"
+      {:ok, %HTTPoison.Response{status_code: 200, body: ~s({"latest_version":"#{version}"})}}
+    end)
+  end
+
+  defp bump_major(version) do
+    %Version{major: major} = Version.parse!(version)
+    "#{major + 1}.0.0"
+  end
 
   describe "run/3" do
     test "upgrades when newer version is available and user confirms" do
-      safe_meck_new(Util, [:no_link, :passthrough, :non_strict])
-      safe_meck_new(UI, [:no_link, :passthrough, :non_strict])
-      safe_meck_new(System, [:no_link, :passthrough, :non_strict])
+      current = Util.get_running_version()
+      latest = bump_major(current)
+      stub_latest_version(latest)
 
-      on_exit(fn ->
-        safe_meck_unload(Util)
-        safe_meck_unload(UI)
-        safe_meck_unload(System)
-      end)
-
-      :meck.expect(Util, :get_latest_version, fn -> {:ok, "1.2.3"} end)
-      :meck.expect(Util, :get_running_version, fn -> "1.2.2" end)
-
-      :meck.expect(UI, :confirm, fn msg, default ->
+      stub(UI.Output.Mock, :confirm, fn msg, default ->
         assert msg == "Do you want to upgrade to the latest version of fnord?"
         refute default
         true
       end)
 
-      :meck.expect(System, :cmd, fn "mix",
-                                    ["escript.install", "--force", "github", "sysread/fnord"],
-                                    opts ->
-        assert Keyword.get(opts, :stderr_to_stdout) == true
-        # into is a stream; just ensure key exists
-        assert Keyword.has_key?(opts, :into)
+      test_pid = self()
+
+      stub(Util.Exec.Mock, :cmd, fn "mix", args, opts ->
+        send(test_pid, {:install, args, opts})
         {"ok", 0}
       end)
 
       {stdout, _stderr} = capture_all(fn -> Cmd.Upgrade.run(%{yes: false}, [], []) end)
 
-      assert :meck.called(System, :cmd, [
-               "mix",
-               ["escript.install", "--force", "github", "sysread/fnord"],
-               :_
-             ])
+      assert_received {:install, ["escript.install", "--force", "github", "sysread/fnord"], opts}
+      assert Keyword.get(opts, :stderr_to_stdout) == true
+      # into is a stream; just ensure the key exists
+      assert Keyword.has_key?(opts, :into)
 
-      assert stdout =~ "Current version: 1.2.2"
-      assert stdout =~ "Latest version: 1.2.3"
+      assert stdout =~ "Current version: #{current}"
+      assert stdout =~ "Latest version: #{latest}"
     end
 
     test "reinstalls when on latest version and user confirms" do
-      safe_meck_new(Util, [:no_link, :passthrough, :non_strict])
-      safe_meck_new(UI, [:no_link, :passthrough, :non_strict])
-      safe_meck_new(System, [:no_link, :passthrough, :non_strict])
+      current = Util.get_running_version()
+      stub_latest_version(current)
 
-      on_exit(fn ->
-        safe_meck_unload(Util)
-        safe_meck_unload(UI)
-        safe_meck_unload(System)
-      end)
-
-      :meck.expect(Util, :get_latest_version, fn -> {:ok, "1.2.3"} end)
-      :meck.expect(Util, :get_running_version, fn -> "1.2.3" end)
-
-      :meck.expect(UI, :confirm, fn msg, default ->
+      stub(UI.Output.Mock, :confirm, fn msg, default ->
         assert msg == "You are on the latest version of fnord. Would you like to reinstall?"
         refute default
         true
       end)
 
-      :meck.expect(System, :cmd, fn "mix",
-                                    ["escript.install", "--force", "github", "sysread/fnord"],
-                                    _opts ->
+      test_pid = self()
+
+      stub(Util.Exec.Mock, :cmd, fn "mix", args, _opts ->
+        send(test_pid, {:install, args})
         {"ok", 0}
       end)
 
-      {_stdout, _stderr} = capture_all(fn -> Cmd.Upgrade.run(%{yes: false}, [], []) end)
+      capture_all(fn -> Cmd.Upgrade.run(%{yes: false}, [], []) end)
 
-      assert :meck.called(System, :cmd, [
-               "mix",
-               ["escript.install", "--force", "github", "sysread/fnord"],
-               :_
-             ])
+      assert_received {:install, ["escript.install", "--force", "github", "sysread/fnord"]}
     end
 
     test "cancels when newer version available but user declines" do
-      safe_meck_new(Util, [:no_link, :passthrough, :non_strict])
-      safe_meck_new(UI, [:no_link, :passthrough, :non_strict])
+      current = Util.get_running_version()
+      latest = bump_major(current)
+      stub_latest_version(latest)
 
-      on_exit(fn ->
-        safe_meck_unload(Util)
-        safe_meck_unload(UI)
-      end)
-
-      :meck.expect(Util, :get_latest_version, fn -> {:ok, "1.2.3"} end)
-      :meck.expect(Util, :get_running_version, fn -> "1.2.2" end)
-
-      :meck.expect(UI, :confirm, fn msg, default ->
-        assert msg == "Do you want to upgrade to the latest version of fnord?"
-        refute default
-        false
-      end)
+      stub(UI.Output.Mock, :confirm, fn _msg, _default -> false end)
 
       {stdout, _stderr} = capture_all(fn -> Cmd.Upgrade.run(%{yes: false}, [], []) end)
 
-      assert stdout =~ "Current version: 1.2.2"
-      assert stdout =~ "Latest version: 1.2.3"
+      assert stdout =~ "Current version: #{current}"
+      assert stdout =~ "Latest version: #{latest}"
       assert stdout =~ "Cancelled"
     end
 
     test "handles error from get_latest_version" do
-      safe_meck_new(Util, [:no_link, :passthrough, :non_strict])
-
-      on_exit(fn ->
-        safe_meck_unload(Util)
+      stub(Http.Client.Mock, :get, fn _url, _headers, _opts ->
+        {:ok, %HTTPoison.Response{status_code: 404, body: ""}}
       end)
-
-      :meck.expect(Util, :get_latest_version, fn -> {:error, :api_request_failed} end)
 
       {stdout, _stderr} = capture_all(fn -> Cmd.Upgrade.run(%{yes: false}, [], []) end)
 
@@ -119,14 +94,7 @@ defmodule Cmd.UpgradeTest do
     end
 
     test "raises when running version is greater than latest version" do
-      :meck.new(Util, [:no_link, :passthrough, :non_strict])
-
-      on_exit(fn ->
-        :meck.unload(Util)
-      end)
-
-      :meck.expect(Util, :get_latest_version, fn -> {:ok, "1.2.3"} end)
-      :meck.expect(Util, :get_running_version, fn -> "1.2.4" end)
+      stub_latest_version("0.0.1")
 
       assert_raise RuntimeError, fn -> Cmd.Upgrade.run(%{yes: false}, [], []) end
     end

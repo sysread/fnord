@@ -1,4 +1,6 @@
 defmodule NotifierTest do
+  # async: false - the linux test mutates DISPLAY, which is real OS
+  # environment shared across the whole BEAM.
   use Fnord.TestCase, async: false
 
   describe "fallback beep" do
@@ -14,56 +16,39 @@ defmodule NotifierTest do
 
   describe "linux_notify error handling" do
     setup do
-      :meck.new(System, [:no_link, :passthrough, :non_strict])
-
-      # Force a GUI session
+      # Force a GUI session so the linux path reaches the notifier binaries
+      # instead of falling back to the beep.
       orig_display = Util.Env.get_env("DISPLAY")
-
-      on_exit(fn ->
-        maybe_restore_env("DISPLAY", orig_display)
-        :meck.unload(System)
-      end)
-
+      on_exit(fn -> maybe_restore_env("DISPLAY", orig_display) end)
       Util.Env.put_env("DISPLAY", "1")
-
-      # Only notify-send is found
-      :meck.expect(System, :find_executable, fn
-        "notify-send" -> "/usr/bin/notify-send"
-        "dunstify" -> nil
-        _ -> nil
-      end)
-
-      # Stub System.cmd for notify-send
-      :meck.expect(System, :cmd, fn "notify-send", args, opts ->
-        assert args == ["--urgency=critical", "--expire-time=10000", "Oops", "It failed"]
-        assert opts == [stderr_to_stdout: true]
-        {"nope", 1}
-      end)
 
       :ok
     end
 
     test "returns error tuple when notify-send exits non-zero" do
+      # Only notify-send is on the PATH.
+      stub(Util.Exec.Mock, :find_executable, fn
+        "notify-send" -> "/usr/bin/notify-send"
+        _ -> nil
+      end)
+
+      stub(Util.Exec.Mock, :cmd, fn "notify-send", args, opts ->
+        assert args == ["--urgency=critical", "--expire-time=10000", "Oops", "It failed"]
+        assert opts == [stderr_to_stdout: true]
+        {"nope", 1}
+      end)
+
       assert {:error, {"notify-send", 1, "nope"}} =
                Notifier.notify("Oops", "It failed", platform: :linux)
     end
   end
 
   describe "mac_notify error handling (osascript only)" do
-    setup do
-      :meck.new(System, [:no_link, :passthrough, :non_strict])
-      on_exit(fn -> :meck.unload(System) end)
-
-      # Stub System.cmd for osascript
-      :meck.expect(System, :cmd, fn
-        "osascript", ["-e", _script], [stderr_to_stdout: true] ->
-          {"boom", 1}
+    test "returns error tuple when osascript exits non-zero" do
+      stub(Util.Exec.Mock, :cmd, fn "osascript", ["-e", _script], [stderr_to_stdout: true] ->
+        {"boom", 1}
       end)
 
-      :ok
-    end
-
-    test "returns error tuple when osascript exits non-zero" do
       assert {:error, {"osascript", 1, "boom"}} =
                Notifier.notify("Oops", "It failed", platform: :mac)
     end

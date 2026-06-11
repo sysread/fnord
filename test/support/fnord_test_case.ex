@@ -30,6 +30,7 @@ defmodule Fnord.TestCase do
   Mox.defmock(GitCli.Worktree.Review.Mock, for: GitCli.Worktree.Review)
   Mox.defmock(MCP.Client.Mock, for: MCP.Client)
   Mox.defmock(Util.Clipboard.Mock, for: Util.Clipboard)
+  Mox.defmock(Util.Exec.Mock, for: Util.Exec)
 
   using do
     quote do
@@ -105,6 +106,13 @@ defmodule Fnord.TestCase do
         # deep in the endpoint retry stack. Stub with canned_completion/1 or
         # stub(AI.CompletionAPI.Mock, :get, ...) directly.
         Services.Globals.put_env(:fnord, :completion_api, AI.CompletionAPI.Mock)
+
+        # Subprocess execution gets the same treatment: Util.Exec carries the
+        # outward-facing shell-outs that have no dedicated facade (desktop
+        # notifications, escript installs). No default stub - a test that
+        # reaches an unscripted subprocess fails loudly instead of spawning
+        # one (or popping a notification on the developer's desktop).
+        Services.Globals.put_env(:fnord, :exec, Util.Exec.Mock)
 
         :ok
       end
@@ -253,7 +261,8 @@ defmodule Fnord.TestCase do
     GitCli.Worktree.Mock,
     GitCli.Worktree.Review.Mock,
     MCP.Client.Mock,
-    Util.Clipboard.Mock
+    Util.Clipboard.Mock,
+    Util.Exec.Mock
   ]
 
   @doc """

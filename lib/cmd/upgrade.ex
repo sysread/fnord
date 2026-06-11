@@ -47,7 +47,7 @@ defmodule Cmd.Upgrade do
           UI.puts("Latest version: #{version}")
 
           if UI.confirm(confirm, opts.yes) do
-            System.cmd("mix", ["escript.install", "--force", "github", "sysread/fnord"],
+            Util.Exec.cmd("mix", ["escript.install", "--force", "github", "sysread/fnord"],
               stderr_to_stdout: true,
               into: IO.stream(:stdio, :line)
             )

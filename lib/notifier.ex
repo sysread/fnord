@@ -121,10 +121,10 @@ defmodule Notifier do
   # ----------------------------------------------------------------------------
   # Util
   # ----------------------------------------------------------------------------
-  defp exe?(name), do: System.find_executable(name) != nil
+  defp exe?(name), do: Util.Exec.find_executable(name) != nil
 
   defp run(cmd, args) do
-    case System.cmd(cmd, args, stderr_to_stdout: true) do
+    case Util.Exec.cmd(cmd, args, stderr_to_stdout: true) do
       {_out, 0} -> :ok
       {out, code} -> {:error, {cmd, code, out}}
     end
