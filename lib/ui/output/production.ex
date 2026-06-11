@@ -143,7 +143,10 @@ defmodule UI.Output.Production do
     has_default = is_boolean(default)
 
     cond do
-      is_tty?() ->
+      # UI.is_tty? probes stderr in :auto mode (same device this prompt
+      # writes to) and honors the tree-scoped :is_tty override so tests can
+      # dictate interactivity.
+      UI.is_tty?() ->
         yes = if default == true, do: "Y", else: "y"
         no = if default == false, do: "N", else: "n"
 
@@ -243,14 +246,6 @@ defmodule UI.Output.Production do
             # Keep waiting
             wait_for_task_with_timeout(task, timer_ref, notification_sent?)
         end
-    end
-  end
-
-  defp is_tty? do
-    :prim_tty.isatty(:stderr)
-    |> case do
-      true -> true
-      _ -> false
     end
   end
 end

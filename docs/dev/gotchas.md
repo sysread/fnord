@@ -659,3 +659,31 @@ callback per scan via `GitCli.Default.resolve_default_branch/1`
 (`Source.hash`/`Source.exists?`), so the probe fires from
 `Services.BackgroundIndexer` too. `GitCli.commit_shas/2` is only reachable
 through the commit index - probe that instead.
+
+## 40. UI.Queue output lands on the queue's group leader, not the test's
+
+`UI.Queue.exec` runs `Owl.IO.puts`/`IO.gets` in the queue GenServer (or in a
+task the queue spawns for `with_notification_timeout`). IO routes to the
+*queue's* group leader, which was inherited from whoever started the queue -
+the test setup, before any `capture_io` swap. So wrapping a
+`UI.Output.Production` call in `capture_io` captures nothing, and feeding
+stdin via `capture_io(input: ...)` never reaches an `IO.gets` running in the
+queue's task.
+
+The fix is to start a fresh `UI.Queue` *inside* the capture closure:
+
+```elixir
+output =
+  capture_io([input: "Y\n"], fn ->
+    {:ok, _} = UI.Queue.start_link([])
+    assert UI.Output.Production.confirm("Proceed?", false) == true
+  end)
+```
+
+The new queue inherits the capture device as its group leader, and so do the
+tasks it spawns. `start_link` re-registers the tree's `UI.Queue` instance, so
+Production's hardcoded `UI.Queue.instance()` resolves to the captured queue;
+the original queue keeps running but is unreachable for the rest of the test.
+
+See `test/ui/output/production/notification_test.exs` and the Owl.Data test
+in `test/ui/queue_test.exs` for the pattern in use.
