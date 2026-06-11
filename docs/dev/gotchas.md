@@ -579,3 +579,18 @@ instances: when the first test to touch it finishes).
 Globals GenServer and makes Globals - which lives for the whole VM - the
 owner. Both prior offenders (Services.Notes' :notes_status counter,
 AI.Tools.Cmd's tool-availability memo) now go through it.
+
+## 34. Never lazily start a named process linked to the caller - put it in the instance roster
+
+The pattern `case Process.whereis(Name) do nil -> start_link(); _ -> :ok end`
+fails the same way as bare named-ETS creation (item 33), plus one worse:
+`start_link` links the VM-globally-named process to whichever caller got
+there first. Under per-test instances that is some arbitrary test process,
+and the "global" server silently dies when that test finishes - concurrent
+tests then crash with "no process" mid-call, seed-dependently. In prod the
+same shape means a transient task can own (and take down) a supposedly
+session-long server. `MCP.Tools` was the last offender: its lazy
+`ensure_started` is gone and it now boots with the `Fnord.Instance` roster,
+registered through `Services.Instance` like every other tree-scoped service.
+If a service needs to exist, it belongs in the roster; if state must outlive
+the tree, it belongs to Globals (item 33).

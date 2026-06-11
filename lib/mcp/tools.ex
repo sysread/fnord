@@ -3,27 +3,34 @@ defmodule MCP.Tools do
 
   use Agent
 
-  @doc "Start the MCP.Tools agent"
+  @doc "Start the MCP.Tools agent, registered in the current process tree"
   def start_link(_opts \\ []) do
-    Agent.start_link(fn -> %{} end, name: __MODULE__)
+    with {:ok, pid} <- Agent.start_link(fn -> %{} end) do
+      Services.Instance.register(__MODULE__, pid)
+      {:ok, pid}
+    end
   end
 
   @doc "Register or define AI.Tools modules for each MCP tool"
   @spec register_server_tools(String.t(), [map()]) :: :ok
   def register_server_tools(server, tools) when is_binary(server) and is_list(tools) do
-    ensure_started()
-
     Enum.each(tools, fn tool_spec ->
       name = tool_spec["name"]
       mod = module_name(server, name)
       spec_data = default_spec(server, tool_spec)
       tool_name = "#{server}_#{name}"
 
+      # The modules are VM-global; the ensure_loaded? guard makes
+      # re-registration idempotent when another tree already defined them.
+      # Concurrent first-definition is serialized by the code server; worst
+      # case is a redefinition warning, not corruption.
       unless Code.ensure_loaded?(mod) do
         Module.create(mod, module_ast(spec_data, server, name), __ENV__)
-        # Track the module for later retrieval
-        Agent.update(__MODULE__, &Map.put(&1, tool_name, mod))
       end
+
+      # The tool_name => module index is tree-scoped, so it must be written
+      # even when the module itself was defined by an earlier tree.
+      Agent.update(instance(), &Map.put(&1, tool_name, mod))
     end)
 
     :ok
@@ -156,15 +163,8 @@ defmodule MCP.Tools do
   @doc "Get a map of tool name to module for all registered MCP tools"
   @spec module_map() :: %{String.t() => module()}
   def module_map do
-    ensure_started()
-    Agent.get(__MODULE__, & &1)
+    Agent.get(instance(), & &1)
   end
 
-  # Ensure the agent is started
-  defp ensure_started do
-    case Process.whereis(__MODULE__) do
-      nil -> start_link([])
-      _ -> :ok
-    end
-  end
+  defp instance(), do: Services.Instance.fetch!(__MODULE__)
 end

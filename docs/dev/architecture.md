@@ -73,7 +73,7 @@ Services start unnamed and register their pid for the *current process tree* via
 
 Caveats inherited from `:"$ancestors"` resolution: raw-`spawn`ed processes carry no ancestry and cannot resolve any instance (use `Task` or `Services.Globals.Spawn`, which propagates the root via pdict), and processes spawned through a supervisor owned by a *different* (or dead) tree resolve the wrong root.
 
-Tree-scoped: `UI.Queue`, `UI.Tee`, `Services.Once`, `Services.Notes`, `Services.Conversation.Interrupts`, `Services.BackupFile`, `Services.TempFile`, `Services.FileCache`, `Services.NamePool`, `Services.Approvals`, `Services.Approvals.Gate`, `Services.Task`, `Services.MemoryIndexer`, `AI.Embeddings.Pool`. Still VM-global: the MCP stack (`MCP.ClientRegistry`, hermes client/supervisor names, `MCP.Tools` - hermes requires atom names, and `MCP.Tools` creates modules, which are VM-global regardless). The formerly global `Services.TaskSupervisor` was unused and has been deleted.
+Tree-scoped: `UI.Queue`, `UI.Tee`, `Services.Once`, `Services.Notes`, `Services.Conversation.Interrupts`, `Services.BackupFile`, `Services.TempFile`, `Services.FileCache`, `Services.NamePool`, `Services.Approvals`, `Services.Approvals.Gate`, `Services.Task`, `Services.MemoryIndexer`, `AI.Embeddings.Pool`, `MCP.Tools` (its tool_name => module index is per-tree; the dynamically created modules remain VM-global). Still VM-global: the MCP stack (`MCP.ClientRegistry`, hermes client/supervisor names - hermes requires atom names). The formerly global `Services.TaskSupervisor` was unused and has been deleted.
 
 ## Why escript
 

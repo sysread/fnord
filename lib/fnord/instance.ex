@@ -73,7 +73,8 @@ defmodule Fnord.Instance do
       %{id: Services.FileCache, start: {Services.FileCache, :start_link, [[]]}},
       %{id: Services.NamePool, start: {Services.NamePool, :start_link, [[]]}},
       %{id: Services.Approvals, start: {Services.Approvals, :start_link, [[]]}},
-      %{id: Services.Approvals.Gate, start: {Services.Approvals.Gate, :start_link, [[]]}}
+      %{id: Services.Approvals.Gate, start: {Services.Approvals.Gate, :start_link, [[]]}},
+      %{id: MCP.Tools, start: {MCP.Tools, :start_link, [[]]}}
     ]
 
     # max_restarts: 0 preserves the historical bare-link semantics: any
