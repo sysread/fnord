@@ -38,6 +38,30 @@ defmodule GitCli do
   @callback default_branch(String.t() | nil) :: String.t() | nil
   @callback ls_tree(String.t(), String.t()) :: {:ok, [{String.t(), String.t()}]} | {:error, term}
   @callback show_blob(String.t(), String.t(), String.t()) :: {:ok, binary} | {:error, term}
+  @callback commit_shas(String.t(), String.t()) :: {:ok, [String.t()]} | {:error, term}
+  @callback commit_meta(String.t(), String.t()) :: {:ok, commit_meta} | {:error, term}
+  @callback commit_numstat(String.t(), String.t()) :: {:ok, commit_numstat} | {:error, term}
+
+  @typedoc """
+  Parsed metadata for a single commit, as reported by `git show`.
+  `committed_at` is the raw unix-epoch string git emits for `%at`.
+  """
+  @type commit_meta :: %{
+          sha: String.t(),
+          parent_shas: [String.t()],
+          author: String.t(),
+          committed_at: String.t(),
+          subject: String.t(),
+          body: String.t()
+        }
+
+  @typedoc """
+  Parsed `git show --numstat` output: the list of changed paths and the
+  per-file addition/deletion counts. Binary files report 0/0.
+  """
+  @type commit_numstat ::
+          {[String.t()],
+           [%{file: String.t(), additions: non_neg_integer, deletions: non_neg_integer}]}
 
   @doc """
   Returns true when the effective directory (project root override or
@@ -138,6 +162,29 @@ defmodule GitCli do
   """
   @spec show_blob(String.t(), String.t(), String.t()) :: {:ok, binary} | {:error, term}
   def show_blob(root, branch, rel_path), do: impl().show_blob(root, branch, rel_path)
+
+  @doc """
+  Lists every commit SHA reachable from `ref`, newest first (rev-list
+  order). Used by the commit indexer to enumerate index candidates.
+  """
+  @spec commit_shas(String.t(), String.t()) :: {:ok, [String.t()]} | {:error, term}
+  def commit_shas(root, ref), do: impl().commit_shas(root, ref)
+
+  @doc """
+  Returns parsed metadata for a single commit. Errors on unparseable
+  output - the most common cause is a literal `\\x1f` byte in a subject
+  or body, which collides with the field separator used in the format
+  string.
+  """
+  @spec commit_meta(String.t(), String.t()) :: {:ok, commit_meta} | {:error, term}
+  def commit_meta(root, sha), do: impl().commit_meta(root, sha)
+
+  @doc """
+  Returns the changed file list and per-file diffstat counts for a
+  single commit.
+  """
+  @spec commit_numstat(String.t(), String.t()) :: {:ok, commit_numstat} | {:error, term}
+  def commit_numstat(root, sha), do: impl().commit_numstat(root, sha)
 
   @spec impl() :: module
   def impl() do

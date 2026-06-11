@@ -275,4 +275,115 @@ defmodule GitCli.Default do
       {err, _} -> {:error, String.trim(err)}
     end
   end
+
+  @impl GitCli
+  def commit_shas(root, ref) when is_binary(root) and is_binary(ref) do
+    case System.cmd("git", ["rev-list", ref],
+           cd: root,
+           stderr_to_stdout: true
+         ) do
+      {out, 0} -> {:ok, String.split(String.trim(out), "\n", trim: true)}
+      {err, status} -> {:error, {status, err}}
+    end
+  end
+
+  # The \x1f (ASCII unit separator) field delimiter is chosen as the byte
+  # least likely to appear in commit text; a literal \x1f in a subject or
+  # body still breaks the parse, which surfaces as :invalid_commit_metadata.
+  @impl GitCli
+  def commit_meta(root, sha) when is_binary(root) and is_binary(sha) do
+    case System.cmd(
+           "git",
+           [
+             "show",
+             "--quiet",
+             "--format=%H\x1f%P\x1f%an\x1f%at\x1f%s\x1f%b",
+             sha
+           ],
+           cd: root,
+           stderr_to_stdout: true
+         ) do
+      {out, 0} ->
+        case String.trim(out) do
+          "" ->
+            {:error, :empty_commit_output}
+
+          line ->
+            case String.split(line, "\x1f") do
+              [commit_sha, parents, author, committed_at, subject, body] ->
+                {:ok,
+                 %{
+                   sha: commit_sha,
+                   parent_shas: String.split(parents, " ", trim: true),
+                   author: author,
+                   committed_at: committed_at,
+                   subject: subject,
+                   body: body
+                 }}
+
+              _ ->
+                {:error, :invalid_commit_metadata}
+            end
+        end
+
+      {error, status} ->
+        {:error, {status, error}}
+    end
+  end
+
+  @impl GitCli
+  def commit_numstat(root, sha) when is_binary(root) and is_binary(sha) do
+    case System.cmd(
+           "git",
+           ["show", "--numstat", "--format=", sha],
+           cd: root,
+           stderr_to_stdout: true
+         ) do
+      {out, 0} ->
+        {files, stats} =
+          out
+          |> String.split("\n", trim: true)
+          |> Enum.reduce({[], []}, fn line, {files, stats} ->
+            cond do
+              line == "" ->
+                {files, stats}
+
+              String.contains?(line, "\t") ->
+                case String.split(line, "\t") do
+                  [adds, dels, path] ->
+                    {additions, deletions} = parse_numstat_counts(adds, dels)
+
+                    {[path | files],
+                     [%{file: path, additions: additions, deletions: deletions} | stats]}
+
+                  _ ->
+                    {files, stats}
+                end
+
+              true ->
+                {files, stats}
+            end
+          end)
+
+        {:ok, {Enum.reverse(Enum.uniq(files)), Enum.reverse(stats)}}
+
+      {error, status} ->
+        {:error, {status, error}}
+    end
+  end
+
+  @spec parse_numstat_counts(String.t(), String.t()) ::
+          {non_neg_integer(), non_neg_integer()}
+  defp parse_numstat_counts(adds, dels) do
+    {parse_numstat_int(adds), parse_numstat_int(dels)}
+  end
+
+  # Numstat reports "-" for binary files; treat anything non-numeric as 0.
+  @spec parse_numstat_int(String.t()) :: non_neg_integer()
+  defp parse_numstat_int(value) do
+    case Integer.parse(value) do
+      {count, _} when count >= 0 -> count
+      _ -> 0
+    end
+  end
 end

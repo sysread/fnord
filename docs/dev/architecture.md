@@ -33,6 +33,8 @@ At the top, `AI.Agent.Dispatcher` is the agent-invocation boundary: `AI.Agent.ge
 
 Two properties matter for tests. First, the `Default` modules route calls to *public siblings* back through their facade (e.g. `has_changes_to_merge?` calls `GitCli.Worktree.has_uncommitted_changes?`, not a local function), so a test double on the Globals key intercepts nested calls exactly the way `:meck` passthrough did. Second, tests do NOT point these keys at mocks by default - real git stays in place. Tests that script git state opt in via `Fnord.TestCase.mock_git_cli/0` / `mock_git_worktree/0` / `mock_git_review/0`, which install the Mox mock pre-stubbed (`stub_with`) to pass through to `Default`; the test then overrides individual functions with `Mox.stub`.
 
+Commit enumeration for the commit index (`commit_shas/2`, `commit_meta/2`, `commit_numstat/2`) also lives behind `GitCli`: the subprocess calls and their output parsing are in `GitCli.Default`, while `Store.Project.CommitIndex` owns candidate assembly (model stamping, drop logging, the async fan-out over SHAs). Raw `System.cmd("git", ...)` outside `lib/git_cli/` is a seam hole - it forces tests back onto `:meck`-over-`System`; add the operation to the `GitCli` behaviour instead (`repo_root_at/1` and the commit enumeration trio are the precedents).
+
 ## Command dispatch
 
 Each subcommand is a module that implements the `Cmd` behaviour:
