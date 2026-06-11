@@ -115,46 +115,27 @@ defmodule GitCli.WorktreeTest do
       end)
     end
 
+    # The rollback tests exercise AI.Tools.Git.Worktree's create action when
+    # binding the new worktree to the conversation fails: the half-created
+    # worktree must be deleted before the error surfaces. The conversation
+    # process is "dead", so the only realistic failure mode is the
+    # GenServer.call exit - Services.Conversation stays mecked to produce it.
+    # Everything else runs real: the current-conversation pid comes from
+    # tree-local Globals, the project from the per-test store, and the git
+    # layer is scripted through the facade mocks (create returns a fake
+    # entry, delete records the rollback).
     test "rollback_created_worktree uses the created path on cleanup", %{project: project} do
       {:ok, tmp} = tmpdir()
       worktree_path = Path.join(tmp, "created-worktree")
       current_pid = self()
+      test_pid = self()
 
-      mocked = [Services.Globals, Services.Conversation, GitCli.Worktree, GitCli, Store]
+      set_config(:current_conversation, current_pid)
 
-      Enum.each(mocked, fn module ->
-        try do
-          :meck.unload(module)
-        catch
-          _, _ -> :ok
-        end
-
-        :meck.new(module, [:non_strict])
-      end)
-
-      on_exit(fn ->
-        Enum.each(mocked, fn module ->
-          try do
-            :meck.unload(module)
-          catch
-            _, _ -> :ok
-          end
-        end)
-      end)
-
-      :meck.expect(Services.Globals, :get_env, fn :fnord, :current_conversation, nil ->
-        current_pid
-      end)
-
-      :meck.expect(Store, :get_project, fn -> {:ok, %{name: project.name}} end)
+      safe_meck_new(Services.Conversation, [:no_link, :non_strict])
+      on_exit(fn -> safe_meck_unload(Services.Conversation) end)
       :meck.expect(Services.Conversation, :get_id, fn ^current_pid -> "conv-1" end)
       :meck.expect(Services.Conversation, :get_conversation_meta, fn ^current_pid -> %{} end)
-      :meck.expect(GitCli.Worktree, :normalize_worktree_meta_in_parent, fn meta -> meta end)
-      :meck.expect(GitCli.Worktree, :normalize_worktree_meta, fn meta -> meta end)
-
-      :meck.expect(GitCli.Worktree, :create, fn _repo_root, _conversation_id, _meta ->
-        {:ok, %{path: worktree_path, branch: "feature", base_branch: "main"}}
-      end)
 
       # Simulate the one realistic bind-failure mode: a GenServer.call that
       # exits because the conversation process is dead. upsert_conversation_meta
@@ -163,80 +144,66 @@ defmodule GitCli.WorktreeTest do
         exit(:noproc)
       end)
 
-      :meck.expect(GitCli, :repo_root, fn -> project.source_root end)
+      mock_git_cli()
+      Mox.stub(GitCli.Mock, :repo_root, fn -> project.source_root end)
 
-      :meck.expect(GitCli.Worktree, :delete, fn root, path ->
-        assert root == project.source_root
-        assert path == worktree_path
-        send(self(), :rollback_delete_called)
+      mock_git_worktree()
+
+      Mox.stub(GitCli.Worktree.Mock, :create, fn _project, _conversation_id, _branch ->
+        {:ok, %{path: worktree_path, branch: "feature", base_branch: "main"}}
+      end)
+
+      Mox.stub(GitCli.Worktree.Mock, :delete, fn root, path ->
+        send(test_pid, {:rollback_delete, root, path})
         {:ok, :ok}
       end)
 
       assert {:error, {:conversation_bind_failed, {:exit, :noproc}}} =
                AI.Tools.Git.Worktree.call(%{"action" => "create"})
 
-      assert_received :rollback_delete_called
+      assert_received {:rollback_delete, root, path}
+      assert root == project.source_root
+      assert path == worktree_path
     end
 
     test "rollback_created_worktree also cleans up when binding exits", %{project: project} do
       {:ok, tmp} = tmpdir()
       worktree_path = Path.join(tmp, "created-worktree-exit")
       current_pid = self()
+      test_pid = self()
       reason = :noproc
 
-      mocked = [Services.Globals, Services.Conversation, GitCli.Worktree, GitCli, Store]
+      set_config(:current_conversation, current_pid)
 
-      Enum.each(mocked, fn module ->
-        try do
-          :meck.unload(module)
-        catch
-          _, _ -> :ok
-        end
-
-        :meck.new(module, [:non_strict])
-      end)
-
-      on_exit(fn ->
-        Enum.each(mocked, fn module ->
-          try do
-            :meck.unload(module)
-          catch
-            _, _ -> :ok
-          end
-        end)
-      end)
-
-      :meck.expect(Services.Globals, :get_env, fn :fnord, :current_conversation, nil ->
-        current_pid
-      end)
-
-      :meck.expect(Store, :get_project, fn -> {:ok, %{name: project.name}} end)
+      safe_meck_new(Services.Conversation, [:no_link, :non_strict])
+      on_exit(fn -> safe_meck_unload(Services.Conversation) end)
       :meck.expect(Services.Conversation, :get_id, fn ^current_pid -> "conv-1" end)
       :meck.expect(Services.Conversation, :get_conversation_meta, fn ^current_pid -> %{} end)
-      :meck.expect(GitCli.Worktree, :normalize_worktree_meta_in_parent, fn meta -> meta end)
-      :meck.expect(GitCli.Worktree, :normalize_worktree_meta, fn meta -> meta end)
-
-      :meck.expect(GitCli.Worktree, :create, fn _repo_root, _conversation_id, _meta ->
-        {:ok, %{path: worktree_path, branch: "feature", base_branch: "main"}}
-      end)
 
       :meck.expect(Services.Conversation, :upsert_conversation_meta, fn ^current_pid, _meta ->
         exit(reason)
       end)
 
-      :meck.expect(GitCli, :repo_root, fn -> project.source_root end)
+      mock_git_cli()
+      Mox.stub(GitCli.Mock, :repo_root, fn -> project.source_root end)
 
-      :meck.expect(GitCli.Worktree, :delete, fn root, path ->
-        assert root == project.source_root
-        assert path == worktree_path
-        send(self(), :rollback_delete_called)
+      mock_git_worktree()
+
+      Mox.stub(GitCli.Worktree.Mock, :create, fn _project, _conversation_id, _branch ->
+        {:ok, %{path: worktree_path, branch: "feature", base_branch: "main"}}
+      end)
+
+      Mox.stub(GitCli.Worktree.Mock, :delete, fn root, path ->
+        send(test_pid, {:rollback_delete, root, path})
         {:ok, :ok}
       end)
 
       assert {:error, {:conversation_bind_failed, {:exit, ^reason}}} =
                AI.Tools.Git.Worktree.call(%{"action" => "create"})
 
-      assert_received :rollback_delete_called
+      assert_received {:rollback_delete, root, path}
+      assert root == project.source_root
+      assert path == worktree_path
     end
 
     test "recursive_size returns 0 for missing path and positive size for files" do

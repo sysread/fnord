@@ -101,12 +101,13 @@ defmodule Cmd.IndexTest do
       file = mock_source_file(project, "file1.txt", "file1")
       {:ok, idx} = Cmd.Index.new(%{project: project.name, yes: true, quiet: true})
 
-      :meck.new(Cmd.Index, [:non_strict, :passthrough])
-      :meck.expect(GitCli, :ignored_files, fn _ -> %{} end)
-      :meck.expect(GitCli, :is_git_repo_at?, fn _ -> true end)
+      test_pid = self()
+      mock_git_cli()
+      Mox.stub(GitCli.Mock, :ignored_files, fn _ -> %{} end)
 
-      on_exit(fn ->
-        :meck.unload(GitCli)
+      Mox.stub(GitCli.Mock, :is_git_repo_at?, fn _ ->
+        send(test_pid, :git_check)
+        true
       end)
 
       assert :ok = Cmd.Index.perform_task({:ok, idx})
@@ -116,7 +117,7 @@ defmodule Cmd.IndexTest do
       assert [] = entries.stale
       entry = Store.Project.Entry.new_from_file_path(project, file)
       assert Store.Project.Entry.exists_in_store?(entry)
-      assert :meck.called(GitCli, :is_git_repo_at?, :_)
+      assert_received :git_check
     end
 
     test "skips commit indexing in non-git projects" do
@@ -124,12 +125,13 @@ defmodule Cmd.IndexTest do
       file = mock_source_file(project, "file1.txt", "file1")
       {:ok, idx} = Cmd.Index.new(%{project: project.name, yes: true, quiet: true})
 
-      :meck.new(Cmd.Index, [:non_strict, :passthrough])
-      :meck.expect(GitCli, :ignored_files, fn _ -> %{} end)
-      :meck.expect(GitCli, :is_git_repo_at?, fn _ -> false end)
+      test_pid = self()
+      mock_git_cli()
+      Mox.stub(GitCli.Mock, :ignored_files, fn _ -> %{} end)
 
-      on_exit(fn ->
-        :meck.unload(GitCli)
+      Mox.stub(GitCli.Mock, :is_git_repo_at?, fn _ ->
+        send(test_pid, :git_check)
+        false
       end)
 
       assert :ok = Cmd.Index.perform_task({:ok, idx})
@@ -139,7 +141,7 @@ defmodule Cmd.IndexTest do
       assert [] = entries.stale
       entry = Store.Project.Entry.new_from_file_path(project, file)
       assert Store.Project.Entry.exists_in_store?(entry)
-      assert :meck.called(GitCli, :is_git_repo_at?, :_)
+      assert_received :git_check
     end
 
     test "indexes commits as part of the foreground run path", %{project: project} do

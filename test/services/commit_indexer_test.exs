@@ -13,9 +13,6 @@ defmodule Services.CommitIndexerTest do
     safe_meck_new(CommitIndex, [:no_link, :passthrough, :non_strict])
     on_exit(fn -> safe_meck_unload(CommitIndex) end)
 
-    safe_meck_new(GitCli, [:no_link, :passthrough, :non_strict])
-    on_exit(fn -> safe_meck_unload(GitCli) end)
-
     safe_meck_new(Services.BgIndexingControl, [:no_link, :passthrough, :non_strict])
     on_exit(fn -> safe_meck_unload(Services.BgIndexingControl) end)
 
@@ -23,7 +20,10 @@ defmodule Services.CommitIndexerTest do
     :meck.expect(Services.BgIndexingControl, :ensure_init, fn -> :ok end)
     :meck.expect(Services.BgIndexingControl, :paused?, fn _ -> false end)
 
-    :meck.expect(GitCli, :is_git_repo_at?, fn _ -> true end)
+    # The mock project dir is not a git repo; script "yes" so the indexer
+    # proceeds to the (mecked) CommitIndex layer.
+    mock_git_cli()
+    Mox.stub(GitCli.Mock, :is_git_repo_at?, fn _ -> true end)
 
     :ok
   end
