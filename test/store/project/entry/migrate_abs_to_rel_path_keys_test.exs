@@ -72,9 +72,11 @@ defmodule Store.Project.Entry.MigrateAbsToRelPathKeysTest do
         Store.Project.Entry.MigrateAbsToRelPathKeys.ensure_relative_entry_ids(project)
       end)
 
-    # Wait for migration to finish
+    # Wait for migration to finish. The default 100ms assert_receive window
+    # flakes when a loaded scheduler (e.g. --max-cases 64) delays the
+    # spawned migration's file I/O.
     Process.monitor(pid)
-    assert_receive {:DOWN, _, :process, ^pid, _}
+    assert_receive {:DOWN, _, :process, ^pid, _}, 5_000
     refute File.exists?(lockfile)
   end
 
