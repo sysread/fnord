@@ -7,10 +7,7 @@ defmodule Cmd.SkillsGenerateTest do
     Services.Globals.put_env(:fnord, :test_no_halt, true)
     stub(UI.Output.Mock, :confirm, fn _msg, _default -> true end)
 
-    :meck.new(AI.CompletionAPI, [:no_link, :passthrough, :non_strict])
-
     on_exit(fn ->
-      :meck.unload(AI.CompletionAPI)
       Services.Globals.delete_env(:fnord, :test_no_halt)
 
       case previous_ui_output do
@@ -26,7 +23,7 @@ defmodule Cmd.SkillsGenerateTest do
     ref = :erlang.make_ref()
     Process.put(ref, 0)
 
-    :meck.expect(AI.CompletionAPI, :get, fn _model, _msgs, _tools, _rf, _web, _verbosity ->
+    stub(AI.CompletionAPI.Mock, :get, fn _model, _msgs, _tools, _rf, _web, _verbosity ->
       case Process.get(ref) do
         0 ->
           Process.put(ref, 1)

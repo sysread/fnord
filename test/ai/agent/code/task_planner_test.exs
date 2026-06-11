@@ -3,13 +3,6 @@ defmodule AI.Agent.Code.TaskPlannerTest do
 
   setup do
     project = mock_project("task-planner-test")
-
-    :meck.new(AI.Completion, [:no_link, :non_strict, :passthrough])
-
-    on_exit(fn ->
-      :meck.unload(AI.Completion)
-    end)
-
     {:ok, project: project}
   end
 
@@ -17,21 +10,20 @@ defmodule AI.Agent.Code.TaskPlannerTest do
     test "malformed steps do not crash and are reported as invalid_response_format", %{
       project: _project
     } do
-      # Return a planning response that violates the JSON schema: steps contains a string.
+      # Return a planning response that violates the JSON schema: steps
+      # contains a string. The planner pipeline runs research and visualize
+      # first (plain-text completions, response_format nil); only the plan
+      # stage sends the plan_steps json_schema, so the stub keys on that
+      # rather than counting calls.
       bad_response =
         SafeJson.encode!(%{
           "steps" => ["arguments"]
         })
 
-      {:ok, counter} = Agent.start_link(fn -> 0 end)
-
-      :meck.expect(AI.Completion, :get, fn _opts ->
-        count = Agent.get_and_update(counter, fn c -> {c + 1, c + 1} end)
-
-        case count do
-          1 -> {:ok, %{response: "ok", messages: []}}
-          2 -> {:ok, %{response: "ok", messages: []}}
-          _ -> {:ok, %{response: bad_response, messages: []}}
+      stub(AI.CompletionAPI.Mock, :get, fn _model, _msgs, _tools, response_format, _web, _vrb ->
+        case response_format do
+          %{json_schema: %{name: "plan_steps"}} -> {:ok, :msg, bad_response, 0}
+          _ -> {:ok, :msg, "ok", 0}
         end
       end)
 

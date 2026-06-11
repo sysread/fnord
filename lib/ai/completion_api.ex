@@ -21,6 +21,24 @@ defmodule AI.CompletionAPI do
           | {:error, :api_unavailable, any}
           | {:error, :context_length_exceeded, non_neg_integer}
 
+  # The model-call boundary: everything below this contract is wire concerns
+  # (payload shape, auth, transport, retry); everything above it is the
+  # completion loop. `AI.Completion` calls through `impl/0` so tests can
+  # substitute canned model responses per process tree without touching the
+  # network stack.
+  @callback get(model, msgs, tools, response_format, web_search?, verbosity) :: response
+
+  @behaviour AI.CompletionAPI
+
+  @doc """
+  Returns the current completion API module. Overridden per process tree via
+  the `:completion_api` config key for unit testing. See `Fnord.TestCase`.
+  """
+  @spec impl() :: module()
+  def impl() do
+    Services.Globals.get_env(:fnord, :completion_api) || __MODULE__
+  end
+
   @impl AI.Endpoint
   def endpoint_path, do: AI.Endpoint.OpenAI.endpoint_path()
 
@@ -45,7 +63,7 @@ defmodule AI.CompletionAPI do
   # end
   # """
 
-  @spec get(model, msgs, tools, response_format, web_search?, verbosity) :: response
+  @impl AI.CompletionAPI
   def get(
         model,
         msgs,

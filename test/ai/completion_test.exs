@@ -1,12 +1,6 @@
 defmodule AI.CompletionTest do
   use Fnord.TestCase, async: false
 
-  setup do
-    :meck.new(AI.CompletionAPI, [:no_link, :passthrough, :non_strict])
-    on_exit(fn -> :meck.unload(AI.CompletionAPI) end)
-    :ok
-  end
-
   describe "new/1" do
     test "creates completion state with minimal valid opts" do
       opts = [
@@ -148,12 +142,12 @@ defmodule AI.CompletionTest do
 
   describe "get/1" do
     test "Completion.get/1 passes nil verbosity to the API layer" do
-      :meck.expect(AI.CompletionAPI, :get, fn _model,
-                                              _msgs,
-                                              _specs,
-                                              _res_fmt,
-                                              _web_srch?,
-                                              verbosity ->
+      stub(AI.CompletionAPI.Mock, :get, fn _model,
+                                           _msgs,
+                                           _specs,
+                                           _res_fmt,
+                                           _web_srch?,
+                                           verbosity ->
         assert is_nil(verbosity)
         {:ok, :msg, "ok", 7}
       end)
@@ -170,12 +164,12 @@ defmodule AI.CompletionTest do
     end
 
     test "Completion.get/1 forwards verbosity to the API" do
-      :meck.expect(AI.CompletionAPI, :get, fn _model,
-                                              _msgs,
-                                              _specs,
-                                              _res_fmt,
-                                              _web_srch?,
-                                              verbosity ->
+      stub(AI.CompletionAPI.Mock, :get, fn _model,
+                                           _msgs,
+                                           _specs,
+                                           _res_fmt,
+                                           _web_srch?,
+                                           verbosity ->
         assert verbosity == "low"
         {:ok, :msg, "ok", 7}
       end)
@@ -192,12 +186,12 @@ defmodule AI.CompletionTest do
     end
 
     test "Completion.get/1 surfaces API error response to user" do
-      :meck.expect(AI.CompletionAPI, :get, fn _model,
-                                              _msgs,
-                                              _specs,
-                                              _res_fmt,
-                                              _web_srch?,
-                                              _verbosity ->
+      stub(AI.CompletionAPI.Mock, :get, fn _model,
+                                           _msgs,
+                                           _specs,
+                                           _res_fmt,
+                                           _web_srch?,
+                                           _verbosity ->
         {:error, %{http_status: 500, code: "server_error", message: "backend exploded"}}
       end)
 
@@ -216,12 +210,12 @@ defmodule AI.CompletionTest do
     end
 
     test "Completion.get/1 surfaces structured error field response to user" do
-      :meck.expect(AI.CompletionAPI, :get, fn _model,
-                                              _msgs,
-                                              _specs,
-                                              _res_fmt,
-                                              _web_srch?,
-                                              _verbosity ->
+      stub(AI.CompletionAPI.Mock, :get, fn _model,
+                                           _msgs,
+                                           _specs,
+                                           _res_fmt,
+                                           _web_srch?,
+                                           _verbosity ->
         {:error, %{http_status: 500, error: "Unexpected response %{foo: :bar}"}}
       end)
 
@@ -239,12 +233,12 @@ defmodule AI.CompletionTest do
     end
 
     test "Completion.get/1 inspects non-binary structured error field values" do
-      :meck.expect(AI.CompletionAPI, :get, fn _model,
-                                              _msgs,
-                                              _specs,
-                                              _res_fmt,
-                                              _web_srch?,
-                                              _verbosity ->
+      stub(AI.CompletionAPI.Mock, :get, fn _model,
+                                           _msgs,
+                                           _specs,
+                                           _res_fmt,
+                                           _web_srch?,
+                                           _verbosity ->
         {:error, %{http_status: 500, error: %{foo: :bar}}}
       end)
 
@@ -262,12 +256,12 @@ defmodule AI.CompletionTest do
     end
 
     test "Completion.get/1 surfaces rate limit error response and can print it" do
-      :meck.expect(AI.CompletionAPI, :get, fn _model,
-                                              _msgs,
-                                              _specs,
-                                              _res_fmt,
-                                              _web_srch?,
-                                              _verbosity ->
+      stub(AI.CompletionAPI.Mock, :get, fn _model,
+                                           _msgs,
+                                           _specs,
+                                           _res_fmt,
+                                           _web_srch?,
+                                           _verbosity ->
         {:error, %{http_status: 429, code: "rate_limit", message: "Rate limit exceeded"}}
       end)
 
@@ -568,12 +562,12 @@ defmodule AI.CompletionTest do
     end
 
     test "Completion.get/1 invokes local tools from toolbox" do
-      :meck.expect(AI.CompletionAPI, :get, fn _model,
-                                              msgs,
-                                              _specs,
-                                              _res_fmt,
-                                              _web_srch?,
-                                              _verbosity ->
+      stub(AI.CompletionAPI.Mock, :get, fn _model,
+                                           msgs,
+                                           _specs,
+                                           _res_fmt,
+                                           _web_srch?,
+                                           _verbosity ->
         # After Phase 2b, the LLM's tool-call requests come back as
         # AI.Message.FunctionCall structs in the messages list (no longer
         # nested in an assistant message). Stop iterating once we've seen
@@ -607,12 +601,12 @@ defmodule AI.CompletionTest do
     end
 
     test "Tool calls invocation respects async?/0" do
-      :meck.expect(AI.CompletionAPI, :get, fn _model,
-                                              msgs,
-                                              _specs,
-                                              _response_fmt,
-                                              _web_srch?,
-                                              _verbosity ->
+      stub(AI.CompletionAPI.Mock, :get, fn _model,
+                                           msgs,
+                                           _specs,
+                                           _response_fmt,
+                                           _web_srch?,
+                                           _verbosity ->
         tool_calls_sent? = Enum.any?(msgs, &match?(%AI.Message.FunctionCall{}, &1))
 
         if tool_calls_sent? do
@@ -649,12 +643,12 @@ defmodule AI.CompletionTest do
     end
 
     test "Completion.get/1 handles unknown tool requests gracefully" do
-      :meck.expect(AI.CompletionAPI, :get, fn _model,
-                                              msgs,
-                                              _specs,
-                                              _res_fmt,
-                                              _web_srch?,
-                                              _verbosity ->
+      stub(AI.CompletionAPI.Mock, :get, fn _model,
+                                           msgs,
+                                           _specs,
+                                           _res_fmt,
+                                           _web_srch?,
+                                           _verbosity ->
         tool_calls_sent? = Enum.any?(msgs, &match?(%AI.Message.FunctionCall{}, &1))
 
         if tool_calls_sent? do
@@ -685,12 +679,12 @@ defmodule AI.CompletionTest do
 
     test "deduplicates identical tool calls within a single batch and preserves order" do
       # First API.get returns duplicated tool calls, second returns final assistant message
-      :meck.expect(AI.CompletionAPI, :get, fn _model,
-                                              msgs,
-                                              _specs,
-                                              _res_fmt,
-                                              _web_srch?,
-                                              _verbosity ->
+      stub(AI.CompletionAPI.Mock, :get, fn _model,
+                                           msgs,
+                                           _specs,
+                                           _res_fmt,
+                                           _web_srch?,
+                                           _verbosity ->
         if Enum.any?(msgs, &match?(%AI.Message.FunctionCall{}, &1)) do
           {:ok, :msg, "done", 0}
         else
@@ -749,12 +743,12 @@ defmodule AI.CompletionTest do
         if Process.alive?(counter), do: Process.exit(counter, :shutdown)
       end)
 
-      :meck.expect(AI.CompletionAPI, :get, fn _model,
-                                              _msgs,
-                                              specs,
-                                              _res_fmt,
-                                              _web_srch?,
-                                              _verbosity ->
+      stub(AI.CompletionAPI.Mock, :get, fn _model,
+                                           _msgs,
+                                           specs,
+                                           _res_fmt,
+                                           _web_srch?,
+                                           _verbosity ->
         count = Agent.get_and_update(counter, fn c -> {c + 1, c + 1} end)
 
         if is_nil(specs) do

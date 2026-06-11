@@ -23,6 +23,7 @@ defmodule Fnord.TestCase do
   Mox.defmock(MockApprovals, for: Services.Approvals.Workflow)
   Mox.defmock(UI.Output.Mock, for: UI.Output)
   Mox.defmock(Http.Client.Mock, for: Http.Client)
+  Mox.defmock(AI.CompletionAPI.Mock, for: AI.CompletionAPI)
 
   using do
     quote do
@@ -37,6 +38,7 @@ defmodule Fnord.TestCase do
       import Fnord.TestCase,
         only: [
           allow_service_mocks: 1,
+          canned_completion: 1,
           tmpdir: 0,
           capture_all: 1,
           mock_project: 1,
@@ -85,6 +87,13 @@ defmodule Fnord.TestCase do
         # Mox "no expectation" error instead of silently hitting the wire.
         # Tests that exercise HTTP paths stub Http.Client.Mock explicitly.
         Services.Globals.put_env(:fnord, :http_client, Http.Client.Mock)
+
+        # Same treatment one layer up: the completion loop resolves its model
+        # call through this key, so an unstubbed model call fails with a
+        # clear Mox error at the AI boundary rather than a transport error
+        # deep in the endpoint retry stack. Stub with canned_completion/1 or
+        # stub(AI.CompletionAPI.Mock, :get, ...) directly.
+        Services.Globals.put_env(:fnord, :completion_api, AI.CompletionAPI.Mock)
 
         :ok
       end
@@ -213,7 +222,13 @@ defmodule Fnord.TestCase do
   # Mocks whose calls may execute inside service processes rather than the
   # test process (UI.Queue runs puts in its own GenServer, Approvals
   # dispatches impls, indexing happens in spawned workers).
-  @service_facing_mocks [MockIndexer, MockApprovals, UI.Output.Mock, Http.Client.Mock]
+  @service_facing_mocks [
+    MockIndexer,
+    MockApprovals,
+    UI.Output.Mock,
+    Http.Client.Mock,
+    AI.CompletionAPI.Mock
+  ]
 
   @doc """
   Grants the calling test's Mox stubs/expectations to every service process
@@ -505,5 +520,33 @@ defmodule Fnord.TestCase do
   """
   def set_config(key, val) do
     Services.Globals.put_env(:fnord, key, val)
+  end
+
+  @doc """
+  Stubs the completion-API boundary so every model call in this test returns
+  `response`, exercising the real `AI.Completion` loop against a canned
+  answer. Pass a binary for the common case; pass a full response tuple
+  (e.g. `{:error, :context_length_exceeded, 123}`) to exercise error paths;
+  pass a fun that receives the messages list when the reply should depend on
+  the conversation so far.
+  """
+  def canned_completion(response) when is_binary(response) do
+    canned_completion({:ok, :msg, response, 0})
+  end
+
+  def canned_completion(fun) when is_function(fun, 1) do
+    Mox.stub(AI.CompletionAPI.Mock, :get, fn _model, msgs, _tools, _rf, _web, _verbosity ->
+      fun.(msgs)
+    end)
+
+    :ok
+  end
+
+  def canned_completion(response) when is_tuple(response) do
+    Mox.stub(AI.CompletionAPI.Mock, :get, fn _model, _msgs, _tools, _rf, _web, _verbosity ->
+      response
+    end)
+
+    :ok
   end
 end

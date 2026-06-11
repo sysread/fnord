@@ -4,9 +4,6 @@ defmodule AI.NotesTest do
   alias AI.Notes
 
   setup do
-    :meck.new(AI.Completion, [:no_link, :passthrough, :non_strict])
-    on_exit(fn -> :meck.unload(AI.Completion) end)
-
     proj = mock_project("test_project")
     File.mkdir_p!(proj.store_path)
 
@@ -15,10 +12,7 @@ defmodule AI.NotesTest do
 
   describe "format_external_docs/0" do
     test "returns empty string when no external docs exist" do
-      # Mock AI.Completion.get to prevent network calls
-      :meck.expect(AI.Completion, :get, fn _opts ->
-        {:ok, %{response: "Mocked response"}}
-      end)
+      canned_completion("Mocked response")
 
       # Create a notes instance to test the private function indirectly
       state = Notes.new()
@@ -43,17 +37,11 @@ defmodule AI.NotesTest do
     end
 
     test "tags bullet facts with current branch" do
-      # Arrange: mock completion to return bullet facts
-      :meck.expect(AI.Completion, :get, fn _opts ->
-        {:ok,
-         %{
-           response: """
-           - Fact one
-           - Fact two
-           - Fact three
-           """
-         }}
-      end)
+      canned_completion("""
+      - Fact one
+      - Fact two
+      - Fact three
+      """)
 
       # Init a temp git repo and branch
       project = mock_git_project("notes-repo")
@@ -106,10 +94,8 @@ defmodule AI.NotesTest do
     end
 
     test "notify_tool memos remain untagged" do
-      # Arrange: make completion return N/A so only memos are added
-      :meck.expect(AI.Completion, :get, fn _opts ->
-        {:ok, %{response: "N/A"}}
-      end)
+      # Make the model return N/A so only memos are added
+      canned_completion("N/A")
 
       args_json = SafeJson.encode!(%{"message" => "note to self: alpha\nremember: beta"})
       state = Notes.new()

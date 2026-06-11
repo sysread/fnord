@@ -23,6 +23,8 @@ Entry point: `lib/fnord.ex:22` (`main/1`). Sequence:
 
 All network I/O funnels through `Http.Client` (`lib/http/client.ex`), the single seam over HTTPoison/hackney. `Http` (retrying JSON helpers used by `AI.Endpoint` and `Util`) and the MCP OAuth/discovery modules call `Http.Client.impl().get/post/head` rather than HTTPoison directly. `impl/0` resolves the `:http_client` Globals key (same dispatch pattern as `:indexer`), defaulting to the HTTPoison passthrough in production. `Fnord.TestCase` points the key at a Mox mock with no default stub, so any test code path that tries to reach the network fails loudly instead of hitting the wire.
 
+One layer up, `AI.CompletionAPI` is the model-call boundary: `AI.Completion`'s loop calls `AI.CompletionAPI.impl().get/6`, resolved via the `:completion_api` Globals key. Everything below that contract is wire concerns (payload shape, auth, retry); everything above it is the completion loop. Tests feed canned model responses through the real loop with `Fnord.TestCase.canned_completion/1` instead of mocking `AI.Completion` itself - the loop's message handling, compaction, and error mapping stay under test.
+
 ## Command dispatch
 
 Each subcommand is a module that implements the `Cmd` behaviour:

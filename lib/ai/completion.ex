@@ -296,7 +296,7 @@ defmodule AI.Completion do
     # Inject any pending user interrupts before calling the model
     state = maybe_apply_interrupts(state)
 
-    AI.CompletionAPI.get(
+    AI.CompletionAPI.impl().get(
       state.model,
       state.messages,
       state.specs,
