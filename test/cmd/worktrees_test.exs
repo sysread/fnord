@@ -1,31 +1,47 @@
 defmodule Cmd.WorktreesTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
+
+  # ---------------------------------------------------------------------------
+  # These tests script git state through the GitCli facade mocks while the
+  # command logic, conversation store, and metadata normalization run real:
+  # conversations are written to the per-test store (read back with string
+  # keys, exercising the JSON round-trip the command actually sees), and only
+  # the worktree/review git operations are canned.
+  # ---------------------------------------------------------------------------
 
   setup do
-    :ok = safe_meck_new(GitCli.Worktree, [:passthrough])
-    :ok = safe_meck_new(Store, [:passthrough])
-    :ok = safe_meck_new(Store.Project.Conversation, [:passthrough])
-    :ok = safe_meck_new(GitCli.Worktree.Review, [:passthrough])
+    project = mock_project("demo")
 
-    on_exit(fn ->
-      safe_meck_unload(GitCli.Worktree)
-      safe_meck_unload(Store)
-      safe_meck_unload(Store.Project.Conversation)
-      safe_meck_unload(GitCli.Worktree.Review)
-    end)
+    mock_git_cli()
+    mock_git_worktree()
+    mock_git_review()
 
-    :ok
+    {:ok, project: project}
+  end
+
+  # Writes a real conversation carrying worktree metadata, returning the
+  # conversation struct. Metadata round-trips through JSON, so the command
+  # reads it back string-keyed and normalizes - same shape as production.
+  defp write_conversation(conv_id, metadata) do
+    conv = Store.Project.Conversation.new(conv_id)
+
+    {:ok, _} =
+      Store.Project.Conversation.write(conv, %{
+        messages: [AI.Util.user_msg("hi"), AI.Util.assistant_msg("hello")],
+        metadata: metadata,
+        memories: []
+      })
+
+    conv
   end
 
   describe "worktrees command" do
     test "lists fnord-managed worktrees as a table" do
-      project = %{name: "demo"}
-      :meck.expect(Store, :get_project, fn -> {:ok, project} end)
-      :meck.expect(GitCli.Worktree, :project_root, fn -> {:ok, "/repo"} end)
+      Mox.stub(GitCli.Worktree.Mock, :project_root, fn -> {:ok, "/repo"} end)
 
       wt_root = GitCli.Worktree.default_root("demo")
 
-      :meck.expect(GitCli.Worktree, :list_raw, fn "/repo" ->
+      Mox.stub(GitCli.Worktree.Mock, :list_raw, fn "/repo" ->
         {:ok,
          [
            %{
@@ -43,8 +59,8 @@ defmodule Cmd.WorktreesTest do
          ]}
       end)
 
-      :meck.expect(GitCli.Worktree, :enrich, fn _root, entry -> entry end)
-      :meck.expect(GitCli.Worktree, :has_uncommitted_changes?, fn _path -> false end)
+      Mox.stub(GitCli.Worktree.Mock, :enrich, fn _root, entry -> entry end)
+      Mox.stub(GitCli.Worktree.Mock, :has_uncommitted_changes?, fn _path -> false end)
 
       output =
         capture_io(fn ->
@@ -59,11 +75,9 @@ defmodule Cmd.WorktreesTest do
     end
 
     test "lists no worktrees when none are fnord-managed" do
-      project = %{name: "demo"}
-      :meck.expect(Store, :get_project, fn -> {:ok, project} end)
-      :meck.expect(GitCli.Worktree, :project_root, fn -> {:ok, "/repo"} end)
+      Mox.stub(GitCli.Worktree.Mock, :project_root, fn -> {:ok, "/repo"} end)
 
-      :meck.expect(GitCli.Worktree, :list_raw, fn "/repo" ->
+      Mox.stub(GitCli.Worktree.Mock, :list_raw, fn "/repo" ->
         {:ok,
          [
            %{path: "/repo", branch: "main", merge_status: :unknown, size: 0}
@@ -74,9 +88,7 @@ defmodule Cmd.WorktreesTest do
     end
 
     test "creates a local worktree" do
-      :meck.expect(Store, :get_project, fn -> {:ok, %{name: "demo"}} end)
-
-      :meck.expect(GitCli.Worktree, :create, fn "demo", "conv-1", "feat" ->
+      Mox.stub(GitCli.Worktree.Mock, :create, fn "demo", "conv-1", "feat" ->
         {:ok, %{path: "/repo/wt-feat"}}
       end)
 
@@ -84,64 +96,53 @@ defmodule Cmd.WorktreesTest do
     end
 
     test "deletes a worktree by conversation id" do
-      conv = %Store.Project.Conversation{
-        id: "conv-1",
-        project_home: "/tmp",
-        store_path: "/tmp/conv-1.json"
-      }
+      conv =
+        write_conversation("conv-1", %{
+          worktree: %{path: "/tmp/wt", branch: "fnord-conv-1", base_branch: "main"}
+        })
 
-      meta = %{worktree: %{path: "/tmp/wt", branch: "fnord-conv-1", base_branch: "main"}}
+      Mox.stub(GitCli.Worktree.Mock, :project_root, fn -> {:ok, "/repo"} end)
 
-      :meck.expect(Store.Project.Conversation, :new, fn "conv-1" -> conv end)
-
-      :meck.expect(Store.Project.Conversation, :read, fn ^conv ->
-        {:ok, %{metadata: meta, messages: [], memory: [], tasks: %{}}}
-      end)
-
-      :meck.expect(Store.Project.Conversation, :write, fn ^conv, _data -> {:ok, conv} end)
-      :meck.expect(GitCli.Worktree, :project_root, fn -> {:ok, "/repo"} end)
-
-      :meck.expect(GitCli.Worktree, :diff_against_base, fn "/repo", "fnord-conv-1", "main" ->
+      Mox.stub(GitCli.Worktree.Mock, :diff_against_base, fn "/repo", "fnord-conv-1", "main" ->
         {:ok, ""}
       end)
 
-      :meck.expect(GitCli.Worktree, :delete, fn "/repo", "/tmp/wt" -> {:ok, :ok} end)
-      :meck.expect(GitCli.Worktree, :delete_branch, fn "/repo", "fnord-conv-1" -> {:ok, :ok} end)
+      Mox.stub(GitCli.Worktree.Mock, :delete, fn "/repo", "/tmp/wt" -> {:ok, :ok} end)
+      Mox.stub(GitCli.Worktree.Mock, :delete_branch, fn "/repo", "fnord-conv-1" -> {:ok, :ok} end)
 
       assert :ok == Cmd.Worktrees.run(%{conversation: "conv-1"}, [:delete], [])
+
+      # The cleanup ran against the real store: worktree metadata is gone.
+      {:ok, data} = Store.Project.Conversation.read(conv)
+      refute Map.has_key?(data.metadata, :worktree)
+      refute Map.has_key?(data.metadata, "worktree")
     end
 
     test "does not delete the branch when worktree removal fails" do
-      conv = %Store.Project.Conversation{
-        id: "conv-1",
-        project_home: "/tmp",
-        store_path: "/tmp/conv-1.json"
-      }
+      write_conversation("conv-1", %{
+        worktree: %{path: "/tmp/wt", branch: "fnord-conv-1", base_branch: "main"}
+      })
 
-      meta = %{worktree: %{path: "/tmp/wt", branch: "fnord-conv-1", base_branch: "main"}}
+      test_pid = self()
 
-      :meck.expect(Store.Project.Conversation, :new, fn "conv-1" -> conv end)
+      Mox.stub(GitCli.Worktree.Mock, :project_root, fn -> {:ok, "/repo"} end)
 
-      :meck.expect(Store.Project.Conversation, :read, fn ^conv ->
-        {:ok, %{metadata: meta, messages: [], memory: [], tasks: %{}}}
-      end)
-
-      :meck.expect(Store.Project.Conversation, :write, fn ^conv, _data -> {:ok, conv} end)
-      :meck.expect(GitCli.Worktree, :project_root, fn -> {:ok, "/repo"} end)
-
-      :meck.expect(GitCli.Worktree, :diff_against_base, fn "/repo", "fnord-conv-1", "main" ->
+      Mox.stub(GitCli.Worktree.Mock, :diff_against_base, fn "/repo", "fnord-conv-1", "main" ->
         {:ok, ""}
       end)
 
-      :meck.expect(GitCli.Worktree, :delete, fn "/repo", "/tmp/wt" -> {:error, :git_failed} end)
-      :meck.expect(GitCli.Worktree, :has_uncommitted_changes?, fn "/tmp/wt" -> true end)
+      Mox.stub(GitCli.Worktree.Mock, :delete, fn "/repo", "/tmp/wt" -> {:error, :git_failed} end)
+      Mox.stub(GitCli.Worktree.Mock, :has_uncommitted_changes?, fn "/tmp/wt" -> true end)
 
-      :meck.expect(GitCli.Worktree, :force_delete, fn "/repo", "/tmp/wt" ->
+      Mox.stub(GitCli.Worktree.Mock, :force_delete, fn "/repo", "/tmp/wt" ->
         {:error, :git_failed}
       end)
 
-      :meck.expect(GitCli.Worktree, :delete_branch, fn _, _ ->
-        flunk("branch deletion should not be attempted when worktree deletion fails")
+      # Sentinel: branch deletion must not be attempted when worktree
+      # deletion fails - any call is reported back and flunked below.
+      Mox.stub(GitCli.Worktree.Mock, :delete_branch, fn _, _ ->
+        send(test_pid, :branch_delete_attempted)
+        {:ok, :ok}
       end)
 
       {stdout, _stderr} =
@@ -150,106 +151,62 @@ defmodule Cmd.WorktreesTest do
         end)
 
       assert stdout =~ "Force delete anyway?"
+      refute_received :branch_delete_attempted
     end
 
     test "merges a worktree by conversation id via interactive review" do
-      conv = %Store.Project.Conversation{
-        id: "conv-1",
-        project_home: "/tmp",
-        store_path: "/tmp/conv-1.json"
-      }
+      write_conversation("conv-1", %{
+        worktree: %{path: "/tmp/wt", branch: "fnord-conv-1", base_branch: "main"}
+      })
 
-      :meck.expect(Store.Project.Conversation, :new, fn "conv-1" -> conv end)
+      test_pid = self()
 
-      :meck.expect(Store.Project.Conversation, :read, fn ^conv ->
-        {:ok,
-         %{
-           metadata: %{worktree: %{path: "/tmp/wt", branch: "fnord-conv-1", base_branch: "main"}}
-         }}
-      end)
+      Mox.stub(GitCli.Worktree.Mock, :project_root, fn -> {:ok, "/repo"} end)
 
-      :meck.expect(GitCli.Worktree, :project_root, fn -> {:ok, "/repo"} end)
-
-      :meck.expect(GitCli.Worktree.Review, :interactive_review, fn "/repo", meta, _opts ->
-        assert meta.path == "/tmp/wt"
-        assert meta.branch == "fnord-conv-1"
+      Mox.stub(GitCli.Worktree.Review.Mock, :interactive_review, fn "/repo", meta, _opts ->
+        send(test_pid, {:review_meta, meta})
         :ok
       end)
 
       assert :ok == Cmd.Worktrees.run(%{conversation: "conv-1"}, [:merge], [])
+
+      assert_received {:review_meta, meta}
+      assert meta.path == "/tmp/wt"
+      assert meta.branch == "fnord-conv-1"
     end
 
     test "views a worktree diff using the conversation worktree path even when override state is stale" do
-      conv = %Store.Project.Conversation{
-        id: "conv-1",
-        project_home: "/tmp",
-        store_path: "/tmp/conv-1.json"
-      }
-
       {:ok, path} = tmpdir()
 
-      :meck.expect(Store.Project.Conversation, :new, fn "conv-1" -> conv end)
-
-      :meck.expect(Store.Project.Conversation, :read, fn ^conv ->
-        {:ok,
-         %{
-           metadata: %{worktree: %{path: path, branch: "fnord-conv-1", base_branch: "main"}}
-         }}
-      end)
+      write_conversation("conv-1", %{
+        worktree: %{path: path, branch: "fnord-conv-1", base_branch: "main"}
+      })
 
       Settings.set_project_root_override("/definitely/not/a/repo")
+      on_exit(fn -> Settings.set_project_root_override(nil) end)
 
-      on_exit(fn ->
-        Settings.set_project_root_override(nil)
+      # The repo root must be resolved from the worktree path itself, not the
+      # (stale) override - the pattern match on ^path enforces it.
+      Mox.stub(GitCli.Mock, :repo_root_at, fn ^path -> {:ok, "/repo"} end)
 
-        try do
-          :meck.unload(System)
-        catch
-          _, _ -> :ok
-        end
-      end)
-
-      :meck.new(System, [:passthrough])
-
-      :meck.expect(System, :cmd, fn
-        "git", ["rev-parse", "--show-toplevel"], [cd: ^path, stderr_to_stdout: true] ->
-          {"/repo\n", 0}
-
-        command, args, opts ->
-          :meck.passthrough([command, args, opts])
-      end)
-
-      :meck.expect(GitCli.Worktree, :diff_from_fork_point, fn "/repo", "fnord-conv-1", "main" ->
+      Mox.stub(GitCli.Worktree.Mock, :diff_from_fork_point, fn "/repo", "fnord-conv-1", "main" ->
         {:ok, ""}
       end)
 
       assert :ok == Cmd.Worktrees.run(%{conversation: "conv-1"}, [:view], [])
-
-      assert :meck.called(System, :cmd, [
-               "git",
-               ["rev-parse", "--show-toplevel"],
-               [cd: path, stderr_to_stdout: true]
-             ])
-
-      assert :meck.validate(System)
     end
 
     test "views a worktree diff by discovering a fnord-managed worktree when conversation metadata is empty" do
-      conv = %Store.Project.Conversation{
-        id: "conv-1",
-        project_home: "/tmp",
-        store_path: "/tmp/conv-1.json"
-      }
+      write_conversation("conv-1", %{})
 
       path = Path.join(GitCli.Worktree.default_root("demo"), "conv-1")
       File.mkdir_p!(path)
 
-      :meck.expect(Store, :get_project, fn -> {:ok, %{name: "demo"}} end)
-      :meck.expect(Store.Project.Conversation, :new, fn "conv-1" -> conv end)
-      :meck.expect(Store.Project.Conversation, :read, fn ^conv -> {:ok, %{metadata: %{}}} end)
-      :meck.expect(GitCli.Worktree, :project_root, fn -> {:ok, "/repo"} end)
+      Mox.stub(GitCli.Worktree.Mock, :project_root, fn -> {:ok, "/repo"} end)
 
-      :meck.expect(GitCli.Worktree, :list_raw, fn "/repo" ->
+      # fnord_managed? passes through to the real implementation: the first
+      # entry sits under the default root and is selected; the second does not.
+      Mox.stub(GitCli.Worktree.Mock, :list_raw, fn "/repo" ->
         {:ok,
          [
            %{
@@ -269,17 +226,11 @@ defmodule Cmd.WorktreesTest do
          ]}
       end)
 
-      :meck.new(System, [:passthrough])
+      Mox.stub(GitCli.Mock, :repo_root_at, fn ^path -> {:ok, "/repo"} end)
 
-      :meck.expect(System, :cmd, fn
-        "git", ["rev-parse", "--show-toplevel"], [cd: ^path, stderr_to_stdout: true] ->
-          {"/repo\n", 0}
-
-        command, args, opts ->
-          :meck.passthrough([command, args, opts])
-      end)
-
-      :meck.expect(GitCli.Worktree, :diff_from_fork_point, fn "/repo", "feature-branch", "main" ->
+      Mox.stub(GitCli.Worktree.Mock, :diff_from_fork_point, fn "/repo",
+                                                               "feature-branch",
+                                                               "main" ->
         {:ok, ""}
       end)
 
@@ -287,63 +238,45 @@ defmodule Cmd.WorktreesTest do
     end
 
     test "reports a missing worktree path when viewing a diff" do
-      conv = %Store.Project.Conversation{
-        id: "conv-1",
-        project_home: "/tmp",
-        store_path: "/tmp/conv-1.json"
-      }
+      write_conversation("conv-1", %{
+        worktree: %{path: "/tmp/missing-wt", branch: "fnord-conv-1", base_branch: "main"}
+      })
 
-      :meck.expect(Store.Project.Conversation, :new, fn "conv-1" -> conv end)
+      test_pid = self()
 
-      :meck.expect(Store.Project.Conversation, :read, fn ^conv ->
-        {:ok,
-         %{
-           metadata: %{
-             worktree: %{path: "/tmp/missing-wt", branch: "fnord-conv-1", base_branch: "main"}
-           }
-         }}
-      end)
-
-      :meck.expect(UI, :error, fn message ->
-        send(self(), {:ui_error, message})
+      Mox.stub(UI.Output.Mock, :log, fn level, msg ->
+        send(test_pid, {:ui_log, level, IO.iodata_to_binary(msg)})
         :ok
       end)
 
       assert {:error, :missing_worktree_path} ==
                Cmd.Worktrees.run(%{conversation: "conv-1"}, [:view], [])
 
-      assert_receive {:ui_error, "Worktree path does not exist or is inaccessible"}
+      assert_received {:ui_log, :error, msg}
+      assert msg =~ "Worktree path does not exist or is inaccessible"
     end
 
     test "reports a non-repo directory when viewing a diff" do
-      conv = %Store.Project.Conversation{
-        id: "conv-1",
-        project_home: "/tmp",
-        store_path: "/tmp/conv-1.json"
-      }
-
       {:ok, path} = tmpdir()
 
-      :meck.expect(Store.Project.Conversation, :new, fn "conv-1" -> conv end)
+      write_conversation("conv-1", %{
+        worktree: %{path: path, branch: "fnord-conv-1", base_branch: "main"}
+      })
 
-      :meck.expect(Store.Project.Conversation, :read, fn ^conv ->
-        {:ok,
-         %{
-           metadata: %{
-             worktree: %{path: path, branch: "fnord-conv-1", base_branch: "main"}
-           }
-         }}
-      end)
+      Mox.stub(GitCli.Mock, :repo_root_at, fn ^path -> {:error, :not_a_repo} end)
 
-      :meck.expect(UI, :error, fn message ->
-        send(self(), {:ui_error, message})
+      test_pid = self()
+
+      Mox.stub(UI.Output.Mock, :log, fn level, msg ->
+        send(test_pid, {:ui_log, level, IO.iodata_to_binary(msg)})
         :ok
       end)
 
       assert {:error, :not_a_repo} ==
                Cmd.Worktrees.run(%{conversation: "conv-1"}, [:view], [])
 
-      assert_receive {:ui_error, "Worktree path is not inside a git repository"}
+      assert_received {:ui_log, :error, msg}
+      assert msg =~ "Worktree path is not inside a git repository"
     end
   end
 end

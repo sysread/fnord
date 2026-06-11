@@ -29,6 +29,7 @@ defmodule GitCli do
   @callback is_git_repo?() :: boolean()
   @callback is_git_repo_at?(String.t() | nil) :: boolean()
   @callback repo_root() :: String.t() | nil
+  @callback repo_root_at(String.t()) :: {:ok, String.t()} | {:error, :not_a_repo}
   @callback is_worktree?() :: boolean()
   @callback worktree_root() :: String.t() | nil
   @callback current_branch() :: String.t() | nil
@@ -57,6 +58,16 @@ defmodule GitCli do
   """
   @spec repo_root() :: String.t() | nil
   def repo_root(), do: impl().repo_root()
+
+  @doc """
+  Returns the repository toplevel for the given directory, or
+  `{:error, :not_a_repo}` when the path is not inside a git working
+  tree. Unlike `repo_root/0`, this ignores the project root override -
+  callers use it to resolve the repo that owns an explicit path (e.g. a
+  stored worktree) regardless of session state.
+  """
+  @spec repo_root_at(String.t()) :: {:ok, String.t()} | {:error, :not_a_repo}
+  def repo_root_at(path), do: impl().repo_root_at(path)
 
   @doc """
   Returns true when the effective directory is inside a git working

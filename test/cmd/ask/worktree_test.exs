@@ -7,19 +7,16 @@ defmodule Cmd.Ask.WorktreeTest do
   end
 
   setup do
+    # Services.Conversation stays mecked: these tests script the conversation
+    # server's responses (and in one case its absence of a worktree) without
+    # running a real session. The git layer is scripted per test through the
+    # GitCli facade mocks, which pass through to the real implementation for
+    # anything not explicitly stubbed.
     safe_meck_new(Services.Conversation, [:no_link, :passthrough, :non_strict])
     on_exit(fn -> safe_meck_unload(Services.Conversation) end)
 
-    # GitCli is intentionally NOT mocked here. Tests in this module only
-    # set expectations on GitCli.Worktree (a separate module), so wrapping
-    # the bare GitCli module via :meck.new is dead code AND it races with
-    # GitCli.Test running concurrently on another worker - meck wraps the
-    # module globally, so a passthrough call from the other test process
-    # routes through this test's meck server and can return wrong results
-    # depending on timing. Mock only what is actually used.
-
-    safe_meck_new(UI, [:no_link, :passthrough, :non_strict])
-    on_exit(fn -> safe_meck_unload(UI) end)
+    mock_git_worktree()
+    mock_git_review()
 
     :ok
   end
@@ -118,10 +115,12 @@ defmodule Cmd.Ask.WorktreeTest do
 
     :meck.expect(Services.Conversation, :get_id, fn _pid -> "conv-1" end)
 
-    :meck.expect(GitCli.Worktree, :recreate_conversation_worktree, fn "ask_worktree_test",
-                                                                      "conv-1",
-                                                                      ^meta ->
-      send(self(), :recreate_called)
+    test_pid = self()
+
+    Mox.stub(GitCli.Worktree.Mock, :recreate_conversation_worktree, fn "ask_worktree_test",
+                                                                       "conv-1",
+                                                                       ^meta ->
+      send(test_pid, :recreate_called)
       File.mkdir_p!(dir)
       {:ok, %{path: dir, branch: "feature", base_branch: "main"}}
     end)
@@ -178,18 +177,18 @@ defmodule Cmd.Ask.WorktreeTest do
   test "fnord-managed worktree with nil branch metadata does not crash cleanup" do
     {:ok, dir} = tmpdir()
     stored_meta = %{path: dir, branch: nil, base_branch: nil}
+    test_pid = self()
 
-    safe_meck_new(GitCli.Worktree, [:no_link, :passthrough, :non_strict])
-    on_exit(fn -> safe_meck_unload(GitCli.Worktree) end)
-
-    :meck.expect(GitCli.Worktree, :fnord_managed?, fn _project, ^dir -> true end)
-    :meck.expect(GitCli.Worktree, :has_uncommitted_changes?, fn ^dir -> false end)
-    :meck.expect(GitCli.Worktree, :has_changes_to_merge?, fn _, _, _, _ -> false end)
+    Mox.stub(GitCli.Worktree.Mock, :fnord_managed?, fn _project, ^dir -> true end)
+    Mox.stub(GitCli.Worktree.Mock, :has_uncommitted_changes?, fn ^dir -> false end)
+    Mox.stub(GitCli.Worktree.Mock, :has_changes_to_merge?, fn _, _, _, _ -> false end)
 
     # diff_from_fork_point must NOT be called with nil branch/base_branch.
-    # If the guard regresses, this expectation flunks the test.
-    :meck.expect(GitCli.Worktree, :diff_from_fork_point, fn _root, _branch, _base ->
-      flunk("diff_from_fork_point should not be called with nil branch metadata")
+    # If the guard regresses, the sentinel reports it and the refute below
+    # flunks the test.
+    Mox.stub(GitCli.Worktree.Mock, :diff_from_fork_point, fn _root, _branch, _base ->
+      send(test_pid, :diff_from_fork_point_called)
+      {:ok, ""}
     end)
 
     :meck.expect(Services.Conversation, :get_conversation_meta, fn _pid ->
@@ -205,6 +204,8 @@ defmodule Cmd.Ask.WorktreeTest do
     capture_all(fn ->
       assert :ok = Cmd.Ask.run(%{question: "Q"}, [], [])
     end)
+
+    refute_received :diff_from_fork_point_called
   end
 
   # Regression: in an interactive session, pre-merge validation failure only
@@ -217,18 +218,12 @@ defmodule Cmd.Ask.WorktreeTest do
     {:ok, dir} = tmpdir()
     meta = %{path: dir, branch: "fnord-conv-1", base_branch: "main"}
 
-    safe_meck_new(GitCli.Worktree, [:no_link, :passthrough, :non_strict])
-    on_exit(fn -> safe_meck_unload(GitCli.Worktree) end)
+    Mox.stub(GitCli.Worktree.Mock, :fnord_managed?, fn _project, ^dir -> true end)
+    Mox.stub(GitCli.Worktree.Mock, :has_uncommitted_changes?, fn ^dir -> false end)
+    Mox.stub(GitCli.Worktree.Mock, :has_changes_to_merge?, fn _, _, _, _ -> true end)
+    Mox.stub(GitCli.Worktree.Mock, :commit_all, fn _, _ -> {:error, :nothing_to_commit} end)
 
-    safe_meck_new(GitCli.Worktree.Review, [:no_link, :passthrough, :non_strict])
-    on_exit(fn -> safe_meck_unload(GitCli.Worktree.Review) end)
-
-    :meck.expect(GitCli.Worktree, :fnord_managed?, fn _project, ^dir -> true end)
-    :meck.expect(GitCli.Worktree, :has_uncommitted_changes?, fn ^dir -> false end)
-    :meck.expect(GitCli.Worktree, :has_changes_to_merge?, fn _, _, _, _ -> true end)
-    :meck.expect(GitCli.Worktree, :commit_all, fn _, _ -> {:error, :nothing_to_commit} end)
-
-    :meck.expect(GitCli.Worktree.Review, :interactive_review, fn _root, ^meta, _opts ->
+    Mox.stub(GitCli.Worktree.Review.Mock, :interactive_review, fn _root, ^meta, _opts ->
       {:validation_failed, :pre_merge, "rule X failed"}
     end)
 

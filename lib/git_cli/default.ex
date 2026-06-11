@@ -54,6 +54,17 @@ defmodule GitCli.Default do
   end
 
   @impl GitCli
+  def repo_root_at(path) when is_binary(path) do
+    case System.cmd("git", ["rev-parse", "--show-toplevel"],
+           cd: path,
+           stderr_to_stdout: true
+         ) do
+      {out, 0} -> {:ok, String.trim(out)}
+      _ -> {:error, :not_a_repo}
+    end
+  end
+
+  @impl GitCli
   def is_worktree? do
     GitCli.is_git_repo?()
   end

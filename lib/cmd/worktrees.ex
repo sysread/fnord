@@ -348,10 +348,7 @@ defmodule Cmd.Worktrees do
           {:ok, String.t()} | {:error, :missing_worktree_path | :not_a_repo}
   defp resolve_repo_root_for_view(path) when is_binary(path) do
     if File.dir?(path) do
-      case System.cmd("git", ["rev-parse", "--show-toplevel"], cd: path, stderr_to_stdout: true) do
-        {out, 0} -> {:ok, String.trim(out)}
-        _ -> {:error, :not_a_repo}
-      end
+      GitCli.repo_root_at(path)
     else
       {:error, :missing_worktree_path}
     end
