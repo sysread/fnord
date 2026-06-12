@@ -325,8 +325,21 @@ defmodule Services.Globals do
   # 1) PD cache
   # 2) Self as root (fast path)
   # 3) Walk :"$ancestors" for first PID in @roots_tab
+  #
+  # Before the Globals server has started (e.g. env reads during escript
+  # startup, ahead of Fnord.Instance), the tables don't exist yet. That is
+  # simply "no root installed anywhere" - return nil so get_env falls back to
+  # Application.get_env rather than crashing on the missing table.
   # ----------------------------------------------------------------------------
   defp resolve_root() do
+    if :ets.whereis(@roots_tab) == :undefined do
+      nil
+    else
+      do_resolve_root()
+    end
+  end
+
+  defp do_resolve_root() do
     case Process.get(@pd_root_key) do
       pid when is_pid(pid) ->
         if :ets.member(@roots_tab, pid) do

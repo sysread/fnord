@@ -703,3 +703,26 @@ Consequences:
 - Anything a test writes via a raw env-HOME path lands in the shared suite
   dir and cross-contaminates async siblings. If a test needs a subprocess to
   see a specific home, pass `env: [{"HOME", dir}]` on that `System.cmd` call.
+
+## 42. In-VM env reads route through Util.Env; tests vary them with put_override, never put_env
+
+`Util.Env.fetch_env/1` (and `get_env`/`looks_truthy?` built on it) consults a
+`Services.Globals`-scoped override - key `{:env_override, var}` - before the
+real environment. `Util.Env.put_override(var, value)` sets it for the current
+process tree; `put_override(var, nil)` makes the variable appear unset. The
+override dies with the tree, so it is async-safe and needs no `on_exit`
+cleanup, and it shields a test from values leaking in from the developer's
+real environment.
+
+Consequences:
+
+- Prod code reading env in-VM must go through `Util.Env`, never
+  `System.get_env`, or the test seam (and any future scoped config) is
+  invisible to it.
+- Tests must not `System.put_env`/`Util.Env.put_env` per-test: System env is
+  VM-global, so the write races every concurrently running async test. Use
+  `put_override`.
+- The override is invisible to subprocesses and to `System.find_executable`
+  (both read real OS env). Vars that must reach a subprocess (PATH, HOME)
+  need a real-env mutation - which forces the test sync - or a per-call
+  `env:` opt on `System.cmd`.

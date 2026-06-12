@@ -67,7 +67,10 @@ defmodule Fnord.TestCase do
           mock_mcp_client: 0,
           set_log_level: 1,
           set_config: 1,
-          set_config: 2
+          set_config: 2,
+          wait_until: 1,
+          wait_until: 2,
+          wait_until: 3
         ]
 
       setup do
@@ -516,6 +519,33 @@ defmodule Fnord.TestCase do
   """
   def set_config(key, val) do
     Services.Globals.put_env(:fnord, key, val)
+  end
+
+  @doc """
+  Polls `fun` until it returns a truthy value, then returns that value. Flunks
+  the test when `timeout_ms` elapses first. Use this instead of a bare
+  `Process.sleep` whenever a test waits on an asynchronous effect (a cast, a
+  monitor's :DOWN, another process's state change): a fixed sleep is either
+  too short under load (flake) or too long always (suite drag).
+  """
+  def wait_until(fun, timeout_ms \\ 1_000, interval_ms \\ 10) do
+    deadline = System.monotonic_time(:millisecond) + timeout_ms
+    do_wait_until(fun, deadline, interval_ms)
+  end
+
+  defp do_wait_until(fun, deadline, interval_ms) do
+    case fun.() do
+      result when result in [nil, false] ->
+        if System.monotonic_time(:millisecond) < deadline do
+          Process.sleep(interval_ms)
+          do_wait_until(fun, deadline, interval_ms)
+        else
+          ExUnit.Assertions.flunk("wait_until: condition not met before timeout")
+        end
+
+      result ->
+        result
+    end
   end
 
   @doc """
