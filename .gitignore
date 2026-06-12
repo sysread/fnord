@@ -65,3 +65,4 @@ cover/
 
 # direnv
 .envrc
+.pi/
