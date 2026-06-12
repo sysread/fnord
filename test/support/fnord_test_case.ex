@@ -166,14 +166,15 @@ defmodule Fnord.TestCase do
       end
 
       # ----------------------------------------------------------------------------
-      # Set up a temporary directory and override the HOME environment variable.
-      # The store will create `$HOME/.fnord` to store settings and project data.
+      # Give each test its own home directory via the :test_home_override
+      # Globals key, which Settings.get_user_home/0 consults first. The store
+      # creates `<home>/.fnord` under it for settings and project data. The
+      # HOME env var itself is NOT touched here - it is VM-global and writing
+      # it per-test races under async; test_helper.exs points it at a static
+      # suite-lifetime temp dir for subprocesses and stray env readers.
       # ----------------------------------------------------------------------------
       setup do
         with {:ok, tmp_dir} <- tmpdir() do
-          # Just in case, ensure that the env var is overridden.
-          Util.Env.put_env("HOME", tmp_dir)
-          # Then, override app config.
           Services.Globals.put_env(:fnord, :test_home_override, tmp_dir)
           {:ok, home_dir: tmp_dir}
         end
@@ -325,16 +326,15 @@ defmodule Fnord.TestCase do
     project = mock_project(name)
     repo = project.source_root
 
+    # init.defaultBranch=main comes from the static GIT_CONFIG_* env vars in
+    # test_helper.exs; never write `git config --global` here - the global
+    # gitconfig lives in the suite-shared HOME and writing it races async
+    # tests.
     git_env = [
       {"GIT_TRACE", "0"},
       {"GIT_CURL_VERBOSE", "0"},
       {"GIT_DEBUG", "0"}
     ]
-
-    System.cmd("git", ["config", "--global", "init.defaultBranch", "main"],
-      cd: repo,
-      env: git_env
-    )
 
     System.cmd("git", ["init"],
       cd: repo,

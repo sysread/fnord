@@ -32,6 +32,16 @@ System.put_env("FNORD_OPENAI_API_KEY", "")
 # lowfat test opts back in (and restores this default when done).
 System.put_env("FNORD_NO_LOWFAT", "1")
 
+# Point HOME at a suite-lifetime temp dir so subprocesses (git reads
+# $HOME/.gitconfig) and any stray env-HOME reader can never touch the
+# developer's real home. Per-test isolation of the fnord store comes from the
+# :test_home_override Globals key set in Fnord.TestCase; this is the
+# deterministic floor beneath it. Plain mkdir rather than Briefly: Briefly
+# ties cleanup to the calling process, and this dir must outlive the suite.
+suite_home = Path.join(System.tmp_dir!(), "fnord-test-home-#{System.unique_integer([:positive])}")
+File.mkdir_p!(suite_home)
+System.put_env("HOME", suite_home)
+
 # Silence git's default-branch advice and prefer 'main' in git subprocesses.
 System.put_env("GIT_CONFIG_COUNT", "2")
 System.put_env("GIT_CONFIG_KEY_0", "advice.defaultBranchName")

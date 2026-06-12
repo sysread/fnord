@@ -678,3 +678,28 @@ the original queue keeps running but is unreachable for the rest of the test.
 
 See `test/ui/output/production/notification_test.exs` and the Owl.Data test
 in `test/ui/queue_test.exs` for the pattern in use.
+
+## 41. Env HOME is suite-static; per-test home is the :test_home_override Globals key
+
+The HOME environment variable is set exactly once, in `test_helper.exs`, to a
+suite-lifetime temp dir. It is VM-global, so writing it per-test races every
+concurrently running async test - do not `put_env("HOME", ...)` in a test or
+helper. Per-test home isolation comes from the `:test_home_override` Globals
+key (set in `Fnord.TestCase` setup), which `Settings.get_user_home/0`
+consults before falling back to env HOME.
+
+Consequences:
+
+- BEAM-side code must reach the home dir through `Settings.get_user_home/0`
+  (or paths derived from it), never `System.user_home!()` or
+  `System.get_env("HOME")` - those see the shared suite dir, not the test's.
+- Git subprocesses see the suite-static HOME, whose `.gitconfig` does not
+  exist. `init.defaultBranch=main` and advice suppression come from the
+  static `GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_*` env in `test_helper.exs`
+  (command-scope config, highest precedence). Never run
+  `git config --global` from a test or fixture helper - it writes the
+  suite-shared `.gitconfig` and leaks into every other test's git
+  subprocesses.
+- Anything a test writes via a raw env-HOME path lands in the shared suite
+  dir and cross-contaminates async siblings. If a test needs a subprocess to
+  see a specific home, pass `env: [{"HOME", dir}]` on that `System.cmd` call.
