@@ -1,4 +1,6 @@
 defmodule AI.Tools.SelfHelp.DocsTest do
+  # Sync: set_log_level reconfigures the VM-global Logger level for the
+  # duration of each test, which would leak into concurrently running tests.
   use Fnord.TestCase, async: false
 
   alias AI.Tools.SelfHelp.Docs

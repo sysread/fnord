@@ -1,4 +1,7 @@
 defmodule AI.Tools.Cmd.LowfatTest do
+  # Sync: prepends a stub directory to the real PATH - System.find_executable
+  # and the spawned shell both read the real OS environment, so tree-scoped
+  # overrides cannot stand in for it.
   use Fnord.TestCase, async: false
 
   # These tests install a fake `lowfat` on PATH that prints a marker line

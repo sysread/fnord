@@ -1,4 +1,6 @@
 defmodule Settings.FrobsTest do
+  # Sync: capture_log captures VM-wide Logger traffic, so concurrent tests
+  # logs would bleed into the assertions.
   use Fnord.TestCase, async: false
 
   @moduletag :capture_log

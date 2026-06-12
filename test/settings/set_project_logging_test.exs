@@ -1,4 +1,7 @@
 defmodule Settings.SetProjectLoggingTest do
+  # Sync: reconfigures the VM-global Logger level and asserts via
+  # capture_log, which captures VM-wide log traffic - both leak across
+  # concurrently running tests.
   use Fnord.TestCase, async: false
   import ExUnit.CaptureLog
   alias Logger

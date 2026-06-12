@@ -1,4 +1,6 @@
 defmodule Cmd.MemoryTest do
+  # Sync: capture_all captures the VM-global :stderr device, so output from
+  # concurrently running tests would cross-bleed into the captures.
   use Fnord.TestCase, async: false
 
   # The stub indexer returns List.duplicate(0.1, 384) for query embeddings.

@@ -1,4 +1,7 @@
 defmodule Cmd.Config.ValidationTest do
+  # Sync: capture_all captures the VM-global :stderr device (concurrent
+  # tests output would cross-bleed into the captures), and the log-level
+  # manipulation here is likewise VM-global.
   use Fnord.TestCase, async: false
   import ExUnit.CaptureLog
 

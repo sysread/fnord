@@ -1,4 +1,6 @@
 defmodule UI.Queue.Test do
+  # Sync: capture_all captures the VM-global :stderr device, so output from
+  # concurrently running tests would cross-bleed into the captures.
   use Fnord.TestCase, async: false
 
   defmodule LogCaptureHandler do

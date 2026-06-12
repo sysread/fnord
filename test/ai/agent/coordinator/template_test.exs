@@ -1,4 +1,6 @@
 defmodule AI.Agent.Coordinator.TemplateTest do
+  # Sync: set_log_level reconfigures the VM-global Logger level for the
+  # duration of each test, which would leak into concurrently running tests.
   use Fnord.TestCase, async: false
 
   @commit_message_snippet "Provide a suggestion for a commit message summarizing any unstaged changes"

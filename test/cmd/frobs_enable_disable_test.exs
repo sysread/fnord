@@ -1,4 +1,7 @@
 defmodule Cmd.FrobsEnableDisableTest do
+  # Sync: capture_all captures the VM-global :stderr device (concurrent
+  # tests output would cross-bleed into the captures), and the log-level
+  # manipulation here is likewise VM-global.
   use Fnord.TestCase, async: false
 
   setup do: set_log_level(:none)
