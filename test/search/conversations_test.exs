@@ -1,5 +1,5 @@
 defmodule Search.ConversationsTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   alias Store.Project.Conversation
   alias Store.Project.ConversationIndex

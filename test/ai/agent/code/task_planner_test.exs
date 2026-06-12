@@ -1,5 +1,5 @@
 defmodule AI.Agent.Code.TaskPlannerTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   setup do
     project = mock_project("task-planner-test")

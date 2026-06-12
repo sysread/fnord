@@ -1,5 +1,5 @@
 defmodule MemoryTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   describe "new/4 validation and uniqueness" do
     test "rejects invalid titles" do

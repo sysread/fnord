@@ -1,5 +1,5 @@
 defmodule MCP.STDIOWrapperTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   test "wrapper suppresses stderr output when command exits 0" do
     wrapper = MCP.STDIOWrapper.script_path!()

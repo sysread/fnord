@@ -1,4 +1,8 @@
 defmodule Services.BackgroundIndexerTest do
+  # Sync: the stub indexer here is an Agent registered under a VM-global
+  # name (name: __MODULE__), so concurrent instances of these tests would
+  # collide on the registry. Per-test names (or passing the pid) would
+  # unlock async.
   use Fnord.TestCase, async: false
 
   alias Services.BackgroundIndexer

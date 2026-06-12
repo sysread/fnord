@@ -1,5 +1,5 @@
 defmodule Services.NamePoolTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   alias Services.NamePool
 

@@ -1,5 +1,5 @@
 defmodule AI.Tools.SaveSkillTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   setup do
     # Default to "yes" for confirmations in non-tty tests.
