@@ -9,8 +9,10 @@ defmodule UI.FormatterTest do
   end
 
   setup do
-    original = Util.Env.get_env("FNORD_FORMATTER")
-    on_exit(fn -> System.put_env("FNORD_FORMATTER", original || "") end)
+    # Shield from any FNORD_FORMATTER in the developer's environment; tests
+    # that want a formatter set their own override (see docs/dev/gotchas.md
+    # #42).
+    Util.Env.put_override("FNORD_FORMATTER", nil)
     :ok
   end
 
@@ -25,25 +27,25 @@ defmodule UI.FormatterTest do
 
   describe "format_output/1" do
     test "returns input unchanged when FNORD_FORMATTER is not set" do
-      System.delete_env("FNORD_FORMATTER")
+      Util.Env.put_override("FNORD_FORMATTER", nil)
       input = "hello world"
       assert UI.Formatter.format_output(input) == input
     end
 
     test "returns input unchanged when FNORD_FORMATTER is empty" do
-      Util.Env.put_env("FNORD_FORMATTER", "")
+      Util.Env.put_override("FNORD_FORMATTER", "")
       input = "hello world"
       assert UI.Formatter.format_output(input) == input
     end
 
     test "applies a basic shell pipeline to transform the string" do
-      Util.Env.put_env("FNORD_FORMATTER", "tr a-z A-Z")
+      Util.Env.put_override("FNORD_FORMATTER", "tr a-z A-Z")
       input = "hello world"
       assert UI.Formatter.format_output(input) == "HELLO WORLD"
     end
 
     test "gracefully handles invalid command by logging warning and returning input" do
-      Util.Env.put_env("FNORD_FORMATTER", "nonexistent_command")
+      Util.Env.put_override("FNORD_FORMATTER", "nonexistent_command")
       input = "test"
 
       log =
@@ -55,13 +57,13 @@ defmodule UI.FormatterTest do
     end
 
     test "transforms multi-line ascii and preserves unicode characters" do
-      Util.Env.put_env("FNORD_FORMATTER", "tr a-z A-Z")
+      Util.Env.put_override("FNORD_FORMATTER", "tr a-z A-Z")
       text = "hello\nworld\näöü"
       assert UI.Formatter.format_output(text) == "HELLO\nWORLD\näöü"
     end
 
     test "multi-line and unicode text unchanged when formatter unset" do
-      System.delete_env("FNORD_FORMATTER")
+      Util.Env.put_override("FNORD_FORMATTER", nil)
       text = "hållo\nwörld\nこんにちは"
       assert UI.Formatter.format_output(text) == text
     end

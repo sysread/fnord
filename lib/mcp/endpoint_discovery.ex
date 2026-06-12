@@ -108,8 +108,11 @@ defmodule MCP.EndpointDiscovery do
   end
 
   defp save_to_settings(server_name, path, scope) do
-    # Read current settings file directly
-    settings_path = Path.join(System.user_home!(), ".fnord/settings.json")
+    # Surgical JSON edit: patch the settings file in place rather than going
+    # through Settings' typed accessors. Settings.settings_file/0 is the
+    # canonical path - it honors the test home override, which a raw
+    # System.user_home! would bypass.
+    settings_path = Settings.settings_file()
 
     with {:ok, content} <- File.read(settings_path),
          {:ok, settings_json} <- SafeJson.decode(content),

@@ -151,17 +151,11 @@ defmodule Services.MCPTest do
 
   test "suppresses Hermes MCP debug logs unless FNORD_DEBUG_MCP is set" do
     original_level = :logger.get_primary_config() |> Map.fetch!(:level)
-    original_debug_var = System.get_env("FNORD_DEBUG_MCP")
     original_hermes_log = Application.get_env(:hermes_mcp, :log)
     original_hermes_logging = Application.get_env(:hermes_mcp, :logging)
 
     on_exit(fn ->
       :logger.set_primary_config(:level, original_level)
-
-      case original_debug_var do
-        nil -> System.delete_env("FNORD_DEBUG_MCP")
-        val -> System.put_env("FNORD_DEBUG_MCP", val)
-      end
 
       case original_hermes_log do
         nil -> Application.delete_env(:hermes_mcp, :log)
@@ -175,7 +169,9 @@ defmodule Services.MCPTest do
     end)
 
     :logger.set_primary_config(:level, :debug)
-    Util.Env.delete_env("FNORD_DEBUG_MCP")
+    # HermesLogging.configure() runs synchronously in this process, so the
+    # tree-scoped override is visible to it (docs/dev/gotchas.md #42).
+    Util.Env.put_override("FNORD_DEBUG_MCP", nil)
 
     log =
       capture_log(fn ->

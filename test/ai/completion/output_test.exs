@@ -1,5 +1,5 @@
 defmodule AI.Completion.OutputTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   import ExUnit.CaptureIO
 
@@ -12,15 +12,7 @@ defmodule AI.Completion.OutputTest do
       # The formatter is only invoked when stdout is a TTY. Point it at a
       # command that would visibly mutate the output ("final" -> "finbl"), so
       # the exact-match assertion below doubles as proof it never ran.
-      orig_formatter = System.get_env("FNORD_FORMATTER")
-      System.put_env("FNORD_FORMATTER", "tr 'a' 'b'")
-
-      on_exit(fn ->
-        case orig_formatter do
-          nil -> System.delete_env("FNORD_FORMATTER")
-          val -> System.put_env("FNORD_FORMATTER", val)
-        end
-      end)
+      Util.Env.put_override("FNORD_FORMATTER", "tr 'a' 'b'")
 
       state = %{
         name: "Xalor",

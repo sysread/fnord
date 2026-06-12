@@ -423,8 +423,7 @@ defmodule AI.Tools.File.EditTest do
         }
         """)
 
-      Util.Env.put_env("FNORD_NO_FITTING", "true")
-      on_exit(fn -> System.delete_env("FNORD_NO_FITTING") end)
+      Util.Env.put_override("FNORD_NO_FITTING", "true")
 
       {:ok, _result} =
         Edit.call(%{
