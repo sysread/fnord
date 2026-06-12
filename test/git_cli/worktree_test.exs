@@ -1,5 +1,10 @@
 defmodule GitCli.WorktreeTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
+
+  # Tests that exercise cwd-relative resolution point the Globals-scoped
+  # project root override (which GitCli's effective_git_dir prefers over
+  # File.cwd!) at the directory under test - a File.cd! would mutate the
+  # VM-global cwd out from under concurrently running async tests.
 
   defp git!(repo, args) do
     {out, status} = System.cmd("git", args, cd: repo, stderr_to_stdout: true)
@@ -9,17 +14,6 @@ defmodule GitCli.WorktreeTest do
     end
 
     out
-  end
-
-  defp cd(dir, fun) do
-    original = File.cwd!()
-    File.cd!(dir)
-
-    try do
-      fun.()
-    after
-      File.cd!(original)
-    end
   end
 
   describe "worktree path resolution" do
@@ -85,34 +79,29 @@ defmodule GitCli.WorktreeTest do
     test "project_root reports repo status inside and outside git", %{project: project} do
       {:ok, tmp} = tmpdir()
 
-      cd(tmp, fn ->
-        assert {:error, :not_a_repo} = GitCli.Worktree.project_root()
-      end)
+      Settings.set_project_root_override(tmp)
+      assert {:error, :not_a_repo} = GitCli.Worktree.project_root()
 
-      cd(project.source_root, fn ->
-        assert {:ok, root} = GitCli.Worktree.project_root()
-        assert Path.basename(root) == Path.basename(project.source_root)
-      end)
+      Settings.set_project_root_override(project.source_root)
+      assert {:ok, root} = GitCli.Worktree.project_root()
+      assert Path.basename(root) == Path.basename(project.source_root)
     end
 
-    test "helpers honor project root override from a non-git directory", %{project: project} do
-      {:ok, tmp} = tmpdir()
+    test "helpers honor project root override over the process cwd", %{project: project} do
+      Settings.set_project_root_override(project.source_root)
 
-      on_exit(fn ->
-        Settings.set_project_root_override(nil)
-      end)
+      assert GitCli.is_git_repo?()
+      assert GitCli.is_worktree?()
 
-      cd(tmp, fn ->
-        Settings.set_project_root_override(project.source_root)
+      # The basename assertions discriminate the override's repo from any
+      # repo the test process's cwd happens to sit in (the dev checkout).
+      assert GitCli.repo_root() =~ Path.basename(project.source_root)
+      assert GitCli.worktree_root() =~ Path.basename(project.source_root)
 
-        assert GitCli.is_git_repo?()
-        assert GitCli.is_worktree?()
-        assert GitCli.repo_root() =~ Path.basename(project.source_root)
-        assert GitCli.worktree_root() =~ Path.basename(project.source_root)
-
-        info = GitCli.git_info()
-        assert info == "Note: this project is not under git version control."
-      end)
+      # The mock repo has no commits; git_info treats an unborn HEAD as
+      # "not under version control".
+      info = GitCli.git_info()
+      assert info == "Note: this project is not under git version control."
     end
 
     # Exercises AI.Tools.Git.Worktree's create action when binding the new
@@ -205,37 +194,39 @@ defmodule GitCli.WorktreeTest do
         base_branch: "main"
       }
 
-      cd(repo, fn ->
-        assert {:ok, entry} =
-                 GitCli.Worktree.duplicate(project.name, source_meta, "fork-1")
+      # duplicate resolves the repo through Worktree.project_root(), which
+      # follows the override rather than the process cwd.
+      Settings.set_project_root_override(repo)
 
-        assert entry.branch == "fnord-fork-1"
-        assert entry.base_branch == "main"
-        assert File.dir?(entry.path)
+      assert {:ok, entry} =
+               GitCli.Worktree.duplicate(project.name, source_meta, "fork-1")
 
-        # Both source feature commits are present on the new branch.
-        {log, 0} =
-          System.cmd("git", ["log", "--format=%s", "fnord-fork-1"], cd: repo)
+      assert entry.branch == "fnord-fork-1"
+      assert entry.base_branch == "main"
+      assert File.dir?(entry.path)
 
-        assert log =~ "feature v2"
-        assert log =~ "feature v1"
-        assert log =~ "initial"
+      # Both source feature commits are present on the new branch.
+      {log, 0} =
+        System.cmd("git", ["log", "--format=%s", "fnord-fork-1"], cd: repo)
 
-        # The new branch is NOT the same ref as the source branch (independent).
-        {fork_sha, 0} = System.cmd("git", ["rev-parse", "fnord-fork-1"], cd: repo)
-        {source_sha, 0} = System.cmd("git", ["rev-parse", "fnord-source"], cd: repo)
-        assert String.trim(fork_sha) == String.trim(source_sha)
+      assert log =~ "feature v2"
+      assert log =~ "feature v1"
+      assert log =~ "initial"
 
-        # Dirty state was overlaid into the destination worktree.
-        assert File.read!(Path.join(entry.path, "feature.txt")) == "v3-dirty\n"
-        refute File.exists?(Path.join(entry.path, "base.txt"))
-        assert File.read!(Path.join(entry.path, "nested/new.txt")) == "fresh\n"
+      # The new branch is NOT the same ref as the source branch (independent).
+      {fork_sha, 0} = System.cmd("git", ["rev-parse", "fnord-fork-1"], cd: repo)
+      {source_sha, 0} = System.cmd("git", ["rev-parse", "fnord-source"], cd: repo)
+      assert String.trim(fork_sha) == String.trim(source_sha)
 
-        # Source worktree is untouched (commits and dirty state preserved).
-        assert File.read!(Path.join(source_path, "feature.txt")) == "v3-dirty\n"
-        refute File.exists?(Path.join(source_path, "base.txt"))
-        assert File.read!(Path.join(source_path, "nested/new.txt")) == "fresh\n"
-      end)
+      # Dirty state was overlaid into the destination worktree.
+      assert File.read!(Path.join(entry.path, "feature.txt")) == "v3-dirty\n"
+      refute File.exists?(Path.join(entry.path, "base.txt"))
+      assert File.read!(Path.join(entry.path, "nested/new.txt")) == "fresh\n"
+
+      # Source worktree is untouched (commits and dirty state preserved).
+      assert File.read!(Path.join(source_path, "feature.txt")) == "v3-dirty\n"
+      refute File.exists?(Path.join(source_path, "base.txt"))
+      assert File.read!(Path.join(source_path, "nested/new.txt")) == "fresh\n"
     end
 
     test "has_changes_to_merge? answers from git state", %{project: project} do

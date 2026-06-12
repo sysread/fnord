@@ -1,5 +1,5 @@
 defmodule AI.NotesTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   alias AI.Notes
 
@@ -24,18 +24,6 @@ defmodule AI.NotesTest do
   end
 
   describe "ingest_research/4" do
-    # local helper to cd for the duration of a function
-    defp cd(dir, fun) do
-      original = File.cwd!()
-      File.cd!(dir)
-
-      try do
-        fun.()
-      after
-        File.cd!(original)
-      end
-    end
-
     test "tags bullet facts with current branch" do
       canned_completion("""
       - Fact one
@@ -51,13 +39,16 @@ defmodule AI.NotesTest do
 
       state = Notes.new()
 
-      cd(project.source_root, fn ->
-        new_state = Notes.ingest_research(state, "some_tool", "{}", %{})
-        text = Enum.join(new_state.new_facts, "\n")
-        assert String.contains?(text, "- fact one [src: feature-branch]")
-        assert String.contains?(text, "- fact two [src: feature-branch]")
-        assert String.contains?(text, "- fact three [src: feature-branch]")
-      end)
+      # Branch detection resolves through GitCli's effective_git_dir, which
+      # prefers the project root override over the process cwd. The override
+      # is Globals-scoped, so this is async-safe where a File.cd! would not be.
+      Settings.set_project_root_override(project.source_root)
+
+      new_state = Notes.ingest_research(state, "some_tool", "{}", %{})
+      text = Enum.join(new_state.new_facts, "\n")
+      assert String.contains?(text, "- fact one [src: feature-branch]")
+      assert String.contains?(text, "- fact two [src: feature-branch]")
+      assert String.contains?(text, "- fact three [src: feature-branch]")
     end
 
     test "commit with empty new_facts does not touch notes.md", %{proj: proj} do

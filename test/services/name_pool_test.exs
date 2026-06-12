@@ -106,7 +106,17 @@ defmodule Services.NamePoolTest do
 
     assert_receive {:spawned, new_pid}
 
-    wait_for_name_remap(old_pid, new_pid, name)
+    # The remap happens in the pool server after the new process's call; poll
+    # until both sides of the move are visible, then pin them with asserts.
+    wait_until(fn ->
+      match?(
+        {{:error, :not_found}, {:ok, ^name}},
+        {NamePool.get_name_by_pid(old_pid), NamePool.get_name_by_pid(new_pid)}
+      )
+    end)
+
+    assert {:error, :not_found} = NamePool.get_name_by_pid(old_pid)
+    assert {:ok, ^name} = NamePool.get_name_by_pid(new_pid)
   end
 
   test "associate_name/3 returns timeout when target server never replies" do
@@ -140,24 +150,6 @@ defmodule Services.NamePoolTest do
 
     stats = NamePool.pool_stats()
     assert stats.checked_out_count == 2
-  end
-
-  defp wait_for_name_remap(old_pid, new_pid, name, attempts \\ 20)
-
-  defp wait_for_name_remap(old_pid, new_pid, name, attempts) when attempts > 0 do
-    case {NamePool.get_name_by_pid(old_pid), NamePool.get_name_by_pid(new_pid)} do
-      {{:error, :not_found}, {:ok, ^name}} ->
-        :ok
-
-      _other ->
-        Process.sleep(10)
-        wait_for_name_remap(old_pid, new_pid, name, attempts - 1)
-    end
-  end
-
-  defp wait_for_name_remap(old_pid, new_pid, name, 0) do
-    assert {:error, :not_found} = NamePool.get_name_by_pid(old_pid)
-    assert {:ok, ^name} = NamePool.get_name_by_pid(new_pid)
   end
 
   test "get_name_by_pid/3 returns timeout when target server never replies" do

@@ -73,10 +73,9 @@ defmodule Services.GlobalsTest do
     assert_receive {:root_started, ^root}
     assert_receive {:child_value, 99}
 
-    # Give the server a tick to process :DOWN
-    Process.sleep(50)
-
-    refute :ets.member(:globals_roots, root)
+    # The server cleans up asynchronously on the root's :DOWN; poll until the
+    # root entry disappears rather than guessing at a sleep that covers it.
+    wait_until(fn -> not :ets.member(:globals_roots, root) end)
 
     ms = [{{{root, :_, :_}, :_}, [], [true]}]
     assert 0 == :ets.select(:globals_data, ms) |> length()

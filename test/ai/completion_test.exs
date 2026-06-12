@@ -1,5 +1,5 @@
 defmodule AI.CompletionTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   describe "new/1" do
     test "creates completion state with minimal valid opts" do
@@ -274,7 +274,10 @@ defmodule AI.CompletionTest do
                  toolbox: %{}
                )
 
-      {output, _stderr} = capture_all(fn -> IO.puts(state.response) end)
+      # Plain capture_io is group-leader-scoped (per-process) and so safe
+      # under async; capture_all additionally captures the VM-global :stderr
+      # device, which cross-bleeds between concurrent tests.
+      output = capture_io(fn -> IO.puts(state.response) end)
 
       assert output =~ "429"
       assert output =~ "rate_limit"
@@ -726,8 +729,7 @@ defmodule AI.CompletionTest do
     # `tool_round_cap` rounds, Completion should drop the tool surface,
     # inject a system nudge, and let the model finalize on the next call.
     test "stuck tool-call loop terminates after cap with nudge injected" do
-      System.put_env("FNORD_TOOL_ROUND_CAP", "3")
-      on_exit(fn -> System.delete_env("FNORD_TOOL_ROUND_CAP") end)
+      Util.Env.put_override("FNORD_TOOL_ROUND_CAP", "3")
 
       # Track how many times the API has been called. Returns :tool for
       # as long as specs is a list (before the cap drops it), and :msg
@@ -786,8 +788,7 @@ defmodule AI.CompletionTest do
     end
 
     test "env var FNORD_TOOL_ROUND_CAP overrides the default" do
-      System.put_env("FNORD_TOOL_ROUND_CAP", "42")
-      on_exit(fn -> System.delete_env("FNORD_TOOL_ROUND_CAP") end)
+      Util.Env.put_override("FNORD_TOOL_ROUND_CAP", "42")
 
       assert {:ok, state} =
                AI.Completion.new(
@@ -799,8 +800,7 @@ defmodule AI.CompletionTest do
     end
 
     test "invalid FNORD_TOOL_ROUND_CAP falls back to the default" do
-      System.put_env("FNORD_TOOL_ROUND_CAP", "not-a-number")
-      on_exit(fn -> System.delete_env("FNORD_TOOL_ROUND_CAP") end)
+      Util.Env.put_override("FNORD_TOOL_ROUND_CAP", "not-a-number")
 
       assert {:ok, state} =
                AI.Completion.new(

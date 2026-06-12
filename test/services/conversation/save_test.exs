@@ -31,12 +31,7 @@ defmodule Services.Conversation.SaveTest do
       :ok = Services.Conversation.replace_msgs(msgs, pid)
 
       # Cast is async; poll until the new messages are visible before saving.
-      Enum.reduce_while(1..50, nil, fn _, _ ->
-        case Services.Conversation.get_messages(pid) do
-          ^msgs -> {:halt, :ok}
-          _ -> Process.sleep(10)
-        end
-      end)
+      wait_until(fn -> Services.Conversation.get_messages(pid) == msgs end)
 
       assert {:ok, _} = Services.Conversation.save(pid)
 
