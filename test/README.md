@@ -56,7 +56,7 @@ Examples:
 - All tests use `Fnord.TestCase` instead of `ExUnit.Case`
   - Before you set up complex setup scenarios, check if `Fnord.TestCase` already provides what you need.
   - If it doesn't, but it seems like something we might need again, consider adding it to `Fnord.TestCase`.
-- Prefer `Mox` for mocking, but fall back to `meck` if the code to be mocked is not designed for dependency injection.
+- All mocking uses `Mox`. If the code under test has no seam for dependency injection, add one (a Globals-keyed facade) rather than reaching for a tracing/hot-patching mock library.
 - Use `mix test --warnings-as-errors` and always ensure tests pass without warnings.
 - Use `mix dialyzer` to check for type and contract issues.
 - Use `mix coveralls` to ensure tests are adequately covering the codebase.

@@ -2,7 +2,7 @@ defmodule StubApprovals do
   @moduledoc """
   Test stub implementation for Services.Approvals.Workflow.
 
-  By default, always approves requests. Tests can override behavior with :meck or Mox if needed.
+  By default, always approves requests. Tests can override behavior with Mox if needed.
   """
 
   @behaviour Services.Approvals.Workflow

@@ -6,8 +6,7 @@ defmodule GitCli.Default do
 
   Calls to public siblings go back through the `GitCli` facade rather
   than locally, so a test double installed on the `:git_cli` Globals
-  key intercepts nested calls (matching the interception semantics
-  tests previously got from `:meck` passthrough).
+  key intercepts nested calls, not just top-level entry points.
   """
 
   @behaviour GitCli

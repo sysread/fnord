@@ -13,7 +13,6 @@ Services.Globals.start_link()
 # Start test applications
 # ------------------------------------------------------------------------------
 Application.ensure_all_started(:mox)
-Application.ensure_all_started(:meck)
 
 # ------------------------------------------------------------------------------
 # Static test environment (VM-wide, never restored)

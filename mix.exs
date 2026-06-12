@@ -90,7 +90,6 @@ defmodule Fnord.MixProject do
       {:hermes_mcp, "~> 0.14"},
       {:httpoison, "~> 2.2.1"},
       {:jason, "~> 1.4"},
-      {:meck, "~> 1.0", only: [:test], runtime: false},
       {:mox, "~> 1.2", only: [:test], runtime: false},
       {:optimus, "~> 0.2"},
       {:owl, "~> 0.12"},

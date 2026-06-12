@@ -153,31 +153,22 @@ Reserve `await_render/0` for end-of-phase flush calls, not inside per-item reduc
 
 The pathology existed in `UI.progress_bar_update/1` before commit `616421e0`.
 
-## 15. meck: expect without new leaks a mock forever
+## 15. No meck: all mocking goes through Mox seams
 
-`:meck.expect(Mod, :func, fn -> ... end)` on a module that has NOT been
-`:meck.new`'d creates an implicit mock that never unloads.
-Every subsequent test that calls `Mod.func` sees the mock rather than the real
-implementation, regardless of seed or isolation.
-Detection: intermittent suite failures on specific seeds where a function returns
-unexpected values only when the full suite runs.
+The test suite has no `:meck` dependency, and it must stay that way. meck
+hot-patches modules VM-wide, which is incompatible with `async: true` and
+historically caused seed-dependent suite-wide failures via leaked mocks (an
+`:meck.expect` on a module that was never `:meck.new`'d created an implicit
+mock that never unloaded).
 
-Always `safe_meck_new(Mod, [:passthrough])` before any `:meck.expect` call, and
-register cleanup before the `new` call:
-
-```elixir
-on_exit(fn -> safe_meck_unload(Mod) end)
-:ok = safe_meck_new(Mod, [:passthrough])
-:meck.expect(Mod, :func, fn -> ... end)
-```
-
-Registering `on_exit` AFTER test assertions risks leaking the mock if an assertion
-fails mid-body before registration runs.
-`FnordTestCase` (`test/support/fnord_test_case.ex`) force-clears `UI` and
-`GitCli` in the global setup to absorb leaks from any test that skips this pattern.
-
-Audit command: `grep -rn ':meck.expect(' test/` and verify each module has a
-corresponding `safe_meck_new` in setup.
+If the code under test has no seam for dependency injection, add one - a
+behaviour-backed facade resolved through a tree-scoped Globals key (see
+`GitCli`, `Util.Exec`, `Http.Client`, `AI.CompletionAPI` for precedents) -
+rather than reintroducing a hot-patching mock library. Failure-path testing
+that looks like it needs meck usually has a real injection point: a
+tree-scoped service can be unregistered (re-register its `Services.Instance`
+entry with a dead pid), and validation gaps between layers can inject
+pure-data failures (see the session-indexer tests).
 
 ## 16. on_exit + linked Agent.stop race
 
@@ -602,8 +593,8 @@ the tree, it belongs to Globals (item 33).
 `:git_review`). Inside a `Default` module, a call to a public sibling must be
 facade-qualified (`GitCli.Worktree.has_uncommitted_changes?(path)`), never a
 bare local call - the facade hop is what lets a test double installed on the
-Globals key intercept nested calls, matching the `:meck` passthrough
-semantics the test suite was written against. A bare local call compiles and
+Globals key intercept nested calls and not just top-level entry points.
+A bare local call compiles and
 works in prod, but silently bypasses test doubles: a test that stubs
 `has_uncommitted_changes?` and exercises `has_changes_to_merge?` would hit
 real git instead of the stub. Private helpers stay local; only public

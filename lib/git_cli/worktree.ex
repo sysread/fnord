@@ -9,8 +9,7 @@ defmodule GitCli.Worktree do
   by default; tests that script worktree state opt in per test (see
   `Fnord.TestCase.mock_git_worktree/0`). The default implementation
   routes calls to public siblings back through this facade so a test
-  double intercepts nested calls (matching `:meck` passthrough
-  semantics).
+  double intercepts nested calls, not just top-level entry points.
   """
 
   @type worktree_meta :: %{

@@ -3,7 +3,8 @@ defmodule Services.Approvals.Shell.PersistentApprovalTest do
 
   setup do
     # Interactive-terminal posture: UI.choose/prompt gate on is_tty?() and
-    # !quiet?() before reaching UI.Output. The old UI meck bypassed the gate.
+    # !quiet?() before reaching UI.Output, returning {:error, :no_tty}
+    # otherwise - these tests need the prompts to reach the mock.
     set_config(:is_tty, true)
     set_config(:quiet, false)
     :ok

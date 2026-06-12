@@ -23,7 +23,7 @@ defmodule GitCli do
   that need to script git state opt in per test (see
   `Fnord.TestCase.mock_git_cli/0`). `GitCli.Default` routes its own
   calls to public siblings back through this facade so a test double
-  intercepts nested calls the same way `:meck` passthrough did.
+  intercepts nested calls, not just top-level entry points.
   """
 
   @callback is_git_repo?() :: boolean()

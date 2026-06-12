@@ -31,5 +31,5 @@ defmodule UI.Output.ProductionTest do
   # Note: choose/2 and prompt/1 are integration points with Owl.IO and Notifier,
   # which are not behaviour-backed. Those UI-level tests are better expressed
   # via the UI facade with Mox expectations on UI.Output.Mock rather than
-  # mecking Owl.IO/Notifier in this module.
+  # mocking Owl.IO/Notifier in this module.
 end

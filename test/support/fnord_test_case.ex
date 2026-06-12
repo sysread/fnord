@@ -67,10 +67,7 @@ defmodule Fnord.TestCase do
           mock_mcp_client: 0,
           set_log_level: 1,
           set_config: 1,
-          set_config: 2,
-          safe_meck_new: 1,
-          safe_meck_new: 2,
-          safe_meck_unload: 1
+          set_config: 2
         ]
 
       setup do
@@ -141,15 +138,6 @@ defmodule Fnord.TestCase do
       end
 
       setup do
-        # Defensive cleanup: any prior test that mocked UI or GitCli via :meck
-        # and crashed before unloading (or used :meck.expect on an un-:meck.new'd
-        # module, which creates an implicit mock that never gets cleaned up)
-        # would leak the mock to this test, breaking any UI/GitCli call path
-        # and producing seed-dependent failures suite-wide. Force-unload before
-        # each test so the leaker cannot poison the rest of the suite.
-        Fnord.TestCase.safe_meck_unload(UI)
-        Fnord.TestCase.safe_meck_unload(GitCli)
-
         Mox.stub_with(UI.Output.Mock, UI.Output.TestStub)
         Services.Globals.put_env(:fnord, :ui_output, UI.Output.Mock)
       end
@@ -295,33 +283,6 @@ defmodule Fnord.TestCase do
         :fnord_test_allowed_pids,
         Enum.into(pids, already)
       )
-    end
-
-    :ok
-  end
-
-  @doc """
-  Safely creates a new meck mock for the given module. If the module is
-  already mocked (from a previous test that didn't clean up properly), it is
-  unloaded first. Prevents `:already_started` errors from meck collisions.
-  """
-  @spec safe_meck_new(module(), list()) :: :ok
-  def safe_meck_new(module, opts \\ [:passthrough]) do
-    safe_meck_unload(module)
-    :meck.new(module, opts)
-    :ok
-  end
-
-  @doc """
-  Safely unloads a meck mock. Suppresses any errors from attempting to unload
-  a module that wasn't mocked or was already unloaded.
-  """
-  @spec safe_meck_unload(module()) :: :ok
-  def safe_meck_unload(module) do
-    try do
-      :meck.unload(module)
-    catch
-      _, _ -> :ok
     end
 
     :ok
@@ -607,8 +568,7 @@ defmodule Fnord.TestCase do
   through to the real implementation. Override individual functions with
   `Mox.stub(GitCli.Mock, :fn, ...)` to script git state. Because the real
   implementations route nested public calls back through the facade, an
-  override is seen by sibling functions too (matching the interception
-  semantics of `:meck` passthrough).
+  override is seen by sibling functions too.
 
   Like the agent-dispatch seam, the default stays the real implementation:
   most tests never touch git, and those that do usually want a real repo.

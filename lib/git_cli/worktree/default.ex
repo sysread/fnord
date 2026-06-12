@@ -7,8 +7,7 @@ defmodule GitCli.Worktree.Default do
   Calls to public siblings go back through the `GitCli.Worktree` facade
   (and repo-root resolution through the `GitCli` facade) rather than
   locally, so a test double installed on the corresponding Globals key
-  intercepts nested calls (matching the interception semantics tests
-  previously got from `:meck` passthrough).
+  intercepts nested calls, not just top-level entry points.
   """
 
   @behaviour GitCli.Worktree
