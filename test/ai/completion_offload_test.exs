@@ -1,22 +1,7 @@
 defmodule AI.CompletionOffloadTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   @moduletag capture_log: true
-
-  setup do
-    # Ensure Services.TempFile can be mocked
-    :meck.new(Services.TempFile, [:passthrough])
-
-    on_exit(fn ->
-      try do
-        :meck.unload(Services.TempFile)
-      rescue
-        _ -> :ok
-      end
-    end)
-
-    :ok
-  end
 
   test "small content is returned unchanged" do
     small = "hello"
@@ -26,34 +11,31 @@ defmodule AI.CompletionOffloadTest do
   test "large content is offloaded and placeholder returned" do
     large = String.duplicate("A", 150_000)
 
-    tmp = Path.join(File.cwd!(), "tmp_offload_test.txt")
-
-    # Ensure a file exists at the path returned by mktemp! so chmod() succeeds
-    if File.exists?(tmp), do: File.rm!(tmp)
-    File.write!(tmp, "")
-
-    :meck.expect(Services.TempFile, :mktemp!, fn -> tmp end)
-
     res = AI.Completion.maybe_offload_tool_output(large)
 
-    # File should exist and contain the large content
-    assert File.exists?(tmp)
+    # The placeholder names the temp file created by the tree's
+    # Services.TempFile; extract the path from the message rather than
+    # dictating it.
+    assert [_, tmp] = Regex.run(~r/written to (\S+)\./, res)
     assert File.read!(tmp) == large
-
-    # Result should be a placeholder string containing the path and preview
-    assert String.contains?(res, tmp)
     assert String.contains?(res, "Preview:")
-
-    File.rm!(tmp)
   end
 
   test "offload failure falls back to original content" do
     large = String.duplicate("B", 150_000)
 
-    :meck.expect(Services.TempFile, :mktemp!, fn -> raise "boom" end)
+    # Re-register the tree's Services.TempFile entry with a dead pid.
+    # Services.Instance.whereis nil-checks liveness, so mktemp!'s fetch!
+    # raises and maybe_offload_tool_output's rescue returns the original
+    # content - the real service-unavailable failure path.
+    {pid, ref} = spawn_monitor(fn -> :ok end)
 
-    res = AI.Completion.maybe_offload_tool_output(large)
+    receive do
+      {:DOWN, ^ref, :process, ^pid, _} -> :ok
+    end
 
-    assert res == large
+    Services.Instance.register(Services.TempFile, pid)
+
+    assert AI.Completion.maybe_offload_tool_output(large) == large
   end
 end

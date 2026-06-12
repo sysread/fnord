@@ -1,8 +1,39 @@
 defmodule Memory.SessionIndexerE2ETest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
+
+  # These tests drive Services.MemoryIndexer.process_sync against the REAL
+  # AI.Tools.LongTermMemory tool; only the indexer agent itself is canned
+  # (via canned_agent). Memory writes land in the mock project's on-disk
+  # store, so assertions read the store directly instead of counting mock
+  # calls.
+  #
+  # The memory storage directories are created up front: in production
+  # Memory.init (called from Cmd.Ask) creates them before the indexer can
+  # run, and the tool's recall candidate listing hard-matches {:ok, _} from
+  # Memory.Global.list/Memory.Project.list, which error on a missing
+  # directory.
+  defp setup_indexer(project_name) do
+    mock_project(project_name)
+    {:ok, project} = Store.get_project(project_name)
+    File.mkdir_p!(Path.join(project.store_path, "memory"))
+    File.mkdir_p!(Path.join(Store.store_home(), "memory"))
+    {:ok, _} = Services.MemoryIndexer.start_link(auto_scan: false)
+    # The indexer GenServer calls MockIndexer (embeddings for recall
+    # candidates) and the canned agent dispatcher; grant it this test's
+    # private-mode Mox ownership like any other ad-hoc tree service.
+    allow_service_mocks(self())
+    project
+  end
+
+  defp project_memory_files(project) do
+    project.store_path
+    |> Path.join("memory")
+    |> File.ls!()
+    |> Enum.filter(&String.ends_with?(&1, ".json"))
+  end
 
   test "session indexer processes memories, creates long-term memory, and marks processed session memories" do
-    mock_project("si-e2e")
+    project = setup_indexer("si-e2e")
 
     # Create conversation and two session memories on disk
     conv = Store.Project.Conversation.new()
@@ -37,66 +68,17 @@ defmodule Memory.SessionIndexerE2ETest do
         "status_updates" => status_updates
       })
 
-    # Mock AI.Agent.get_response to return the structured JSON
     canned_agent(fn _impl, _args -> {:ok, response} end)
-
-    # Also stub the long_term memory tool to perform an actual project save
-    # during the test. This avoids timing/race issues with on-disk writes and
-    # keeps the test deterministic.
-    :meck.new(AI.Tools.LongTermMemory, [:no_link, :passthrough, :non_strict])
-
-    :meck.expect(AI.Tools.LongTermMemory, :call, fn
-      %{"action" => "remember", "scope" => scope, "title" => title, "content" => content} ->
-        scope_atom = String.to_atom(scope)
-
-        case Memory.new(scope_atom, title, content, []) do
-          {:ok, mem} ->
-            case Memory.save(mem) do
-              {:ok, saved} -> {:ok, saved}
-              {:error, reason} -> {:error, reason}
-            end
-
-          {:error, reason} ->
-            {:error, reason}
-        end
-
-      _ ->
-        {:error, "unsupported"}
-    end)
-
-    on_exit(fn ->
-      :meck.unload(AI.Tools.LongTermMemory)
-    end)
-
-    # Run the session indexer
-    # Fresh per-test tree: the MemoryIndexer is not running yet and dies
-    # with the test process.
-    {:ok, _} = Services.MemoryIndexer.start_link(auto_scan: false)
 
     assert {:ok, {:ok, %Store.Project.Conversation{}}} =
              Services.MemoryIndexer.process_sync(conv)
 
-    # Long-term memory should have been created under project scope. Allow a
-    # short, bounded polling window to account for any scheduling jitter when
-    # the MemoryIndexer writes the project memory.
-    # Check directly on-disk for the project memory file to avoid relying on
-    # in-process project selection semantics during this test.
-    {:ok, project} = Store.get_project("si-e2e")
+    # The real tool's remember action writes the project memory through
+    # Memory.save before process_sync returns, so the file is present
+    # immediately - no polling window needed.
     slug = Memory.title_to_slug("Merged Sessions")
     path = Path.join([project.store_path, "memory", "#{slug}.json"])
-
-    # Poll for the file to appear (bounded)
-    found =
-      Enum.reduce_while(1..40, false, fn _i, _acc ->
-        if File.exists?(path) do
-          {:halt, true}
-        else
-          :timer.sleep(100)
-          {:cont, false}
-        end
-      end)
-
-    assert found, "expected project memory file #{path} to be created"
+    assert File.exists?(path), "expected project memory file #{path} to be created"
 
     # Read and validate content
     {:ok, json} = File.read(path)
@@ -118,7 +100,7 @@ defmodule Memory.SessionIndexerE2ETest do
   end
 
   test "session indexer rejects invalid target and does not mark the session memory processed" do
-    mock_project("si-e2e-invalid-target")
+    project = setup_indexer("si-e2e-invalid-target")
 
     conv = Store.Project.Conversation.new()
     {:ok, session_mem} = Memory.new(:session, "Session One", "First content", ["topic1"])
@@ -130,6 +112,9 @@ defmodule Memory.SessionIndexerE2ETest do
                memory: [session_mem]
              })
 
+    # "Me" is reserved to the global scope by Memory.ScopePolicy, so a
+    # project-scoped target fails the indexer's response validation before
+    # any action is applied.
     actions = [
       %{
         "action" => "add",
@@ -143,27 +128,11 @@ defmodule Memory.SessionIndexerE2ETest do
 
     canned_agent(fn _impl, _args -> {:ok, response} end)
 
-    :meck.new(AI.Tools.LongTermMemory, [:no_link, :passthrough, :non_strict])
-    :meck.expect(AI.Tools.LongTermMemory, :call, fn _args -> {:ok, :unexpected_success} end)
-
-    on_exit(fn ->
-      :meck.unload(AI.Tools.LongTermMemory)
-    end)
-
-    # Fresh per-test tree: the MemoryIndexer is not running yet and dies
-    # with the test process.
-    {:ok, _} = Services.MemoryIndexer.start_link(auto_scan: false)
-
     assert :ok = Services.MemoryIndexer.process_sync(conv)
 
-    write_calls =
-      :meck.history(AI.Tools.LongTermMemory)
-      |> Enum.filter(fn
-        {_pid, {AI.Tools.LongTermMemory, :call, [%{"action" => "remember"} | _]}, _result} -> true
-        _ -> false
-      end)
-
-    assert write_calls == []
+    # Validation rejected the whole response, so no memory write reached the
+    # project store.
+    assert project_memory_files(project) == []
 
     assert {:ok, data} = Store.Project.Conversation.read(conv)
 
@@ -178,7 +147,7 @@ defmodule Memory.SessionIndexerE2ETest do
   end
 
   test "session indexer marks session memory analyzed even when long-term tool fails" do
-    mock_project("si-e2e-tool-failure")
+    project = setup_indexer("si-e2e-tool-failure")
 
     conv = Store.Project.Conversation.new()
     {:ok, session_mem} = Memory.new(:session, "Session One", "First content", ["topic1"])
@@ -190,10 +159,14 @@ defmodule Memory.SessionIndexerE2ETest do
                memory: [session_mem]
              })
 
+    # A tab in the title passes the indexer's target validation (ScopePolicy
+    # checks scope eligibility, not characters) but fails Memory.new's title
+    # validation inside the real tool, which returns {:error, "invalid_title"}.
+    # Pure-data failure injection for the tool-failure path.
     actions = [
       %{
         "action" => "add",
-        "target" => %{"scope" => "project", "title" => "Merged Sessions"},
+        "target" => %{"scope" => "project", "title" => "Bad\tTitle"},
         "from" => %{"title" => "Session One"},
         "content" => "Should fail to save"
       }
@@ -203,28 +176,11 @@ defmodule Memory.SessionIndexerE2ETest do
 
     canned_agent(fn _impl, _args -> {:ok, response} end)
 
-    :meck.new(AI.Tools.LongTermMemory, [:no_link, :passthrough, :non_strict])
-    :meck.expect(AI.Tools.LongTermMemory, :call, fn _args -> {:error, "boom"} end)
-
-    on_exit(fn ->
-      :meck.unload(AI.Tools.LongTermMemory)
-    end)
-
-    # Fresh per-test tree: the MemoryIndexer is not running yet and dies
-    # with the test process.
-    {:ok, _} = Services.MemoryIndexer.start_link(auto_scan: false)
-
     assert {:ok, {:ok, %Store.Project.Conversation{}}} =
              Services.MemoryIndexer.process_sync(conv)
 
-    write_calls =
-      :meck.history(AI.Tools.LongTermMemory)
-      |> Enum.filter(fn
-        {_pid, {AI.Tools.LongTermMemory, :call, [%{"action" => "remember"} | _]}, _result} -> true
-        _ -> false
-      end)
-
-    assert length(write_calls) == 1
+    # The tool failed, so nothing was written to the project store.
+    assert project_memory_files(project) == []
 
     assert {:ok, data} = Store.Project.Conversation.read(conv)
 
@@ -239,7 +195,7 @@ defmodule Memory.SessionIndexerE2ETest do
   end
 
   test "session indexer marks all payload memories as analyzed after valid response" do
-    mock_project("si-e2e-explicit-from")
+    project = setup_indexer("si-e2e-explicit-from")
 
     conv = Store.Project.Conversation.new()
 
@@ -266,37 +222,13 @@ defmodule Memory.SessionIndexerE2ETest do
 
     canned_agent(fn _impl, _args -> {:ok, response} end)
 
-    :meck.new(AI.Tools.LongTermMemory, [:no_link, :passthrough, :non_strict])
-
-    :meck.expect(AI.Tools.LongTermMemory, :call, fn
-      %{"action" => "remember", "scope" => scope, "title" => title, "content" => content} ->
-        scope_atom = String.to_atom(scope)
-
-        case Memory.new(scope_atom, title, content, []) do
-          {:ok, mem} ->
-            case Memory.save(mem) do
-              {:ok, saved} -> {:ok, saved}
-              {:error, reason} -> {:error, reason}
-            end
-
-          {:error, reason} ->
-            {:error, reason}
-        end
-
-      _ ->
-        {:error, "unsupported"}
-    end)
-
-    on_exit(fn ->
-      :meck.unload(AI.Tools.LongTermMemory)
-    end)
-
-    # Fresh per-test tree: the MemoryIndexer is not running yet and dies
-    # with the test process.
-    {:ok, _} = Services.MemoryIndexer.start_link(auto_scan: false)
-
     assert {:ok, {:ok, %Store.Project.Conversation{}}} =
              Services.MemoryIndexer.process_sync(conv)
+
+    # The real tool persisted the new project memory.
+    assert project_memory_files(project) == [
+             "#{Memory.title_to_slug("Merged Sessions")}.json"
+           ]
 
     assert {:ok, data} = Store.Project.Conversation.read(conv)
 
@@ -314,7 +246,7 @@ defmodule Memory.SessionIndexerE2ETest do
   end
 
   test "session indexer marks all payload memories analyzed and applies status_updates on top" do
-    mock_project("si-e2e-no-from-processed")
+    setup_indexer("si-e2e-no-from-processed")
 
     conv = Store.Project.Conversation.new()
 
@@ -348,35 +280,6 @@ defmodule Memory.SessionIndexerE2ETest do
 
     canned_agent(fn _impl, _args -> {:ok, response} end)
 
-    :meck.new(AI.Tools.LongTermMemory, [:no_link, :passthrough, :non_strict])
-
-    :meck.expect(AI.Tools.LongTermMemory, :call, fn
-      %{"action" => "remember", "scope" => scope, "title" => title, "content" => content} ->
-        scope_atom = String.to_atom(scope)
-
-        case Memory.new(scope_atom, title, content, []) do
-          {:ok, mem} ->
-            case Memory.save(mem) do
-              {:ok, saved} -> {:ok, saved}
-              {:error, reason} -> {:error, reason}
-            end
-
-          {:error, reason} ->
-            {:error, reason}
-        end
-
-      _ ->
-        {:error, "unsupported"}
-    end)
-
-    on_exit(fn ->
-      :meck.unload(AI.Tools.LongTermMemory)
-    end)
-
-    # Fresh per-test tree: the MemoryIndexer is not running yet and dies
-    # with the test process.
-    {:ok, _} = Services.MemoryIndexer.start_link(auto_scan: false)
-
     assert {:ok, {:ok, %Store.Project.Conversation{}}} =
              Services.MemoryIndexer.process_sync(conv)
 
@@ -397,7 +300,7 @@ defmodule Memory.SessionIndexerE2ETest do
   end
 
   test "session indexer marks payload memory analyzed even when agent processed list contains unknown titles" do
-    mock_project("si-e2e-invalid-processed-title")
+    project = setup_indexer("si-e2e-invalid-processed-title")
 
     conv = Store.Project.Conversation.new()
     {:ok, session_mem} = Memory.new(:session, "Session One", "First content", ["topic1"])
@@ -417,18 +320,10 @@ defmodule Memory.SessionIndexerE2ETest do
 
     canned_agent(fn _impl, _args -> {:ok, response} end)
 
-    :meck.new(AI.Tools.LongTermMemory, [:no_link, :passthrough, :non_strict])
-    :meck.expect(AI.Tools.LongTermMemory, :call, fn _args -> {:ok, :unexpected_success} end)
-
-    on_exit(fn ->
-      :meck.unload(AI.Tools.LongTermMemory)
-    end)
-
-    # Fresh per-test tree: the MemoryIndexer is not running yet and dies
-    # with the test process.
-    {:ok, _} = Services.MemoryIndexer.start_link(auto_scan: false)
-
     assert {:ok, {:ok, %Store.Project.Conversation{}}} = Services.MemoryIndexer.process_sync(conv)
+
+    # No actions means no long-term memory writes.
+    assert project_memory_files(project) == []
 
     assert {:ok, data} = Store.Project.Conversation.read(conv)
 
@@ -441,7 +336,7 @@ defmodule Memory.SessionIndexerE2ETest do
   end
 
   test "session indexer does not leave session memories in :new after processing (no infinite reprocessing)" do
-    mock_project("si-e2e-no-infinite-loop")
+    project = setup_indexer("si-e2e-no-infinite-loop")
 
     conv = Store.Project.Conversation.new()
 
@@ -479,18 +374,10 @@ defmodule Memory.SessionIndexerE2ETest do
 
     canned_agent(fn _impl, _args -> {:ok, response} end)
 
-    :meck.new(AI.Tools.LongTermMemory, [:no_link, :passthrough, :non_strict])
-    :meck.expect(AI.Tools.LongTermMemory, :call, fn _args -> {:ok, []} end)
-
-    on_exit(fn ->
-      :meck.unload(AI.Tools.LongTermMemory)
-    end)
-
-    # Fresh per-test tree: the MemoryIndexer is not running yet and dies
-    # with the test process.
-    {:ok, _} = Services.MemoryIndexer.start_link(auto_scan: false)
-
     Services.MemoryIndexer.process_sync(conv)
+
+    # No actions means no long-term memory writes.
+    assert project_memory_files(project) == []
 
     assert {:ok, data} = Store.Project.Conversation.read(conv)
 
