@@ -1,5 +1,5 @@
 defmodule AI.Tools.SourceFallbackTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   setup do
     # Build a real source repo with a gitignored scratch dir, plus a "worktree"

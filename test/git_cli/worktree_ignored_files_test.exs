@@ -1,5 +1,5 @@
 defmodule GitCli.Worktree.IgnoredFilesTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   defp setup_repo(_context) do
     project = mock_git_project("ignored-files-test")

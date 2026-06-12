@@ -1,5 +1,5 @@
 defmodule Store.Project.CommitIndexTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   alias Store.Project.CommitIndex
 

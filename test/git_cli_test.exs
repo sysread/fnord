@@ -1,5 +1,5 @@
 defmodule GitCli.Test do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   # Helper to scope GitCli's "current directory" to `dir` for a block. Uses
   # Settings.set_project_root_override (which GitCli.effective_git_dir/0

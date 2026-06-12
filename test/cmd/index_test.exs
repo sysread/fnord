@@ -1,5 +1,5 @@
 defmodule Cmd.IndexTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   setup do
     set_config(workers: 1)
@@ -52,13 +52,11 @@ defmodule Cmd.IndexTest do
       |> Settings.Approvals.approve(:project, "shell", "git status")
 
       # Run indexing with explicit directory to persist settings
-      capture_all(fn ->
-        Cmd.Index.run(
-          %{project: project.name, directory: project.source_root, yes: true, quiet: true},
-          [],
-          []
-        )
-      end)
+      Cmd.Index.run(
+        %{project: project.name, directory: project.source_root, yes: true, quiet: true},
+        [],
+        []
+      )
 
       # Assert the approval still exists
       approvals =
@@ -340,12 +338,10 @@ defmodule Cmd.IndexTest do
       project: project,
       worktree: worktree
     } do
-      capture_all(fn ->
-        Settings.set_project_root_override(worktree)
-        Cmd.Index.run(%{project: project.name, yes: true, quiet: true}, [], [])
-        persisted = Settings.new() |> Settings.get_project_data(project.name) |> Map.get("root")
-        assert persisted == project.source_root
-      end)
+      Settings.set_project_root_override(worktree)
+      Cmd.Index.run(%{project: project.name, yes: true, quiet: true}, [], [])
+      persisted = Settings.new() |> Settings.get_project_data(project.name) |> Map.get("root")
+      assert persisted == project.source_root
     end
 
     test "explicit --dir DOES persist new root", %{project: project} do

@@ -1,5 +1,5 @@
 defmodule AI.Agent.Review.DecomposerTest do
-  use Fnord.TestCase, async: false
+  use Fnord.TestCase, async: true
 
   alias AI.Agent.Review.Decomposer
   alias AI.Agent.Composite
