@@ -6,6 +6,10 @@ defmodule ResolveProject do
   Project resolution from the current working directory.
 
   Behavior:
+  - With no explicit cwd, the effective directory is the session's project
+    root override (`Settings.get_project_root_override/0`) when set, else
+    the real cwd. In prod the override is always nil at resolution time;
+    see the comment in `resolve/1`.
   - If inside a git worktree, `resolve/1` will map the cwd to the repository root.
   - Select the configured project whose root contains that directory, choosing the one with the deepest (longest) root path.
 
@@ -33,41 +37,28 @@ defmodule ResolveProject do
           []
       end)
 
-    # If we are inside a git worktree, prefer resolving at the primary repo root
-    # so that project selection reflects the clone from which the worktree was created.
+    # Resolution base: an explicit cwd argument wins; otherwise honor the
+    # session's project-root override before falling back to the real cwd.
+    # In prod the override is always nil here - resolution runs once at CLI
+    # parse time, and every override writer (ask's worktree machinery) runs
+    # later - so consulting it changes nothing today. It exists for
+    # consistency (if resolution ever re-runs with an override set, the
+    # worktree mapping below converges on the same project) and as the
+    # async-safe alternative to File.cd! in tests.
     base_dir =
       case cwd do
-        nil -> File.cwd!()
+        nil -> Settings.get_project_root_override() || File.cwd!()
         dir -> dir
       end
 
+    # If we are inside a git worktree, prefer resolving at the primary repo
+    # root so that project selection reflects the clone from which the
+    # worktree was created. Skipped when an explicit cwd was passed,
+    # preserving resolve/1's literal-directory contract for that form.
     repo_root_in_ctx =
       case cwd do
-        nil ->
-          case System.cmd("git", ["rev-parse", "--is-inside-work-tree"],
-                 cd: base_dir,
-                 stderr_to_stdout: true
-               ) do
-            {"true\n", 0} ->
-              case System.cmd("git", ["rev-parse", "--git-common-dir"],
-                     cd: base_dir,
-                     stderr_to_stdout: true
-                   ) do
-                {out, 0} ->
-                  out
-                  |> String.trim()
-                  |> Path.dirname()
-
-                _ ->
-                  nil
-              end
-
-            _ ->
-              nil
-          end
-
-        _ ->
-          nil
+        nil -> GitCli.primary_root_at(base_dir)
+        _ -> nil
       end
 
     cwd_base = repo_root_in_ctx || base_dir

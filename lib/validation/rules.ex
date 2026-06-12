@@ -211,7 +211,7 @@ defmodule Validation.Rules do
 
   @doc """
   Expands a command string into an executable and argv list suitable for direct
-  execution with `System.cmd/3`.
+  execution (no shell interpretation).
   """
   @spec expand_command(String.t(), String.t()) :: {String.t(), [String.t()]}
   def expand_command(command, root) when is_binary(command) and is_binary(root) do
@@ -221,7 +221,8 @@ defmodule Validation.Rules do
 
   @doc """
   Expands and executes one configured validation command from the project root
-  as a direct process invocation.
+  as a direct process invocation, routed through the `Util.Exec` seam so tests
+  intercept the subprocess instead of spawning it.
   """
   @spec execute_validation_command(String.t(), String.t()) ::
           {:ok, command_result()} | {:error, command_result()}
@@ -230,7 +231,7 @@ defmodule Validation.Rules do
 
     try do
       UI.report_step("Validation", command)
-      {output, status} = System.cmd(executable, argv, cd: root, stderr_to_stdout: true)
+      {output, status} = Util.Exec.cmd(executable, argv, cd: root, stderr_to_stdout: true)
       result = %{command: command, status: status, output: output}
 
       case status do

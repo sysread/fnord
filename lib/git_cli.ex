@@ -42,6 +42,12 @@ defmodule GitCli do
   @callback commit_meta(String.t(), String.t()) :: {:ok, commit_meta} | {:error, term}
   @callback commit_numstat(String.t(), String.t()) :: {:ok, commit_numstat} | {:error, term}
   @callback status_short(String.t()) :: {:ok, [String.t()]} | {:error, term}
+  @callback primary_root_at(String.t()) :: String.t() | nil
+  @callback merge_base(String.t(), String.t(), String.t()) :: {:ok, String.t()} | :error
+  @callback diff_stat(String.t(), String.t()) :: {:ok, String.t()} | :error
+  @callback log_oneline(String.t(), String.t()) :: {:ok, String.t()} | :error
+  @callback verify_commit(String.t(), String.t()) :: {:ok, String.t()} | :error
+  @callback fetch_ref(String.t(), String.t(), String.t()) :: {:ok, String.t()} | :error
 
   @typedoc """
   Parsed metadata for a single commit, as reported by `git show`.
@@ -194,6 +200,54 @@ defmodule GitCli do
   """
   @spec status_short(String.t()) :: {:ok, [String.t()]} | {:error, term}
   def status_short(root), do: impl().status_short(root)
+
+  @doc """
+  Returns the primary clone's root for the repo containing `dir`, or nil
+  when `dir` is not inside a git work tree. For a linked worktree this is
+  the root of the clone the worktree was created from (via `git rev-parse
+  --git-common-dir`); for a primary checkout it is the repo root itself.
+  Project resolution uses this to map a worktree directory back to the
+  configured project root.
+  """
+  @spec primary_root_at(String.t()) :: String.t() | nil
+  def primary_root_at(dir), do: impl().primary_root_at(dir)
+
+  @doc """
+  Returns the merge base of two refs at `root`. The review ops below
+  return bare `:error` on git failure rather than `{:error, term}`:
+  their callers present target-specific context ("failed to resolve
+  branch X") and have no use for raw plumbing output.
+  """
+  @spec merge_base(String.t(), String.t(), String.t()) :: {:ok, String.t()} | :error
+  def merge_base(root, ref_a, ref_b), do: impl().merge_base(root, ref_a, ref_b)
+
+  @doc """
+  Returns `git diff --stat` output for `range` at `root`.
+  """
+  @spec diff_stat(String.t(), String.t()) :: {:ok, String.t()} | :error
+  def diff_stat(root, range), do: impl().diff_stat(root, range)
+
+  @doc """
+  Returns `git log --oneline` output for `range` at `root`.
+  """
+  @spec log_oneline(String.t(), String.t()) :: {:ok, String.t()} | :error
+  def log_oneline(root, range), do: impl().log_oneline(root, range)
+
+  @doc """
+  Resolves `ref` to a commit SHA if it exists locally (`rev-parse
+  --verify --quiet ref^{commit}`). Never touches the network; pair with
+  `fetch_ref/3` to make remote-only refs resolvable via FETCH_HEAD.
+  """
+  @spec verify_commit(String.t(), String.t()) :: {:ok, String.t()} | :error
+  def verify_commit(root, ref), do: impl().verify_commit(root, ref)
+
+  @doc """
+  Fetches `ref` from `remote` at `root`. Network-touching: review uses it
+  to make never-checked-out branches reviewable, and nothing else should
+  reach for it casually.
+  """
+  @spec fetch_ref(String.t(), String.t(), String.t()) :: {:ok, String.t()} | :error
+  def fetch_ref(root, remote, ref), do: impl().fetch_ref(root, remote, ref)
 
   @spec impl() :: module
   def impl() do

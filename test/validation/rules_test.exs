@@ -124,16 +124,22 @@ defmodule Validation.RulesTest do
     assert a == b
   end
 
+  # Command execution goes through the Util.Exec seam; these tests script the
+  # subprocess at that boundary and assert on the expanded executable/argv and
+  # the working directory, so no real process is ever spawned.
   describe "execute_validation_command/2" do
     test "executes validation commands directly" do
       project = mock_project("validation-exec")
       Settings.set_project(project.name)
+      root = project.source_root
+
+      expect(Util.Exec.Mock, :cmd, fn "echo", ["ok"], opts ->
+        assert opts[:cd] == root
+        {"ok\n", 0}
+      end)
 
       assert {:ok, %{command: "echo ok", status: 0, output: output}} =
-               Validation.Rules.execute_validation_command(
-                 "echo ok",
-                 project.source_root
-               )
+               Validation.Rules.execute_validation_command("echo ok", root)
 
       assert output =~ "ok"
     end
@@ -141,6 +147,8 @@ defmodule Validation.RulesTest do
     test "returns a structured failure for non-zero exit commands" do
       project = mock_project("validation-failure")
       Settings.set_project(project.name)
+
+      expect(Util.Exec.Mock, :cmd, fn "false", [], _opts -> {"", 1} end)
 
       assert {:error, %{command: "false", status: status, output: output}} =
                Validation.Rules.execute_validation_command(
@@ -155,6 +163,8 @@ defmodule Validation.RulesTest do
     test "preserves structured success result shape" do
       project = mock_project("validation-success")
       Settings.set_project(project.name)
+
+      expect(Util.Exec.Mock, :cmd, fn "echo", ["done"], _opts -> {"done\n", 0} end)
 
       assert {:ok, result} =
                Validation.Rules.execute_validation_command(

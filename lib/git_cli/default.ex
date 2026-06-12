@@ -382,6 +382,65 @@ defmodule GitCli.Default do
     end
   end
 
+  @impl GitCli
+  def primary_root_at(dir) when is_binary(dir) do
+    case System.cmd("git", ["rev-parse", "--is-inside-work-tree"],
+           cd: dir,
+           stderr_to_stdout: true
+         ) do
+      {"true\n", 0} ->
+        case System.cmd("git", ["rev-parse", "--git-common-dir"],
+               cd: dir,
+               stderr_to_stdout: true
+             ) do
+          # --git-common-dir answers with the primary clone's .git directory;
+          # its parent is the primary root. Git may answer relative to `dir`
+          # (a bare ".git" when dir IS the primary root), so expand against
+          # dir to keep the contract absolute.
+          {out, 0} -> out |> String.trim() |> Path.dirname() |> Path.expand(dir)
+          _ -> nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  @impl GitCli
+  def merge_base(root, ref_a, ref_b) do
+    run_git(root, ["merge-base", ref_a, ref_b])
+  end
+
+  @impl GitCli
+  def diff_stat(root, range) do
+    run_git(root, ["diff", "--stat", range])
+  end
+
+  @impl GitCli
+  def log_oneline(root, range) do
+    run_git(root, ["log", "--oneline", range])
+  end
+
+  @impl GitCli
+  def verify_commit(root, ref) do
+    run_git(root, ["rev-parse", "--verify", "--quiet", ref <> "^{commit}"])
+  end
+
+  @impl GitCli
+  def fetch_ref(root, remote, ref) do
+    run_git(root, ["fetch", remote, ref])
+  end
+
+  # Shared runner for the review ops: trimmed stdout on success, bare :error
+  # on any failure (see the facade docs for why these don't return reasons).
+  @spec run_git(String.t(), [String.t()]) :: {:ok, String.t()} | :error
+  defp run_git(root, args) do
+    case System.cmd("git", args, cd: root, stderr_to_stdout: true) do
+      {out, 0} -> {:ok, String.trim(out)}
+      _ -> :error
+    end
+  end
+
   @spec parse_numstat_counts(String.t(), String.t()) ::
           {non_neg_integer(), non_neg_integer()}
   defp parse_numstat_counts(adds, dels) do

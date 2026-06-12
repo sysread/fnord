@@ -1,4 +1,7 @@
 defmodule Cmd.SkillsGenerateTest do
+  # async: false - capture_all captures the VM-global :stderr device, which
+  # cross-bleeds under concurrency (and the empty-stderr assertion below
+  # would catch other tests' output).
   use Fnord.TestCase, async: false
 
   setup do
@@ -83,21 +86,20 @@ defmodule Cmd.SkillsGenerateTest do
 
     {:ok, other_dir} = tmpdir()
     Services.Globals.delete_env(:fnord, :project)
+    Settings.set_project_root_override(other_dir)
 
-    File.cd!(other_dir, fn ->
-      assert_raise RuntimeError, fn ->
-        Cmd.Skills.run(
-          %{
-            global: false,
-            description: "x",
-            enable: false,
-            project: nil,
-            name: nil
-          },
-          [:generate],
-          []
-        )
-      end
-    end)
+    assert_raise RuntimeError, fn ->
+      Cmd.Skills.run(
+        %{
+          global: false,
+          description: "x",
+          enable: false,
+          project: nil,
+          name: nil
+        },
+        [:generate],
+        []
+      )
+    end
   end
 end

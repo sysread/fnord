@@ -13,6 +13,16 @@ only when the user didn't pass `--project` explicitly (line 212). Tools must
 handle nil projects gracefully: several tool modules check
 `AI.Tools.get_project/0` and return structured errors rather than crashing.
 
+With no explicit cwd argument, `resolve/1` honors the session's project-root
+override before falling back to the real cwd. In prod that override is
+always nil at resolution time - all of its writers (ask's worktree
+machinery, the AI worktree tool) run after `set_globals/1` - so this is
+purely a consistency seam: tests vary the resolution directory with
+`Settings.set_project_root_override/1` instead of the VM-global `File.cd!`,
+and a hypothetical mid-session re-resolution converges on the same project
+(the worktree mapping in `GitCli.primary_root_at/1` sends any checkout back
+to the primary clone's root).
+
 ## 2. FileLock freshness recheck inside the lock
 
 `locked_task/3` (`lib/cmd/index.ex:468`) calls `still_stale?.()` **inside**

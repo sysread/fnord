@@ -784,9 +784,9 @@ defmodule AI.Agent.Review.Decomposer do
     with {:ok, head_sha} <- ensure_ref_available(root, branch),
          {:ok, base_name} <- pick_base(root, base_override, skip: branch),
          {:ok, base_sha} <- ensure_ref_available(root, base_name),
-         {:ok, merge_base} <- git(root, ["merge-base", head_sha, base_sha]),
-         {:ok, diff_stat} <- git(root, ["diff", "--stat", "#{merge_base}..#{head_sha}"]),
-         {:ok, log} <- git(root, ["log", "--oneline", "#{merge_base}..#{head_sha}"]) do
+         {:ok, merge_base} <- GitCli.merge_base(root, head_sha, base_sha),
+         {:ok, diff_stat} <- GitCli.diff_stat(root, "#{merge_base}..#{head_sha}"),
+         {:ok, log} <- GitCli.log_oneline(root, "#{merge_base}..#{head_sha}") do
       {:ok,
        %{
          source: :branch,
@@ -813,9 +813,9 @@ defmodule AI.Agent.Review.Decomposer do
          {:ok, _} <- ensure_ref_available(root, pr_info.head_name),
          {:ok, base_sha} <- ensure_ref_available(root, base_name),
          head_sha = pr_info.head_sha,
-         {:ok, merge_base} <- git(root, ["merge-base", head_sha, base_sha]),
-         {:ok, diff_stat} <- git(root, ["diff", "--stat", "#{merge_base}..#{head_sha}"]),
-         {:ok, log} <- git(root, ["log", "--oneline", "#{merge_base}..#{head_sha}"]) do
+         {:ok, merge_base} <- GitCli.merge_base(root, head_sha, base_sha),
+         {:ok, diff_stat} <- GitCli.diff_stat(root, "#{merge_base}..#{head_sha}"),
+         {:ok, log} <- GitCli.log_oneline(root, "#{merge_base}..#{head_sha}") do
       {:ok,
        %{
          source: :pr,
@@ -836,7 +836,7 @@ defmodule AI.Agent.Review.Decomposer do
   end
 
   defp require_gh do
-    case System.cmd("gh", ["--version"], stderr_to_stdout: true) do
+    case Util.Exec.cmd("gh", ["--version"], stderr_to_stdout: true) do
       {_, 0} ->
         :ok
 
@@ -859,7 +859,7 @@ defmodule AI.Agent.Review.Decomposer do
       "baseRefName,baseRefOid,headRefName,headRefOid,state"
     ]
 
-    case System.cmd("gh", args, cd: root, stderr_to_stdout: true) do
+    case Util.Exec.cmd("gh", args, cd: root, stderr_to_stdout: true) do
       {out, 0} ->
         case SafeJson.decode_lenient(out, keys: :atoms!) do
           {:ok,
@@ -895,8 +895,8 @@ defmodule AI.Agent.Review.Decomposer do
          {:ok, a_sha} <- ensure_ref_available(root, a),
          {:ok, b_sha} <- ensure_ref_available(root, b),
          resolved_range = "#{a_sha}#{separator}#{b_sha}",
-         {:ok, diff_stat} <- git(root, ["diff", "--stat", resolved_range]),
-         {:ok, log} <- git(root, ["log", "--oneline", resolved_range]) do
+         {:ok, diff_stat} <- GitCli.diff_stat(root, resolved_range),
+         {:ok, log} <- GitCli.log_oneline(root, resolved_range) do
       {:ok,
        %{
          source: :range,
@@ -986,19 +986,19 @@ defmodule AI.Agent.Review.Decomposer do
 
   # ----- Shared helpers ------------------------------------------------------
 
-  # Make a ref available locally and return its SHA. Tries `git rev-parse`
-  # first; on miss, fetches the ref from `origin` and retries. This is what
-  # makes branch/PR/range review safe when the target has never been
-  # checked out in the working tree.
+  # Make a ref available locally and return its SHA. Tries a local resolve
+  # first; on miss, fetches the ref from `origin` and retries via FETCH_HEAD.
+  # This is what makes branch/PR/range review safe when the target has never
+  # been checked out in the working tree.
   defp ensure_ref_available(root, ref) do
-    case git(root, ["rev-parse", "--verify", "--quiet", ref <> "^{commit}"]) do
+    case GitCli.verify_commit(root, ref) do
       {:ok, sha} ->
         {:ok, sha}
 
       _ ->
-        case git(root, ["fetch", "origin", ref]) do
+        case GitCli.fetch_ref(root, "origin", ref) do
           {:ok, _} ->
-            case git(root, ["rev-parse", "--verify", "--quiet", "FETCH_HEAD^{commit}"]) do
+            case GitCli.verify_commit(root, "FETCH_HEAD") do
               {:ok, sha} -> {:ok, sha}
               _ -> {:error, "reviewer_tool: ref '#{ref}' not found locally or on origin"}
             end
@@ -1006,13 +1006,6 @@ defmodule AI.Agent.Review.Decomposer do
           _ ->
             {:error, "reviewer_tool: ref '#{ref}' not found locally or on origin"}
         end
-    end
-  end
-
-  defp git(root, args) do
-    case System.cmd("git", args, cd: root, stderr_to_stdout: true) do
-      {out, 0} -> {:ok, String.trim(out)}
-      _ -> :error
     end
   end
 
