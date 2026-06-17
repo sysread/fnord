@@ -1,5 +1,5 @@
 defmodule Services.Approvals.Shell.PersistentApprovalTest do
-  use Fnord.TestCase, async: true
+  use Fnord.TestCase, async: false
 
   setup do
     # Interactive-terminal posture: UI.choose/prompt gate on is_tty?() and
@@ -56,6 +56,7 @@ defmodule Services.Approvals.Shell.PersistentApprovalTest do
 
       # Stub prompt to accept default prefix
       stub(UI.Output.Mock, :prompt, fn _msg, _opts -> "" end)
+
       # Expect only one choose call for the shared prefix
       stub(UI.Output.Mock, :choose, fn
         "Choose approval scope for:\n    git not-preapproved\n", _opts ->

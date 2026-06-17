@@ -183,7 +183,7 @@ defmodule Services.Approvals.Shell do
           {:denied, reason, state}
 
         :ok ->
-          if Enum.all?(stages, &approved?(state, &1)) do
+          if Enum.all?(stages, &stage_approved?(state, &1)) do
             {:approved, state}
           else
             if !UI.is_tty?() do
@@ -323,7 +323,7 @@ defmodule Services.Approvals.Shell do
 
   # Returns true if either the prefix path or the full command string is
   # approved or a stored full-command approval matches this stage.
-  defp approved?(state, {prefix, full}) do
+  defp stage_approved?(state, {prefix, full}) do
     prefix_approved?(state, prefix) or
       full_literal_prefix_approved?(state, full) or
       full_cmd_preapproved?(state, full)
@@ -430,7 +430,7 @@ defmodule Services.Approvals.Shell do
       |> Enum.with_index(1)
       |> Enum.flat_map(fn {cmd, i} ->
         tags =
-          if approved?(state, {extract_prefix(cmd), format_stage_for_match(cmd)}) do
+          if stage_approved?(state, {extract_prefix(cmd), format_stage_for_match(cmd)}) do
             [:green, :bright]
           else
             [:red, :bright]
@@ -507,9 +507,9 @@ defmodule Services.Approvals.Shell do
 
   defp unapproved_prefixes(state, stages) do
     stages
+    |> Enum.reject(&stage_approved?(state, &1))
     |> Enum.map(fn {prefix, _full} -> prefix end)
     |> Enum.uniq()
-    |> Enum.reject(&prefix_approved?(state, &1))
   end
 
   @spec customize(state, list({String.t(), String.t()})) :: {:approved, state}

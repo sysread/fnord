@@ -57,4 +57,56 @@ defmodule Services.Approvals.Shell.MultiSegmentLiteralTest do
 
     assert {:approved, _} = Services.Approvals.Shell.confirm(state, args)
   end
+
+  test "customize skips prompt when persisted literal approval already covers sed -n" do
+    mock_project("proj")
+    Settings.set_project("proj")
+    Settings.new() |> Settings.Approvals.approve(:project, "shell", "sed -n")
+
+    state = %{session: []}
+    stages = [{"sed", "sed -n 1,20p README.md"}]
+
+    assert {:approved, ^state} = Services.Approvals.Shell.customize(state, stages)
+  end
+
+  test "customize skips prompt when persisted regex approval already covers the full command" do
+    mock_project("proj")
+    Settings.set_project("proj")
+    Settings.new() |> Settings.Approvals.approve(:project, "shell_full", "^find(?!.*-exec).+$")
+
+    state = %{session: []}
+
+    stages = [
+      {"find", "find . -name *.exs"},
+      {"find", "find lib -name *.ex"}
+    ]
+
+    assert {:approved, ^state} = Services.Approvals.Shell.customize(state, stages)
+  end
+
+  test "customize still prompts once when one stage under a shared prefix is not covered" do
+    mock_project("proj")
+    Settings.set_project("proj")
+    Settings.new() |> Settings.Approvals.approve(:project, "shell", "gh pr view")
+    set_config(:is_tty, true)
+    set_config(:quiet, false)
+
+    state = %{session: []}
+
+    stages = [
+      {"gh pr view", "gh pr view 123"},
+      {"gh pr view", "gh pr view --comments 123"},
+      {"gh pr checkout", "gh pr checkout 123"}
+    ]
+
+    stub(UI.Output.Mock, :prompt, fn _msg, _opts -> "" end)
+
+    stub(UI.Output.Mock, :choose, fn
+      "Choose approval scope for:\n    gh pr checkout\n", _opts ->
+        "Approve for this session"
+    end)
+
+    assert {:approved, %{session: [{:prefix, "gh pr checkout"}]}} =
+             Services.Approvals.Shell.customize(state, stages)
+  end
 end
