@@ -91,6 +91,11 @@ defmodule AI.Agent.Review.Reviewer do
   - Provides relevant design context
   - Highlights specific areas of concern you identified in Step 1
   - Gives the specialist enough context to do focused, high-quality work
+  - Requires concrete reachability proof for any behavioral or state/data claim
+  - Requires an authoritative source of truth for the claim (caller contract,
+    producer, guideline, docs, behavior, or other owning layer)
+  - Requires a producer -> transform -> consumer chain for findings about state,
+    data shape, or cross-module behavior
   - Calls out anything unusual (e.g., "3 of these changes appear to be bugfixes
     not mentioned in the design - review these separately")
 
@@ -130,7 +135,17 @@ defmodule AI.Agent.Review.Reviewer do
      impossible in the actual runtime context is not a real bug (e.g.,
      state accumulation in a short-lived process, concurrency in
      single-threaded code).
-  6. Verify intent. If the specialist flagged behavior as a bug but the code
+  6. For any finding about state, data shape, cross-module contracts, or
+     behavior, prove the causal chain:
+     - Identify the authoritative producer or source of the state/data.
+     - Identify the transforms between producer and consumer.
+     - Identify the consumer or branch where failure occurs.
+     - Identify the real entrypoint/workflow that exercises this chain.
+     If the only way to trigger the issue is by manually fabricating invalid
+     data/state or bypassing the real producers/guards, reject the finding.
+     If the citation is real but you cannot prove the producer chain, classify
+     the finding as UNVERIFIABLE rather than CONFIRMED.
+  7. Verify intent. If the specialist flagged behavior as a bug but the code
      appears to work as designed, check whether the behavior is intentional:
      - Read the callers of the cited code to see if the pattern makes sense
        in context.
@@ -140,15 +155,18 @@ defmodule AI.Agent.Review.Reviewer do
        documented rationale.
      If the behavior is intentional or an accepted limitation, reject the
      finding.
-  7. Classify:
+  8. Classify:
      - **CONFIRMED**: The cited code matches, the claim is accurate, the bug
-       is reachable through realistic usage, and the behavior is not
-       intentional.
+       is reachable through realistic usage, you proved the workflow/producer
+       chain where applicable, and the behavior is not intentional.
      - **REJECTED**: The citation is wrong, the claim is inaccurate, the bug
        cannot manifest in the actual runtime context, or the behavior is an
-       intentional design decision (explain why briefly).
+       intentional design decision (explain why briefly). Reject findings that
+       rely on manually seeded invalid state/data with no real producer path.
      - **UNVERIFIABLE**: The citation is correct but you cannot confirm the
-       behavioral claim without deeper tracing (state what's missing).
+       behavioral claim without deeper tracing (state what's missing). This is
+       the default for plausible claims that lack a proven trigger path,
+       producer chain, or authoritative source of truth.
 
   If a citation clearly does not match the file contents (e.g., wrong line
   numbers, code that doesn't exist, or content from a different branch), you
@@ -181,7 +199,9 @@ defmodule AI.Agent.Review.Reviewer do
   3. **Location**: file:line
   4. **Finding**: what the problem is
   5. **Evidence**: the code you read to confirm it
-  6. **Provenance**: branch-introduced or pre-existing
+  6. **Trigger/Proof**: the workflow trigger, and for state/data/behavior
+     issues the producer -> transform -> consumer chain you verified
+  7. **Provenance**: branch-introduced or pre-existing
 
   ### Rejected findings (appendix, brief)
   Findings you rejected and a one-line reason why.
@@ -274,6 +294,10 @@ defmodule AI.Agent.Review.Reviewer do
                 "location",
                 "description",
                 "evidence",
+                "trigger_scenario",
+                "reachability_analysis",
+                "source_of_truth",
+                "producer_chain",
                 "provenance"
               ],
               additionalProperties: false,
@@ -297,6 +321,26 @@ defmodule AI.Agent.Review.Reviewer do
                   type: "string",
                   description:
                     "Exact code quoted from the cited location. Copy-paste from what you read - do not paraphrase."
+                },
+                trigger_scenario: %{
+                  type: "string",
+                  description:
+                    "Concrete normal-usage trigger scenario. For purely mechanical findings, say why this is N/A."
+                },
+                reachability_analysis: %{
+                  type: "string",
+                  description:
+                    "Why the issue is reachable in the real workflow, or why reachability is not relevant for this finding class."
+                },
+                source_of_truth: %{
+                  type: "string",
+                  description:
+                    "Authoritative source for the claim: producer, caller contract, behavior, guideline, docs, or other owning layer."
+                },
+                producer_chain: %{
+                  type: "string",
+                  description:
+                    "Producer -> transform -> consumer chain for state/data/behavior findings. Use 'N/A - mechanical finding' when not applicable."
                 },
                 provenance: %{
                   type: "string",

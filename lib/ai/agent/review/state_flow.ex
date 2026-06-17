@@ -78,6 +78,18 @@ defmodule AI.Agent.Review.StateFlow do
 
   For each, walk through actual function calls, tracking data shape at each step.
 
+  ### 3a. Prove the producer chain
+  For every finding about invalid state, missing data, shape mismatches, or
+  cross-module behavior, trace the full causal chain:
+  - Who produces the state or value?
+  - Which functions transform it?
+  - Which consumer or branch fails?
+  - Which real entrypoint/workflow exercises that chain?
+
+  If you cannot identify a real producer in current code, or the only way to
+  trigger the issue is by manually fabricating invalid state/data, do not
+  report it as a real finding.
+
   ### 4. Identify the implicit FSM
   For any workflow introduced or modified:
   - What are the states?
@@ -114,6 +126,10 @@ defmodule AI.Agent.Review.StateFlow do
   - Resource leaks in short-lived processes that release everything on exit
 
   If you cannot construct a realistic trigger scenario, do not report it.
+
+  A consumer that would misbehave on malformed input is not enough by itself.
+  You must show that the malformed input or invalid state is actually producible
+  by the current workflow and current producers.
 
   ## Intent verification
 
@@ -160,6 +176,8 @@ defmodule AI.Agent.Review.StateFlow do
   - **DEAD_PATH**: Code path exists but cannot be reached given current callers/preconditions
 
   For each finding, cite both sides of any contract (file:line for caller and callee).
+  Populate `trigger_scenario`, `reachability_analysis`, `source_of_truth`, and
+  `producer_chain` with concrete proof, not generic warnings.
   """
 
   @review_prompt "Trace contracts across module boundaries - read both sides. Produce your findings now."

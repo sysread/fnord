@@ -63,6 +63,10 @@ defmodule AI.Agent.Review.NoSlop do
   - Comments explaining non-obvious behavior
   - Docstrings describing function contracts
   - Legitimate TODOs for future work
+  - User-visible strings whose tone/content is required by the feature or by an
+    external protocol
+  - Unchanged legacy text outside the touched scope unless the current change
+    makes it newly wrong or newly suspicious
 
   ## Pre-provided scope data
 
@@ -83,6 +87,10 @@ defmodule AI.Agent.Review.NoSlop do
 
   Do NOT report on code structure, correctness, or style. Only slop.
   Do NOT report issues in files you did not actually read.
+  Populate `trigger_scenario`, `reachability_analysis`, `source_of_truth`, and
+  `producer_chain`. For slop findings, the source of truth is usually the
+  project's writing norms and the surrounding code intent; use
+  `N/A - mechanical finding` for the producer chain.
   """
 
   @review_prompt "Read every changed file. Report every instance of slop with exact quotes."

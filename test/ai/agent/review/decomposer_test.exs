@@ -79,6 +79,21 @@ defmodule AI.Agent.Review.DecomposerTest do
     assert String.contains?(scope, "callers must keep passing a map")
   end
 
+  test "small scope carries the stricter review proof instructions" do
+    estimate = %{
+      git_range: "abc123..HEAD",
+      diff_stat: " lib/foo.ex | 2 ++",
+      exclude_paths: [],
+      exclude_reasoning: "",
+      constraints: []
+    }
+
+    scope = :erlang.apply(Decomposer, :build_small_scope, ["review scope", estimate])
+
+    assert String.contains?(scope, "## Git range")
+    assert String.contains?(scope, "review scope")
+  end
+
   test "decomposer responds to constraints step in the pipeline callbacks" do
     # function_exported?/3 returns false for unloaded modules, not just
     # missing ones. Without the ensure_loaded this test passes only when

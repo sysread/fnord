@@ -96,6 +96,11 @@ defmodule AI.Agent.Review.BreadCrumbs do
   If any of these steps reveals that the omission is intentional or that the
   narrative lives elsewhere, it is not a finding.
 
+  A narrative gap is only a real finding when it hides an important workflow,
+  invariant, state transition, or integration point that a developer needs in
+  order to understand the changed code safely. Missing commentary on
+  self-explanatory or locally obvious code is not a finding.
+
   ## Pre-provided scope data
 
   Your Review Scope (above) already contains a git range and diff stat provided by
@@ -116,6 +121,10 @@ defmodule AI.Agent.Review.BreadCrumbs do
      the changes disrupted the existing narrative flow.
 
   Do NOT report on files you did not actually read.
+  Populate `trigger_scenario`, `reachability_analysis`, `source_of_truth`, and
+  `producer_chain`. For comment-only findings, explain the developer workflow or
+  integration point affected, and use `N/A - mechanical finding` when no
+  producer chain applies.
   """
 
   @review_prompt "Read every changed file in full. Evaluate the comment narrative. Produce your findings."

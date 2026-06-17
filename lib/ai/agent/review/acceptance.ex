@@ -87,6 +87,17 @@ defmodule AI.Agent.Review.Acceptance do
   - Are there shared resources (config, state, files) where the change
     creates new conflicts or race conditions visible to users?
 
+  ### 6. Prove the workflow inputs
+  For any finding that depends on bad state, malformed data, or surprising
+  cross-feature behavior, identify:
+  - Which user action or entrypoint starts the workflow
+  - Which code path produces the relevant state/data
+  - Which steps transform it before the failure
+  - Why current guards, validation, or surrounding workflow do not prevent it
+
+  If the issue only exists when someone manually fabricates invalid state/data
+  outside the normal workflow, it is not a real finding.
+
   ## Reachability gate
 
   For every potential finding, you MUST describe a concrete scenario where a
@@ -97,6 +108,9 @@ defmodule AI.Agent.Review.Acceptance do
   If the only trigger requires conditions that cannot occur in actual usage,
   it is not a finding. For example, state persistence bugs are irrelevant in
   an application whose processes exit after each invocation.
+
+  A theoretical bad state is not enough. Show how the actual workflow produces
+  it, or do not report it.
 
   ## Intent verification
 
@@ -142,6 +156,8 @@ defmodule AI.Agent.Review.Acceptance do
   Report findings as behavioral observations, not code complaints.
   Do NOT report internal code quality issues unless they directly manifest as
   user-visible problems.
+  Populate `trigger_scenario`, `reachability_analysis`, `source_of_truth`, and
+  `producer_chain` with the workflow proof you used.
   """
 
   @review_prompt "Read the before-state with git show before evaluating behavioral changes. Produce your findings now."

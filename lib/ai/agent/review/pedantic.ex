@@ -82,6 +82,21 @@ defmodule AI.Agent.Review.Pedantic do
      - Dead references: mentions of old names, removed functions, deleted files?
   5. Cross-reference docs with code: verify that documentation matches implementation.
 
+  ## Materiality and source of truth
+
+  Do not flag a spec, doc, or naming issue until you identify the authoritative
+  source of truth for the claim: the owning behavior, public contract,
+  guideline, docs layer, or user-visible string.
+
+  Prefer concrete mismatches over theoretical ones. If the implementation looks
+  odd in isolation but callers, contracts, or owning docs show it is correct,
+  do not report it.
+
+  Populate `trigger_scenario`, `reachability_analysis`, `source_of_truth`, and
+  `producer_chain`. For mechanical findings, say plainly when workflow
+  reachability is not relevant and use `N/A - mechanical finding` for the
+  producer chain.
+
   ## Output
 
   Produce your findings as structured JSON matching the response format.
