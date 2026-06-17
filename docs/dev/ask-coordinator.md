@@ -139,6 +139,12 @@ priming the LLM to re-plan the entire task from scratch on each follow-up.
 When adding a new fresh-only prompt injection, add a matching follow-up variant
 or gate it on `followup?: false` so the slim `-f`/`-F` path stays slim.
 
+Fonz-mode persona instructions are injected through
+`AI.Agent.Coordinator.fonz_messages/1`. That helper is called from both
+fresh bootstrap paths (`initial_msg/1`, `Coding.base_prompt_msg/1`) and from
+`Coordinator.Test.get_response/1`, so the explicit persona note reaches normal
+sessions and `testing:` harness runs through the same owned integration point.
+
 ## Coordinator test mode
 
 User prompts starting with `testing:` (case-insensitive) bypass the normal

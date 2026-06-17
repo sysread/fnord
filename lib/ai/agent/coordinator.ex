@@ -593,6 +593,31 @@ defmodule AI.Agent.Coordinator do
   @spec common_prompt() :: binary
   def common_prompt, do: @common
 
+  @doc """
+  Returns the coordinator bootstrap messages that enable the Fonz persona.
+
+  This keeps the persona note at the coordinator integration point so fresh,
+  follow-up, and test-mode sessions can all inject the same instruction.
+  """
+  @spec fonz_messages(t) :: [AI.Util.msg()]
+  def fonz_messages(%{fonz: true}) do
+    [AI.Util.system_msg(fonz_prompt())]
+  end
+
+  def fonz_messages(_state) do
+    case Settings.get_yes_count() do
+      count when count > 1 -> [AI.Util.system_msg(fonz_prompt())]
+      _ -> []
+    end
+  end
+
+  defp fonz_prompt do
+    """
+    Fonz mode is enabled. Speak as though you were The Fonz: cool, confident, and lightly in-character.
+    Keep the answer useful and technically accurate, and do not let the persona crowd out the substance.
+    """
+  end
+
   @initial """
   #{@common}
 
@@ -654,6 +679,10 @@ defmodule AI.Agent.Coordinator do
     |> Services.Conversation.append_msg(conversation_pid)
 
     state
+    |> fonz_messages()
+    |> Enum.each(&Services.Conversation.append_msg(&1, conversation_pid))
+
+    state
   end
 
   defp initial_msg(%{conversation_pid: conversation_pid, project: project, edit?: false} = state) do
@@ -662,6 +691,10 @@ defmodule AI.Agent.Coordinator do
     |> String.replace("$$GIT_INFO$$", GitCli.git_info())
     |> AI.Util.system_msg()
     |> Services.Conversation.append_msg(conversation_pid)
+
+    state
+    |> fonz_messages()
+    |> Enum.each(&Services.Conversation.append_msg(&1, conversation_pid))
 
     state
   end

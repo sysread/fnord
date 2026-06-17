@@ -5,6 +5,11 @@ defmodule AI.Agent.Coordinator.GlueCompletionTest do
 
   alias AI.Agent.Coordinator.Glue
 
+  @fonz_prompt """
+  Fonz mode is enabled. Speak as though you were The Fonz: cool, confident, and lightly in-character.
+  Keep the answer useful and technically accurate, and do not let the persona crowd out the substance.
+  """
+
   setup do
     set_log_level(:none)
     _project = mock_project("glue_completion_test")
@@ -54,6 +59,30 @@ defmodule AI.Agent.Coordinator.GlueCompletionTest do
     Glue.get_completion(state)
 
     assert_received {:completion_call, ^model, nil}
+  end
+
+  test "injects the explicit Fonz persona note into completion messages", ctx do
+    test_pid = self()
+
+    stub(AI.CompletionAPI.Mock, :get, fn _model, msgs, _tools, _rf, _web, _verbosity ->
+      send(test_pid, {:completion_call, msgs})
+      {:ok, :msg, "ok", 0}
+    end)
+
+    state = fake_coordinator_state(AI.Model.smart(), ctx.conversation_pid)
+
+    Services.Conversation.replace_msgs(
+      [
+        AI.Util.system_msg("Your name is The Fonz."),
+        AI.Util.system_msg(String.trim(@fonz_prompt))
+      ],
+      ctx.conversation_pid
+    )
+
+    Glue.get_completion(state)
+
+    assert_received {:completion_call, msgs}
+    assert Enum.any?(msgs, fn msg -> msg.content == String.trim(@fonz_prompt) end)
   end
 
   defp fake_coordinator_state(model, conversation_pid) do

@@ -115,6 +115,10 @@ defmodule AI.Agent.Coordinator.Coding do
   DOUBLE CHECK THAT YOU ACTUALLY MADE THE CHANGES REQUESTED BEFORE FINALIZING YOUR RESPONSE.
   """
 
+  @doc """
+  Appends the edit-mode bootstrap prompt, then any persona overlays that belong
+  at the same coordinator integration point.
+  """
   @spec base_prompt_msg(t) :: t
   def base_prompt_msg(state) do
     @prompt
@@ -122,6 +126,10 @@ defmodule AI.Agent.Coordinator.Coding do
     |> String.replace("$$GIT_INFO$$", GitCli.git_info())
     |> AI.Util.system_msg()
     |> Services.Conversation.append_msg(state.conversation_pid)
+
+    state
+    |> AI.Agent.Coordinator.fonz_messages()
+    |> Enum.each(&Services.Conversation.append_msg(&1, state.conversation_pid))
 
     state
   end

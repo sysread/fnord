@@ -74,6 +74,8 @@ defmodule AI.Agent.Coordinator.Test do
       |> String.replace("$$GIT_INFO$$", GitCli.git_info())
       |> AI.Util.system_msg()
 
+    fonz_msgs = AI.Agent.Coordinator.fonz_messages(state)
+
     project_prompt_msgs =
       case Store.get_project() do
         {:ok, proj} ->
@@ -114,6 +116,7 @@ defmodule AI.Agent.Coordinator.Test do
       messages:
         Enum.concat([
           [test_prompt_msg],
+          fonz_msgs,
           project_prompt_msgs,
           external_configs_msgs,
           [AI.Util.user_msg(state.question)]
