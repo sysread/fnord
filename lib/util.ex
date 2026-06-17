@@ -254,6 +254,60 @@ defmodule Util do
   end
 
   @doc """
+  Resolves `path` to its canonical absolute form, following symlinks in
+  *every* path component - including intermediate ones such as a `/tmp`
+  that is itself a symlink to `/private/tmp` (the macOS default). This is
+  the form the OS returns from `getcwd`, so a path derived from the current
+  working directory (`Path.absname/1`, `File.cwd!/0`) and a stored project
+  root canonicalize to the same string and `Path.relative_to/2` can
+  relativize one against the other.
+
+  `resolve_symlink/2` only follows a final-component symlink; this folds it
+  over each component, so a symlinked ancestor is resolved too. A component
+  that does not exist (a path being created) is kept verbatim, realpath
+  style, so the function is safe for not-yet-existing paths. Circular or
+  unreadable links fall back to the un-resolved component.
+  """
+  @spec canonical_path(binary) :: binary
+  def canonical_path(path) do
+    path
+    |> Path.expand()
+    |> do_canonical_path(0)
+  end
+
+  # Resolve each component left to right against the already-canonical
+  # prefix. When a component is a symlink, `resolve_symlink/2` follows its
+  # whole chain (and guards against cycles); the target it returns may
+  # itself sit under un-resolved ancestor symlinks (a Briefly tmp dir whose
+  # target is stored as `/var/...` rather than `/private/var/...`), so the
+  # resolved target is fed back through `do_canonical_path/2` to canonicalize
+  # those ancestors too. Remaining components keep folding onto that result.
+  # The depth guard is a backstop against pathological link graphs that slip
+  # past the per-component cycle check.
+  @spec do_canonical_path(binary, non_neg_integer) :: binary
+  defp do_canonical_path(abs, depth) when depth > 40, do: abs
+
+  defp do_canonical_path(abs, depth) do
+    abs
+    |> Path.split()
+    |> Enum.reduce("/", fn
+      "/", acc ->
+        acc
+
+      component, acc ->
+        candidate = Path.join(acc, component)
+
+        case resolve_symlink(candidate) do
+          {:ok, resolved} when resolved != candidate ->
+            do_canonical_path(resolved, depth + 1)
+
+          _ ->
+            candidate
+        end
+    end)
+  end
+
+  @doc """
   Capitalizes the first letter of each word in the input string.
   """
   def ucfirst(input) when is_binary(input) do

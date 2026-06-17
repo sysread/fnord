@@ -234,9 +234,24 @@ defmodule Store.Project do
 
   @spec relative_path(String.t(), t) :: String.t()
   def relative_path(path, project) do
-    path
-    |> expand_path(project)
-    |> Path.relative_to(project.source_root)
+    abs = expand_path(path, project)
+    rel = Path.relative_to(abs, project.source_root)
+
+    # `Path.relative_to/2` returns the absolute path unchanged when it can't
+    # strip the root prefix. That happens when `abs` and `source_root`
+    # describe the same location through different symlinks - a path that
+    # arrived via the cwd (Path.absname, File.cwd!) is OS-canonical (macOS
+    # /tmp -> /private/tmp) while source_root is a plain Path.expand. Left
+    # alone, the full absolute path becomes the per-file store key
+    # (id_for_rel_path) and the lookup misses a file that is in fact indexed.
+    # Only on that failure do we pay to canonicalize both sides through every
+    # symlink and retry; the common path (indexing, already-consistent paths)
+    # keeps the cheap relativize with no extra filesystem calls.
+    if rel == abs do
+      Path.relative_to(Util.canonical_path(abs), Util.canonical_path(project.source_root))
+    else
+      rel
+    end
   end
 
   @spec find_path_in_source_root(Store.Project.t(), String.t()) ::

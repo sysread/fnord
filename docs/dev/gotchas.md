@@ -760,3 +760,31 @@ other edits. A new lane must be added to **both** globs and its `README.md`
 excluded in both. The globs are single-level (`*.md`, not `**`): docs in a
 subdirectory are not picked up. Never hand-maintain a parallel doc list;
 the globs are the authority.
+
+## 44. Per-file store keys are symlink-canonicalized only on relativize failure
+
+A file's store key is `id_for_rel_path(rel_path)` where `rel_path` comes
+from `Store.Project.relative_path/2` - the path expanded against
+`source_root`, then `Path.relative_to(abs, source_root)`. The footgun:
+`source_root` is stored as a plain `Path.expand` (symlinks intact, e.g.
+`/tmp/proj`), but a path that arrives via the cwd - `Path.absname/1`,
+`File.cwd!/0`, as in `Cmd.Summary` and the coordinator's file tools - is
+OS-canonical (`/private/tmp/proj` on macOS, where `/tmp` is a symlink).
+`Path.relative_to/2` can't strip a prefix that differs by a symlinked
+ancestor; it returns the absolute path **unchanged**, that becomes the
+key, and the lookup misses a file that is genuinely indexed (symptom:
+`fnord summary -f x` says "File not indexed"; `fnord ask` falls back to
+reading files directly with a Pivot note that summaries didn't resolve).
+
+`relative_path/2` detects the failure (`rel == abs`) and only then
+re-relativizes with both sides run through `Util.canonical_path/1`, which
+follows symlinks in **every** path component (`resolve_symlink/2` alone
+only follows a final-component link). The common path - indexing, where
+`Source` enumerates paths already under the stored root - takes the cheap
+`Path.relative_to` and pays zero extra filesystem calls. Do NOT
+canonicalize `source_root` at storage time to "fix this earlier": that
+makes the root canonical while paths threaded in from non-cwd sources
+(test fixtures, worktree overrides, a held absolute path) stay
+un-canonical, reintroducing the exact asymmetry one layer over - it broke
+the patcher and worktree-edit paths when tried. Normalize at the
+comparison, not at the source.

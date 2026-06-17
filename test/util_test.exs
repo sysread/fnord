@@ -65,6 +65,49 @@ defmodule UtilTest do
     end
   end
 
+  describe "canonical_path/1" do
+    setup do
+      {:ok, tmp_dir} = Briefly.create(directory: true)
+      %{tmp_dir: tmp_dir}
+    end
+
+    test "resolves a symlinked ancestor component", %{tmp_dir: tmp_dir} do
+      # real/proj/file.txt is the genuine location; `link` points at real,
+      # so link/proj/file.txt must canonicalize to the same path. Comparing
+      # two canonical_path results (rather than a hardcoded /private/...)
+      # keeps this cross-platform: both sides resolve the tmp_dir's own
+      # ancestor symlinks identically, and the link is the only difference.
+      proj = Path.join([tmp_dir, "real", "proj"])
+      File.mkdir_p!(proj)
+      File.write!(Path.join(proj, "file.txt"), "hello")
+
+      link = Path.join(tmp_dir, "link")
+      File.ln_s!(Path.join(tmp_dir, "real"), link)
+
+      via_link = Util.canonical_path(Path.join([link, "proj", "file.txt"]))
+      via_real = Util.canonical_path(Path.join([tmp_dir, "real", "proj", "file.txt"]))
+
+      assert via_link == via_real
+      refute String.contains?(via_link, "link")
+    end
+
+    test "keeps a non-existent trailing component verbatim", %{tmp_dir: tmp_dir} do
+      real = Path.join(tmp_dir, "real")
+      File.mkdir_p!(real)
+
+      link = Path.join(tmp_dir, "link")
+      File.ln_s!(real, link)
+
+      resolved = Util.canonical_path(Path.join([link, "does-not-exist"]))
+      assert resolved == Path.join(Util.canonical_path(real), "does-not-exist")
+    end
+
+    test "is idempotent", %{tmp_dir: tmp_dir} do
+      once = Util.canonical_path(tmp_dir)
+      assert Util.canonical_path(once) == once
+    end
+  end
+
   describe "path_within_root?/2" do
     test "true when path is inside root" do
       {:ok, root} = Briefly.create(directory: true)
