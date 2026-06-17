@@ -4,6 +4,7 @@
 
 - [Description](#description)
 - [Features](#features)
+- [Documentation](#documentation)
 - [Installation](#installation)
 - [Getting Started](#getting-started)
 - [Tool usage](#tool-usage)
@@ -38,6 +39,21 @@ If you've ever pasted multiple files into ChatGPT or worked with it iteratively 
 - User integrations
 - Skills (reusable agent presets): see [docs/user/skills.md](docs/user/skills.md)
 - MCP server support
+
+## Documentation
+
+fnord's docs are organized into three lanes:
+
+- **[Use-case runbooks](docs/use-cases/README.md)** — end-to-end
+  workflows: "I'm trying to do X, here's the path and the gotchas." Start
+  here if you want to *do* something.
+- **[User guides](docs/user/README.md)** — feature and configuration
+  reference: what each command, flag, and setting does.
+- **[Developer docs](docs/dev/README.md)** — architecture notes for
+  contributors and LLMs working on fnord itself.
+
+You can also ask fnord about its own features directly — the documentation
+search tool covers the use-case and user lanes.
 
 ## Installation
 

@@ -37,26 +37,26 @@ defmodule AI.Tools.SelfHelp.DocsTest do
     assert {:ok, "here's the answer"} = Docs.call(%{"question" => "anything"})
   end
 
-  # Regression: docs/user/README.md is excluded from hexdocs extras in
-  # mix.exs to avoid a readme.html filename collision. The tool previously
-  # generated a `hexdocs.pm/fnord/README.html` entry for it anyway, which
-  # 404s. The URL list baked into the system prompt must not reference it.
-  test "system prompt does not include the excluded docs/user/README.html URL" do
+  # Regression: each user-facing doc lane's README.md is excluded from
+  # hexdocs extras in mix.exs to avoid a readme.html filename collision
+  # (every extra publishes to `<basename>.html`). The tool previously
+  # generated a `hexdocs.pm/fnord/README.html` entry anyway, which 404s.
+  # The URL list baked into the system prompt must reference neither lane's
+  # README. The glob spans both docs/user/ and docs/use-cases/.
+  test "system prompt does not include either excluded lane README URL" do
     spec = Docs.spec()
     # The tool spec description is public and static, but the URL list is
-    # inside the private @system_prompt. Use the presence of other
-    # docs/user entries in source text via Code.ensure_loaded and the
-    # module's @moduledoc instead. Simpler: check the compiled module's
-    # private function via :erlang-level approach is brittle. Instead
-    # assert the spec itself is well-formed and that call/1 with a stubbed
-    # completion returns {:ok, ...}, which implicitly exercises the
-    # prompt construction at module-load time.
+    # inside the private @system_prompt. The spec being well-formed plus
+    # call/1 returning {:ok, ...} under a stubbed completion (above)
+    # implicitly exercises prompt construction at module-load time.
     assert spec.name == "fnord_help_docs_tool"
 
-    # Read the source and confirm the URL builder uses the excluded path
-    # filter. This catches a future regression that re-introduces the bad
+    # Read the source and confirm the URL builder rejects both lane
+    # READMEs. This catches a future regression that re-introduces a bad
     # URL even if the spec/call test stays green.
     source = File.read!("lib/ai/tools/self_help/docs.ex")
-    assert String.contains?(source, ~s|&(&1 == "docs/user/README.md")|)
+    assert String.contains?(source, ~s|"docs/user/README.md"|)
+    assert String.contains?(source, ~s|"docs/use-cases/README.md"|)
+    assert String.contains?(source, "Enum.reject(")
   end
 end

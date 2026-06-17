@@ -236,6 +236,16 @@ guaranteed like `FNORD.md` is.** Put fnord-authoritative instructions
 in `FNORD.md` for guaranteed injection; put shared-across-tools
 guidance in the convention files and trust the agent to find them.
 
+Keep the roles distinct rather than copying one file into the other:
+
+- `FNORD.md` is the authoritative, always-injected rulebook for fnord
+  sessions. Durable, must-always-apply instructions live here.
+- `CLAUDE.md` / `AGENTS.md` are best-effort cross-tool **orientation** —
+  "here's how to get your bearings in this repo," readable by Claude
+  Code, Cursor, and fnord's own research phase. They should point at the
+  authoritative source, not restate its rules line-for-line. A
+  line-for-line copy just drifts out of sync.
+
 ## Order of consultation in a typical `fnord ask` session
 
 1. Coordinator bootstrap builds system messages:

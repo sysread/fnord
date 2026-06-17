@@ -4,6 +4,10 @@ Advanced features and configuration for fnord power users.
 
 New to fnord? Start with the [main README](../README.md).
 
+Looking for end-to-end workflows rather than feature reference? See the
+[use-case runbooks](../use-cases/README.md) — "I'm trying to do X" guides
+that tie these topics together.
+
 ## Topics
 
 ### Commands and Options

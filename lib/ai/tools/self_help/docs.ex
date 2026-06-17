@@ -7,19 +7,26 @@ defmodule AI.Tools.SelfHelp.Docs do
 
   @behaviour AI.Tools
 
-  # Build canonical URL lists from docs/user/ at compile time so adding a
-  # new user-facing guide automatically expands the search scope without
-  # editing this module. Dev docs under docs/dev/ are intentionally out
-  # of scope: they're architecture notes for contributors/LLMs working
-  # on fnord itself, not answers to end-user questions.
+  # Build canonical URL lists from the user-facing doc lanes at compile time
+  # so adding a new guide or use-case doc automatically expands the search
+  # scope without editing this module. Two lanes are in scope:
   #
-  # docs/user/README.md is NOT in hexdocs extras (see mix.exs - it's
-  # excluded to avoid a `readme.html` filename collision with the top-level
-  # README.md), so a URL for it would 404. The root README is already
-  # represented as the hardcoded `readme.html` entry below; drop the
-  # docs/user/README.md duplicate from the glob before building URLs.
-  @doc_paths Path.wildcard("docs/user/*.md")
-             |> Enum.reject(&(&1 == "docs/user/README.md"))
+  # - docs/user/ - feature/reference guides.
+  # - docs/use-cases/ - end-to-end workflow runbooks.
+  #
+  # Both are published to hexdocs (see mix.exs, which globs the same two
+  # directories), so a hexdocs URL resolves for every file here. Dev docs
+  # under docs/dev/ are intentionally out of scope: they're architecture
+  # notes for contributors/LLMs working on fnord itself, not answers to
+  # end-user questions.
+  #
+  # Each lane's README.md is its hand-curated index and is NOT in hexdocs
+  # extras (excluded in mix.exs to avoid a `readme.html` filename collision
+  # with the top-level README.md), so a URL for either would 404. The root
+  # README is already represented as the hardcoded `readme.html` entry
+  # below; drop both README duplicates from the glob before building URLs.
+  @doc_paths (Path.wildcard("docs/user/*.md") ++ Path.wildcard("docs/use-cases/*.md"))
+             |> Enum.reject(&(&1 in ["docs/user/README.md", "docs/use-cases/README.md"]))
              |> Enum.sort()
   for path <- @doc_paths, do: @external_resource(path)
 

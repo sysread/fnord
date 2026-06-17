@@ -31,22 +31,30 @@ defmodule Fnord.MixProject do
   end
 
   defp docs do
-    # Glob so adding a new guide under docs/user/ auto-publishes it to
-    # hexdocs. The self-help tool (`AI.Tools.SelfHelp.Docs`) already globs
-    # the same directory at compile time for its URL list, so both stay
-    # in sync without hand-editing two lists. The root README.md at the
-    # top is separate from docs/user/README.md to avoid a
-    # `readme.html` filename collision in the published output.
+    # Glob the two user-facing doc lanes so adding a new guide or use-case
+    # doc auto-publishes it to hexdocs. The self-help tool
+    # (`AI.Tools.SelfHelp.Docs`) globs the same two directories at compile
+    # time for its URL list, so both stay in sync without hand-editing two
+    # lists. The root README.md at the top is separate from each lane's
+    # README.md to avoid a `readme.html` filename collision in the published
+    # output; each lane README is a hand-curated index that lives only in the
+    # repo and on GitHub.
     user_guides =
       "docs/user/*.md"
       |> Path.wildcard()
       |> Enum.reject(&(&1 == "docs/user/README.md"))
       |> Enum.sort()
 
+    use_cases =
+      "docs/use-cases/*.md"
+      |> Path.wildcard()
+      |> Enum.reject(&(&1 == "docs/use-cases/README.md"))
+      |> Enum.sort()
+
     [
       main: "readme",
-      extras: ["README.md" | user_guides],
-      groups_for_extras: [Guides: user_guides],
+      extras: ["README.md" | user_guides ++ use_cases],
+      groups_for_extras: [Guides: user_guides, "Use cases": use_cases],
       source_url: "https://github.com/sysread/fnord",
       homepage_url: "https://hex.pm/packages/fnord",
       format: :html

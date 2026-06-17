@@ -1,6 +1,6 @@
 # Developer documentation
 
-Architecture notes for LLMs and contributors working **on** fnord. For user-facing docs (how to use fnord in your own projects), see [`docs/user/`](../user/README.md).
+Architecture notes for LLMs and contributors working **on** fnord. For user-facing docs (how to use fnord in your own projects), see the feature reference in [`docs/user/`](../user/README.md) and the workflow runbooks in [`docs/use-cases/`](../use-cases/README.md).
 
 These docs live in the repo and are not published to hexdocs. They're intentionally skeletal — essential shape, key invariants, file:line pointers — and are meant to be refined over time rather than kept exhaustive. fnord indexes them as ordinary markdown, so asking fnord questions about itself will surface content from here via normal file search.
 

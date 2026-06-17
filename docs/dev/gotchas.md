@@ -736,3 +736,27 @@ Consequences:
   (both read real OS env). Vars that must reach a subprocess (PATH, HOME)
   need a real-env mutation - which forces the test sync - or a per-call
   `env:` opt on `System.cmd`.
+
+## 43. User-facing doc globs span two lanes; each lane's README is excluded
+
+Two code sites build the published/searchable user-doc list, and both
+glob the same **two** directories: `docs/user/*.md` (feature reference)
+and `docs/use-cases/*.md` (workflow runbooks).
+
+- `AI.Tools.SelfHelp.Docs.@doc_paths` (`lib/ai/tools/self_help/docs.ex`)
+  builds the hexdocs + GitHub URL list the `fnord_help_docs_tool` searches.
+- `Mix.Project.docs/0` `extras` (`mix.exs`) publishes the same files to
+  hexdocs, with a separate `groups_for_extras` group per lane.
+
+Both reject **each lane's `README.md`**
+(`docs/user/README.md`, `docs/use-cases/README.md`): every extra publishes
+to `<basename>.html`, so any `README.md` would collide with the top-level
+`README.md`'s `readme.html`. The lane READMEs are hand-curated indexes that
+live only in the repo and on GitHub.
+
+Contract for adding a third lane (or a doc to an existing one): a flat
+`*.md` file in a globbed lane is auto-published and auto-searchable with no
+other edits. A new lane must be added to **both** globs and its `README.md`
+excluded in both. The globs are single-level (`*.md`, not `**`): docs in a
+subdirectory are not picked up. Never hand-maintain a parallel doc list;
+the globs are the authority.
