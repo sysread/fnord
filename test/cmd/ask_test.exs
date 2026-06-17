@@ -187,6 +187,32 @@ defmodule Cmd.AskTest do
     end
   end
 
+  describe "run/3 fonz approval behavior" do
+    test "restores approval semantics in edit mode without CLI parsing" do
+      canned_coordinator()
+
+      {_stdout, _stderr} =
+        capture_all(fn ->
+          assert :ok == Cmd.Ask.run(%{question: "hello", edit: true, fonz: true}, [], [])
+        end)
+
+      assert Settings.get_yes_count() == 2
+    end
+
+    test "warns and ignores fonz mode outside edit mode" do
+      canned_coordinator()
+      redirect_ui_log_to_stderr()
+
+      {_stdout, stderr} =
+        capture_all(fn ->
+          assert :ok == Cmd.Ask.run(%{question: "hello", fonz: true}, [], [])
+        end)
+
+      assert stderr =~ "--yes has no effect unless you also pass --edit; ignoring"
+      assert Settings.get_yes_count() == 0
+    end
+  end
+
   describe "run/3 merged worktree reporting" do
     setup %{project: project} do
       {:ok, worktree_dir} = tmpdir()

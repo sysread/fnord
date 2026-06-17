@@ -498,8 +498,6 @@ defmodule Store.Project.Conversation.Format do
   end
 
   defp heal_warn(conversation, reason) do
-    UI.warn(
-      "Could not persist healed conversation #{conversation.id}: #{inspect(reason)}"
-    )
+    UI.warn("Could not persist healed conversation #{conversation.id}: #{inspect(reason)}")
   end
 end

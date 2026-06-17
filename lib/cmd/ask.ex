@@ -124,6 +124,11 @@ defmodule Cmd.Ask do
             default: false,
             multiple: true
           ],
+          fonz: [
+            long: "--eyyyy",
+            help: "",
+            default: false
+          ],
           smart: [
             long: "--smart",
             short: "-s",
@@ -159,6 +164,8 @@ defmodule Cmd.Ask do
       else
         Map.put(opts, :edit, false)
       end
+
+    opts = maybe_enable_fonz_mode(opts)
 
     # Handle --yes auto-approval flag
     if opts[:yes] == true or (is_integer(opts[:yes]) and opts[:yes] > 0) do
@@ -601,6 +608,29 @@ defmodule Cmd.Ask do
         :ok
     end
   end
+
+  # Restores the hidden `--eyyyy` ask flag by mapping it onto the current
+  # repeated-`--yes` trigger for fonz mode, so the conversation service still
+  # selects the Fonz persona.
+  @spec maybe_enable_fonz_mode(map) :: map
+  defp maybe_enable_fonz_mode(%{fonz: true, edit: true} = opts) do
+    yes_count =
+      case Map.get(opts, :yes, false) do
+        n when is_integer(n) and n > 1 -> n
+        _ -> 2
+      end
+
+    Settings.set_auto_approve(true)
+    Settings.set_yes_count(yes_count)
+    Map.put(opts, :yes, yes_count)
+  end
+
+  defp maybe_enable_fonz_mode(%{fonz: true} = opts) do
+    UI.warn("--yes has no effect unless you also pass --edit; ignoring")
+    opts
+  end
+
+  defp maybe_enable_fonz_mode(opts), do: opts
 
   # -----------------------------------------------------------------------------
   # Auto-approval policy

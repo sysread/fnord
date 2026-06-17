@@ -69,5 +69,17 @@ defmodule CmdTest do
       assert {[:config, :validation, :clear], %Optimus.ParseResult{}} =
                Optimus.parse!(parser, ["config", "validation", "clear"])
     end
+
+    test "parses the hidden ask flag" do
+      parser = Fnord.spec() |> Optimus.new!()
+
+      assert {[:ask],
+              %Optimus.ParseResult{
+                flags: %{fonz: true, edit: true},
+                options: %{question: "aayyy"},
+                unknown: []
+              }} =
+               Optimus.parse!(parser, ["ask", "--eyyyy", "--edit", "-q", "aayyy"])
+    end
   end
 end
