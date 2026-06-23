@@ -3,10 +3,20 @@ defmodule MCP.Tools do
 
   use Agent
 
+  @definition_tab :mcp_tool_definitions
+
   @doc "Start the MCP.Tools agent, registered in the current process tree"
   def start_link(_opts \\ []) do
     with {:ok, pid} <- Agent.start_link(fn -> %{} end) do
       Services.Instance.register(__MODULE__, pid)
+
+      Services.Globals.ensure_shared_table(@definition_tab, [
+        :named_table,
+        :public,
+        :set,
+        read_concurrency: true
+      ])
+
       {:ok, pid}
     end
   end
@@ -20,13 +30,9 @@ defmodule MCP.Tools do
       spec_data = default_spec(server, tool_spec)
       tool_name = "#{server}_#{name}"
 
-      # The modules are VM-global; the ensure_loaded? guard makes
-      # re-registration idempotent when another tree already defined them.
-      # Concurrent first-definition is serialized by the code server; worst
-      # case is a redefinition warning, not corruption.
-      unless Code.ensure_loaded?(mod) do
-        Module.create(mod, module_ast(spec_data, server, name), __ENV__)
-      end
+      # The modules are VM-global; serialize first-definition across the VM
+      # to avoid duplicate Module.create/3 races under concurrent discovery.
+      ensure_tool_module_defined(mod, spec_data, server, tool_name)
 
       # The tool_name => module index is tree-scoped, so it must be written
       # even when the module itself was defined by an earlier tree.
@@ -67,6 +73,63 @@ defmodule MCP.Tools do
       description: String.trim(desc),
       parameters: parameters
     }
+  end
+
+  # Generated tool modules are VM-global, while the Agent state is tree-scoped.
+  # The shared ETS table serializes first-definition and gives waiters a ready
+  # signal before they publish the tree-local tool_name => module mapping.
+  defp ensure_tool_module_defined(mod, spec_data, server, tool_name) do
+    cond do
+      Code.ensure_loaded?(mod) ->
+        :ok
+
+      claim_tool_definition(mod) == :owner ->
+        define_tool_module(mod, spec_data, server, tool_name)
+
+      true ->
+        wait_for_tool_module(mod, spec_data, server, tool_name)
+    end
+  end
+
+  defp claim_tool_definition(mod) do
+    if :ets.insert_new(@definition_tab, {mod, :defining}) do
+      :owner
+    else
+      :wait
+    end
+  end
+
+  defp define_tool_module(mod, spec_data, server, tool_name) do
+    try do
+      Module.create(mod, module_ast(spec_data, server, tool_name), __ENV__)
+      :ets.insert(@definition_tab, {mod, :ready})
+      :ok
+    rescue
+      error ->
+        :ets.delete(@definition_tab, mod)
+        reraise error, __STACKTRACE__
+    catch
+      kind, reason ->
+        :ets.delete(@definition_tab, mod)
+        :erlang.raise(kind, reason, __STACKTRACE__)
+    end
+  end
+
+  defp wait_for_tool_module(mod, spec_data, server, tool_name) do
+    cond do
+      Code.ensure_loaded?(mod) ->
+        :ok
+
+      :ets.lookup(@definition_tab, mod) == [{mod, :ready}] ->
+        :ok
+
+      :ets.lookup(@definition_tab, mod) == [{mod, :defining}] ->
+        Process.sleep(10)
+        wait_for_tool_module(mod, spec_data, server, tool_name)
+
+      true ->
+        ensure_tool_module_defined(mod, spec_data, server, tool_name)
+    end
   end
 
   # Generate AST for the dynamic tool module implementing AI.Tools callbacks
