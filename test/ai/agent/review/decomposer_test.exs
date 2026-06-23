@@ -1,8 +1,13 @@
 defmodule AI.Agent.Review.DecomposerTest do
-  use Fnord.TestCase, async: true
+  use Fnord.TestCase, async: false
 
   alias AI.Agent.Review.Decomposer
   alias AI.Agent.Composite
+
+  setup do
+    mock_git_cli()
+    :ok
+  end
 
   test "init seeds the estimate step only" do
     # `preflight: :skip` bypasses the git preflight; this test is about
@@ -167,5 +172,192 @@ defmodule AI.Agent.Review.DecomposerTest do
     assert context_msg.content =~ "explicit range"
     assert context_msg.content =~ "git diff --stat"
     assert context_msg.content =~ "git log --oneline"
+  end
+
+  test "branch target prefers upstream branch over repo default branch" do
+    project = mock_project("review-upstream-base")
+    root = project.source_root
+
+    Mox.stub(GitCli.Mock, :default_branch, fn ^root ->
+      "main"
+    end)
+
+    Mox.stub(GitCli.Mock, :branch_upstream, fn ^root, "topic" ->
+      "fork/parent"
+    end)
+
+    Mox.stub(GitCli.Mock, :verify_commit, fn
+      ^root, "topic" -> {:ok, "headsha"}
+      ^root, "fork/parent" -> :error
+      ^root, "FETCH_HEAD" -> {:ok, "basesha"}
+    end)
+
+    Mox.stub(GitCli.Mock, :fetch_ref, fn ^root, "fork", "parent" ->
+      {:ok, "fetched"}
+    end)
+
+    Mox.stub(GitCli.Mock, :merge_base, fn ^root, "headsha", "basesha" ->
+      {:ok, "mergebase"}
+    end)
+
+    Mox.stub(GitCli.Mock, :diff_stat, fn ^root, "mergebase..headsha" ->
+      {:ok, " lib/foo.ex | 2 +-"}
+    end)
+
+    Mox.stub(GitCli.Mock, :log_oneline, fn ^root, "mergebase..headsha" ->
+      {:ok, "abc123 change"}
+    end)
+
+    assert {:ok, state} =
+             Decomposer.init(%{
+               agent: %{name: :review},
+               scope: "review",
+               branch: "topic"
+             })
+
+    context_msg =
+      Enum.find(state.messages, fn msg ->
+        String.contains?(msg.content || "", "## Git context")
+      end)
+
+    assert context_msg.content =~ "Base branch: `fork/parent`"
+    assert context_msg.content =~ "Review range: `mergebase..headsha`"
+  end
+
+  test "branch target falls back to repo default branch when no upstream is configured" do
+    project = mock_project("review-default-base")
+    root = project.source_root
+
+    Mox.stub(GitCli.Mock, :default_branch, fn ^root ->
+      "main"
+    end)
+
+    Mox.stub(GitCli.Mock, :branch_upstream, fn ^root, "topic" ->
+      nil
+    end)
+
+    Mox.stub(GitCli.Mock, :verify_commit, fn
+      ^root, "topic" -> {:ok, "headsha"}
+      ^root, "main" -> {:ok, "basesha"}
+    end)
+
+    Mox.stub(GitCli.Mock, :merge_base, fn ^root, "headsha", "basesha" ->
+      {:ok, "mergebase"}
+    end)
+
+    Mox.stub(GitCli.Mock, :diff_stat, fn ^root, "mergebase..headsha" ->
+      {:ok, " lib/foo.ex | 2 +-"}
+    end)
+
+    Mox.stub(GitCli.Mock, :log_oneline, fn ^root, "mergebase..headsha" ->
+      {:ok, "abc123 change"}
+    end)
+
+    assert {:ok, state} =
+             Decomposer.init(%{
+               agent: %{name: :review},
+               scope: "review",
+               branch: "topic"
+             })
+
+    context_msg =
+      Enum.find(state.messages, fn msg ->
+        String.contains?(msg.content || "", "## Git context")
+      end)
+
+    assert context_msg.content =~ "Base branch: `main`"
+  end
+
+  test "branch target hard-fails when upstream resolves back to the same branch" do
+    project = mock_project("review-self-upstream")
+    root = project.source_root
+
+    Mox.stub(GitCli.Mock, :branch_upstream, fn ^root, "topic" ->
+      "origin/topic"
+    end)
+
+    Mox.stub(GitCli.Mock, :default_branch, fn ^root ->
+      flunk("default branch should not be consulted when an upstream exists")
+    end)
+
+    Mox.stub(GitCli.Mock, :verify_commit, fn
+      ^root, "topic" -> {:ok, "headsha"}
+    end)
+
+    assert {:error, :no_target} =
+             Decomposer.init(%{
+               agent: %{name: :review},
+               scope: "review",
+               branch: "topic"
+             })
+  end
+
+  test "explicit base override is preserved even when it contains a slash" do
+    project = mock_project("review-explicit-base")
+    root = project.source_root
+
+    Mox.stub(GitCli.Mock, :verify_commit, fn
+      ^root, "topic" -> {:ok, "headsha"}
+      ^root, "release/foo" -> {:ok, "basesha"}
+    end)
+
+    Mox.stub(GitCli.Mock, :merge_base, fn ^root, "headsha", "basesha" ->
+      {:ok, "mergebase"}
+    end)
+
+    Mox.stub(GitCli.Mock, :diff_stat, fn ^root, "mergebase..headsha" ->
+      {:ok, " lib/foo.ex | 2 +-"}
+    end)
+
+    Mox.stub(GitCli.Mock, :log_oneline, fn ^root, "mergebase..headsha" ->
+      {:ok, "abc123 change"}
+    end)
+
+    assert {:ok, state} =
+             Decomposer.init(%{
+               agent: %{name: :review},
+               scope: "review",
+               branch: "topic",
+               base: "release/foo"
+             })
+
+    context_msg =
+      Enum.find(state.messages, fn msg ->
+        String.contains?(msg.content || "", "## Git context")
+      end)
+
+    assert context_msg.content =~ "Base branch: `release/foo`"
+  end
+
+  test "explicit range preserves three-dot semantics" do
+    project = mock_project("review-three-dot-range")
+    root = project.source_root
+
+    Mox.stub(GitCli.Mock, :verify_commit, fn
+      ^root, "left" -> {:ok, "leftsha"}
+      ^root, "right" -> {:ok, "rightsha"}
+    end)
+
+    Mox.stub(GitCli.Mock, :diff_stat, fn ^root, "leftsha...rightsha" ->
+      {:ok, " lib/foo.ex | 1 +"}
+    end)
+
+    Mox.stub(GitCli.Mock, :log_oneline, fn ^root, "leftsha...rightsha" ->
+      {:ok, "abc123 change"}
+    end)
+
+    assert {:ok, state} =
+             Decomposer.init(%{
+               agent: %{name: :review},
+               scope: "review",
+               range: "left...right"
+             })
+
+    context_msg =
+      Enum.find(state.messages, fn msg ->
+        String.contains?(msg.content || "", "## Git context")
+      end)
+
+    assert context_msg.content =~ "Resolved range: `leftsha...rightsha`"
   end
 end

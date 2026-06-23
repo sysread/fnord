@@ -21,7 +21,8 @@ fnord a plain question about it.
 
 You always name **exactly one** target. The reviewer reads it via git
 directly, so it does **not** need to be checked out in your working tree —
-it fetches refs from origin as needed.
+it fetches refs as needed. For remote-qualified refs like `fork/parent`, it
+tries that named remote first and otherwise falls back to `origin`.
 
 | Target | Meaning | Range reviewed |
 | --- | --- | --- |
@@ -29,8 +30,13 @@ it fetches refs from origin as needed.
 | pr | a GitHub PR number (needs `gh`) | `merge-base(head, base)..head` |
 | range | an explicit `A..B` / `A...B` | exactly that range |
 
-`base` defaults to the repo's default branch; override it for stacked
-branches (set it to the parent branch, not `main`).
+`base` defaults to the reviewed branch's configured upstream when one
+exists, otherwise the repo's default branch. A self-tracking upstream
+like `origin/my-branch` is not a meaningful review base and will hard-
+fail; the same is true if you explicitly pass the branch itself as
+`base`. Pass the real parent branch explicitly in that case. Override it
+for stacked branches when the branch is not tracking the parent you want
+reviewed against (set it to the parent branch, not `main`).
 
 ## Prerequisites
 
@@ -74,8 +80,9 @@ branches (set it to the parent branch, not `main`).
   strings or `0`.
 - **PR review fails** — `gh` isn't installed or authenticated, or the PR
   number is wrong.
-- **Stacked-branch review shows noise from the parent** — set `base` to the
-  parent branch so the merge-base is computed correctly.
+- **Stacked-branch review shows noise from the parent** — either set the
+  branch's upstream to the parent branch or pass `base` explicitly so the
+  merge-base is computed against the right parent.
 - **Review seems to hang or conflict** — another review is already running
   in the same process; they don't run concurrently.
 

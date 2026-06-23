@@ -33,6 +33,7 @@ defmodule GitCli do
   @callback is_worktree?() :: boolean()
   @callback worktree_root() :: String.t() | nil
   @callback current_branch() :: String.t() | nil
+  @callback branch_upstream(String.t(), String.t()) :: String.t() | nil
   @callback git_info() :: String.t()
   @callback ignored_files(String.t() | nil) :: map()
   @callback default_branch(String.t() | nil) :: String.t() | nil
@@ -120,6 +121,14 @@ defmodule GitCli do
   """
   @spec current_branch() :: String.t() | nil
   def current_branch(), do: impl().current_branch()
+
+  @doc """
+  Returns the short upstream tracking ref for `branch` at `root`
+  (for example `origin/feature-parent`), or nil when no upstream is
+  configured or git cannot resolve it.
+  """
+  @spec branch_upstream(String.t(), String.t()) :: String.t() | nil
+  def branch_upstream(root, branch), do: impl().branch_upstream(root, branch)
 
   @doc """
   Returns a formatted, user-facing description of the current git

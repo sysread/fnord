@@ -96,6 +96,27 @@ defmodule GitCli.Default do
     end
   end
 
+  @impl GitCli
+  def branch_upstream(root, branch) when is_binary(root) and is_binary(branch) do
+    case System.cmd("git", ["rev-parse", "--abbrev-ref", "#{branch}@{upstream}"],
+           cd: root,
+           stderr_to_stdout: true
+         ) do
+      {out, 0} ->
+        upstream = String.trim(out)
+
+        case upstream do
+          "" -> nil
+          value -> value
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  def branch_upstream(_root, _branch), do: nil
+
   @spec branch_name(String.t(), String.t()) :: String.t() | nil
   defp branch_name(git, dir) do
     case System.cmd(git, ["rev-parse", "--abbrev-ref", "HEAD"],

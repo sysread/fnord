@@ -782,8 +782,8 @@ defmodule AI.Agent.Review.Decomposer do
 
   defp resolve_branch(root, branch, base_override) do
     with {:ok, head_sha} <- ensure_ref_available(root, branch),
-         {:ok, base_name} <- pick_base(root, base_override, skip: branch),
-         {:ok, base_sha} <- ensure_ref_available(root, base_name),
+         {:ok, base} <- pick_base(root, base_override, skip: branch),
+         {:ok, base_sha} <- ensure_base_ref_available(root, base),
          {:ok, merge_base} <- GitCli.merge_base(root, head_sha, base_sha),
          {:ok, diff_stat} <- GitCli.diff_stat(root, "#{merge_base}..#{head_sha}"),
          {:ok, log} <- GitCli.log_oneline(root, "#{merge_base}..#{head_sha}") do
@@ -791,7 +791,7 @@ defmodule AI.Agent.Review.Decomposer do
        %{
          source: :branch,
          branch: branch,
-         base: base_name,
+         base: base.label,
          merge_base: merge_base,
          head_sha: head_sha,
          range: "#{merge_base}..#{head_sha}",
@@ -941,7 +941,7 @@ defmodule AI.Agent.Review.Decomposer do
     case GitCli.Worktree.current_branch(root) do
       branch when is_binary(branch) ->
         case pick_base(root, base_override, skip: branch) do
-          {:ok, base_name} ->
+          {:ok, %{label: base_name}} ->
             case resolve_branch(root, branch, base_name) do
               {:ok, ctx} -> {:ok, Map.put(ctx, :source, :current_checkout)}
               other -> other
@@ -964,23 +964,47 @@ defmodule AI.Agent.Review.Decomposer do
   # ----- Base selection ------------------------------------------------------
 
   # Resolve the base branch, honoring the caller's explicit override and
-  # otherwise falling back to the repo's default branch. `:skip` names the
-  # branch we are reviewing - when that matches the resolved base (e.g.
-  # user is on `main` with no override), we return `:no_target` so the
-  # caller can surface the hard-fail message.
+  # otherwise preferring the reviewed branch's configured upstream before
+  # falling back to the repo default branch. `:skip` names the branch we are
+  # reviewing - when that matches the resolved base (e.g. user is on `main`
+  # with no override), we return `:no_target` so the caller can surface the
+  # hard-fail message.
   defp pick_base(root, nil, skip: skip) do
-    case GitCli.default_branch(root) do
-      nil -> {:error, "reviewer_tool: could not determine a default base branch"}
-      ^skip -> {:error, :no_target}
-      default -> {:ok, default}
+    case GitCli.branch_upstream(root, skip) do
+      upstream when is_binary(upstream) -> pick_upstream_base(upstream, skip)
+      nil -> pick_default_base(root, skip)
     end
   end
 
   defp pick_base(_root, override, skip: skip) when is_binary(override) do
-    if override == skip do
-      {:error, :no_target}
-    else
-      {:ok, override}
+    pick_explicit_base(override, skip)
+  end
+
+  defp pick_upstream_base(upstream, skip) do
+    case upstream_branch_name(upstream) do
+      ^skip -> {:error, :no_target}
+      _ -> {:ok, %{label: upstream, ref: upstream, remote_qualified?: true}}
+    end
+  end
+
+  defp pick_default_base(root, skip) do
+    case GitCli.default_branch(root) do
+      nil -> {:error, "reviewer_tool: could not determine a default base branch"}
+      default -> pick_explicit_base(default, skip)
+    end
+  end
+
+  defp pick_explicit_base(base, skip) do
+    case base do
+      ^skip -> {:error, :no_target}
+      _ -> {:ok, %{label: base, ref: base, remote_qualified?: remote_qualified_ref?(base)}}
+    end
+  end
+
+  defp upstream_branch_name(upstream) do
+    case String.split(upstream, "/", parts: 2) do
+      [_remote, branch_name] when branch_name != "" -> branch_name
+      _ -> upstream
     end
   end
 
@@ -997,15 +1021,57 @@ defmodule AI.Agent.Review.Decomposer do
 
       _ ->
         case GitCli.fetch_ref(root, "origin", ref) do
-          {:ok, _} ->
-            case GitCli.verify_commit(root, "FETCH_HEAD") do
-              {:ok, sha} -> {:ok, sha}
-              _ -> {:error, "reviewer_tool: ref '#{ref}' not found locally or on origin"}
+          {:ok, _} -> fetch_head_sha(root, ref)
+          _ -> {:error, "reviewer_tool: ref '#{ref}' not found locally or on origin"}
+        end
+    end
+  end
+
+  defp ensure_base_ref_available(root, %{ref: ref, remote_qualified?: true}) do
+    case GitCli.verify_commit(root, ref) do
+      {:ok, sha} ->
+        {:ok, sha}
+
+      _ ->
+        case split_remote_ref(ref) do
+          {:ok, remote, remote_ref} ->
+            case GitCli.fetch_ref(root, remote, remote_ref) do
+              {:ok, _} ->
+                fetch_head_sha(root, ref)
+
+              _ ->
+                {:error,
+                 "reviewer_tool: ref '#{ref}' not found locally or on any reachable remote"}
             end
 
-          _ ->
-            {:error, "reviewer_tool: ref '#{ref}' not found locally or on origin"}
+          :error ->
+            {:error, "reviewer_tool: ref '#{ref}' not found locally or on any reachable remote"}
         end
+    end
+  end
+
+  defp ensure_base_ref_available(root, %{ref: ref, remote_qualified?: false}) do
+    ensure_ref_available(root, ref)
+  end
+
+  defp fetch_head_sha(root, ref) do
+    case GitCli.verify_commit(root, "FETCH_HEAD") do
+      {:ok, sha} -> {:ok, sha}
+      _ -> {:error, "reviewer_tool: ref '#{ref}' not found locally or on any reachable remote"}
+    end
+  end
+
+  defp split_remote_ref(ref) do
+    case String.split(ref, "/", parts: 2) do
+      [remote, remote_ref] when remote != "" and remote_ref != "" -> {:ok, remote, remote_ref}
+      _ -> :error
+    end
+  end
+
+  defp remote_qualified_ref?(ref) do
+    case split_remote_ref(ref) do
+      {:ok, _remote, _remote_ref} -> true
+      :error -> false
     end
   end
 
