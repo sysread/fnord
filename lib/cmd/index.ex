@@ -105,27 +105,15 @@ defmodule Cmd.Index do
   defp maybe_halt_on_failure(_), do: :ok
 
   @doc """
-  Entry point for `file_reindex_tool`. Runs indexing inline and restores the
-  prior `:quiet` setting on exit.
+  Entry point for `file_reindex_tool`. Runs indexing inline while honoring the
+  index command's own quiet mode without mutating the session-wide UI quiet
+  setting.
   """
   def run_as_tool_call(opts) do
-    # Ensure we restore the global `:quiet` flag after indexing so that
-    # UI output returns to its previous formatting mode.
-    original_quiet = Services.Globals.get_env(:fnord, :quiet, false)
-
-    try do
-      if opts[:quiet] do
-        Settings.set_quiet(true)
-      end
-
-      with {:ok, idx} <- new(opts) do
-        idx
-        |> Map.put(:has_notes?, true)
-        |> then(&perform_task({:ok, &1}))
-      end
-    after
-      # Restore previous quiet setting regardless of indexing outcome
-      Settings.set_quiet(original_quiet)
+    with {:ok, idx} <- new(opts) do
+      idx
+      |> Map.put(:has_notes?, true)
+      |> then(&perform_task({:ok, &1}))
     end
   end
 
@@ -388,17 +376,17 @@ defmodule Cmd.Index do
 
     status =
       project
-      |> scan_project()
-      |> delete_entries()
-      |> index_entries()
+      |> scan_project(idx.opts)
+      |> delete_entries(idx.opts)
+      |> index_entries(idx.opts)
 
     # Each phase returns :ok on full success or {:partial, ok, err}. Aggregate
     # across phases so perform_task can propagate a non-zero exit code.
     phase_results = [
       status,
-      index_commits(project),
-      index_conversations(project),
-      index_memories()
+      index_commits(project, idx.opts),
+      index_conversations(project, idx.opts),
+      index_memories(idx.opts)
     ]
 
     aggregate_phase_results(phase_results)
@@ -527,12 +515,57 @@ defmodule Cmd.Index do
     Enum.join(parts, "; ")
   end
 
+  defp index_quiet?(opts) do
+    Map.get(opts, :quiet, false) == true
+  end
+
+  defp spin(opts, processing, func) do
+    case index_quiet?(opts) do
+      true ->
+        UI.begin_step(processing)
+        {msg, result} = func.()
+        UI.end_step(msg)
+        result
+
+      false ->
+        UI.spin(processing, func)
+    end
+  end
+
+  defp progress_bar_start(opts, name, label, total) do
+    case index_quiet?(opts) do
+      true -> :ok
+      false -> UI.progress_bar_start(name, label, total)
+    end
+  end
+
+  defp progress_bar_update(opts, name) do
+    case index_quiet?(opts) do
+      true -> :ok
+      false -> UI.progress_bar_update(name)
+    end
+  end
+
+  defp async_stream(opts, enumerable, fun, label) do
+    progress_bar_start(opts, :async_stream, label, Enum.count(enumerable))
+
+    enumerable
+    |> Util.async_stream(
+      fn item ->
+        result = fun.(item)
+        progress_bar_update(opts, :async_stream)
+        result
+      end,
+      []
+    )
+  end
+
   # Re-embed long-term memories (project + global) whose persisted embedding
   # is stale under the current model - either missing or of the wrong
   # dimension. Mirrors the file/commit/conversation phases: progress bar
   # under normal output, ✓/✗ per item under --quiet.
-  @spec index_memories() :: :ok | {:partial, non_neg_integer, non_neg_integer}
-  defp index_memories do
+  @spec index_memories(map()) :: :ok | {:partial, non_neg_integer, non_neg_integer}
+  defp index_memories(opts) do
     stale = Memory.list_stale_long_term_memories()
     count = length(stale)
 
@@ -540,15 +573,15 @@ defmodule Cmd.Index do
       UI.info("No memories need reindexing")
       :ok
     else
-      UI.spin("Indexing #{count} memory/memories", fn ->
+      spin(opts, "Indexing #{count} memory/memories", fn ->
         stale
-        |> UI.async_stream(&process_memory/1, "Indexing")
+        |> then(&async_stream(opts, &1, fn item -> process_memory(item, opts) end, "Indexing"))
         |> reduce_phase("memory/memories")
       end)
     end
   end
 
-  defp process_memory({scope, title}) do
+  defp process_memory({scope, title}, opts) do
     lock_key =
       case Memory.lock_path(scope, title) do
         {:ok, path} -> path
@@ -562,15 +595,15 @@ defmodule Cmd.Index do
       locked_task(
         lock_key,
         fn -> Memory.stale?(scope, title) end,
-        fn -> do_reindex_memory(scope, title) end
+        fn -> do_reindex_memory(scope, title, opts) end
       )
     end
   end
 
-  defp do_reindex_memory(scope, title) do
+  defp do_reindex_memory(scope, title, opts) do
     case Memory.reindex_memory(scope, title) do
       :ok ->
-        if Services.Globals.get_env(:fnord, :quiet) do
+        if index_quiet?(opts) do
           UI.info("✓ <memory> [#{scope}] #{title}")
         end
 
@@ -586,13 +619,13 @@ defmodule Cmd.Index do
     end
   end
 
-  @spec scan_project(Store.Project.t()) :: Store.Project.index_status()
-  defp scan_project(project) do
-    UI.spin("Scanning the project directory", fn ->
+  @spec scan_project(Store.Project.t(), map()) :: Store.Project.index_status()
+  defp scan_project(project, opts) do
+    spin(opts, "Scanning the project directory", fn ->
       on_progress = fn
         {:total, 0} -> :ok
-        {:total, total} -> UI.progress_bar_start(:scan, "Scanning files", total)
-        :tick -> UI.progress_bar_update(:scan)
+        {:total, total} -> progress_bar_start(opts, :scan, "Scanning files", total)
+        :tick -> progress_bar_update(opts, :scan)
       end
 
       status = Store.Project.index_status(project, on_progress: on_progress)
@@ -619,17 +652,17 @@ defmodule Cmd.Index do
     project
   end
 
-  defp delete_entries(%{deleted: deleted} = status) do
-    UI.spin("Deleting missing and newly excluded files from index", fn ->
+  defp delete_entries(%{deleted: deleted} = status, opts) do
+    spin(opts, "Deleting missing and newly excluded files from index", fn ->
       Enum.each(deleted, &Store.Project.Entry.delete/1)
       count = Enum.count(deleted)
       {"Deleted #{count} file(s) from the index", status}
     end)
   end
 
-  @spec index_entries(Store.Project.index_status()) ::
+  @spec index_entries(Store.Project.index_status(), map()) ::
           :ok | {:partial, non_neg_integer, non_neg_integer}
-  defp index_entries(%{new: new, stale: stale}) do
+  defp index_entries(%{new: new, stale: stale}, opts) do
     files_to_index = new ++ stale
     count = Enum.count(files_to_index)
 
@@ -637,21 +670,21 @@ defmodule Cmd.Index do
       UI.warn("No files to index")
       :ok
     else
-      UI.spin("Indexing #{count} file(s)", fn ->
+      spin(opts, "Indexing #{count} file(s)", fn ->
         files_to_index
-        |> UI.async_stream(&process_entry(&1), "Indexing")
+        |> then(&async_stream(opts, &1, fn item -> process_entry(item, opts) end, "Indexing"))
         |> reduce_phase("file(s)")
       end)
     end
   end
 
-  @spec index_conversations(Store.Project.t()) ::
+  @spec index_conversations(Store.Project.t(), map()) ::
           :ok | {:partial, non_neg_integer, non_neg_integer}
-  defp index_conversations(project) do
+  defp index_conversations(project, opts) do
     %{new: new, stale: stale, deleted: deleted} =
       Store.Project.ConversationIndex.index_status(project)
 
-    UI.spin("Deleting missing conversations from index", fn ->
+    spin(opts, "Deleting missing conversations from index", fn ->
       Enum.each(deleted, &Store.Project.ConversationIndex.delete(project, &1))
       {"Deleted #{Enum.count(deleted)} conversation(s) from the index", :ok}
     end)
@@ -663,23 +696,30 @@ defmodule Cmd.Index do
       UI.warn("No conversations to index")
       :ok
     else
-      UI.spin("Indexing #{count} conversation(s)", fn ->
+      spin(opts, "Indexing #{count} conversation(s)", fn ->
         conversations
-        |> UI.async_stream(&process_conversation(project, &1), "Indexing")
+        |> then(
+          &async_stream(
+            opts,
+            &1,
+            fn convo -> process_conversation(project, convo, opts) end,
+            "Indexing"
+          )
+        )
         |> reduce_phase("conversation(s)")
       end)
     end
   end
 
-  defp process_conversation(project, convo) do
+  defp process_conversation(project, convo, opts) do
     locked_task(
       Store.Project.ConversationIndex.path_for(project, convo.id),
       fn -> Store.Project.ConversationIndex.stale?(project, convo) end,
-      fn -> do_index_conversation(project, convo) end
+      fn -> do_index_conversation(project, convo, opts) end
     )
   end
 
-  defp do_index_conversation(project, convo) do
+  defp do_index_conversation(project, convo, opts) do
     with {:ok, data} <- Store.Project.Conversation.read(convo),
          {:ok, summary} <- summarize_conversation(data.messages),
          {:ok, embeddings} <- Indexer.impl().get_embeddings(summary),
@@ -695,7 +735,7 @@ defmodule Cmd.Index do
                "summary" => summary
              })
            ) do
-      if Services.Globals.get_env(:fnord, :quiet) do
+      if index_quiet?(opts) do
         UI.info("✓ <chat> #{convo.id}")
       end
 
@@ -740,18 +780,18 @@ defmodule Cmd.Index do
 
   defp extract_text_content(_), do: ""
 
-  defp process_entry(entry) do
+  defp process_entry(entry, opts) do
     locked_task(
       entry.store_path,
       fn -> Store.Project.Entry.is_stale?(entry) end,
-      fn -> do_index_entry(entry) end
+      fn -> do_index_entry(entry, opts) end
     )
   end
 
-  defp do_index_entry(entry) do
+  defp do_index_entry(entry, opts) do
     case Indexer.index_entry(entry) do
       {:ok, _entry} ->
-        if Services.Globals.get_env(:fnord, :quiet) do
+        if index_quiet?(opts) do
           UI.info("✓ <file> #{entry.file}")
         end
 
@@ -764,7 +804,7 @@ defmodule Cmd.Index do
       # reappear as "new" on every scan - because there's no honest
       # metadata to record for content the splitter can't process.
       {:error, :binary_file} ->
-        if Services.Globals.get_env(:fnord, :quiet) do
+        if index_quiet?(opts) do
           UI.info("⤳ <file> #{entry.file} (binary, not indexable)")
         end
 
@@ -802,8 +842,9 @@ defmodule Cmd.Index do
     |> File.rm_rf!()
   end
 
-  @spec index_commits(Store.Project.t()) :: :ok | {:partial, non_neg_integer, non_neg_integer}
-  defp index_commits(project) do
+  @spec index_commits(Store.Project.t(), map()) ::
+          :ok | {:partial, non_neg_integer, non_neg_integer}
+  defp index_commits(project, opts) do
     case GitCli.is_git_repo_at?(project.source_root) do
       false ->
         UI.warn("Skipping commit indexing (not a git repository)")
@@ -820,7 +861,7 @@ defmodule Cmd.Index do
             deleted_count = Enum.count(deleted)
 
             if deleted_count > 0 do
-              UI.spin("Deleting missing commits from index", fn ->
+              spin(opts, "Deleting missing commits from index", fn ->
                 Enum.each(deleted, &Store.Project.CommitIndex.delete(project, &1))
                 {"Deleted #{deleted_count} commit(s) from the index", :ok}
               end)
@@ -830,9 +871,16 @@ defmodule Cmd.Index do
             count = Enum.count(commits_to_index)
 
             if count > 0 do
-              UI.spin("Indexing #{count} commit(s)", fn ->
+              spin(opts, "Indexing #{count} commit(s)", fn ->
                 commits_to_index
-                |> UI.async_stream(&index_commit(project, &1), "Indexing")
+                |> then(
+                  &async_stream(
+                    opts,
+                    &1,
+                    fn commit -> index_commit(project, commit, opts) end,
+                    "Indexing"
+                  )
+                )
                 |> reduce_phase("commit(s)")
               end)
             else
@@ -843,16 +891,16 @@ defmodule Cmd.Index do
     end
   end
 
-  @spec index_commit(Store.Project.t(), map()) :: :ok | :error | :skipped
-  defp index_commit(project, commit) do
+  @spec index_commit(Store.Project.t(), map(), map()) :: :ok | :error | :skipped
+  defp index_commit(project, commit, opts) do
     locked_task(
       Store.Project.CommitIndex.path_for(project, commit.sha),
       fn -> Store.Project.CommitIndex.stale?(project, commit) end,
-      fn -> do_index_commit(project, commit) end
+      fn -> do_index_commit(project, commit, opts) end
     )
   end
 
-  defp do_index_commit(project, commit) do
+  defp do_index_commit(project, commit, opts) do
     %{document: document, metadata: metadata} = Store.Project.CommitIndex.build_metadata(commit)
 
     # Foreground commit indexing computes real embeddings for the canonical
@@ -861,7 +909,7 @@ defmodule Cmd.Index do
     with {:ok, embeddings} <- Indexer.impl().get_embeddings(document),
          :ok <-
            Store.Project.CommitIndex.write_embeddings(project, commit.sha, embeddings, metadata) do
-      if Services.Globals.get_env(:fnord, :quiet) do
+      if index_quiet?(opts) do
         UI.info("✓ <commit> #{String.slice(commit.sha, 0, 12)} #{commit.subject}")
       end
 
