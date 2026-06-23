@@ -74,10 +74,14 @@ defmodule AI.Agent.Coordinator.Memory do
   end
 
   defp build_recall_query(state) do
-    intuition = state |> Map.get(:intuition, "") |> String.trim()
-    question = state |> Map.get(:question, "") |> String.trim()
+    intuition = state |> Map.get(:intuition, nil) |> normalize_recall_field()
+    question = state |> Map.get(:question, nil) |> normalize_recall_field()
     Enum.join([intuition, question], "\n")
   end
+
+  @spec normalize_recall_field(binary | nil) :: binary
+  defp normalize_recall_field(nil), do: ""
+  defp normalize_recall_field(value), do: String.trim(value)
 
   # Only search global and project scopes. Session memories from the current
   # conversation are already in context (they were tool call messages), and
