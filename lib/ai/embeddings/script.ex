@@ -74,11 +74,27 @@ defmodule AI.Embeddings.Script do
   File.mkdir_p!(cache_dir)
   System.put_env("BUMBLEBEE_CACHE_DIR", cache_dir)
 
-  Mix.install([
-    {:bumblebee, "~> 0.6"},
-    {:exla, "0.9.2"},
-    {:jason, "~> 1.4"},
-  ])
+  # When fnord exits while Mix.install is still compiling EXLA, it
+  # closes the port (SIGTERM to this process). The BEAM begins
+  # init:stop(), which terminates :standard_io while System.cmd inside
+  # ElixirMake is mid-write. The resulting ErlangError crash trace
+  # spills to the terminal via stderr. Catch it: if the group leader
+  # is dead we're being killed, so halt quietly. If it's alive, the
+  # error is genuine and should surface.
+  try do
+    Mix.install([
+      {:bumblebee, "~> 0.6"},
+      {:exla, "0.9.2"},
+      {:jason, "~> 1.4"},
+    ])
+  rescue
+    e ->
+      if Process.alive?(Process.group_leader()) do
+        reraise e, __STACKTRACE__
+      else
+        System.halt(0)
+      end
+  end
 
   Nx.global_default_backend(EXLA.Backend)
 
