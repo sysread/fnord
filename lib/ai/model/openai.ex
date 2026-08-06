@@ -18,16 +18,16 @@ defmodule AI.Model.OpenAI do
   # Common presets
   # ----------------------------------------------------------------------------
   @spec smarter() :: AI.Model.t()
-  def smarter(), do: gpt55(:medium)
+  def smarter(), do: gpt56_terra(:medium)
 
   @spec smart() :: AI.Model.t()
-  def smart(), do: gpt54(:low)
+  def smart(), do: gpt56_terra(:low)
 
   @spec balanced() :: AI.Model.t()
-  def balanced(), do: gpt54_mini(:medium)
+  def balanced(), do: gpt56_luna(:high)
 
   @spec fast() :: AI.Model.t()
-  def fast(), do: gpt54_mini(:none)
+  def fast(), do: gpt56_luna(:low)
 
   # The Responses API exposes web search as a tool entry
   # (%{type: "web_search"} in the tools array), not as a model variant. The
@@ -36,34 +36,19 @@ defmodule AI.Model.OpenAI do
   # need search must also pass web_search?: true to AI.Completion.get/1 so
   # the tool gets attached.
   @spec web_search() :: AI.Model.t()
-  def web_search(), do: gpt54_nano(:none)
+  def web_search(), do: gpt56_luna(:low)
 
   @spec large_context(:smart | :balanced | :fast) :: AI.Model.t()
-  def large_context(:smart), do: gpt41()
-  def large_context(:balanced), do: gpt41_mini()
-  def large_context(:fast), do: gpt41_nano()
+  def large_context(:smart), do: gpt56_luna(:high)
+  def large_context(:balanced), do: gpt56_luna(:medium)
+  def large_context(:fast), do: gpt56_luna(:low)
 
   # ----------------------------------------------------------------------------
   # API-specific model definitions
   # ----------------------------------------------------------------------------
-  @spec gpt55(atom) :: AI.Model.t()
-  def gpt55(reasoning \\ :medium), do: AI.Model.new("gpt-5.5", 1_050_000, reasoning)
+  @spec gpt56_terra(atom) :: AI.Model.t()
+  def gpt56_terra(reasoning \\ :medium), do: AI.Model.new("gpt-5.6-terra", 1_050_000, reasoning)
 
-  @spec gpt54(atom) :: AI.Model.t()
-  def gpt54(reasoning \\ :medium), do: AI.Model.new("gpt-5.4", 1_050_000, reasoning)
-
-  @spec gpt54_mini(atom) :: AI.Model.t()
-  def gpt54_mini(reasoning \\ :medium), do: AI.Model.new("gpt-5.4-mini", 400_000, reasoning)
-
-  @spec gpt54_nano(atom) :: AI.Model.t()
-  def gpt54_nano(reasoning \\ :medium), do: AI.Model.new("gpt-5.4-nano", 400_000, reasoning)
-
-  @spec gpt41() :: AI.Model.t()
-  def gpt41(), do: AI.Model.new("gpt-4.1", 1_000_000, :none)
-
-  @spec gpt41_mini() :: AI.Model.t()
-  def gpt41_mini(), do: AI.Model.new("gpt-4.1-mini", 1_000_000, :none)
-
-  @spec gpt41_nano() :: AI.Model.t()
-  def gpt41_nano(), do: AI.Model.new("gpt-4.1-nano", 1_000_000, :none)
+  @spec gpt56_luna(atom) :: AI.Model.t()
+  def gpt56_luna(reasoning \\ :medium), do: AI.Model.new("gpt-5.6-luna", 1_050_000, reasoning)
 end
