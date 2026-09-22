@@ -12,6 +12,10 @@
 - [Writing code](#writing-code)
 - [Copyright and License](#copyright-and-license)
 
+## NOTE
+
+`fnord` is no longer under active development. It is still usable, but may not receive updates or support. I encourage you to take a look at `fnord`'s successor, [thatch](https://www.github.com/sysread/thatch), an `opencode` plugin that brings `fnord`'s capabilities to your favorite AI API provider (well, those supported by `opencode` anyway).
+
 ## Description
 
 `fnord` is a command line tool that uses multiple LLM-powered agents and tools to provide a conversational interface to your codebase, notes, and other (non-binary) files.
